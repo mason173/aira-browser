@@ -3,7 +3,6 @@ import { ShortcutSyncDialogsRoot } from '@/features/shortcuts/app/ShortcutSyncDi
 import { LeafTabSyncProvider } from '@/features/sync/app/LeafTabSyncContext';
 import { useLeafTabSyncRuntimeController } from '@/features/sync/bookmarks/useBookmarkWebdavSyncRuntimeController';
 import type { WebdavConfigDialogProps } from '@/components/WebdavConfigDialog';
-import type { LeafTabDangerousSyncDialogState } from '@/features/sync/app/LeafTabSyncContracts';
 
 export type BookmarkWebdavSyncHostProps = {
   leafTabSyncDialogOpen: boolean;
@@ -20,7 +19,6 @@ export type BookmarkWebdavSyncHostProps = {
   setConfirmDisableWebdavSyncOpen: (open: boolean) => void;
   isDragging?: boolean;
   onWebdavConfigDialogPropsChange: (props: WebdavConfigDialogProps) => void;
-  onDangerousSyncDialogStateChange: (state: LeafTabDangerousSyncDialogState | null) => void;
   onDisableWebdavSyncChange: (handler: (() => void) | null) => void;
 };
 
@@ -39,7 +37,6 @@ export const BookmarkWebdavSyncHost = memo(function BookmarkWebdavSyncHost({
   setConfirmDisableWebdavSyncOpen,
   isDragging = false,
   onWebdavConfigDialogPropsChange,
-  onDangerousSyncDialogStateChange,
   onDisableWebdavSyncChange,
 }: BookmarkWebdavSyncHostProps) {
   const controller = useLeafTabSyncRuntimeController({
@@ -105,17 +102,13 @@ export const BookmarkWebdavSyncHost = memo(function BookmarkWebdavSyncHost({
   }, [onWebdavConfigDialogPropsChange, webdavConfigDialogProps]);
 
   useEffect(() => {
-    onDangerousSyncDialogStateChange(controller.state.dangerousSyncDialogState);
-  }, [controller.state.dangerousSyncDialogState, onDangerousSyncDialogStateChange]);
-
-  useEffect(() => {
     onDisableWebdavSyncChange(() => {
       void controller.actions.handleDisableWebdavSync();
     });
     return () => onDisableWebdavSyncChange(null);
   }, [controller.actions, onDisableWebdavSyncChange]);
 
-  if (!leafTabSyncDialogOpen && !controller.state.dangerousSyncDialogState?.open) {
+  if (!leafTabSyncDialogOpen) {
     return null;
   }
 

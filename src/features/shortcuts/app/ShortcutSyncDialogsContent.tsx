@@ -1,9 +1,7 @@
 import { Suspense, lazy, memo, useEffect, useState } from 'react';
-import { LeafTabDangerousSyncDialog } from '@/components/sync/LeafTabDangerousSyncDialog';
 import {
   useLeafTabSyncActionsContext,
   useLeafTabSyncConfigContext,
-  useLeafTabSyncDialogContext,
   useLeafTabSyncStatusContext,
 } from '@/features/sync/app/LeafTabSyncContext';
 
@@ -35,7 +33,6 @@ const ShortcutSyncDialogsContent = memo(function ShortcutSyncDialogsContent({
   setSyncConfigBackTarget,
 }: ShortcutSyncDialogsContentProps) {
   const syncStatusState = useLeafTabSyncStatusContext();
-  const syncDialogState = useLeafTabSyncDialogContext();
   const syncConfigState = useLeafTabSyncConfigContext();
   const syncActions = useLeafTabSyncActionsContext();
   const shouldMountLeafTabSyncDialog = useKeepMountedAfterFirstOpen(leafTabSyncDialogOpen);
@@ -79,44 +76,12 @@ const ShortcutSyncDialogsContent = memo(function ShortcutSyncDialogsContent({
     },
   };
 
-  const dangerousSyncDialogProps = syncDialogState.dangerousSyncDialogState?.open
-    ? {
-        open: syncDialogState.dangerousSyncDialogState.open,
-        onOpenChange: (open: boolean) => {
-          if (!open) {
-            syncActions.closeDangerousSyncDialog();
-          }
-        },
-        provider: syncDialogState.dangerousSyncDialogState.provider,
-        localBookmarkCount: syncDialogState.dangerousSyncDialogState.localBookmarkCount,
-        remoteBookmarkCount: syncDialogState.dangerousSyncDialogState.remoteBookmarkCount,
-        detectedFromCount: syncDialogState.dangerousSyncDialogState.detectedFromCount,
-        detectedToCount: syncDialogState.dangerousSyncDialogState.detectedToCount,
-        busyAction: syncDialogState.dangerousSyncDialogBusyAction,
-        onContinueWithoutBookmarks: () => {
-          void syncActions.handleDangerousSyncDialogContinueWithoutBookmarks();
-        },
-        onDefer: syncActions.handleDangerousSyncDialogDefer,
-        onUseRemote: () => {
-          void syncActions.handleDangerousSyncDialogUseRemote();
-        },
-        onUseLocal: () => {
-          void syncActions.handleDangerousSyncDialogUseLocal();
-        },
-      }
-    : null;
-
   return (
-    <>
-      {shouldMountLeafTabSyncDialog ? (
-        <Suspense fallback={null}>
-          <LazyLeafTabSyncDialog {...leafTabSyncDialogProps} />
-        </Suspense>
-      ) : null}
-      {dangerousSyncDialogProps?.open ? (
-        <LeafTabDangerousSyncDialog {...dangerousSyncDialogProps} />
-      ) : null}
-    </>
+    shouldMountLeafTabSyncDialog ? (
+      <Suspense fallback={null}>
+        <LazyLeafTabSyncDialog {...leafTabSyncDialogProps} />
+      </Suspense>
+    ) : null
   );
 });
 

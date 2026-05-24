@@ -252,7 +252,6 @@ export function useLeafTabSyncEngine(options: UseLeafTabSyncEngineOptions) {
     choice: LeafTabSyncInitialChoice | 'auto' = 'auto',
     progressOptions?: {
       onProgress?: (progress: LeafTabSyncEngineProgress) => void;
-      allowDestructiveBookmarkChanges?: boolean;
     },
   ) => {
     if (!enabled) {
@@ -273,7 +272,6 @@ export function useLeafTabSyncEngine(options: UseLeafTabSyncEngineOptions) {
           choice,
           {
             onProgress: progressOptions?.onProgress,
-            allowDestructiveBookmarkChanges: progressOptions?.allowDestructiveBookmarkChanges,
           },
         );
 

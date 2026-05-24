@@ -1,7 +1,4 @@
 import { Suspense, lazy, memo, useEffect, useState } from 'react';
-import {
-  useLeafTabSyncDialogContext,
-} from '@/features/sync/app/LeafTabSyncContext';
 
 const ShortcutSyncDialogsContent = lazy(() => import('@/features/shortcuts/app/ShortcutSyncDialogsContent'));
 
@@ -28,11 +25,7 @@ export const ShortcutSyncDialogsRoot = memo(function ShortcutSyncDialogsRoot({
   setLeafTabSyncDialogOpen,
   setSyncConfigBackTarget,
 }: ShortcutSyncDialogsRootProps) {
-  const syncDialogState = useLeafTabSyncDialogContext();
-  const shouldMountSyncDialogs = useKeepMountedAfterFirstOpen(
-    leafTabSyncDialogOpen
-      || Boolean(syncDialogState.dangerousSyncDialogState?.open),
-  );
+  const shouldMountSyncDialogs = useKeepMountedAfterFirstOpen(leafTabSyncDialogOpen);
 
   if (!shouldMountSyncDialogs) {
     return null;

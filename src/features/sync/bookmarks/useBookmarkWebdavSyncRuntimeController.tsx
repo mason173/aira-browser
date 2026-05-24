@@ -118,8 +118,6 @@ export function useLeafTabSyncRuntimeController(
   params: LeafTabSyncLiteRuntimeControllerParams,
 ): LeafTabSyncFacade {
   const [localVersion, setLocalVersion] = useState(0);
-  const [dangerousSyncDialogState, setDangerousSyncDialogState] = useState<LeafTabSyncState['dangerousSyncDialogState']>(null);
-  const [dangerousSyncDialogBusyAction, setDangerousSyncDialogBusyAction] = useState<LeafTabSyncState['dangerousSyncDialogBusyAction']>(null);
   const [webdavSyncRunActive, setWebdavSyncRunActive] = useState(false);
   const leafTabSyncDeviceId = useMemo(() => getOrCreateLeafTabSyncDeviceId(), []);
   const leafTabBookmarkSyncScope = useMemo(() => readLeafTabBookmarkSyncScope(), []);
@@ -204,7 +202,6 @@ export function useLeafTabSyncRuntimeController(
     lastResult: leafTabSyncLastResult,
     refreshAnalysis: refreshLeafTabSyncAnalysis,
     runSync: runLeafTabSync,
-    clearSyncError: clearLeafTabSyncErrorState,
     syncState: leafTabSyncState,
     isReady: leafTabSyncReady,
   } = useLeafTabSyncEngine({
@@ -310,7 +307,6 @@ export function useLeafTabSyncRuntimeController(
 
       const result = await runLeafTabSync(options?.mode || 'auto', {
         onProgress: options?.onProgress,
-        allowDestructiveBookmarkChanges: options?.allowDestructiveBookmarkChanges,
       });
       if (result) {
         markWebdavSyncSuccess();
@@ -352,9 +348,7 @@ export function useLeafTabSyncRuntimeController(
     }
     const result = await handleLeafTabSync({
       mode,
-      allowDestructiveBookmarkChanges: true,
       allowConfigPrompt: false,
-      allowDangerousSyncPrompt: false,
       requestBookmarkPermission: true,
       silentSuccess: true,
     });
@@ -387,7 +381,6 @@ export function useLeafTabSyncRuntimeController(
     const result = await handleLeafTabSync({
       silentSuccess: true,
       allowConfigPrompt: false,
-      allowDangerousSyncPrompt: false,
       requestBookmarkPermission: true,
     });
     return Boolean(result);
@@ -415,8 +408,6 @@ export function useLeafTabSyncRuntimeController(
   const state = useMemo<LeafTabSyncState>(() => ({
     leafTabSyncState,
     topNavSyncStatus: leafTabSyncState.status === 'error' ? 'error' : leafTabSyncState.status === 'syncing' ? 'syncing' : 'idle',
-    dangerousSyncDialogState,
-    dangerousSyncDialogBusyAction,
     leafTabSyncAnalysis,
     leafTabSyncHasConfig,
     leafTabSyncReady,
@@ -430,8 +421,6 @@ export function useLeafTabSyncRuntimeController(
     leafTabWebdavNextSyncLabel: formatLiteSyncTimestamp(localStorage.getItem(WEBDAV_STORAGE_KEYS.nextSyncAt)),
     leafTabBookmarkSyncScopeLabel: '书签栏 / 其他书签',
   }), [
-    dangerousSyncDialogBusyAction,
-    dangerousSyncDialogState,
     leafTabSyncAnalysis,
     leafTabSyncHasConfig,
     leafTabSyncLastResult,
@@ -474,40 +463,12 @@ export function useLeafTabSyncRuntimeController(
         requestBookmarkPermission: true,
       });
     },
-    closeDangerousSyncDialog: () => {
-      setDangerousSyncDialogBusyAction(null);
-      setDangerousSyncDialogState(null);
-    },
-    handleDangerousSyncDialogContinueWithoutBookmarks: async () => {
-      setDangerousSyncDialogBusyAction(null);
-      setDangerousSyncDialogState(null);
-      clearLeafTabSyncErrorState();
-    },
-    handleDangerousSyncDialogDefer: () => {
-      setDangerousSyncDialogBusyAction(null);
-      setDangerousSyncDialogState(null);
-      clearLeafTabSyncErrorState();
-    },
-    handleDangerousSyncDialogUseRemote: async () => {
-      setDangerousSyncDialogBusyAction('use-remote');
-      await runWebdavRepair('pull-remote');
-      setDangerousSyncDialogBusyAction(null);
-      setDangerousSyncDialogState(null);
-    },
-    handleDangerousSyncDialogUseLocal: async () => {
-      setDangerousSyncDialogBusyAction('use-local');
-      await runWebdavRepair('push-local');
-      setDangerousSyncDialogBusyAction(null);
-      setDangerousSyncDialogState(null);
-    },
   }), [
-    clearLeafTabSyncErrorState,
     handleLeafTabAutoSync,
     handleLeafTabSync,
     handleOpenWebdavConfig,
     handleOpenWebdavConfigFromSyncCenter,
     params.setLeafTabSyncDialogOpen,
-    runWebdavRepair,
     setWebdavSyncEnabledInStorage,
   ]);
 

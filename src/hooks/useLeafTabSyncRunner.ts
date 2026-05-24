@@ -5,7 +5,6 @@ export type LeafTabSyncRunnerOptionsBase = {
   mode?: LeafTabSyncInitialChoice | 'auto';
   silentSuccess?: boolean;
   requestBookmarkPermission?: boolean;
-  allowDestructiveBookmarkChanges?: boolean;
   showProgressIndicator?: boolean;
   progressTaskId?: string | null;
   progressDetail?: string;
@@ -36,7 +35,6 @@ type ExecuteLeafTabSyncRunParams<TResult, TOptions extends LeafTabSyncRunnerOpti
     mode: LeafTabSyncInitialChoice | 'auto',
     progressOptions?: {
       onProgress?: (progress: LeafTabSyncEngineProgress) => void;
-      allowDestructiveBookmarkChanges?: boolean;
     },
   ) => Promise<TResult | null>;
   refreshAnalysis?: () => Promise<unknown>;
@@ -103,7 +101,6 @@ export async function executeLeafTabSyncRun<TResult, TOptions extends LeafTabSyn
 
     const result = await params.runSync(options.mode || 'auto', {
       onProgress: updateSyncIndicator,
-      allowDestructiveBookmarkChanges: options.allowDestructiveBookmarkChanges,
     });
     if (!result) {
       if (shouldManageProgressIndicator && progressTaskId) {

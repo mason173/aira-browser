@@ -96,15 +96,6 @@ export const writeWebdavStorageStateToStorage = (state: WebdavStorageState, defa
   localStorage.setItem(WEBDAV_STORAGE_KEYS.syncConflictPolicy, state.syncConflictPolicy);
 };
 
-export const applyWebdavDangerousBookmarkChoiceToStorage = (defaultProfileName = "") => {
-  const current = readWebdavStorageStateFromStorage(defaultProfileName);
-  writeWebdavStorageStateToStorage({
-    ...current,
-    syncEnabled: true,
-    syncBookmarksEnabled: true,
-  }, defaultProfileName);
-};
-
 export const enableWebdavBookmarkSyncInStorage = (defaultProfileName = "") => {
   const current = readWebdavStorageStateFromStorage(defaultProfileName);
   writeWebdavStorageStateToStorage({

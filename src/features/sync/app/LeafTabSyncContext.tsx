@@ -3,7 +3,6 @@ import { getStrictContext } from '@/lib/get-strict-context';
 import type {
   LeafTabSyncActions,
   LeafTabSyncConfigState,
-  LeafTabSyncDialogState,
   LeafTabSyncFacade,
   LeafTabSyncMeta,
   LeafTabSyncStatusState,
@@ -12,7 +11,6 @@ import type {
 export type {
   LeafTabSyncActions,
   LeafTabSyncConfigState,
-  LeafTabSyncDialogState,
   LeafTabSyncFacade,
   LeafTabSyncMeta,
   LeafTabSyncStatusState,
@@ -22,8 +20,6 @@ const [LeafTabSyncControllerProvider, useLeafTabSyncContext] =
   getStrictContext<LeafTabSyncFacade>('LeafTabSyncProvider');
 const [LeafTabSyncStatusProvider, useLeafTabSyncStatusContext] =
   getStrictContext<LeafTabSyncStatusState>('LeafTabSyncStatusProvider');
-const [LeafTabSyncDialogProvider, useLeafTabSyncDialogContext] =
-  getStrictContext<LeafTabSyncDialogState>('LeafTabSyncDialogProvider');
 const [LeafTabSyncConfigProvider, useLeafTabSyncConfigContext] =
   getStrictContext<LeafTabSyncConfigState>('LeafTabSyncConfigProvider');
 const [LeafTabSyncActionsProvider, useLeafTabSyncActionsContext] =
@@ -34,7 +30,6 @@ const [LeafTabSyncMetaProvider, useLeafTabSyncMetaContext] =
 export {
   useLeafTabSyncContext,
   useLeafTabSyncStatusContext,
-  useLeafTabSyncDialogContext,
   useLeafTabSyncConfigContext,
   useLeafTabSyncActionsContext,
   useLeafTabSyncMetaContext,
@@ -53,14 +48,6 @@ export function LeafTabSyncProvider({
   }), [
     value.state.leafTabSyncState,
     value.state.topNavSyncStatus,
-  ]);
-
-  const dialogs = useMemo<LeafTabSyncDialogState>(() => ({
-    dangerousSyncDialogState: value.state.dangerousSyncDialogState,
-    dangerousSyncDialogBusyAction: value.state.dangerousSyncDialogBusyAction,
-  }), [
-    value.state.dangerousSyncDialogState,
-    value.state.dangerousSyncDialogBusyAction,
   ]);
 
   const config = useMemo<LeafTabSyncConfigState>(() => ({
@@ -97,15 +84,13 @@ export function LeafTabSyncProvider({
   return (
     <LeafTabSyncControllerProvider value={value}>
       <LeafTabSyncStatusProvider value={status}>
-        <LeafTabSyncDialogProvider value={dialogs}>
-          <LeafTabSyncConfigProvider value={config}>
-            <LeafTabSyncActionsProvider value={actions}>
-              <LeafTabSyncMetaProvider value={meta}>
-                {children}
-              </LeafTabSyncMetaProvider>
-            </LeafTabSyncActionsProvider>
-          </LeafTabSyncConfigProvider>
-        </LeafTabSyncDialogProvider>
+        <LeafTabSyncConfigProvider value={config}>
+          <LeafTabSyncActionsProvider value={actions}>
+            <LeafTabSyncMetaProvider value={meta}>
+              {children}
+            </LeafTabSyncMetaProvider>
+          </LeafTabSyncActionsProvider>
+        </LeafTabSyncConfigProvider>
       </LeafTabSyncStatusProvider>
     </LeafTabSyncControllerProvider>
   );

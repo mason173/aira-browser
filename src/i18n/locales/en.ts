@@ -687,23 +687,6 @@ export default {
         scopeWithLabel: "Shortcuts, {{scope}}"
       }
     },
-	    leaftabDangerousSync: {
-	      title: "Risky Sync Intercepted",
-	      description: "A significant change in bookmark counts was detected. Auto-sync has been paused.",
-	      riskDescription: "Bookmarks are expected to change from {{from}} to {{to}}, potentially removing about {{loss}} items.",
-	      localBookmarks: "Local bookmarks",
-	      remoteBookmarks: "{{provider}} bookmarks",
-	      continueWithoutBookmarks: "Continue syncing shortcuts and settings",
-	      continueWithoutBookmarksHint: "This will not change bookmarks in this run; only shortcuts and settings will be synced.",
-	      deferBookmarks: "Handle bookmarks later",
-	      advancedActions: "Advanced",
-	      useRemotePlain: "Keep {{provider}} bookmarks (local will be replaced)",
-	      useLocalPlain: "Keep local bookmarks ({{provider}} will be replaced)",
-	      toast: {
-	        skipBookmarks: "This run will skip bookmarks and sync shortcuts and settings only.",
-	        webdavBookmarksDisabled: "WebDAV sync is enabled, but “Sync bookmarks” is temporarily turned off."
-	      }
-	    },
     pagination: {
       page: "Page {{page}}"
     },

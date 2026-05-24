@@ -417,23 +417,6 @@ export default {
 	        }
 	      },
 	    },
-	    leaftabDangerousSync: {
-	      title: "已拦截危险同步",
-	      description: "检测到书签数量出现明显异常，已暂停自动同步。",
-	      riskDescription: "预计书签会从 {{from}} 变成 {{to}}，可能误删约 {{loss}} 条。",
-	      localBookmarks: "本地书签",
-	      remoteBookmarks: "{{provider}}书签",
-	      continueWithoutBookmarks: "继续同步快捷方式和设置",
-	      continueWithoutBookmarksHint: "本次不会改动书签，只会同步快捷方式和设置。",
-	      deferBookmarks: "稍后处理书签",
-	      advancedActions: "高级设置",
-	      useRemotePlain: "保留{{provider}}书签（本地将被替换）",
-	      useLocalPlain: "保留本地书签（{{provider}}将被替换）",
-	      toast: {
-	        skipBookmarks: "本次将跳过书签，仅同步快捷方式和设置",
-	        webdavBookmarksDisabled: "已启用 WebDAV 同步，并暂时关闭“同步书签”"
-	      }
-	    },
 	    leaftabSyncCenter: {
       title: "同步中心",
       description: "基于 WebDAV 的同步中心，当前重点支持场景、快捷方式和书签同步。",

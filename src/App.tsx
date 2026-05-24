@@ -86,7 +86,6 @@ import type { SlashCommandDialogTarget } from '@/components/search/searchSlashCo
 import type { WallpaperMode } from '@/wallpaper/types';
 import type { RotatableWallpaperMode, WallpaperRotationInterval } from '@/wallpaper/rotation';
 import type { WebdavConfigDialogProps } from '@/components/WebdavConfigDialog';
-import type { LeafTabDangerousSyncDialogState } from '@/features/sync/app/LeafTabSyncContracts';
 
 type FolderOverlaySnapshotRect = {
   left: number;
@@ -262,7 +261,6 @@ export default function LiteApp() {
   const [confirmDisableWebdavSyncOpen, setConfirmDisableWebdavSyncOpen] = useState(false);
   const [webdavSyncHostMounted, setWebdavSyncHostMounted] = useState(false);
   const [webdavConfigDialogProps, setWebdavConfigDialogProps] = useState<WebdavConfigDialogProps | null>(null);
-  const [dangerousSyncDialogState, setDangerousSyncDialogState] = useState<LeafTabDangerousSyncDialogState | null>(null);
   const disableWebdavSyncRef = useRef<(() => void) | null>(null);
   const [shortcutDeleteOpen, setShortcutDeleteOpen] = useState(false);
   const [shortcutToDelete, setShortcutToDelete] = useState<{ index: number; shortcut: Shortcut; parentFolderId?: string | null } | null>(null);
@@ -1507,7 +1505,7 @@ export default function LiteApp() {
                   onConfirm={handleConfirmDeleteShortcut}
                 />
               ) : null}
-              {webdavSyncHostMounted || Boolean(dangerousSyncDialogState?.open) ? (
+              {webdavSyncHostMounted ? (
                 <LazyBookmarkWebdavSyncHost
                   leafTabSyncDialogOpen={leafTabSyncDialogOpen}
                   webdavDialogOpen={webdavDialogOpen}
@@ -1522,7 +1520,6 @@ export default function LiteApp() {
                   setSettingsOpen={setSettingsOpen}
                   setConfirmDisableWebdavSyncOpen={setConfirmDisableWebdavSyncOpen}
                   onWebdavConfigDialogPropsChange={setWebdavConfigDialogProps}
-                  onDangerousSyncDialogStateChange={setDangerousSyncDialogState}
                   onDisableWebdavSyncChange={(handler) => {
                     disableWebdavSyncRef.current = handler;
                   }}
