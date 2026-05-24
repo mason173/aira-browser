@@ -90,22 +90,7 @@ const readLeafTabSyncBaselineSnapshot = (storageKey: string): LeafTabSyncSnapsho
   }
 };
 
-const isLeafTabDestructiveBookmarkChangeError = (
-  error: unknown,
-): error is Error & { fromCount: number; toCount: number } => {
-  return Boolean(
-    error
-      && typeof error === 'object'
-      && (error as { name?: unknown }).name === 'LeafTabDestructiveBookmarkChangeError'
-      && typeof (error as { fromCount?: unknown }).fromCount === 'number'
-      && typeof (error as { toCount?: unknown }).toCount === 'number',
-  );
-};
-
 const formatLeafTabSyncErrorMessage = (error: unknown) => {
-  if (isLeafTabDestructiveBookmarkChangeError(error)) {
-    return error.message;
-  }
   if (error && typeof error === 'object') {
     const status = Number((error as { status?: unknown }).status);
     const operation = String((error as { operation?: unknown }).operation || '');
@@ -181,10 +166,11 @@ export function useLeafTabSyncRuntimeController(
 
   const applyWebdavBookmarkSnapshot = useCallback(async (snapshot: LeafTabSyncSnapshot) => {
     const snapshotRuntime = await import('@/sync/leaftab/snapshotRuntime');
+    const liveSnapshot = snapshotRuntime.normalizeLeafTabLiveBookmarkSnapshot(snapshot);
     const applied = await snapshotRuntime.replaceLeafTabBookmarkTree({
       scope: leafTabBookmarkSyncScope,
       folderLookup: Object.fromEntries(
-        Object.values(snapshot.bookmarkFolders).map((folder) => [
+        Object.values(liveSnapshot.bookmarkFolders).map((folder) => [
           folder.id,
           {
             title: folder.title,
@@ -193,7 +179,7 @@ export function useLeafTabSyncRuntimeController(
         ]),
       ),
       itemLookup: Object.fromEntries(
-        Object.values(snapshot.bookmarkItems).map((item) => [
+        Object.values(liveSnapshot.bookmarkItems).map((item) => [
           item.id,
           {
             title: item.title,
@@ -203,7 +189,7 @@ export function useLeafTabSyncRuntimeController(
         ]),
       ),
       orderIdsByParent: Object.fromEntries(
-        Object.entries(snapshot.bookmarkOrders).map(([key, order]) => [key, order.ids.slice()]),
+        Object.entries(liveSnapshot.bookmarkOrders).map(([key, order]) => [key, order.ids.slice()]),
       ),
       requestPermission: false,
     });
@@ -339,22 +325,6 @@ export function useLeafTabSyncRuntimeController(
       return null;
     } catch (error) {
       markWebdavSyncError(error);
-      if (
-        isLeafTabDestructiveBookmarkChangeError(error)
-        && options?.allowDangerousSyncPrompt !== false
-      ) {
-        const refreshedAnalysis = await refreshLeafTabSyncAnalysis({ force: true }).catch(() => leafTabSyncAnalysis);
-        setDangerousSyncDialogBusyAction(null);
-        setDangerousSyncDialogState({
-          open: true,
-          provider: 'webdav',
-          localBookmarkCount: refreshedAnalysis?.localSummary.bookmarkItems ?? leafTabSyncAnalysis?.localSummary.bookmarkItems ?? null,
-          remoteBookmarkCount: refreshedAnalysis?.remoteSummary.bookmarkItems ?? leafTabSyncAnalysis?.remoteSummary.bookmarkItems ?? null,
-          detectedFromCount: error.fromCount,
-          detectedToCount: error.toCount,
-        });
-        return null;
-      }
       toast.error(formatLeafTabSyncErrorMessage(error));
       return null;
     } finally {

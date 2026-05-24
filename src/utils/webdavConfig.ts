@@ -17,7 +17,7 @@ export const WEBDAV_STORAGE_KEYS = {
   nextSyncAt: "webdav_next_sync_at",
 } as const;
 
-export const WEBDAV_BOOKMARK_SYNC_ROOT_SUFFIX = "aira-bookmarks/v1";
+export const WEBDAV_BOOKMARK_SYNC_ROOT_SUFFIX = "aira/v1/bookmarks";
 export const WEBDAV_DEFAULT_SYNC_INTERVAL_MINUTES = 10;
 export const WEBDAV_DEFAULT_CONFLICT_POLICY: WebdavConflictPolicy = "merge";
 export const WEBDAV_DEFAULT_SYNC_BOOKMARKS_ENABLED = true;

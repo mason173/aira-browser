@@ -277,6 +277,10 @@ export const mergeLeafTabSyncSnapshot = (
       nextTombstones[tombstone.id] = cloneTombstone(tombstone);
     }
   });
+  Object.values(nextTombstones).forEach((tombstone) => {
+    delete nextBookmarkFolders[tombstone.id];
+    delete nextBookmarkItems[tombstone.id];
+  });
 
   const mergedContentSnapshot: LeafTabSyncSnapshot = {
     meta: {

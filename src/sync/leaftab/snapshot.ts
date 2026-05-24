@@ -335,7 +335,84 @@ export const buildLeafTabSyncSnapshot = (params: {
 export const projectLeafTabSyncSnapshotToBookmarkState = (
   snapshot: LeafTabSyncSnapshot,
 ) => ({
-  bookmarkFolders: snapshot.bookmarkFolders,
-  bookmarkItems: snapshot.bookmarkItems,
-  bookmarkOrders: snapshot.bookmarkOrders,
+  bookmarkFolders: filterLeafTabLiveBookmarkFolders(snapshot),
+  bookmarkItems: filterLeafTabLiveBookmarkItems(snapshot),
+  bookmarkOrders: filterLeafTabLiveBookmarkOrders(snapshot),
 });
+
+const buildDeletedEntityIdSet = (
+  snapshot: LeafTabSyncSnapshot,
+  type: 'bookmark-folder' | 'bookmark-item',
+) => new Set(
+  Object.values(snapshot.tombstones || {})
+    .filter((entry) => entry.type === type)
+    .map((entry) => entry.id),
+);
+
+export const filterLeafTabLiveBookmarkFolders = (
+  snapshot: LeafTabSyncSnapshot,
+) => {
+  const deletedFolderIds = buildDeletedEntityIdSet(snapshot, 'bookmark-folder');
+  return Object.fromEntries(
+    Object.entries(snapshot.bookmarkFolders || {})
+      .filter(([id]) => !deletedFolderIds.has(id)),
+  ) as LeafTabSyncSnapshot['bookmarkFolders'];
+};
+
+export const filterLeafTabLiveBookmarkItems = (
+  snapshot: LeafTabSyncSnapshot,
+) => {
+  const deletedItemIds = buildDeletedEntityIdSet(snapshot, 'bookmark-item');
+  return Object.fromEntries(
+    Object.entries(snapshot.bookmarkItems || {})
+      .filter(([id]) => !deletedItemIds.has(id)),
+  ) as LeafTabSyncSnapshot['bookmarkItems'];
+};
+
+export const filterLeafTabLiveBookmarkOrders = (
+  snapshot: LeafTabSyncSnapshot,
+) => {
+  const liveFolders = filterLeafTabLiveBookmarkFolders(snapshot);
+  const liveItems = filterLeafTabLiveBookmarkItems(snapshot);
+  const liveIds = new Set([
+    ...Object.keys(liveFolders),
+    ...Object.keys(liveItems),
+  ]);
+  return Object.fromEntries(
+    Object.entries(snapshot.bookmarkOrders || {})
+      .filter(([, order]) => order.parentId === null || Boolean(liveFolders[order.parentId]))
+      .map(([key, order]) => [
+        key,
+        {
+          ...order,
+          ids: order.ids.filter((id) => liveIds.has(id)),
+        },
+      ]),
+  ) as LeafTabSyncSnapshot['bookmarkOrders'];
+};
+
+export const normalizeLeafTabLiveBookmarkSnapshot = (
+  snapshot: LeafTabSyncSnapshot,
+): LeafTabSyncSnapshot => ({
+  ...snapshot,
+  bookmarkFolders: filterLeafTabLiveBookmarkFolders(snapshot),
+  bookmarkItems: filterLeafTabLiveBookmarkItems(snapshot),
+  bookmarkOrders: filterLeafTabLiveBookmarkOrders(snapshot),
+});
+
+export const countLeafTabLiveBookmarkEntities = (
+  snapshot: LeafTabSyncSnapshot | null | undefined,
+) => {
+  if (!snapshot) {
+    return {
+      bookmarkFolders: 0,
+      bookmarkItems: 0,
+      tombstones: 0,
+    };
+  }
+  return {
+    bookmarkFolders: Object.keys(filterLeafTabLiveBookmarkFolders(snapshot)).length,
+    bookmarkItems: Object.keys(filterLeafTabLiveBookmarkItems(snapshot)).length,
+    tombstones: Object.keys(snapshot.tombstones || {}).length,
+  };
+};

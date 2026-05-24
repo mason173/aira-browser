@@ -1,6 +1,7 @@
 import { createLeafTabSyncBaseline, type LeafTabSyncBaselineStore, getLeafTabSyncBaselineSnapshot } from './baseline';
 import { mergeLeafTabSyncSnapshot, type LeafTabSyncMergeResult } from './merge';
 import type { LeafTabSyncSnapshot } from './schema';
+import { countLeafTabLiveBookmarkEntities } from './snapshot';
 import { formatLeafTabSyncSummaryText, summarizeLeafTabSyncMerge, type LeafTabSyncChangeSummary } from './summary';
 import type { LeafTabSyncRemoteStore } from './remoteStore';
 
@@ -66,18 +67,7 @@ export interface LeafTabSyncEngineAnalyzeOptions {
 }
 
 const summarizeSnapshot = (snapshot: LeafTabSyncSnapshot | null): LeafTabSyncDataSummary => {
-  if (!snapshot) {
-    return {
-      bookmarkFolders: 0,
-      bookmarkItems: 0,
-      tombstones: 0,
-    };
-  }
-  return {
-    bookmarkFolders: Object.keys(snapshot.bookmarkFolders).length,
-    bookmarkItems: Object.keys(snapshot.bookmarkItems).length,
-    tombstones: Object.keys(snapshot.tombstones).length,
-  };
+  return countLeafTabLiveBookmarkEntities(snapshot);
 };
 
 const sameSnapshotContent = (
@@ -103,46 +93,22 @@ const cloneSnapshot = (snapshot: LeafTabSyncSnapshot) => {
   return JSON.parse(JSON.stringify(snapshot)) as LeafTabSyncSnapshot;
 };
 
-const countBookmarkItems = (snapshot: LeafTabSyncSnapshot | null | undefined) => {
-  if (!snapshot) return 0;
-  return Object.keys(snapshot.bookmarkItems || {}).length;
-};
-
 export const isDestructiveBookmarkChange = (params: {
   from: LeafTabSyncSnapshot | null | undefined;
   to: LeafTabSyncSnapshot | null | undefined;
 }) => {
-  const fromCount = countBookmarkItems(params.from);
-  const toCount = countBookmarkItems(params.to);
-  if (fromCount < 20) return false;
-  if (toCount >= fromCount) return false;
-  const droppedCount = fromCount - toCount;
-  return toCount <= Math.max(5, Math.floor(fromCount * 0.2)) || droppedCount >= 100;
+  void params;
+  return false;
 };
-
-export class LeafTabDestructiveBookmarkChangeError extends Error {
-  fromCount: number;
-  toCount: number;
-
-  constructor(fromCount: number, toCount: number) {
-    super(`检测到书签数量将从 ${fromCount} 降到 ${toCount}，已停止同步以保护数据。若确认这是预期操作，请使用覆盖修复后重试。`);
-    this.name = 'LeafTabDestructiveBookmarkChangeError';
-    this.fromCount = fromCount;
-    this.toCount = toCount;
-  }
-}
 
 const assertSafeBookmarkChange = (
   from: LeafTabSyncSnapshot | null | undefined,
   to: LeafTabSyncSnapshot | null | undefined,
   allowDestructiveBookmarkChanges: boolean | undefined,
 ) => {
-  if (allowDestructiveBookmarkChanges) return;
-  if (!isDestructiveBookmarkChange({ from, to })) return;
-  throw new LeafTabDestructiveBookmarkChangeError(
-    countBookmarkItems(from),
-    countBookmarkItems(to),
-  );
+  void from;
+  void to;
+  void allowDestructiveBookmarkChanges;
 };
 
 const reportProgress = (

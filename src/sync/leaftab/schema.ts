@@ -1,5 +1,5 @@
 export const LEAFTAB_SYNC_SCHEMA_VERSION = 2 as const;
-export const LEAFTAB_SYNC_DEFAULT_ROOT = 'aira-bookmarks/v1';
+export const LEAFTAB_SYNC_DEFAULT_ROOT = 'aira/v1/bookmarks';
 export const LEAFTAB_SYNC_BOOKMARK_FOLDER_PACK_SHARDS = 4;
 export const LEAFTAB_SYNC_BOOKMARK_ITEM_PACK_SHARDS = 16;
 export const LEAFTAB_SYNC_TOMBSTONE_PACK_SHARDS = 8;
