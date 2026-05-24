@@ -1,0 +1,10 @@
+{
+  "appTitle": {
+    "message": "Aira - Focused WebDAV New Tab",
+    "description": "The title of the application"
+  },
+  "appDescription": {
+    "message": "Focused new tab with shortcuts, browser bookmark search, WebDAV bookmark sync, wallpapers, and a clean keyboard-first layout.",
+    "description": "The description of the application"
+  }
+}

@@ -1,0 +1,109 @@
+import { describe, expect, it } from 'vitest';
+import {
+  buildSlashCommandActions,
+  buildSettingsSearchEntries,
+  buildSettingsSuggestionItems,
+} from '@/components/search/searchSlashCommands';
+
+const t = ((key: string, options?: { defaultValue?: string }) => options?.defaultValue ?? key) as never;
+
+function buildEntries() {
+  return buildSettingsSearchEntries({
+    t,
+    searchEngineLabel: 'Google',
+    themeModeLabel: '深色',
+    shortcutIconAppearanceLabel: '彩色',
+    wallpaperModeLabel: '必应',
+    syncProviderLabel: 'WebDAV 书签同步',
+    searchTabSwitchEngine: true,
+    searchPrefixEnabled: true,
+    searchSiteDirectEnabled: true,
+    searchSiteShortcutEnabled: true,
+    searchAnyKeyCaptureEnabled: true,
+    searchCalculatorEnabled: true,
+    searchRotatingPlaceholderEnabled: false,
+    currentWallpaperMode: 'bing',
+    shortcutIconCornerRadiusLabel: '36%',
+    shortcutIconScaleLabel: '112%',
+    shortcutShowTitleEnabled: true,
+    shortcutGridColumnsLabel: '5 列',
+    preventDuplicateNewTab: true,
+    showTime: true,
+    languageLabel: '简体中文',
+  });
+}
+
+describe('buildSettingsSuggestionItems', () => {
+  it('surfaces icon size settings for direct queries', () => {
+    const items = buildSettingsSuggestionItems({
+      entries: buildEntries(),
+      queryKey: '图标大小',
+    });
+
+    expect(items[0]?.label).toBe('图标大小');
+  });
+
+  it('surfaces icon corner radius settings for direct queries', () => {
+    const items = buildSettingsSuggestionItems({
+      entries: buildEntries(),
+      queryKey: '图标圆角',
+    });
+
+    expect(items[0]?.label).toBe('图标圆角');
+  });
+
+  it('tolerates whitespace differences for settings search queries', () => {
+    const items = buildSettingsSuggestionItems({
+      entries: buildEntries(),
+      queryKey: '图标 圆角',
+    });
+
+    expect(items[0]?.label).toBe('图标圆角');
+  });
+
+  it('surfaces wallpaper mode sub-items for targeted wallpaper queries', () => {
+    const entries = buildEntries();
+
+    const colorItems = buildSettingsSuggestionItems({
+      entries,
+      queryKey: '纯色壁纸',
+    });
+    const bingItems = buildSettingsSuggestionItems({
+      entries,
+      queryKey: '必应壁纸',
+    });
+
+    expect(colorItems[0]?.label).toBe('纯色壁纸');
+    expect(bingItems[0]?.label).toBe('必应壁纸');
+  });
+
+  it('keeps empty-state settings focused on top-level entries', () => {
+    const items = buildSettingsSuggestionItems({
+      entries: buildEntries(),
+      queryKey: '',
+    });
+
+    expect(items.some((item) => item.label === 'Aira 设置')).toBe(true);
+    expect(items.some((item) => item.label === '搜索设置')).toBe(true);
+    expect(items.some((item) => item.label === '图标大小')).toBe(false);
+  });
+
+  it('preserves metadata for slash command panel actions', () => {
+    const actions = buildSlashCommandActions({
+      isOpen: true,
+      entries: [
+        {
+          id: 'theme-mode',
+          icon: 'theme-mode',
+          label: '主题模式',
+          keywords: ['theme', '主题'],
+        },
+      ],
+      queryKey: '主题',
+    });
+
+    expect(actions[0]?.sourceId).toBe('commands');
+    expect(actions[0]?.baseRank).toBe(0);
+    expect(actions[0]?.reasons).toContain('slash-command-panel');
+  });
+});

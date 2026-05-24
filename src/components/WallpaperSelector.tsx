@@ -1,0 +1,255 @@
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Switch, SwitchThumb } from '@/components/animate-ui/primitives/radix/switch';
+import { RiImageFill } from '@/icons/ri-compat';
+import { forwardRef, useEffect, useState } from 'react';
+import type React from 'react';
+import { useTranslation } from 'react-i18next';
+import { BackToSettingsButton } from '@/components/BackToSettingsButton';
+import { BingWallpaperPanel } from '@/components/wallpaper/panels/BingWallpaperPanel';
+import { ColorWallpaperPanel } from '@/components/wallpaper/panels/ColorWallpaperPanel';
+import { CustomWallpaperPanel } from '@/components/wallpaper/panels/CustomWallpaperPanel';
+import type { BingWallpaperRefreshResult } from '@/hooks/useWallpaper';
+import type { WallpaperMode } from '@/wallpaper/types';
+import type { RotatableWallpaperMode, WallpaperRotationInterval, WallpaperRotationSettings } from '@/wallpaper/rotation';
+
+const WallpaperDialogTrigger = forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
+  function WallpaperDialogTrigger({ className = '', ...props }, ref) {
+    return (
+      <div
+        ref={ref}
+        className={`bg-white/10 hover:bg-white/20 backdrop-blur-md transform-gpu content-stretch flex items-center justify-center p-[6px] relative rounded-[999px] shrink-0 cursor-pointer transition-colors text-white/90 ${className}`}
+        data-name="Wallpaper"
+        {...props}
+      >
+        <div aria-hidden="true" className="absolute border border-white/10 border-solid inset-0 pointer-events-none rounded-[999px]" />
+        <RiImageFill className="size-5" />
+      </div>
+    );
+  },
+);
+
+interface WallpaperSelectorProps {
+  mode: WallpaperMode;
+  onModeChange: (mode: WallpaperMode) => void;
+  bingWallpaper: string;
+  isBingWallpaperRefreshing?: boolean;
+  onRefreshBingWallpaper?: () => Promise<BingWallpaperRefreshResult> | BingWallpaperRefreshResult;
+  customWallpaper: string | null;
+  customWallpaperGallery: string[];
+  onAppendCustomWallpapers: (wallpapers: string[]) => void | Promise<void>;
+  onCustomWallpaperChange: (url: string) => void;
+  colorWallpaperId: string;
+  onColorWallpaperIdChange: (id: string) => void;
+  wallpaperMaskOpacity: number;
+  effectiveWallpaperMaskOpacity?: number;
+  onWallpaperMaskOpacityChange: (value: number) => void;
+  darkModeAutoDimWallpaperEnabled: boolean;
+  onDarkModeAutoDimWallpaperEnabledChange: (enabled: boolean) => void;
+  wallpaperRotationSettings: WallpaperRotationSettings;
+  onWallpaperRotationIntervalChange: (mode: RotatableWallpaperMode, interval: WallpaperRotationInterval) => void;
+  trigger?: React.ReactNode;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  onBackToSettings?: () => void;
+}
+
+const resolveLiteTab = (mode: WallpaperMode): WallpaperMode =>
+  mode === 'color' || mode === 'custom' ? mode : 'bing';
+
+export default function WallpaperSelector({
+  mode,
+  onModeChange,
+  bingWallpaper,
+  isBingWallpaperRefreshing = false,
+  onRefreshBingWallpaper,
+  customWallpaper,
+  customWallpaperGallery,
+  onAppendCustomWallpapers,
+  onCustomWallpaperChange,
+  colorWallpaperId,
+  onColorWallpaperIdChange,
+  wallpaperMaskOpacity,
+  effectiveWallpaperMaskOpacity,
+  onWallpaperMaskOpacityChange,
+  darkModeAutoDimWallpaperEnabled,
+  onDarkModeAutoDimWallpaperEnabledChange,
+  wallpaperRotationSettings,
+  onWallpaperRotationIntervalChange,
+  trigger,
+  open,
+  onOpenChange,
+  onBackToSettings,
+}: WallpaperSelectorProps) {
+  const { t } = useTranslation();
+  const [isMaskSliderInteracting, setIsMaskSliderInteracting] = useState(false);
+  const [activeTab, setActiveTab] = useState<WallpaperMode>(() => resolveLiteTab(mode));
+  const previewWallpaperMaskOpacity = effectiveWallpaperMaskOpacity ?? wallpaperMaskOpacity;
+  const isMaskSliderIsolation = isMaskSliderInteracting && (mode === 'bing' || mode === 'custom');
+  const isolationFadeClass = 'transition-opacity duration-220 ease-out';
+  const rotationSelectDisabled = activeTab === 'bing';
+  const rotationSelectValue = activeTab === 'color' || activeTab === 'custom'
+    ? wallpaperRotationSettings[activeTab]
+    : 'off';
+
+  useEffect(() => {
+    setActiveTab(resolveLiteTab(mode));
+  }, [mode]);
+
+  useEffect(() => {
+    if (mode !== 'bing' && mode !== 'custom') {
+      setIsMaskSliderInteracting(false);
+    }
+  }, [mode]);
+
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen) {
+      setIsMaskSliderInteracting(false);
+    }
+    onOpenChange?.(nextOpen);
+  };
+
+  const handleTabChange = (nextValue: string) => {
+    const nextMode = resolveLiteTab(nextValue as WallpaperMode);
+    setActiveTab(nextMode);
+
+    if (nextMode === 'custom' && !customWallpaper) {
+      return;
+    }
+
+    onModeChange(nextMode);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogTrigger asChild>
+        {trigger || <WallpaperDialogTrigger />}
+      </DialogTrigger>
+      <DialogContent
+        overlayClassName={`transition-opacity duration-220 ease-out ${isMaskSliderIsolation ? '!opacity-0 !bg-black/0' : ''}`}
+        className={`max-w-[480px] rounded-[32px] overflow-hidden p-0 transition-[background-color,border-color,box-shadow] duration-220 ease-out [&>[data-slot=material-surface-backdrop]]:transition-opacity [&>[data-slot=material-surface-backdrop]]:duration-220 [&>[data-slot=material-surface-backdrop]]:ease-out [&>button]:text-foreground ${
+          isMaskSliderIsolation
+            ? 'bg-transparent border-transparent shadow-none backdrop-blur-none [&>[data-slot=material-surface-backdrop]]:opacity-0 [&>button]:opacity-0 [&>button]:pointer-events-none'
+            : 'bg-popover/95 backdrop-blur-xl border-white/10 shadow-2xl [&>button]:opacity-70 [&>button:hover]:opacity-100'
+        }`}
+      >
+        <div className="flex flex-col h-full">
+          <DialogHeader className={`px-6 pt-6 pb-4 ${isolationFadeClass} ${isMaskSliderIsolation ? 'opacity-0 pointer-events-none select-none' : ''}`}>
+            <div className="flex items-center gap-2">
+              <BackToSettingsButton onClick={onBackToSettings} />
+              <DialogTitle className="text-lg font-semibold tracking-tight text-foreground">{t('wallpaper.mode')}</DialogTitle>
+            </div>
+          </DialogHeader>
+
+          <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full flex-1 flex flex-col">
+            <div className={`px-6 pb-4 ${isolationFadeClass} ${isMaskSliderIsolation ? 'opacity-0 pointer-events-none select-none' : ''}`}>
+              <TabsList className="grid w-full grid-cols-3 rounded-[16px]">
+                <TabsTrigger value="bing" className="rounded-xl truncate text-[13px]" title={t('wallpaper.bing')}>
+                  {t('wallpaper.bing')}
+                </TabsTrigger>
+                <TabsTrigger value="color" className="rounded-xl truncate text-[13px]" title={t('wallpaper.color', { defaultValue: 'Color' })}>
+                  {t('wallpaper.color', { defaultValue: 'Color' })}
+                </TabsTrigger>
+                <TabsTrigger value="custom" className="rounded-xl truncate text-[13px]" title={t('wallpaper.custom')}>
+                  {t('wallpaper.custom')}
+                </TabsTrigger>
+              </TabsList>
+            </div>
+
+            <div className={`px-6 pb-4 ${isolationFadeClass} ${isMaskSliderIsolation ? 'opacity-0 pointer-events-none select-none' : ''}`}>
+              <div className="flex items-center justify-between gap-3 px-1 py-1">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium leading-none">
+                    {t('wallpaper.autoDimInDarkMode', { defaultValue: '深色模式自动调暗壁纸' })}
+                  </p>
+                  <p className="mt-1 text-[11px] text-muted-foreground leading-snug">
+                    {t('wallpaper.autoDimInDarkModeDesc', { defaultValue: '深色模式下自动额外增加黑色遮罩，提升可读性。' })}
+                  </p>
+                </div>
+                <Switch
+                  id="wallpaper-auto-dim-in-dark-mode"
+                  checked={darkModeAutoDimWallpaperEnabled}
+                  onCheckedChange={onDarkModeAutoDimWallpaperEnabledChange}
+                  className="relative flex h-6 w-10 items-center justify-start rounded-full border border-border p-0.5 transition-colors data-[state=checked]:justify-end data-[state=checked]:bg-primary data-[state=unchecked]:bg-input"
+                >
+                  <SwitchThumb className="h-full aspect-square rounded-full" pressedAnimation={{ width: 22 }} />
+                </Switch>
+              </div>
+              <div className="mt-2 flex items-center justify-between gap-3 px-1 py-1">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium leading-none">
+                    {t('wallpaper.autoRotate', { defaultValue: '自动更换壁纸' })}
+                  </p>
+                  <p className="mt-1 text-[11px] text-muted-foreground leading-snug">
+                    {rotationSelectDisabled
+                      ? t('wallpaper.autoRotateUnavailableDesc', { defaultValue: '当前类型会自行更新，暂不支持自动轮换。' })
+                      : t('wallpaper.autoRotateDesc', { defaultValue: '只在当前壁纸类型内按系统时间轮换，不会切换到别的类型。' })}
+                  </p>
+                </div>
+                <Select
+                  value={rotationSelectValue}
+                  onValueChange={(value) => {
+                    if (activeTab === 'color' || activeTab === 'custom') {
+                      onWallpaperRotationIntervalChange(activeTab, value as WallpaperRotationInterval);
+                    }
+                  }}
+                  disabled={rotationSelectDisabled}
+                >
+                  <SelectTrigger className="h-9 w-[132px] border-none text-foreground focus:ring-0 focus:ring-offset-0 disabled:opacity-45">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent portalled={false} className="bg-popover border-border text-popover-foreground">
+                    <SelectItem value="off">{t('wallpaper.rotation.off', { defaultValue: '不更换' })}</SelectItem>
+                    <SelectItem value="hourly">{t('wallpaper.rotation.hourly', { defaultValue: '每小时' })}</SelectItem>
+                    <SelectItem value="six-hours">{t('wallpaper.rotation.sixHours', { defaultValue: '每 6 小时' })}</SelectItem>
+                    <SelectItem value="daily">{t('wallpaper.rotation.daily', { defaultValue: '每天' })}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="px-6 pb-6">
+              <BingWallpaperPanel
+                mode={mode}
+                bingWallpaper={bingWallpaper}
+                isRefreshing={isBingWallpaperRefreshing}
+                onRefresh={onRefreshBingWallpaper}
+                wallpaperMaskOpacity={wallpaperMaskOpacity}
+                wallpaperMaskPreviewOpacity={previewWallpaperMaskOpacity}
+                onWallpaperMaskOpacityChange={onWallpaperMaskOpacityChange}
+                onModeChange={onModeChange}
+                isMaskSliderIsolation={isMaskSliderIsolation}
+                onMaskSliderInteractionStart={() => setIsMaskSliderInteracting(true)}
+                onMaskSliderInteractionEnd={() => setIsMaskSliderInteracting(false)}
+              />
+
+              <ColorWallpaperPanel
+                mode={mode}
+                colorWallpaperId={colorWallpaperId}
+                wallpaperMaskOpacity={previewWallpaperMaskOpacity}
+                onColorWallpaperIdChange={onColorWallpaperIdChange}
+                onModeChange={onModeChange}
+              />
+
+              <CustomWallpaperPanel
+                mode={mode}
+                customWallpaper={customWallpaper}
+                customWallpaperGallery={customWallpaperGallery}
+                wallpaperMaskOpacity={wallpaperMaskOpacity}
+                wallpaperMaskPreviewOpacity={previewWallpaperMaskOpacity}
+                onWallpaperMaskOpacityChange={onWallpaperMaskOpacityChange}
+                onAppendCustomWallpapers={onAppendCustomWallpapers}
+                onCustomWallpaperChange={onCustomWallpaperChange}
+                onModeChange={onModeChange}
+                isMaskSliderIsolation={isMaskSliderIsolation}
+                onMaskSliderInteractionStart={() => setIsMaskSliderInteracting(true)}
+                onMaskSliderInteractionEnd={() => setIsMaskSliderInteracting(false)}
+              />
+            </div>
+          </Tabs>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}

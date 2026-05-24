@@ -1,0 +1,48 @@
+{
+  "type": "leaftab_backup",
+  "version": 3,
+  "timestamp": "2026-05-24T00:00:00.000Z",
+  "data": {
+    "scenarioModes": [
+      {
+        "id": "life-mode-001",
+        "name": "默认",
+        "color": "#3DD6C5",
+        "icon": "leaf"
+      }
+    ],
+    "selectedScenarioId": "life-mode-001",
+    "scenarioShortcuts": {
+      "life-mode-001": [
+        {
+          "id": "starter-github",
+          "title": "GitHub",
+          "url": "https://github.com",
+          "icon": "",
+          "kind": "link"
+        },
+        {
+          "id": "starter-chatgpt",
+          "title": "ChatGPT",
+          "url": "https://chatgpt.com",
+          "icon": "",
+          "kind": "link"
+        },
+        {
+          "id": "starter-youtube",
+          "title": "YouTube",
+          "url": "https://www.youtube.com",
+          "icon": "",
+          "kind": "link"
+        },
+        {
+          "id": "starter-wikipedia",
+          "title": "Wikipedia",
+          "url": "https://www.wikipedia.org",
+          "icon": "",
+          "kind": "link"
+        }
+      ]
+    }
+  }
+}

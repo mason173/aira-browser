@@ -1,0 +1,586 @@
+import { IS_LITE_BUILD } from '@/config/distribution';
+
+type RenderSurface = OffscreenCanvas | HTMLCanvasElement;
+type RenderContext = OffscreenCanvasRenderingContext2D | CanvasRenderingContext2D;
+
+type CachedBlurredWallpaperAsset = {
+  objectUrl: string;
+  cacheKey: string;
+  accessedAt: number;
+  averageLuminance: number;
+};
+
+export type BlurredWallpaperDimensions = {
+  outputWidth: number;
+  outputHeight: number;
+  sampleWidth: number;
+  sampleHeight: number;
+};
+
+export type GenerateBlurredWallpaperAssetParams = {
+  src: string;
+  viewportWidth: number;
+  viewportHeight: number;
+};
+
+const BLURRED_WALLPAPER_MAX_OUTPUT_EDGE_PX = IS_LITE_BUILD ? 960 : 1280;
+const BLURRED_WALLPAPER_OUTPUT_MIN_EDGE_PX = 180;
+const BLURRED_WALLPAPER_SAMPLE_SCALE = 0.4;
+const BLURRED_WALLPAPER_MIN_SAMPLE_EDGE_PX = 128;
+const BLURRED_WALLPAPER_MAX_CACHE_ENTRIES = IS_LITE_BUILD ? 1 : 6;
+const BLURRED_WALLPAPER_CACHE_VERSION = IS_LITE_BUILD ? 'v10-lite' : 'v10';
+const BLURRED_WALLPAPER_FIRST_PASS_FILTER = 'blur(18px) saturate(1.12)';
+const BLURRED_WALLPAPER_SECOND_PASS_FILTER = 'blur(32px) saturate(1.08)';
+const VIDEO_FILE_EXTENSION_PATTERN = /\.(mp4|webm|mov|m4v|ogv)(?:$|[?#])/i;
+const VIDEO_FRAME_SEEK_TIME_SECONDS = 0.12;
+const WALLPAPER_NORMALIZATION_TARGET_OKLAB_L = 0.605;
+const WALLPAPER_NORMALIZATION_TARGET_RANGE = 0.20;
+const WALLPAPER_NORMALIZATION_BLEND = 0.58;
+const WALLPAPER_NORMALIZATION_MIN_OKLAB_L = 0.38;
+const WALLPAPER_NORMALIZATION_MAX_OKLAB_L = 0.81;
+const WALLPAPER_NORMALIZATION_OFFSET_SOFT_CLIP = 0.24;
+
+const blurredWallpaperAssetCache = new Map<string, CachedBlurredWallpaperAsset>();
+const blurredWallpaperPendingCache = new Map<string, Promise<CachedBlurredWallpaperAsset | null>>();
+
+function clampToPositiveInt(value: number, fallback: number) {
+  if (!Number.isFinite(value) || value <= 0) return fallback;
+  return Math.max(1, Math.round(value));
+}
+
+function fitWithinMaxEdge(width: number, height: number, maxEdge: number) {
+  const longestEdge = Math.max(width, height, 1);
+  const scale = Math.min(1, maxEdge / longestEdge);
+  return {
+    width: Math.max(1, Math.round(width * scale)),
+    height: Math.max(1, Math.round(height * scale)),
+  };
+}
+
+export function resolveBlurredWallpaperDimensions(params: {
+  viewportWidth: number;
+  viewportHeight: number;
+}): BlurredWallpaperDimensions {
+  const viewportWidth = clampToPositiveInt(params.viewportWidth, 1280);
+  const viewportHeight = clampToPositiveInt(params.viewportHeight, 720);
+  const outputFitted = fitWithinMaxEdge(
+    viewportWidth,
+    viewportHeight,
+    BLURRED_WALLPAPER_MAX_OUTPUT_EDGE_PX,
+  );
+  const outputWidth = Math.max(BLURRED_WALLPAPER_OUTPUT_MIN_EDGE_PX, outputFitted.width);
+  const outputHeight = Math.max(BLURRED_WALLPAPER_OUTPUT_MIN_EDGE_PX, outputFitted.height);
+  const sampleFitted = fitWithinMaxEdge(
+    Math.max(BLURRED_WALLPAPER_MIN_SAMPLE_EDGE_PX, Math.round(outputWidth * BLURRED_WALLPAPER_SAMPLE_SCALE)),
+    Math.max(BLURRED_WALLPAPER_MIN_SAMPLE_EDGE_PX, Math.round(outputHeight * BLURRED_WALLPAPER_SAMPLE_SCALE)),
+    Math.max(BLURRED_WALLPAPER_MIN_SAMPLE_EDGE_PX, Math.round(BLURRED_WALLPAPER_MAX_OUTPUT_EDGE_PX * BLURRED_WALLPAPER_SAMPLE_SCALE)),
+  );
+
+  return {
+    outputWidth,
+    outputHeight,
+    sampleWidth: sampleFitted.width,
+    sampleHeight: sampleFitted.height,
+  };
+}
+
+export function buildBlurredWallpaperCacheKey(params: {
+  src: string;
+  viewportWidth: number;
+  viewportHeight: number;
+}) {
+  const dimensions = resolveBlurredWallpaperDimensions({
+    viewportWidth: params.viewportWidth,
+    viewportHeight: params.viewportHeight,
+  });
+  return [
+    BLURRED_WALLPAPER_CACHE_VERSION,
+    params.src,
+    dimensions.outputWidth,
+    dimensions.outputHeight,
+  ].join('|');
+}
+
+function createRenderSurface(width: number, height: number): RenderSurface {
+  if (typeof OffscreenCanvas !== 'undefined') {
+    return new OffscreenCanvas(width, height);
+  }
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  return canvas;
+}
+
+function getRenderContext(surface: RenderSurface): RenderContext {
+  const context = surface.getContext('2d', { alpha: false }) as RenderContext | null;
+  if (!context || !('drawImage' in context)) {
+    throw new Error('wallpaper-blur-context-unavailable');
+  }
+  context.imageSmoothingEnabled = true;
+  context.imageSmoothingQuality = 'high';
+  return context;
+}
+
+function releaseObjectUrl(url: string) {
+  try {
+    URL.revokeObjectURL(url);
+  } catch {}
+}
+
+function clamp01(value: number) {
+  if (!Number.isFinite(value)) return 0;
+  return Math.min(1, Math.max(0, value));
+}
+
+function srgbChannelToLinear(channel: number) {
+  const normalized = clamp01(channel / 255);
+  if (normalized <= 0.04045) {
+    return normalized / 12.92;
+  }
+  return ((normalized + 0.055) / 1.055) ** 2.4;
+}
+
+function resolveRelativeLuminance(red: number, green: number, blue: number) {
+  return (
+    (0.2126 * srgbChannelToLinear(red))
+    + (0.7152 * srgbChannelToLinear(green))
+    + (0.0722 * srgbChannelToLinear(blue))
+  );
+}
+
+export function resolveAverageWallpaperLuminance(pixelData: Uint8ClampedArray | Uint8Array) {
+  if (!pixelData.length) return 0;
+
+  let luminanceSum = 0;
+  let sampleCount = 0;
+  for (let index = 0; index <= pixelData.length - 4; index += 4) {
+    luminanceSum += resolveRelativeLuminance(
+      pixelData[index],
+      pixelData[index + 1],
+      pixelData[index + 2],
+    );
+    sampleCount += 1;
+  }
+
+  if (sampleCount === 0) return 0;
+  return clamp01(luminanceSum / sampleCount);
+}
+
+function linearChannelToSrgb(channel: number) {
+  const normalized = clamp01(channel);
+  if (normalized <= 0.0031308) {
+    return normalized * 12.92;
+  }
+  return 1.055 * (normalized ** (1 / 2.4)) - 0.055;
+}
+
+type OklabColor = {
+  l: number;
+  a: number;
+  b: number;
+};
+
+function linearRgbToOklab(red: number, green: number, blue: number): OklabColor {
+  const l = (0.4122214708 * red) + (0.5363325363 * green) + (0.0514459929 * blue);
+  const m = (0.2119034982 * red) + (0.6806995451 * green) + (0.1073969566 * blue);
+  const s = (0.0883024619 * red) + (0.2817188376 * green) + (0.6299787005 * blue);
+
+  const lRoot = Math.cbrt(l);
+  const mRoot = Math.cbrt(m);
+  const sRoot = Math.cbrt(s);
+
+  return {
+    l: (0.2104542553 * lRoot) + (0.793617785 * mRoot) - (0.0040720468 * sRoot),
+    a: (1.9779984951 * lRoot) - (2.428592205 * mRoot) + (0.4505937099 * sRoot),
+    b: (0.0259040371 * lRoot) + (0.7827717662 * mRoot) - (0.808675766 * sRoot),
+  };
+}
+
+function oklabToLinearRgb(color: OklabColor) {
+  const lRoot = color.l + (0.3963377774 * color.a) + (0.2158037573 * color.b);
+  const mRoot = color.l - (0.1055613458 * color.a) - (0.0638541728 * color.b);
+  const sRoot = color.l - (0.0894841775 * color.a) - (1.291485548 * color.b);
+
+  const l = lRoot ** 3;
+  const m = mRoot ** 3;
+  const s = sRoot ** 3;
+
+  return {
+    red: (4.0767416621 * l) - (3.3077115913 * m) + (0.2309699292 * s),
+    green: (-1.2684380046 * l) + (2.6097574011 * m) - (0.3413193965 * s),
+    blue: (-0.0041960863 * l) - (0.7034186147 * m) + (1.707614701 * s),
+  };
+}
+
+function resolvePercentile(sortedValues: Float32Array, percentile: number) {
+  if (!sortedValues.length) return 0;
+  const clampedPercentile = clamp01(percentile);
+  const index = Math.min(
+    sortedValues.length - 1,
+    Math.max(0, Math.round((sortedValues.length - 1) * clampedPercentile)),
+  );
+  return sortedValues[index];
+}
+
+export function normalizeWallpaperLighting(pixelData: Uint8ClampedArray | Uint8Array) {
+  if (!pixelData.length) {
+    return new Uint8ClampedArray(0);
+  }
+
+  const nextPixelData = new Uint8ClampedArray(pixelData);
+  const sampleCount = Math.floor(nextPixelData.length / 4);
+  const lValues = new Float32Array(sampleCount);
+  const aValues = new Float32Array(sampleCount);
+  const bValues = new Float32Array(sampleCount);
+
+  let lSum = 0;
+  for (let sampleIndex = 0; sampleIndex < sampleCount; sampleIndex += 1) {
+    const pixelOffset = sampleIndex * 4;
+    const color = linearRgbToOklab(
+      srgbChannelToLinear(nextPixelData[pixelOffset]),
+      srgbChannelToLinear(nextPixelData[pixelOffset + 1]),
+      srgbChannelToLinear(nextPixelData[pixelOffset + 2]),
+    );
+    lValues[sampleIndex] = color.l;
+    aValues[sampleIndex] = color.a;
+    bValues[sampleIndex] = color.b;
+    lSum += color.l;
+  }
+
+  if (sampleCount === 0) {
+    return nextPixelData;
+  }
+
+  const meanL = lSum / sampleCount;
+  const sortedLValues = Float32Array.from(lValues).sort();
+  const p10 = resolvePercentile(sortedLValues, 0.10);
+  const p90 = resolvePercentile(sortedLValues, 0.90);
+  const currentRange = Math.max(0.08, p90 - p10);
+  const targetMeanL = meanL + ((WALLPAPER_NORMALIZATION_TARGET_OKLAB_L - meanL) * WALLPAPER_NORMALIZATION_BLEND);
+  const targetRange = currentRange + ((WALLPAPER_NORMALIZATION_TARGET_RANGE - currentRange) * WALLPAPER_NORMALIZATION_BLEND);
+  const offsetScale = Math.min(1.28, Math.max(0.72, targetRange / currentRange));
+
+  for (let sampleIndex = 0; sampleIndex < sampleCount; sampleIndex += 1) {
+    const pixelOffset = sampleIndex * 4;
+    const scaledOffset = (lValues[sampleIndex] - meanL) * offsetScale;
+    const softenedOffset = Math.tanh(scaledOffset / WALLPAPER_NORMALIZATION_OFFSET_SOFT_CLIP)
+      * WALLPAPER_NORMALIZATION_OFFSET_SOFT_CLIP;
+    const normalizedL = Math.min(
+      WALLPAPER_NORMALIZATION_MAX_OKLAB_L,
+      Math.max(WALLPAPER_NORMALIZATION_MIN_OKLAB_L, targetMeanL + softenedOffset),
+    );
+    const linearRgb = oklabToLinearRgb({
+      l: normalizedL,
+      a: aValues[sampleIndex],
+      b: bValues[sampleIndex],
+    });
+
+    nextPixelData[pixelOffset] = Math.round(linearChannelToSrgb(linearRgb.red) * 255);
+    nextPixelData[pixelOffset + 1] = Math.round(linearChannelToSrgb(linearRgb.green) * 255);
+    nextPixelData[pixelOffset + 2] = Math.round(linearChannelToSrgb(linearRgb.blue) * 255);
+  }
+
+  return nextPixelData;
+}
+
+function measureSurfaceAverageLuminance(
+  context: RenderContext,
+  width: number,
+  height: number,
+) {
+  try {
+    const imageData = context.getImageData(0, 0, width, height);
+    return resolveAverageWallpaperLuminance(imageData.data);
+  } catch {
+    return null;
+  }
+}
+
+function drawWithBrightnessCompensation(params: {
+  source: RenderSurface;
+  width: number;
+  height: number;
+  targetLuminance: number;
+}) {
+  const { source, width, height, targetLuminance } = params;
+  const sourceContext = getRenderContext(source);
+  const sourceLuminance = measureSurfaceAverageLuminance(sourceContext, width, height);
+  const clampedTargetLuminance = clamp01(targetLuminance);
+
+  if (
+    sourceLuminance === null
+    || sourceLuminance < 0.0001
+    || Math.abs(sourceLuminance - clampedTargetLuminance) < 0.015
+  ) {
+    return source;
+  }
+
+  const brightnessScale = Math.min(
+    1.12,
+    Math.max(0.88, clampedTargetLuminance / sourceLuminance),
+  );
+  if (Math.abs(brightnessScale - 1) < 0.015) {
+    return source;
+  }
+
+  const compensatedSurface = createRenderSurface(width, height);
+  const compensatedContext = getRenderContext(compensatedSurface);
+  if ('filter' in compensatedContext) {
+    compensatedContext.filter = `brightness(${brightnessScale})`;
+  }
+  compensatedContext.drawImage(source as CanvasImageSource, 0, 0, width, height);
+  if ('filter' in compensatedContext) {
+    compensatedContext.filter = 'none';
+  }
+  return compensatedSurface;
+}
+
+function pruneBlurredWallpaperAssetCache(preserveKey?: string) {
+  while (blurredWallpaperAssetCache.size > BLURRED_WALLPAPER_MAX_CACHE_ENTRIES) {
+    const oldestEntry = [...blurredWallpaperAssetCache.entries()]
+      .filter(([cacheKey]) => cacheKey !== preserveKey)
+      .sort((left, right) => left[1].accessedAt - right[1].accessedAt)[0];
+    if (!oldestEntry) {
+      return;
+    }
+    blurredWallpaperAssetCache.delete(oldestEntry[0]);
+    releaseObjectUrl(oldestEntry[1].objectUrl);
+  }
+}
+
+async function loadBitmapFromBlob(blob: Blob, width: number, height: number): Promise<ImageBitmap | HTMLImageElement> {
+  if (typeof createImageBitmap === 'function') {
+    try {
+      return await createImageBitmap(blob, {
+        resizeWidth: width,
+        resizeHeight: height,
+        resizeQuality: 'high',
+      });
+    } catch {}
+  }
+
+  const objectUrl = URL.createObjectURL(blob);
+  try {
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const element = new Image();
+      element.onload = () => resolve(element);
+      element.onerror = () => reject(new Error('wallpaper-blur-image-load-failed'));
+      element.src = objectUrl;
+    });
+    return image;
+  } finally {
+    releaseObjectUrl(objectUrl);
+  }
+}
+
+function isVideoWallpaperSource(src: string, blob: Blob) {
+  return blob.type.startsWith('video/') || VIDEO_FILE_EXTENSION_PATTERN.test(src);
+}
+
+async function waitForMediaEvent(
+  target: HTMLMediaElement,
+  resolveEventName: keyof HTMLMediaElementEventMap,
+  rejectEventNames: Array<keyof HTMLMediaElementEventMap>,
+) {
+  await new Promise<void>((resolve, reject) => {
+    const cleanup = () => {
+      target.removeEventListener(resolveEventName, handleResolve);
+      rejectEventNames.forEach((eventName) => target.removeEventListener(eventName, handleReject));
+    };
+    const handleResolve = () => {
+      cleanup();
+      resolve();
+    };
+    const handleReject = () => {
+      cleanup();
+      reject(new Error(`wallpaper-blur-media-${String(resolveEventName)}-failed`));
+    };
+
+    target.addEventListener(resolveEventName, handleResolve, { once: true });
+    rejectEventNames.forEach((eventName) => target.addEventListener(eventName, handleReject, { once: true }));
+  });
+}
+
+async function loadVideoFrameFromBlob(blob: Blob): Promise<{
+  video: HTMLVideoElement;
+  release: () => void;
+}> {
+  if (typeof document === 'undefined') {
+    throw new Error('wallpaper-blur-video-document-unavailable');
+  }
+
+  const objectUrl = URL.createObjectURL(blob);
+  const video = document.createElement('video');
+  video.muted = true;
+  video.playsInline = true;
+  video.preload = 'auto';
+  video.crossOrigin = 'anonymous';
+
+  try {
+    video.src = objectUrl;
+    video.load();
+    if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+      await waitForMediaEvent(video, 'loadeddata', ['error', 'abort']);
+    }
+
+    const duration = Number.isFinite(video.duration) ? video.duration : 0;
+    const seekTarget = duration > 0
+      ? Math.min(VIDEO_FRAME_SEEK_TIME_SECONDS, Math.max(0, duration * 0.2))
+      : 0;
+
+    if (seekTarget > 0 && Math.abs(video.currentTime - seekTarget) > 0.01) {
+      video.currentTime = seekTarget;
+      await waitForMediaEvent(video, 'seeked', ['error', 'abort']);
+    }
+
+    if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+      await waitForMediaEvent(video, 'loadeddata', ['error', 'abort']);
+    }
+
+    return {
+      video,
+      release: () => {
+        video.pause();
+        video.removeAttribute('src');
+        video.load();
+        releaseObjectUrl(objectUrl);
+      },
+    };
+  } catch (error) {
+    video.removeAttribute('src');
+    video.load();
+    releaseObjectUrl(objectUrl);
+    throw error;
+  }
+}
+
+async function renderSurfaceToObjectUrl(surface: RenderSurface): Promise<string> {
+  if (typeof OffscreenCanvas !== 'undefined' && surface instanceof OffscreenCanvas) {
+    const blob = await surface.convertToBlob({ type: 'image/webp', quality: 0.86 });
+    return URL.createObjectURL(blob);
+  }
+
+  const htmlCanvasSurface = surface as HTMLCanvasElement;
+  const blob = await new Promise<Blob>((resolve, reject) => {
+    htmlCanvasSurface.toBlob((nextBlob: Blob | null) => {
+      if (nextBlob) {
+        resolve(nextBlob);
+        return;
+      }
+      reject(new Error('wallpaper-blur-blob-unavailable'));
+    }, 'image/webp', 0.86);
+  });
+  return URL.createObjectURL(blob);
+}
+
+async function fetchWallpaperBlob(src: string): Promise<Blob> {
+  const response = await fetch(src);
+  if (!response.ok) {
+    throw new Error(`wallpaper-blur-fetch-failed-${response.status}`);
+  }
+  return response.blob();
+}
+
+export async function generateBlurredWallpaperAsset({
+  src,
+  viewportWidth,
+  viewportHeight,
+}: GenerateBlurredWallpaperAssetParams): Promise<CachedBlurredWallpaperAsset | null> {
+  const normalizedSrc = src.trim();
+  if (!normalizedSrc) return null;
+
+  const cacheKey = buildBlurredWallpaperCacheKey({
+    src: normalizedSrc,
+    viewportWidth,
+    viewportHeight,
+  });
+  const cachedAsset = blurredWallpaperAssetCache.get(cacheKey);
+  if (cachedAsset) {
+    cachedAsset.accessedAt = Date.now();
+    return cachedAsset;
+  }
+
+  const pendingAsset = blurredWallpaperPendingCache.get(cacheKey);
+  if (pendingAsset) {
+    return pendingAsset;
+  }
+
+  const generationTask = (async () => {
+    let videoFrame: Awaited<ReturnType<typeof loadVideoFrameFromBlob>> | null = null;
+    let bitmap: ImageBitmap | HTMLImageElement | HTMLVideoElement | null = null;
+    try {
+      const { outputWidth, outputHeight, sampleWidth, sampleHeight } = resolveBlurredWallpaperDimensions({
+        viewportWidth,
+        viewportHeight,
+      });
+      const blob = await fetchWallpaperBlob(normalizedSrc);
+      videoFrame = isVideoWallpaperSource(normalizedSrc, blob)
+        ? await loadVideoFrameFromBlob(blob)
+        : null;
+      bitmap = videoFrame
+        ? videoFrame.video
+        : await loadBitmapFromBlob(blob, sampleWidth, sampleHeight);
+
+      const sampleSurface = createRenderSurface(sampleWidth, sampleHeight);
+      const sampleContext = getRenderContext(sampleSurface);
+      sampleContext.drawImage(bitmap, 0, 0, sampleWidth, sampleHeight);
+      const averageLuminance = measureSurfaceAverageLuminance(sampleContext, sampleWidth, sampleHeight) ?? 0.5;
+
+      const upscaleSurface = createRenderSurface(outputWidth, outputHeight);
+      const upscaleContext = getRenderContext(upscaleSurface);
+      upscaleContext.drawImage(sampleSurface as CanvasImageSource, 0, 0, outputWidth, outputHeight);
+
+      const firstPassSurface = createRenderSurface(outputWidth, outputHeight);
+      const firstPassContext = getRenderContext(firstPassSurface);
+      if ('filter' in firstPassContext) {
+        firstPassContext.filter = BLURRED_WALLPAPER_FIRST_PASS_FILTER;
+      }
+      firstPassContext.drawImage(upscaleSurface as CanvasImageSource, 0, 0, outputWidth, outputHeight);
+      if ('filter' in firstPassContext) {
+        firstPassContext.filter = 'none';
+      }
+
+      const softenedSurface = createRenderSurface(outputWidth, outputHeight);
+      const softenedContext = getRenderContext(softenedSurface);
+      if ('filter' in softenedContext) {
+        softenedContext.filter = BLURRED_WALLPAPER_SECOND_PASS_FILTER;
+      }
+      softenedContext.drawImage(firstPassSurface as CanvasImageSource, 0, 0, outputWidth, outputHeight);
+      if ('filter' in softenedContext) {
+        softenedContext.filter = 'none';
+      }
+      softenedContext.globalAlpha = 0.025;
+      softenedContext.drawImage(upscaleSurface as CanvasImageSource, 0, 0, outputWidth, outputHeight);
+      softenedContext.globalAlpha = 1;
+
+      const compensatedSurface = drawWithBrightnessCompensation({
+        source: softenedSurface,
+        width: outputWidth,
+        height: outputHeight,
+        targetLuminance: averageLuminance,
+      });
+      const objectUrl = await renderSurfaceToObjectUrl(compensatedSurface);
+      const nextAsset: CachedBlurredWallpaperAsset = {
+        objectUrl,
+        cacheKey,
+        accessedAt: Date.now(),
+        averageLuminance,
+      };
+      blurredWallpaperAssetCache.set(cacheKey, nextAsset);
+      pruneBlurredWallpaperAssetCache(cacheKey);
+
+      return nextAsset;
+    } catch {
+      return null;
+    } finally {
+      if (typeof ImageBitmap !== 'undefined' && bitmap instanceof ImageBitmap) {
+        bitmap.close();
+      }
+      videoFrame?.release();
+      blurredWallpaperPendingCache.delete(cacheKey);
+    }
+  })();
+
+  blurredWallpaperPendingCache.set(cacheKey, generationTask);
+  return generationTask;
+}

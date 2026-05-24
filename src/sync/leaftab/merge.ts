@@ -1,0 +1,369 @@
+import type {
+  LeafTabSyncBookmarkFolderEntity,
+  LeafTabSyncBookmarkItemEntity,
+  LeafTabSyncBookmarkOrder,
+  LeafTabSyncEntityType,
+  LeafTabSyncSnapshot,
+  LeafTabSyncTombstone,
+} from './schema';
+
+export type LeafTabSyncMergeSource = 'local' | 'remote' | 'merged' | 'tombstone';
+
+export interface LeafTabSyncMergeConflict {
+  id: string;
+  type: LeafTabSyncEntityType;
+  localRevision: number | null;
+  remoteRevision: number | null;
+}
+
+export interface LeafTabSyncMergeResult {
+  snapshot: LeafTabSyncSnapshot;
+  entitySources: Record<string, LeafTabSyncMergeSource>;
+  orderSources: Record<string, LeafTabSyncMergeSource>;
+  conflicts: LeafTabSyncMergeConflict[];
+}
+
+type BookmarkEntity = LeafTabSyncBookmarkFolderEntity | LeafTabSyncBookmarkItemEntity;
+
+const bookmarkFolderFields: Array<keyof LeafTabSyncBookmarkFolderEntity> = [
+  'parentId',
+  'title',
+];
+
+const bookmarkItemFields: Array<keyof LeafTabSyncBookmarkItemEntity> = [
+  'parentId',
+  'title',
+  'url',
+];
+
+const cloneEntity = <T>(entity: T): T => {
+  return JSON.parse(JSON.stringify(entity)) as T;
+};
+
+const cloneTombstone = (tombstone: LeafTabSyncTombstone) => cloneEntity(tombstone);
+
+const isSameByFields = <T extends BookmarkEntity>(
+  left: T | null | undefined,
+  right: T | null | undefined,
+  fields: Array<keyof T>,
+) => {
+  if (!left || !right) return false;
+  return fields.every((field) => left[field] === right[field]);
+};
+
+const chooseByRevision = <T extends { revision: number; updatedAt: string }>(
+  local: T,
+  remote: T,
+) => {
+  if ((local.revision || 0) > (remote.revision || 0)) return { entity: local, source: 'local' as const };
+  if ((remote.revision || 0) > (local.revision || 0)) return { entity: remote, source: 'remote' as const };
+  const localTime = Date.parse(local.updatedAt || '');
+  const remoteTime = Date.parse(remote.updatedAt || '');
+  if (Number.isFinite(localTime) && Number.isFinite(remoteTime) && localTime !== remoteTime) {
+    return localTime >= remoteTime
+      ? { entity: local, source: 'local' as const }
+      : { entity: remote, source: 'remote' as const };
+  }
+  return { entity: remote, source: 'remote' as const };
+};
+
+const resolveTombstone = (
+  snapshot: LeafTabSyncSnapshot,
+  entity: BookmarkEntity | null | undefined,
+) => {
+  if (!entity) return null;
+  return snapshot.tombstones[entity.id] || null;
+};
+
+const resolveEntity = <T extends BookmarkEntity>(
+  params: {
+    id: string;
+    type: LeafTabSyncEntityType;
+    baseEntity: T | undefined;
+    localEntity: T | undefined;
+    remoteEntity: T | undefined;
+    localTombstone: LeafTabSyncTombstone | null;
+    remoteTombstone: LeafTabSyncTombstone | null;
+    fields: Array<keyof T>;
+  },
+): {
+  entity: T | null;
+  tombstone: LeafTabSyncTombstone | null;
+  source: LeafTabSyncMergeSource;
+  conflict: LeafTabSyncMergeConflict | null;
+} => {
+  const {
+    id,
+    type,
+    baseEntity,
+    localEntity,
+    remoteEntity,
+    localTombstone,
+    remoteTombstone,
+    fields,
+  } = params;
+
+  if (!localEntity && !remoteEntity) {
+    const tombstone = localTombstone || remoteTombstone;
+    return { entity: null, tombstone: tombstone ? cloneTombstone(tombstone) : null, source: 'tombstone', conflict: null };
+  }
+
+  if (localEntity && !remoteEntity) {
+    if (remoteTombstone && (!baseEntity || remoteTombstone.lastKnownRevision >= localEntity.revision)) {
+      return { entity: null, tombstone: cloneTombstone(remoteTombstone), source: 'tombstone', conflict: null };
+    }
+    return { entity: cloneEntity(localEntity), tombstone: null, source: 'local', conflict: null };
+  }
+
+  if (!localEntity && remoteEntity) {
+    if (localTombstone && (!baseEntity || localTombstone.lastKnownRevision >= remoteEntity.revision)) {
+      return { entity: null, tombstone: cloneTombstone(localTombstone), source: 'tombstone', conflict: null };
+    }
+    return { entity: cloneEntity(remoteEntity), tombstone: null, source: 'remote', conflict: null };
+  }
+
+  const safeLocalEntity = localEntity!;
+  const safeRemoteEntity = remoteEntity!;
+
+  if (isSameByFields(safeLocalEntity, safeRemoteEntity, fields)) {
+    const chosen = chooseByRevision(safeLocalEntity, safeRemoteEntity);
+    return { entity: cloneEntity(chosen.entity), tombstone: null, source: chosen.source, conflict: null };
+  }
+
+  const localChanged = !baseEntity || !isSameByFields(baseEntity, safeLocalEntity, fields);
+  const remoteChanged = !baseEntity || !isSameByFields(baseEntity, safeRemoteEntity, fields);
+  const chosen = chooseByRevision(safeLocalEntity, safeRemoteEntity);
+
+  return {
+    entity: cloneEntity(chosen.entity),
+    tombstone: null,
+    source: chosen.source,
+    conflict: localChanged && remoteChanged ? {
+      id,
+      type,
+      localRevision: safeLocalEntity.revision || null,
+      remoteRevision: safeRemoteEntity.revision || null,
+    } : null,
+  };
+};
+
+const areArraysEqual = (left: string[], right: string[]) => (
+  left.length === right.length && left.every((value, index) => value === right[index])
+);
+
+const mergeOrderIds = (
+  base: string[],
+  local: string[],
+  remote: string[],
+  availableIds: Set<string>,
+) => {
+  const result: string[] = [];
+  const add = (id: string) => {
+    if (!availableIds.has(id) || result.includes(id)) return;
+    result.push(id);
+  };
+
+  local.forEach(add);
+  remote.forEach(add);
+  base.forEach(add);
+  Array.from(availableIds).sort().forEach(add);
+  return result;
+};
+
+const resolveOrderMetadata = (
+  base: LeafTabSyncBookmarkOrder | undefined,
+  local: LeafTabSyncBookmarkOrder | undefined,
+  remote: LeafTabSyncBookmarkOrder | undefined,
+  ids: string[],
+  source: LeafTabSyncMergeSource,
+  deviceId: string,
+  generatedAt: string,
+) => {
+  if (source === 'local' && local) return { updatedAt: local.updatedAt, updatedBy: local.updatedBy, revision: local.revision };
+  if (source === 'remote' && remote) return { updatedAt: remote.updatedAt, updatedBy: remote.updatedBy, revision: remote.revision };
+  const revision = Math.max(base?.revision || 0, local?.revision || 0, remote?.revision || 0) + (source === 'merged' ? 1 : 0);
+  return {
+    updatedAt: generatedAt,
+    updatedBy: deviceId,
+    revision: Math.max(1, revision || (ids.length ? 1 : 0)),
+  };
+};
+
+const collectChildrenByParent = (snapshot: LeafTabSyncSnapshot) => {
+  const map = new Map<string, Set<string>>();
+  const add = (parentId: string | null, id: string) => {
+    const key = parentId || '__root__';
+    const current = map.get(key) || new Set<string>();
+    current.add(id);
+    map.set(key, current);
+  };
+  Object.values(snapshot.bookmarkFolders).forEach((folder) => add(folder.parentId, folder.id));
+  Object.values(snapshot.bookmarkItems).forEach((item) => add(item.parentId, item.id));
+  return map;
+};
+
+export const mergeLeafTabSyncSnapshot = (
+  baseSnapshot: LeafTabSyncSnapshot,
+  localSnapshot: LeafTabSyncSnapshot,
+  remoteSnapshot: LeafTabSyncSnapshot,
+  options: {
+    deviceId: string;
+    generatedAt?: string;
+  },
+): LeafTabSyncMergeResult => {
+  const generatedAt = options.generatedAt || new Date().toISOString();
+  const nextBookmarkFolders: Record<string, LeafTabSyncBookmarkFolderEntity> = {};
+  const nextBookmarkItems: Record<string, LeafTabSyncBookmarkItemEntity> = {};
+  const nextTombstones: Record<string, LeafTabSyncTombstone> = {};
+  const entitySources: Record<string, LeafTabSyncMergeSource> = {};
+  const conflicts: LeafTabSyncMergeConflict[] = [];
+
+  const folderIds = new Set([
+    ...Object.keys(baseSnapshot.bookmarkFolders),
+    ...Object.keys(localSnapshot.bookmarkFolders),
+    ...Object.keys(remoteSnapshot.bookmarkFolders),
+  ]);
+  folderIds.forEach((id) => {
+    const result = resolveEntity({
+      id,
+      type: 'bookmark-folder',
+      baseEntity: baseSnapshot.bookmarkFolders[id],
+      localEntity: localSnapshot.bookmarkFolders[id],
+      remoteEntity: remoteSnapshot.bookmarkFolders[id],
+      localTombstone: resolveTombstone(localSnapshot, baseSnapshot.bookmarkFolders[id] || remoteSnapshot.bookmarkFolders[id]),
+      remoteTombstone: resolveTombstone(remoteSnapshot, baseSnapshot.bookmarkFolders[id] || localSnapshot.bookmarkFolders[id]),
+      fields: bookmarkFolderFields,
+    });
+    entitySources[id] = result.source;
+    if (result.entity) nextBookmarkFolders[id] = result.entity;
+    if (result.tombstone) nextTombstones[id] = result.tombstone;
+    if (result.conflict) conflicts.push(result.conflict);
+  });
+
+  const itemIds = new Set([
+    ...Object.keys(baseSnapshot.bookmarkItems),
+    ...Object.keys(localSnapshot.bookmarkItems),
+    ...Object.keys(remoteSnapshot.bookmarkItems),
+  ]);
+  itemIds.forEach((id) => {
+    const result = resolveEntity({
+      id,
+      type: 'bookmark-item',
+      baseEntity: baseSnapshot.bookmarkItems[id],
+      localEntity: localSnapshot.bookmarkItems[id],
+      remoteEntity: remoteSnapshot.bookmarkItems[id],
+      localTombstone: resolveTombstone(localSnapshot, baseSnapshot.bookmarkItems[id] || remoteSnapshot.bookmarkItems[id]),
+      remoteTombstone: resolveTombstone(remoteSnapshot, baseSnapshot.bookmarkItems[id] || localSnapshot.bookmarkItems[id]),
+      fields: bookmarkItemFields,
+    });
+    entitySources[id] = result.source;
+    if (result.entity) nextBookmarkItems[id] = result.entity;
+    if (result.tombstone) nextTombstones[id] = result.tombstone;
+    if (result.conflict) conflicts.push(result.conflict);
+  });
+
+  Object.values(baseSnapshot.tombstones || {}).forEach((tombstone) => {
+    if (!nextBookmarkFolders[tombstone.id] && !nextBookmarkItems[tombstone.id]) {
+      nextTombstones[tombstone.id] = cloneTombstone(tombstone);
+    }
+  });
+  Object.values(localSnapshot.tombstones || {}).forEach((tombstone) => {
+    if (!nextBookmarkFolders[tombstone.id] && !nextBookmarkItems[tombstone.id]) {
+      nextTombstones[tombstone.id] = cloneTombstone(tombstone);
+    }
+  });
+  Object.values(remoteSnapshot.tombstones || {}).forEach((tombstone) => {
+    if (!nextBookmarkFolders[tombstone.id] && !nextBookmarkItems[tombstone.id]) {
+      nextTombstones[tombstone.id] = cloneTombstone(tombstone);
+    }
+  });
+
+  const mergedContentSnapshot: LeafTabSyncSnapshot = {
+    meta: {
+      version: localSnapshot.meta.version,
+      deviceId: options.deviceId,
+      generatedAt,
+    },
+    bookmarkFolders: nextBookmarkFolders,
+    bookmarkItems: nextBookmarkItems,
+    bookmarkOrders: {},
+    tombstones: nextTombstones,
+  };
+  const availableIdsByParent = collectChildrenByParent(mergedContentSnapshot);
+  const orderKeys = new Set([
+    '__root__',
+    ...Object.keys(baseSnapshot.bookmarkOrders),
+    ...Object.keys(localSnapshot.bookmarkOrders),
+    ...Object.keys(remoteSnapshot.bookmarkOrders),
+    ...availableIdsByParent.keys(),
+  ]);
+  const bookmarkOrders: Record<string, LeafTabSyncBookmarkOrder> = {};
+  const orderSources: Record<string, LeafTabSyncMergeSource> = {};
+
+  orderKeys.forEach((orderKey) => {
+    const baseOrder = baseSnapshot.bookmarkOrders[orderKey];
+    const localOrder = localSnapshot.bookmarkOrders[orderKey];
+    const remoteOrder = remoteSnapshot.bookmarkOrders[orderKey];
+    const availableIds = availableIdsByParent.get(orderKey) || new Set<string>();
+    const baseIds = baseOrder?.ids || [];
+    const localIds = localOrder?.ids || [];
+    const remoteIds = remoteOrder?.ids || [];
+    const localChanged = !areArraysEqual(baseIds, localIds);
+    const remoteChanged = !areArraysEqual(baseIds, remoteIds);
+    let source: LeafTabSyncMergeSource;
+    let ids: string[];
+
+    if (localChanged && !remoteChanged) {
+      source = 'local';
+      ids = localIds.filter((id) => availableIds.has(id));
+    } else if (!localChanged && remoteChanged) {
+      source = 'remote';
+      ids = remoteIds.filter((id) => availableIds.has(id));
+    } else if (areArraysEqual(localIds, remoteIds)) {
+      source = localOrder ? 'local' : remoteOrder ? 'remote' : 'merged';
+      ids = localIds.filter((id) => availableIds.has(id));
+    } else {
+      source = 'merged';
+      ids = mergeOrderIds(baseIds, localIds, remoteIds, availableIds);
+    }
+
+    Array.from(availableIds).sort().forEach((id) => {
+      if (!ids.includes(id)) ids.push(id);
+    });
+
+    const metadata = resolveOrderMetadata(
+      baseOrder,
+      localOrder,
+      remoteOrder,
+      ids,
+      source,
+      options.deviceId,
+      generatedAt,
+    );
+
+    bookmarkOrders[orderKey] = {
+      type: 'bookmark-order',
+      parentId: orderKey === '__root__' ? null : orderKey,
+      ids,
+      ...metadata,
+    };
+    orderSources[`bookmark-order:${orderKey}`] = source;
+  });
+
+  return {
+    snapshot: {
+      meta: {
+        version: localSnapshot.meta.version,
+        deviceId: options.deviceId,
+        generatedAt,
+      },
+      bookmarkFolders: nextBookmarkFolders,
+      bookmarkItems: nextBookmarkItems,
+      bookmarkOrders,
+      tombstones: nextTombstones,
+    },
+    entitySources,
+    orderSources,
+    conflicts,
+  };
+};
