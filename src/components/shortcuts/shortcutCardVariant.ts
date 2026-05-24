@@ -16,7 +16,7 @@ export function getShortcutColumns(
 ): number {
   void variant;
   void density;
-  return 9;
+  return 7;
 }
 
 export function getShortcutColumnBounds(

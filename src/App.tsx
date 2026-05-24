@@ -427,15 +427,16 @@ export default function LiteApp() {
       autoDimEnabled: darkModeAutoDimWallpaperEnabled,
     })
   ), [darkModeAutoDimWallpaperEnabled, isDarkTheme, wallpaperMaskOpacity]);
+  const bingWallpaperDisplaySrc = bingWallpaper || defaultWallpaperSrc;
   const freshWallpaperSrc = effectiveWallpaperMode === 'custom'
     ? (customWallpaper || '')
     : effectiveWallpaperMode === 'bing'
-      ? bingWallpaper
+      ? bingWallpaperDisplaySrc
       : defaultWallpaperSrc;
   const fallbackWallpaperBackdropSrc = effectiveWallpaperMode === 'custom'
     ? (customWallpaper || defaultWallpaperSrc)
     : effectiveWallpaperMode === 'bing'
-      ? (bingWallpaper || defaultWallpaperSrc)
+      ? bingWallpaperDisplaySrc
       : defaultWallpaperSrc;
   const displayModeFlags = getDisplayModeLayoutFlags(displayMode);
   const modeLayersVisible = true;
@@ -445,7 +446,7 @@ export default function LiteApp() {
     : effectiveWallpaperMode === 'custom'
       ? (customWallpaper || '')
       : effectiveWallpaperMode === 'bing'
-        ? bingWallpaper
+        ? bingWallpaperDisplaySrc
         : defaultWallpaperSrc;
   const usesImageWallpaperLayer = effectiveWallpaperMode !== 'color';
   const liteOverlayBackgroundImageSrc = useLiteDisplayWallpaperSrc({
