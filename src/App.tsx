@@ -913,13 +913,9 @@ export default function LiteApp() {
     setWebdavDialogOpen(true);
     return true;
   }, []);
-  const handleOpenSlashCommandDialog = useCallback((target: SlashCommandDialogTarget) => {
-    if (target === 'sync-center') {
-      handleOpenWebdavSyncCenter();
-      return;
-    }
+  const handleOpenSlashCommandDialog = useCallback((_target: SlashCommandDialogTarget) => {
     setSettingsOpen(true);
-  }, [handleOpenWebdavSyncCenter, setSettingsOpen]);
+  }, [setSettingsOpen]);
 
   const topNavModeProps = useMemo(() => ({
     fadeOnIdle: true,
@@ -1412,7 +1408,6 @@ export default function LiteApp() {
                   onShowTimeChange={setShowTime}
                   onExportData={handleExportBrowserBookmarks}
                   onOpenImportSourceDialog={handleOpenBookmarkImport}
-                  onOpenSyncCenter={handleOpenWebdavSyncCenter}
                   onOpenWebdavConfig={handleOpenWebdavConfig}
                   wallpaperMode={effectiveWallpaperMode}
                   onWallpaperModeChange={setWallpaperMode}

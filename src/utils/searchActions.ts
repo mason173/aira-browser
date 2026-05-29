@@ -104,7 +104,6 @@ export type SearchActionDisplayIcon =
   | 'shortcut-guide'
   | 'shortcut-icon-settings'
   | 'wallpaper-settings'
-  | 'sync-center'
   | 'about';
 
 export type SearchAction =

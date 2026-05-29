@@ -23,7 +23,6 @@ export type SlashCommandDialogTarget =
   | 'shortcut-guide'
   | 'shortcut-icon-settings'
   | 'wallpaper-settings'
-  | 'sync-center'
   | 'about';
 
 export type SearchInteractionState = {

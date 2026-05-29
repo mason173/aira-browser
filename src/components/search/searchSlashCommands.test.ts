@@ -14,7 +14,6 @@ function buildEntries() {
     themeModeLabel: '深色',
     shortcutIconAppearanceLabel: '彩色',
     wallpaperModeLabel: '必应',
-    syncProviderLabel: 'WebDAV 书签同步',
     searchTabSwitchEngine: true,
     searchPrefixEnabled: true,
     searchSiteDirectEnabled: true,

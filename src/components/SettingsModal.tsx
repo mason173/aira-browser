@@ -14,7 +14,6 @@ import {
   RiFlashlightFill,
   RiInformationFill,
   RiMoonFill,
-  RiRefreshFill,
   RiSunFill,
   RiUpload2Fill,
 } from "@/icons/ri-compat";
@@ -70,7 +69,6 @@ interface SettingsModalProps {
   onColorWallpaperIdChange: (id: string) => void;
   wallpaperMaskOpacity: number;
   onWallpaperMaskOpacityChange: (value: number) => void;
-  onOpenSyncCenter?: () => void;
   onOpenWebdavConfig?: (options?: { enableAfterSave?: boolean; showConnectionFields?: boolean }) => void;
   onWebdavSync?: (config: WebdavConfig) => Promise<void>;
   onWebdavEnable?: () => Promise<void> | void;
@@ -106,7 +104,6 @@ export default function SettingsModal({
   onColorWallpaperIdChange,
   wallpaperMaskOpacity,
   onWallpaperMaskOpacityChange,
-  onOpenSyncCenter,
   onOpenWebdavConfig,
   onWebdavSync,
   onWebdavEnable,
@@ -528,20 +525,6 @@ export default function SettingsModal({
               </span>
             </div>
             <div className="flex gap-2">
-              {onOpenSyncCenter ? (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  className="flex-1 gap-2 rounded-xl"
-                  onClick={() => {
-                    onOpenChange(false);
-                    onOpenSyncCenter();
-                  }}
-                >
-                  <RiRefreshFill className="size-4" />
-                  {t('leaftabSyncDialog.tabs.webdav', { defaultValue: 'WebDAV 同步' })}
-                </Button>
-              ) : null}
               <Button 
                 variant="secondary" 
                 size="sm" 

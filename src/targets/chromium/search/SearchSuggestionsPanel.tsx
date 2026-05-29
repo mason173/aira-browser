@@ -6,7 +6,6 @@ import {
   RiBookOpenFill,
   RiCheckboxCircleFill,
   RiCloseLine,
-  RiCloudFill,
   RiComputerFill,
   RiCornerDownLeftLine,
   RiDashboardFill,
@@ -76,7 +75,6 @@ function resolveSearchActionDisplayIcon(action: SearchAction, secondaryTextClass
   if (action.displayIcon === 'shortcut-guide') return <RiQuestionLine className={`size-3.5 ${secondaryTextClass}`} />;
   if (action.displayIcon === 'shortcut-icon-settings') return <RiPaletteFill className={`size-3.5 ${secondaryTextClass}`} />;
   if (action.displayIcon === 'wallpaper-settings') return <RiImageFill className={`size-3.5 ${secondaryTextClass}`} />;
-  if (action.displayIcon === 'sync-center') return <RiCloudFill className={`size-3.5 ${secondaryTextClass}`} />;
   if (action.displayIcon === 'about') return <RiInformationFill className={`size-3.5 ${secondaryTextClass}`} />;
   return <RiSettings4Fill className={`size-3.5 ${secondaryTextClass}`} />;
 }
@@ -209,7 +207,6 @@ function resolveSuggestionGroupMeta(args: {
     || action.displayIcon === 'shortcut-guide'
     || action.displayIcon === 'shortcut-icon-settings'
     || action.displayIcon === 'wallpaper-settings'
-    || action.displayIcon === 'sync-center'
     || action.displayIcon === 'about'
   ) {
     return {

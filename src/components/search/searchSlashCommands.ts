@@ -17,7 +17,6 @@ export type SlashCommandDialogTarget =
   | 'shortcut-guide'
   | 'shortcut-icon-settings'
   | 'wallpaper-settings'
-  | 'sync-center'
   | 'about';
 
 export type SlashCommandActionId =
@@ -30,7 +29,6 @@ export type SlashCommandActionId =
   | 'shortcut-guide'
   | 'shortcut-icon-settings'
   | 'wallpaper-settings'
-  | 'sync-center'
   | 'about';
 
 export type SlashCommandEntry = {
@@ -47,7 +45,7 @@ type SlashCommandConfig = {
   icon: SearchActionDisplayIcon;
   getLabel: (t: TFunction) => string;
   getKeywords: () => string[];
-  detailKey?: 'searchEngine' | 'themeMode' | 'shortcutIconAppearance' | 'wallpaperMode' | 'syncProvider';
+  detailKey?: 'searchEngine' | 'themeMode' | 'shortcutIconAppearance' | 'wallpaperMode';
   showInSlashPanel?: boolean;
 };
 
@@ -132,15 +130,6 @@ const SLASH_COMMAND_CONFIG: readonly SlashCommandConfig[] = [
     detailKey: 'wallpaperMode',
   },
   {
-    id: 'sync-center',
-    icon: 'sync-center',
-    getLabel: (t) => t('search.slash.syncCenter', {
-      defaultValue: '同步中心',
-    }),
-    getKeywords: () => ['设置', '同步', 'sync'],
-    detailKey: 'syncProvider',
-  },
-  {
     id: 'about',
     icon: 'about',
     getLabel: (t) => t('search.slash.about', {
@@ -157,7 +146,6 @@ const SLASH_COMMAND_SETTINGS_IDS = new Set<SlashCommandActionId>([
   'shortcut-guide',
   'shortcut-icon-settings',
   'wallpaper-settings',
-  'sync-center',
   'about',
 ]);
 
@@ -357,7 +345,6 @@ export function buildSettingsSearchEntries(args: {
   shortcutIconAppearanceLabel: string;
   currentShortcutIconAppearance?: 'colorful' | 'monochrome' | 'accent';
   wallpaperModeLabel: string;
-  syncProviderLabel: string;
   searchTabSwitchEngine: boolean;
   searchPrefixEnabled: boolean;
   searchSiteDirectEnabled: boolean;
@@ -383,7 +370,6 @@ export function buildSettingsSearchEntries(args: {
     shortcutIconAppearanceLabel,
     currentShortcutIconAppearance,
     wallpaperModeLabel,
-    syncProviderLabel,
     searchTabSwitchEngine,
     searchPrefixEnabled,
     searchSiteDirectEnabled,
@@ -444,14 +430,6 @@ export function buildSettingsSearchEntries(args: {
       keywords: ['壁纸', '壁纸设置', 'wallpaper', 'background'],
       emptyVisible: true,
       actionState: currentWallpaperMode,
-    },
-    {
-      id: 'sync-center-entry',
-      actionId: 'sync-center',
-      label: t('search.slash.syncCenter', { defaultValue: '同步中心' }),
-      detail: syncProviderLabel,
-      keywords: ['同步', '同步中心', 'sync', 'cloud', 'webdav'],
-      emptyVisible: true,
     },
     {
       id: 'shortcut-guide-entry',
