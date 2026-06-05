@@ -54,6 +54,13 @@ import { createLeaftabGridEngineHostAdapter } from '@/features/shortcuts/gridEng
 import { getColorWallpaperGradient } from '@/components/wallpaper/colorWallpapers';
 import { DEFAULT_SHORTCUT_CARD_VARIANT, clampShortcutGridColumns } from '@/components/shortcuts/shortcutCardVariant';
 import { getDisplayModeLayoutFlags } from '@/displayMode/config';
+import {
+  LIMESTART_GLOBAL_REVEAL_MASK_COLOR,
+  LIMESTART_GLOBAL_REVEAL_MASK_FADE_MS,
+  LIMESTART_GLOBAL_REVEAL_MASK_HOLD_MS,
+  LIMESTART_GLOBAL_REVEAL_UI_SCALE,
+  REVEAL_EASE_OUT_CUBIC,
+} from '@/config/animationTokens';
 import { useInitialReveal } from '@/hooks/useInitialReveal';
 import { useNewtabBootstrapFocus } from '@/hooks/useNewtabBootstrapFocus';
 import { useResponsiveLayout } from '@/hooks/useResponsiveLayout';
@@ -246,6 +253,8 @@ export default function LiteApp() {
     setShortcutIconScale,
   } = useSettings();
   const responsiveLayout = useResponsiveLayout();
+  const [globalRevealMaskVisible, setGlobalRevealMaskVisible] = useState(true);
+  const [globalRevealMaskFading, setGlobalRevealMaskFading] = useState(false);
   const initialRevealReady = useInitialReveal(false);
   const [manualHomeRevealReady] = useState(true);
   const effectiveInitialRevealReady = initialRevealReady && manualHomeRevealReady;
@@ -281,6 +290,26 @@ export default function LiteApp() {
       window.clearTimeout(cleanupTimer);
     };
   }, []);
+
+  useEffect(() => {
+    if (!effectiveInitialRevealReady) {
+      setGlobalRevealMaskVisible(true);
+      setGlobalRevealMaskFading(false);
+      return;
+    }
+
+    const fadeTimer = window.setTimeout(() => {
+      setGlobalRevealMaskFading(true);
+    }, LIMESTART_GLOBAL_REVEAL_MASK_HOLD_MS);
+    const cleanupTimer = window.setTimeout(() => {
+      setGlobalRevealMaskVisible(false);
+    }, LIMESTART_GLOBAL_REVEAL_MASK_HOLD_MS + LIMESTART_GLOBAL_REVEAL_MASK_FADE_MS);
+
+    return () => {
+      window.clearTimeout(fadeTimer);
+      window.clearTimeout(cleanupTimer);
+    };
+  }, [effectiveInitialRevealReady]);
 
   useNewtabBootstrapFocus(pageFocusRef);
 
@@ -1176,10 +1205,28 @@ export default function LiteApp() {
   ]);
   const shortcutGridBaseProps = shortcutEngineHostAdapter.rootGridProps;
 
-  const globalRevealUiStyle = useMemo<CSSProperties>(() => ({
-    transform: 'scale(1)',
-    transformOrigin: 'center center',
-  }), []);
+  const globalRevealMaskStyle = useMemo<CSSProperties>(() => ({
+    opacity: globalRevealMaskFading ? 0 : 1,
+    backgroundColor: LIMESTART_GLOBAL_REVEAL_MASK_COLOR,
+    transition: `opacity ${LIMESTART_GLOBAL_REVEAL_MASK_FADE_MS}ms linear`,
+    willChange: globalRevealMaskFading ? undefined : 'opacity',
+  }), [globalRevealMaskFading]);
+  const globalRevealUiStyle = useMemo<CSSProperties>(() => {
+    const revealScale = globalRevealMaskVisible && !globalRevealMaskFading
+      ? LIMESTART_GLOBAL_REVEAL_UI_SCALE
+      : 1;
+
+    return {
+      transform: `translate3d(0, 0, 0) scale3d(${revealScale}, ${revealScale}, 1)`,
+      transformOrigin: 'center center',
+      transition: `transform ${LIMESTART_GLOBAL_REVEAL_MASK_FADE_MS}ms ${REVEAL_EASE_OUT_CUBIC}`,
+      willChange: globalRevealMaskVisible ? 'transform' : undefined,
+      backfaceVisibility: 'hidden',
+    };
+  }, [
+    globalRevealMaskFading,
+    globalRevealMaskVisible,
+  ]);
   const wallpaperBackdropValue = useMemo(() => ({
     wallpaperMode: effectiveWallpaperMode,
     colorWallpaperGradient,
@@ -1542,6 +1589,16 @@ export default function LiteApp() {
             </Suspense>
             <FolderTransitionDocumentEffects controller={folderTransitionController} />
           </div>
+          {globalRevealMaskVisible ? (
+            <div
+              aria-hidden="true"
+              className="fixed inset-0 pointer-events-none"
+              style={{
+                ...globalRevealMaskStyle,
+                zIndex: 2147483647,
+              }}
+            />
+          ) : null}
         </WallpaperBackdropProvider>
       </div>
       <Toaster offset={16} />
