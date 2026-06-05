@@ -252,7 +252,7 @@ export default {
           disableConfirmTitle: "Disable WebDAV Sync",
           disableConfirmDesc: "Disable WebDAV sync? Local data will remain on this device.",
           clearLocalLabel: "Clear local data and restore defaults",
-          clearLocalDesc: "Restore local shortcuts to the default starter profile",
+          clearLocalDesc: "Clear local shortcuts and restore an empty default profile",
           urlRequired: "Please enter WebDAV URL first",
           defaultProfileName: "Default Profile",
           configured: "Configured and ready to sync",

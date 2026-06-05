@@ -23,6 +23,14 @@ describe('searchHelpers pinyin candidates', () => {
     expect(getSearchMatchPriority('Theme Mode', 'thememode')).toBeGreaterThan(0);
   });
 
+  it('adds lightweight chinese pinyin initials and full-pinyin candidates', () => {
+    const candidates = buildSearchMatchCandidates('微信读书');
+
+    expect(candidates).toContain('wxds');
+    expect(candidates).toContain('weixindushu');
+    expect(getSearchMatchPriority('知乎', 'zhihu')).toBeGreaterThan(0);
+  });
+
   it('parses engine overrides only from explicit bang prefixes', () => {
     expect(parseSearchEnginePrefix('!g AI')).toEqual({
       query: 'AI',

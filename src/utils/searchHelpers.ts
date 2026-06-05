@@ -1,6 +1,7 @@
 import type { SearchEngine } from '@/types';
 import { getAvailableSearchEngineOrder } from '@/platform/search';
 import { parseSearchCommandById } from '@/utils/searchCommands';
+import { getChinesePinyinInitial } from '@/utils/textInitials';
 
 type SearchEngineOverride = Exclude<SearchEngine, 'system'>;
 
@@ -21,6 +22,21 @@ const SEARCH_ENGINE_PREFIX_MAP: Record<string, SearchEngineOverride> = {
   baidu: 'baidu',
 };
 
+const COMMON_CHINESE_PINYIN_MAP: Record<string, string> = {
+  百: 'bai',
+  度: 'du',
+  常: 'chang',
+  读: 'du',
+  方: 'fang',
+  式: 'shi',
+  合: 'he',
+  知: 'zhi',
+  乎: 'hu',
+  微: 'wei',
+  信: 'xin',
+  书: 'shu',
+};
+
 export function normalizeSearchQuery(rawValue: string): string {
   return rawValue.trim().toLowerCase().replace(/\s+/g, ' ');
 }
@@ -38,6 +54,24 @@ function buildLatinWordInitialsToken(rawValue: string): string {
     .filter(Boolean)
     .map((token) => token[0])
     .join('');
+}
+
+function buildChinesePinyinCandidates(rawValue: string): string[] {
+  let initials = '';
+  let fullPinyin = '';
+  let hasChinesePinyin = false;
+
+  for (const char of rawValue) {
+    const initial = getChinesePinyinInitial(char);
+    if (!initial) continue;
+
+    hasChinesePinyin = true;
+    initials += initial;
+    fullPinyin += COMMON_CHINESE_PINYIN_MAP[char] || initial;
+  }
+
+  if (!hasChinesePinyin) return [];
+  return Array.from(new Set([initials, fullPinyin].filter(Boolean)));
 }
 
 function isSubsequenceMatch(candidate: string, query: string): boolean {
@@ -113,6 +147,7 @@ export function buildSearchMatchCandidates(rawValue: string): string[] {
 
   const latinWordInitials = buildLatinWordInitialsToken(rawValue);
   if (latinWordInitials) candidates.push(latinWordInitials);
+  candidates.push(...buildChinesePinyinCandidates(rawValue));
 
   return Array.from(new Set(candidates));
 }

@@ -2,7 +2,6 @@ import type { SearchSuggestionItem, Shortcut } from '@/types';
 import {
   normalizeSearchQuery,
 } from '@/utils/searchHelpers';
-import { getBuiltinSiteShortcutSuggestions } from '@/utils/siteSearch';
 import {
   buildShortcutUsageKey,
   getSuggestionUsageBoost,
@@ -174,25 +173,8 @@ export function buildBuiltinSiteSuggestionItems(args: {
   searchSiteShortcutEnabled: boolean;
   suggestionUsageMap: SuggestionUsageMap;
 }): SearchSuggestionItem[] {
-  const { searchValue, searchSiteShortcutEnabled, suggestionUsageMap } = args;
-  if (!searchSiteShortcutEnabled) return [];
-  const sites = getBuiltinSiteShortcutSuggestions(searchValue, 8);
-  if (sites.length === 0) return [];
-
-  return sites
-    .map((site, index) => ({
-      item: {
-        type: 'shortcut' as const,
-        shortcutId: undefined,
-        label: site.label,
-        value: site.url,
-        icon: '',
-      },
-      score: (sites.length - index) * 100 + getSuggestionUsageBoost(suggestionUsageMap, buildShortcutUsageKey(site.url)),
-      order: index,
-    }))
-    .sort((a, b) => b.score - a.score || a.order - b.order)
-    .map(({ item }) => item);
+  void args;
+  return [];
 }
 
 export function buildLocalHistorySuggestionItems(

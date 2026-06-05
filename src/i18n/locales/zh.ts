@@ -255,7 +255,7 @@ export default {
           disableConfirmTitle: "关闭 WebDAV 同步",
           disableConfirmDesc: "确定要关闭 WebDAV 同步吗？关闭后仅保留本地数据。",
           clearLocalLabel: "清除本地数据并恢复初始",
-          clearLocalDesc: "将本地快捷方式恢复为默认初始配置",
+          clearLocalDesc: "清空本地快捷方式，并恢复为空的默认配置",
           urlRequired: "请先填写 WebDAV 地址",
           defaultProfileName: "默认配置",
           configured: "已配置，可同步到 WebDAV",

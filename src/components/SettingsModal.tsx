@@ -29,7 +29,6 @@ import {
 } from "@/components/ui/select";
 import { DISPLAY_MODE_OPTIONS, type DisplayMode } from "@/displayMode/config";
 import type { WallpaperMode } from "@/wallpaper/types";
-import aboutIcon from "@/assets/abouticon.svg";
 import {
   ADAPTIVE_NEUTRAL_ACCENT,
   DEFAULT_ACCENT_COLOR,
@@ -41,6 +40,8 @@ import {
   DEFAULT_WALLPAPER_ACCENT_PALETTE,
   resolveWallpaperAccentPalette,
 } from "@/utils/dynamicAccentColor";
+
+const AIRA_LOGO_SRC = '/icons/icon128.png';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -297,7 +298,7 @@ export default function SettingsModal({
             <div className="relative flex flex-col items-center justify-center px-4 py-3 text-center">
               <div className="frosted-control-surface relative flex h-[64px] w-[64px] items-center justify-center rounded-[20px] ring-1 ring-border/60">
                 <img
-                  src={aboutIcon}
+                  src={AIRA_LOGO_SRC}
                   alt=""
                   aria-hidden="true"
                   className="h-[34px] w-[34px]"
@@ -336,7 +337,7 @@ export default function SettingsModal({
             <div className="relative flex flex-col items-center justify-center px-4 pt-1 text-center">
               <div className="frosted-control-surface relative flex h-[48px] w-[48px] items-center justify-center rounded-[16px] ring-1 ring-border/60">
                 <img
-                  src={aboutIcon}
+                  src={AIRA_LOGO_SRC}
                   alt=""
                   aria-hidden="true"
                   className="h-[26px] w-[26px]"

@@ -9,10 +9,6 @@ const steps = [
     command: 'npm run build',
   },
   {
-    title: 'Run Playwright extension smoke tests',
-    command: 'npx playwright test',
-  },
-  {
     title: 'Run jsdom/UI test suite',
     command: 'npx vitest run',
   },

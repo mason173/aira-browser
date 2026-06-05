@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Shortcut } from '@/types';
 import {
+  buildBuiltinSiteSuggestionItems,
   buildShortcutSuggestionItems,
   prepareShortcutSearchIndex,
 } from '@/utils/searchSuggestionSources';
@@ -143,5 +144,15 @@ describe('searchSuggestionSources shortcut search', () => {
         },
       }).map((item) => item.label),
     ).toEqual(['GitHub', 'Notion', 'Figma']);
+  });
+
+  it('does not surface built-in site shortcuts', () => {
+    expect(
+      buildBuiltinSiteSuggestionItems({
+        searchValue: 'github',
+        searchSiteShortcutEnabled: true,
+        suggestionUsageMap: {},
+      }),
+    ).toEqual([]);
   });
 });

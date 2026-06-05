@@ -13,57 +13,7 @@
     ],
     "selectedScenarioId": "life-mode-001",
     "scenarioShortcuts": {
-      "life-mode-001": [
-        {
-          "id": "starter-github",
-          "title": "GitHub",
-          "url": "https://github.com",
-          "icon": "",
-          "kind": "link"
-        },
-        {
-          "id": "starter-chatgpt",
-          "title": "ChatGPT",
-          "url": "https://chatgpt.com",
-          "icon": "",
-          "kind": "link"
-        },
-        {
-          "id": "starter-youtube",
-          "title": "YouTube",
-          "url": "https://www.youtube.com",
-          "icon": "",
-          "kind": "link"
-        },
-        {
-          "id": "starter-wikipedia",
-          "title": "Wikipedia",
-          "url": "https://www.wikipedia.org",
-          "icon": "",
-          "kind": "link"
-        },
-        {
-          "id": "starter-notion",
-          "title": "Notion",
-          "url": "https://www.notion.so",
-          "icon": "",
-          "kind": "link"
-        },
-        {
-          "id": "starter-figma",
-          "title": "Figma",
-          "url": "https://www.figma.com",
-          "icon": "",
-          "kind": "link"
-        },
-        {
-          "id": "starter-mdn",
-          "title": "MDN",
-          "url": "https://developer.mozilla.org",
-          "icon": "",
-          "kind": "link"
-        }
-      ]
+      "life-mode-001": []
     }
   }
 }
