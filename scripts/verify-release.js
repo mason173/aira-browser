@@ -37,6 +37,14 @@ function verifyZip({ zipPath, expectedEdition, expectedVersion, expectedVersionN
   const actualVersion = String(manifest.version || '');
   const actualVersionName = String(manifest.version_name || '');
 
+  if (Object.prototype.hasOwnProperty.call(manifest, 'key')) {
+    throw new Error(
+      [
+        `Chrome Web Store package must not include manifest.key in ${path.basename(zipPath)}.`,
+        'Remove the key field before packing the release zip.',
+      ].join(' ')
+    );
+  }
   if (actualEdition !== expectedEdition) {
     throw new Error(
       [

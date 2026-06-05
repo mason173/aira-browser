@@ -18,15 +18,12 @@
   "permissions": [
     "search",
     "permissions",
-    "activeTab",
     "bookmarks",
     "history",
     "sessions",
-    "scripting",
-    "tabs",
-    "identity"
+    "tabs"
   ],
-  "host_permissions": [
+  "optional_host_permissions": [
     "https://*/*",
     "http://*/*"
   ],

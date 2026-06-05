@@ -87,6 +87,7 @@ import {
 import { recordRecentShortcutAddition } from '@/utils/recentShortcutAdditions';
 import { applyDynamicAccentColor, resolveAccentColorSelection } from '@/utils/dynamicAccentColor';
 import { DEFAULT_ACCENT_COLOR } from '@/utils/accentColor';
+import { hasWebdavUrlConfiguredFromStorage, isWebdavSyncEnabledFromStorage } from '@/utils/webdavConfig';
 import type { Shortcut, ShortcutDraft, ShortcutFolderDisplayMode, ShortcutIconAppearance } from '@/types';
 import type { SlashCommandDialogTarget } from '@/components/search/searchSlashCommands';
 import type { WallpaperMode } from '@/wallpaper/types';
@@ -266,7 +267,9 @@ export default function LiteApp() {
   const [webdavShowConnectionFields, setWebdavShowConnectionFields] = useState(false);
   const [syncConfigBackTarget, setSyncConfigBackTarget] = useState<'settings' | 'sync-center'>('settings');
   const [confirmDisableWebdavSyncOpen, setConfirmDisableWebdavSyncOpen] = useState(false);
-  const [webdavSyncHostMounted, setWebdavSyncHostMounted] = useState(false);
+  const [webdavSyncHostMounted, setWebdavSyncHostMounted] = useState(() => (
+    isWebdavSyncEnabledFromStorage() && hasWebdavUrlConfiguredFromStorage()
+  ));
   const [webdavConfigDialogProps, setWebdavConfigDialogProps] = useState<WebdavConfigDialogProps | null>(null);
   const disableWebdavSyncRef = useRef<(() => void) | null>(null);
   const [shortcutDeleteOpen, setShortcutDeleteOpen] = useState(false);
@@ -924,6 +927,18 @@ export default function LiteApp() {
     setWebdavShowConnectionFields(Boolean(options?.showConnectionFields ?? shouldEnableAfterSave));
     setWebdavDialogOpen(true);
     return true;
+  }, []);
+  useEffect(() => {
+    const handleWebdavConfigChanged = () => {
+      if (isWebdavSyncEnabledFromStorage() && hasWebdavUrlConfiguredFromStorage()) {
+        setWebdavSyncHostMounted(true);
+      }
+    };
+    handleWebdavConfigChanged();
+    window.addEventListener('webdav-config-changed', handleWebdavConfigChanged);
+    return () => {
+      window.removeEventListener('webdav-config-changed', handleWebdavConfigChanged);
+    };
   }, []);
   const handleOpenSlashCommandDialog = useCallback((_target: SlashCommandDialogTarget) => {
     setSettingsOpen(true);

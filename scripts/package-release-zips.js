@@ -14,6 +14,7 @@ const version = String(pkg.version || '0.0.0');
 const buildDir = path.join(root, 'build');
 
 const verifyScript = path.join(root, 'scripts', 'verify-release.js');
+const packWorkDir = path.join(root, '.tmp-release-pack');
 
 function assertBuild(dir, label) {
   const manifestPath = path.join(dir, 'manifest.json');
@@ -40,6 +41,18 @@ function packZip(cwd, outFile) {
   execSync(`zip -qr "${outFile}" .`, { cwd, stdio: 'inherit' });
 }
 
+function copyDir(source, target) {
+  if (fs.existsSync(target)) fs.rmSync(target, { recursive: true, force: true });
+  fs.cpSync(source, target, { recursive: true });
+}
+
+function removeStoreForbiddenManifestFields(dir) {
+  const manifestPath = path.join(dir, 'manifest.json');
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+  delete manifest.key;
+  fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+}
+
 assertBuild(buildDir, 'Chrome/Edge');
 
 const builtEdition = detectReleaseEditionFromBuild(buildDir);
@@ -53,7 +66,10 @@ const packageLabel = RELEASE_EDITION;
 const chromeZip = path.join(root, `airatab-${packageLabel}-chrome-edge-v${version}.zip`);
 
 console.log('[pack] Creating release zip files...');
-packZip(buildDir, chromeZip);
+copyDir(buildDir, packWorkDir);
+removeStoreForbiddenManifestFields(packWorkDir);
+packZip(packWorkDir, chromeZip);
+fs.rmSync(packWorkDir, { recursive: true, force: true });
 console.log('[pack] Verifying release zip...');
 execSync(`node "${verifyScript}" "${chromeZip}"`, { cwd: root, stdio: 'inherit' });
 console.log(`[pack] Done:
