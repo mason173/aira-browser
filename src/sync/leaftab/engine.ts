@@ -164,6 +164,109 @@ export class LeafTabSyncEngine {
     const localMatchesBaseline = sameSnapshotContent(localSnapshot, baseSnapshot);
     const remoteMatchesBaseline = sameSnapshotContent(remoteSnapshot, baseSnapshot);
 
+    if (mode === 'auto' && !hasBaseline) {
+      if (remoteState.snapshot) {
+        if (!sameSnapshotContent(localSnapshot, remoteSnapshot)) {
+          reportProgress(runOptions?.onProgress, {
+            stage: 'applying-local',
+            progress: 62,
+            message: '正在用 WebDAV 建立本机同步基线',
+          });
+          await this.config.applyLocalSnapshot(remoteSnapshot);
+        }
+        reportProgress(runOptions?.onProgress, {
+          stage: 'finalizing',
+          progress: 92,
+          message: '正在收尾同步结果',
+        });
+        await this.config.baselineStore.save(createLeafTabSyncBaseline({
+          snapshot: remoteSnapshot,
+          commitId: remoteState.commit?.id || null,
+          rootPath: this.config.rootPath,
+        }));
+        reportProgress(runOptions?.onProgress, {
+          stage: 'completed',
+          progress: 100,
+          message: '同步完成',
+        });
+        return {
+          kind: sameSnapshotContent(localSnapshot, remoteSnapshot) ? 'noop' : 'pull',
+          remoteCommitId: remoteState.commit?.id || null,
+          snapshot: remoteSnapshot,
+          summaryText: '尚未建立基线，已优先使用 WebDAV 远端快照',
+        };
+      }
+
+      reportProgress(runOptions?.onProgress, {
+        stage: 'acquiring-lock',
+        progress: 34,
+        message: '正在锁定云端目录',
+      });
+      await this.config.remoteStore.acquireLock(this.config.deviceId);
+      try {
+        reportProgress(runOptions?.onProgress, {
+          stage: 'rechecking-remote',
+          progress: 52,
+          message: '正在重新确认云端最新状态',
+        });
+        const latestRemote = await this.config.remoteStore.readState();
+        if (latestRemote.snapshot) {
+          reportProgress(runOptions?.onProgress, {
+            stage: 'applying-local',
+            progress: 70,
+            message: '正在用 WebDAV 建立本机同步基线',
+          });
+          await this.config.applyLocalSnapshot(latestRemote.snapshot);
+          await this.config.baselineStore.save(createLeafTabSyncBaseline({
+            snapshot: latestRemote.snapshot,
+            commitId: latestRemote.commit?.id || null,
+            rootPath: this.config.rootPath,
+          }));
+          reportProgress(runOptions?.onProgress, {
+            stage: 'completed',
+            progress: 100,
+            message: '同步完成',
+          });
+          return {
+            kind: 'pull',
+            remoteCommitId: latestRemote.commit?.id || null,
+            snapshot: latestRemote.snapshot,
+            summaryText: '尚未建立基线，已优先使用 WebDAV 远端快照',
+          };
+        }
+
+        reportProgress(runOptions?.onProgress, {
+          stage: 'uploading-remote',
+          progress: 72,
+          message: '正在写入云端数据',
+        });
+        const writeResult = await this.config.remoteStore.writeState({
+          snapshot: localSnapshot,
+          previousSnapshot: null,
+          deviceId: this.config.deviceId,
+          parentCommitId: null,
+        });
+        await this.config.baselineStore.save(createLeafTabSyncBaseline({
+          snapshot: localSnapshot,
+          commitId: writeResult.commit.id,
+          rootPath: this.config.rootPath,
+        }));
+        reportProgress(runOptions?.onProgress, {
+          stage: 'completed',
+          progress: 100,
+          message: '同步完成',
+        });
+        return {
+          kind: 'push',
+          remoteCommitId: writeResult.commit.id,
+          snapshot: localSnapshot,
+          summaryText: '远端为空，已用本地快照建立首次同步状态',
+        };
+      } finally {
+        await this.config.remoteStore.releaseLock();
+      }
+    }
+
     if (mode === 'auto' && hasBaseline && localMatchesBaseline && remoteMatchesBaseline) {
       reportProgress(runOptions?.onProgress, {
         stage: 'finalizing',

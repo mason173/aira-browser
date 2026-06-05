@@ -54,6 +54,8 @@ interface LeafTabBookmarkDraftCacheEntry {
 type BookmarkApi = typeof chrome.bookmarks;
 type BookmarkTreeNode = chrome.bookmarks.BookmarkTreeNode;
 type BookmarkCreateArg = chrome.bookmarks.CreateDetails;
+type BookmarkUpdateArg = chrome.bookmarks.UpdateChanges;
+type BookmarkMoveArg = chrome.bookmarks.MoveDestination;
 
 const ROOT_FOLDER_ID_MAP: Record<string, LeafTabBookmarkSyncScopeRole | 'unknown'> = {
   '1': 'toolbar',
@@ -69,8 +71,8 @@ const ROOT_FOLDER_TITLE_PATTERNS: Array<{
   pattern: RegExp;
   role: LeafTabBookmarkSyncScopeRole | 'unknown';
 }> = [
-  { pattern: /toolbar|bookmarks bar|bookmarks toolbar|lesezeichen-symbolleiste/i, role: 'toolbar' },
-  { pattern: /bookmarks menu|menu|other|weitere|sonstige/i, role: 'other' },
+  { pattern: /toolbar|bookmarks bar|bookmarks toolbar|favorites bar|书签栏|收藏夹栏|lesezeichen-symbolleiste/i, role: 'toolbar' },
+  { pattern: /bookmarks menu|menu|other|其他书签|其他收藏夹|weitere|sonstige/i, role: 'other' },
   { pattern: /mobile|mobil/i, role: 'mobile' },
 ];
 
@@ -163,6 +165,18 @@ const getBookmarkTree = () => {
 const createBookmarkNode = (details: BookmarkCreateArg) => {
   return callBookmarksApi<BookmarkTreeNode>((api, resolve) => {
     api.create(details, (node) => resolve(node));
+  });
+};
+
+const updateBookmarkNode = (id: string, changes: BookmarkUpdateArg) => {
+  return callBookmarksApi<BookmarkTreeNode>((api, resolve) => {
+    api.update(id, changes, (node) => resolve(node));
+  });
+};
+
+const moveBookmarkNode = (id: string, destination: BookmarkMoveArg) => {
+  return callBookmarksApi<BookmarkTreeNode>((api, resolve) => {
+    api.move(id, destination, (node) => resolve(node));
   });
 };
 
@@ -302,14 +316,26 @@ const resolveSyncRoleRoots = async () => {
   const tree = await getBookmarkTree();
   const topLevelFolders = tree[0]?.children || [];
   const roleRoots = new Map<LeafTabBookmarkSyncScopeRole, BookmarkTreeNode>();
+  const unmatchedRoots: BookmarkTreeNode[] = [];
+
   for (const node of topLevelFolders) {
     const role = detectRootFolderRole(node);
     if (role === 'toolbar' || role === 'other' || role === 'mobile') {
       if (!roleRoots.has(role)) {
         roleRoots.set(role, node);
       }
+      continue;
     }
+    unmatchedRoots.push(node);
   }
+
+  for (const role of SYNC_ROOT_ROLES) {
+    if (roleRoots.has(role)) continue;
+    const fallbackRoot = unmatchedRoots.shift();
+    if (!fallbackRoot) break;
+    roleRoots.set(role, fallbackRoot);
+  }
+
   return roleRoots;
 };
 
@@ -468,45 +494,144 @@ export const captureLeafTabBookmarkTreeDraft = async (options?: {
   }
 };
 
-const createSnapshotFolderChildren = (params: {
-  parentBookmarkNodeId: string;
-  parentEntityId: string | null;
-  folderLookup: Record<string, { title: string; parentId: string | null }>;
-  itemLookup: Record<string, { title: string; parentId: string | null; url: string }>;
-  orderIdsByParent: Record<string, string[]>;
-  nodeIdToEntityId: Record<string, string>;
-}) => {
-  const ids = params.orderIdsByParent[getOrderKey(params.parentEntityId)] || [];
-  return ids.reduce<Promise<void>>(async (previous, entityId) => {
-    await previous;
+type LeafTabApplyBookmarkNode = {
+  id: string;
+  parentId: string | null;
+  title: string;
+  url?: string;
+  type: 'folder' | 'bookmark';
+};
 
-    const folder = params.folderLookup[entityId];
-    if (folder) {
-      const created = await createBookmarkNode({
-        parentId: params.parentBookmarkNodeId,
-        title: folder.title,
-      });
-      params.nodeIdToEntityId[created.id] = entityId;
-      await createSnapshotFolderChildren({
-        parentBookmarkNodeId: created.id,
-        parentEntityId: entityId,
-        folderLookup: params.folderLookup,
-        itemLookup: params.itemLookup,
-        orderIdsByParent: params.orderIdsByParent,
-        nodeIdToEntityId: params.nodeIdToEntityId,
-      });
-      return;
-    }
+const ROOT_ENTITY_IDS = new Set(SYNC_ROOT_ROLES.map((role) => getRoleEntityId(role)));
 
-    const item = params.itemLookup[entityId];
-    if (!item) return;
-    const created = await createBookmarkNode({
-      parentId: params.parentBookmarkNodeId,
+const buildEntityNodeLookup = (draft: LeafTabBookmarkTreeDraft) => {
+  const lookup = new Map<string, LeafTabApplyBookmarkNode>();
+  draft.folders.forEach((folder) => {
+    lookup.set(folder.entityId, {
+      id: folder.localNodeId,
+      parentId: folder.parentId,
+      title: folder.title,
+      type: 'folder',
+    });
+  });
+  draft.items.forEach((item) => {
+    lookup.set(item.entityId, {
+      id: item.localNodeId,
+      parentId: item.parentId,
       title: item.title,
       url: item.url,
+      type: 'bookmark',
     });
-    params.nodeIdToEntityId[created.id] = entityId;
-  }, Promise.resolve());
+  });
+  return lookup;
+};
+
+const appendMissingOrderedIds = (
+  ids: string[],
+  parentEntityId: string,
+  folderLookup: Record<string, { title: string; parentId: string | null }>,
+  itemLookup: Record<string, { title: string; parentId: string | null; url: string }>,
+) => {
+  const nextIds = ids.slice();
+  const append = (id: string) => {
+    if (!nextIds.includes(id)) {
+      nextIds.push(id);
+    }
+  };
+
+  Object.entries(folderLookup).forEach(([id, folder]) => {
+    if (folder.parentId === parentEntityId) append(id);
+  });
+  Object.entries(itemLookup).forEach(([id, item]) => {
+    if (item.parentId === parentEntityId) append(id);
+  });
+  return nextIds;
+};
+
+const resolveDesiredChildren = (
+  parentEntityId: string,
+  folderLookup: Record<string, { title: string; parentId: string | null }>,
+  itemLookup: Record<string, { title: string; parentId: string | null; url: string }>,
+  orderIdsByParent: Record<string, string[]>,
+) => {
+  return appendMissingOrderedIds(
+    orderIdsByParent[parentEntityId] || [],
+    parentEntityId,
+    folderLookup,
+    itemLookup,
+  ).filter((id) => Boolean(folderLookup[id] || itemLookup[id]));
+};
+
+const ensureBookmarkNode = async (params: {
+  entityId: string;
+  parentNodeId: string;
+  index: number;
+  currentNode: LeafTabApplyBookmarkNode | undefined;
+  desiredNode: LeafTabApplyBookmarkNode;
+}) => {
+  const { currentNode, desiredNode, parentNodeId, index } = params;
+  if (!currentNode) {
+    const created = await createBookmarkNode({
+      parentId: parentNodeId,
+      index,
+      title: desiredNode.title,
+      ...(desiredNode.type === 'bookmark' ? { url: desiredNode.url || '' } : {}),
+    });
+    return {
+      ...desiredNode,
+      id: created.id,
+    };
+  }
+
+  let nextNode = currentNode;
+  if (currentNode.parentId !== desiredNode.parentId) {
+    const moved = await moveBookmarkNode(currentNode.id, {
+      parentId: parentNodeId,
+      index,
+    });
+    nextNode = {
+      ...nextNode,
+      id: moved.id,
+      parentId: desiredNode.parentId,
+    };
+  } else {
+    await moveBookmarkNode(currentNode.id, {
+      parentId: parentNodeId,
+      index,
+    }).catch(() => currentNode as unknown as BookmarkTreeNode);
+  }
+
+  if (desiredNode.type === 'folder') {
+    if (nextNode.title !== desiredNode.title) {
+      const updated = await updateBookmarkNode(nextNode.id, { title: desiredNode.title });
+      nextNode = {
+        ...nextNode,
+        title: updated.title || desiredNode.title,
+      };
+    }
+    return nextNode;
+  }
+
+  if (nextNode.title !== desiredNode.title || (nextNode.url || '') !== (desiredNode.url || '')) {
+    const updated = await updateBookmarkNode(nextNode.id, {
+      title: desiredNode.title,
+      url: desiredNode.url || '',
+    });
+    nextNode = {
+      ...nextNode,
+      title: updated.title || desiredNode.title,
+      url: updated.url || desiredNode.url || '',
+    };
+  }
+  return nextNode;
+};
+
+const deleteBookmarkNode = async (node: LeafTabApplyBookmarkNode) => {
+  if (node.type === 'folder') {
+    await removeBookmarkTree(node.id);
+    return;
+  }
+  await removeBookmarkNode(node.id);
 };
 
 export const replaceLeafTabBookmarkTree = async (params: {
@@ -514,6 +639,7 @@ export const replaceLeafTabBookmarkTree = async (params: {
   folderLookup: Record<string, { title: string; parentId: string | null }>;
   itemLookup: Record<string, { title: string; parentId: string | null; url: string }>;
   orderIdsByParent: Record<string, string[]>;
+  tombstoneIds?: string[];
   requestPermission?: boolean;
 }) => {
   const scope = normalizeLeafTabBookmarkSyncScope(params.scope);
@@ -527,30 +653,91 @@ export const replaceLeafTabBookmarkTree = async (params: {
   }
 
   const roleRoots = await resolveSyncRoleRoots();
-  const nodeIdToEntityId: Record<string, string> = {};
+  const currentDraft = await captureLeafTabBookmarkTreeDraft({
+    scope,
+    requestPermission: false,
+    throwOnPermissionDenied: true,
+  });
+  const entityNodeLookup = buildEntityNodeLookup(currentDraft);
+  const nodeIdToEntityId: Record<string, string> = { ...currentDraft.nodeIdToEntityId };
+  const tombstoneIds = new Set(params.tombstoneIds || []);
+
+  const applyChildren = async (parentEntityId: string, parentNodeId: string) => {
+    const childIds = resolveDesiredChildren(
+      parentEntityId,
+      params.folderLookup,
+      params.itemLookup,
+      params.orderIdsByParent,
+    );
+
+    for (let index = 0; index < childIds.length; index += 1) {
+      const entityId = childIds[index];
+      const folder = params.folderLookup[entityId];
+      const item = params.itemLookup[entityId];
+      const currentNode = entityNodeLookup.get(entityId);
+      const desiredNode: LeafTabApplyBookmarkNode | null = folder
+        ? {
+            id: currentNode?.id || entityId,
+            parentId: parentEntityId,
+            title: folder.title,
+            type: 'folder',
+          }
+        : item
+          ? {
+              id: currentNode?.id || entityId,
+              parentId: parentEntityId,
+              title: item.title,
+              url: item.url,
+              type: 'bookmark',
+            }
+          : null;
+      if (!desiredNode) continue;
+
+      const appliedNode = await ensureBookmarkNode({
+        entityId,
+        parentNodeId,
+        index,
+        currentNode,
+        desiredNode,
+      });
+      entityNodeLookup.set(entityId, appliedNode);
+      nodeIdToEntityId[appliedNode.id] = entityId;
+      if (folder) {
+        await applyChildren(entityId, appliedNode.id);
+      }
+    }
+  };
 
   for (const role of SYNC_ROOT_ROLES) {
     const scopeRoot = roleRoots.get(role);
     if (!scopeRoot) continue;
     const roleEntityId = getRoleEntityId(role);
     nodeIdToEntityId[scopeRoot.id] = roleEntityId;
+    await applyChildren(roleEntityId, scopeRoot.id);
+  }
 
-    for (const child of [...(scopeRoot.children || [])].reverse()) {
-      if (child.url) {
-        await removeBookmarkNode(child.id);
-        continue;
-      }
-      await removeBookmarkTree(child.id);
-    }
+  const tombstonedNodes = [
+    ...currentDraft.items.map((item) => ({
+      entityId: item.entityId,
+      localNodeId: item.localNodeId,
+      type: 'bookmark' as const,
+    })),
+    ...currentDraft.folders
+      .filter((folder) => !ROOT_ENTITY_IDS.has(folder.entityId))
+      .sort((left, right) => right.parentId?.localeCompare(left.parentId || '') || 0)
+      .map((folder) => ({
+        entityId: folder.entityId,
+        localNodeId: folder.localNodeId,
+        type: 'folder' as const,
+      })),
+  ];
 
-    await createSnapshotFolderChildren({
-      parentBookmarkNodeId: scopeRoot.id,
-      parentEntityId: roleEntityId,
-      folderLookup: params.folderLookup,
-      itemLookup: params.itemLookup,
-      orderIdsByParent: params.orderIdsByParent,
-      nodeIdToEntityId,
-    });
+  for (const node of tombstonedNodes) {
+    if (!tombstoneIds.has(node.entityId)) continue;
+    const existing = entityNodeLookup.get(node.entityId);
+    if (!existing) continue;
+    await deleteBookmarkNode(existing).catch(() => {});
+    delete nodeIdToEntityId[existing.id];
   }
 
   writeBookmarkMapping(scope, nodeIdToEntityId);

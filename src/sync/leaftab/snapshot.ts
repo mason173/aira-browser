@@ -43,6 +43,13 @@ type ResolvedBookmarkItemEntry = {
 };
 
 const ROOT_ORDER_KEY = '__root__';
+const BROWSER_ROOT_TOOLBAR_ID = 'browser_root_toolbar';
+const BROWSER_ROOT_OTHER_ID = 'browser_root_other';
+
+const BROWSER_ROOT_FOLDERS: Record<string, string> = {
+  [BROWSER_ROOT_TOOLBAR_ID]: '书签栏',
+  [BROWSER_ROOT_OTHER_ID]: '其他书签',
+};
 
 const getEntityMetadata = (
   id: string,
@@ -378,7 +385,8 @@ export const filterLeafTabLiveBookmarkOrders = (
     ...Object.keys(liveFolders),
     ...Object.keys(liveItems),
   ]);
-  return Object.fromEntries(
+
+  const orders = Object.fromEntries(
     Object.entries(snapshot.bookmarkOrders || {})
       .filter(([, order]) => order.parentId === null || Boolean(liveFolders[order.parentId]))
       .map(([key, order]) => [
@@ -389,6 +397,54 @@ export const filterLeafTabLiveBookmarkOrders = (
         },
       ]),
   ) as LeafTabSyncSnapshot['bookmarkOrders'];
+
+  Object.keys(BROWSER_ROOT_FOLDERS).forEach((rootId) => {
+    const childIds = [
+      ...Object.values(liveFolders)
+        .filter((folder) => folder.parentId === rootId)
+        .map((folder) => folder.id),
+      ...Object.values(liveItems)
+        .filter((item) => item.parentId === rootId)
+        .map((item) => item.id),
+    ];
+    if (childIds.length === 0) return;
+
+    const existingIds = orders[rootId]?.ids.filter((id) => liveIds.has(id)) || [];
+    const mergedIds = [
+      ...existingIds,
+      ...childIds.filter((id) => !existingIds.includes(id)),
+    ];
+    orders[rootId] = {
+      type: 'bookmark-order',
+      parentId: rootId,
+      ids: mergedIds,
+      updatedAt: orders[rootId]?.updatedAt || snapshot.meta.generatedAt,
+      updatedBy: orders[rootId]?.updatedBy || snapshot.meta.deviceId,
+      revision: orders[rootId]?.revision || 1,
+    };
+  });
+
+  const rootIds = Object.keys(BROWSER_ROOT_FOLDERS).filter((rootId) => {
+    return Boolean(orders[rootId]?.ids.length)
+      || Boolean(liveFolders[rootId])
+      || Boolean(liveItems[rootId]);
+  });
+  if (rootIds.length > 0) {
+    const existingRootIds = orders[ROOT_ORDER_KEY]?.ids.filter((id) => rootIds.includes(id)) || [];
+    orders[ROOT_ORDER_KEY] = {
+      type: 'bookmark-order',
+      parentId: null,
+      ids: [
+        ...existingRootIds,
+        ...rootIds.filter((id) => !existingRootIds.includes(id)),
+      ],
+      updatedAt: orders[ROOT_ORDER_KEY]?.updatedAt || snapshot.meta.generatedAt,
+      updatedBy: orders[ROOT_ORDER_KEY]?.updatedBy || snapshot.meta.deviceId,
+      revision: orders[ROOT_ORDER_KEY]?.revision || 1,
+    };
+  }
+
+  return orders;
 };
 
 export const normalizeLeafTabLiveBookmarkSnapshot = (

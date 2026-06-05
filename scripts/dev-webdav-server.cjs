@@ -18,6 +18,9 @@ const readArg = (name, fallback) => {
 const port = Number(readArg('--port', process.env.WEBDAV_PORT || '8787')) || 8787;
 const host = readArg('--host', process.env.WEBDAV_HOST || '127.0.0.1');
 const root = path.resolve(readArg('--root', process.env.WEBDAV_ROOT || '.tmp-webdav-root'));
+const username = readArg('--username', process.env.WEBDAV_USERNAME || '');
+const password = readArg('--password', process.env.WEBDAV_PASSWORD || '');
+const authEnabled = username.length > 0 || password.length > 0;
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -29,6 +32,22 @@ const corsHeaders = {
 function send(res, status, body = '', headers = {}) {
   res.writeHead(status, { ...corsHeaders, ...headers });
   res.end(body);
+}
+
+function isAuthorized(req) {
+  if (!authEnabled) return true;
+  const header = req.headers.authorization || '';
+  if (!header.startsWith('Basic ')) return false;
+
+  const encoded = header.slice('Basic '.length);
+  let decoded = '';
+  try {
+    decoded = Buffer.from(encoded, 'base64').toString('utf8');
+  } catch {
+    return false;
+  }
+
+  return decoded === `${username}:${password}`;
 }
 
 function resolveSafePath(url) {
@@ -60,6 +79,12 @@ async function main() {
       console.log(`${new Date().toISOString()} ${method} ${pathname}`);
 
       if (method === 'OPTIONS') return send(res, 204);
+
+      if (!isAuthorized(req)) {
+        return send(res, 401, 'Unauthorized', {
+          'WWW-Authenticate': 'Basic realm="Airatab Local WebDAV"',
+        });
+      }
 
       if (method === 'MKCOL') {
         await fs.mkdir(target, { recursive: true });
@@ -106,6 +131,11 @@ async function main() {
   server.listen(port, host, () => {
     console.log(`Local WebDAV test server: http://${host}:${port}/`);
     console.log(`Root: ${root}`);
+    if (authEnabled) {
+      console.log(`Auth: basic username=${username}`);
+    } else {
+      console.log('Auth: disabled');
+    }
   });
 }
 

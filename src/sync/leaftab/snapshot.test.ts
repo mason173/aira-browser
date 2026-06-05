@@ -80,4 +80,31 @@ describe('LeafTab live bookmark snapshot projection', () => {
       tombstones: 1,
     });
   });
+
+  it('rebuilds browser root orders when remote root folders were tombstoned', () => {
+    const snapshot = buildSnapshot();
+    delete snapshot.bookmarkFolders.browser_root_toolbar;
+    snapshot.bookmarkOrders = {
+      __root__: {
+        type: 'bookmark-order',
+        parentId: null,
+        ids: [],
+        updatedAt: '2026-05-24T00:00:00.000Z',
+        updatedBy: 'device-a',
+        revision: 1,
+      },
+    };
+    snapshot.tombstones.browser_root_toolbar = {
+      id: 'browser_root_toolbar',
+      type: 'bookmark-folder',
+      deletedAt: '2026-05-24T01:00:00.000Z',
+      deletedBy: 'device-b',
+      lastKnownRevision: 1,
+    };
+
+    const normalized = normalizeLeafTabLiveBookmarkSnapshot(snapshot);
+
+    expect(normalized.bookmarkOrders.browser_root_toolbar.ids).toEqual(['bkm_alive_1']);
+    expect(normalized.bookmarkOrders.__root__.ids).toEqual(['browser_root_toolbar']);
+  });
 });

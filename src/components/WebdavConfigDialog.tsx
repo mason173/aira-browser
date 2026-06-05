@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { RiEyeFill, RiEyeOffFill } from "@/icons/ri-compat";
 import { toast } from "./ui/sonner";
 import { BackToSettingsButton } from "@/components/BackToSettingsButton";
-import { ensureExtensionPermission, ensureOriginPermission } from "@/utils/extensionPermissions";
+import { ensureOriginPermission } from "@/utils/extensionPermissions";
 import {
   isWebdavSyncEnabledFromStorage,
   readWebdavStorageStateFromStorage,
@@ -80,7 +80,6 @@ export function WebdavConfigDialog({
   const [webdavUrl, setWebdavUrl] = useState("");
   const [webdavUsername, setWebdavUsername] = useState("");
   const [webdavPassword, setWebdavPassword] = useState("");
-  const [syncBookmarksEnabled, setSyncBookmarksEnabled] = useState(false);
   const [syncBySchedule, setSyncBySchedule] = useState(WEBDAV_DEFAULT_SYNC_BY_SCHEDULE);
   const [autoSyncToastEnabled, setAutoSyncToastEnabled] = useState(true);
   const [syncIntervalMinutes, setSyncIntervalMinutes] = useState(WEBDAV_DEFAULT_SYNC_INTERVAL_MINUTES);
@@ -111,7 +110,6 @@ export function WebdavConfigDialog({
 
   useEffect(() => {
     if (!open) return;
-    let disposed = false;
     const defaults = readWebdavStorageStateFromStorage(t("settings.backup.webdav.defaultProfileName"));
     setWebdavUrl(defaults.url);
     const normalizedUrl = defaults.url.trim();
@@ -123,18 +121,6 @@ export function WebdavConfigDialog({
     setAutoSyncToastEnabled(defaults.autoSyncToastEnabled);
     setSyncIntervalMinutes(normalizeSyncInterval(defaults.syncIntervalMinutes));
     setSyncConflictPolicy(defaults.syncConflictPolicy);
-    void ensureExtensionPermission("bookmarks", { requestIfNeeded: false })
-      .then((granted) => {
-        if (disposed) return;
-        setSyncBookmarksEnabled(defaults.syncBookmarksEnabled !== false && Boolean(granted));
-      })
-      .catch(() => {
-        if (disposed) return;
-        setSyncBookmarksEnabled(false);
-      });
-    return () => {
-      disposed = true;
-    };
   }, [open, t, webdavProviders]);
 
   const handleProviderChange = (value: string) => {
@@ -213,16 +199,6 @@ export function WebdavConfigDialog({
       }
     } finally {
       setSaving(false);
-    }
-  };
-
-  const handleRequestBookmarksPermission = async () => {
-    const granted = await ensureExtensionPermission("bookmarks", { requestIfNeeded: true }).catch(() => false);
-    setSyncBookmarksEnabled(Boolean(granted));
-    if (!granted) {
-      toast.info(t("settings.backup.webdav.bookmarkPermissionDenied", {
-        defaultValue: "未授予书签权限，已保持“同步书签”关闭。再次打开会重新请求授权。",
-      }));
     }
   };
 
@@ -347,18 +323,6 @@ export function WebdavConfigDialog({
       )}
     >
       <div className="grid gap-3">
-        <SyncToggleField
-          label={t("settings.backup.webdav.syncBookmarksLabel", { defaultValue: "同步书签" })}
-          description={t("settings.backup.webdav.syncBookmarksDesc", {
-            defaultValue: "WebDAV 只同步浏览器书签，不再同步 Aira 布局、设置或账号数据。",
-          })}
-          checked={syncBookmarksEnabled}
-          onCheckedChange={() => {
-            if (!syncBookmarksEnabled) {
-              void handleRequestBookmarksPermission();
-            }
-          }}
-        />
         <SyncToggleField
           label={t("settings.backup.webdav.autoSyncToastLabel")}
           description={t("settings.backup.webdav.autoSyncToastDesc")}
