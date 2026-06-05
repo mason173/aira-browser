@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { RiCheckFill, RiUpload2Fill } from "@/icons/ri-compat";
 import { WallpaperMaskOverlay } from "@/components/wallpaper/WallpaperMaskOverlay";
 import { WallpaperMaskOpacitySlider } from "@/components/wallpaper/WallpaperMaskOpacitySlider";
-import { IS_LITE_BUILD } from "@/config/distribution";
 import type { WallpaperMode } from "@/wallpaper/types";
 import { readLiteCustomWallpaperFile } from "@/utils/liteWallpaperImage";
 
@@ -16,7 +15,7 @@ interface CustomWallpaperPanelProps {
   wallpaperMaskOpacity: number;
   wallpaperMaskPreviewOpacity?: number;
   onWallpaperMaskOpacityChange: (value: number) => void;
-  onAppendCustomWallpapers: (wallpapers: string[]) => void | Promise<void>;
+  onAppendCustomWallpapers: (wallpapers: Blob[]) => void | Promise<void>;
   onCustomWallpaperChange: (url: string) => void;
   onModeChange: (mode: WallpaperMode) => void;
   isMaskSliderIsolation?: boolean;
@@ -47,16 +46,7 @@ export function CustomWallpaperPanel({
   const previewOpacity = wallpaperMaskPreviewOpacity ?? wallpaperMaskOpacity;
 
   const readWallpaperFile = (file: File) => {
-    if (IS_LITE_BUILD) {
-      return readLiteCustomWallpaperFile(file);
-    }
-
-    return new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (event) => resolve((event.target?.result as string) || "");
-      reader.onerror = () => reject(reader.error);
-      reader.readAsDataURL(file);
-    });
+    return readLiteCustomWallpaperFile(file);
   };
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -70,10 +60,9 @@ export function CustomWallpaperPanel({
       files.map((file) => readWallpaperFile(file)),
     )
       .then(async (wallpapers) => {
-        const validWallpapers = wallpapers.filter(Boolean);
+        const validWallpapers = wallpapers.filter((wallpaper) => wallpaper instanceof Blob && wallpaper.size > 0);
         if (validWallpapers.length === 0) return;
         await onAppendCustomWallpapers(validWallpapers);
-        onCustomWallpaperChange(validWallpapers[0]);
         onModeChange("custom");
       })
       .catch((error) => {
@@ -150,6 +139,8 @@ export function CustomWallpaperPanel({
                         src={wallpaper}
                         alt={`Custom wallpaper ${index + 1}`}
                         className="absolute inset-0 h-full w-full object-cover"
+                        loading="lazy"
+                        decoding="async"
                       />
                       <WallpaperMaskOverlay opacity={previewOpacity} className="absolute inset-0 pointer-events-none" />
                       <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01)_40%,rgba(0,0,0,0.16)_100%)]" />

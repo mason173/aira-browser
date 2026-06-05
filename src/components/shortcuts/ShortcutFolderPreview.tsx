@@ -2,9 +2,7 @@ import {
   type CSSProperties,
 } from 'react';
 import { useFolderPreviewRootRef, useFolderPreviewSlotRef } from '@/components/shortcuts/folderPreviewRegistry';
-import { useWallpaperBackdropSnapshot } from '@/components/wallpaper/WallpaperBackdropContext';
 import { useStableElementState } from '@/hooks/useStableElementState';
-import { useLiveViewportRect, type ViewportRect } from '@/hooks/useLiveViewportRect';
 import ShortcutIcon from '@/components/ShortcutIcon';
 import {
   COMPACT_SHORTCUT_GRID_COLUMN_GAP_PX,
@@ -31,7 +29,6 @@ const FOLDER_DROP_TARGET_TRANSITION = 'none';
 const FOLDER_DROP_TARGET_FADE_TRANSITION = 'none';
 const ACTIVE_FOLDER_BORDER_COLOR = 'rgba(255,255,255,0.3)';
 const ACTIVE_FOLDER_BORDER_SHADOW = 'inset 0 0 0 1px rgba(255,255,255,0.16), inset 0 1px 0 rgba(255,255,255,0.28), 0 0 0 1px rgba(255,255,255,0.08)';
-const FOLDER_FAKE_BLUR_PATCH_OPACITY = 1;
 const DRAWER_SURFACE_OVERLAY_STYLE: CSSProperties = {
   backgroundColor: 'rgba(0, 0, 0, 0.08)',
 };
@@ -63,109 +60,22 @@ function useFolderPreviewRootNode(folderId: string) {
   };
 }
 
-function buildViewportSliceImageStyle(rect: ViewportRect): CSSProperties {
-  return {
-    position: 'absolute',
-    left: `${-rect.left}px`,
-    top: `${-rect.top}px`,
-    width: '100vw',
-    height: '100vh',
-    objectFit: 'cover',
-    maxWidth: 'none',
-    transform: 'translateZ(0)',
-    WebkitTransform: 'translateZ(0)',
-    backfaceVisibility: 'hidden',
-    willChange: 'transform',
-  };
-}
-
-function buildViewportSliceGradientStyle(rect: ViewportRect): CSSProperties {
-  return {
-    position: 'absolute',
-    left: `${-rect.left}px`,
-    top: `${-rect.top}px`,
-    width: '100vw',
-    height: '100vh',
-    maxWidth: 'none',
-    backfaceVisibility: 'hidden',
-    willChange: 'transform',
-  };
-}
-
-function FolderPreviewWallpaperLayer({
-  rect,
-}: {
-  rect: ViewportRect | null;
-}) {
-  const wallpaperBackdrop = useWallpaperBackdropSnapshot();
-
-  if (wallpaperBackdrop?.blurredWallpaperSrc && rect) {
-    return (
-      <img
-        src={wallpaperBackdrop.blurredWallpaperSrc}
-        alt=""
-        aria-hidden="true"
-        className="pointer-events-none select-none"
-        draggable={false}
-        style={{
-          ...buildViewportSliceImageStyle(rect),
-          opacity: FOLDER_FAKE_BLUR_PATCH_OPACITY,
-        }}
-      />
-    );
-  }
-
-  if (wallpaperBackdrop?.wallpaperMode === 'color' && wallpaperBackdrop.colorWallpaperGradient) {
-    return (
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0"
-        style={{
-          ...(rect ? buildViewportSliceGradientStyle(rect) : {}),
-          backgroundImage: wallpaperBackdrop.colorWallpaperGradient,
-          opacity: FOLDER_FAKE_BLUR_PATCH_OPACITY,
-        }}
-      />
-    );
-  }
-
-  return (
-    <div
-      aria-hidden="true"
-      className="pointer-events-none absolute inset-0"
-      style={{
-        backgroundColor: 'rgba(30,34,42,0.18)',
-        opacity: FOLDER_FAKE_BLUR_PATCH_OPACITY,
-      }}
-    />
-  );
-}
-
 function FolderPreviewGlassLayer({
-  rootNode,
   previewTone,
 }: {
-  rootNode: HTMLElement | null;
   previewTone: 'default' | 'drawer';
 }) {
-  const wallpaperBackdrop = useWallpaperBackdropSnapshot();
-  const hasViewportBackedSurface = Boolean(
-    wallpaperBackdrop?.blurredWallpaperSrc
-    || (wallpaperBackdrop?.wallpaperMode === 'color' && wallpaperBackdrop.colorWallpaperGradient),
-  );
-  const viewportRect = useLiveViewportRect(rootNode, hasViewportBackedSurface);
   const drawerTransparentMode = previewTone === 'drawer';
-  const wallpaperMaskStyle: CSSProperties | null = !drawerTransparentMode && wallpaperBackdrop
-    ? {
-        backgroundColor: `rgba(0, 0, 0, ${Math.max(0, Math.min(100, wallpaperBackdrop.effectiveWallpaperMaskOpacity)) / 100})`,
-      }
-    : null;
 
   return (
     <>
       {!drawerTransparentMode ? (
         <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
-          <FolderPreviewWallpaperLayer rect={viewportRect} />
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0"
+            style={{ backgroundColor: 'rgba(30,34,42,0.18)' }}
+          />
         </div>
       ) : (
         <div
@@ -174,9 +84,6 @@ function FolderPreviewGlassLayer({
           style={DRAWER_SURFACE_OVERLAY_STYLE}
         />
       )}
-      {wallpaperMaskStyle ? (
-        <div aria-hidden="true" className="pointer-events-none absolute inset-0" style={wallpaperMaskStyle} />
-      ) : null}
     </>
   );
 }
@@ -513,7 +420,7 @@ export function ShortcutFolderPreview({
   const children = getShortcutChildren(shortcut).slice(0, 4);
   const tileSize = Math.max(14, Math.floor((size - 18) / 2));
   const borderRadius = getSmallFolderBorderRadius(size, iconCornerRadius);
-  const { rootNode, rootRef } = useFolderPreviewRootNode(shortcut.id);
+  const { rootRef } = useFolderPreviewRootNode(shortcut.id);
 
   return (
     <div
@@ -533,7 +440,7 @@ export function ShortcutFolderPreview({
       data-folder-preview-contents-hidden={hidePreviewContents ? 'true' : 'false'}
       data-folder-portal-backdrop={portalBackdrop ? 'true' : 'false'}
     >
-      <FolderPreviewGlassLayer rootNode={rootNode} previewTone={previewTone} />
+      <FolderPreviewGlassLayer previewTone={previewTone} />
       <div aria-hidden="true" style={buildFolderGradientBorderStyle(borderRadius)} />
       <FolderPreviewContentLayer hidePreviewContents={hidePreviewContents}>
         <div className="grid h-full w-full grid-cols-2 gap-1 p-2">
@@ -606,7 +513,7 @@ export function ShortcutFolderLargePreview({
     Math.floor((size - LARGE_FOLDER_PREVIEW_PADDING * 2 - LARGE_FOLDER_PREVIEW_GAP * 2) / 3),
   );
   const borderRadius = getLargeFolderBorderRadius(size, iconCornerRadius);
-  const { rootNode, rootRef } = useFolderPreviewRootNode(shortcut.id);
+  const { rootRef } = useFolderPreviewRootNode(shortcut.id);
 
   return (
     <div
@@ -627,7 +534,7 @@ export function ShortcutFolderLargePreview({
       data-folder-portal-backdrop={portalBackdrop ? 'true' : 'false'}
       onClick={interactive ? onOpenFolder : undefined}
     >
-      <FolderPreviewGlassLayer rootNode={rootNode} previewTone={previewTone} />
+      <FolderPreviewGlassLayer previewTone={previewTone} />
       <div aria-hidden="true" style={buildFolderGradientBorderStyle(borderRadius)} />
       <FolderPreviewContentLayer hidePreviewContents={hidePreviewContents}>
         {children.length > 0 ? (

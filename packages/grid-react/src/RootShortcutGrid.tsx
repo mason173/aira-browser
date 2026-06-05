@@ -23,7 +23,6 @@ import {
 import { useRootShortcutGridControllerBundle } from './rootRuntime/useRootShortcutGridControllerBundle';
 import { useDragMotionState } from './useDragMotionState';
 import {
-  detectFirefox,
   renderDefaultRootDropPreview,
   RootShortcutGridSurface,
 } from './rootView/renderSurface';
@@ -92,7 +91,6 @@ export const RootShortcutGrid = React.memo(function RootShortcutGrid({
   externalDragSession,
   onExternalDragSessionConsumed,
   isItemDragDisabled,
-  isFirefox = detectFirefox(),
   resolveDropTargetRects,
   resolveCompactTargetRegions,
   renderItem,
@@ -367,7 +365,6 @@ export const RootShortcutGrid = React.memo(function RootShortcutGrid({
       disableReorderAnimation={disableReorderAnimation}
       suppressProjectionSettleAnimation={suppressProjectionSettleAnimation}
       disableLayoutShiftTransition={disableLayoutShiftTransition}
-      isFirefox={isFirefox}
       itemElementsRef={itemElementsRef}
       onItemPointerDown={handleItemPointerDown}
       renderItem={renderItem}

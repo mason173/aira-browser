@@ -34,13 +34,13 @@ function Switch({ checked, defaultChecked = false, onCheckedChange, className, c
         "relative inline-flex h-6 w-10 shrink-0 items-center justify-start rounded-full border border-transparent p-0.5 outline-none transition-colors data-[state=checked]:justify-end data-[state=checked]:bg-primary data-[state=unchecked]:bg-input focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50",
         className,
       )}
+      {...props}
       onClick={(event) => {
         props.onClick?.(event);
         if (!event.defaultPrevented) {
           toggle();
         }
       }}
-      {...props}
     >
       {children ?? <SwitchThumb />}
     </button>

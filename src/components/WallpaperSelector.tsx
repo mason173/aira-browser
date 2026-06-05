@@ -38,7 +38,7 @@ interface WallpaperSelectorProps {
   onRefreshBingWallpaper?: () => Promise<BingWallpaperRefreshResult> | BingWallpaperRefreshResult;
   customWallpaper: string | null;
   customWallpaperGallery: string[];
-  onAppendCustomWallpapers: (wallpapers: string[]) => void | Promise<void>;
+  onAppendCustomWallpapers: (wallpapers: Blob[]) => void | Promise<void>;
   onCustomWallpaperChange: (url: string) => void;
   colorWallpaperId: string;
   onColorWallpaperIdChange: (id: string) => void;

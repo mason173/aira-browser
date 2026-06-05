@@ -84,7 +84,7 @@ export function SearchEngineSwitcher({
             event.stopPropagation();
           }}
           onClick={(event) => event.stopPropagation()}
-          className={`relative z-[1] flex shrink-0 items-center rounded-[12px] px-2 py-1.5 ${disabled ? 'cursor-default opacity-60' : 'cursor-pointer'} ${toneClassName || 'text-black/50 dark:text-white/72'}`}
+          className={`relative z-[1] flex shrink-0 items-center rounded-[12px] px-2 py-1.5 ${disabled ? 'cursor-default opacity-60' : 'cursor-pointer'} ${toneClassName || 'text-[var(--search-ui-trigger-foreground)]'}`}
         >
           <span className="relative flex size-5 shrink-0 items-center justify-center">
             <img alt="" className="pointer-events-none size-5 shrink-0 object-contain" src={getEngineIcon(engine)} />
@@ -112,15 +112,15 @@ export function SearchEngineSwitcher({
             event.preventDefault();
           }
         }}
-        className={`z-[520] isolate w-[260px] max-h-[320px] overflow-y-auto rounded-[18px] p-2 !border-transparent !bg-transparent !shadow-none !backdrop-blur-none ${surfaceClassName || 'text-black/72 dark:text-white/92'}`}
+        className={`z-[520] isolate w-[260px] max-h-[320px] overflow-y-auto rounded-[18px] p-2 !border-transparent !bg-transparent !shadow-none !backdrop-blur-none ${surfaceClassName || 'text-[var(--search-ui-engine-item-foreground)]'}`}
       >
         {engines.map((option) => (
           <DropdownMenuItem
             key={option.id}
             className={`gap-2.5 rounded-[16px] px-3 py-2 text-sm ${
               engine === option.id
-                ? (itemSelectedClassName || 'bg-black/8 text-black/86 dark:bg-white/12 dark:text-white/[0.96]')
-                : (itemClassName || 'text-black/76 hover:bg-black/5 hover:text-black/88 dark:text-white/88 dark:hover:bg-white/10 dark:hover:text-white/[0.96]')
+                ? (itemSelectedClassName || 'bg-[var(--search-ui-row-background-selected)] text-[var(--search-ui-engine-item-selected-foreground)]')
+                : (itemClassName || 'text-[var(--search-ui-engine-item-foreground)] hover:bg-[var(--search-ui-row-background-hover)] hover:text-[var(--search-ui-engine-item-selected-foreground)]')
             }`}
             onSelect={() => onSelect(option.id)}
           >

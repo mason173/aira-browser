@@ -56,14 +56,14 @@ function AppearanceCard({
       onClick={onClick}
       className={`flex min-h-[52px] flex-1 items-center justify-between rounded-[16px] border px-3.5 py-2 transition-colors ${
         selected
-          ? 'border-primary bg-primary/12 text-primary'
-          : 'border-border bg-secondary/20 text-muted-foreground hover:bg-secondary/35 hover:text-foreground'
+          ? 'border-primary bg-accent text-primary'
+          : 'border-border bg-secondary text-muted-foreground hover:bg-accent hover:text-foreground'
       }`}
     >
       <span className="truncate text-left text-[15px] font-medium leading-none">{label}</span>
       <span
         className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-colors ${
-          selected ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-background/40'
+          selected ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-background'
         }`}
       >
         {selected ? <RiCheckFill className="size-3" /> : null}
@@ -101,7 +101,7 @@ export const ShortcutIconSettingsDialog = memo(function ShortcutIconSettingsDial
     scale: number;
   } | null>(null);
   const isolationFadeClass = 'transition-opacity duration-220 ease-out';
-  const sliderSurfaceClass = 'w-full [&_[data-slot=scrubber-track]]:border [&_[data-slot=scrubber-track]]:border-white/24 [&_[data-slot=scrubber-track]]:bg-white/12 [&_[data-slot=scrubber-track]]:backdrop-blur-xl dark:[&_[data-slot=scrubber-track]]:border-white/10 dark:[&_[data-slot=scrubber-track]]:bg-black/18 [&_[data-slot=scrubber-fill]]:bg-primary [&_[data-slot=scrubber-tick]]:bg-white/70 [&_[data-slot=scrubber-label]]:text-white [&_[data-slot=scrubber-value]]:text-white';
+  const sliderSurfaceClass = 'w-full [&_[data-slot=scrubber-track]]:border [&_[data-slot=scrubber-track]]:border-border [&_[data-slot=scrubber-track]]:bg-secondary [&_[data-slot=scrubber-fill]]:bg-primary [&_[data-slot=scrubber-tick]]:bg-white/70 [&_[data-slot=scrubber-label]]:text-white [&_[data-slot=scrubber-value]]:text-white';
   const previewStageSize = 124;
   const previewIconSize = scaleShortcutIconSize(92, draftScale);
   const columnBounds = useMemo(() => getShortcutColumnBounds(), []);
@@ -446,7 +446,7 @@ export const ShortcutIconSettingsDialog = memo(function ShortcutIconSettingsDial
         </div>
 
         <DialogFooter className={`mt-2 flex w-full gap-3 sm:gap-3 ${isolationFadeClass} ${isSliderInteracting ? 'opacity-0 pointer-events-none select-none' : ''}`}>
-          <Button className="flex-1 bg-secondary text-secondary-foreground hover:bg-secondary/80" onClick={() => onOpenChange(false)}>
+          <Button className="flex-1 bg-secondary text-secondary-foreground hover:bg-accent" onClick={() => onOpenChange(false)}>
             {t('common.close')}
           </Button>
         </DialogFooter>

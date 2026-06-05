@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import {
+  createCustomWallpaperRecords,
+  getCustomWallpaperLibrary,
   getBingWallpaperBlob,
-  getWallpaper,
-  getWallpaperGallery,
   saveBingWallpaperBlob,
-  saveWallpaper,
-  saveWallpaperGallery,
+  saveCustomWallpaperLibrary,
+  type CustomWallpaperRecord,
 } from '../db';
 import { COLOR_WALLPAPER_PRESETS, DEFAULT_COLOR_WALLPAPER_ID } from '@/components/wallpaper/colorWallpapers';
 import type { WallpaperMode } from '@/wallpaper/types';
@@ -30,6 +30,11 @@ const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 const REQUEST_TIMEOUT_MS = 9000;
 const WALLPAPER_ROTATION_SETTINGS_KEY = 'wallpaperRotationSettings';
 const WALLPAPER_ROTATION_OFFSETS_KEY = 'wallpaperRotationOffsets';
+
+type CustomWallpaperView = {
+  id: string;
+  url: string;
+};
 
 type BingCacheMeta = {
   slot: string;
@@ -251,12 +256,46 @@ const getInitialBingWallpaper = (): string => {
 
 const getRotatableWallpaperValues = (
   mode: RotatableWallpaperMode,
-  customWallpaperGallery: string[],
+  customWallpaperIds: string[],
 ): string[] => {
   if (mode === 'color') {
     return COLOR_WALLPAPER_PRESETS.map((preset) => preset.id);
   }
-  return customWallpaperGallery;
+  return customWallpaperIds;
+};
+
+const createCustomWallpaperUrlRegistry = () => {
+  const urlsById = new Map<string, string>();
+
+  const sync = (records: CustomWallpaperRecord[]) => {
+    const activeIds = new Set(records.map((record) => record.id));
+    for (const [id, url] of urlsById) {
+      if (activeIds.has(id)) continue;
+      URL.revokeObjectURL(url);
+      urlsById.delete(id);
+    }
+
+    for (const record of records) {
+      if (urlsById.has(record.id)) continue;
+      urlsById.set(record.id, URL.createObjectURL(record.blob));
+    }
+
+    return records
+      .map((record) => {
+        const url = urlsById.get(record.id);
+        return url ? { id: record.id, url } : null;
+      })
+      .filter((item): item is CustomWallpaperView => Boolean(item));
+  };
+
+  const clear = () => {
+    for (const url of urlsById.values()) {
+      URL.revokeObjectURL(url);
+    }
+    urlsById.clear();
+  };
+
+  return { sync, clear };
 };
 
 type UseWallpaperOptions = {
@@ -277,8 +316,11 @@ export function useWallpaper(options: UseWallpaperOptions = {}) {
   const manualBingRefreshPromiseRef = useRef<Promise<void> | null>(null);
   const manualBingRefreshAtRef = useRef(0);
   const [isBingWallpaperRefreshing, setIsBingWallpaperRefreshing] = useState(false);
+  const customWallpaperRecordsRef = useRef<CustomWallpaperRecord[]>([]);
+  const customWallpaperUrlsRef = useRef(createCustomWallpaperUrlRegistry());
   const [customWallpaper, setCustomWallpaper] = useState<string | null>(null);
   const [customWallpaperGallery, setCustomWallpaperGallery] = useState<string[]>([]);
+  const [customWallpaperSelectedId, setCustomWallpaperSelectedId] = useState<string | null>(null);
   const [customWallpaperLoaded, setCustomWallpaperLoaded] = useState(false);
   const [wallpaperMode, setWallpaperMode] = useState<WallpaperMode>(() => {
     const saved = localStorage.getItem('wallpaperMode');
@@ -337,12 +379,12 @@ export function useWallpaper(options: UseWallpaperOptions = {}) {
 
     if (interval === 'off') return;
 
-    const optionValues = getRotatableWallpaperValues(mode, customWallpaperGallery);
+    const optionValues = getRotatableWallpaperValues(mode, customWallpaperRecordsRef.current.map((record) => record.id));
     if (optionValues.length === 0) return;
 
     const currentValue = mode === 'color'
       ? colorWallpaperId
-      : customWallpaper;
+      : customWallpaperSelectedId;
     const currentIndex = Math.max(0, optionValues.indexOf(currentValue || optionValues[0]));
     syncRotationOffsetForMode(mode, currentIndex, optionValues.length, interval);
   };
@@ -371,10 +413,20 @@ export function useWallpaper(options: UseWallpaperOptions = {}) {
   }, [wallpaperRotationOffsets]);
 
   useEffect(() => {
-    let cancelled = false;
-    const shouldLoadCustomWallpapers = wallpaperMode === 'custom' || Boolean(options.customGalleryActive);
+    const urlRegistry = customWallpaperUrlsRef.current;
+    return () => {
+      urlRegistry.clear();
+    };
+  }, []);
 
-    if (!shouldLoadCustomWallpapers) {
+  useEffect(() => {
+    let cancelled = false;
+    const customGalleryActive = Boolean(options.customGalleryActive);
+    const shouldLoadCustomWallpaper = wallpaperMode === 'custom' || customGalleryActive;
+    const shouldLoadCustomGallery = customGalleryActive
+      || (wallpaperMode === 'custom' && wallpaperRotationSettings.custom !== 'off');
+
+    if (!shouldLoadCustomWallpaper) {
       setCustomWallpaper(null);
       setCustomWallpaperGallery([]);
       setCustomWallpaperLoaded(true);
@@ -384,22 +436,38 @@ export function useWallpaper(options: UseWallpaperOptions = {}) {
     }
 
     setCustomWallpaperLoaded(false);
-    Promise.all([getWallpaper(), getWallpaperGallery()])
-      .then(async ([wallpaper, gallery]) => {
+    const loadCustomWallpapers = async () => {
+      const library = await getCustomWallpaperLibrary();
+      const selectedRecord = library.records.find((record) => record.id === library.selectedId) || library.records[0] || null;
+      if (!shouldLoadCustomGallery) {
+        return {
+          selectedId: selectedRecord?.id ?? null,
+          records: selectedRecord ? [selectedRecord] : [],
+        };
+      }
+
+      return {
+        selectedId: selectedRecord?.id ?? null,
+        records: library.records,
+      };
+    };
+
+    loadCustomWallpapers()
+      .then(({ selectedId, records }) => {
         if (cancelled) return;
-        const normalizedGallery = Array.isArray(gallery) ? gallery.filter((item) => item.trim().length > 0) : [];
-        const effectiveWallpaper = wallpaper || normalizedGallery[0] || null;
-        const effectiveGallery = effectiveWallpaper
-          ? normalizedGallery.includes(effectiveWallpaper)
-            ? normalizedGallery
-            : [...normalizedGallery, effectiveWallpaper]
-          : normalizedGallery;
-        setCustomWallpaper(effectiveWallpaper);
-        setCustomWallpaperGallery(effectiveGallery);
+        customWallpaperRecordsRef.current = records;
+        const views = customWallpaperUrlsRef.current.sync(records);
+        const selectedView = views.find((view) => view.id === selectedId) || views[0] || null;
+        setCustomWallpaperSelectedId(selectedView?.id ?? null);
+        setCustomWallpaper(selectedView?.url ?? null);
+        setCustomWallpaperGallery(shouldLoadCustomGallery ? views.map((view) => view.url) : []);
         setCustomWallpaperLoaded(true);
       })
       .catch(() => {
         if (cancelled) return;
+        customWallpaperRecordsRef.current = [];
+        customWallpaperUrlsRef.current.clear();
+        setCustomWallpaperSelectedId(null);
         setCustomWallpaper(null);
         setCustomWallpaperGallery([]);
         setCustomWallpaperLoaded(true);
@@ -407,7 +475,7 @@ export function useWallpaper(options: UseWallpaperOptions = {}) {
     return () => {
       cancelled = true;
     };
-  }, [hasStoredWallpaperMode, options.customGalleryActive, wallpaperMode]);
+  }, [hasStoredWallpaperMode, options.customGalleryActive, wallpaperMode, wallpaperRotationSettings.custom]);
 
   useEffect(() => {
     if (wallpaperMode !== 'bing' || !isDocumentVisible) {
@@ -623,7 +691,8 @@ export function useWallpaper(options: UseWallpaperOptions = {}) {
     const interval = wallpaperRotationSettings[activeMode];
     if (interval === 'off') return;
 
-    const optionValues = getRotatableWallpaperValues(activeMode, customWallpaperGallery);
+    const customWallpaperViews = customWallpaperUrlsRef.current.sync(customWallpaperRecordsRef.current);
+    const optionValues = getRotatableWallpaperValues(activeMode, customWallpaperViews.map((view) => view.id));
     if (optionValues.length <= 1) return;
 
     let cancelled = false;
@@ -643,9 +712,15 @@ export function useWallpaper(options: UseWallpaperOptions = {}) {
         return;
       }
 
-      if (customWallpaper !== targetValue) {
-        setCustomWallpaper(targetValue);
-        void saveWallpaper(targetValue);
+      if (customWallpaperSelectedId !== targetValue) {
+        const targetView = customWallpaperViews.find((view) => view.id === targetValue);
+        if (!targetView) return;
+        setCustomWallpaperSelectedId(targetView.id);
+        setCustomWallpaper(targetView.url);
+        void saveCustomWallpaperLibrary({
+          selectedId: targetView.id,
+          records: customWallpaperRecordsRef.current,
+        });
       }
     };
 
@@ -669,6 +744,7 @@ export function useWallpaper(options: UseWallpaperOptions = {}) {
   }, [
     colorWallpaperId,
     customWallpaper,
+    customWallpaperSelectedId,
     customWallpaperGallery,
     isDocumentVisible,
     wallpaperMode,
@@ -710,43 +786,47 @@ export function useWallpaper(options: UseWallpaperOptions = {}) {
 
   const setSelectedCustomWallpaper = async (wallpaper: string | null) => {
     if (!wallpaper) {
+      setCustomWallpaperSelectedId(null);
       setCustomWallpaper(null);
       return;
     }
-    const targetIndex = Math.max(0, customWallpaperGallery.indexOf(wallpaper));
+    const customWallpaperViews = customWallpaperUrlsRef.current.sync(customWallpaperRecordsRef.current);
+    const selectedView = customWallpaperViews.find((view) => view.url === wallpaper);
+    if (!selectedView) return;
+    const targetIndex = Math.max(0, customWallpaperViews.findIndex((view) => view.id === selectedView.id));
+    setCustomWallpaperSelectedId(selectedView.id);
     setCustomWallpaper(wallpaper);
-    setCustomWallpaperGallery((prev) => {
-      if (prev.includes(wallpaper)) {
-        return prev;
-      }
-      const next = [...prev, wallpaper];
-      void saveWallpaperGallery(next);
-      return next;
+    setCustomWallpaperGallery(customWallpaperViews.map((view) => view.url));
+    syncRotationOffsetForMode('custom', targetIndex, Math.max(customWallpaperViews.length, 1));
+    await saveCustomWallpaperLibrary({
+      selectedId: selectedView.id,
+      records: customWallpaperRecordsRef.current,
     });
-    syncRotationOffsetForMode('custom', targetIndex, Math.max(customWallpaperGallery.length, 1));
-    await saveWallpaper(wallpaper);
   };
 
-  const appendCustomWallpapers = async (wallpapers: string[]) => {
+  const appendCustomWallpapers = async (wallpapers: Blob[]) => {
     if (wallpapers.length === 0) return;
-    const normalized = wallpapers.map((item) => item.trim()).filter(Boolean);
-    if (normalized.length === 0) return;
-    const nextGallery = Array.from(new Set([...normalized, ...customWallpaperGallery]));
-    const nextCurrent = normalized[0] || nextGallery[0] || null;
-    setCustomWallpaperGallery(nextGallery);
-    setCustomWallpaper(nextCurrent);
-    if (nextCurrent) {
-      syncRotationOffsetForMode('custom', nextGallery.indexOf(nextCurrent), nextGallery.length);
+    const newRecords = createCustomWallpaperRecords(wallpapers);
+    if (newRecords.length === 0) return;
+    const nextRecords = [...newRecords, ...customWallpaperRecordsRef.current];
+    customWallpaperRecordsRef.current = nextRecords;
+    const views = customWallpaperUrlsRef.current.sync(nextRecords);
+    const selectedView = views.find((view) => view.id === newRecords[0].id) || views[0] || null;
+    setCustomWallpaperSelectedId(selectedView?.id ?? null);
+    setCustomWallpaper(selectedView?.url ?? null);
+    setCustomWallpaperGallery(views.map((view) => view.url));
+    if (selectedView) {
+      syncRotationOffsetForMode('custom', views.findIndex((view) => view.id === selectedView.id), views.length);
     }
-    await Promise.all([
-      saveWallpaperGallery(nextGallery),
-      nextCurrent ? saveWallpaper(nextCurrent) : Promise.resolve(),
-    ]);
+    await saveCustomWallpaperLibrary({
+      selectedId: selectedView?.id ?? null,
+      records: nextRecords,
+    });
   };
 
   const setSelectedColorWallpaperId = (id: string) => {
     setColorWallpaperId(id);
-    const optionValues = getRotatableWallpaperValues('color', customWallpaperGallery);
+    const optionValues = getRotatableWallpaperValues('color', []);
     const targetIndex = optionValues.indexOf(id);
     if (targetIndex >= 0) {
       syncRotationOffsetForMode('color', targetIndex, optionValues.length);

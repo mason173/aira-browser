@@ -102,6 +102,22 @@ export const ShortcutSelectionShell = memo(function ShortcutSelectionShell({
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [clearShortcutMultiSelect, shortcutMultiSelectMode]);
 
+  useEffect(() => {
+    if (!contextMenu) return;
+
+    const handlePointerDownOutside = (event: PointerEvent) => {
+      const contextMenuNode = contextMenuRef.current;
+      const eventTarget = event.target;
+
+      if (!contextMenuNode || !(eventTarget instanceof Node) || !contextMenuNode.contains(eventTarget)) {
+        setContextMenu(null);
+      }
+    };
+
+    document.addEventListener('pointerdown', handlePointerDownOutside, true);
+    return () => document.removeEventListener('pointerdown', handlePointerDownOutside, true);
+  }, [contextMenu, contextMenuRef, setContextMenu]);
+
   return (
     <ShortcutSelectionProvider value={{
       selectionMode: shortcutMultiSelectMode,

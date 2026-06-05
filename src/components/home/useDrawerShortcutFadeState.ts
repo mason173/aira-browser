@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
-import { resolveFloatingSearchOffsetPx } from '@/components/home/FloatingSearchDock';
 
 type UseDrawerShortcutFadeStateArgs = {
   isDrawerExpanded: boolean;
@@ -7,7 +6,6 @@ type UseDrawerShortcutFadeStateArgs = {
   shortcutsPaintVisible: boolean;
   shortcutCount: number;
   showShortcutSearchEmptyState: boolean;
-  searchHeight: number;
   drawerShortcutScrollRef: RefObject<HTMLDivElement | null>;
 };
 
@@ -23,32 +21,16 @@ function hasVisibleShortcutContent(args: {
     && !args.showShortcutSearchEmptyState;
 }
 
-function getLastShortcutItemBottom(contentEl: HTMLDivElement | null) {
-  if (!contentEl) return null;
-
-  const shortcutItems = contentEl.querySelectorAll<HTMLElement>('[data-shortcut-drag-item="true"]');
-  if (shortcutItems.length === 0) return null;
-
-  let bottom = Number.NEGATIVE_INFINITY;
-  shortcutItems.forEach((item) => {
-    bottom = Math.max(bottom, item.getBoundingClientRect().bottom);
-  });
-
-  return Number.isFinite(bottom) ? bottom : null;
-}
-
 export function useDrawerShortcutFadeState({
   isDrawerExpanded,
   renderShortcuts,
   shortcutsPaintVisible,
   shortcutCount,
   showShortcutSearchEmptyState,
-  searchHeight,
   drawerShortcutScrollRef,
 }: UseDrawerShortcutFadeStateArgs) {
   const shortcutContentRef = useRef<HTMLDivElement | null>(null);
   const [showShortcutOverflowFade, setShowShortcutOverflowFade] = useState(false);
-  const [showCollapsedSearchOverlapFade, setShowCollapsedSearchOverlapFade] = useState(false);
 
   useEffect(() => {
     if (typeof window === 'undefined') return undefined;
@@ -63,7 +45,6 @@ export function useDrawerShortcutFadeState({
       showShortcutSearchEmptyState,
     })) {
       setShowShortcutOverflowFade(false);
-      setShowCollapsedSearchOverlapFade(false);
       return undefined;
     }
 
@@ -80,7 +61,6 @@ export function useDrawerShortcutFadeState({
           showShortcutSearchEmptyState,
         })) {
           setShowShortcutOverflowFade(false);
-          setShowCollapsedSearchOverlapFade(false);
           return;
         }
 
@@ -88,16 +68,10 @@ export function useDrawerShortcutFadeState({
           const maxScrollTop = scrollEl ? Math.max(0, scrollEl.scrollHeight - scrollEl.clientHeight) : 0;
           const hasHiddenContentBelow = scrollEl !== null && maxScrollTop > 1 && scrollEl.scrollTop < maxScrollTop - 1;
           setShowShortcutOverflowFade(hasHiddenContentBelow);
-          setShowCollapsedSearchOverlapFade(false);
           return;
         }
 
-        const lastShortcutItemBottom = getLastShortcutItemBottom(contentEl);
-        const searchTop = window.innerHeight - resolveFloatingSearchOffsetPx(searchHeight) - searchHeight;
-        const overlapsFloatingSearch = lastShortcutItemBottom !== null && lastShortcutItemBottom > searchTop + 1;
-
         setShowShortcutOverflowFade(false);
-        setShowCollapsedSearchOverlapFade(overlapsFloatingSearch);
       });
     };
 
@@ -130,7 +104,6 @@ export function useDrawerShortcutFadeState({
     drawerShortcutScrollRef,
     isDrawerExpanded,
     renderShortcuts,
-    searchHeight,
     shortcutCount,
     shortcutsPaintVisible,
     showShortcutSearchEmptyState,
@@ -139,6 +112,5 @@ export function useDrawerShortcutFadeState({
   return {
     shortcutContentRef,
     showShortcutOverflowFade,
-    showCollapsedSearchOverlapFade,
   };
 }

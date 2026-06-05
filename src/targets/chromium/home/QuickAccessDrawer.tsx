@@ -3,8 +3,6 @@ import { FrostedSurface } from '@/components/frosted/FrostedSurface';
 import { useStableElementState } from '@/hooks/useStableElementState';
 import { RootShortcutGrid } from '@/features/shortcuts/components/RootShortcutGrid';
 import {
-  DrawerShortcutOverflowFadeOverlay,
-  resolveDrawerShortcutOverflowFadeHeight,
   resolveDrawerShortcutOverflowFadeInset,
 } from '@/components/home/DrawerShortcutOverflowFadeOverlay';
 import {
@@ -37,7 +35,7 @@ export function QuickAccessDrawer({
   drawerLayoutProgress: _drawerLayoutProgress,
   drawerBottomBounceOffsetPx,
   drawerContentTopPaddingPx,
-  drawerContentBackdropBlurPx,
+  drawerContentBackdropBlurPx: _drawerContentBackdropBlurPx,
   drawerPanelHeightVh,
   drawerPanelTranslateYPx,
   drawerShortcutBottomInset,
@@ -52,7 +50,6 @@ export function QuickAccessDrawer({
   drawerShortcutScrollRef,
   shortcutGridProps: _shortcutGridProps,
   drawerShortcutSearchProps,
-  onBottomSearchCropVisibilityChange,
 }: QuickAccessDrawerProps) {
   const [drawerWheelAreaNode, drawerWheelAreaNodeRef] = useStableElementState<HTMLDivElement>({
     ref: drawerWheelAreaRef,
@@ -113,31 +110,24 @@ export function QuickAccessDrawer({
     showShortcutSearchEmptyState,
     filteredShortcutGridProps,
   } = drawerShortcutSearchProps;
-  const shortcutOverflowFadeHeightPx = resolveDrawerShortcutOverflowFadeHeight(searchHeight);
   const shortcutOverflowFadeInsetPx = resolveDrawerShortcutOverflowFadeInset(searchHeight);
   const floatingShortcutSearchReservePx = isDrawerExpanded ? resolveFloatingSearchReservePx(searchHeight) : 0;
   const shortcutScrollRightPaddingPx = 4;
   const {
     shortcutContentRef,
     showShortcutOverflowFade,
-    showCollapsedSearchOverlapFade,
   } = useDrawerShortcutFadeState({
     isDrawerExpanded,
     renderShortcuts,
     shortcutsPaintVisible,
     shortcutCount: filteredShortcutGridProps.shortcuts.length,
     showShortcutSearchEmptyState,
-    searchHeight,
     drawerShortcutScrollRef,
   });
 
   const enableInteractiveTransitions = useCallback(() => {
     setInteractiveTransitionsEnabled(true);
   }, []);
-
-  useEffect(() => {
-    onBottomSearchCropVisibilityChange?.(showCollapsedSearchOverlapFade);
-  }, [onBottomSearchCropVisibilityChange, showCollapsedSearchOverlapFade]);
 
   useEffect(() => {
     if (!shortcutsVisibilityInitializedRef.current) {
@@ -193,12 +183,6 @@ export function QuickAccessDrawer({
     renderShortcuts,
   ]);
 
-  const shortcutOverflowFadeLayer = showShortcutOverflowFade ? (
-    <DrawerShortcutOverflowFadeOverlay
-      className="pointer-events-none absolute inset-x-0 bottom-0 z-[12]"
-      heightPx={shortcutOverflowFadeHeightPx}
-    />
-  ) : null;
   const shortcutsBlock = renderShortcuts ? (
     <div
       className="relative min-h-0 flex-1 w-full transition-[opacity,transform] ease-out"
@@ -260,7 +244,7 @@ export function QuickAccessDrawer({
       <div
         className="fixed inset-0 z-[14000]"
         style={{
-          backgroundColor: 'rgba(18,22,30,0.38)',
+          backgroundColor: 'var(--background)',
           opacity: normalizedOverlayOpacity,
           transition: interactiveTransitionsEnabled
             ? `opacity ${drawerBackgroundFadeTransition}`
@@ -295,11 +279,10 @@ export function QuickAccessDrawer({
           }}
         >
           <section
-            className="relative mx-auto flex h-full min-h-0 w-full max-w-full flex-col overflow-hidden border-transparent bg-transparent shadow-none pointer-events-auto"
+            className="relative mx-auto flex h-full min-h-0 w-full max-w-full flex-col overflow-hidden border-transparent shadow-none pointer-events-auto"
             style={{
+              backgroundColor: isDrawerExpanded ? 'var(--background)' : 'transparent',
               opacity: 'var(--leaftab-folder-immersive-inverse-opacity, 1)',
-              backdropFilter: !reduceMotionVisuals && drawerContentBackdropBlurPx > 0 ? `blur(${drawerContentBackdropBlurPx.toFixed(1)}px)` : undefined,
-              WebkitBackdropFilter: !reduceMotionVisuals && drawerContentBackdropBlurPx > 0 ? `blur(${drawerContentBackdropBlurPx.toFixed(1)}px)` : undefined,
               height: `${drawerPanelHeightVh}vh`,
               maxHeight: `${drawerPanelHeightVh}vh`,
               transform: drawerPanelTranslateYPx > 0.01 ? `translate3d(0, ${drawerPanelTranslateYPx.toFixed(3)}px, 0)` : 'translate3d(0, 0, 0)',
@@ -311,8 +294,6 @@ export function QuickAccessDrawer({
                     : [
                         `opacity ${drawerLinkedTransition}`,
                         `transform ${drawerLinkedTransition}`,
-                        `backdrop-filter ${drawerLinkedTransition}`,
-                        `-webkit-backdrop-filter ${drawerLinkedTransition}`,
                       ].join(', '))
                 : 'opacity 180ms ease-out',
               willChange: 'opacity, transform',
@@ -358,7 +339,6 @@ export function QuickAccessDrawer({
                 </div>
               )}
             </div>
-            {shortcutOverflowFadeLayer}
           </section>
         </div>
       </div>

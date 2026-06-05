@@ -18,10 +18,6 @@ import {
 
 export type LeaftabShortcutCardMode = 'default' | 'preview' | 'merge-preview';
 
-function detectFirefoxLike() {
-  return typeof navigator !== 'undefined' && /firefox/i.test(navigator.userAgent);
-}
-
 function LeaftabSelectionIndicator({
   compactPreviewSize,
   selected,
@@ -415,51 +411,6 @@ export function LeaftabShortcutCard({
   );
 }
 
-function LeaftabLightweightDragPreview({
-  shortcut,
-  largeFolderPreviewSize,
-  compactIconSize = LEAFTAB_COMPACT_GRID_METRICS.iconSize,
-  columnGap = LEAFTAB_COMPACT_GRID_METRICS.columnGap,
-  iconCornerRadius = LEAFTAB_COMPACT_GRID_METRICS.iconCornerRadius,
-}: {
-  shortcut: Shortcut;
-  largeFolderPreviewSize?: number;
-  compactIconSize?: number;
-  columnGap?: number;
-  iconCornerRadius?: number;
-}) {
-  const folder = isShortcutFolder(shortcut);
-  const largeFolder = folder && shortcut.folderDisplayMode === 'large';
-  const previewSize = largeFolder
-    ? (largeFolderPreviewSize ?? compactIconSize * LEAFTAB_COMPACT_GRID_METRICS.largeFolderGridSpan + columnGap)
-    : compactIconSize;
-
-  return (
-    <div className="shortcut-drag-preview">
-      <div className="shortcut-drag-preview__icon">
-        {folder ? (
-          <LeaftabFolderPreview
-            shortcut={shortcut}
-            previewSize={previewSize}
-            large={largeFolder}
-            iconCornerRadius={iconCornerRadius}
-          />
-        ) : (
-          <LeaftabShortcutGlyph
-            shortcut={shortcut}
-            size={compactIconSize}
-            className="shortcut-card__icon-tile"
-            borderRadius={getLeaftabShortcutIconBorderRadius(iconCornerRadius)}
-          />
-        )}
-      </div>
-      <p className="shortcut-drag-preview__title" style={{ width: previewSize }}>
-        {shortcut.title}
-      </p>
-    </div>
-  );
-}
-
 export function LeaftabMergePreview({
   shortcut,
   largeFolderPreviewSize,
@@ -531,14 +482,6 @@ export function renderLeaftabRootGridDragPreview(
     iconCornerRadius?: number;
   },
 ) {
-  if (detectFirefoxLike()) {
-    return <LeaftabLightweightDragPreview
-      shortcut={params.shortcut}
-      largeFolderPreviewSize={options?.largeFolderPreviewSize}
-      iconCornerRadius={options?.iconCornerRadius}
-    />;
-  }
-
   return (
     <LeaftabShortcutCard
       shortcut={params.shortcut}
@@ -610,14 +553,6 @@ export function renderLeaftabFolderSurfaceDragPreview(
     iconCornerRadius?: number;
   },
 ) {
-  if (detectFirefoxLike()) {
-    return <LeaftabLightweightDragPreview
-      shortcut={params.shortcut}
-      largeFolderPreviewSize={options?.largeFolderPreviewSize}
-      iconCornerRadius={options?.iconCornerRadius}
-    />;
-  }
-
   return (
     <LeaftabShortcutCard
       shortcut={params.shortcut}

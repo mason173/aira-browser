@@ -1,4 +1,5 @@
 export type SearchBarTheme = {
+  foregroundTone: 'dark' | 'light';
   surfaceClassName: string;
   triggerToneClassName: string;
   clearButtonClassName: string;
@@ -21,6 +22,41 @@ export type SearchBarTheme = {
   dropdownClearButtonClassName: string;
   dropdownEmptyStateClassName: string;
   dropdownFooterClassName: string;
+};
+
+const SEARCH_THEME_TOKEN_CLASSES = {
+  surfaceClassName: 'overflow-hidden bg-transparent text-[var(--search-ui-surface-foreground)] shadow-none',
+  triggerToneClassName: 'text-[var(--search-ui-trigger-foreground)] transition-colors hover:text-[var(--search-ui-trigger-foreground-hover)]',
+  clearButtonClassName: 'text-[var(--search-ui-clear-foreground)] hover:bg-[var(--search-ui-clear-background-hover)] hover:text-[var(--search-ui-clear-foreground-hover)]',
+  inputClassName: 'bg-transparent dark:bg-transparent text-[var(--search-ui-input-foreground)] placeholder:text-[var(--search-ui-placeholder-foreground)]',
+  placeholderClassName: 'text-[var(--search-ui-placeholder-foreground)]',
+  inlinePreviewClassName: 'bg-muted text-muted-foreground',
+  linkIconClassName: 'text-[var(--search-ui-subtle-foreground)]',
+  dropdownSurfaceClassName: 'overflow-hidden bg-transparent text-[var(--search-ui-surface-foreground)] shadow-none',
+  dropdownRowClassName: 'text-[var(--search-ui-foreground)] hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground',
+  dropdownRowSelectedClassName: 'bg-accent text-accent-foreground',
+  dropdownSecondaryTextClassName: 'text-[var(--search-ui-subtle-foreground)]',
+  engineDropdownSurfaceClassName: 'overflow-hidden bg-transparent text-[var(--search-ui-engine-item-foreground)] shadow-none',
+  engineDropdownItemClassName: 'text-[var(--search-ui-engine-item-foreground)] hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground',
+  engineDropdownItemSelectedClassName: 'bg-accent text-accent-foreground',
+  dropdownStatusLoadingContainerClassName: 'bg-muted',
+  dropdownStatusInfoContainerClassName: 'bg-muted',
+  dropdownStatusDotClassName: 'bg-[var(--search-ui-status-dot)]',
+  dropdownStatusTextClassName: 'text-[var(--search-ui-foreground)]',
+  dropdownStatusButtonClassName: 'bg-accent text-accent-foreground hover:bg-accent',
+  dropdownClearButtonClassName: 'text-[var(--search-ui-subtle-foreground)] hover:text-[var(--search-ui-foreground)]',
+  dropdownEmptyStateClassName: 'text-[var(--search-ui-subtle-foreground)]',
+  dropdownFooterClassName: 'border-[var(--frosted-ui-border)] text-[var(--search-ui-subtle-foreground)]',
+} satisfies Omit<SearchBarTheme, 'foregroundTone'>;
+
+const darkForegroundSearchTheme: SearchBarTheme = {
+  foregroundTone: 'dark',
+  ...SEARCH_THEME_TOKEN_CLASSES,
+};
+
+const lightForegroundSearchTheme: SearchBarTheme = {
+  foregroundTone: 'light',
+  ...SEARCH_THEME_TOKEN_CLASSES,
 };
 
 function clamp01(value: number) {
@@ -127,54 +163,8 @@ export function resolveSearchBarTheme(args: {
   })();
 
   if (prefersDarkForeground) {
-    return {
-      surfaceClassName: 'overflow-hidden bg-transparent text-black/72 shadow-none',
-      triggerToneClassName: 'text-black/68 transition-colors hover:text-black/82',
-      clearButtonClassName: 'text-black/40 hover:bg-black/6 hover:text-black/70',
-      inputClassName: 'bg-transparent dark:bg-transparent text-black/82 placeholder:text-black/56',
-      placeholderClassName: 'text-black/56',
-      inlinePreviewClassName: 'bg-black/6 text-black/52',
-      linkIconClassName: 'text-black/46',
-      dropdownSurfaceClassName: 'overflow-hidden bg-transparent text-black/72 shadow-none',
-      dropdownRowClassName: 'text-black/76 hover:bg-black/5 hover:text-black/88 focus:bg-black/5 focus:text-black/88',
-      dropdownRowSelectedClassName: 'bg-black/8 text-black/86',
-      dropdownSecondaryTextClassName: 'text-black/44',
-      engineDropdownSurfaceClassName: 'overflow-hidden bg-transparent text-black/86 shadow-none',
-      engineDropdownItemClassName: 'text-black/84 hover:bg-black/6 hover:text-black/92 focus:bg-black/6 focus:text-black/92',
-      engineDropdownItemSelectedClassName: 'bg-black/10 text-black/94',
-      dropdownStatusLoadingContainerClassName: 'bg-black/6',
-      dropdownStatusInfoContainerClassName: 'bg-black/6',
-      dropdownStatusDotClassName: 'bg-black/45',
-      dropdownStatusTextClassName: 'text-black/66',
-      dropdownStatusButtonClassName: 'bg-black/10 text-black/72 hover:bg-black/16',
-      dropdownClearButtonClassName: 'text-black/46 hover:text-black/72',
-      dropdownEmptyStateClassName: 'text-black/46',
-      dropdownFooterClassName: 'border-black/10 text-black/44',
-    };
+    return darkForegroundSearchTheme;
   }
 
-  return {
-    surfaceClassName: 'overflow-hidden bg-transparent text-white/92 shadow-none',
-    triggerToneClassName: 'text-white/72 transition-colors hover:text-white/92',
-    clearButtonClassName: 'text-white/58 hover:bg-white/8 hover:text-white/94',
-    inputClassName: 'bg-transparent dark:bg-transparent text-white/92 placeholder:text-white/42',
-    placeholderClassName: 'text-white/42',
-    inlinePreviewClassName: 'bg-white/10 text-white/[0.78]',
-    linkIconClassName: 'text-white/54',
-    dropdownSurfaceClassName: 'overflow-hidden bg-transparent text-white/92 shadow-none',
-    dropdownRowClassName: 'text-white/88 hover:bg-white/10 hover:text-white/[0.96] focus:bg-white/10 focus:text-white/[0.96]',
-    dropdownRowSelectedClassName: 'bg-white/12 text-white/[0.96]',
-    dropdownSecondaryTextClassName: 'text-white/52',
-    engineDropdownSurfaceClassName: 'overflow-hidden bg-transparent text-white/92 shadow-none',
-    engineDropdownItemClassName: 'text-white/88 hover:bg-white/10 hover:text-white/[0.96] focus:bg-white/10 focus:text-white/[0.96]',
-    engineDropdownItemSelectedClassName: 'bg-white/12 text-white/[0.96]',
-    dropdownStatusLoadingContainerClassName: 'bg-white/10',
-    dropdownStatusInfoContainerClassName: 'bg-white/10',
-    dropdownStatusDotClassName: 'bg-white/72',
-    dropdownStatusTextClassName: 'text-white/82',
-    dropdownStatusButtonClassName: 'bg-white/14 text-white/88 hover:bg-white/20',
-    dropdownClearButtonClassName: 'text-white/58 hover:text-white/92',
-    dropdownEmptyStateClassName: 'text-white/58',
-    dropdownFooterClassName: 'border-white/12 text-white/52',
-  };
+  return lightForegroundSearchTheme;
 }

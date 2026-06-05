@@ -38,7 +38,6 @@ import {
 } from "@/utils/accentColor";
 import {
   DEFAULT_WALLPAPER_ACCENT_PALETTE,
-  resolveWallpaperAccentPalette,
 } from "@/utils/dynamicAccentColor";
 
 const AIRA_LOGO_SRC = '/icons/icon128.png';
@@ -118,8 +117,12 @@ export default function SettingsModal({
   void onShortcutCompactShowTitleChange;
   void shortcutGridColumns;
   void onShortcutGridColumnsChange;
+  void wallpaperMode;
   void onWallpaperModeChange;
+  void bingWallpaper;
+  void customWallpaper;
   void onCustomWallpaperChange;
+  void colorWallpaperId;
   void onColorWallpaperIdChange;
   void wallpaperMaskOpacity;
   void onWallpaperMaskOpacityChange;
@@ -130,7 +133,6 @@ export default function SettingsModal({
   void onWebdavDisable;
   const [mounted, setMounted] = useState(false);
   const [accentColor, setAccentColor] = useState<string>(DEFAULT_ACCENT_COLOR);
-  const [recommendedAccentPalette, setRecommendedAccentPalette] = useState<string[]>(DEFAULT_WALLPAPER_ACCENT_PALETTE);
   const [appVersion, setAppVersion] = useState<string>('—');
   const [settingsPage, setSettingsPage] = useState<'main' | 'about'>('main');
 
@@ -138,8 +140,8 @@ export default function SettingsModal({
   const colorOptions = useMemo(() => {
     const recommendedOptions = Array.from({ length: 6 }, (_, index) => ({
       name: getWallpaperAccentSlotKey(index),
-      value: recommendedAccentPalette[index] || DEFAULT_WALLPAPER_ACCENT_PALETTE[index],
-      accentDetailColor: resolveAccentDetailColor(recommendedAccentPalette[index] || DEFAULT_WALLPAPER_ACCENT_PALETTE[index]),
+      value: DEFAULT_WALLPAPER_ACCENT_PALETTE[index],
+      accentDetailColor: resolveAccentDetailColor(DEFAULT_WALLPAPER_ACCENT_PALETTE[index]),
       label: t('settings.accent.recommended', {
         index: index + 1,
         defaultValue: `Recommended ${index + 1}`,
@@ -156,7 +158,7 @@ export default function SettingsModal({
         }),
       },
     ];
-  }, [isDarkTheme, recommendedAccentPalette, t]);
+  }, [isDarkTheme, t]);
   const currentThemeValue = mounted ? (theme ?? 'system') : 'system';
   const renderDisplayModeIcon = (mode: DisplayMode, className: string) => {
     if (mode === 'fresh') return <RiFlashlightFill className={className} />;
@@ -204,30 +206,6 @@ export default function SettingsModal({
   useEffect(() => {
     if (!isOpen) setSettingsPage('main');
   }, [isOpen]);
-  useEffect(() => {
-    let canceled = false;
-    resolveWallpaperAccentPalette({
-      wallpaperMode,
-      bingWallpaper,
-      customWallpaper,
-      colorWallpaperId,
-    })
-      .then((palette) => {
-        if (canceled) return;
-        setRecommendedAccentPalette(
-          palette.length >= 6
-            ? palette.slice(0, 6)
-            : [...palette, ...DEFAULT_WALLPAPER_ACCENT_PALETTE].slice(0, 6),
-        );
-      })
-      .catch(() => {
-        if (canceled) return;
-        setRecommendedAccentPalette(DEFAULT_WALLPAPER_ACCENT_PALETTE);
-      });
-    return () => {
-      canceled = true;
-    };
-  }, [bingWallpaper, colorWallpaperId, customWallpaper, wallpaperMode]);
   useEffect(() => {
     try {
       if (typeof chrome !== 'undefined' && chrome.runtime?.getManifest) {
@@ -368,7 +346,7 @@ export default function SettingsModal({
                   <button
                     key={option.value}
                     type="button"
-                    className={`flex h-11 items-center justify-center gap-2.5 rounded-xl px-3 py-2 text-center transition-all ${displayMode === option.value ? 'bg-primary/10 text-primary' : 'frosted-control-surface text-foreground'}`}
+                    className={`flex h-11 items-center justify-center gap-2.5 rounded-xl px-3 py-2 text-center transition-all ${displayMode === option.value ? 'bg-accent text-primary' : 'frosted-control-surface text-foreground'}`}
                     onClick={() => { onDisplayModeChange(option.value); onOpenChange(false); }}
                   >
                     {renderDisplayModeIcon(option.value, "size-4.5 shrink-0")}
@@ -395,7 +373,7 @@ export default function SettingsModal({
                         role="radio"
                         aria-checked={selected}
                         aria-label={option.label}
-                        className={`flex h-full flex-1 items-center justify-center rounded-full transition-all focus:outline-none focus-visible:ring-0 ${selected ? 'bg-primary text-primary-foreground shadow-sm' : 'text-foreground/60 hover:bg-background/50 hover:text-foreground'}`}
+                        className={`flex h-full flex-1 items-center justify-center rounded-full transition-all focus:outline-none focus-visible:ring-0 ${selected ? 'bg-primary text-primary-foreground shadow-sm' : 'text-foreground/60 hover:bg-background hover:text-foreground'}`}
                         onClick={() => setTheme(option.value)}
                       >
                         {renderThemeModeIcon(option.value, "size-4.5")}

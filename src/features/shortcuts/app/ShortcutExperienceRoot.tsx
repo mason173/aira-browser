@@ -188,17 +188,6 @@ export const ShortcutExperienceRoot = memo(function ShortcutExperienceRoot({
     }
   }, [contextMenuRef, uiActions, uiState.contextMenu]);
 
-  useEffect(() => {
-    if (!uiState.contextMenu) return;
-    const handleClickOutside = (event: globalThis.MouseEvent) => {
-      if (contextMenuRef.current && !contextMenuRef.current.contains(event.target as Node)) {
-        uiActions.setContextMenu(null);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [contextMenuRef, uiActions, uiState.contextMenu]);
-
   const handleCreateShortcut = useCallback((insertIndex: number) => {
     openCreateShortcutEditor({
       setShortcutModalMode: uiActions.setShortcutModalMode,

@@ -34,8 +34,8 @@ function FrostedMaterialDialogProbe() {
       DialogContent,
       null,
       createElement('output', {
-        'data-testid': 'dialog-material-sample-blur',
-        children: material.sampleBlurPx,
+        'data-testid': 'dialog-material-overlay-opacity',
+        children: material.lightSurfaceOverlayOpacity,
       }),
     ),
   );
@@ -59,60 +59,48 @@ describe('frostedSurfacePresets', () => {
   });
 
   it('persists overrides and merges them into resolved preset material tokens', () => {
-    updateFrostedSurfaceMaterialTokenOverride('sampleBlurPx', 12);
-    updateFrostedSurfaceMaterialTokenOverride('sampleScale', 1.075);
     updateFrostedSurfaceMaterialTokenOverride('lightSurfaceOverlayOpacity', 0.42);
     updateFrostedSurfaceMaterialTokenOverride('darkSurfaceOverlayOpacity', 0.58);
 
     const resolved = getFrostedSurfacePreset('dialog-panel');
-    expect(resolved.material.sampleBlurPx).toBe(12);
-    expect(resolved.material.sampleScale).toBe(1.075);
     expect(resolved.material.lightSurfaceOverlayOpacity).toBe(0.42);
     expect(resolved.material.darkSurfaceOverlayOpacity).toBe(0.58);
 
     const searchResolved = getFrostedSurfacePreset('search-panel');
-    expect(searchResolved.material.sampleBlurPx).toBe(12);
     expect(searchResolved.material.darkSurfaceOverlayOpacity).toBe(0.58);
 
     const defaultMaterialTokens = getDefaultFrostedSurfaceMaterialTokens();
-    expect(defaultMaterialTokens.darkSurfaceOverlayOpacity).toBe(0.74);
+    expect(defaultMaterialTokens.darkSurfaceOverlayOpacity).toBe(1);
 
     const defaults = getDefaultFrostedSurfacePreset('dialog-panel');
-    expect(defaults.material.sampleBlurPx).toBe(0);
-    expect(defaults.material.sampleScale).toBe(1);
-    expect(defaults.material.lightSurfaceOverlayOpacity).toBe(0.9);
-    expect(defaults.material.darkSurfaceOverlayOpacity).toBe(0.74);
+    expect(defaults.material.lightSurfaceOverlayOpacity).toBe(1);
+    expect(defaults.material.darkSurfaceOverlayOpacity).toBe(1);
   });
 
   it('normalizes out-of-range overrides', () => {
     updateFrostedSurfaceMaterialTokenOverride('lightSurfaceOverlayOpacity', 2);
     updateFrostedSurfaceMaterialTokenOverride('darkSurfaceOverlayOpacity', -1);
-    updateFrostedSurfaceMaterialTokenOverride('sampleScale', 999);
-    updateFrostedSurfaceMaterialTokenOverride('sampleOverscanPx', -15);
 
     const resolved = getFrostedSurfacePreset('search-panel');
     expect(resolved.material.lightSurfaceOverlayOpacity).toBe(1);
     expect(resolved.material.darkSurfaceOverlayOpacity).toBe(0);
-    expect(resolved.material.sampleScale).toBe(1.12);
-    expect(resolved.material.sampleOverscanPx).toBe(0);
   });
 
   it('drops overrides when values match defaults', () => {
     const changeListener = vi.fn();
     window.addEventListener('leaftab-frosted-surface-overrides-changed', changeListener as EventListener);
 
-    const defaultScale = getDefaultFrostedSurfaceMaterialTokens().sampleScale;
-    updateFrostedSurfaceMaterialTokenOverride('sampleScale', 1.08);
-    updateFrostedSurfaceMaterialTokenOverride('sampleScale', defaultScale);
+    const defaultOpacity = getDefaultFrostedSurfaceMaterialTokens().lightSurfaceOverlayOpacity;
+    updateFrostedSurfaceMaterialTokenOverride('lightSurfaceOverlayOpacity', 0.8);
+    updateFrostedSurfaceMaterialTokenOverride('lightSurfaceOverlayOpacity', defaultOpacity);
 
-    expect(getFrostedSurfaceMaterialTokenOverrides().sampleScale).toBeUndefined();
+    expect(getFrostedSurfaceMaterialTokenOverrides().lightSurfaceOverlayOpacity).toBeUndefined();
     expect(changeListener).toHaveBeenCalledTimes(2);
 
     window.removeEventListener('leaftab-frosted-surface-overrides-changed', changeListener as EventListener);
   });
 
   it('can reset all global material overrides at once', () => {
-    updateFrostedSurfaceMaterialTokenOverride('sampleBlurPx', 8);
     updateFrostedSurfaceMaterialTokenOverride('lightSurfaceOverlayOpacity', 0.8);
 
     resetFrostedSurfaceMaterialTokenOverrides();
@@ -125,11 +113,11 @@ describe('frostedSurfacePresets', () => {
 
     expect(repeatedSnapshot).toBe(initialSnapshot);
 
-    updateFrostedSurfaceMaterialTokenOverride('sampleBlurPx', 6);
+    updateFrostedSurfaceMaterialTokenOverride('lightSurfaceOverlayOpacity', 0.6);
 
     const updatedSnapshot = getFrostedSurfaceMaterialTokens();
     expect(updatedSnapshot).not.toBe(initialSnapshot);
-    expect(updatedSnapshot.sampleBlurPx).toBe(6);
+    expect(updatedSnapshot.lightSurfaceOverlayOpacity).toBe(0.6);
 
     const repeatedUpdatedSnapshot = getFrostedSurfaceMaterialTokens();
     expect(repeatedUpdatedSnapshot).toBe(updatedSnapshot);
@@ -138,8 +126,8 @@ describe('frostedSurfacePresets', () => {
   it('pushes live updates through useFrostedSurfacePreset without a reload', () => {
     render(createElement(FrostedPresetProbe));
 
-    expect(screen.getByTestId('dialog-panel-material')).toHaveTextContent('"lightSurfaceOverlayOpacity":0.9');
-    expect(screen.getByTestId('dialog-panel-material')).toHaveTextContent('"darkSurfaceOverlayOpacity":0.74');
+    expect(screen.getByTestId('dialog-panel-material')).toHaveTextContent('"lightSurfaceOverlayOpacity":1');
+    expect(screen.getByTestId('dialog-panel-material')).toHaveTextContent('"darkSurfaceOverlayOpacity":1');
     expect(screen.getByTestId('dialog-panel-material')).toHaveTextContent('"borderVisible":false');
 
     act(() => {
@@ -156,8 +144,8 @@ describe('frostedSurfacePresets', () => {
       resetFrostedSurfaceMaterialTokenOverrides();
     });
 
-    expect(screen.getByTestId('dialog-panel-material')).toHaveTextContent('"lightSurfaceOverlayOpacity":0.9');
-    expect(screen.getByTestId('dialog-panel-material')).toHaveTextContent('"darkSurfaceOverlayOpacity":0.74');
+    expect(screen.getByTestId('dialog-panel-material')).toHaveTextContent('"lightSurfaceOverlayOpacity":1');
+    expect(screen.getByTestId('dialog-panel-material')).toHaveTextContent('"darkSurfaceOverlayOpacity":1');
     expect(screen.getByTestId('dialog-panel-material')).toHaveTextContent('"borderVisible":false');
   });
 
@@ -166,7 +154,7 @@ describe('frostedSurfacePresets', () => {
 
     render(createElement(FrostedMaterialDialogProbe));
 
-    expect(screen.getByTestId('dialog-material-sample-blur')).toHaveTextContent('0');
+    expect(screen.getByTestId('dialog-material-overlay-opacity')).toHaveTextContent('1');
     expect(consoleErrorSpy.mock.calls).not.toEqual(
       expect.arrayContaining([
         expect.arrayContaining([

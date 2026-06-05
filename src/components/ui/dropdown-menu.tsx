@@ -66,7 +66,7 @@ const DropdownMenuContent = React.forwardRef<
                 "relative isolate overflow-hidden border border-border bg-transparent backdrop-blur-none",
                 frostedDropdownPreset.shellClassName,
               )
-            : "rounded-[12px] border border-border bg-popover/80 p-1 shadow-lg backdrop-blur-md",
+            : "rounded-[12px] border border-border bg-popover p-1 shadow-lg",
           className,
           surfaceVariant === "frosted" ? "!bg-transparent !backdrop-blur-none" : undefined,
         )}

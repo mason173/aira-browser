@@ -1,6 +1,6 @@
-const LITE_WALLPAPER_DISPLAY_MAX_EDGE_PX = 1600;
-const LITE_WALLPAPER_CUSTOM_MAX_EDGE_PX = 1920;
-const LITE_WALLPAPER_WEBP_QUALITY = 0.86;
+const LITE_WALLPAPER_DISPLAY_MAX_EDGE_PX = 960;
+const LITE_WALLPAPER_CUSTOM_MAX_EDGE_PX = 1280;
+const LITE_WALLPAPER_WEBP_QUALITY = 0.78;
 
 type BitmapSource = ImageBitmap | HTMLImageElement;
 
@@ -92,15 +92,6 @@ async function downsampleWallpaperBlob(blob: Blob, maxEdge: number): Promise<Blo
   }
 }
 
-function readBlobAsDataUrl(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = (event) => resolve((event.target?.result as string) || '');
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(blob);
-  });
-}
-
 export async function createLiteDisplayWallpaperObjectUrl(src: string): Promise<string> {
   const response = await fetch(src);
   if (!response.ok) {
@@ -111,7 +102,6 @@ export async function createLiteDisplayWallpaperObjectUrl(src: string): Promise<
   return URL.createObjectURL(displayBlob);
 }
 
-export async function readLiteCustomWallpaperFile(file: File): Promise<string> {
-  const displayBlob = await downsampleWallpaperBlob(file, LITE_WALLPAPER_CUSTOM_MAX_EDGE_PX);
-  return readBlobAsDataUrl(displayBlob);
+export async function readLiteCustomWallpaperFile(file: File): Promise<Blob> {
+  return downsampleWallpaperBlob(file, LITE_WALLPAPER_CUSTOM_MAX_EDGE_PX);
 }

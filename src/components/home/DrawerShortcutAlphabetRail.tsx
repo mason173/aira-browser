@@ -141,7 +141,7 @@ export function DrawerShortcutAlphabetRail({
       }}
     >
       <div
-        className={`no-scrollbar flex max-h-[calc(100%-20px)] select-none flex-col items-center overflow-y-auto rounded-[22px] bg-black/10 py-3 backdrop-blur-md transition-[width,transform,padding,background-color,box-shadow] duration-180 ease-out ${railGapClassName} ${railPaddingXClassName} ${pressing ? 'bg-black/16 shadow-[0_10px_28px_rgba(15,23,42,0.16)]' : ''}`}
+        className={`no-scrollbar flex max-h-[calc(100%-20px)] select-none flex-col items-center overflow-y-auto rounded-[22px] bg-background py-3 transition-[width,transform,padding,background-color,box-shadow] duration-180 ease-out ${railGapClassName} ${railPaddingXClassName} ${pressing ? 'bg-accent shadow-[0_10px_28px_rgba(15,23,42,0.16)]' : ''}`}
         style={{
           width: `${railWidthPx}px`,
           transform: `translate3d(${railTranslateXPx}px, 0, 0)`,
@@ -166,7 +166,7 @@ export function DrawerShortcutAlphabetRail({
               <span
                 className={`absolute inset-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center justify-center font-semibold transition-all duration-180 ease-out ${
                   selected
-                    ? `rounded-full bg-white/90 text-black shadow-[0_8px_22px_rgba(15,23,42,0.24)] ${selectedBubbleClassName}`
+                    ? `rounded-full bg-primary text-primary-foreground shadow-[0_8px_22px_rgba(15,23,42,0.24)] ${selectedBubbleClassName}`
                     : `h-auto w-auto text-white/82 ${idleTextClassName}`
                 }`}
                 style={{ lineHeight: selected ? undefined : '1' }}

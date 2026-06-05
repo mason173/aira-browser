@@ -2,16 +2,14 @@ const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
 const {
-  resolveChannel,
-  writeChannelMarkerToDir,
-} = require('./channel-utils');
+  RELEASE_EDITION,
+  writeReleaseMarkerToDir,
+} = require('./release-utils');
 
-const channel = resolveChannel(process.argv[2] || process.env.VITE_DIST_CHANNEL || 'final');
 const root = path.resolve(__dirname, '..');
 const outDir = 'build';
 const env = {
   ...process.env,
-  VITE_DIST_CHANNEL: channel,
   VITE_BUILD_OUT_DIR: outDir,
 };
 const switchManifestScript = path.join(root, 'scripts', 'switch-manifest.js');
@@ -81,16 +79,16 @@ function applyFinalLocaleMessages() {
   };
 }
 
-console.log(`[build] channel: ${channel}, edition: final`);
+console.log(`[build] edition: ${RELEASE_EDITION}`);
 const restoreLocales = applyFinalLocaleMessages();
 try {
-  run(`node "${switchManifestScript}" ${channel}`);
+  run(`node "${switchManifestScript}"`);
   run('npx vite build');
   if (fs.existsSync(buildDir)) {
     removeBuildManifestTemplates(buildDir);
-    writeChannelMarkerToDir(buildDir, channel);
+    writeReleaseMarkerToDir(buildDir);
   }
 } finally {
   restoreLocales();
-  run(`node "${switchManifestScript}" final`);
+  run(`node "${switchManifestScript}"`);
 }

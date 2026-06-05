@@ -2,21 +2,17 @@ const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
 const {
-  detectChannelByManifest,
-  readChannelMarkerFromZip,
-  resolveChannel,
-} = require('./channel-utils');
-
-function normalizeChannelLabel(raw) {
-  return resolveChannel(raw || 'final');
-}
+  RELEASE_EDITION,
+  detectReleaseEditionByManifest,
+  readReleaseMarkerFromZip,
+} = require('./release-utils');
 
 function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
 }
 
-function getExpectedManifest(channel, root) {
-  const manifestPath = path.join(root, 'public', `manifest.${channel}.json`);
+function getExpectedManifest(root) {
+  const manifestPath = path.join(root, 'public', 'manifest.final.json');
   if (!fs.existsSync(manifestPath)) {
     throw new Error(`Missing manifest template: ${manifestPath}`);
   }
@@ -32,22 +28,22 @@ function readManifestFromZip(zipPath) {
   }
 }
 
-function verifyZip({ zipPath, expectedChannel, expectedVersion, expectedVersionName }) {
+function verifyZip({ zipPath, expectedEdition, expectedVersion, expectedVersionName }) {
   if (!fs.existsSync(zipPath)) {
     throw new Error(`Zip not found: ${zipPath}`);
   }
   const manifest = readManifestFromZip(zipPath);
-  const actualChannel = readChannelMarkerFromZip(zipPath) || detectChannelByManifest(manifest);
+  const actualEdition = readReleaseMarkerFromZip(zipPath) || detectReleaseEditionByManifest(manifest);
   const actualVersion = String(manifest.version || '');
   const actualVersionName = String(manifest.version_name || '');
 
-  if (actualChannel !== expectedChannel) {
+  if (actualEdition !== expectedEdition) {
     throw new Error(
       [
-        `Channel mismatch in ${path.basename(zipPath)}.`,
-        `Expected: ${expectedChannel}`,
-        `Actual: ${actualChannel}`,
-        `Hint: run \`npm run build:${expectedChannel}\` before packing this channel.`,
+        `Release edition mismatch in ${path.basename(zipPath)}.`,
+        `Expected: ${expectedEdition}`,
+        `Actual: ${actualEdition}`,
+        'Hint: run `npm run build` before packing.',
       ].join(' ')
     );
   }
@@ -71,7 +67,7 @@ function verifyZip({ zipPath, expectedChannel, expectedVersion, expectedVersionN
   }
 
   console.log(
-    `[verify] ${path.basename(zipPath)} OK (channel=${actualChannel}, version=${actualVersion}, version_name=${actualVersionName || '(empty)'})`
+    `[verify] ${path.basename(zipPath)} OK (edition=${actualEdition}, version=${actualVersion}, version_name=${actualVersionName || '(empty)'})`
   );
 }
 
@@ -83,26 +79,26 @@ function main() {
     throw new Error('Missing package.json version.');
   }
 
-  const expectedChannel = normalizeChannelLabel(process.argv[2] || 'final');
-  const expectedManifest = getExpectedManifest(expectedChannel, root);
+  const expectedEdition = RELEASE_EDITION;
+  const expectedManifest = getExpectedManifest(root);
   const expectedVersion = String(expectedManifest.version || '');
   const expectedVersionName = String(expectedManifest.version_name || '');
   if (!expectedVersion) {
-    throw new Error(`Missing manifest version for channel "${expectedChannel}".`);
+    throw new Error('Missing final manifest version.');
   }
-  const args = process.argv.slice(3);
+  const args = process.argv.slice(2);
   const defaultZips = [
-    path.join(root, `airatab-${expectedChannel}-chrome-edge-v${releaseVersion}.zip`),
+    path.join(root, `airatab-${expectedEdition}-chrome-edge-v${releaseVersion}.zip`),
   ];
   const zipPaths = args.length > 0 ? args.map((p) => path.resolve(root, p)) : defaultZips;
 
   console.log(
-    `[verify] expected channel=${expectedChannel}, expected version=${expectedVersion}, expected version_name=${expectedVersionName || '(empty)'}, release tag version=${releaseVersion}`
+    `[verify] expected edition=${expectedEdition}, expected version=${expectedVersion}, expected version_name=${expectedVersionName || '(empty)'}, release tag version=${releaseVersion}`
   );
   zipPaths.forEach((zipPath) => {
     verifyZip({
       zipPath,
-      expectedChannel,
+      expectedEdition,
       expectedVersion,
       expectedVersionName,
     });

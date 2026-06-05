@@ -12,10 +12,6 @@ export type FrostedSurfaceMaterialTokens = {
   lightSurfaceOverlayOpacity: number;
   darkSurfaceOverlayOpacity: number;
   borderVisible: boolean;
-  sampleScale: number;
-  sampleOverscanPx: number;
-  sampleBlurPx: number;
-  backdropMaskStrength: number;
 };
 
 export type FrostedSurfacePresetConfig = {
@@ -42,10 +38,6 @@ export const FROSTED_SURFACE_MATERIAL_TOKEN_KEYS = [
   'lightSurfaceOverlayOpacity',
   'darkSurfaceOverlayOpacity',
   'borderVisible',
-  'sampleScale',
-  'sampleOverscanPx',
-  'sampleBlurPx',
-  'backdropMaskStrength',
 ] as const satisfies ReadonlyArray<keyof FrostedSurfaceMaterialTokens>;
 let cachedFrostedSurfaceOverrides: FrostedSurfaceMaterialTokenOverrides | null = null;
 let cachedResolvedFrostedSurfaceMaterialTokens: FrostedSurfaceMaterialTokens | null = null;
@@ -53,13 +45,9 @@ let cachedResolvedFrostedSurfacePresets: Record<FrostedSurfacePreset, FrostedSur
 let cachedFrostedSurfaceOverrideSignature: string | null = null;
 
 const DEFAULT_FROSTED_SURFACE_MATERIAL_TOKENS: FrostedSurfaceMaterialTokens = {
-  lightSurfaceOverlayOpacity: 0.9,
-  darkSurfaceOverlayOpacity: 0.74,
+  lightSurfaceOverlayOpacity: 1,
+  darkSurfaceOverlayOpacity: 1,
   borderVisible: false,
-  sampleScale: 1,
-  sampleOverscanPx: 100,
-  sampleBlurPx: 0,
-  backdropMaskStrength: 1,
 };
 
 const LEGACY_PRESET_OVERRIDE_MIGRATION_PRIORITY: readonly FrostedSurfacePreset[] = [
@@ -128,14 +116,6 @@ function normalizeFrostedSurfaceOverride(
     case 'lightSurfaceOverlayOpacity':
     case 'darkSurfaceOverlayOpacity':
       return clampNumber(value, 0, 1);
-    case 'sampleScale':
-      return clampNumber(value, 1, 1.12);
-    case 'sampleOverscanPx':
-      return clampNumber(Math.round(value), 0, 160);
-    case 'sampleBlurPx':
-      return clampNumber(Math.round(value), 0, 24);
-    case 'backdropMaskStrength':
-      return clampNumber(value, 0, 1.5);
     default:
       return undefined;
   }

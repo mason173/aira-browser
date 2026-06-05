@@ -18,7 +18,7 @@ function ShortcutKeyCaps({ combo }: { combo: readonly string[] }) {
       {combo.map((token, index) => (
         <span key={`${token}-${index}`} className="inline-flex items-center gap-1.5">
           {index > 0 ? <span className="text-muted-foreground">+</span> : null}
-          <kbd className="no-pill-radius inline-flex min-h-8 items-center rounded-[10px] border border-border/70 bg-background/75 px-2.5 py-1 text-[12px] font-medium text-foreground shadow-sm">
+          <kbd className="no-pill-radius inline-flex min-h-8 items-center rounded-[10px] border border-border/70 bg-background px-2.5 py-1 text-[12px] font-medium text-foreground shadow-sm">
             {token}
           </kbd>
         </span>
@@ -64,9 +64,9 @@ export function ShortcutGuideDialog({ open, onOpenChange, onBackToSettings }: Sh
                   </span>
                 </div>
 
-                <div className="overflow-hidden rounded-[22px] border border-border/60 bg-secondary/20">
+                <div className="overflow-hidden rounded-[22px] border border-border/60 bg-secondary">
                   <table className="w-full table-fixed border-collapse">
-                    <thead className="bg-background/65">
+                    <thead className="bg-background">
                       <tr className="border-b border-border/60">
                         <th className="w-[42%] px-4 py-3 text-left text-[12px] font-medium text-muted-foreground">
                           {t('settings.shortcutGuide.columns.shortcut')}

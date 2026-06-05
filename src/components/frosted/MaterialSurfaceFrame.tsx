@@ -44,10 +44,6 @@ export function MaterialSurfaceFrame({
         lightModeOverlayOpacity={lightModeOverlayOpacity ?? presetConfig.material.lightSurfaceOverlayOpacity}
         darkModeOverlayOpacity={darkModeOverlayOpacity ?? presetConfig.material.darkSurfaceOverlayOpacity}
         showBorder={showBorder ?? presetConfig.material.borderVisible}
-        imageOverscanPx={presetConfig.material.sampleOverscanPx ?? 0}
-        imageScale={presetConfig.material.sampleScale ?? 1}
-        imageBlurPx={presetConfig.material.sampleBlurPx ?? 0}
-        wallpaperMaskOpacityMultiplier={presetConfig.material.backdropMaskStrength ?? 1}
       />
       <div className={cn(presetConfig.contentClassName, contentClassName)}>
         {children}

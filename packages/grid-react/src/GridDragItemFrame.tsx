@@ -11,7 +11,6 @@ export type GridDragItemFrameProps = {
   projectionOffset?: ProjectionOffset | null;
   disableReorderAnimation?: boolean;
   hideDragPlaceholder?: boolean;
-  firefox?: boolean;
   dimmed?: boolean;
   dragDisabled?: boolean;
   registerElement?: (element: HTMLDivElement | null) => void;
@@ -47,7 +46,6 @@ export function GridDragItemFrame({
   projectionOffset,
   disableReorderAnimation = false,
   hideDragPlaceholder = false,
-  firefox = false,
   dimmed = false,
   dragDisabled = false,
   registerElement,
@@ -68,7 +66,7 @@ export function GridDragItemFrame({
     opacity: isDragging ? 0.32 : undefined,
     transform,
     transition: disableReorderAnimation ? undefined : GRID_DRAG_SETTLE_TRANSITION,
-    willChange: !firefox && (isDragging || centerPreviewActive || Boolean(projectionOffset))
+    willChange: isDragging || centerPreviewActive || Boolean(projectionOffset)
       ? 'transform, opacity'
       : undefined,
     touchAction: dragDisabled ? 'auto' : 'none',

@@ -66,7 +66,6 @@ export interface FolderShortcutSurfaceProps {
   onExtractDragStart?: (payload: FolderExtractDragStartPayload) => void;
   onDragActiveChange?: (active: boolean) => void;
   onHeatZoneInspectorChange?: (inspector: FolderShortcutSurfaceHeatZoneInspector | null) => void;
-  isFirefox?: boolean;
 }
 
 function FolderMaskDropZones({
@@ -184,7 +183,6 @@ export function FolderShortcutSurface({
   onExtractDragStart,
   onDragActiveChange,
   onHeatZoneInspectorChange,
-  isFirefox,
 }: FolderShortcutSurfaceProps) {
   const [dragActive, setDragActive] = useState(false);
   const [hoveredMask, setHoveredMask] = useState(false);
@@ -306,7 +304,6 @@ export function FolderShortcutSurface({
         extractBoundaryRef={maskBoundaryRef}
         onExtractDragStart={onExtractDragStart ? handleExtractDragStart : undefined}
         onBoundaryHoverChange={setHoveredMask}
-        isFirefox={isFirefox}
         resolveDropTargetRects={(params) => resolveDropTargetRects({ rect: params.rect })}
         renderItem={(params) => renderItem({
           shortcut: params.shortcut,

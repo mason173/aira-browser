@@ -66,7 +66,6 @@ import { useNewtabBootstrapFocus } from '@/hooks/useNewtabBootstrapFocus';
 import { useResponsiveLayout } from '@/hooks/useResponsiveLayout';
 import { useSettings } from '@/hooks/useSettings';
 import { useWallpaper } from '@/hooks/useWallpaper';
-import { useBlurredWallpaperAsset } from '@/hooks/useBlurredWallpaperAsset';
 import { useLiteDisplayWallpaperSrc } from '@/hooks/useLiteDisplayWallpaperSrc';
 import { useWallpaperRevealController } from '@/hooks/useWallpaperRevealController';
 import { scaleShortcutIconSize } from '@/utils/shortcutIconSettings';
@@ -259,7 +258,6 @@ export default function LiteApp() {
   const [manualHomeRevealReady] = useState(true);
   const effectiveInitialRevealReady = initialRevealReady && manualHomeRevealReady;
   const [accentColorSetting, setAccentColorSetting] = useState(() => readAccentColorSetting());
-  const [wallpaperImageReadyTick, setWallpaperImageReadyTick] = useState(0);
   const [wallpaperSettingsOpen, setWallpaperSettingsOpen] = useState(false);
   const [shortcutIconSettingsOpen, setShortcutIconSettingsOpen] = useState(false);
   const [webdavDialogOpen, setWebdavDialogOpen] = useState(false);
@@ -493,18 +491,7 @@ export default function LiteApp() {
   });
   const handleOverlayWallpaperReady = useCallback(() => {
     handleOverlayImageReady();
-    setWallpaperImageReadyTick((value) => value + 1);
   }, [handleOverlayImageReady]);
-  const wallpaperBlurSourceUrl = effectiveWallpaperMode === 'color' ? '' : effectiveOverlayWallpaperSrc;
-  const {
-    blurredWallpaperSrc,
-    blurredWallpaperAverageLuminance,
-    blurredWallpaperReady,
-  } = useBlurredWallpaperAsset({
-    sourceUrl: wallpaperBlurSourceUrl,
-    enabled: showOverlayWallpaperLayer && effectiveWallpaperMode !== 'color' && Boolean(wallpaperBlurSourceUrl),
-  });
-
   useEffect(() => {
     document.documentElement.setAttribute('data-browser-target', 'chromium');
     return () => {
@@ -525,11 +512,10 @@ export default function LiteApp() {
     document.documentElement.setAttribute('data-accent-color', accentColorSetting);
     resolveAccentColorSelection(accentColorSetting, {
       wallpaperMode: effectiveWallpaperMode,
-      bingWallpaper,
-      customWallpaper,
+      bingWallpaper: '',
+      customWallpaper: null,
       colorWallpaperId,
     }, {
-      forceImageResample: wallpaperImageReadyTick > 0,
       isDarkTheme,
     })
       .then((hex) => {
@@ -543,12 +529,9 @@ export default function LiteApp() {
     };
   }, [
     accentColorSetting,
-    bingWallpaper,
     colorWallpaperId,
-    customWallpaper,
     effectiveWallpaperMode,
     isDarkTheme,
-    wallpaperImageReadyTick,
   ]);
 
   const normalizedGridColumns = clampShortcutGridColumns(shortcutGridColumns, DEFAULT_SHORTCUT_CARD_VARIANT, responsiveLayout.density);
@@ -1230,29 +1213,16 @@ export default function LiteApp() {
   const wallpaperBackdropValue = useMemo(() => ({
     wallpaperMode: effectiveWallpaperMode,
     colorWallpaperGradient,
-    blurredWallpaperSrc,
     fallbackWallpaperSrc: effectiveWallpaperMode === 'color'
       ? ''
       : (liteOverlayBackgroundImageSrc || fallbackWallpaperBackdropSrc),
-    blurredWallpaperAverageLuminance,
     effectiveWallpaperMaskOpacity,
   }), [
-    blurredWallpaperAverageLuminance,
-    blurredWallpaperSrc,
     colorWallpaperGradient,
     effectiveWallpaperMaskOpacity,
     effectiveWallpaperMode,
     fallbackWallpaperBackdropSrc,
     liteOverlayBackgroundImageSrc,
-  ]);
-  const homeSurfaceWallpaperBackdrop = useMemo(() => ({
-    blurredWallpaperSrc,
-    blurredWallpaperAverageLuminance,
-    blurredWallpaperReady,
-  }), [
-    blurredWallpaperAverageLuminance,
-    blurredWallpaperReady,
-    blurredWallpaperSrc,
   ]);
   const handleShortcutModalOpenChange = useCallback((open: boolean) => {
     uiState.setShortcutEditOpen(open);
@@ -1401,7 +1371,6 @@ export default function LiteApp() {
                 wallpaperClockBaseProps={wallpaperClockBaseProps}
                 searchExperienceBaseProps={searchExperienceBaseProps}
                 baseTimeAnimationEnabled={false}
-                precomputedWallpaperBackdrop={homeSurfaceWallpaperBackdrop}
               />
             </ShortcutSelectionShell>
             {openFolderShortcut ? (

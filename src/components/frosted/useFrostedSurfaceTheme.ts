@@ -81,6 +81,6 @@ export function useFrostedSurfaceTheme({
 
   return {
     theme,
-    foregroundTone: theme.surfaceClassName.includes('text-black') ? 'dark' : 'light',
+    foregroundTone: theme.foregroundTone,
   };
 }

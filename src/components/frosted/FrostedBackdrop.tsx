@@ -1,11 +1,5 @@
-import { useMemo, type CSSProperties } from 'react';
+import { type CSSProperties } from 'react';
 import { useTheme } from 'next-themes';
-import { useWallpaperBackdropSnapshot } from '@/components/wallpaper/WallpaperBackdropContext';
-import {
-  buildViewportGradientSliceStyle,
-  buildViewportImageSliceBackgroundStyle,
-} from '@/components/frosted/viewportBackdropSlice';
-import { useLiveViewportRect } from '@/hooks/useLiveViewportRect';
 
 export type FrostedBackdropPreset = 'default' | 'immersive-drawer';
 export type FrostedSurfaceTone = 'default' | 'drawer';
@@ -22,25 +16,16 @@ export type FrostedBackdropProps = {
   fallbackSurfaceColor?: string;
   opacity?: number;
   transition?: string;
-  imageOverscanPx?: number;
-  imageScale?: number;
-  imageBlurPx?: number;
-  wallpaperMaskOpacityMultiplier?: number;
 };
 
-const DEFAULT_FALLBACK_SURFACE_COLOR = 'rgba(30, 34, 42, 0.18)';
+const DEFAULT_FALLBACK_SURFACE_COLOR = 'var(--frosted-ui-background, var(--background))';
 const DRAWER_SURFACE_OVERLAY_STYLE: CSSProperties = {
-  backgroundColor: 'rgba(0, 0, 0, 0.08)',
+  backgroundColor: 'var(--background)',
 };
-
-function clamp01(value: number) {
-  if (!Number.isFinite(value)) return 0;
-  return Math.min(1, Math.max(0, value));
-}
 
 function buildSearchBorderStyle(): CSSProperties {
   return {
-    border: '1px solid rgba(255,255,255,0.18)',
+    border: '1px solid var(--border)',
   };
 }
 
@@ -56,48 +41,10 @@ export function FrostedBackdrop({
   fallbackSurfaceColor = DEFAULT_FALLBACK_SURFACE_COLOR,
   opacity,
   transition,
-  imageOverscanPx = 0,
-  imageScale = 1,
-  imageBlurPx = 0,
-  wallpaperMaskOpacityMultiplier = 1,
 }: FrostedBackdropProps) {
-  const wallpaperBackdrop = useWallpaperBackdropSnapshot();
   const { resolvedTheme } = useTheme();
   const isDarkTheme = resolvedTheme === 'dark';
-  const hasViewportBackedSurface = Boolean(
-    wallpaperBackdrop?.blurredWallpaperSrc
-    || wallpaperBackdrop?.fallbackWallpaperSrc
-    || (wallpaperBackdrop?.wallpaperMode === 'color' && wallpaperBackdrop.colorWallpaperGradient),
-  );
-  const viewportRect = useLiveViewportRect(surfaceNode, hasViewportBackedSurface);
-  const normalizedBackdropLuminance = clamp01(
-    wallpaperBackdrop?.blurredWallpaperAverageLuminance ?? (isDarkTheme ? 0.42 : 0.68),
-  );
-  const immersiveWallpaperMaskStyle = useMemo<CSSProperties | null>(() => {
-    if (!wallpaperBackdrop) return null;
-    return {
-      backgroundColor: `rgba(0, 0, 0, ${Math.max(0, Math.min(100, wallpaperBackdrop.effectiveWallpaperMaskOpacity)) / 100})`,
-    };
-  }, [wallpaperBackdrop]);
-  const immersiveBackdropTintStyle = useMemo<CSSProperties>(() => ({
-    backgroundColor: `rgba(18,22,30,${(0.08 + (normalizedBackdropLuminance * 0.12)).toFixed(3)})`,
-  }), [normalizedBackdropLuminance]);
-  const immersiveBlurOverlayStyle = useMemo<CSSProperties>(() => {
-    if (normalizedBackdropLuminance > 0.56) {
-      const darkAlpha = 0.05 + ((normalizedBackdropLuminance - 0.56) / 0.44) * 0.11;
-      return {
-        backgroundColor: `rgba(18,22,30,${darkAlpha.toFixed(3)})`,
-      };
-    }
-
-    const lightAlpha = 0.08 - (normalizedBackdropLuminance / 0.56) * 0.03;
-    return {
-      backgroundColor: `rgba(244,246,248,${lightAlpha.toFixed(3)})`,
-    };
-  }, [normalizedBackdropLuminance]);
-  const immersiveWhiteVeilStyle = useMemo<CSSProperties>(() => ({
-    backgroundColor: `rgba(255,255,255,${(normalizedBackdropLuminance > 0.56 ? 0.12 : 0.07).toFixed(3)})`,
-  }), [normalizedBackdropLuminance]);
+  void surfaceNode;
 
   if (preset === 'immersive-drawer') {
     return (
@@ -110,60 +57,25 @@ export function FrostedBackdrop({
         }}
         aria-hidden="true"
       >
-        {wallpaperBackdrop?.blurredWallpaperSrc && viewportRect ? (
-          <div
-            className="absolute"
-            style={buildViewportImageSliceBackgroundStyle({
-              rect: viewportRect,
-              imageSrc: wallpaperBackdrop.blurredWallpaperSrc,
-              overscanPx: imageOverscanPx,
-              scale: imageScale,
-              blurPx: imageBlurPx,
-            })}
-          />
-        ) : wallpaperBackdrop?.wallpaperMode === 'color' && wallpaperBackdrop.colorWallpaperGradient && viewportRect ? (
-          <div
-            style={{
-              ...buildViewportGradientSliceStyle({
-                rect: viewportRect,
-                overscanPx: imageOverscanPx,
-                blurPx: imageBlurPx,
-              }),
-              backgroundImage: wallpaperBackdrop.colorWallpaperGradient,
-            }}
-          />
-        ) : (
-          <div
-            className="absolute inset-0"
-            style={{
-              backgroundColor: isDarkTheme
-                ? 'rgba(20,24,32,0.98)'
-                : 'rgba(238,242,247,0.98)',
-            }}
-          />
-        )}
-        {immersiveWallpaperMaskStyle ? <div className="absolute inset-0" style={immersiveWallpaperMaskStyle} /> : null}
-        <div className="absolute inset-0" style={immersiveBlurOverlayStyle} />
-        <div className="absolute inset-0" style={immersiveBackdropTintStyle} />
-        <div className="absolute inset-0" style={immersiveWhiteVeilStyle} />
+        <div
+          className="absolute inset-0"
+          style={{
+            backgroundColor: isDarkTheme
+              ? '#141820'
+              : '#eef2f7',
+          }}
+        />
       </div>
     );
   }
 
   const drawerToneActive = tone === 'drawer';
-  const normalizedLightModeOverlayOpacity = clamp01(lightModeOverlayOpacity);
-  const normalizedDarkModeOverlayOpacity = clamp01(darkModeOverlayOpacity);
   const modeOverlayStyle: CSSProperties = {
     backgroundColor: isDarkTheme
-      ? `rgba(0, 0, 0, ${normalizedDarkModeOverlayOpacity})`
-      : `rgba(255, 255, 255, ${normalizedLightModeOverlayOpacity})`,
+      ? `rgba(0, 0, 0, ${darkModeOverlayOpacity})`
+      : `rgba(255, 255, 255, ${lightModeOverlayOpacity})`,
     transition: `background-color ${modeOverlayTransitionMs}ms cubic-bezier(0.22, 1, 0.36, 1)`,
   };
-  const wallpaperMaskStyle: CSSProperties | null = !drawerToneActive && wallpaperBackdrop
-    ? {
-        backgroundColor: `rgba(0, 0, 0, ${(Math.max(0, Math.min(100, wallpaperBackdrop.effectiveWallpaperMaskOpacity)) / 100) * clamp01(wallpaperMaskOpacityMultiplier)})`,
-      }
-    : null;
 
   if (drawerToneActive) {
     return (
@@ -190,49 +102,12 @@ export function FrostedBackdrop({
       className={`pointer-events-none absolute inset-0 z-0 overflow-hidden ${radiusClassName}`}
       aria-hidden="true"
     >
-      {wallpaperBackdrop?.blurredWallpaperSrc && viewportRect ? (
-        <div
-          className="absolute"
-          style={buildViewportImageSliceBackgroundStyle({
-            rect: viewportRect,
-            imageSrc: wallpaperBackdrop.blurredWallpaperSrc,
-            overscanPx: imageOverscanPx,
-            scale: imageScale,
-            blurPx: imageBlurPx,
-          })}
-        />
-      ) : wallpaperBackdrop?.wallpaperMode === 'color' && wallpaperBackdrop.colorWallpaperGradient && viewportRect ? (
-        <div
-          className="absolute inset-0"
-          style={{
-            ...buildViewportGradientSliceStyle({
-              rect: viewportRect,
-              overscanPx: imageOverscanPx,
-              blurPx: imageBlurPx,
-            }),
-            backgroundImage: wallpaperBackdrop.colorWallpaperGradient,
-          }}
-        />
-      ) : wallpaperBackdrop?.fallbackWallpaperSrc && viewportRect ? (
-        <div
-          className="absolute"
-          style={buildViewportImageSliceBackgroundStyle({
-            rect: viewportRect,
-            imageSrc: wallpaperBackdrop.fallbackWallpaperSrc,
-            overscanPx: imageOverscanPx,
-            scale: imageScale,
-            blurPx: Math.max(imageBlurPx, 28),
-          })}
-        />
-      ) : (
-        <div
-          className="absolute inset-0"
-          style={{
-            backgroundColor: fallbackSurfaceColor,
-          }}
-        />
-      )}
-      {wallpaperMaskStyle ? <div className="absolute inset-0" style={wallpaperMaskStyle} /> : null}
+      <div
+        className="absolute inset-0"
+        style={{
+          backgroundColor: fallbackSurfaceColor,
+        }}
+      />
       <div className="absolute inset-0" style={modeOverlayStyle} />
       {showBorder ? (
         <div

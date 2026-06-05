@@ -18,9 +18,7 @@ import {
 } from '@/config/animationTokens';
 import { RenderProfileBoundary } from '@/dev/renderProfiler';
 import type { DisplayModeLayoutFlags } from '@/displayMode/config';
-import { useBlurredWallpaperAsset } from '@/hooks/useBlurredWallpaperAsset';
 import type { SearchExperienceProps, SearchInteractionState } from '@/components/search/SearchExperience';
-import { BottomCropFadeOverlay, resolveBottomCropFadeHeight } from '@/components/home/BottomCropFadeOverlay';
 import {
   FloatingSearchDock,
   resolveFloatingSearchMotionPhase,
@@ -42,21 +40,12 @@ import type { WallpaperMode } from '@/wallpaper/types';
 const INITIAL_VISUAL_BOOT_SETTLE_MS = 700;
 const FOLDER_IMMERSIVE_PROGRESS_VAR = 'var(--leaftab-folder-immersive-progress, 0)';
 const FOLDER_IMMERSIVE_SCALE_VAR = 'var(--leaftab-folder-immersive-scale, 1)';
-const FOLDER_IMMERSIVE_BLUR_OVERSCAN_PX = 72;
-const FOLDER_IMMERSIVE_BLUR_SCALE = 1.06;
 const FLOATING_BOTTOM_SEARCH_Z_INDEX = 15030;
 const FLOATING_BOTTOM_SEARCH_ARROW_Z_INDEX = 15035;
-const FLOATING_BOTTOM_SEARCH_CROP_Z_INDEX = 15025;
 const FLOATING_BOTTOM_SEARCH_HIDE_DURATION_MS = 300;
 const FLOATING_BOTTOM_SEARCH_HIDE_EASING = 'cubic-bezier(0.22, 1, 0.36, 1)';
-const FLOATING_BOTTOM_SEARCH_CROP_REVEAL_DURATION_MS = 1000;
 const FLOATING_BOTTOM_SEARCH_HEIGHT_PX = 44;
 const FLOATING_BOTTOM_SEARCH_HORIZONTAL_PADDING_PX = 16;
-
-function clamp01(value: number) {
-  if (!Number.isFinite(value)) return 0;
-  return Math.min(1, Math.max(0, value));
-}
 
 function useTrackedInputSnapshot(inputRef: RefObject<HTMLInputElement | null>, enabled = true) {
   const [snapshot, setSnapshot] = useState({
@@ -195,11 +184,6 @@ export type HomeInteractiveSurfaceProps = {
     'inputRef' | 'onInteractionStateChange'
   >;
   baseTimeAnimationEnabled: boolean;
-  precomputedWallpaperBackdrop?: {
-    blurredWallpaperSrc: string;
-    blurredWallpaperAverageLuminance: number | null;
-    blurredWallpaperReady?: boolean;
-  };
 };
 
 export const HomeInteractiveSurface = memo(function HomeInteractiveSurface({
@@ -227,7 +211,6 @@ export const HomeInteractiveSurface = memo(function HomeInteractiveSurface({
   wallpaperClockBaseProps,
   searchExperienceBaseProps,
   baseTimeAnimationEnabled,
-  precomputedWallpaperBackdrop,
 }: HomeInteractiveSurfaceProps) {
   const { t } = useTranslation();
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -241,7 +224,6 @@ export const HomeInteractiveSurface = memo(function HomeInteractiveSurface({
   const [visualBootSettled, setVisualBootSettled] = useState(initialRevealReady);
   const [drawerExpanded, setDrawerExpanded] = useState(false);
   const [requestDrawerExpand, setRequestDrawerExpand] = useState<(() => void) | null>(null);
-  const [bottomSearchCropVisible, setBottomSearchCropVisible] = useState(false);
   const [globalSearchActivationHandle, setGlobalSearchActivationHandle] = useState<SearchActivationHandle | null>(null);
   const [wallpaperAtmosphereReady, setWallpaperAtmosphereReady] = useState(false);
 
@@ -302,23 +284,6 @@ export const HomeInteractiveSurface = memo(function HomeInteractiveSurface({
   const searchInteractionLocked = searchInteractionState.historyOpen
     || searchInteractionState.dropdownOpen
     || Boolean(shortcutGridSelectionMode);
-  const wallpaperBlurSourceUrl = effectiveWallpaperMode === 'color'
-      ? ''
-      : effectiveOverlayWallpaperSrc;
-  const imageWallpaperBlurEnabled = showOverlayWallpaperLayer
-    && effectiveWallpaperMode !== 'color'
-    && Boolean(wallpaperBlurSourceUrl);
-  const generatedWallpaperBackdrop = useBlurredWallpaperAsset({
-    sourceUrl: wallpaperBlurSourceUrl,
-    enabled: imageWallpaperBlurEnabled && !precomputedWallpaperBackdrop,
-  });
-  const blurredWallpaperSrc = precomputedWallpaperBackdrop?.blurredWallpaperSrc
-    ?? generatedWallpaperBackdrop.blurredWallpaperSrc;
-  const blurredWallpaperAverageLuminance = precomputedWallpaperBackdrop?.blurredWallpaperAverageLuminance
-    ?? generatedWallpaperBackdrop.blurredWallpaperAverageLuminance;
-  const blurredWallpaperReady = precomputedWallpaperBackdrop
-    ? Boolean(precomputedWallpaperBackdrop.blurredWallpaperReady ?? precomputedWallpaperBackdrop.blurredWallpaperSrc)
-    : generatedWallpaperBackdrop.blurredWallpaperReady;
 
   const wallpaperClockProps = useMemo(
     () => ({
@@ -498,7 +463,7 @@ export const HomeInteractiveSurface = memo(function HomeInteractiveSurface({
     willChange: wallpaperAtmosphereReady ? undefined : 'opacity',
     pointerEvents: 'none',
   }), [wallpaperAtmosphereReady]);
-  const normalizedBackdropLuminance = clamp01(blurredWallpaperAverageLuminance ?? 0.52);
+  const normalizedBackdropLuminance = 0.52;
 
   const immersiveBackdropLayerStyle = useMemo<CSSProperties>(() => ({
     opacity: FOLDER_IMMERSIVE_PROGRESS_VAR,
@@ -507,47 +472,8 @@ export const HomeInteractiveSurface = memo(function HomeInteractiveSurface({
   }), []);
 
   const immersiveBackdropTintStyle = useMemo<CSSProperties>(() => ({
-    backgroundColor: `rgba(18,22,30,${(0.08 + (normalizedBackdropLuminance * 0.12)).toFixed(3)})`,
+    backgroundColor: normalizedBackdropLuminance > 0.56 ? '#12161e' : '#eef2f7',
   }), [normalizedBackdropLuminance]);
-  const immersiveWallpaperBlurLayerStyle = useMemo<CSSProperties>(() => ({
-    opacity: FOLDER_IMMERSIVE_PROGRESS_VAR,
-    willChange: 'opacity',
-    pointerEvents: 'none',
-  }), []);
-  const immersiveWallpaperBlurFallbackStyle = useMemo<CSSProperties>(() => ({
-    opacity: FOLDER_IMMERSIVE_PROGRESS_VAR,
-    willChange: 'opacity',
-    pointerEvents: 'none',
-    top: `-${FOLDER_IMMERSIVE_BLUR_OVERSCAN_PX}px`,
-    right: `-${FOLDER_IMMERSIVE_BLUR_OVERSCAN_PX}px`,
-    bottom: `-${FOLDER_IMMERSIVE_BLUR_OVERSCAN_PX}px`,
-    left: `-${FOLDER_IMMERSIVE_BLUR_OVERSCAN_PX}px`,
-    backgroundImage: effectiveWallpaperMode === 'color' ? colorWallpaperGradient : undefined,
-    backgroundColor: effectiveWallpaperMode === 'color'
-        ? 'rgba(18,22,30,0.12)'
-        : 'rgba(26,32,44,0.22)',
-    backgroundPosition: 'center',
-    backgroundSize: 'cover',
-    transform: `translateZ(0) scale(${FOLDER_IMMERSIVE_BLUR_SCALE})`,
-    transformOrigin: 'center center',
-  }), [colorWallpaperGradient, effectiveWallpaperMode]);
-  const immersiveBlurOverlayStyle = useMemo<CSSProperties>(() => {
-    if (normalizedBackdropLuminance > 0.56) {
-      const darkAlpha = 0.05 + ((normalizedBackdropLuminance - 0.56) / 0.44) * 0.11;
-      return {
-        backgroundColor: `rgba(18,22,30,${darkAlpha.toFixed(3)})`,
-      };
-    }
-
-    const lightAlpha = 0.08 - (normalizedBackdropLuminance / 0.56) * 0.03;
-    return {
-      backgroundColor: `rgba(244,246,248,${lightAlpha.toFixed(3)})`,
-    };
-  }, [normalizedBackdropLuminance]);
-  const immersiveWhiteVeilStyle = useMemo<CSSProperties>(() => ({
-    backgroundColor: `rgba(255,255,255,${(normalizedBackdropLuminance > 0.56 ? 0.12 : 0.07).toFixed(3)})`,
-  }), [normalizedBackdropLuminance]);
-
   const immersiveWallpaperLayerStyle = useMemo<CSSProperties>(() => ({
     transform: `scale(${FOLDER_IMMERSIVE_SCALE_VAR})`,
     transformOrigin: 'center center',
@@ -587,40 +513,6 @@ export const HomeInteractiveSurface = memo(function HomeInteractiveSurface({
           <div className="absolute inset-0" style={wallpaperAtmosphereRevealStyle}>
             <WallpaperMaskOverlay opacity={effectiveWallpaperMaskOpacity} />
           </div>
-          {blurredWallpaperReady && blurredWallpaperSrc ? (
-            <div className="absolute inset-0" style={immersiveWallpaperBlurLayerStyle}>
-              <img
-                src={blurredWallpaperSrc}
-                alt=""
-                aria-hidden="true"
-                className="absolute h-full w-full object-cover"
-                draggable={false}
-                style={{
-                  top: -FOLDER_IMMERSIVE_BLUR_OVERSCAN_PX,
-                  left: -FOLDER_IMMERSIVE_BLUR_OVERSCAN_PX,
-                  width: `calc(100% + ${FOLDER_IMMERSIVE_BLUR_OVERSCAN_PX * 2}px)`,
-                  height: `calc(100% + ${FOLDER_IMMERSIVE_BLUR_OVERSCAN_PX * 2}px)`,
-                  transform: `translateZ(0) scale(${FOLDER_IMMERSIVE_BLUR_SCALE})`,
-                  transformOrigin: 'center center',
-                  backfaceVisibility: 'hidden',
-                  willChange: 'transform',
-                }}
-              />
-              <div
-                aria-hidden="true"
-                className="absolute inset-0"
-                style={immersiveBlurOverlayStyle}
-              />
-              <div
-                aria-hidden="true"
-                className="absolute inset-0"
-                style={immersiveWhiteVeilStyle}
-              />
-              <WallpaperMaskOverlay opacity={Math.min(100, effectiveWallpaperMaskOpacity + 8)} />
-            </div>
-          ) : effectiveWallpaperMode === 'color' ? (
-            <div className="absolute inset-0" style={immersiveWallpaperBlurFallbackStyle} />
-          ) : null}
         </div>
       </div>
     );
@@ -629,13 +521,8 @@ export const HomeInteractiveSurface = memo(function HomeInteractiveSurface({
     effectiveOverlayWallpaperSrc,
     effectiveWallpaperMaskOpacity,
     effectiveWallpaperMode,
-    blurredWallpaperReady,
-    blurredWallpaperSrc,
     wallpaperAtmosphereRevealStyle,
     immersiveWallpaperLayerStyle,
-    immersiveWallpaperBlurFallbackStyle,
-    immersiveWallpaperBlurLayerStyle,
-    immersiveWhiteVeilStyle,
     onOverlayImageReady,
     overlayBackgroundAlt,
     showOverlayWallpaperLayer,
@@ -679,42 +566,6 @@ export const HomeInteractiveSurface = memo(function HomeInteractiveSurface({
     && !floatingSearchHidden
     && !searchInteractionState.historyOpen
     && !searchInteractionState.dropdownOpen;
-  const floatingBottomSearchCropLayer = useMemo(() => {
-    if (!showFloatingBottomSearch || !bottomSearchCropVisible) return null;
-
-    const cropHeightPx = resolveBottomCropFadeHeight(FLOATING_BOTTOM_SEARCH_HEIGHT_PX);
-
-    return (
-      <div
-        aria-hidden="true"
-        className="fixed inset-x-0"
-        style={{
-          zIndex: FLOATING_BOTTOM_SEARCH_CROP_Z_INDEX,
-          bottom: '0px',
-          ...fixedTopNavRevealStyle,
-          opacity: floatingSearchHidden ? 0 : 1,
-          transition: `opacity ${FLOATING_BOTTOM_SEARCH_HIDE_DURATION_MS}ms ${FLOATING_BOTTOM_SEARCH_HIDE_EASING}`,
-          pointerEvents: 'none',
-        }}
-      >
-        <div
-          style={{
-            opacity: visualBootSettled ? 1 : 0,
-            transition: `opacity ${FLOATING_BOTTOM_SEARCH_CROP_REVEAL_DURATION_MS}ms ${FLOATING_BOTTOM_SEARCH_HIDE_EASING}`,
-            willChange: visualBootSettled ? undefined : 'opacity',
-          }}
-        >
-          <BottomCropFadeOverlay heightPx={cropHeightPx} />
-        </div>
-      </div>
-    );
-  }, [
-    fixedTopNavRevealStyle,
-    bottomSearchCropVisible,
-    floatingSearchHidden,
-    showFloatingBottomSearch,
-    visualBootSettled,
-  ]);
 
   const floatingBottomSearchLayer = useMemo(() => {
     if (!showFloatingBottomSearch) return null;
@@ -855,9 +706,7 @@ export const HomeInteractiveSurface = memo(function HomeInteractiveSurface({
         value={{
           wallpaperMode: effectiveWallpaperMode,
           colorWallpaperGradient,
-          blurredWallpaperSrc,
           fallbackWallpaperSrc: fallbackWallpaperBackdropSrc,
-          blurredWallpaperAverageLuminance,
           effectiveWallpaperMaskOpacity,
         }}
       >
@@ -880,7 +729,6 @@ export const HomeInteractiveSurface = memo(function HomeInteractiveSurface({
             wallpaperClockProps={wallpaperClockProps}
             searchInteractionLocked={searchInteractionLocked}
             drawerShortcutSearchProps={drawerShortcutSearchProps}
-            onBottomSearchCropVisibilityChange={setBottomSearchCropVisible}
             onFolderChildShortcutContextMenu={onDrawerFolderChildShortcutContextMenu}
             onDrawerExpandedChange={setDrawerExpanded}
             onDrawerExpandActionChange={(action) => {
@@ -888,7 +736,6 @@ export const HomeInteractiveSurface = memo(function HomeInteractiveSurface({
             }}
             shortcutGridProps={shortcutGridProps}
           />
-          {floatingBottomSearchCropLayer}
           {floatingBottomExpandArrowLayer}
           {floatingBottomSearchLayer}
         </>

@@ -68,12 +68,6 @@ const ShortcutSyncDialogsContent = memo(function ShortcutSyncDialogsContent({
         enableAfterSave: true,
       });
     },
-    onWebdavRepairPull: () => {
-      void syncActions.handleWebdavRepairFromCenter('pull-remote');
-    },
-    onWebdavRepairPush: () => {
-      void syncActions.handleWebdavRepairFromCenter('push-local');
-    },
   };
 
   return (

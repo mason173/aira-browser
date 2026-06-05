@@ -33,7 +33,7 @@ function SearchEngineSwitcherHydrationTrigger({
 }) {
   const className = `relative z-[1] flex shrink-0 items-center rounded-[12px] px-2 py-1.5 ${
     disabled ? 'cursor-default opacity-60' : 'cursor-pointer'
-  } ${toneClassName || 'text-black/50 dark:text-white/72'}`;
+  } ${toneClassName || 'text-[var(--search-ui-trigger-foreground)]'}`;
   const handleInteraction = (event: React.MouseEvent<HTMLButtonElement> | React.PointerEvent<HTMLButtonElement>) => {
     if (disabled) return;
     window.dispatchEvent(new CustomEvent(SEARCH_ENGINE_SWITCHER_INTERACT_EVENT));

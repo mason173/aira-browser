@@ -54,7 +54,7 @@ function PopoverContent({
                 "relative isolate overflow-hidden border border-border bg-transparent text-popover-foreground backdrop-blur-none",
                 frostedPopoverPreset.shellClassName,
               )
-            : "rounded-xl border border-border bg-popover/80 p-4 text-popover-foreground shadow-md backdrop-blur-md",
+            : "rounded-xl border border-border bg-popover p-4 text-popover-foreground shadow-md",
           className,
           surfaceVariant === "frosted" ? "!bg-transparent !backdrop-blur-none" : undefined,
         )}

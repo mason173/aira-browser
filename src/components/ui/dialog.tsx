@@ -104,7 +104,7 @@ function DialogContent({
             "pointer-events-auto relative grid w-full min-w-0 max-w-[calc(100%-2rem)] gap-4 overflow-hidden rounded-[32px] border border-border p-6 shadow-lg data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0 data-[state=open]:duration-200 data-[state=closed]:duration-200 sm:max-w-lg",
             surfaceVariant === "frosted"
               ? cn(frostedDialogPreset.shellClassName, "bg-transparent")
-              : "bg-background/80",
+              : "bg-background",
             className,
             surfaceVariant === "frosted" ? "!bg-transparent !backdrop-blur-none" : undefined,
           )}

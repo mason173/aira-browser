@@ -22,6 +22,13 @@ function pruneLiteDisplayWallpaperCache(preserveSourceUrl: string) {
   }
 }
 
+function clearLiteDisplayWallpaperCache() {
+  for (const objectUrl of liteDisplayWallpaperCache.values()) {
+    revokeLiteDisplayWallpaperUrl(objectUrl);
+  }
+  liteDisplayWallpaperCache.clear();
+}
+
 export function useLiteDisplayWallpaperSrc({
   sourceUrl,
   enabled,
@@ -31,6 +38,7 @@ export function useLiteDisplayWallpaperSrc({
 
   useEffect(() => {
     if (!enabled || !normalizedSourceUrl || typeof document === 'undefined') {
+      clearLiteDisplayWallpaperCache();
       setDisplayWallpaperSrc('');
       return;
     }

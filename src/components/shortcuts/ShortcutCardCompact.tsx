@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import type { Shortcut, ShortcutIconAppearance } from '@/types';
-import { isFirefoxBuildTarget } from '@/platform/browserTarget';
 import { getCompactShortcutCardMetrics } from '@/components/shortcuts/compactFolderLayout';
 import { useFolderPreviewTitleRef } from '@/components/shortcuts/folderPreviewRegistry';
 import { isShortcutFolder } from '@/utils/shortcutFolders';
@@ -76,7 +75,6 @@ export function ShortcutCardCompact({
   onOpen,
   onContextMenu,
 }: ShortcutCardCompactProps) {
-  const firefox = isFirefoxBuildTarget();
   const folder = isShortcutFolder(shortcut);
   const folderSelectionDisabled = selectionDisabled && folder;
   const shineActive = highlighted && !folder;
@@ -90,7 +88,7 @@ export function ShortcutCardCompact({
   const floatingTitle = floatTitle;
   const folderTitleRef = useFolderPreviewTitleRef(folder && folderPortalBackdrop ? shortcut.id : null);
   const [titleFadeReady, setTitleFadeReady] = useState(() => !animateTitleOnMount || !showTitle);
-  const iconWrapperMotionClass = disableIconWrapperEffects || firefox || folder || folderSelectionDisabled
+  const iconWrapperMotionClass = disableIconWrapperEffects || folder || folderSelectionDisabled
     ? ''
     : 'transform-gpu transition-transform duration-150 ease-out will-change-transform group-hover/shortcut:scale-[1.05]';
   const driftMotionClass = editWobbleActive

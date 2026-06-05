@@ -42,7 +42,7 @@ export function useDrawerAdaptiveShortcutForceWhiteText({
       },
     });
 
-    return !adaptiveTheme.surfaceClassName.includes('text-black');
+    return adaptiveTheme.foregroundTone === 'light';
   }, [
     enabled,
     fallbackForceWhiteText,

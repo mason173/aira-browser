@@ -1,6 +1,5 @@
 import { memo, useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { buildFaviconCandidates, extractDomainFromUrl, getRemoteFaviconOverride, shouldProbeRemoteFaviconForUrl } from '../utils';
-import { isFirefoxBuildTarget } from '@/platform/browserTarget';
 import {
   getShortcutIconColor,
   normalizeShortcutVisualMode,
@@ -39,17 +38,6 @@ const isIowenFaviconUrl = (value: string) => /^https:\/\/api\.iowen\.cn\/favicon
 const isDuckDuckGoIp3Url = (value: string) => /^https:\/\/icons\.duckduckgo\.com\/ip3\/.+\.ico$/i.test((value || '').trim());
 const isGoogleS2FaviconUrl = (value: string) => /^https:\/\/www\.google\.com\/s2\/favicons\?.+$/i.test((value || '').trim());
 const isGoogleGstaticFaviconV2Url = (value: string) => /^https:\/\/t\d*\.gstatic\.com\/faviconV2\?.+$/i.test((value || '').trim());
-
-function buildFirefoxFaviconCandidates(domain: string, preferSingleCandidate: boolean) {
-  const safeDomain = domain.trim();
-  if (preferSingleCandidate) {
-    return [`https://${safeDomain}/favicon.ico`];
-  }
-  return [
-    `https://${safeDomain}/favicon.ico`,
-    `https://${safeDomain}/apple-touch-icon.png`,
-  ];
-}
 
 const registrableDomain = (domain: string) => {
   const parts = normalizeDomain(domain).split('.');
@@ -424,13 +412,11 @@ const ShortcutIcon = memo(function ShortcutIcon({
   iconAppearance?: ShortcutIconAppearance;
   remoteIconScale?: number;
 }) {
-  const firefox = isFirefoxBuildTarget();
   const { monochromeTone } = useShortcutIconRenderContext();
   const domain = useMemo(() => extractDomainFromUrl(url), [url]);
   const canProbeRemoteFavicon = useMemo(() => isHttpFaviconEligible(url, domain), [domain, url]);
   const skipDomainCandidates = useMemo(() => (domain ? shouldSkipDomainCandidates(domain) : false), [domain]);
   const [cachedFavicon, setCachedFavicon] = useState<string>(() => (domain ? getCachedFavicon(domain) : ''));
-  const [firefoxDomainCandidatesReady, setFirefoxDomainCandidatesReady] = useState(() => !firefox);
   const resolvedIconRendering = normalizeShortcutVisualMode(iconRendering);
   const [storedLocalCustomIconDataUrl, setStoredLocalCustomIconDataUrl] = useState<string>(() => (
     allowStoredCustomIcon ? readShortcutCustomIcon(shortcutId) : ''
@@ -461,32 +447,6 @@ const ShortcutIcon = memo(function ShortcutIcon({
     };
   }, [allowStoredCustomIcon, shortcutId]);
 
-  useEffect(() => {
-    if (!firefox) {
-      setFirefoxDomainCandidatesReady(true);
-      return;
-    }
-    if (!domain || skipDomainCandidates) {
-      setFirefoxDomainCandidatesReady(false);
-      return;
-    }
-    const hasImmediateCandidate =
-      !!cachedFavicon ||
-      (!!icon && !isIowenFaviconUrl(icon));
-    if (hasImmediateCandidate) {
-      setFirefoxDomainCandidatesReady(true);
-      return;
-    }
-
-    setFirefoxDomainCandidatesReady(false);
-    const timer = window.setTimeout(() => {
-      setFirefoxDomainCandidatesReady(true);
-    }, 180);
-    return () => {
-      window.clearTimeout(timer);
-    };
-  }, [cachedFavicon, domain, firefox, icon, skipDomainCandidates]);
-
   const candidates = useMemo<IconCandidate[]>(() => {
     const list: IconCandidate[] = [];
     if (effectiveLocalCustomIconDataUrl) {
@@ -506,11 +466,9 @@ const ShortcutIcon = memo(function ShortcutIcon({
           list.push({ src: overrideIcon, kind: 'favicon' });
         }
       }
-      if (domain && canProbeRemoteFavicon && !skipDomainCandidates && (!firefox || firefoxDomainCandidatesReady)) {
+      if (domain && canProbeRemoteFavicon && !skipDomainCandidates) {
         list.push(
-          ...(firefox
-            ? buildFirefoxFaviconCandidates(domain, exact || size <= 36)
-            : buildFaviconCandidates(domain)).map((src) => ({ src, kind: 'favicon' as const })),
+          ...buildFaviconCandidates(domain).map((src) => ({ src, kind: 'favicon' as const })),
         );
       }
     }
@@ -532,14 +490,10 @@ const ShortcutIcon = memo(function ShortcutIcon({
     cachedFavicon,
     canProbeRemoteFavicon,
     domain,
-    exact,
     fallbackStyle,
-    firefox,
-    firefoxDomainCandidatesReady,
     icon,
     effectiveLocalCustomIconDataUrl,
     resolvedIconRendering,
-    size,
     skipDomainCandidates,
   ]);
 
@@ -617,7 +571,7 @@ const ShortcutIcon = memo(function ShortcutIcon({
   const handleImageLoad = () => {
     if (domain) clearFaviconFetchFailed(domain);
     const shouldPersistAsFavicon = activeCandidate?.kind === 'favicon' || activeCandidate?.kind === 'provided';
-    if (!firefox && domain && src && shouldPersistAsFavicon && src !== cachedFavicon) {
+    if (domain && src && shouldPersistAsFavicon && src !== cachedFavicon) {
       void cacheFaviconData(domain, src).then(() => {
         setCachedFavicon(getCachedFavicon(domain));
       });

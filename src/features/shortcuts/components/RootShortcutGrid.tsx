@@ -7,7 +7,6 @@ import {
 } from '@airatab/workspace-react';
 import { createLeaftabRootGridPreset } from '@airatab/workspace-preset-airatab';
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { isFirefoxBuildTarget } from '@/platform/browserTarget';
 import { RenderProfileBoundary } from '@/dev/renderProfiler';
 import type { Shortcut, ShortcutIconAppearance } from '@/types';
 import {
@@ -130,7 +129,6 @@ export type RootShortcutGridCardRenderParams = {
 
 export type RootShortcutGridDragPreviewRenderParams = {
   shortcut: Shortcut;
-  firefox: boolean;
   compactShowTitle: boolean;
   compactIconSize: number;
   iconCornerRadius: number;
@@ -340,7 +338,6 @@ export const RootShortcutGrid = React.memo(function RootShortcutGrid({
   heatZoneInspectorEnabled = false,
   allowLargeFolder = true,
 }: RootShortcutGridProps) {
-  const firefox = isFirefoxBuildTarget();
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [gridWidthPx, setGridWidthPx] = useState<number | null>(null);
   const [heatZoneInspector, setHeatZoneInspector] = useState<RootShortcutGridHeatZoneInspector | null>(null);
@@ -473,7 +470,6 @@ export const RootShortcutGrid = React.memo(function RootShortcutGrid({
             onToggleShortcutSelection={onToggleShortcutSelection}
             externalDragSession={externalDragSession}
             onExternalDragSessionConsumed={onExternalDragSessionConsumed}
-            isFirefox={firefox}
             resolveCompactTargetRegions={rootGridPreset.resolveCompactTargetRegions}
             resolveDropTargetRects={rootGridPreset.resolveDropTargetRects}
             renderItem={(params) => {
@@ -535,7 +531,6 @@ export const RootShortcutGrid = React.memo(function RootShortcutGrid({
             renderDropPreview={() => null}
             renderDragPreview={(params) => renderDragPreview({
               shortcut: params.shortcut,
-              firefox,
               compactShowTitle,
               compactIconSize,
               iconCornerRadius,

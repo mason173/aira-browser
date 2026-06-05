@@ -80,13 +80,13 @@
             "grid:check:local": "node scripts/prepare-grid-deps.mjs --local-only",
             "grid:check:boundaries": "node scripts/check-grid-boundaries.mjs",
             "grid:verify:host": "npm run grid:prepare && npm run grid:check:boundaries",
-            "build:final": "npm run grid:verify:host && node scripts/build-channel.js final",
-            "pack:zip": "node scripts/package-release-zips.js final",
-            "pack:zip:no-icons": "npm run build && node scripts/package-release-zips.js final",
+            "build:final": "npm run grid:verify:host && node scripts/build-final.js",
+            "pack:zip": "node scripts/package-release-zips.js",
+            "pack:zip:no-icons": "npm run build && node scripts/package-release-zips.js",
             "pack:zip:optimized": "npm run pack:zip:no-icons",
             "pack:release": "npm run pack:zip",
             "pack:release:all": "npm run pack:zip:optimized",
-            "verify:release": "node scripts/verify-release-channel.js final"
+            "verify:release": "node scripts/verify-release.js"
       },
       "license": "UNLICENSED"
 }

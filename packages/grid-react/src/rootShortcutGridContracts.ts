@@ -84,7 +84,6 @@ export interface RootShortcutGridProps {
   externalDragSession?: RootShortcutExternalDragSession | null;
   onExternalDragSessionConsumed?: (token: number) => void;
   isItemDragDisabled?: (shortcut: Shortcut) => boolean;
-  isFirefox?: boolean;
   resolveDropTargetRects?: (
     params: RootShortcutGridResolveDropTargetRectsParams,
   ) => RootShortcutGridDropTargetRects;

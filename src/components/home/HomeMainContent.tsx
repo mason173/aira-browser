@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from 'react';
+import { memo, useCallback, useEffect, useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from 'react';
 import { useTheme } from 'next-themes';
 import type { RootShortcutGridProps } from '@/features/shortcuts/components/RootShortcutGrid';
 import { WallpaperClock, type WallpaperClockProps } from '@/components/WallpaperClock';
@@ -10,14 +10,12 @@ import {
   LIMESTART_FRONT_CONTENT_REVEAL_TIMING,
   resolveInitialRevealStyle,
 } from '@/config/animationTokens';
-import { FakeBlurDrawerSurface } from './FakeBlurDrawerSurface';
 import {
   QuickAccessDrawer,
   type DrawerShortcutSearchPresentationProps,
 } from './QuickAccessDrawer';
 import { InlineTime } from './InlineTime';
 import { useQuickAccessDrawer } from './useQuickAccessDrawer';
-import { DRAWER_SURFACE_LINKED_ANIMATION_MS } from './quickAccessDrawer.constants';
 
 export type HomeContentFlags = Pick<
   DisplayModeLayoutFlags,
@@ -53,7 +51,6 @@ export interface HomeMainContentProps {
   searchInteractionLocked: boolean;
   shortcutGridProps: HomeMainContentShortcutGridProps;
   drawerShortcutSearchProps: DrawerShortcutSearchPresentationProps;
-  onBottomSearchCropVisibilityChange?: (visible: boolean) => void;
   onFolderChildShortcutContextMenu?: (
     event: ReactMouseEvent<HTMLDivElement>,
     folderId: string,
@@ -83,8 +80,6 @@ const HOME_WALLPAPER_BLOCK_LIFT_PX = 28;
 const HOME_DRAWER_LINKED_TRANSITION = '320ms cubic-bezier(0.22, 1, 0.36, 1)';
 const HOME_DRAWER_WALLPAPER_SAFE_GAP_PX = 12;
 const BLANK_MODE_DRAWER_HINT_SEEN_KEY = 'leaftab_blank_mode_drawer_hint_seen_v1';
-const HOME_DRAWER_FAKE_BLUR_Z_INDEX = 14025;
-const HOME_DRAWER_FAKE_BLUR_UNMOUNT_DELAY_MS = DRAWER_SURFACE_LINKED_ANIMATION_MS + 80;
 
 export const HomeMainContent = memo(function HomeMainContent({
   initialRevealReady,
@@ -112,7 +107,6 @@ export const HomeMainContent = memo(function HomeMainContent({
   searchInteractionLocked,
   shortcutGridProps,
   drawerShortcutSearchProps,
-  onBottomSearchCropVisibilityChange,
   onFolderChildShortcutContextMenu,
   onDrawerExpandedChange,
   onDrawerExpandActionChange,
@@ -142,11 +136,8 @@ export const HomeMainContent = memo(function HomeMainContent({
   });
 
   const drawerShortcutBottomInset = 16;
-  const drawerBackdropSurfaceRef = useRef<HTMLDivElement | null>(null);
-  const [renderDrawerBackdrop, setRenderDrawerBackdrop] = useState(false);
 
   const homeWallpaperBlockTranslateYPx = -HOME_WALLPAPER_BLOCK_LIFT_PX * drawer.drawerLayoutProgress;
-  const drawerBackdropOpacityTransition = `${DRAWER_SURFACE_LINKED_ANIMATION_MS}ms cubic-bezier(0.22, 1, 0.36, 1)`;
   const homeInitialRevealStyle = resolveInitialRevealStyle(initialRevealReady, {
     offsetPx: 0,
     timing: LIMESTART_FRONT_CONTENT_REVEAL_TIMING,
@@ -208,19 +199,6 @@ export const HomeMainContent = memo(function HomeMainContent({
     } catch {}
   }, [blankModeDrawerHintDismissed, displayMode, drawer.isDrawerExpanded]);
 
-  useEffect(() => {
-    if (drawer.drawerSurfaceOpacity > 0.001 || drawer.drawerLayoutProgress > 0.001 || drawer.isDrawerExpanded) {
-      setRenderDrawerBackdrop(true);
-      return undefined;
-    }
-
-    const timerId = window.setTimeout(() => {
-      setRenderDrawerBackdrop(false);
-    }, HOME_DRAWER_FAKE_BLUR_UNMOUNT_DELAY_MS);
-
-    return () => window.clearTimeout(timerId);
-  }, [drawer.drawerLayoutProgress, drawer.drawerSurfaceOpacity, drawer.isDrawerExpanded]);
-
   return (
     <>
       <div style={immersiveTopContentStyle}>
@@ -275,24 +253,6 @@ export const HomeMainContent = memo(function HomeMainContent({
         </div>
       </div>
 
-      {renderDrawerBackdrop ? (
-        <div
-          className="fixed inset-0 overflow-hidden pointer-events-none"
-          style={{
-            zIndex: HOME_DRAWER_FAKE_BLUR_Z_INDEX,
-          }}
-          aria-hidden="true"
-        >
-          <div ref={drawerBackdropSurfaceRef} className="relative h-full w-full">
-            <FakeBlurDrawerSurface
-              surfaceNode={drawerBackdropSurfaceRef.current}
-              opacity={drawer.drawerSurfaceOpacity}
-              transition={drawerBackdropOpacityTransition}
-            />
-          </div>
-        </div>
-      ) : null}
-
       <QuickAccessDrawer
         initialRevealReady={initialRevealReady}
         modeFlags={modeFlags}
@@ -319,7 +279,6 @@ export const HomeMainContent = memo(function HomeMainContent({
         drawerWheelAreaRef={drawer.drawerWheelAreaRef}
         drawerShortcutScrollRef={drawer.drawerShortcutScrollRef}
         drawerShortcutSearchProps={drawerShortcutSearchProps}
-        onBottomSearchCropVisibilityChange={onBottomSearchCropVisibilityChange}
         shortcutGridProps={{
           ...shortcutGridProps,
           onDragStart: handleShortcutGridDragStart,

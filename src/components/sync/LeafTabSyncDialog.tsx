@@ -1,10 +1,9 @@
-import { useMemo, useState, type ComponentType, type ReactNode } from 'react';
+import { useMemo, type ComponentType, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
@@ -14,7 +13,6 @@ import {
   RiHardDrive3Fill,
   RiRefreshFill,
   RiSettings4Fill,
-  RiToolsFill,
 } from '@/icons/ri-compat';
 import { useTranslation } from 'react-i18next';
 import type { LeafTabSyncAnalysis } from '@/sync/leaftab';
@@ -41,8 +39,6 @@ export interface LeafTabSyncDialogProps {
   onSyncNow: () => void;
   onOpenSetupConfig?: () => void;
   onOpenConfig?: () => void;
-  onWebdavRepairPull?: () => void;
-  onWebdavRepairPush?: () => void;
 }
 
 type StatusTone = 'neutral' | 'info' | 'success' | 'danger';
@@ -153,72 +149,6 @@ function IconActionButton({
   );
 }
 
-function RepairPopover({
-  label,
-  disabled = false,
-  overwriteRemoteLabel,
-  overwriteLocalLabel,
-  onOverwriteRemote,
-  onOverwriteLocal,
-}: {
-  label: string;
-  disabled?: boolean;
-  overwriteRemoteLabel: string;
-  overwriteLocalLabel: string;
-  onOverwriteRemote?: () => void;
-  onOverwriteLocal?: () => void;
-}) {
-  const [open, setOpen] = useState(false);
-
-  const handleSelect = (callback?: () => void) => {
-    setOpen(false);
-    callback?.();
-  };
-
-  return (
-    <>
-      <button
-        type="button"
-        className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-border/70 bg-background text-foreground transition-colors hover:bg-accent/60 hover:text-foreground disabled:pointer-events-none disabled:opacity-50 dark:border-border/70 dark:bg-background dark:hover:bg-accent/50"
-        onClick={() => setOpen(true)}
-        disabled={disabled}
-        aria-label={label}
-        title={label}
-      >
-        <RiToolsFill className="size-4" />
-      </button>
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-[360px] rounded-[28px] border-border bg-background text-foreground">
-          <DialogHeader className="pb-2">
-            <DialogTitle>{label}</DialogTitle>
-            <DialogDescription>
-              选择一种方式修复当前同步状态
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="flex w-full flex-col gap-2 sm:flex-col sm:justify-start">
-            <Button
-              type="button"
-              variant="secondary"
-              className="w-full justify-center rounded-[16px]"
-              onClick={() => handleSelect(onOverwriteLocal)}
-            >
-              {overwriteLocalLabel}
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              className="w-full justify-center rounded-[16px]"
-              onClick={() => handleSelect(onOverwriteRemote)}
-            >
-              {overwriteRemoteLabel}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
-  );
-}
-
 function ProviderCard({
   model,
   securityCard,
@@ -320,8 +250,6 @@ export function LeafTabSyncDialog({
   onSyncNow,
   onOpenSetupConfig,
   onOpenConfig,
-  onWebdavRepairPull,
-  onWebdavRepairPush,
 }: LeafTabSyncDialogProps) {
   const { t } = useTranslation();
   void hasConfig;
@@ -420,14 +348,6 @@ export function LeafTabSyncDialog({
         label={t('settings.backup.webdav.configure', { defaultValue: '配置 WebDAV' })}
         onClick={webdavSettingsAction}
         disabled={busy || !webdavSettingsAction}
-      />
-      <RepairPopover
-        label={t('leaftabSyncDialog.repair', { defaultValue: '修复同步' })}
-        disabled={busy || !webdavEnabled}
-        overwriteLocalLabel={t('leaftabSyncDialog.remoteOverwriteLocal', { defaultValue: 'WebDAV 覆盖本地' })}
-        overwriteRemoteLabel={t('leaftabSyncDialog.localOverwriteRemote', { defaultValue: '本地覆盖 WebDAV' })}
-        onOverwriteLocal={onWebdavRepairPull}
-        onOverwriteRemote={onWebdavRepairPush}
       />
     </>
   );

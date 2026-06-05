@@ -5,7 +5,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "@/components/ui/sonner";
-import { IS_LITE_BUILD } from "@/config/distribution";
 import { googleFonts, getTimeFontScale, loadGoogleFont, toCssFontFamily } from "@/utils/googleFonts";
 import { prepareTimeFont } from "@/utils/timeFontMetrics";
 import type { TimeAnimationMode } from "@/hooks/useSettings";
@@ -122,7 +121,7 @@ export function TimeDisplayDialog({
       checked: animationSettingEnabled,
       onCheckedChange: handleTimeAnimationModeCheckedChange,
     },
-  ].filter((card) => !IS_LITE_BUILD || card.key !== 'time-animation');
+  ].filter((card) => card.key !== 'time-animation');
 
   useEffect(() => {
     if (!open) return;
@@ -155,8 +154,8 @@ export function TimeDisplayDialog({
                   tabIndex={0}
                   className={`no-pill-radius !rounded-[20px] flex min-h-[64px] items-center border px-4 py-3 text-left transition-colors ${
                     card.checked
-                      ? "border-primary/35 bg-primary/10"
-                      : "border-border bg-secondary/35 hover:bg-secondary/55"
+                      ? "border-primary/35 bg-accent"
+                      : "border-border bg-secondary hover:bg-accent"
                   }`}
                   onClick={() => invokeCheckedChange(card.onCheckedChange, !card.checked)}
                   onKeyDown={(event) => {
@@ -190,7 +189,7 @@ export function TimeDisplayDialog({
                 <button
                   key={font.family}
                   type="button"
-                  className={`no-pill-radius !rounded-[24px] border p-3 transition-all flex flex-col items-center justify-center gap-2 text-center overflow-hidden ${selected ? "border-primary bg-primary/10" : "border-border bg-secondary/40 hover:bg-secondary/70"}`}
+                  className={`no-pill-radius !rounded-[24px] border p-3 transition-all flex flex-col items-center justify-center gap-2 text-center overflow-hidden ${selected ? "border-primary bg-accent" : "border-border bg-secondary hover:bg-accent"}`}
                   onClick={() => {
                     void handleSelectFont(font.family);
                   }}

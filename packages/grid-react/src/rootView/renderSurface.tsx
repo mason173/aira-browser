@@ -86,10 +86,6 @@ export function isPointInsidePreviewRect(params: {
   );
 }
 
-export function detectFirefox() {
-  return typeof navigator !== 'undefined' && /firefox/i.test(navigator.userAgent);
-}
-
 export function deriveHoverStateFromIntent(intent: RootShortcutDropIntent | null): RootHoverState {
   if (!intent) return null;
 
@@ -162,7 +158,6 @@ type RootShortcutGridSurfaceProps = {
   disableReorderAnimation: boolean;
   suppressProjectionSettleAnimation: boolean;
   disableLayoutShiftTransition: boolean;
-  isFirefox: boolean;
   itemElementsRef: React.MutableRefObject<Map<string, HTMLDivElement>>;
   onItemPointerDown: (
     item: SerpentinePackedGridItem<RootShortcutGridItem>,
@@ -211,7 +206,6 @@ export function RootShortcutGridSurface({
   disableReorderAnimation,
   suppressProjectionSettleAnimation,
   disableLayoutShiftTransition,
-  isFirefox,
   itemElementsRef,
   onItemPointerDown,
   renderItem,
@@ -285,7 +279,6 @@ export function RootShortcutGridSurface({
                   || suppressProjectionSettleAnimation
                   || disableLayoutShiftTransition
                 }
-                firefox={isFirefox}
                 dimmed={selectionMode && !isSelected}
                 dragDisabled={dragDisabled}
                 registerElement={(element) => {

@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useTheme } from 'next-themes';
 import type { RemoteSearchSuggestionItem } from '@/types';
 import { useSearch } from '@/hooks/useSearch';
 import { getCachedRemoteSearchSuggestions, getRemoteSearchSuggestionsFromExtension } from '@/utils/remoteSearchSuggestions';
@@ -185,6 +186,7 @@ export const SearchExperience = memo(function LiteSearchExperience({
   void searchRotatingPlaceholderEnabled;
   void onOpenSlashCommandDialog;
   const { t } = useTranslation();
+  const { resolvedTheme } = useTheme();
   const {
     searchValue,
     searchEngine,
@@ -210,6 +212,7 @@ export const SearchExperience = memo(function LiteSearchExperience({
     blankMode,
     forceWhiteTheme,
     subtleDarkTone,
+    resolvedTheme,
   });
   const showPanel = panelOpen && remoteItems.length > 0 && !interactionDisabled;
 
@@ -400,7 +403,7 @@ export const SearchExperience = memo(function LiteSearchExperience({
   ]);
 
   return (
-    <div className="relative w-full" onKeyDown={handleKeyDown}>
+    <div className="relative w-full" data-search-ui="true" onKeyDown={handleKeyDown}>
       <SearchField
         value={searchValue}
         onValueChange={handleValueChange}
