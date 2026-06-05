@@ -68,6 +68,16 @@ const ShortcutSyncDialogsContent = memo(function ShortcutSyncDialogsContent({
         enableAfterSave: true,
       });
     },
+    onWebdavOverwriteLocal: () => {
+      setSyncConfigBackTarget('sync-center');
+      setLeafTabSyncDialogOpen(false);
+      void syncActions.handleWebdavOverwriteFromCenter('pull-remote');
+    },
+    onWebdavOverwriteRemote: () => {
+      setSyncConfigBackTarget('sync-center');
+      setLeafTabSyncDialogOpen(false);
+      void syncActions.handleWebdavOverwriteFromCenter('push-local');
+    },
   };
 
   return (

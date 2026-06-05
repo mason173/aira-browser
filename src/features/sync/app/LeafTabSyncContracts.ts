@@ -1,6 +1,7 @@
 import type {
   LeafTabSyncAnalysis,
   LeafTabSyncEngineResult,
+  LeafTabSyncInitialChoice,
 } from '@/sync/leaftab';
 import type { SyncState } from '@/sync/stateMachine';
 import type { WebdavConfig } from '@/types/webdav';
@@ -46,6 +47,7 @@ export type LeafTabSyncActions = {
   handleLeafTabSyncDialogOpenChange: (open: boolean) => void;
   handleLeafTabAutoSync: () => Promise<boolean>;
   handleWebdavSyncNowFromCenter: () => Promise<boolean>;
+  handleWebdavOverwriteFromCenter: (mode: Extract<LeafTabSyncInitialChoice, 'pull-remote' | 'push-local'>) => Promise<boolean>;
   resolveWebdavConflict: (config: WebdavConfig) => Promise<void>;
 };
 

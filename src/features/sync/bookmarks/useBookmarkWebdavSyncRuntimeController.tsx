@@ -493,6 +493,18 @@ export function useLeafTabSyncRuntimeController(
       });
       return Boolean(result);
     },
+    handleWebdavOverwriteFromCenter: async (mode) => {
+      const result = await handleLeafTabSync({
+        mode,
+        allowConfigPrompt: false,
+        requestBookmarkPermission: true,
+        silentSuccess: true,
+      });
+      if (result) {
+        toast.success(mode === 'pull-remote' ? '已用 WebDAV 覆盖本地' : '已用本地覆盖 WebDAV');
+      }
+      return Boolean(result);
+    },
     resolveWebdavConflict: async () => {
       await handleLeafTabSync({
         requestBookmarkPermission: true,

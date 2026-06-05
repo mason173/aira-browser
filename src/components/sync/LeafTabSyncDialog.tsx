@@ -39,6 +39,8 @@ export interface LeafTabSyncDialogProps {
   onSyncNow: () => void;
   onOpenSetupConfig?: () => void;
   onOpenConfig?: () => void;
+  onWebdavOverwriteLocal?: () => void;
+  onWebdavOverwriteRemote?: () => void;
 }
 
 type StatusTone = 'neutral' | 'info' | 'success' | 'danger';
@@ -250,6 +252,8 @@ export function LeafTabSyncDialog({
   onSyncNow,
   onOpenSetupConfig,
   onOpenConfig,
+  onWebdavOverwriteLocal,
+  onWebdavOverwriteRemote,
 }: LeafTabSyncDialogProps) {
   const { t } = useTranslation();
   void hasConfig;
@@ -349,6 +353,24 @@ export function LeafTabSyncDialog({
         onClick={webdavSettingsAction}
         disabled={busy || !webdavSettingsAction}
       />
+      <Button
+        type="button"
+        variant="secondary"
+        className="h-11 min-w-[136px] flex-1"
+        onClick={onWebdavOverwriteLocal}
+        disabled={busy || !webdavEnabled || !onWebdavOverwriteLocal}
+      >
+        {t('leaftabSyncDialog.remoteOverwriteLocal', { defaultValue: 'WebDAV 覆盖本地' })}
+      </Button>
+      <Button
+        type="button"
+        variant="secondary"
+        className="h-11 min-w-[136px] flex-1"
+        onClick={onWebdavOverwriteRemote}
+        disabled={busy || !webdavEnabled || !onWebdavOverwriteRemote}
+      >
+        {t('leaftabSyncDialog.localOverwriteRemote', { defaultValue: '本地覆盖 WebDAV' })}
+      </Button>
     </>
   );
 
