@@ -90,6 +90,7 @@ export interface LeafTabSyncCommitFile {
   createdAt: string;
   parentCommitId: string | null;
   manifestPath: string;
+  operationsPath?: string;
   summary: {
     bookmarkFolders: number;
     bookmarkItems: number;
@@ -181,6 +182,7 @@ export const createLeafTabSyncCommitFile = (params: {
   parentCommitId?: string | null;
   snapshot: LeafTabSyncSnapshot;
   rootPath?: string;
+  operationsPath?: string;
 }): LeafTabSyncCommitFile => {
   const createdAt = params.createdAt || new Date().toISOString();
   const id = createLeafTabSyncCommitId(params.deviceId, createdAt);
@@ -191,6 +193,7 @@ export const createLeafTabSyncCommitFile = (params: {
     createdAt,
     parentCommitId: params.parentCommitId ?? null,
     manifestPath: getLeafTabSyncManifestPath(params.rootPath || LEAFTAB_SYNC_DEFAULT_ROOT),
+    ...(params.operationsPath ? { operationsPath: params.operationsPath } : {}),
     summary: {
       bookmarkFolders: Object.keys(params.snapshot.bookmarkFolders).length,
       bookmarkItems: Object.keys(params.snapshot.bookmarkItems).length,

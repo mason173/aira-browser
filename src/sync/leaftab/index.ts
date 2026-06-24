@@ -8,4 +8,5 @@ export * from './bookmarks';
 export * from './merge';
 export * from './summary';
 export * from './webdavStore';
+export * from './airaCloudStore';
 export * from './engine';

@@ -88,6 +88,33 @@ const resolveSyncStatusLabel = (enabled: boolean, t: ReturnType<typeof useTransl
     : t('popup.dashboard.disabledStatus', { defaultValue: '未启用' });
 };
 
+const resolveActiveSyncStatusLabel = (
+  cloudEnabled: boolean,
+  webdavEnabled: boolean,
+  t: ReturnType<typeof useTranslation>['t'],
+) => {
+  if (cloudEnabled && webdavEnabled) {
+    return t('popup.dashboard.dualEnabledStatus', { defaultValue: '双重同步已开启' });
+  }
+  if (cloudEnabled) {
+    return t('popup.dashboard.cloudEnabledStatus', { defaultValue: '云同步已开启' });
+  }
+  if (webdavEnabled) {
+    return t('popup.dashboard.webdavEnabledStatus', { defaultValue: 'WebDAV 已开启' });
+  }
+  return t('popup.dashboard.disabledStatus', { defaultValue: '未启用' });
+};
+
+const resolveLastSyncLabel = (
+  cloudEnabled: boolean,
+  webdavEnabled: boolean,
+  cloudLabel: string,
+  webdavLabel: string,
+) => {
+  if (cloudEnabled && !webdavEnabled) return cloudLabel || webdavLabel;
+  return webdavLabel || cloudLabel;
+};
+
 const formatLastSync = (raw: string | null, fallback: string) => {
   if (!raw) return fallback;
 
@@ -274,7 +301,7 @@ function FirstSyncChoiceDialog({ syncRuntime }: { syncRuntime: PopupSyncRuntime 
           <div className="grid grid-cols-[88px_minmax(0,1fr)] gap-x-3 gap-y-2 text-sm">
             <span className="text-muted-foreground">{t('popup.firstSync.local', { defaultValue: '本机' })}</span>
             <span className="font-medium text-foreground">{localLabel}</span>
-            <span className="text-muted-foreground">{t('popup.firstSync.webdav', { defaultValue: 'WebDAV' })}</span>
+            <span className="text-muted-foreground">{t('popup.firstSync.remote', { defaultValue: '远端' })}</span>
             <span className="font-medium text-foreground">{remoteLabel}</span>
           </div>
           <div className="grid gap-2">
@@ -291,7 +318,7 @@ function FirstSyncChoiceDialog({ syncRuntime }: { syncRuntime: PopupSyncRuntime 
               className="h-10 rounded-[8px]"
               onClick={() => syncRuntime.actions.resolveLeafTabInitialSyncChoice('push-local')}
             >
-              {t('popup.firstSync.pushLocal', { defaultValue: '本机覆盖 WebDAV' })}
+              {t('popup.firstSync.pushLocal', { defaultValue: '本机覆盖远端' })}
             </Button>
             <Button
               type="button"
@@ -299,9 +326,63 @@ function FirstSyncChoiceDialog({ syncRuntime }: { syncRuntime: PopupSyncRuntime 
               className="h-10 rounded-[8px]"
               onClick={() => syncRuntime.actions.resolveLeafTabInitialSyncChoice('pull-remote')}
             >
-              {t('popup.firstSync.pullRemote', { defaultValue: 'WebDAV 覆盖本机' })}
+              {t('popup.firstSync.pullRemote', { defaultValue: '远端覆盖本机' })}
             </Button>
           </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function SyncProgressDialog({ syncRuntime }: { syncRuntime: PopupSyncRuntime }) {
+  const { t } = useTranslation();
+  const progress = syncRuntime.state.leafTabSyncProgress;
+  const progressValue = Math.max(0, Math.min(100, Math.round(progress.progress)));
+
+  return (
+    <Dialog
+      open={progress.open}
+      onOpenChange={(open) => {
+        if (!open) {
+          syncRuntime.actions.handleDismissSyncProgress();
+        }
+      }}
+    >
+      <DialogContent
+        className="max-w-[328px] rounded-[20px] p-5"
+        onInteractOutside={(event) => {
+          if (progress.inProgress) event.preventDefault();
+        }}
+        onEscapeKeyDown={(event) => {
+          if (progress.inProgress) event.preventDefault();
+        }}
+      >
+        <DialogHeader className="text-left">
+          <DialogTitle>{progress.title || t('popup.progress.syncingTitle', { defaultValue: '正在同步书签' })}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="h-2 overflow-hidden rounded-full bg-muted">
+            <div
+              className="h-full rounded-full bg-primary transition-all duration-300"
+              style={{ width: `${progressValue}%` }}
+            />
+          </div>
+          <div className="grid grid-cols-[72px_minmax(0,1fr)] gap-x-3 gap-y-2 text-sm">
+            <span className="text-muted-foreground">{t('popup.progress.status', { defaultValue: '状态' })}</span>
+            <span className="font-medium text-foreground">{progress.detail}</span>
+            <span className="text-muted-foreground">{t('popup.progress.progress', { defaultValue: '进度' })}</span>
+            <span className="font-medium text-foreground">{progressValue}%</span>
+          </div>
+          {!progress.inProgress ? (
+            <Button
+              type="button"
+              className="h-10 w-full rounded-[8px]"
+              onClick={() => syncRuntime.actions.handleDismissSyncProgress()}
+            >
+              {t('popup.progress.done', { defaultValue: '知道了' })}
+            </Button>
+          ) : null}
         </div>
       </DialogContent>
     </Dialog>
@@ -638,8 +719,18 @@ function ConfiguredHome({
 }) {
   const { t } = useTranslation();
   const syncing = syncRuntime.state.topNavSyncStatus === 'syncing';
-  const localDataLabel = formatBookmarkDataLabel(syncRuntime.state.leafTabSyncAnalysis?.localSummary, profile.localDataLabel);
-  const remoteDataLabel = formatBookmarkDataLabel(syncRuntime.state.leafTabSyncAnalysis?.remoteSummary, profile.remoteDataLabel);
+  const cloudEnabled = syncRuntime.state.leafTabCloudSyncEnabled;
+  const webdavEnabled = profile.webdavEnabled;
+  const dualEnabled = cloudEnabled && webdavEnabled;
+  const webdavAnalysis = syncRuntime.state.leafTabWebdavSyncAnalysis;
+  const cloudAnalysis = syncRuntime.state.leafTabCloudSyncAnalysis;
+  const localDataLabel = formatBookmarkDataLabel(
+    (webdavAnalysis || cloudAnalysis)?.localSummary,
+    profile.localDataLabel,
+  );
+  const cloudDataLabel = formatBookmarkDataLabel(cloudAnalysis?.remoteSummary, profile.remoteDataLabel);
+  const webdavDataLabel = formatBookmarkDataLabel(webdavAnalysis?.remoteSummary, profile.remoteDataLabel);
+  const singleRemoteDataLabel = cloudEnabled && !webdavEnabled ? cloudDataLabel : webdavDataLabel;
   const membershipLabel = resolveMembershipLabel(profile.membershipPlan, t);
 
   return (
@@ -652,14 +743,16 @@ function ConfiguredHome({
             icon={<RiCloudFill className="size-4" />}
             title={t('popup.dashboard.bookmarkCloudSync', { defaultValue: '书签云同步' })}
             badge="PRO"
-            status={t('popup.dashboard.disabled', { defaultValue: '未开启' })}
+            status={cloudEnabled
+              ? t('popup.dashboard.enabled', { defaultValue: '已开启' })
+              : t('popup.dashboard.disabled', { defaultValue: '未开启' })}
             onClick={onOpenCloud}
           />
           <div className="mx-3 border-t border-border" />
           <PanelRow
             icon={<RiHardDrive3Fill className="size-4" />}
             title={t('settings.backup.webdav.entry', { defaultValue: 'WebDAV 同步' })}
-            status={profile.webdavEnabled
+            status={webdavEnabled
               ? t('popup.dashboard.enabled', { defaultValue: '已开启' })
               : t('popup.dashboard.disabled', { defaultValue: '未开启' })}
             onClick={onOpenWebdav}
@@ -689,20 +782,40 @@ function ConfiguredHome({
           <div className="overflow-hidden rounded-[8px] border border-border bg-card">
             <InfoRow
               label={t('popup.dashboard.syncStatus', { defaultValue: '同步状态' })}
-              value={resolveSyncStatusLabel(profile.webdavEnabled, t)}
+              value={resolveActiveSyncStatusLabel(cloudEnabled, webdavEnabled, t)}
             />
             <InfoRow
               label={t('popup.dashboard.lastSync', { defaultValue: '最近同步' })}
-              value={profile.lastSyncLabel}
+              value={resolveLastSyncLabel(
+                cloudEnabled,
+                webdavEnabled,
+                syncRuntime.state.leafTabCloudLastSyncLabel,
+                profile.lastSyncLabel,
+              )}
             />
             <InfoRow
               label={t('popup.dashboard.localData', { defaultValue: '本机数据' })}
               value={localDataLabel}
             />
-            <InfoRow
-              label={t('popup.dashboard.remoteData', { defaultValue: 'WebDAV 数据' })}
-              value={remoteDataLabel}
-            />
+            {dualEnabled ? (
+              <>
+                <InfoRow
+                  label={t('popup.dashboard.cloudData', { defaultValue: '云同步数据' })}
+                  value={cloudDataLabel}
+                />
+                <InfoRow
+                  label={t('popup.dashboard.webdavData', { defaultValue: 'WebDAV 数据' })}
+                  value={webdavDataLabel}
+                />
+              </>
+            ) : (
+              <InfoRow
+                label={cloudEnabled
+                  ? t('popup.dashboard.cloudData', { defaultValue: '云同步数据' })
+                  : t('popup.dashboard.webdavData', { defaultValue: 'WebDAV 数据' })}
+                value={singleRemoteDataLabel}
+              />
+            )}
           </div>
         </div>
 
@@ -710,11 +823,15 @@ function ConfiguredHome({
           type="button"
           className="h-10 w-full rounded-[8px] text-sm font-medium"
           disabled={syncing}
-          onClick={() => void syncRuntime.actions.handleWebdavSyncNowFromCenter()}
+          onClick={() => {
+            void syncRuntime.actions.handleActiveSyncNowFromCenter();
+          }}
         >
           {syncing
             ? t('popup.dashboard.syncing', { defaultValue: '同步中...' })
-            : t('popup.dashboard.syncNow', { defaultValue: '立即同步' })}
+            : (cloudEnabled || webdavEnabled)
+              ? t('popup.dashboard.syncNow', { defaultValue: '立即同步' })
+              : t('popup.cloud.enableBookmarkSync', { defaultValue: '开启书签云同步' })}
         </Button>
 
         <div className="space-y-2">
@@ -785,8 +902,9 @@ function LoggedOutHome({
 }) {
   const { t } = useTranslation();
   const syncing = syncRuntime.state.topNavSyncStatus === 'syncing';
-  const localDataLabel = formatBookmarkDataLabel(syncRuntime.state.leafTabSyncAnalysis?.localSummary, webdavState.localDataLabel);
-  const remoteDataLabel = formatBookmarkDataLabel(syncRuntime.state.leafTabSyncAnalysis?.remoteSummary, webdavState.remoteDataLabel);
+  const webdavAnalysis = syncRuntime.state.leafTabWebdavSyncAnalysis;
+  const localDataLabel = formatBookmarkDataLabel(webdavAnalysis?.localSummary, webdavState.localDataLabel);
+  const remoteDataLabel = formatBookmarkDataLabel(webdavAnalysis?.remoteSummary, webdavState.remoteDataLabel);
 
   return (
     <section className="min-h-[360px] bg-background">
@@ -852,11 +970,19 @@ function LoggedOutHome({
               type="button"
               className="h-10 w-full rounded-[8px] text-sm font-medium"
               disabled={syncing}
-              onClick={() => void syncRuntime.actions.handleWebdavSyncNowFromCenter()}
+              onClick={() => {
+                if (!webdavState.enabled) {
+                  onOpenWebdav();
+                  return;
+                }
+                void syncRuntime.actions.handleActiveSyncNowFromCenter();
+              }}
             >
               {syncing
                 ? t('popup.dashboard.syncing', { defaultValue: '同步中...' })
-                : t('popup.dashboard.syncNow', { defaultValue: '立即同步' })}
+                : webdavState.enabled
+                  ? t('popup.dashboard.syncNow', { defaultValue: '立即同步' })
+                  : t('popup.dashboard.enableWebdavSync', { defaultValue: '开启 WebDAV 同步' })}
             </Button>
 
             <div className="space-y-2">
@@ -946,32 +1072,6 @@ function LoginQrPage({ onOpenWebdav, onLoggedIn }: { onOpenWebdav: () => void; o
   );
 }
 
-function ActionButton({
-  children,
-  tone = 'default',
-  disabled,
-  onClick,
-}: {
-  children: ReactNode;
-  tone?: 'default' | 'danger';
-  disabled?: boolean;
-  onClick?: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
-      className={[
-        'h-10 w-full rounded-[8px] border border-border bg-card px-3 text-sm font-medium transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60',
-        tone === 'danger' ? 'text-destructive' : 'text-foreground',
-      ].join(' ')}
-    >
-      {children}
-    </button>
-  );
-}
-
 function AdvancedSection({
   title,
   children,
@@ -991,13 +1091,16 @@ function AdvancedSyncPage({
   profile,
   syncRuntime,
   onBack,
+  onOpenWebdav,
 }: {
   profile: ConfiguredHomeState | null;
   syncRuntime: PopupSyncRuntime;
   onBack: () => void;
+  onOpenWebdav: () => void;
 }) {
   const { t } = useTranslation();
   const syncing = syncRuntime.state.topNavSyncStatus === 'syncing';
+  const webdavConfigured = syncRuntime.state.leafTabWebdavConfigured;
   const fallbackProfile = profile ?? {
     nickname: t('popup.profile.defaultNickname', { defaultValue: '请登录' }),
     uid: 'AIRA-0000',
@@ -1013,9 +1116,20 @@ function AdvancedSyncPage({
     syncStartLabel: t('popup.advanced.syncStartValue', { defaultValue: 'WebDAV 已建立' }),
     webdavEnabled: true,
   };
-  const remoteDataLabel = formatBookmarkDataLabel(syncRuntime.state.leafTabSyncAnalysis?.remoteSummary, fallbackProfile.remoteDataLabel);
+  const webdavAnalysis = syncRuntime.state.leafTabSyncAnalysisRemoteKind === 'webdav'
+    ? syncRuntime.state.leafTabSyncAnalysis
+    : null;
+  const remoteDataLabel = formatBookmarkDataLabel(webdavAnalysis?.remoteSummary, fallbackProfile.remoteDataLabel);
 
   const runOverwrite = async (mode: Extract<LeafTabSyncInitialChoice, 'pull-remote' | 'push-local'>) => {
+    const confirmed = window.confirm(mode === 'pull-remote'
+      ? t('popup.advanced.overwriteLocalConfirm', {
+        defaultValue: '将用 WebDAV 数据覆盖本机书签。继续吗？',
+      })
+      : t('popup.advanced.overwriteRemoteConfirm', {
+        defaultValue: '将用本机书签覆盖 WebDAV 数据。继续吗？',
+      }));
+    if (!confirmed) return;
     await syncRuntime.actions.handleWebdavOverwriteFromCenter(mode);
   };
 
@@ -1054,49 +1168,85 @@ function AdvancedSyncPage({
           </div>
         </AdvancedSection>
 
-        <AdvancedSection title={t('popup.advanced.mergeSync', { defaultValue: '合并同步' })}>
-          <ActionButton
-            disabled={syncing}
-            onClick={() => void syncRuntime.actions.handleLeafTabSync({ mode: 'merge', allowConfigPrompt: false, requestBookmarkPermission: true })}
-          >
-            {syncing ? t('popup.dashboard.syncing', { defaultValue: '同步中...' }) : t('popup.advanced.mergeNow', { defaultValue: '立即合并同步' })}
-          </ActionButton>
-        </AdvancedSection>
-
-        <AdvancedSection title={t('popup.advanced.bookmarkCloudSync', { defaultValue: 'WebDAV 同步' })}>
-          <div className="space-y-2">
-            <ActionButton
-              disabled={syncing}
-              onClick={() => void syncRuntime.actions.handleWebdavRefreshAnalysis()}
+        {!webdavConfigured ? (
+          <AdvancedSection title={t('popup.advanced.bookmarkCloudSync', { defaultValue: 'WebDAV 同步' })}>
+            <Button
+              type="button"
+              className="h-10 w-full rounded-[8px]"
+              onClick={onOpenWebdav}
             >
-              {t('popup.advanced.checkRemoteData', { defaultValue: '检查 WebDAV 数据' })}
-            </ActionButton>
-            <ActionButton disabled={syncing} onClick={() => void runOverwrite('push-local')}>
-              {t('popup.advanced.overwriteRemote', { defaultValue: '本机覆盖 WebDAV' })}
-            </ActionButton>
-            <ActionButton tone="danger" disabled={syncing} onClick={() => void runOverwrite('pull-remote')}>
-              {t('popup.advanced.overwriteLocal', { defaultValue: 'WebDAV 覆盖本机' })}
-            </ActionButton>
-          </div>
-        </AdvancedSection>
+              {t('popup.dashboard.enableWebdavSync', { defaultValue: '开启 WebDAV 同步' })}
+            </Button>
+          </AdvancedSection>
+        ) : (
+          <>
+            <AdvancedSection title={t('popup.advanced.mergeSync', { defaultValue: '合并同步' })}>
+              <Button
+                type="button"
+                className="h-10 w-full rounded-[8px]"
+                disabled={syncing}
+                onClick={() => void syncRuntime.actions.handleLeafTabSync({ mode: 'merge', allowConfigPrompt: false, requestBookmarkPermission: true })}
+              >
+                {syncing ? t('popup.dashboard.syncing', { defaultValue: '同步中...' }) : t('popup.advanced.mergeNow', { defaultValue: '立即合并同步' })}
+              </Button>
+            </AdvancedSection>
 
-        <AdvancedSection title={t('popup.advanced.syncStart', { defaultValue: '同步起点' })}>
-          <ActionButton
-            disabled={syncing}
-            onClick={() => void syncRuntime.actions.handleLeafTabSync({ mode: 'push-local', allowConfigPrompt: false, requestBookmarkPermission: true })}
-          >
-            {t('popup.advanced.rebuildSyncStart', { defaultValue: '重建 WebDAV 同步起点' })}
-          </ActionButton>
-        </AdvancedSection>
+            <AdvancedSection title={t('popup.advanced.bookmarkCloudSync', { defaultValue: 'WebDAV 同步' })}>
+              <div className="space-y-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-10 w-full rounded-[8px]"
+                  disabled={syncing}
+                  onClick={() => void syncRuntime.actions.handleWebdavRefreshAnalysis()}
+                >
+                  {t('popup.advanced.checkRemoteData', { defaultValue: '检查 WebDAV 数据' })}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-10 w-full rounded-[8px]"
+                  disabled={syncing}
+                  onClick={() => void runOverwrite('push-local')}
+                >
+                  {t('popup.advanced.overwriteRemote', { defaultValue: '本机覆盖 WebDAV' })}
+                </Button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  className="h-10 w-full rounded-[8px]"
+                  disabled={syncing}
+                  onClick={() => void runOverwrite('pull-remote')}
+                >
+                  {t('popup.advanced.overwriteLocal', { defaultValue: 'WebDAV 覆盖本机' })}
+                </Button>
+              </div>
+            </AdvancedSection>
 
-        <AdvancedSection title={t('popup.advanced.dangerZone', { defaultValue: '危险操作' })}>
-          <ActionButton
-            tone="danger"
-            disabled
-          >
-            {t('popup.advanced.clearRemoteRecords', { defaultValue: '清除 WebDAV 同步记录' })}
-          </ActionButton>
-        </AdvancedSection>
+            <AdvancedSection title={t('popup.advanced.syncStart', { defaultValue: '同步起点' })}>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-10 w-full rounded-[8px]"
+                disabled={syncing}
+                onClick={() => void syncRuntime.actions.handleLeafTabSync({ mode: 'push-local', allowConfigPrompt: false, requestBookmarkPermission: true })}
+              >
+                {t('popup.advanced.rebuildSyncStart', { defaultValue: '重建 WebDAV 同步起点' })}
+              </Button>
+            </AdvancedSection>
+
+            <AdvancedSection title={t('popup.advanced.dangerZone', { defaultValue: '危险操作' })}>
+              <Button
+                type="button"
+                variant="destructive"
+                className="h-10 w-full rounded-[8px]"
+                disabled
+              >
+                {t('popup.advanced.clearRemoteRecords', { defaultValue: '清除 WebDAV 同步记录' })}
+              </Button>
+            </AdvancedSection>
+          </>
+        )}
       </div>
     </section>
   );
@@ -1105,15 +1255,22 @@ function AdvancedSyncPage({
 function BookmarkCloudPage({
   profile,
   onBack,
+  onOpenLogin,
+  syncRuntime,
 }: {
   profile: ConfiguredHomeState | null;
   onBack: () => void;
+  onOpenLogin: () => void;
+  syncRuntime: PopupSyncRuntime;
 }) {
   const { t } = useTranslation();
-  const accountName = profile?.nickname || t('popup.cloud.defaultAccount', { defaultValue: 'Leo' });
-  const userId = profile?.userId || profile?.uid || 'AIRA-0000';
-  const identityStatus = profile?.identityStatus || t('popup.profile.notSignedIn', { defaultValue: '未登录' });
+  const accountName = syncRuntime.state.leafTabCloudLoggedIn
+    ? (profile?.nickname || t('popup.profile.signedIn', { defaultValue: '已登录' }))
+    : t('popup.profile.notSignedIn', { defaultValue: '未登录' });
   const membershipLabel = resolveMembershipLabel(profile?.membershipPlan || 'guest', t);
+  const syncing = syncRuntime.state.topNavSyncStatus === 'syncing';
+  const cloudLoggedIn = syncRuntime.state.leafTabCloudLoggedIn;
+  const cloudEnabled = syncRuntime.state.leafTabCloudSyncEnabled;
 
   return (
     <section className="min-h-[360px] bg-background">
@@ -1130,25 +1287,59 @@ function BookmarkCloudPage({
               value={accountName}
             />
             <InfoRow
-              label={t('popup.profile.userId', { defaultValue: '用户ID' })}
-              value={userId}
-            />
-            <InfoRow
-              label={t('popup.profile.identityStatus', { defaultValue: '身份状态' })}
-              value={identityStatus}
-            />
-            <InfoRow
-              label={t('popup.profile.membershipType', { defaultValue: '会员类型' })}
+              label={t('popup.cloud.membership', { defaultValue: '会员' })}
               value={membershipLabel}
             />
             <InfoRow
               label={t('popup.cloud.bookmarkSync', { defaultValue: '书签同步' })}
-              value={t('popup.dashboard.disabled', { defaultValue: '未开启' })}
+              value={cloudEnabled
+                ? t('popup.dashboard.enabled', { defaultValue: '已开启' })
+                : t('popup.dashboard.disabled', { defaultValue: '未开启' })}
             />
           </div>
         </AdvancedSection>
 
-        <ActionButton>{t('popup.cloud.enableBookmarkSync', { defaultValue: '开启书签云同步' })}</ActionButton>
+        <Button
+          type="button"
+          className="h-10 w-full rounded-[8px]"
+          disabled={syncing}
+          onClick={() => {
+            if (!cloudLoggedIn) {
+              onOpenLogin();
+            } else if (cloudEnabled) {
+              void syncRuntime.actions.handleCloudSyncNowFromCenter();
+            } else {
+              void syncRuntime.actions.handleEnableCloudSync();
+            }
+          }}
+        >
+          {syncing
+            ? t('popup.dashboard.syncing', { defaultValue: '同步中...' })
+            : !cloudLoggedIn
+              ? t('popup.cloud.loginAndEnable', { defaultValue: '使用账号登录并开启' })
+              : cloudEnabled
+                ? t('popup.cloud.resync', { defaultValue: '重新同步' })
+                : t('popup.cloud.enableBookmarkSync', { defaultValue: '开启书签云同步' })}
+        </Button>
+
+        {cloudEnabled ? (
+          <Button
+            type="button"
+            variant="destructive"
+            className="h-10 w-full rounded-[8px]"
+            disabled={syncing}
+            onClick={() => {
+              const confirmed = window.confirm(t('popup.cloud.disableConfirm', {
+                defaultValue: '关闭后会停止书签云同步，本机书签不会删除；WebDAV 同步不会受到影响。继续吗？',
+              }));
+              if (confirmed) {
+                void syncRuntime.actions.handleDisableCloudSync();
+              }
+            }}
+          >
+            {t('popup.cloud.disableBookmarkSync', { defaultValue: '关闭书签云同步' })}
+          </Button>
+        ) : null}
       </div>
     </section>
   );
@@ -1497,14 +1688,15 @@ function WebdavConfigPage({
           {primaryActionTitle}
         </Button>
         {isEnabled ? (
-          <button
+          <Button
             type="button"
-            className="mt-3 h-9 w-full text-center text-sm font-medium text-destructive transition-colors hover:text-destructive/80 disabled:cursor-not-allowed disabled:opacity-50"
+            variant="outline"
+            className="mt-3 h-10 w-full rounded-[8px] text-destructive hover:text-destructive"
             disabled={syncing}
             onClick={() => void handleDisable()}
           >
             {t('settings.backup.webdav.disableSyncAction', { defaultValue: '关闭 WebDAV 同步' })}
-          </button>
+          </Button>
         ) : null}
       </div>
     </section>
@@ -1586,12 +1778,15 @@ export function PopupApp() {
           profile={configuredHomeState}
           syncRuntime={syncRuntime}
           onBack={() => setView('home')}
+          onOpenWebdav={() => setView('webdav')}
         />
       )}
       {view === 'cloud' && (
         <BookmarkCloudPage
           profile={configuredHomeState}
           onBack={() => setView('home')}
+          onOpenLogin={() => setView('login')}
+          syncRuntime={syncRuntime}
         />
       )}
       {view === 'login' && (
@@ -1604,6 +1799,7 @@ export function PopupApp() {
         />
       )}
       <FirstSyncChoiceDialog syncRuntime={syncRuntime} />
+      <SyncProgressDialog syncRuntime={syncRuntime} />
     </main>
   );
 }

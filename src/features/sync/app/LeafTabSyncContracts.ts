@@ -1,5 +1,6 @@
 import type {
   LeafTabSyncAnalysis,
+  LeafTabSyncEngineProgress,
   LeafTabSyncEngineResult,
   LeafTabSyncInitialChoice,
 } from '@/sync/leaftab';
@@ -8,15 +9,26 @@ import type { WebdavConfig } from '@/types/webdav';
 import type { LeafTabSyncRunnerOptionsBase } from '@/hooks/useLeafTabSyncRunner';
 
 export type LeafTabTopNavSyncStatus = 'idle' | 'syncing' | 'error' | 'conflict';
+export type LeafTabSyncRemoteKind = 'webdav' | 'aira-cloud';
 
 export type LeafTabSyncWebdavActionOptions = LeafTabSyncRunnerOptionsBase & {
   enableAfterSuccess?: boolean;
   allowConfigPrompt?: boolean;
+  remoteKind?: LeafTabSyncRemoteKind;
 };
 
 export type LeafTabInitialSyncChoiceRequest = {
   localSummary: LeafTabSyncAnalysis['localSummary'];
   remoteSummary: LeafTabSyncAnalysis['remoteSummary'];
+};
+
+export type LeafTabSyncProgressState = {
+  open: boolean;
+  inProgress: boolean;
+  title: string;
+  detail: string;
+  progress: number;
+  latestProgress: LeafTabSyncEngineProgress | null;
 };
 
 export type LeafTabSyncStatusState = {
@@ -26,6 +38,10 @@ export type LeafTabSyncStatusState = {
 
 export type LeafTabSyncConfigState = {
   leafTabSyncAnalysis: LeafTabSyncAnalysis | null;
+  leafTabSyncAnalysisRemoteKind: LeafTabSyncRemoteKind | null;
+  leafTabWebdavSyncAnalysis: LeafTabSyncAnalysis | null;
+  leafTabCloudSyncAnalysis: LeafTabSyncAnalysis | null;
+  leafTabSyncProgress: LeafTabSyncProgressState;
   leafTabInitialSyncChoiceRequest: LeafTabInitialSyncChoiceRequest | null;
   leafTabSyncHasConfig: boolean;
   leafTabSyncReady: boolean;
@@ -38,6 +54,10 @@ export type LeafTabSyncConfigState = {
   leafTabWebdavLastSyncLabel: string;
   leafTabWebdavNextSyncLabel: string;
   leafTabBookmarkSyncScopeLabel: string;
+  leafTabCloudLoggedIn: boolean;
+  leafTabCloudSyncEnabled: boolean;
+  leafTabCloudLastSyncLabel: string;
+  leafTabCloudUserId: string;
 };
 
 export type LeafTabSyncState =
@@ -53,8 +73,15 @@ export type LeafTabSyncActions = {
   handleLeafTabSyncDialogOpenChange: (open: boolean) => void;
   handleLeafTabAutoSync: () => Promise<boolean>;
   handleWebdavSyncNowFromCenter: () => Promise<boolean>;
+  handleActiveSyncNowFromCenter: () => Promise<boolean>;
+  handleDismissSyncProgress: () => void;
   handleWebdavRefreshAnalysis: () => Promise<LeafTabSyncAnalysis | null>;
   handleWebdavOverwriteFromCenter: (mode: Extract<LeafTabSyncInitialChoice, 'pull-remote' | 'push-local'>) => Promise<boolean>;
+  handleCloudSyncNowFromCenter: () => Promise<boolean>;
+  handleEnableCloudSync: () => Promise<boolean>;
+  handleDisableCloudSync: () => Promise<void>;
+  handleCloudRefreshAnalysis: () => Promise<LeafTabSyncAnalysis | null>;
+  handleCloudOverwriteFromCenter: (mode: Extract<LeafTabSyncInitialChoice, 'pull-remote' | 'push-local'>) => Promise<boolean>;
   resolveLeafTabInitialSyncChoice: (choice: LeafTabSyncInitialChoice | null) => void;
   resolveWebdavConflict: (config: WebdavConfig) => Promise<void>;
 };
