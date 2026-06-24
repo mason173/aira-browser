@@ -17,21 +17,21 @@ const buildDir = path.join(root, outDir);
 const finalLocaleMessages = {
   en: {
     appTitle: {
-      message: 'Aira - Focused WebDAV New Tab',
+      message: 'Aira WebDAV Sync',
       description: 'The title of the application',
     },
     appDescription: {
-      message: 'Focused new tab with shortcuts, browser bookmark search, WebDAV bookmark sync, wallpapers, and a clean keyboard-first layout.',
+      message: 'Sync browser bookmarks with a WebDAV server from the extension popup.',
       description: 'The description of the application',
     },
   },
   zh_CN: {
     appTitle: {
-      message: 'Aira 新标签页 - 简洁高效的 WebDAV 书签同步',
+      message: 'Aira WebDAV 同步',
       description: 'The title of the application',
     },
     appDescription: {
-      message: '简洁高效的新标签页，支持快捷方式、浏览器书签搜索、WebDAV 书签同步、壁纸与键盘优先操作。',
+      message: '通过浏览器插件弹窗将浏览器书签同步到 WebDAV 服务器。',
       description: 'The description of the application',
     },
   },

@@ -20,22 +20,6 @@ export function getPermissionsApi(): ChromeApi['permissions'] | undefined {
   return getChromeApi()?.permissions;
 }
 
-export function getTabsApi(): ChromeApi['tabs'] | undefined {
-  return getChromeApi()?.tabs;
-}
-
-export function getWindowsApi(): ChromeApi['windows'] | undefined {
-  return getChromeApi()?.windows;
-}
-
-export function getSearchApi(): ChromeApi['search'] | undefined {
-  return getChromeApi()?.search;
-}
-
 export function getBookmarksApi(): ChromeApi['bookmarks'] | undefined {
   return getChromeApi()?.bookmarks;
-}
-
-export function getHistoryApi(): ChromeApi['history'] | undefined {
-  return getChromeApi()?.history;
 }

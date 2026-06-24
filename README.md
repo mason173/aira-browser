@@ -1,8 +1,8 @@
 # Airatab
 
-Airatab is a private Chromium new-tab extension focused on a clean shortcut grid, keyboard-first search, browser bookmark search, wallpapers, and WebDAV bookmark sync.
+Airatab is a private Chromium extension for WebDAV bookmark sync.
 
-This repository is the new private line after the Lite refactor. It no longer carries the old public release docs, Firefox branch, website deployment files, server account sync, role presets, weather, or changelog material.
+The extension no longer replaces the browser new tab page. The only user-facing entry is the browser extension action popup, where users can configure WebDAV, enable or disable sync, and trigger bookmark sync manually.
 
 ## Development
 
@@ -22,17 +22,18 @@ The production extension output is written to `build/`. Load that folder from Ch
 
 ## Data And Sync
 
-- Local extension data stays in browser storage.
-- Bookmark import/export targets standard browser bookmark formats.
-- Sync is WebDAV bookmark sync only.
-- Do not commit `.env`, private keys, account credentials, WebDAV passwords, generated builds, release zips, or local test data.
+- WebDAV connection settings stay in browser extension storage.
+- Sync currently targets browser bookmarks only.
+- The background service worker only proxies WebDAV requests.
+- Do not commit private keys, account credentials, WebDAV passwords, generated builds, release zips, or local test data.
 
 ## Structure
 
-- `src/`: extension UI and runtime logic.
-- `packages/`: in-repo shortcut grid engine packages.
-- `public/`: extension static files, manifest templates, icons, and the shortcut icon library.
-- `scripts/`: build, verification, icon generation, and local development helpers.
+- `src/popup`: popup UI and popup-local i18n resources.
+- `src/sync`: WebDAV bookmark sync engine and browser bookmark snapshot logic.
+- `src/components`: small UI surface used by the popup.
+- `public`: extension manifest, service worker, locales, and icons.
+- `scripts`: release build and packaging helpers.
 
 ## License
 

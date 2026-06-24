@@ -3,11 +3,58 @@
 @plugin "tailwindcss-animate";
 
 @custom-variant dark (&:is(.dark *));
-@custom-variant hover (&:hover);
 
 @layer base {
-  button {
-    cursor: pointer;
+  :root {
+    --background: #ffffff;
+    --foreground: #18181b;
+    --card: #ffffff;
+    --card-foreground: #18181b;
+    --popover: #ffffff;
+    --popover-foreground: #18181b;
+    --primary: #18181b;
+    --primary-foreground: #ffffff;
+    --secondary: #f4f4f5;
+    --secondary-foreground: #18181b;
+    --muted: #f4f4f5;
+    --muted-foreground: #71717a;
+    --accent: #f4f4f5;
+    --accent-foreground: #18181b;
+    --destructive: #ef4444;
+    --destructive-foreground: #ffffff;
+    --border: #e4e4e7;
+    --input: #e4e4e7;
+    --input-background: #ffffff;
+    --ring: #18181b;
+    --radius: 0.625rem;
+  }
+
+  .dark {
+    --background: #18181b;
+    --foreground: #f4f4f5;
+    --card: #27272a;
+    --card-foreground: #f4f4f5;
+    --popover: #27272a;
+    --popover-foreground: #f4f4f5;
+    --primary: #f4f4f5;
+    --primary-foreground: #18181b;
+    --secondary: #27272a;
+    --secondary-foreground: #f4f4f5;
+    --muted: #27272a;
+    --muted-foreground: #a1a1aa;
+    --accent: #3f3f46;
+    --accent-foreground: #f4f4f5;
+    --destructive: #f87171;
+    --destructive-foreground: #18181b;
+    --border: #3f3f46;
+    --input: #3f3f46;
+    --input-background: #27272a;
+    --ring: #d4d4d8;
+  }
+
+  * {
+    border-color: var(--border);
+    outline-color: color-mix(in srgb, var(--ring) 50%, transparent);
   }
 
   html,
@@ -18,332 +65,13 @@
 
   body {
     margin: 0;
-    background-color: var(--initial-reveal-surface);
+    background: var(--background);
+    color: var(--foreground);
   }
 
-  html[data-popup="true"],
-  html[data-popup="true"] body,
-  html[data-popup="true"] #root {
-    min-height: 100%;
-    background-color: var(--background);
+  button {
+    cursor: pointer;
   }
-
-  :where(
-    [data-slot="button"],
-    [data-slot="input"],
-    [data-slot="textarea"],
-    [data-slot="select-trigger"],
-    [data-slot="switch"],
-    [data-slot="tabs-list"],
-    [data-slot="tabs-trigger"],
-    [role="tablist"],
-    [role="tab"],
-    button:not([data-slot="checkbox"]):not([data-slot="switch"]):not([data-slot="radio-group-item"]):not([role="checkbox"]):not([role="switch"]):not([role="radio"]):not(.no-pill-radius),
-    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]):not(.no-pill-radius),
-    textarea:not(.no-pill-radius)
-  ):not(:where([data-search-ui] *)) {
-    border-radius: 9999px !important;
-  }
-
-  :where(
-    [data-frosted-ui-scope],
-    [data-slot="dialog-content"],
-    [data-slot="popover-content"],
-    [data-slot="dropdown-menu-content"],
-    [data-slot="dropdown-menu-sub-content"],
-    [data-slot="context-menu-content"],
-    [data-slot="context-menu-sub-content"],
-    [data-slot="tooltip-content"],
-    [data-slot="hover-card-content"],
-    [data-slot="alert-dialog-content"],
-    [data-slot="sheet-content"],
-    [data-slot="drawer-content"],
-    [data-slot="select-content"],
-    [data-slot="menubar-content"],
-    [data-slot="menubar-sub-content"],
-    [data-slot="navigation-menu-content"],
-    [data-slot="navigation-menu-viewport"],
-    [data-testid="shortcut-context-menu"]
-  ) {
-    --background: var(--frosted-ui-background);
-    --foreground: var(--frosted-ui-foreground);
-    --card: var(--frosted-ui-card);
-    --card-foreground: var(--frosted-ui-foreground);
-    --popover: var(--frosted-ui-card);
-    --popover-foreground: var(--frosted-ui-foreground);
-    --secondary: var(--frosted-ui-secondary);
-    --secondary-foreground: var(--frosted-ui-foreground);
-    --muted: var(--frosted-ui-muted);
-    --muted-foreground: var(--frosted-ui-muted-foreground);
-    --accent: var(--frosted-ui-accent);
-    --accent-foreground: var(--frosted-ui-foreground);
-    --border: var(--frosted-ui-border);
-    --input: var(--frosted-ui-border);
-    --input-background: var(--frosted-ui-background);
-  }
-}
-
-@layer utilities {
-  .frosted-control-surface {
-    background-color: var(--frosted-ui-control-fill);
-    border: 1px solid var(--frosted-ui-border);
-  }
-
-  .frosted-control-surface:hover {
-    background-color: var(--frosted-ui-control-fill-hover);
-  }
-
-  .hero-tint-text {
-    color: var(--hero-tint-foreground);
-  }
-
-  .hero-tint-text-strong {
-    color: var(--hero-tint-foreground-strong);
-  }
-
-  .hero-tint-text-hover:hover {
-    color: var(--hero-tint-foreground-strong);
-  }
-}
-
-@keyframes scroll-text {
-  0% { transform: translateX(0); }
-  100% { transform: translateX(var(--scroll-distance)); }
-}
-
-@keyframes leaftab-caret-blink {
-  0%,
-  49% {
-    opacity: 1;
-  }
-  50%,
-  100% {
-    opacity: 0;
-  }
-}
-
-@keyframes leaftab-shortcut-shine {
-  0% {
-    transform: translateX(0) rotate(18deg);
-  }
-
-  100% {
-    transform: translateX(560%) rotate(18deg);
-  }
-}
-
-@keyframes leaftab-shortcut-edit-rotate {
-  0% {
-    transform: rotate(-1deg);
-  }
-
-  100% {
-    transform: rotate(1deg);
-  }
-}
-
-@keyframes leaftab-shortcut-edit-drift {
-  0% {
-    transform: translateX(-0.2px);
-  }
-
-  16.667% {
-    transform: translateX(0.6px);
-  }
-
-  50% {
-    transform: translateX(-0.4px);
-  }
-
-  83.333% {
-    transform: translateX(0.46px);
-  }
-
-  100% {
-    transform: translateX(-0.32px);
-  }
-}
-
-@keyframes leaftab-drawer-hint-float {
-  0%,
-  100% {
-    transform: translate3d(0, 0, 0);
-    opacity: 0.78;
-  }
-
-  50% {
-    transform: translate3d(0, -3px, 0);
-    opacity: 1;
-  }
-}
-
-/* Vaul's defaultOpen only disables keyframe animations, but transform transitions
-   on the drawer can still run on first paint. Force-disable both for boot state. */
-[data-vaul-animate='false'] {
-  animation: none !important;
-  transition: none !important;
-}
-
-.no-scrollbar {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-
-.no-scrollbar::-webkit-scrollbar {
-  display: none;
-}
-
-.leaftab-icon-settings-preview img[data-shortcut-icon-appearance='colorful'] {
-  filter: brightness(0) invert(1);
-  -webkit-filter: brightness(0) invert(1);
-}
-
-:root {
-  --font-size: 16px;
-  --tint-rgb: 59 130 246;
-  --ui-hairline-border: color-mix(in srgb, #ffffff 96%, #000000 4%);
-  --initial-reveal-surface: #323232;
-  --background: color-mix(in srgb, #ffffff 99.2%, rgb(var(--tint-rgb)) 0.8%);
-  --foreground: color-mix(in srgb, #000000 88%, #ffffff 12%);
-  --card: color-mix(in srgb, #ffffff 98.6%, rgb(var(--tint-rgb)) 1.4%);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: color-mix(in srgb, #ffffff 98%, rgb(var(--tint-rgb)) 2%);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: #121212;
-  --primary-foreground: oklch(1 0 0);
-  --secondary: color-mix(in srgb, #ffffff 94%, rgb(var(--tint-rgb)) 6%);
-  --secondary-foreground: #1a1a1a;
-  --muted: color-mix(in srgb, #ececec 97%, rgb(var(--tint-rgb)) 3%);
-  --muted-foreground: color-mix(in srgb, #000000 52%, #ffffff 48%);
-  --accent: color-mix(in srgb, #f4f4f4 93%, rgb(var(--tint-rgb)) 7%);
-  --accent-foreground: #111111;
-  --destructive: #d4183d;
-  --destructive-foreground: #ffffff;
-  --border: var(--ui-hairline-border);
-  --input: var(--ui-hairline-border);
-  --input-background: color-mix(in srgb, #f2f2f2 96%, rgb(var(--tint-rgb)) 4%);
-  --shortcut-monochrome-surface-theme-adaptive: #ffffff;
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: #121212;
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
-  --frosted-ui-background: color-mix(in srgb, #ffffff 88%, #000000 12%);
-  --frosted-ui-control-fill: color-mix(in srgb, #ffffff 96%, #000000 4%);
-  --frosted-ui-control-fill-hover: color-mix(in srgb, #ffffff 94%, #000000 6%);
-  --frosted-ui-border: var(--ui-hairline-border);
-  --frosted-ui-card: var(--frosted-ui-control-fill);
-  --frosted-ui-card-hover: var(--frosted-ui-control-fill-hover);
-  --frosted-ui-secondary: var(--frosted-ui-control-fill);
-  --frosted-ui-muted: var(--frosted-ui-control-fill);
-  --frosted-ui-accent: var(--frosted-ui-control-fill-hover);
-  --frosted-ui-foreground: color-mix(in srgb, #000000 76%, #ffffff 24%);
-  --frosted-ui-muted-foreground: color-mix(in srgb, #000000 52%, #ffffff 48%);
-  --search-ui-surface-foreground: color-mix(in srgb, #000000 78%, #ffffff 22%);
-  --search-ui-foreground: color-mix(in srgb, #000000 86%, #ffffff 14%);
-  --search-ui-foreground-strong: color-mix(in srgb, #000000 96%, #ffffff 4%);
-  --search-ui-muted-foreground: color-mix(in srgb, #000000 62%, #ffffff 38%);
-  --search-ui-subtle-foreground: color-mix(in srgb, #000000 52%, #ffffff 48%);
-  --search-ui-input-foreground: var(--search-ui-foreground);
-  --search-ui-placeholder-foreground: var(--search-ui-muted-foreground);
-  --search-ui-trigger-foreground: color-mix(in srgb, #000000 74%, #ffffff 26%);
-  --search-ui-trigger-foreground-hover: color-mix(in srgb, #000000 88%, #ffffff 12%);
-  --search-ui-clear-foreground: color-mix(in srgb, #000000 52%, #ffffff 48%);
-  --search-ui-clear-foreground-hover: color-mix(in srgb, #000000 76%, #ffffff 24%);
-  --search-ui-clear-background-hover: color-mix(in srgb, #ffffff 94%, #000000 6%);
-  --search-ui-preview-background: color-mix(in srgb, #ffffff 94%, #000000 6%);
-  --search-ui-preview-foreground: color-mix(in srgb, #000000 58%, #ffffff 42%);
-  --search-ui-row-background-hover: color-mix(in srgb, #ffffff 94%, #000000 6%);
-  --search-ui-row-background-selected: color-mix(in srgb, #ffffff 90%, #000000 10%);
-  --search-ui-status-background: color-mix(in srgb, #ffffff 94%, #000000 6%);
-  --search-ui-status-dot: color-mix(in srgb, #000000 45%, #ffffff 55%);
-  --search-ui-engine-trigger-foreground: var(--search-ui-trigger-foreground);
-  --search-ui-engine-item-foreground: color-mix(in srgb, #000000 88%, #ffffff 12%);
-  --search-ui-engine-item-selected-foreground: var(--search-ui-foreground-strong);
-  --hero-tint-foreground: color-mix(in srgb, #ffffff 92%, rgb(var(--tint-rgb)) 8%);
-  --hero-tint-foreground-strong: color-mix(in srgb, #ffffff 88%, rgb(var(--tint-rgb)) 12%);
-}
-
-.dark {
-  --initial-reveal-surface: #323232;
-  --ui-hairline-border: color-mix(in srgb, #1f1f20 96%, #ffffff 4%);
-  --background: color-mix(in srgb, #1f1f20 98.4%, rgb(var(--tint-rgb)) 1.6%);
-  --foreground: color-mix(in srgb, #ffffff 88%, #1f1f20 12%);
-  --card: color-mix(in srgb, #232325 97.2%, rgb(var(--tint-rgb)) 2.8%);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: color-mix(in srgb, #252528 96.8%, rgb(var(--tint-rgb)) 3.2%);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.985 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: color-mix(in srgb, #313136 93%, rgb(var(--tint-rgb)) 7%);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: color-mix(in srgb, #313136 94%, rgb(var(--tint-rgb)) 6%);
-  --muted-foreground: color-mix(in srgb, #ffffff 62%, #1f1f20 38%);
-  --accent: color-mix(in srgb, #34343a 90%, rgb(var(--tint-rgb)) 10%);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: #ff5a6b;
-  --destructive-foreground: #ffffff;
-  --border: var(--ui-hairline-border);
-  --input: var(--ui-hairline-border);
-  --shortcut-monochrome-surface-theme-adaptive: var(--background);
-  --ring: oklch(0.439 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(27.685% 0.00003 271.152);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(0.269 0 0);
-  --sidebar-ring: oklch(0.439 0 0);
-  --frosted-ui-background: color-mix(in srgb, #1f1f20 88%, #ffffff 12%);
-  --frosted-ui-control-fill: color-mix(in srgb, #1f1f20 96%, #ffffff 4%);
-  --frosted-ui-control-fill-hover: color-mix(in srgb, #1f1f20 94%, #ffffff 6%);
-  --frosted-ui-border: var(--ui-hairline-border);
-  --frosted-ui-card: var(--frosted-ui-control-fill);
-  --frosted-ui-card-hover: var(--frosted-ui-control-fill-hover);
-  --frosted-ui-secondary: var(--frosted-ui-control-fill);
-  --frosted-ui-muted: var(--frosted-ui-control-fill);
-  --frosted-ui-accent: var(--frosted-ui-control-fill-hover);
-  --frosted-ui-foreground: color-mix(in srgb, #ffffff 90%, #1f1f20 10%);
-  --frosted-ui-muted-foreground: color-mix(in srgb, #ffffff 62%, #1f1f20 38%);
-  --search-ui-surface-foreground: color-mix(in srgb, #ffffff 92%, #1f1f20 8%);
-  --search-ui-foreground: color-mix(in srgb, #ffffff 92%, #1f1f20 8%);
-  --search-ui-foreground-strong: color-mix(in srgb, #ffffff 96%, #1f1f20 4%);
-  --search-ui-muted-foreground: color-mix(in srgb, #ffffff 58%, #1f1f20 42%);
-  --search-ui-subtle-foreground: color-mix(in srgb, #ffffff 52%, #1f1f20 48%);
-  --search-ui-input-foreground: var(--search-ui-foreground);
-  --search-ui-placeholder-foreground: color-mix(in srgb, #ffffff 46%, #1f1f20 54%);
-  --search-ui-trigger-foreground: color-mix(in srgb, #ffffff 72%, #1f1f20 28%);
-  --search-ui-trigger-foreground-hover: color-mix(in srgb, #ffffff 92%, #1f1f20 8%);
-  --search-ui-clear-foreground: color-mix(in srgb, #ffffff 58%, #1f1f20 42%);
-  --search-ui-clear-foreground-hover: color-mix(in srgb, #ffffff 94%, #1f1f20 6%);
-  --search-ui-clear-background-hover: color-mix(in srgb, #1f1f20 92%, #ffffff 8%);
-  --search-ui-preview-background: color-mix(in srgb, #1f1f20 90%, #ffffff 10%);
-  --search-ui-preview-foreground: color-mix(in srgb, #ffffff 78%, #1f1f20 22%);
-  --search-ui-row-background-hover: color-mix(in srgb, #1f1f20 90%, #ffffff 10%);
-  --search-ui-row-background-selected: color-mix(in srgb, #1f1f20 88%, #ffffff 12%);
-  --search-ui-status-background: color-mix(in srgb, #1f1f20 90%, #ffffff 10%);
-  --search-ui-status-dot: color-mix(in srgb, #ffffff 72%, #1f1f20 28%);
-  --search-ui-engine-trigger-foreground: var(--search-ui-trigger-foreground);
-  --search-ui-engine-item-foreground: color-mix(in srgb, #ffffff 90%, #1f1f20 10%);
-  --search-ui-engine-item-selected-foreground: var(--search-ui-foreground-strong);
-  --hero-tint-foreground: color-mix(in srgb, #ffffff 92%, rgb(var(--tint-rgb)) 8%);
-  --hero-tint-foreground-strong: color-mix(in srgb, #ffffff 88%, rgb(var(--tint-rgb)) 12%);
 }
 
 @theme inline {
@@ -367,173 +95,8 @@
   --color-input: var(--input);
   --color-input-background: var(--input-background);
   --color-ring: var(--ring);
-  --color-chart-1: var(--chart-1);
-  --color-chart-2: var(--chart-2);
-  --color-chart-3: var(--chart-3);
-  --color-chart-4: var(--chart-4);
-  --color-chart-5: var(--chart-5);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
-  --color-sidebar: var(--sidebar);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-ring: var(--sidebar-ring);
-}
-
-/* Theme Colors */
-:root[data-accent-color="mono"] {
-  --tint-rgb: 128 128 128;
-  --primary: #111111;
-  --primary-foreground: #ffffff;
-  --ring: #111111;
-}
-
-:root[data-accent-color="blue"] {
-  --tint-rgb: 59 130 246;
-  --primary: #3b82f6;
-  --primary-foreground: #ffffff;
-  --ring: #3b82f6;
-}
-
-:root[data-accent-color="purple"] {
-  --tint-rgb: 168 85 247;
-  --primary: #a855f7;
-  --primary-foreground: #ffffff;
-  --ring: #a855f7;
-}
-
-:root[data-accent-color="green"] {
-  --tint-rgb: 34 197 94;
-  --primary: #22c55e;
-  --primary-foreground: #ffffff;
-  --ring: #22c55e;
-}
-
-:root[data-accent-color="orange"] {
-  --tint-rgb: 249 115 22;
-  --primary: #f97316;
-  --primary-foreground: #ffffff;
-  --ring: #f97316;
-}
-
-:root[data-accent-color="pink"] {
-  --tint-rgb: 236 72 153;
-  --primary: #ec4899;
-  --primary-foreground: #ffffff;
-  --ring: #ec4899;
-}
-
-:root[data-accent-color="red"] {
-  --tint-rgb: 239 68 68;
-  --primary: #ef4444;
-  --primary-foreground: #ffffff;
-  --ring: #ef4444;
-}
-
-.dark[data-accent-color="blue"] {
-  --primary: #3b82f6;
-  --primary-foreground: #ffffff;
-  --ring: #3b82f6;
-}
-
-.dark[data-accent-color="mono"] {
-  --primary: #ffffff;
-  --primary-foreground: #111111;
-  --ring: #ffffff;
-}
-
-.dark[data-accent-color="purple"] {
-  --primary: #a855f7;
-  --primary-foreground: #ffffff;
-  --ring: #a855f7;
-}
-
-.dark[data-accent-color="green"] {
-  --primary: #22c55e;
-  --primary-foreground: #ffffff;
-  --ring: #22c55e;
-}
-
-.dark[data-accent-color="orange"] {
-  --primary: #f97316;
-  --primary-foreground: #ffffff;
-  --ring: #f97316;
-}
-
-.dark[data-accent-color="pink"] {
-  --primary: #ec4899;
-  --primary-foreground: #ffffff;
-  --ring: #ec4899;
-}
-
-.dark[data-accent-color="red"] {
-  --primary: #ef4444;
-  --primary-foreground: #ffffff;
-  --ring: #ef4444;
-}
-
-/* Disable global keyboard/mouse focus outlines and rings */
-*:focus,
-*:focus-visible {
-  outline: none !important;
-  box-shadow: none !important;
-}
-
-[data-slot="select-content"],
-[data-slot="select-content"]:focus,
-[data-slot="select-content"]:focus-visible {
-  box-shadow: 0 16px 44px rgba(8, 12, 18, 0.18) !important;
-}
-
-/* Keep all modal/popup surfaces above page blur/masks */
-[data-slot="dialog-overlay"],
-[data-slot="alert-dialog-overlay"],
-[data-slot="sheet-overlay"] {
-  z-index: 15000 !important;
-}
-
-[data-slot="dialog-content"],
-[data-slot="alert-dialog-content"],
-[data-slot="sheet-content"] {
-  z-index: 15010 !important;
-}
-
-[data-slot="context-menu-content"],
-[data-slot="context-menu-sub-content"] {
-  z-index: 15020 !important;
-}
-
-[data-slot="popover-content"],
-[data-slot="dropdown-menu-content"],
-[data-slot="dropdown-menu-sub-content"],
-[data-slot="select-content"],
-[data-slot="menubar-content"],
-[data-slot="menubar-sub-content"],
-[data-slot="hover-card-content"],
-[data-slot="tooltip-content"] {
-  z-index: 15030 !important;
-}
-
-@keyframes leaftab-marquee-scroll {
-  from {
-    transform: translate3d(0, 0, 0);
-  }
-  to {
-    transform: translate3d(-50%, 0, 0);
-  }
-}
-
-@keyframes leaftab-marquee-scroll-reverse {
-  from {
-    transform: translate3d(-50%, 0, 0);
-  }
-  to {
-    transform: translate3d(0, 0, 0);
-  }
 }

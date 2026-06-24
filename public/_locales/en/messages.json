@@ -1,10 +1,10 @@
 {
   "appTitle": {
-    "message": "Aira - Focused WebDAV New Tab",
+    "message": "Aira WebDAV Sync",
     "description": "The title of the application"
   },
   "appDescription": {
-    "message": "Focused new tab with shortcuts, browser bookmark search, WebDAV bookmark sync, wallpapers, and a clean keyboard-first layout.",
+    "message": "Sync browser bookmarks with a WebDAV server from the extension popup.",
     "description": "The description of the application"
   }
 }

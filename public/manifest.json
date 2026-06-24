@@ -6,9 +6,6 @@
   "version_name": "0.1.0",
   "description": "__MSG_appDescription__",
   "default_locale": "en",
-  "chrome_url_overrides": {
-    "newtab": "bootstrap.html"
-  },
   "background": {
     "service_worker": "background.js"
   },
@@ -16,12 +13,8 @@
     "extension_pages": "script-src 'self'; object-src 'self';"
   },
   "permissions": [
-    "search",
     "permissions",
-    "bookmarks",
-    "history",
-    "sessions",
-    "tabs"
+    "bookmarks"
   ],
   "optional_host_permissions": [
     "https://*/*",

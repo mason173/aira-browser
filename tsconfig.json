@@ -23,11 +23,7 @@
     /* Paths */
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"],
-      "@target/*": ["src/targets/chromium/*"],
-      "@airatab/workspace-core": ["packages/grid-core/src/index.ts"],
-      "@airatab/workspace-react": ["packages/grid-react/src/index.ts"],
-      "@airatab/workspace-preset-airatab": ["packages/grid-preset-airatab/src/index.ts"]
+      "@/*": ["src/*"]
     }
   },
   "include": ["src"],

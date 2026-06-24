@@ -23,7 +23,7 @@ const DRAWER_SURFACE_OVERLAY_STYLE: CSSProperties = {
   backgroundColor: 'var(--background)',
 };
 
-function buildSearchBorderStyle(): CSSProperties {
+function buildSurfaceBorderStyle(): CSSProperties {
   return {
     border: '1px solid var(--border)',
   };
@@ -89,7 +89,7 @@ export function FrostedBackdrop({
         {showBorder ? (
           <div
             className={`absolute inset-0 ${radiusClassName}`}
-            style={buildSearchBorderStyle()}
+            style={buildSurfaceBorderStyle()}
           />
         ) : null}
       </div>
@@ -112,7 +112,7 @@ export function FrostedBackdrop({
       {showBorder ? (
         <div
           className={`absolute inset-0 ${radiusClassName}`}
-          style={buildSearchBorderStyle()}
+          style={buildSurfaceBorderStyle()}
         />
       ) : null}
     </div>
