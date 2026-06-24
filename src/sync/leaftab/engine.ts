@@ -113,7 +113,7 @@ export class LeafTabSyncEngine {
     reportProgress(options?.onProgress, {
       stage: 'reading-state',
       progress: 10,
-      message: '正在读取本地与云端状态',
+      message: '正在读取本机与 WebDAV状态',
     });
     const [baseline, localSnapshot, remoteState] = await Promise.all([
       this.config.baselineStore.load(),
@@ -124,12 +124,15 @@ export class LeafTabSyncEngine {
     const remoteSnapshot = remoteState.snapshot;
     const hasBaseline = Boolean(baseline?.snapshot || baseline?.commitId);
 
-    const result = {
+    const requiresInitialChoice = !hasBaseline && remoteSnapshot !== null &&
+      !sameSnapshotContent(localSnapshot, remoteSnapshot);
+    const suggestedInitialChoice: LeafTabSyncInitialChoice | null = requiresInitialChoice ? 'merge' : null;
+    const result: LeafTabSyncAnalysis = {
       hasBaseline,
       localSummary: summarizeSnapshot(localSnapshot),
       remoteSummary: summarizeSnapshot(remoteSnapshot),
-      requiresInitialChoice: false,
-      suggestedInitialChoice: null,
+      requiresInitialChoice,
+      suggestedInitialChoice,
       remoteCommitId: remoteState.commit?.id || null,
     };
     reportProgress(options?.onProgress, {
@@ -147,7 +150,7 @@ export class LeafTabSyncEngine {
     reportProgress(runOptions?.onProgress, {
       stage: 'reading-state',
       progress: 8,
-      message: '正在读取本地与云端数据',
+      message: '正在读取本机与 WebDAV数据',
     });
     const [baseline, localSnapshot, remoteState] = await Promise.all([
       this.config.baselineStore.load(),
@@ -168,11 +171,16 @@ export class LeafTabSyncEngine {
       if (remoteState.snapshot) {
         if (!sameSnapshotContent(localSnapshot, remoteSnapshot)) {
           reportProgress(runOptions?.onProgress, {
-            stage: 'applying-local',
-            progress: 62,
-            message: '正在用 WebDAV 建立本机同步基线',
+            stage: 'completed',
+            progress: 100,
+            message: '需要选择首次同步方式',
           });
-          await this.config.applyLocalSnapshot(remoteSnapshot);
+          return {
+            kind: 'conflict',
+            remoteCommitId: remoteState.commit?.id || null,
+            snapshot: localSnapshot,
+            summaryText: '本机和 WebDAV 都有书签数据，请先选择首次同步方式',
+          };
         }
         reportProgress(runOptions?.onProgress, {
           stage: 'finalizing',
@@ -200,14 +208,14 @@ export class LeafTabSyncEngine {
       reportProgress(runOptions?.onProgress, {
         stage: 'acquiring-lock',
         progress: 34,
-        message: '正在锁定云端目录',
+        message: '正在锁定WebDAV 目录',
       });
       await this.config.remoteStore.acquireLock(this.config.deviceId);
       try {
         reportProgress(runOptions?.onProgress, {
           stage: 'rechecking-remote',
           progress: 52,
-          message: '正在重新确认云端最新状态',
+          message: '正在重新确认WebDAV 最新状态',
         });
         const latestRemote = await this.config.remoteStore.readState();
         if (latestRemote.snapshot) {
@@ -238,7 +246,7 @@ export class LeafTabSyncEngine {
         reportProgress(runOptions?.onProgress, {
           stage: 'uploading-remote',
           progress: 72,
-          message: '正在写入云端数据',
+          message: '正在写入WebDAV 数据',
         });
         const writeResult = await this.config.remoteStore.writeState({
           snapshot: localSnapshot,
@@ -295,14 +303,14 @@ export class LeafTabSyncEngine {
       reportProgress(runOptions?.onProgress, {
         stage: 'acquiring-lock',
         progress: 34,
-        message: '正在锁定云端目录',
+        message: '正在锁定WebDAV 目录',
       });
       await this.config.remoteStore.acquireLock(this.config.deviceId);
       try {
         reportProgress(runOptions?.onProgress, {
           stage: 'rechecking-remote',
           progress: 52,
-          message: '正在重新确认云端最新状态',
+          message: '正在重新确认WebDAV 最新状态',
         });
         const latestRemote = await this.config.remoteStore.readState();
         const latestRemoteSnapshot = latestRemote.snapshot || this.config.createEmptySnapshot();
@@ -334,7 +342,7 @@ export class LeafTabSyncEngine {
         reportProgress(runOptions?.onProgress, {
           stage: 'uploading-remote',
           progress: 68,
-          message: '正在写入云端数据',
+          message: '正在写入WebDAV 数据',
         });
         const writeResult = await this.config.remoteStore.writeState({
           snapshot: localSnapshot,
@@ -373,7 +381,7 @@ export class LeafTabSyncEngine {
         reportProgress(runOptions?.onProgress, {
           stage: 'applying-local',
           progress: 62,
-          message: '正在将云端数据写入本地',
+          message: '正在将WebDAV 数据写入本地',
         });
         await this.config.applyLocalSnapshot(remoteSnapshot);
       }
@@ -405,7 +413,7 @@ export class LeafTabSyncEngine {
     reportProgress(runOptions?.onProgress, {
       stage: 'merging',
       progress: 24,
-      message: '正在合并本地与云端差异',
+      message: '正在合并本机与 WebDAV差异',
     });
     const mergeResult = mergeLeafTabSyncSnapshot(
       baseSnapshot,
@@ -425,14 +433,14 @@ export class LeafTabSyncEngine {
       reportProgress(runOptions?.onProgress, {
         stage: 'acquiring-lock',
         progress: 40,
-        message: '正在锁定云端目录',
+        message: '正在锁定WebDAV 目录',
       });
       await this.config.remoteStore.acquireLock(this.config.deviceId);
       try {
         reportProgress(runOptions?.onProgress, {
           stage: 'rechecking-remote',
           progress: 54,
-          message: '正在重新确认云端最新状态',
+          message: '正在重新确认WebDAV 最新状态',
         });
         const latestRemote = await this.config.remoteStore.readState();
         const latestRemoteSnapshot = latestRemote.snapshot || this.config.createEmptySnapshot();
@@ -452,7 +460,7 @@ export class LeafTabSyncEngine {
           reportProgress(runOptions?.onProgress, {
             stage: 'uploading-remote',
             progress: 72,
-            message: '正在写入云端数据',
+            message: '正在写入WebDAV 数据',
           });
           const writeResult = await this.config.remoteStore.writeState({
             snapshot: finalSnapshot,
@@ -500,7 +508,7 @@ export class LeafTabSyncEngine {
           reportProgress(runOptions?.onProgress, {
             stage: 'applying-local',
             progress: 86,
-            message: '正在将云端数据写入本地',
+            message: '正在将WebDAV 数据写入本地',
           });
           await this.config.applyLocalSnapshot(cloneSnapshot(finalSnapshot));
           reportProgress(runOptions?.onProgress, {
@@ -565,7 +573,7 @@ export class LeafTabSyncEngine {
     reportProgress(runOptions?.onProgress, {
       stage: 'applying-local',
       progress: 84,
-      message: '正在将云端数据写入本地',
+      message: '正在将WebDAV 数据写入本地',
     });
     await this.config.applyLocalSnapshot(cloneSnapshot(finalSnapshot));
     reportProgress(runOptions?.onProgress, {

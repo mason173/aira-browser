@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from '@/components/ui/sonner';
 import type {
+  LeafTabInitialSyncChoiceRequest,
   LeafTabSyncActions,
   LeafTabSyncFacade,
   LeafTabSyncState,
@@ -175,6 +176,9 @@ export function useLeafTabSyncRuntimeController(
   const [webdavSyncRunActive, setWebdavSyncRunActive] = useState(false);
   const [leafTabSyncLastResult, setLeafTabSyncLastResult] = useState<LeafTabSyncEngineResult | null>(null);
   const [leafTabSyncAnalysis, setLeafTabSyncAnalysis] = useState<LeafTabSyncAnalysis | null>(null);
+  const [leafTabInitialSyncChoiceRequest, setLeafTabInitialSyncChoiceRequest] =
+    useState<LeafTabInitialSyncChoiceRequest | null>(null);
+  const initialSyncChoiceResolverRef = useRef<((choice: LeafTabSyncInitialChoice | null) => void) | null>(null);
   const leafTabSyncDeviceId = useMemo(() => getOrCreateLeafTabSyncDeviceId(), []);
   const leafTabBookmarkSyncScope = useMemo(() => readLeafTabBookmarkSyncScope(), []);
   const leafTabSyncRootPath = LEAFTAB_SYNC_DEFAULT_ROOT_PATH;
@@ -353,6 +357,24 @@ export function useLeafTabSyncRuntimeController(
     setLocalVersion((value) => value + 1);
   }, []);
 
+  const requestInitialSyncChoice = useCallback((analysis: LeafTabSyncAnalysis) => {
+    initialSyncChoiceResolverRef.current?.(null);
+    setLeafTabInitialSyncChoiceRequest({
+      localSummary: analysis.localSummary,
+      remoteSummary: analysis.remoteSummary,
+    });
+    return new Promise<LeafTabSyncInitialChoice | null>((resolve) => {
+      initialSyncChoiceResolverRef.current = resolve;
+    });
+  }, []);
+
+  const resolveLeafTabInitialSyncChoice = useCallback((choice: LeafTabSyncInitialChoice | null) => {
+    const resolver = initialSyncChoiceResolverRef.current;
+    initialSyncChoiceResolverRef.current = null;
+    setLeafTabInitialSyncChoiceRequest(null);
+    resolver?.(choice);
+  }, []);
+
   const markWebdavSyncSuccess = useCallback(() => {
     localStorage.setItem('webdav_last_sync_at', new Date().toISOString());
     localStorage.removeItem('webdav_last_error_at');
@@ -405,7 +427,22 @@ export function useLeafTabSyncRuntimeController(
         }
       }
 
-      const result = await runLeafTabSyncOnce(options?.mode || 'auto', options);
+      let runMode: LeafTabSyncInitialChoice | 'auto' = options?.mode || 'auto';
+      if (runMode === 'auto') {
+        const analysis = await refreshLeafTabSyncAnalysis();
+        if (analysis?.requiresInitialChoice) {
+          if (options?.silentSuccess && options?.allowConfigPrompt === false) {
+            return null;
+          }
+          const choice = await requestInitialSyncChoice(analysis);
+          if (choice === null) {
+            return null;
+          }
+          runMode = choice;
+        }
+      }
+
+      const result = await runLeafTabSyncOnce(runMode, options);
       if (result) {
         markWebdavSyncSuccess();
         void refreshLeafTabSyncAnalysis().catch((error) => {
@@ -431,6 +468,7 @@ export function useLeafTabSyncRuntimeController(
     markWebdavSyncError,
     markWebdavSyncSuccess,
     refreshLeafTabSyncAnalysis,
+    requestInitialSyncChoice,
     runLeafTabSyncOnce,
     setWebdavSyncEnabledInStorage,
     setSyncConfigBackTarget,
@@ -524,8 +562,11 @@ export function useLeafTabSyncRuntimeController(
 
   const state = useMemo<LeafTabSyncState>(() => ({
     leafTabSyncState,
-    topNavSyncStatus: leafTabSyncState.status === 'error' ? 'error' : leafTabSyncState.status === 'syncing' ? 'syncing' : 'idle',
+    topNavSyncStatus: leafTabSyncState.status === 'error'
+      ? 'error'
+      : (leafTabSyncState.status === 'syncing' || webdavSyncRunActive ? 'syncing' : 'idle'),
     leafTabSyncAnalysis,
+    leafTabInitialSyncChoiceRequest,
     leafTabSyncHasConfig: Boolean(webdavConfig?.url),
     leafTabSyncReady: true,
     leafTabSyncLastResult,
@@ -539,8 +580,10 @@ export function useLeafTabSyncRuntimeController(
     leafTabBookmarkSyncScopeLabel: '书签栏 / 其他书签',
   }), [
     leafTabSyncLastResult,
+    leafTabInitialSyncChoiceRequest,
     leafTabSyncAnalysis,
     leafTabSyncState,
+    webdavSyncRunActive,
     leafTabWebdavConfigured,
     leafTabWebdavEnabled,
     leafTabWebdavProfileLabel,
@@ -583,7 +626,7 @@ export function useLeafTabSyncRuntimeController(
       try {
         const analysis = await refreshLeafTabSyncAnalysis();
         if (analysis) {
-          toast.success('云端数据检查完成');
+          toast.success('WebDAV 数据检查完成');
         }
         return analysis;
       } catch (error) {
@@ -608,12 +651,14 @@ export function useLeafTabSyncRuntimeController(
         requestBookmarkPermission: true,
       });
     },
+    resolveLeafTabInitialSyncChoice,
   }), [
     handleLeafTabAutoSync,
     handleLeafTabSync,
     handleOpenWebdavConfig,
     handleOpenWebdavConfigFromSyncCenter,
     refreshLeafTabSyncAnalysis,
+    resolveLeafTabInitialSyncChoice,
     setLeafTabSyncDialogOpen,
     setWebdavSyncEnabledInStorage,
   ]);

@@ -14,6 +14,11 @@ export type LeafTabSyncWebdavActionOptions = LeafTabSyncRunnerOptionsBase & {
   allowConfigPrompt?: boolean;
 };
 
+export type LeafTabInitialSyncChoiceRequest = {
+  localSummary: LeafTabSyncAnalysis['localSummary'];
+  remoteSummary: LeafTabSyncAnalysis['remoteSummary'];
+};
+
 export type LeafTabSyncStatusState = {
   leafTabSyncState: SyncState;
   topNavSyncStatus: LeafTabTopNavSyncStatus;
@@ -21,6 +26,7 @@ export type LeafTabSyncStatusState = {
 
 export type LeafTabSyncConfigState = {
   leafTabSyncAnalysis: LeafTabSyncAnalysis | null;
+  leafTabInitialSyncChoiceRequest: LeafTabInitialSyncChoiceRequest | null;
   leafTabSyncHasConfig: boolean;
   leafTabSyncReady: boolean;
   leafTabSyncLastResult: LeafTabSyncEngineResult | null;
@@ -49,6 +55,7 @@ export type LeafTabSyncActions = {
   handleWebdavSyncNowFromCenter: () => Promise<boolean>;
   handleWebdavRefreshAnalysis: () => Promise<LeafTabSyncAnalysis | null>;
   handleWebdavOverwriteFromCenter: (mode: Extract<LeafTabSyncInitialChoice, 'pull-remote' | 'push-local'>) => Promise<boolean>;
+  resolveLeafTabInitialSyncChoice: (choice: LeafTabSyncInitialChoice | null) => void;
   resolveWebdavConflict: (config: WebdavConfig) => Promise<void>;
 };
 

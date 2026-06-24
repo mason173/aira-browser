@@ -2,6 +2,12 @@ import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from '@/components/ui/sonner';
@@ -46,6 +52,12 @@ type ConfiguredHomeState = {
 };
 
 type PopupSyncRuntime = Pick<LeafTabSyncFacade, 'state' | 'actions'>;
+
+const resolveSyncStatusLabel = (enabled: boolean, t: ReturnType<typeof useTranslation>['t']) => {
+  return enabled
+    ? t('popup.dashboard.webdavEnabledStatus', { defaultValue: 'WebDAV 已开启' })
+    : t('popup.dashboard.disabledStatus', { defaultValue: '未启用' });
+};
 
 const formatLastSync = (raw: string | null, fallback: string) => {
   if (!raw) return fallback;
@@ -99,7 +111,7 @@ function readConfiguredHomeState(t: ReturnType<typeof useTranslation>['t']): Con
       remoteDataLabel: t('popup.dashboard.dataCountPlaceholder', {
         defaultValue: '723 个文件夹，9212 个书签',
       }),
-      syncStartLabel: t('popup.advanced.syncStartValue', { defaultValue: '云端 已建立' }),
+      syncStartLabel: t('popup.advanced.syncStartValue', { defaultValue: 'WebDAV 已建立' }),
       webdavEnabled,
     };
   } catch {
@@ -113,6 +125,69 @@ function formatBookmarkDataLabel(
 ) {
   if (!summary) return fallback;
   return `${summary.bookmarkFolders} 个文件夹，${summary.bookmarkItems} 个书签`;
+}
+
+function FirstSyncChoiceDialog({ syncRuntime }: { syncRuntime: PopupSyncRuntime }) {
+  const { t } = useTranslation();
+  const request = syncRuntime.state.leafTabInitialSyncChoiceRequest;
+  const localLabel = formatBookmarkDataLabel(
+    request?.localSummary,
+    t('popup.dashboard.dataCountUnknown', { defaultValue: '未读取' }),
+  );
+  const remoteLabel = formatBookmarkDataLabel(
+    request?.remoteSummary,
+    t('popup.dashboard.dataCountUnknown', { defaultValue: '未读取' }),
+  );
+
+  return (
+    <Dialog
+      open={Boolean(request)}
+      onOpenChange={(open) => {
+        if (!open) {
+          syncRuntime.actions.resolveLeafTabInitialSyncChoice(null);
+        }
+      }}
+    >
+      <DialogContent className="max-w-[328px] rounded-[24px] p-5">
+        <DialogHeader className="text-left">
+          <DialogTitle>{t('popup.firstSync.title', { defaultValue: '选择首次同步方式' })}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="grid grid-cols-[88px_minmax(0,1fr)] gap-x-3 gap-y-2 text-sm">
+            <span className="text-muted-foreground">{t('popup.firstSync.local', { defaultValue: '本机' })}</span>
+            <span className="font-medium text-foreground">{localLabel}</span>
+            <span className="text-muted-foreground">{t('popup.firstSync.webdav', { defaultValue: 'WebDAV' })}</span>
+            <span className="font-medium text-foreground">{remoteLabel}</span>
+          </div>
+          <div className="grid gap-2">
+            <Button
+              type="button"
+              className="h-10 rounded-[8px]"
+              onClick={() => syncRuntime.actions.resolveLeafTabInitialSyncChoice('merge')}
+            >
+              {t('popup.firstSync.merge', { defaultValue: '合并' })}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-10 rounded-[8px]"
+              onClick={() => syncRuntime.actions.resolveLeafTabInitialSyncChoice('push-local')}
+            >
+              {t('popup.firstSync.pushLocal', { defaultValue: '本机覆盖 WebDAV' })}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-10 rounded-[8px]"
+              onClick={() => syncRuntime.actions.resolveLeafTabInitialSyncChoice('pull-remote')}
+            >
+              {t('popup.firstSync.pullRemote', { defaultValue: 'WebDAV 覆盖本机' })}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 function QrPlaceholder() {
@@ -252,7 +327,7 @@ function ConfiguredHome({
   onOpenAdvanced: () => void;
 }) {
   const { t } = useTranslation();
-  const syncing = syncRuntime.state.leafTabSyncState.status === 'syncing';
+  const syncing = syncRuntime.state.topNavSyncStatus === 'syncing';
   const localDataLabel = formatBookmarkDataLabel(syncRuntime.state.leafTabSyncAnalysis?.localSummary, profile.localDataLabel);
   const remoteDataLabel = formatBookmarkDataLabel(syncRuntime.state.leafTabSyncAnalysis?.remoteSummary, profile.remoteDataLabel);
 
@@ -285,9 +360,7 @@ function ConfiguredHome({
           <div className="overflow-hidden rounded-[8px] border border-border bg-card">
             <InfoRow
               label={t('popup.dashboard.syncStatus', { defaultValue: '同步状态' })}
-              value={profile.webdavEnabled
-                ? t('popup.dashboard.enabledStatus', { defaultValue: '已启用' })
-                : t('popup.dashboard.disabledStatus', { defaultValue: '未启用' })}
+              value={resolveSyncStatusLabel(profile.webdavEnabled, t)}
             />
             <InfoRow
               label={t('popup.dashboard.lastSync', { defaultValue: '最近同步' })}
@@ -298,7 +371,7 @@ function ConfiguredHome({
               value={localDataLabel}
             />
             <InfoRow
-              label={t('popup.dashboard.remoteData', { defaultValue: '云端数据' })}
+              label={t('popup.dashboard.remoteData', { defaultValue: 'WebDAV 数据' })}
               value={remoteDataLabel}
             />
           </div>
@@ -467,14 +540,14 @@ function AdvancedSyncPage({
   onBack: () => void;
 }) {
   const { t } = useTranslation();
-  const syncing = syncRuntime.state.leafTabSyncState.status === 'syncing';
+  const syncing = syncRuntime.state.topNavSyncStatus === 'syncing';
   const fallbackProfile = profile ?? {
     nickname: t('popup.profile.defaultNickname', { defaultValue: '请登录' }),
     uid: 'AIRA-0000',
     lastSyncLabel: t('popup.dashboard.lastSyncPlaceholder', { defaultValue: '6/24/2026, 10:45:55 AM' }),
     localDataLabel: t('popup.dashboard.dataCountPlaceholder', { defaultValue: '723 个文件夹，9212 个书签' }),
     remoteDataLabel: t('popup.dashboard.dataCountPlaceholder', { defaultValue: '723 个文件夹，9212 个书签' }),
-    syncStartLabel: t('popup.advanced.syncStartValue', { defaultValue: '云端 已建立' }),
+    syncStartLabel: t('popup.advanced.syncStartValue', { defaultValue: 'WebDAV 已建立' }),
     webdavEnabled: true,
   };
   const remoteDataLabel = formatBookmarkDataLabel(syncRuntime.state.leafTabSyncAnalysis?.remoteSummary, fallbackProfile.remoteDataLabel);
@@ -495,7 +568,7 @@ function AdvancedSyncPage({
           <div className="overflow-hidden rounded-[8px] border border-border bg-card">
             <InfoRow
               label={t('popup.advanced.enableMode', { defaultValue: '启用方式' })}
-              value={t('popup.advanced.enableModeValue', { defaultValue: '书签云同步' })}
+              value={t('popup.advanced.enableModeValue', { defaultValue: 'WebDAV 同步' })}
             />
             <InfoRow
               label={t('popup.advanced.syncStart', { defaultValue: '同步起点' })}
@@ -505,14 +578,14 @@ function AdvancedSyncPage({
               label={t('popup.advanced.remoteData', { defaultValue: '远端数据' })}
               value={t('popup.advanced.remoteDataValue', {
                 data: remoteDataLabel,
-                defaultValue: `云端 ${remoteDataLabel}`,
+                defaultValue: `WebDAV ${remoteDataLabel}`,
               })}
             />
             <InfoRow
               label={t('popup.dashboard.lastSync', { defaultValue: '最近同步' })}
               value={t('popup.advanced.lastSyncValue', {
                 time: fallbackProfile.lastSyncLabel,
-                defaultValue: `云端 ${fallbackProfile.lastSyncLabel}`,
+                defaultValue: `WebDAV ${fallbackProfile.lastSyncLabel}`,
               })}
             />
           </div>
@@ -527,19 +600,19 @@ function AdvancedSyncPage({
           </ActionButton>
         </AdvancedSection>
 
-        <AdvancedSection title={t('popup.advanced.bookmarkCloudSync', { defaultValue: '书签云同步' })}>
+        <AdvancedSection title={t('popup.advanced.bookmarkCloudSync', { defaultValue: 'WebDAV 同步' })}>
           <div className="space-y-2">
             <ActionButton
               disabled={syncing}
               onClick={() => void syncRuntime.actions.handleWebdavRefreshAnalysis()}
             >
-              {t('popup.advanced.checkRemoteData', { defaultValue: '检查云端数据' })}
+              {t('popup.advanced.checkRemoteData', { defaultValue: '检查 WebDAV 数据' })}
             </ActionButton>
             <ActionButton disabled={syncing} onClick={() => void runOverwrite('push-local')}>
-              {t('popup.advanced.overwriteRemote', { defaultValue: '本机覆盖云端' })}
+              {t('popup.advanced.overwriteRemote', { defaultValue: '本机覆盖 WebDAV' })}
             </ActionButton>
             <ActionButton tone="danger" disabled={syncing} onClick={() => void runOverwrite('pull-remote')}>
-              {t('popup.advanced.overwriteLocal', { defaultValue: '云端覆盖本机' })}
+              {t('popup.advanced.overwriteLocal', { defaultValue: 'WebDAV 覆盖本机' })}
             </ActionButton>
           </div>
         </AdvancedSection>
@@ -549,7 +622,7 @@ function AdvancedSyncPage({
             disabled={syncing}
             onClick={() => void syncRuntime.actions.handleLeafTabSync({ mode: 'push-local', allowConfigPrompt: false, requestBookmarkPermission: true })}
           >
-            {t('popup.advanced.rebuildSyncStart', { defaultValue: '重建云端同步起点' })}
+            {t('popup.advanced.rebuildSyncStart', { defaultValue: '重建 WebDAV 同步起点' })}
           </ActionButton>
         </AdvancedSection>
 
@@ -558,7 +631,7 @@ function AdvancedSyncPage({
             tone="danger"
             disabled
           >
-            {t('popup.advanced.clearRemoteRecords', { defaultValue: '清除云端同步记录' })}
+            {t('popup.advanced.clearRemoteRecords', { defaultValue: '清除 WebDAV 同步记录' })}
           </ActionButton>
         </AdvancedSection>
       </div>
@@ -873,6 +946,7 @@ export function PopupApp() {
       {view === 'login' && (
         <LoginQrPage onOpenWebdav={() => setView('webdav')} />
       )}
+      <FirstSyncChoiceDialog syncRuntime={syncRuntime} />
     </main>
   );
 }
