@@ -11,6 +11,8 @@ import {
   HardDrive,
   House,
   Info,
+  LogOut,
+  MoreHorizontal,
   Minus,
   Plus,
   RefreshCw,
@@ -36,6 +38,8 @@ export const RiEyeOffFill = EyeOff;
 export const RiHardDrive3Fill = HardDrive;
 export const RiHomeFill = House;
 export const RiInformationFill = Info;
+export const RiLogoutBoxRLine = LogOut;
+export const RiMoreFill = MoreHorizontal;
 export const RiRefreshFill = RefreshCw;
 export const RiSettings4Fill = Settings2;
 export const RiSlidersFill = SlidersHorizontal;
