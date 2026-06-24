@@ -55,6 +55,59 @@ export class LeafTabSyncLocalStorageBaselineStore implements LeafTabSyncBaseline
   }
 }
 
+export class LeafTabSyncExtensionStorageBaselineStore implements LeafTabSyncBaselineStore {
+  private readonly key: string;
+  private readonly fallback: LeafTabSyncLocalStorageBaselineStore;
+
+  constructor(key = 'leaftab_sync_v1_baseline') {
+    this.key = key;
+    this.fallback = new LeafTabSyncLocalStorageBaselineStore(key);
+  }
+
+  private getStorageArea() {
+    const storageArea = globalThis.chrome?.storage?.local;
+    if (!storageArea?.get || !storageArea?.set || !storageArea?.remove) return null;
+    return storageArea;
+  }
+
+  async load() {
+    const storageArea = this.getStorageArea();
+    if (!storageArea) {
+      return this.fallback.load();
+    }
+
+    const result = await storageArea.get(this.key);
+    const value = result?.[this.key];
+    if (value) {
+      return value as LeafTabSyncBaseline;
+    }
+
+    const legacyValue = await this.fallback.load();
+    if (legacyValue) {
+      await this.save(legacyValue);
+    }
+    return legacyValue;
+  }
+
+  async save(baseline: LeafTabSyncBaseline) {
+    const storageArea = this.getStorageArea();
+    if (!storageArea) {
+      await this.fallback.save(baseline);
+      return;
+    }
+    await storageArea.set({ [this.key]: baseline });
+    await this.fallback.clear();
+  }
+
+  async clear() {
+    const storageArea = this.getStorageArea();
+    if (storageArea) {
+      await storageArea.remove(this.key);
+    }
+    await this.fallback.clear();
+  }
+}
+
 export const createLeafTabSyncBaseline = (params: {
   snapshot: LeafTabSyncSnapshot;
   commitId?: string | null;

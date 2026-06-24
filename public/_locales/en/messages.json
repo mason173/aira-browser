@@ -1,10 +1,10 @@
 {
   "appTitle": {
-    "message": "Aira WebDAV Sync",
+    "message": "Aira Sync Assistant",
     "description": "The title of the application"
   },
   "appDescription": {
-    "message": "Sync browser bookmarks with a WebDAV server from the extension popup.",
+    "message": "Connect Aira Browser on HarmonyOS to sync bookmarks on desktop and receive pages sent from your phone.",
     "description": "The description of the application"
   }
 }

@@ -47,6 +47,7 @@ export type LeafTabSyncActions = {
   handleLeafTabSyncDialogOpenChange: (open: boolean) => void;
   handleLeafTabAutoSync: () => Promise<boolean>;
   handleWebdavSyncNowFromCenter: () => Promise<boolean>;
+  handleWebdavRefreshAnalysis: () => Promise<LeafTabSyncAnalysis | null>;
   handleWebdavOverwriteFromCenter: (mode: Extract<LeafTabSyncInitialChoice, 'pull-remote' | 'push-local'>) => Promise<boolean>;
   resolveWebdavConflict: (config: WebdavConfig) => Promise<void>;
 };

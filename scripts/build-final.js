@@ -17,21 +17,21 @@ const buildDir = path.join(root, outDir);
 const finalLocaleMessages = {
   en: {
     appTitle: {
-      message: 'Aira WebDAV Sync',
+      message: 'Aira Sync Assistant',
       description: 'The title of the application',
     },
     appDescription: {
-      message: 'Sync browser bookmarks with a WebDAV server from the extension popup.',
+      message: 'Connect Aira Browser on HarmonyOS to sync bookmarks on desktop and receive pages sent from your phone.',
       description: 'The description of the application',
     },
   },
   zh_CN: {
     appTitle: {
-      message: 'Aira WebDAV 同步',
+      message: 'Aira 同步助手',
       description: 'The title of the application',
     },
     appDescription: {
-      message: '通过浏览器插件弹窗将浏览器书签同步到 WebDAV 服务器。',
+      message: '连接鸿蒙手机上的 Aira 浏览器，在电脑浏览器同步书签，并接收手机推送的当前网页。',
       description: 'The description of the application',
     },
   },

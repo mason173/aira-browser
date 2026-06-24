@@ -126,7 +126,7 @@ const runWebdavBookmarkSyncOnce = async ({
   options,
 }: RunWebdavBookmarkSyncOnceParams) => {
   const runtime = await importLeafTabSyncRuntime();
-  const baselineStore = new runtime.LeafTabSyncLocalStorageBaselineStore(baselineStorageKey);
+  const baselineStore = new runtime.LeafTabSyncExtensionStorageBaselineStore(baselineStorageKey);
   const webdavStore = new runtime.LeafTabSyncWebdavStore({
     url: webdavConfig.url,
     username: webdavConfig.username,
@@ -318,7 +318,7 @@ export function useLeafTabSyncRuntimeController(
     }
 
     const runtime = await importLeafTabSyncRuntime();
-    const baselineStore = new runtime.LeafTabSyncLocalStorageBaselineStore(leafTabSyncBaselineStorageKey);
+    const baselineStore = new runtime.LeafTabSyncExtensionStorageBaselineStore(leafTabSyncBaselineStorageKey);
     const webdavStore = new runtime.LeafTabSyncWebdavStore({
       url: webdavConfig.url,
       username: webdavConfig.username,
@@ -579,6 +579,18 @@ export function useLeafTabSyncRuntimeController(
       }
       return Boolean(result);
     },
+    handleWebdavRefreshAnalysis: async () => {
+      try {
+        const analysis = await refreshLeafTabSyncAnalysis();
+        if (analysis) {
+          toast.success('云端数据检查完成');
+        }
+        return analysis;
+      } catch (error) {
+        toast.error(formatLeafTabSyncErrorMessage(error));
+        return null;
+      }
+    },
     handleWebdavOverwriteFromCenter: async (mode) => {
       const result = await handleLeafTabSync({
         mode,
@@ -601,6 +613,7 @@ export function useLeafTabSyncRuntimeController(
     handleLeafTabSync,
     handleOpenWebdavConfig,
     handleOpenWebdavConfigFromSyncCenter,
+    refreshLeafTabSyncAnalysis,
     setLeafTabSyncDialogOpen,
     setWebdavSyncEnabledInStorage,
   ]);

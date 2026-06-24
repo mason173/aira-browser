@@ -14,7 +14,9 @@
   },
   "permissions": [
     "permissions",
-    "bookmarks"
+    "bookmarks",
+    "storage",
+    "unlimitedStorage"
   ],
   "optional_host_permissions": [
     "https://*/*",
