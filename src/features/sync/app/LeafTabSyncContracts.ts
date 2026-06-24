@@ -3,6 +3,7 @@ import type {
   LeafTabSyncEngineProgress,
   LeafTabSyncEngineResult,
   LeafTabSyncInitialChoice,
+  LeafTabSyncSnapshot,
 } from '@/sync/leaftab';
 import type { SyncState } from '@/sync/stateMachine';
 import type { WebdavConfig } from '@/types/webdav';
@@ -15,6 +16,7 @@ export type LeafTabSyncWebdavActionOptions = LeafTabSyncRunnerOptionsBase & {
   enableAfterSuccess?: boolean;
   allowConfigPrompt?: boolean;
   remoteKind?: LeafTabSyncRemoteKind;
+  localSnapshotOverride?: LeafTabSyncSnapshot;
 };
 
 export type LeafTabInitialSyncChoiceRequest = {

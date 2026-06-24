@@ -1705,7 +1705,7 @@ function WebdavConfigPage({
 
 export function PopupApp() {
   const [view, setView] = useState<PopupView>('home');
-  const [leafTabSyncDialogOpen, setLeafTabSyncDialogOpen] = useState(true);
+  const [, setLeafTabSyncDialogOpen] = useState(true);
   const [localVersion, setLocalVersion] = useState(0);
   const [pendingWebdavSyncAfterSave, setPendingWebdavSyncAfterSave] = useState(false);
   const { t } = useTranslation();
@@ -1714,7 +1714,6 @@ export function PopupApp() {
       if (open) setView('webdav');
     },
     setLeafTabSyncDialogOpen,
-    leafTabSyncDialogOpen,
     setWebdavEnableAfterConfigSave: () => {},
     setWebdavShowConnectionFields: () => {},
     setSyncConfigBackTarget: () => {},

@@ -28,6 +28,7 @@ export interface LeafTabSyncEngineResult {
   kind: 'noop' | 'push' | 'pull' | 'merge' | 'conflict';
   remoteCommitId: string | null;
   snapshot: LeafTabSyncSnapshot;
+  initialChoiceAnalysis?: LeafTabSyncAnalysis;
   mergeResult?: LeafTabSyncMergeResult;
   summary?: LeafTabSyncChangeSummary;
   summaryText?: string;
@@ -456,6 +457,14 @@ export class LeafTabSyncEngine {
             kind: 'conflict',
             remoteCommitId: remoteState.commit?.id || null,
             snapshot: localSnapshot,
+            initialChoiceAnalysis: {
+              hasBaseline,
+              localSummary: summarizeSnapshot(localSnapshot),
+              remoteSummary: summarizeSnapshot(remoteSnapshot),
+              requiresInitialChoice: true,
+              suggestedInitialChoice: 'merge',
+              remoteCommitId: remoteState.commit?.id || null,
+            },
             summaryText: '本机和远端都有书签数据，请先选择首次同步方式',
           };
         }
