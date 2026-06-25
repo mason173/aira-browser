@@ -11,12 +11,14 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from '@/components/ui/sonner';
+import { SyncToggleField } from '@/components/sync/SyncSettingsFields';
 import { useLeafTabSyncRuntimeController } from '@/features/sync/bookmarks/useBookmarkWebdavSyncRuntimeController';
 import type {
   LeafTabPrimarySyncSwitchStrategy,
   LeafTabRemoteAutoSyncDiagnostic,
   LeafTabSyncFacade,
 } from '@/features/sync/app/LeafTabSyncContracts';
+import { LEAFTAB_BOOKMARK_AUTO_SYNC_ENABLED_KEY } from '@/features/sync/app/leafTabSyncStorageKeys';
 import QRCodeStyling from 'qr-code-styling';
 import {
   RiArrowLeftSLine,
@@ -40,6 +42,7 @@ import {
   WEBDAV_STORAGE_KEYS,
   writeWebdavStorageStateToStorage,
 } from '@/utils/webdavConfig';
+import { writeExtensionStorageRecord } from '@/platform/extensionStorage';
 import type { LeafTabSyncAnalysis, LeafTabSyncInitialChoice } from '@/sync/leaftab';
 import {
   clearAiraDesktopLoginProfile,
@@ -86,6 +89,17 @@ type WebdavHomeState = {
 };
 
 type PopupSyncRuntime = Pick<LeafTabSyncFacade, 'state' | 'actions'>;
+
+const readBookmarkAutoSyncEnabledFromLocalStorage = () => {
+  return (localStorage.getItem(LEAFTAB_BOOKMARK_AUTO_SYNC_ENABLED_KEY) ?? 'true') !== 'false';
+};
+
+const writeBookmarkAutoSyncEnabled = (enabled: boolean) => {
+  localStorage.setItem(LEAFTAB_BOOKMARK_AUTO_SYNC_ENABLED_KEY, String(enabled));
+  void writeExtensionStorageRecord({
+    [LEAFTAB_BOOKMARK_AUTO_SYNC_ENABLED_KEY]: String(enabled),
+  });
+};
 
 const resolveSyncStatusLabel = (enabled: boolean, t: ReturnType<typeof useTranslation>['t']) => {
   return enabled
@@ -1403,6 +1417,8 @@ function BookmarkCloudPage({
   const webdavEnabled = syncRuntime.state.leafTabWebdavEnabled;
   const primaryRemoteKind = syncRuntime.state.leafTabPrimaryRemoteKind
     ?? (cloudEnabled ? 'aira-cloud' : (webdavEnabled ? 'webdav' : null));
+  const [bookmarkAutoSyncEnabled, setBookmarkAutoSyncEnabled] = useState(readBookmarkAutoSyncEnabledFromLocalStorage);
+  const canUseBookmarkAutoSync = (profile?.membershipPlan || 'guest') === 'pro';
 
   return (
     <section className="min-h-[360px] bg-background">
@@ -1427,6 +1443,27 @@ function BookmarkCloudPage({
               value={cloudEnabled
                 ? t('popup.dashboard.enabled', { defaultValue: '已开启' })
                 : t('popup.dashboard.disabled', { defaultValue: '未开启' })}
+            />
+          </div>
+        </AdvancedSection>
+
+        <AdvancedSection title={t('popup.cloud.autoSyncSection', { defaultValue: '自动同步' })}>
+          <div className="rounded-[8px] border border-border bg-card px-3 py-2">
+            <SyncToggleField
+              label={t('popup.cloud.bookmarkAutoSync', { defaultValue: '书签自动同步' })}
+              description={canUseBookmarkAutoSync
+                ? t('popup.cloud.bookmarkAutoSyncDesc', {
+                    defaultValue: '打开后，本机或云端书签有变化时会在后台同步。',
+                  })
+                : t('popup.cloud.bookmarkAutoSyncProDesc', {
+                    defaultValue: '手动同步仍可使用，后台自动同步需要 Aira Pro。',
+                  })}
+              checked={bookmarkAutoSyncEnabled}
+              disabled={!canUseBookmarkAutoSync || syncing}
+              onCheckedChange={(enabled) => {
+                setBookmarkAutoSyncEnabled(enabled);
+                writeBookmarkAutoSyncEnabled(enabled);
+              }}
             />
           </div>
         </AdvancedSection>

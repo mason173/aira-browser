@@ -108,6 +108,7 @@ type SyncToggleFieldProps = {
   description?: string;
   checked: boolean;
   onCheckedChange: (checked: boolean) => void;
+  disabled?: boolean;
 };
 
 export function SyncToggleField({
@@ -115,9 +116,10 @@ export function SyncToggleField({
   description,
   checked,
   onCheckedChange,
+  disabled = false,
 }: SyncToggleFieldProps) {
   return (
-    <div className="flex items-center justify-between gap-3 py-1">
+    <div className={`flex items-center justify-between gap-3 py-1 ${disabled ? 'opacity-55' : ''}`}>
       <div className="flex flex-col items-start">
         <span className="text-sm font-medium leading-none">{label}</span>
         {description ? (
@@ -126,7 +128,10 @@ export function SyncToggleField({
       </div>
       <Switch
         checked={checked}
-        onCheckedChange={onCheckedChange}
+        onCheckedChange={(value) => {
+          if (!disabled) onCheckedChange(value);
+        }}
+        disabled={disabled}
         className="relative flex h-6 w-10 items-center justify-start rounded-full border border-border p-0.5 transition-colors data-[state=checked]:justify-end data-[state=checked]:bg-primary data-[state=unchecked]:bg-input"
       >
         <SwitchThumb className="h-full aspect-square rounded-full" pressedAnimation={{ width: 22 }} />

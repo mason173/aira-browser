@@ -31,6 +31,7 @@ export interface LeafTabSyncWebdavStoreConfig {
   password?: string;
   rootPath?: string;
   requestPermission?: boolean;
+  requestTimeoutMs?: number;
 }
 
 type WebdavMethod = 'GET' | 'PUT' | 'DELETE' | 'MKCOL';
@@ -126,8 +127,10 @@ const parseJsonOrNull = <T>(text: string): T | null => {
 };
 
 const REMOTE_CACHE_STORAGE_PREFIX = 'leaftab_sync_remote_state_v1:';
-const READ_BATCH_CONCURRENCY = 12;
-const WRITE_BATCH_CONCURRENCY = 8;
+const READ_BATCH_CONCURRENCY = 4;
+const WRITE_BATCH_CONCURRENCY = 2;
+const BATCH_COOPERATIVE_PAUSE_MS = 16;
+const DEFAULT_WEBDAV_REQUEST_TIMEOUT_MS = 15_000;
 const LEAFTAB_SYNC_OPERATIONS_FILE_VERSION = 1;
 
 const createRemoteCacheStorageKey = (url: string, rootPath: string) => {
@@ -145,9 +148,16 @@ const runInBatches = async <T, R>(
   for (let index = 0; index < items.length; index += batchSize) {
     const batch = items.slice(index, index + batchSize);
     results.push(...(await Promise.all(batch.map((item) => task(item)))));
+    if (index + batchSize < items.length) {
+      await delay(BATCH_COOPERATIVE_PAUSE_MS);
+    }
   }
   return results;
 };
+
+const delay = (durationMs: number) => new Promise<void>((resolve) => {
+  globalThis.setTimeout(resolve, Math.max(0, durationMs));
+});
 
 export class LeafTabSyncWebdavStore implements LeafTabSyncRemoteStore {
   private readonly config: Required<LeafTabSyncWebdavStoreConfig>;
@@ -163,6 +173,7 @@ export class LeafTabSyncWebdavStore implements LeafTabSyncRemoteStore {
       password: config.password || '',
       rootPath: normalizeRootPath(config.rootPath),
       requestPermission: config.requestPermission !== false,
+      requestTimeoutMs: Math.max(1_000, config.requestTimeoutMs ?? DEFAULT_WEBDAV_REQUEST_TIMEOUT_MS),
     };
     this.remoteCacheStorageKey = createRemoteCacheStorageKey(this.config.url, this.config.rootPath);
   }
@@ -233,6 +244,9 @@ export class LeafTabSyncWebdavStore implements LeafTabSyncRemoteStore {
 
     try {
       const response = await new Promise<any>((resolve, reject) => {
+        const timeout = globalThis.setTimeout(() => {
+          reject(new Error('WebDAV request timeout'));
+        }, this.config.requestTimeoutMs);
         runtime.sendMessage(
           {
             type: 'LEAFTAB_WEBDAV_PROXY',
@@ -241,9 +255,11 @@ export class LeafTabSyncWebdavStore implements LeafTabSyncRemoteStore {
               method,
               headers,
               body,
+              timeoutMs: this.config.requestTimeoutMs,
             },
           },
           (result: any) => {
+            globalThis.clearTimeout(timeout);
             const lastError = runtime.lastError;
             if (lastError) {
               reject(new Error(lastError.message || 'WebDAV proxy unavailable'));
@@ -283,17 +299,26 @@ export class LeafTabSyncWebdavStore implements LeafTabSyncRemoteStore {
     const proxied = await this.requestViaExtensionProxy(method, relativePath, headers, options?.body);
     if (proxied) return proxied;
 
-    const response = await fetch(joinUrl(this.config.url, relativePath), {
-      method,
-      headers,
-      body: options?.body,
-    });
-    const text = await response.text();
-    return {
-      status: response.status,
-      ok: response.ok,
-      text,
-    };
+    const controller = new AbortController();
+    const timeout = globalThis.setTimeout(() => {
+      controller.abort();
+    }, this.config.requestTimeoutMs);
+    try {
+      const response = await fetch(joinUrl(this.config.url, relativePath), {
+        method,
+        headers,
+        body: options?.body,
+        signal: controller.signal,
+      });
+      const text = await response.text();
+      return {
+        status: response.status,
+        ok: response.ok,
+        text,
+      };
+    } finally {
+      globalThis.clearTimeout(timeout);
+    }
   }
 
   private async ensureCollections(relativeFilePath: string) {
