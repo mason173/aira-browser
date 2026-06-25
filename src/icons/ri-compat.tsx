@@ -11,6 +11,7 @@ import {
   HardDrive,
   House,
   Info,
+  LoaderCircle,
   LogOut,
   MoreHorizontal,
   Minus,
@@ -38,6 +39,7 @@ export const RiEyeOffFill = EyeOff;
 export const RiHardDrive3Fill = HardDrive;
 export const RiHomeFill = House;
 export const RiInformationFill = Info;
+export const RiLoaderLine = LoaderCircle;
 export const RiLogoutBoxRLine = LogOut;
 export const RiMoreFill = MoreHorizontal;
 export const RiRefreshFill = RefreshCw;

@@ -57,11 +57,9 @@ export class LeafTabSyncLocalStorageBaselineStore implements LeafTabSyncBaseline
 
 export class LeafTabSyncExtensionStorageBaselineStore implements LeafTabSyncBaselineStore {
   private readonly key: string;
-  private readonly fallback: LeafTabSyncLocalStorageBaselineStore;
 
   constructor(key = 'leaftab_sync_v1_baseline') {
     this.key = key;
-    this.fallback = new LeafTabSyncLocalStorageBaselineStore(key);
   }
 
   private getStorageArea() {
@@ -70,10 +68,18 @@ export class LeafTabSyncExtensionStorageBaselineStore implements LeafTabSyncBase
     return storageArea;
   }
 
+  private getFallback(): LeafTabSyncLocalStorageBaselineStore | null {
+    try {
+      return new LeafTabSyncLocalStorageBaselineStore(this.key);
+    } catch {
+      return null;
+    }
+  }
+
   async load() {
     const storageArea = this.getStorageArea();
     if (!storageArea) {
-      return this.fallback.load();
+      return this.getFallback()?.load() || null;
     }
 
     const result = await storageArea.get(this.key);
@@ -82,7 +88,8 @@ export class LeafTabSyncExtensionStorageBaselineStore implements LeafTabSyncBase
       return value as LeafTabSyncBaseline;
     }
 
-    const legacyValue = await this.fallback.load();
+    const fallback = this.getFallback();
+    const legacyValue = fallback ? await fallback.load() : null;
     if (legacyValue) {
       await this.save(legacyValue);
     }
@@ -92,11 +99,17 @@ export class LeafTabSyncExtensionStorageBaselineStore implements LeafTabSyncBase
   async save(baseline: LeafTabSyncBaseline) {
     const storageArea = this.getStorageArea();
     if (!storageArea) {
-      await this.fallback.save(baseline);
+      const fallback = this.getFallback();
+      if (fallback) {
+        await fallback.save(baseline);
+      }
       return;
     }
     await storageArea.set({ [this.key]: baseline });
-    await this.fallback.clear();
+    const fallback = this.getFallback();
+    if (fallback) {
+      await fallback.clear();
+    }
   }
 
   async clear() {
@@ -104,7 +117,10 @@ export class LeafTabSyncExtensionStorageBaselineStore implements LeafTabSyncBase
     if (storageArea) {
       await storageArea.remove(this.key);
     }
-    await this.fallback.clear();
+    const fallback = this.getFallback();
+    if (fallback) {
+      await fallback.clear();
+    }
   }
 }
 

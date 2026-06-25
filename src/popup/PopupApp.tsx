@@ -12,7 +12,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from '@/components/ui/sonner';
 import { useLeafTabSyncRuntimeController } from '@/features/sync/bookmarks/useBookmarkWebdavSyncRuntimeController';
-import type { LeafTabSyncFacade } from '@/features/sync/app/LeafTabSyncContracts';
+import type {
+  LeafTabPrimarySyncSwitchStrategy,
+  LeafTabRemoteAutoSyncDiagnostic,
+  LeafTabSyncFacade,
+} from '@/features/sync/app/LeafTabSyncContracts';
 import QRCodeStyling from 'qr-code-styling';
 import {
   RiArrowLeftSLine,
@@ -22,6 +26,7 @@ import {
   RiEyeFill,
   RiEyeOffFill,
   RiHardDrive3Fill,
+  RiLoaderLine,
   RiLogoutBoxRLine,
   RiMoreFill,
   RiSlidersFill,
@@ -88,30 +93,86 @@ const resolveSyncStatusLabel = (enabled: boolean, t: ReturnType<typeof useTransl
     : t('popup.dashboard.disabledStatus', { defaultValue: '未启用' });
 };
 
+function formatRemoteAutoSyncDiagnosticLabel(
+  diagnostic: LeafTabRemoteAutoSyncDiagnostic | null,
+  t: ReturnType<typeof useTranslation>['t'],
+) {
+  if (!diagnostic?.lastCheckedAt) {
+    return t('popup.dashboard.remoteCheckIdle', { defaultValue: '尚未检查' });
+  }
+  const checkedAt = new Date(diagnostic.lastCheckedAt);
+  const checkedAtLabel = Number.isNaN(checkedAt.getTime())
+    ? ''
+    : checkedAt.toLocaleString('zh-CN', {
+      hour12: false,
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  const providerLabel = diagnostic.lastProvider === 'aira-cloud'
+    ? t('popup.dashboard.cloudShort', { defaultValue: '云端' })
+    : diagnostic.lastProvider === 'webdav'
+      ? 'WebDAV'
+      : t('popup.dashboard.remoteShort', { defaultValue: '远端' });
+  if (diagnostic.lastError) {
+    return t('popup.dashboard.remoteCheckFailed', {
+      defaultValue: '{{time}} {{provider}}检查失败',
+      time: checkedAtLabel,
+      provider: providerLabel,
+    });
+  }
+  if (diagnostic.lastSyncAttempted && diagnostic.lastSyncSucceeded === true) {
+    return t('popup.dashboard.remoteCheckSynced', {
+      defaultValue: '{{time}} {{provider}}发现更新，已自动同步',
+      time: checkedAtLabel,
+      provider: providerLabel,
+    });
+  }
+  if (diagnostic.lastSyncAttempted && diagnostic.lastSyncSucceeded === false) {
+    return t('popup.dashboard.remoteCheckSyncFailed', {
+      defaultValue: '{{time}} {{provider}}发现更新，同步失败',
+      time: checkedAtLabel,
+      provider: providerLabel,
+    });
+  }
+  if (diagnostic.lastHadChanges) {
+    return t('popup.dashboard.remoteCheckChanged', {
+      defaultValue: '{{time}} {{provider}}发现更新',
+      time: checkedAtLabel,
+      provider: providerLabel,
+    });
+  }
+  return t('popup.dashboard.remoteCheckUnchanged', {
+    defaultValue: '{{time}} {{provider}}无变化',
+    time: checkedAtLabel,
+    provider: providerLabel,
+  });
+}
+
 const resolveActiveSyncStatusLabel = (
   cloudEnabled: boolean,
   webdavEnabled: boolean,
   t: ReturnType<typeof useTranslation>['t'],
 ) => {
   if (cloudEnabled && webdavEnabled) {
-    return t('popup.dashboard.dualEnabledStatus', { defaultValue: '双重同步已开启' });
+    return t('popup.dashboard.cloudWithWebdavBackupStatus', { defaultValue: '云同步 + WebDAV 备份' });
   }
   if (cloudEnabled) {
     return t('popup.dashboard.cloudEnabledStatus', { defaultValue: '云同步已开启' });
   }
   if (webdavEnabled) {
-    return t('popup.dashboard.webdavEnabledStatus', { defaultValue: 'WebDAV 已开启' });
+    return t('popup.dashboard.webdavEnabledStatus', { defaultValue: 'WebDAV 主同步已开启' });
   }
   return t('popup.dashboard.disabledStatus', { defaultValue: '未启用' });
 };
 
 const resolveLastSyncLabel = (
   cloudEnabled: boolean,
-  webdavEnabled: boolean,
   cloudLabel: string,
   webdavLabel: string,
 ) => {
-  if (cloudEnabled && !webdavEnabled) return cloudLabel || webdavLabel;
+  if (cloudEnabled) return cloudLabel || webdavLabel;
   return webdavLabel || cloudLabel;
 };
 
@@ -130,6 +191,45 @@ const formatLastSync = (raw: string | null, fallback: string) => {
     second: '2-digit',
   }).format(new Date(timestamp));
 };
+
+const formatDebugTime = (raw: string | null | undefined) => {
+  if (!raw) return '未记录';
+  const timestamp = Date.parse(raw);
+  if (!Number.isFinite(timestamp)) return raw;
+  return new Intl.DateTimeFormat(undefined, {
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+  }).format(new Date(timestamp));
+};
+
+const formatBackgroundResult = (result: string, reason: string) => {
+  const resultLabel = result || 'idle';
+  return reason ? `${resultLabel} (${reason})` : resultLabel;
+};
+
+async function confirmPrimarySwitchStrategy(
+  targetLabel: string,
+): Promise<LeafTabPrimarySyncSwitchStrategy | null> {
+  const useMerge = window.confirm(`是否先合并本机与${targetLabel}数据，再切换主同步源？`);
+  if (useMerge) return 'merge';
+  const useUploadLocal = window.confirm(`是否把当前本机书签上传到${targetLabel}，成功后再切换主同步源？`);
+  if (useUploadLocal) return 'upload-local';
+  const useRemote = window.confirm(`是否使用${targetLabel}数据覆盖本机，成功后再切换主同步源？这是高风险操作。`);
+  return useRemote ? 'use-remote' : null;
+}
+
+async function confirmAndSwitchPrimaryRemote(
+  targetLabel: string,
+  action: (strategy: LeafTabPrimarySyncSwitchStrategy) => Promise<boolean>,
+) {
+  const strategy = await confirmPrimarySwitchStrategy(targetLabel);
+  if (!strategy) return;
+  await action(strategy);
+}
 
 const getShortUid = (source: string) => {
   const normalized = source.trim();
@@ -275,6 +375,7 @@ function formatBookmarkDataLabel(
 function FirstSyncChoiceDialog({ syncRuntime }: { syncRuntime: PopupSyncRuntime }) {
   const { t } = useTranslation();
   const request = syncRuntime.state.leafTabInitialSyncChoiceRequest;
+  const isCloudPrimaryMigration = syncRuntime.state.leafTabWebdavEnabled && !syncRuntime.state.leafTabCloudSyncEnabled;
   const localLabel = formatBookmarkDataLabel(
     request?.localSummary,
     t('popup.dashboard.dataCountUnknown', { defaultValue: '未读取' }),
@@ -295,9 +396,20 @@ function FirstSyncChoiceDialog({ syncRuntime }: { syncRuntime: PopupSyncRuntime 
     >
       <DialogContent className="max-w-[328px] rounded-[24px] p-5">
         <DialogHeader className="text-left">
-          <DialogTitle>{t('popup.firstSync.title', { defaultValue: '选择首次同步方式' })}</DialogTitle>
+          <DialogTitle>
+            {isCloudPrimaryMigration
+              ? t('popup.firstSync.cloudPrimaryTitle', { defaultValue: '初始化云同步' })
+              : t('popup.firstSync.title', { defaultValue: '选择首次同步方式' })}
+          </DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
+          {isCloudPrimaryMigration ? (
+            <p className="text-xs leading-5 text-muted-foreground">
+              {t('popup.firstSync.cloudPrimaryMessage', {
+                defaultValue: '云同步将成为主同步源，WebDAV 会保留为备份。请选择如何处理当前本机和云端书签。',
+              })}
+            </p>
+          ) : null}
           <div className="grid grid-cols-[88px_minmax(0,1fr)] gap-x-3 gap-y-2 text-sm">
             <span className="text-muted-foreground">{t('popup.firstSync.local', { defaultValue: '本机' })}</span>
             <span className="font-medium text-foreground">{localLabel}</span>
@@ -338,7 +450,6 @@ function FirstSyncChoiceDialog({ syncRuntime }: { syncRuntime: PopupSyncRuntime 
 function SyncProgressDialog({ syncRuntime }: { syncRuntime: PopupSyncRuntime }) {
   const { t } = useTranslation();
   const progress = syncRuntime.state.leafTabSyncProgress;
-  const progressValue = Math.max(0, Math.min(100, Math.round(progress.progress)));
 
   return (
     <Dialog
@@ -362,17 +473,21 @@ function SyncProgressDialog({ syncRuntime }: { syncRuntime: PopupSyncRuntime }) 
           <DialogTitle>{progress.title || t('popup.progress.syncingTitle', { defaultValue: '正在同步书签' })}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
-          <div className="h-2 overflow-hidden rounded-full bg-muted">
-            <div
-              className="h-full rounded-full bg-primary transition-all duration-300"
-              style={{ width: `${progressValue}%` }}
-            />
-          </div>
-          <div className="grid grid-cols-[72px_minmax(0,1fr)] gap-x-3 gap-y-2 text-sm">
-            <span className="text-muted-foreground">{t('popup.progress.status', { defaultValue: '状态' })}</span>
-            <span className="font-medium text-foreground">{progress.detail}</span>
-            <span className="text-muted-foreground">{t('popup.progress.progress', { defaultValue: '进度' })}</span>
-            <span className="font-medium text-foreground">{progressValue}%</span>
+          <div className="flex flex-col items-center gap-4 py-2 text-center">
+            {progress.inProgress ? (
+              <RiLoaderLine
+                aria-hidden="true"
+                className="h-10 w-10 animate-spin text-primary"
+                strokeWidth={2.2}
+              />
+            ) : (
+              <RiCheckFill
+                aria-hidden="true"
+                className="h-10 w-10 text-primary"
+                strokeWidth={2.2}
+              />
+            )}
+            <p className="text-sm font-medium leading-6 text-foreground">{progress.detail}</p>
           </div>
           {!progress.inProgress ? (
             <Button
@@ -722,6 +837,8 @@ function ConfiguredHome({
   const cloudEnabled = syncRuntime.state.leafTabCloudSyncEnabled;
   const webdavEnabled = profile.webdavEnabled;
   const dualEnabled = cloudEnabled && webdavEnabled;
+  const primaryRemoteKind = syncRuntime.state.leafTabPrimaryRemoteKind
+    ?? (cloudEnabled ? 'aira-cloud' : (webdavEnabled ? 'webdav' : null));
   const webdavAnalysis = syncRuntime.state.leafTabWebdavSyncAnalysis;
   const cloudAnalysis = syncRuntime.state.leafTabCloudSyncAnalysis;
   const localDataLabel = formatBookmarkDataLabel(
@@ -732,6 +849,10 @@ function ConfiguredHome({
   const webdavDataLabel = formatBookmarkDataLabel(webdavAnalysis?.remoteSummary, profile.remoteDataLabel);
   const singleRemoteDataLabel = cloudEnabled && !webdavEnabled ? cloudDataLabel : webdavDataLabel;
   const membershipLabel = resolveMembershipLabel(profile.membershipPlan, t);
+  const remoteCheckLabel = formatRemoteAutoSyncDiagnosticLabel(
+    syncRuntime.state.leafTabRemoteAutoSyncDiagnostic,
+    t,
+  );
 
   return (
     <section className="min-h-[480px] bg-background">
@@ -741,19 +862,27 @@ function ConfiguredHome({
         <div className="overflow-hidden rounded-[8px] border border-border bg-card">
           <PanelRow
             icon={<RiCloudFill className="size-4" />}
-            title={t('popup.dashboard.bookmarkCloudSync', { defaultValue: '书签云同步' })}
+            title={dualEnabled && primaryRemoteKind !== 'aira-cloud'
+              ? t('popup.dashboard.cloudData', { defaultValue: '云同步' })
+              : t('popup.dashboard.primarySyncSource', { defaultValue: '主同步源' })}
             badge="PRO"
             status={cloudEnabled
-              ? t('popup.dashboard.enabled', { defaultValue: '已开启' })
+              ? (dualEnabled && primaryRemoteKind !== 'aira-cloud'
+                ? t('popup.dashboard.enabled', { defaultValue: '已开启' })
+                : t('popup.dashboard.cloudEnabledStatus', { defaultValue: '云同步已开启' }))
               : t('popup.dashboard.disabled', { defaultValue: '未开启' })}
             onClick={onOpenCloud}
           />
           <div className="mx-3 border-t border-border" />
           <PanelRow
             icon={<RiHardDrive3Fill className="size-4" />}
-            title={t('settings.backup.webdav.entry', { defaultValue: 'WebDAV 同步' })}
+            title={dualEnabled && primaryRemoteKind === 'webdav'
+              ? t('popup.dashboard.primarySyncSource', { defaultValue: '主同步源' })
+              : t('popup.dashboard.webdavBackup', { defaultValue: '备份到 WebDAV' })}
             status={webdavEnabled
-              ? t('popup.dashboard.enabled', { defaultValue: '已开启' })
+              ? (dualEnabled && primaryRemoteKind === 'webdav'
+                ? t('popup.dashboard.webdavEnabledStatus', { defaultValue: 'WebDAV 主同步已开启' })
+                : t('popup.dashboard.enabled', { defaultValue: '已开启' }))
               : t('popup.dashboard.disabled', { defaultValue: '未开启' })}
             onClick={onOpenWebdav}
           />
@@ -788,10 +917,13 @@ function ConfiguredHome({
               label={t('popup.dashboard.lastSync', { defaultValue: '最近同步' })}
               value={resolveLastSyncLabel(
                 cloudEnabled,
-                webdavEnabled,
                 syncRuntime.state.leafTabCloudLastSyncLabel,
                 profile.lastSyncLabel,
               )}
+            />
+            <InfoRow
+              label={t('popup.dashboard.remoteCheck', { defaultValue: '远端检查' })}
+              value={remoteCheckLabel}
             />
             <InfoRow
               label={t('popup.dashboard.localData', { defaultValue: '本机数据' })}
@@ -800,12 +932,16 @@ function ConfiguredHome({
             {dualEnabled ? (
               <>
                 <InfoRow
-                  label={t('popup.dashboard.cloudData', { defaultValue: '云同步数据' })}
-                  value={cloudDataLabel}
+                  label={primaryRemoteKind === 'webdav'
+                    ? t('popup.dashboard.webdavData', { defaultValue: 'WebDAV 数据' })
+                    : t('popup.dashboard.primaryCloudData', { defaultValue: '主同步数据' })}
+                  value={primaryRemoteKind === 'webdav' ? webdavDataLabel : cloudDataLabel}
                 />
                 <InfoRow
-                  label={t('popup.dashboard.webdavData', { defaultValue: 'WebDAV 数据' })}
-                  value={webdavDataLabel}
+                  label={primaryRemoteKind === 'webdav'
+                    ? t('popup.dashboard.cloudData', { defaultValue: '云同步数据' })
+                    : t('popup.dashboard.webdavBackupData', { defaultValue: 'WebDAV 备份' })}
+                  value={primaryRemoteKind === 'webdav' ? cloudDataLabel : webdavDataLabel}
                 />
               </>
             ) : (
@@ -1120,6 +1256,7 @@ function AdvancedSyncPage({
     ? syncRuntime.state.leafTabSyncAnalysis
     : null;
   const remoteDataLabel = formatBookmarkDataLabel(webdavAnalysis?.remoteSummary, fallbackProfile.remoteDataLabel);
+  const backgroundDebug = syncRuntime.state.leafTabBackgroundDebugState;
 
   const runOverwrite = async (mode: Extract<LeafTabSyncInitialChoice, 'pull-remote' | 'push-local'>) => {
     const confirmed = window.confirm(mode === 'pull-remote'
@@ -1167,6 +1304,69 @@ function AdvancedSyncPage({
             />
           </div>
         </AdvancedSection>
+
+        {backgroundDebug ? (
+          <AdvancedSection title="后台调试">
+            <div className="overflow-hidden rounded-[8px] border border-border bg-card">
+              <InfoRow
+                label="后台状态"
+                value={formatBackgroundResult(backgroundDebug.lastResult, backgroundDebug.lastReason)}
+              />
+              <InfoRow
+                label="后台唤醒"
+                value={formatDebugTime(backgroundDebug.lastWakeAt)}
+              />
+              <InfoRow
+                label="书签变更"
+                value={formatDebugTime(backgroundDebug.lastBookmarkEventAt)}
+              />
+              <InfoRow
+                label="待推送变更"
+                value={formatDebugTime(backgroundDebug.pendingLocalChangedAt)}
+              />
+              <InfoRow
+                label="本地闹钟计划"
+                value={formatDebugTime(backgroundDebug.lastLocalAlarmScheduledAt)}
+              />
+              <InfoRow
+                label="本地闹钟触发"
+                value={formatDebugTime(backgroundDebug.lastLocalAlarmFiredAt)}
+              />
+              <InfoRow
+                label="远端探测"
+                value={formatDebugTime(backgroundDebug.lastRemoteProbeAt)}
+              />
+              <InfoRow
+                label="最近启动同步"
+                value={formatDebugTime(backgroundDebug.lastSyncStartedAt)}
+              />
+              <InfoRow
+                label="最近完成同步"
+                value={formatDebugTime(backgroundDebug.lastSyncFinishedAt)}
+              />
+              <InfoRow
+                label="最近路由"
+                value={backgroundDebug.lastRoute || '未记录'}
+              />
+              <InfoRow
+                label="触发来源"
+                value={backgroundDebug.lastTriggerProvider || '未记录'}
+              />
+              <InfoRow
+                label="Cloud 提交"
+                value={`${backgroundDebug.cloudBaselineCommitId || '-'} -> ${backgroundDebug.cloudRemoteCommitId || '-'}`}
+              />
+              <InfoRow
+                label="WebDAV 提交"
+                value={`${backgroundDebug.webdavBaselineCommitId || '-'} -> ${backgroundDebug.webdavRemoteCommitId || '-'}`}
+              />
+              <InfoRow
+                label="最近错误"
+                value={backgroundDebug.lastError || '无'}
+              />
+            </div>
+          </AdvancedSection>
+        ) : null}
 
         {!webdavConfigured ? (
           <AdvancedSection title={t('popup.advanced.bookmarkCloudSync', { defaultValue: 'WebDAV 同步' })}>
@@ -1271,6 +1471,9 @@ function BookmarkCloudPage({
   const syncing = syncRuntime.state.topNavSyncStatus === 'syncing';
   const cloudLoggedIn = syncRuntime.state.leafTabCloudLoggedIn;
   const cloudEnabled = syncRuntime.state.leafTabCloudSyncEnabled;
+  const webdavEnabled = syncRuntime.state.leafTabWebdavEnabled;
+  const primaryRemoteKind = syncRuntime.state.leafTabPrimaryRemoteKind
+    ?? (cloudEnabled ? 'aira-cloud' : (webdavEnabled ? 'webdav' : null));
 
   return (
     <section className="min-h-[360px] bg-background">
@@ -1309,6 +1512,14 @@ function BookmarkCloudPage({
             } else if (cloudEnabled) {
               void syncRuntime.actions.handleCloudSyncNowFromCenter();
             } else {
+              if (webdavEnabled) {
+                const confirmed = window.confirm(t('popup.cloud.switchPrimaryConfirm', {
+                  defaultValue: '开启云同步后，主同步源将从 WebDAV 切换为云同步。WebDAV 会保留为备份，不会再自动覆盖云端。继续吗？',
+                }));
+                if (!confirmed) return;
+                void syncRuntime.actions.handleEnableCloudSync({ confirmedPrimarySwitch: true });
+                return;
+              }
               void syncRuntime.actions.handleEnableCloudSync();
             }
           }}
@@ -1323,22 +1534,39 @@ function BookmarkCloudPage({
         </Button>
 
         {cloudEnabled ? (
-          <Button
-            type="button"
-            variant="destructive"
-            className="h-10 w-full rounded-[8px]"
-            disabled={syncing}
-            onClick={() => {
-              const confirmed = window.confirm(t('popup.cloud.disableConfirm', {
-                defaultValue: '关闭后会停止书签云同步，本机书签不会删除；WebDAV 同步不会受到影响。继续吗？',
-              }));
-              if (confirmed) {
-                void syncRuntime.actions.handleDisableCloudSync();
-              }
-            }}
-          >
-            {t('popup.cloud.disableBookmarkSync', { defaultValue: '关闭书签云同步' })}
-          </Button>
+          <>
+            {webdavEnabled && primaryRemoteKind !== 'aira-cloud' ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="h-10 w-full rounded-[8px]"
+                disabled={syncing}
+                onClick={() => {
+                  void confirmAndSwitchPrimaryRemote('Aira 云同步', (strategy) => {
+                    return syncRuntime.actions.handleSetPrimaryRemoteKind('aira-cloud', strategy);
+                  });
+                }}
+              >
+                切换为云同步主同步源
+              </Button>
+            ) : null}
+            <Button
+              type="button"
+              variant="destructive"
+              className="h-10 w-full rounded-[8px]"
+              disabled={syncing}
+              onClick={() => {
+                const confirmed = window.confirm(t('popup.cloud.disableConfirm', {
+                  defaultValue: '关闭后会停止书签云同步，本机书签不会删除；WebDAV 同步不会受到影响。继续吗？',
+                }));
+                if (confirmed) {
+                  void syncRuntime.actions.handleDisableCloudSync();
+                }
+              }}
+            >
+              {t('popup.cloud.disableBookmarkSync', { defaultValue: '关闭书签云同步' })}
+            </Button>
+          </>
         ) : null}
       </div>
     </section>
@@ -1465,6 +1693,9 @@ function WebdavConfigPage({
   const syncing = syncRuntime.state.topNavSyncStatus === 'syncing' || saving;
   const hasConfig = url.trim().length > 0 && username.trim().length > 0 && password.length > 0;
   const isEnabled = readWebdavStorageStateFromStorage(t('settings.backup.webdav.defaultProfileName', { defaultValue: '默认配置' })).syncEnabled && url.trim().length > 0;
+  const cloudEnabled = syncRuntime.state.leafTabCloudSyncEnabled;
+  const primaryRemoteKind = syncRuntime.state.leafTabPrimaryRemoteKind
+    ?? (cloudEnabled ? 'aira-cloud' : (isEnabled ? 'webdav' : null));
 
   const providers = useMemo<WebdavProviderOption[]>(() => ([
     {
@@ -1687,6 +1918,21 @@ function WebdavConfigPage({
         >
           {primaryActionTitle}
         </Button>
+        {isEnabled && cloudEnabled && primaryRemoteKind !== 'webdav' ? (
+          <Button
+            type="button"
+            variant="outline"
+            className="mt-3 h-10 w-full rounded-[8px]"
+            disabled={syncing}
+            onClick={() => {
+              void confirmAndSwitchPrimaryRemote('WebDAV', (strategy) => {
+                return syncRuntime.actions.handleSetPrimaryRemoteKind('webdav', strategy);
+              });
+            }}
+          >
+            切换为 WebDAV 主同步源
+          </Button>
+        ) : null}
         {isEnabled ? (
           <Button
             type="button"

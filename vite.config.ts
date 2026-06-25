@@ -104,9 +104,11 @@ export default defineConfig(async () => {
       outDir,
       rollupOptions: {
         input: {
+          'background-sw': path.resolve(__dirname, 'src/background.ts'),
           popup: path.resolve(__dirname, 'popup.html'),
         },
         output: {
+          entryFileNames: '[name].js',
           manualChunks: resolveManualChunk,
         },
       },

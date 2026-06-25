@@ -1,4 +1,5 @@
 import { getBookmarksApi } from '@/platform/runtime';
+import { readExtensionStorageRecord, writeExtensionStorageRecord } from '@/platform/extensionStorage';
 import { ensureExtensionPermission } from '@/utils/extensionPermissions';
 import {
   formatLeafTabBookmarkSyncScopeLabel as formatBookmarkSyncScopeLabel,
@@ -251,7 +252,7 @@ const writeCachedLeafTabBookmarkTreeDraft = (
   });
 };
 
-const readBookmarkMapping = (scope: LeafTabBookmarkSyncScope): LeafTabBookmarkMappingState => {
+const readBookmarkMappingFromLocalStorage = (scope: LeafTabBookmarkSyncScope): LeafTabBookmarkMappingState => {
   try {
     const raw = globalThis.localStorage?.getItem(`${MAPPING_KEY_PREFIX}${getLeafTabBookmarkScopeStorageKey(scope)}`);
     if (!raw) {
@@ -283,20 +284,54 @@ const readBookmarkMapping = (scope: LeafTabBookmarkSyncScope): LeafTabBookmarkMa
   }
 };
 
-const writeBookmarkMapping = (
+const readBookmarkMapping = async (scope: LeafTabBookmarkSyncScope): Promise<LeafTabBookmarkMappingState> => {
+  const storageKey = `${MAPPING_KEY_PREFIX}${getLeafTabBookmarkScopeStorageKey(scope)}`;
+  try {
+    const result = await readExtensionStorageRecord([storageKey]);
+    const raw = typeof result[storageKey] === 'string' ? result[storageKey] : '';
+    if (!raw) {
+      const legacy = readBookmarkMappingFromLocalStorage(scope);
+      if (Object.keys(legacy.nodeIdToEntityId).length > 0) {
+        await writeExtensionStorageRecord({
+          [storageKey]: JSON.stringify(legacy),
+        });
+      }
+      return legacy;
+    }
+    const parsed = JSON.parse(raw) as Partial<LeafTabBookmarkMappingState>;
+    return {
+      version: 1,
+      nodeIdToEntityId:
+        parsed?.nodeIdToEntityId && typeof parsed.nodeIdToEntityId === 'object'
+          ? Object.fromEntries(
+              Object.entries(parsed.nodeIdToEntityId).filter(
+                ([nodeId, entityId]) => typeof nodeId === 'string' && typeof entityId === 'string',
+              ),
+            )
+          : {},
+      savedAt: typeof parsed?.savedAt === 'string' ? parsed.savedAt : new Date(0).toISOString(),
+    };
+  } catch {
+    return readBookmarkMappingFromLocalStorage(scope);
+  }
+};
+
+const writeBookmarkMapping = async (
   scope: LeafTabBookmarkSyncScope,
   nodeIdToEntityId: Record<string, string>,
 ) => {
+  const storageKey = `${MAPPING_KEY_PREFIX}${getLeafTabBookmarkScopeStorageKey(scope)}`;
+  const nextValue = JSON.stringify({
+    version: 1,
+    nodeIdToEntityId,
+    savedAt: new Date().toISOString(),
+  } satisfies LeafTabBookmarkMappingState);
   try {
-    globalThis.localStorage?.setItem(
-      `${MAPPING_KEY_PREFIX}${getLeafTabBookmarkScopeStorageKey(scope)}`,
-      JSON.stringify({
-        version: 1,
-        nodeIdToEntityId,
-        savedAt: new Date().toISOString(),
-      } satisfies LeafTabBookmarkMappingState),
-    );
+    globalThis.localStorage?.setItem(storageKey, nextValue);
   } catch {}
+  await writeExtensionStorageRecord({
+    [storageKey]: nextValue,
+  });
 };
 
 const createFolderEntityId = (parentId: string | null, title: string, occurrence: number) => {
@@ -447,7 +482,7 @@ export const captureLeafTabBookmarkTreeDraft = async (options?: {
       orderIdsByParent: {},
       nodeIdToEntityId: {},
     };
-    const mapping = readBookmarkMapping(scope);
+    const mapping = await readBookmarkMapping(scope);
     const rootIds: string[] = [];
 
     for (const role of SYNC_ROOT_ROLES) {
@@ -466,7 +501,7 @@ export const captureLeafTabBookmarkTreeDraft = async (options?: {
     }
 
     draft.orderIdsByParent[ROOT_ORDER_KEY] = rootIds;
-    writeBookmarkMapping(scope, draft.nodeIdToEntityId);
+    await writeBookmarkMapping(scope, draft.nodeIdToEntityId);
     writeCachedLeafTabBookmarkTreeDraft(scope, draft);
     return draft;
   })();
@@ -634,6 +669,16 @@ const deleteBookmarkNode = async (node: LeafTabApplyBookmarkNode) => {
   await removeBookmarkNode(node.id);
 };
 
+const shouldDeleteStaleSyncedNode = (
+  entityId: string,
+  folderLookup: Record<string, { title: string; parentId: string | null }>,
+  itemLookup: Record<string, { title: string; parentId: string | null; url: string }>,
+) => {
+  if (ROOT_ENTITY_IDS.has(entityId)) return false;
+  if (folderLookup[entityId] || itemLookup[entityId]) return false;
+  return true;
+};
+
 export const replaceLeafTabBookmarkTree = async (params: {
   scope?: LeafTabBookmarkSyncScope | null;
   folderLookup: Record<string, { title: string; parentId: string | null }>;
@@ -660,7 +705,6 @@ export const replaceLeafTabBookmarkTree = async (params: {
   });
   const entityNodeLookup = buildEntityNodeLookup(currentDraft);
   const nodeIdToEntityId: Record<string, string> = { ...currentDraft.nodeIdToEntityId };
-  const tombstoneIds = new Set(params.tombstoneIds || []);
 
   const applyChildren = async (parentEntityId: string, parentNodeId: string) => {
     const childIds = resolveDesiredChildren(
@@ -716,7 +760,7 @@ export const replaceLeafTabBookmarkTree = async (params: {
     await applyChildren(roleEntityId, scopeRoot.id);
   }
 
-  const tombstonedNodes = [
+  const staleSyncedNodes = [
     ...currentDraft.items.map((item) => ({
       entityId: item.entityId,
       localNodeId: item.localNodeId,
@@ -732,15 +776,15 @@ export const replaceLeafTabBookmarkTree = async (params: {
       })),
   ];
 
-  for (const node of tombstonedNodes) {
-    if (!tombstoneIds.has(node.entityId)) continue;
+  for (const node of staleSyncedNodes) {
+    if (!shouldDeleteStaleSyncedNode(node.entityId, params.folderLookup, params.itemLookup)) continue;
     const existing = entityNodeLookup.get(node.entityId);
     if (!existing) continue;
     await deleteBookmarkNode(existing).catch(() => {});
     delete nodeIdToEntityId[existing.id];
   }
 
-  writeBookmarkMapping(scope, nodeIdToEntityId);
+  await writeBookmarkMapping(scope, nodeIdToEntityId);
   invalidateLeafTabBookmarkDraftCache(scope);
   return true;
 };

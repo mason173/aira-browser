@@ -266,7 +266,7 @@ export class LeafTabSyncAiraCloudStore implements LeafTabSyncRemoteStore {
 
   private async post(path: string, body: unknown, timeoutMs = AIRA_CLOUD_REQUEST_TIMEOUT_MS): Promise<AiraCloudResponse> {
     const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
+    const timeout = globalThis.setTimeout(() => controller.abort(), timeoutMs);
     try {
       const response = await fetch(`${this.endpoint}${path}`, {
         method: 'POST',
@@ -284,7 +284,7 @@ export class LeafTabSyncAiraCloudStore implements LeafTabSyncRemoteStore {
       }
       return parsed;
     } finally {
-      window.clearTimeout(timeout);
+      globalThis.clearTimeout(timeout);
     }
   }
 }

@@ -1,3 +1,5 @@
+import { readExtensionStorageRecord, removeExtensionStorageKeys, writeExtensionStorageRecord } from '@/platform/extensionStorage';
+
 const AIRA_API_BASE_URL = 'https://api.aira.cool';
 const AIRA_DESKTOP_LOGIN_PROFILE_KEY = 'aira_desktop_login_profile_v1';
 
@@ -115,10 +117,36 @@ export function readAiraDesktopLoginProfile(): AiraDesktopLoginProfile | null {
 
 export function writeAiraDesktopLoginProfile(profile: AiraDesktopLoginProfile): void {
   localStorage.setItem(AIRA_DESKTOP_LOGIN_PROFILE_KEY, JSON.stringify(profile));
+  void writeExtensionStorageRecord({
+    [AIRA_DESKTOP_LOGIN_PROFILE_KEY]: JSON.stringify(profile),
+  });
 }
 
 export function clearAiraDesktopLoginProfile(): void {
   localStorage.removeItem(AIRA_DESKTOP_LOGIN_PROFILE_KEY);
+  void removeExtensionStorageKeys([AIRA_DESKTOP_LOGIN_PROFILE_KEY]);
+}
+
+export async function readAiraDesktopLoginProfileFromExtensionStorage(): Promise<AiraDesktopLoginProfile | null> {
+  try {
+    const result = await readExtensionStorageRecord([AIRA_DESKTOP_LOGIN_PROFILE_KEY]);
+    const raw = String(result[AIRA_DESKTOP_LOGIN_PROFILE_KEY] || '').trim();
+    if (!raw) return null;
+    return normalizeProfile(JSON.parse(raw) as Partial<AiraDesktopLoginProfile>);
+  } catch {
+    return null;
+  }
+}
+
+export async function syncAiraDesktopLoginProfileToExtensionStorage(): Promise<void> {
+  const profile = readAiraDesktopLoginProfile();
+  if (!profile) {
+    await removeExtensionStorageKeys([AIRA_DESKTOP_LOGIN_PROFILE_KEY]);
+    return;
+  }
+  await writeExtensionStorageRecord({
+    [AIRA_DESKTOP_LOGIN_PROFILE_KEY]: JSON.stringify(profile),
+  });
 }
 
 function normalizeProfile(raw: Partial<AiraDesktopLoginProfile>): AiraDesktopLoginProfile {

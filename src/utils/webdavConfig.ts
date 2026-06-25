@@ -1,5 +1,10 @@
 import type { WebdavConfig } from "@/types/webdav";
 import type { SyncConflictPolicy } from "@/sync/core";
+import {
+  readExtensionStorageRecord,
+  removeExtensionStorageKeys,
+  writeExtensionStorageRecord,
+} from "@/platform/extensionStorage";
 
 export type WebdavConflictPolicy = SyncConflictPolicy;
 
@@ -94,6 +99,99 @@ export const writeWebdavStorageStateToStorage = (state: WebdavStorageState, defa
   localStorage.setItem(WEBDAV_STORAGE_KEYS.autoSyncToastEnabled, String(Boolean(state.autoSyncToastEnabled)));
   localStorage.setItem(WEBDAV_STORAGE_KEYS.syncIntervalMinutes, String(state.syncIntervalMinutes));
   localStorage.setItem(WEBDAV_STORAGE_KEYS.syncConflictPolicy, state.syncConflictPolicy);
+  void writeExtensionStorageRecord({
+    [WEBDAV_STORAGE_KEYS.profileName]: profileName,
+    [WEBDAV_STORAGE_KEYS.url]: state.url.trim(),
+    [WEBDAV_STORAGE_KEYS.username]: state.username.trim(),
+    [WEBDAV_STORAGE_KEYS.password]: state.password || "",
+    [WEBDAV_STORAGE_KEYS.syncEnabled]: String(state.syncEnabled),
+    [WEBDAV_STORAGE_KEYS.syncBookmarksEnabled]: String(Boolean(state.syncBookmarksEnabled)),
+    [WEBDAV_STORAGE_KEYS.syncBySchedule]: String(Boolean(state.syncBySchedule)),
+    [WEBDAV_STORAGE_KEYS.autoSyncToastEnabled]: String(Boolean(state.autoSyncToastEnabled)),
+    [WEBDAV_STORAGE_KEYS.syncIntervalMinutes]: String(state.syncIntervalMinutes),
+    [WEBDAV_STORAGE_KEYS.syncConflictPolicy]: state.syncConflictPolicy,
+  });
+};
+
+export const syncWebdavStorageStateToExtensionStorage = async (
+  defaultProfileName = "",
+): Promise<void> => {
+  const state = readWebdavStorageStateFromStorage(defaultProfileName);
+  await writeExtensionStorageRecord({
+    [WEBDAV_STORAGE_KEYS.profileName]: state.profileName.trim() || defaultProfileName,
+    [WEBDAV_STORAGE_KEYS.url]: state.url.trim(),
+    [WEBDAV_STORAGE_KEYS.username]: state.username.trim(),
+    [WEBDAV_STORAGE_KEYS.password]: state.password || "",
+    [WEBDAV_STORAGE_KEYS.syncEnabled]: String(state.syncEnabled),
+    [WEBDAV_STORAGE_KEYS.syncBookmarksEnabled]: String(Boolean(state.syncBookmarksEnabled)),
+    [WEBDAV_STORAGE_KEYS.syncBySchedule]: String(Boolean(state.syncBySchedule)),
+    [WEBDAV_STORAGE_KEYS.autoSyncToastEnabled]: String(Boolean(state.autoSyncToastEnabled)),
+    [WEBDAV_STORAGE_KEYS.syncIntervalMinutes]: String(state.syncIntervalMinutes),
+    [WEBDAV_STORAGE_KEYS.syncConflictPolicy]: state.syncConflictPolicy,
+    [WEBDAV_STORAGE_KEYS.nextSyncAt]: localStorage.getItem(WEBDAV_STORAGE_KEYS.nextSyncAt) || "",
+  });
+};
+
+export const readWebdavStorageStateFromExtensionStorage = async (
+  defaultProfileName = "",
+): Promise<WebdavStorageState> => {
+  const result = await readExtensionStorageRecord(Object.values(WEBDAV_STORAGE_KEYS));
+  const profileName = String(result[WEBDAV_STORAGE_KEYS.profileName] || defaultProfileName || "").trim();
+  const url = String(result[WEBDAV_STORAGE_KEYS.url] || "").trim();
+  const username = String(result[WEBDAV_STORAGE_KEYS.username] || "").trim();
+  const password = String(result[WEBDAV_STORAGE_KEYS.password] || "");
+  const syncEnabled = String(result[WEBDAV_STORAGE_KEYS.syncEnabled] ?? "false") === "true";
+  const syncBookmarksEnabled = String(
+    result[WEBDAV_STORAGE_KEYS.syncBookmarksEnabled] ?? String(WEBDAV_DEFAULT_SYNC_BOOKMARKS_ENABLED),
+  ) === "true";
+  const syncBySchedule = String(
+    result[WEBDAV_STORAGE_KEYS.syncBySchedule] ?? String(WEBDAV_DEFAULT_SYNC_BY_SCHEDULE),
+  ) === "true";
+  const autoSyncToastEnabled = String(result[WEBDAV_STORAGE_KEYS.autoSyncToastEnabled] ?? "true") === "true";
+  const syncIntervalRaw = Number(
+    result[WEBDAV_STORAGE_KEYS.syncIntervalMinutes] || String(WEBDAV_DEFAULT_SYNC_INTERVAL_MINUTES),
+  );
+  const syncIntervalMinutes = Number.isFinite(syncIntervalRaw) ? syncIntervalRaw : WEBDAV_DEFAULT_SYNC_INTERVAL_MINUTES;
+  const syncConflictPolicy = parseConflictPolicy(
+    String(result[WEBDAV_STORAGE_KEYS.syncConflictPolicy] || WEBDAV_DEFAULT_CONFLICT_POLICY),
+  );
+
+  return {
+    profileName,
+    url,
+    username,
+    password,
+    syncEnabled,
+    syncBookmarksEnabled,
+    syncBySchedule,
+    autoSyncToastEnabled,
+    syncIntervalMinutes,
+    syncConflictPolicy,
+  };
+};
+
+export const readWebdavConfigFromExtensionStorage = async (
+  options?: { allowDisabled?: boolean },
+): Promise<WebdavConfig | null> => {
+  const state = await readWebdavStorageStateFromExtensionStorage();
+  const enabled = state.syncEnabled;
+  if (!enabled && !options?.allowDisabled) return null;
+  if (!state.url) return null;
+  return {
+    url: state.url,
+    username: state.username,
+    password: state.password,
+    syncOptions: {
+      enabled: enabled || Boolean(options?.allowDisabled),
+      syncBySchedule: state.syncBySchedule,
+      syncIntervalMinutes: state.syncIntervalMinutes,
+      syncConflictPolicy: state.syncConflictPolicy,
+    },
+  };
+};
+
+export const removeWebdavNextSyncAtFromExtensionStorage = async (): Promise<void> => {
+  await removeExtensionStorageKeys([WEBDAV_STORAGE_KEYS.nextSyncAt]);
 };
 
 export const enableWebdavBookmarkSyncInStorage = (defaultProfileName = "") => {

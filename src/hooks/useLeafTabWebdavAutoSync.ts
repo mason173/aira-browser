@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from '@/components/ui/sonner';
+import type { LeafTabRemoteAutoSyncProbeResult } from '@/features/sync/app/LeafTabSyncContracts';
+import { getBookmarksApi } from '@/platform/runtime';
 import { getAlignedJitteredNextAt, resolveInitialAlignedJitteredTargetAt } from '@/sync/schedule';
+import { markLeafTabLocalBookmarkChanged } from '@/sync/leaftab/localChangeTracker';
+import {
+  normalizeLeafTabAutoSyncAttemptResult,
+  reduceLeafTabAutoSyncRetry,
+} from '@/sync/leaftab/autoSyncStateMachine';
 import {
   readWebdavConfigFromStorage,
   readWebdavStorageStateFromStorage,
@@ -9,9 +16,13 @@ import {
   WEBDAV_STORAGE_KEYS,
 } from '@/utils/webdavConfig';
 
+const AUTO_SYNC_BOOKMARK_CHANGE_DEBOUNCE_MS = 7 * 1000;
+const AUTO_SYNC_REMOTE_PROBE_STARTUP_DELAY_MS = 3 * 1000;
 const AUTO_SYNC_BUSY_RETRY_DELAY_MS = 30 * 1000;
 const AUTO_SYNC_FAILURE_RETRY_BASE_DELAY_MS = 60 * 1000;
 const AUTO_SYNC_FAILURE_RETRY_MAX_DELAY_MS = 10 * 60 * 1000;
+const AUTO_SYNC_REMOTE_PROBE_INTERVAL_MS = 60 * 1000;
+const AUTO_SYNC_REMOTE_PROBE_MIN_INTERVAL_MS = 60 * 1000;
 const AUTO_SYNC_LEASE_KEY = 'webdav_auto_sync_lease_v1';
 const AUTO_SYNC_LEASE_TTL_MS = 3 * 60 * 1000;
 const AUTO_SYNC_LEASE_RENEW_MS = 30 * 1000;
@@ -87,7 +98,10 @@ type UseLeafTabWebdavAutoSyncParams = {
   conflictModalOpen: boolean;
   isDragging: boolean;
   syncing: boolean;
-  onSync: () => Promise<boolean>;
+  onSync: (trigger?: LeafTabRemoteAutoSyncProbeResult) => Promise<boolean>;
+  onRemoteProbe?: () => Promise<LeafTabRemoteAutoSyncProbeResult>;
+  autoSyncEnabled?: boolean;
+  scheduleSyncEnabled?: boolean;
 };
 
 export function useLeafTabWebdavAutoSync({
@@ -95,11 +109,17 @@ export function useLeafTabWebdavAutoSync({
   isDragging,
   syncing,
   onSync,
+  onRemoteProbe,
+  autoSyncEnabled,
+  scheduleSyncEnabled,
 }: UseLeafTabWebdavAutoSyncParams) {
   const { t } = useTranslation();
   const timerRef = useRef<number | null>(null);
+  const bookmarkChangeTimerRef = useRef<number | null>(null);
   const leaseRenewTimerRef = useRef<number | null>(null);
   const inFlightRef = useRef(false);
+  const remoteProbeRunningRef = useRef(false);
+  const lastRemoteProbeAtRef = useRef(0);
   const ownerIdRef = useRef(createAutoSyncOwnerId());
   const failureCountRef = useRef(0);
   const latestFlagsRef = useRef({
@@ -108,6 +128,7 @@ export function useLeafTabWebdavAutoSync({
     syncing,
   });
   const latestOnSyncRef = useRef(onSync);
+  const latestOnRemoteProbeRef = useRef(onRemoteProbe);
   const latestTRef = useRef(t);
   const [configVersion, setConfigVersion] = useState(0);
 
@@ -124,12 +145,27 @@ export function useLeafTabWebdavAutoSync({
   }, [onSync]);
 
   useEffect(() => {
+    latestOnRemoteProbeRef.current = onRemoteProbe;
+  }, [onRemoteProbe]);
+
+  useEffect(() => {
     latestTRef.current = t;
   }, [t]);
 
   const emitStatusChanged = useCallback(() => {
     window.dispatchEvent(new CustomEvent('webdav-sync-status-changed'));
   }, []);
+
+  const isAutoSyncEnabled = useCallback(() => {
+    if (typeof autoSyncEnabled === 'boolean') return autoSyncEnabled;
+    return Boolean(readWebdavConfigFromStorage()?.syncOptions?.enabled);
+  }, [autoSyncEnabled]);
+
+  const isScheduledSyncEnabled = useCallback(() => {
+    if (!isAutoSyncEnabled()) return false;
+    if (typeof scheduleSyncEnabled === 'boolean') return scheduleSyncEnabled;
+    return Boolean(readWebdavConfigFromStorage()?.syncOptions?.syncBySchedule);
+  }, [isAutoSyncEnabled, scheduleSyncEnabled]);
 
   const clearLeaseRenewTimer = useCallback(() => {
     if (leaseRenewTimerRef.current !== null) {
@@ -151,6 +187,82 @@ export function useLeafTabWebdavAutoSync({
     return Math.max(1, Number.isFinite(raw) ? raw : WEBDAV_DEFAULT_SYNC_INTERVAL_MINUTES);
   }, []);
 
+  const getAutoSyncSuccessText = useCallback(() => {
+    return latestTRef.current('popup.dashboard.autoSyncSuccess', {
+      defaultValue: '书签已自动同步',
+    });
+  }, []);
+
+  const performAutoSync = useCallback(async (trigger?: LeafTabRemoteAutoSyncProbeResult) => {
+    if (!isAutoSyncEnabled()) return null;
+    const latestFlags = latestFlagsRef.current;
+    const now = Date.now();
+    if (
+      inFlightRef.current
+      || latestFlags.syncing
+      || latestFlags.conflictModalOpen
+      || latestFlags.isDragging
+      || document.hidden
+      || !navigator.onLine
+    ) {
+      return null;
+    }
+
+    if (!tryAcquireAutoSyncLease(ownerIdRef.current, now)) {
+      return null;
+    }
+
+    inFlightRef.current = true;
+    startLeaseRenewal();
+    try {
+      const ok = await latestOnSyncRef.current(trigger);
+      if (ok && readWebdavStorageStateFromStorage().autoSyncToastEnabled) {
+        toast.success(getAutoSyncSuccessText());
+      }
+      return ok;
+    } catch (error) {
+      console.error('[LeafTab][auto sync]', error);
+      return false;
+    } finally {
+      inFlightRef.current = false;
+      clearLeaseRenewTimer();
+      releaseAutoSyncLease(ownerIdRef.current);
+    }
+  }, [clearLeaseRenewTimer, getAutoSyncSuccessText, isAutoSyncEnabled, startLeaseRenewal]);
+
+  const probeRemoteChangesAndSync = useCallback(async () => {
+    if (!isAutoSyncEnabled() || remoteProbeRunningRef.current || inFlightRef.current) return;
+    const latestFlags = latestFlagsRef.current;
+    if (
+      latestFlags.syncing ||
+      latestFlags.conflictModalOpen ||
+      latestFlags.isDragging ||
+      document.hidden ||
+      !navigator.onLine
+    ) {
+      return;
+    }
+    const now = Date.now();
+    if (now - lastRemoteProbeAtRef.current < AUTO_SYNC_REMOTE_PROBE_MIN_INTERVAL_MS) {
+      return;
+    }
+    const probe = latestOnRemoteProbeRef.current;
+    if (!probe) return;
+
+    remoteProbeRunningRef.current = true;
+    lastRemoteProbeAtRef.current = now;
+    try {
+      const result = await probe();
+      if (result.hasChanges) {
+        await performAutoSync(result);
+      }
+    } catch (error) {
+      console.error('[LeafTab][remote auto sync probe]', error);
+    } finally {
+      remoteProbeRunningRef.current = false;
+    }
+  }, [isAutoSyncEnabled, performAutoSync]);
+
   useEffect(() => {
     const handleConfigChanged = () => {
       setConfigVersion((value) => value + 1);
@@ -167,8 +279,7 @@ export function useLeafTabWebdavAutoSync({
 
   useEffect(() => {
     let disposed = false;
-    const config = readWebdavConfigFromStorage();
-    if (!config?.syncOptions?.syncBySchedule) {
+    if (!isScheduledSyncEnabled()) {
       if (timerRef.current) window.clearTimeout(timerRef.current);
       timerRef.current = null;
       localStorage.removeItem(WEBDAV_STORAGE_KEYS.nextSyncAt);
@@ -199,8 +310,7 @@ export function useLeafTabWebdavAutoSync({
       const delay = Math.min(nextMs - Date.now(), 2_147_483_647);
       timerRef.current = window.setTimeout(async () => {
         if (disposed) return;
-        const latestConfig = readWebdavConfigFromStorage();
-        if (!latestConfig?.syncOptions?.syncBySchedule) {
+        if (!isScheduledSyncEnabled()) {
           if (timerRef.current) window.clearTimeout(timerRef.current);
           timerRef.current = null;
           localStorage.removeItem(WEBDAV_STORAGE_KEYS.nextSyncAt);
@@ -208,48 +318,22 @@ export function useLeafTabWebdavAutoSync({
           return;
         }
 
-        const latestFlags = latestFlagsRef.current;
         const now = Date.now();
         const retryAfterBusyAt = now + AUTO_SYNC_BUSY_RETRY_DELAY_MS;
-        const retryAfterFailureAt = now + getFailureRetryDelay(failureCountRef.current + 1);
-        if (
-          inFlightRef.current
-          || latestFlags.syncing
-          || latestFlags.conflictModalOpen
-          || latestFlags.isDragging
-          || document.hidden
-          || !navigator.onLine
-        ) {
-          scheduleNext(retryAfterBusyAt, { publishStatus: false });
-          return;
-        }
-
-        if (!tryAcquireAutoSyncLease(ownerIdRef.current, now)) {
-          scheduleNext(retryAfterBusyAt, { publishStatus: false });
-          return;
-        }
-
-        inFlightRef.current = true;
-        startLeaseRenewal();
-        try {
-          const ok = await latestOnSyncRef.current();
-          if (disposed) return;
-          if (ok) {
-            failureCountRef.current = 0;
-            if (readWebdavStorageStateFromStorage().autoSyncToastEnabled) {
-              toast.success(latestTRef.current('settings.backup.webdav.syncSuccess'));
-            }
-            scheduleNext(getAlignedJitteredNextAt(getIntervalMinutes()));
-            return;
-          }
-        } finally {
-          inFlightRef.current = false;
-          clearLeaseRenewTimer();
-          releaseAutoSyncLease(ownerIdRef.current);
-        }
-
+        const attemptResult = normalizeLeafTabAutoSyncAttemptResult(await performAutoSync());
+        const decision = reduceLeafTabAutoSyncRetry(attemptResult, failureCountRef.current);
+        const retryAfterFailureAt = now + getFailureRetryDelay(decision.nextFailureCount);
         if (disposed) return;
-        failureCountRef.current += 1;
+        failureCountRef.current = decision.nextFailureCount;
+        if (decision.kind === 'retry-busy') {
+          scheduleNext(retryAfterBusyAt, { publishStatus: false });
+          return;
+        }
+        if (decision.kind === 'idle') {
+          scheduleNext(getAlignedJitteredNextAt(getIntervalMinutes()));
+          return;
+        }
+
         scheduleNext(retryAfterFailureAt);
       }, delay);
     };
@@ -272,5 +356,117 @@ export function useLeafTabWebdavAutoSync({
       clearLeaseRenewTimer();
       releaseAutoSyncLease(ownerIdRef.current);
     };
-  }, [clearLeaseRenewTimer, configVersion, emitStatusChanged, getIntervalMinutes, startLeaseRenewal]);
+  }, [
+    clearLeaseRenewTimer,
+    configVersion,
+    emitStatusChanged,
+    getIntervalMinutes,
+    isScheduledSyncEnabled,
+    performAutoSync,
+  ]);
+
+  useEffect(() => {
+    const api = getBookmarksApi();
+    if (!api || !isAutoSyncEnabled()) return undefined;
+    let disposed = false;
+
+    const clearBookmarkChangeTimer = () => {
+      if (bookmarkChangeTimerRef.current !== null) {
+        window.clearTimeout(bookmarkChangeTimerRef.current);
+        bookmarkChangeTimerRef.current = null;
+      }
+    };
+
+    const scheduleBookmarkChangeAutoSync = (delayMs = AUTO_SYNC_BOOKMARK_CHANGE_DEBOUNCE_MS) => {
+      if (disposed || !isAutoSyncEnabled() || inFlightRef.current || latestFlagsRef.current.syncing) return;
+      clearBookmarkChangeTimer();
+      bookmarkChangeTimerRef.current = window.setTimeout(async () => {
+        bookmarkChangeTimerRef.current = null;
+        if (disposed || !isAutoSyncEnabled()) return;
+        const attemptResult = normalizeLeafTabAutoSyncAttemptResult(await performAutoSync());
+        const decision = reduceLeafTabAutoSyncRetry(attemptResult, failureCountRef.current);
+        if (disposed) return;
+        failureCountRef.current = decision.nextFailureCount;
+        if (decision.kind === 'retry-busy') {
+          scheduleBookmarkChangeAutoSync(AUTO_SYNC_BUSY_RETRY_DELAY_MS);
+          return;
+        }
+        if (decision.kind === 'idle') {
+          return;
+        }
+        scheduleBookmarkChangeAutoSync(getFailureRetryDelay(decision.nextFailureCount));
+      }, delayMs);
+    };
+
+    const handleBookmarkChanged = () => {
+      if (!markLeafTabLocalBookmarkChanged()) return;
+      scheduleBookmarkChangeAutoSync();
+    };
+
+    api.onCreated?.addListener?.(handleBookmarkChanged);
+    api.onRemoved?.addListener?.(handleBookmarkChanged);
+    api.onChanged?.addListener?.(handleBookmarkChanged);
+    api.onMoved?.addListener?.(handleBookmarkChanged);
+    api.onChildrenReordered?.addListener?.(handleBookmarkChanged);
+    api.onImportEnded?.addListener?.(handleBookmarkChanged);
+
+    return () => {
+      disposed = true;
+      clearBookmarkChangeTimer();
+      api.onCreated?.removeListener?.(handleBookmarkChanged);
+      api.onRemoved?.removeListener?.(handleBookmarkChanged);
+      api.onChanged?.removeListener?.(handleBookmarkChanged);
+      api.onMoved?.removeListener?.(handleBookmarkChanged);
+      api.onChildrenReordered?.removeListener?.(handleBookmarkChanged);
+      api.onImportEnded?.removeListener?.(handleBookmarkChanged);
+    };
+  }, [configVersion, isAutoSyncEnabled, performAutoSync]);
+
+  useEffect(() => {
+    if (!isAutoSyncEnabled() || !latestOnRemoteProbeRef.current) return undefined;
+    let disposed = false;
+    const timer = window.setTimeout(() => {
+      if (!disposed) {
+        void probeRemoteChangesAndSync();
+      }
+    }, AUTO_SYNC_REMOTE_PROBE_STARTUP_DELAY_MS);
+    let interval: number | null = null;
+
+    const clearRemoteProbeInterval = () => {
+      if (interval !== null) {
+        window.clearInterval(interval);
+        interval = null;
+      }
+    };
+
+    const ensureRemoteProbeInterval = () => {
+      clearRemoteProbeInterval();
+      if (document.hidden) return;
+      interval = window.setInterval(() => {
+        if (!disposed && !document.hidden) {
+          void probeRemoteChangesAndSync();
+        }
+      }, AUTO_SYNC_REMOTE_PROBE_INTERVAL_MS);
+    };
+
+    const handleVisibilityChanged = () => {
+      if (!document.hidden) {
+        ensureRemoteProbeInterval();
+        void probeRemoteChangesAndSync();
+      } else {
+        clearRemoteProbeInterval();
+      }
+    };
+
+    ensureRemoteProbeInterval();
+    window.addEventListener('online', probeRemoteChangesAndSync);
+    document.addEventListener('visibilitychange', handleVisibilityChanged);
+    return () => {
+      disposed = true;
+      window.clearTimeout(timer);
+      clearRemoteProbeInterval();
+      window.removeEventListener('online', probeRemoteChangesAndSync);
+      document.removeEventListener('visibilitychange', handleVisibilityChanged);
+    };
+  }, [configVersion, isAutoSyncEnabled, probeRemoteChangesAndSync]);
 }
