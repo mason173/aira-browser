@@ -28,6 +28,7 @@ export interface LeafTabSyncEngineResult {
   kind: 'noop' | 'push' | 'pull' | 'merge' | 'conflict';
   remoteCommitId: string | null;
   snapshot: LeafTabSyncSnapshot;
+  snapshotSummary: LeafTabSyncDataSummary;
   initialChoiceAnalysis?: LeafTabSyncAnalysis;
   mergeResult?: LeafTabSyncMergeResult;
   summary?: LeafTabSyncChangeSummary;
@@ -95,6 +96,19 @@ const sameSnapshotContent = (
 const cloneSnapshot = (snapshot: LeafTabSyncSnapshot) => {
   return JSON.parse(JSON.stringify(snapshot)) as LeafTabSyncSnapshot;
 };
+
+const createSyncResult = (
+  result: Omit<LeafTabSyncEngineResult, 'snapshotSummary'>,
+): LeafTabSyncEngineResult => ({
+  ...result,
+  snapshotSummary: summarizeSnapshot(result.snapshot),
+});
+
+const createConcurrentConflictSummaryText = (conflictCount: number) => (
+  conflictCount > 1
+    ? `检测到 ${conflictCount} 处双向修改冲突，请先选择保留本机还是主同步源数据。`
+    : '检测到 1 处双向修改冲突，请先选择保留本机还是主同步源数据。'
+);
 
 const reportProgress = (
   onProgress: ((progress: LeafTabSyncEngineProgress) => void) | undefined,
@@ -296,24 +310,56 @@ export class LeafTabSyncEngine {
       progress: 8,
       message: '正在读取本机与远端数据',
     });
-    const [baseline, localSnapshot, remoteHead] = await Promise.all([
+    const [baseline, remoteHead] = await Promise.all([
       this.config.baselineStore.load(),
-      runOptions?.localSnapshotOverride
-        ? Promise.resolve(cloneSnapshot(runOptions.localSnapshotOverride))
-        : this.config.buildLocalSnapshot(),
       this.readRemoteHeadSafely(),
     ]);
 
     const baseSnapshot =
       getLeafTabSyncBaselineSnapshot(baseline) || this.config.createEmptySnapshot();
     const hasBaseline = Boolean(baseline?.snapshot || baseline?.commitId);
-    const localMatchesBaseline = sameSnapshotContent(localSnapshot, baseSnapshot);
     const hasPendingLocalChanges = this.config.hasPendingLocalChanges?.() === true;
+    let localSnapshotCache: LeafTabSyncSnapshot | null = null;
+    const getLocalSnapshot = async () => {
+      if (localSnapshotCache) {
+        return localSnapshotCache;
+      }
+      localSnapshotCache = runOptions?.localSnapshotOverride
+        ? cloneSnapshot(runOptions.localSnapshotOverride)
+        : await this.config.buildLocalSnapshot();
+      return localSnapshotCache;
+    };
     let remoteState: LeafTabSyncRemoteState = emptyRemoteState();
     let remoteSnapshot: LeafTabSyncSnapshot = this.config.createEmptySnapshot();
     const remoteCommitId = remoteHead?.commitId ?? null;
 
     if (mode === 'auto' && hasBaseline && baseline?.commitId && remoteCommitId === baseline.commitId) {
+      if (!hasPendingLocalChanges) {
+        reportProgress(runOptions?.onProgress, {
+          stage: 'finalizing',
+          progress: 92,
+          message: '未检测到变更，正在结束同步',
+        });
+        await this.config.baselineStore.save(createLeafTabSyncBaseline({
+          snapshot: baseSnapshot,
+          commitId: baseline.commitId,
+          rootPath: this.config.rootPath,
+        }));
+        reportProgress(runOptions?.onProgress, {
+          stage: 'completed',
+          progress: 100,
+          message: '同步完成',
+        });
+        return createSyncResult({
+          kind: 'noop',
+          remoteCommitId: baseline.commitId,
+          snapshot: baseSnapshot,
+          summaryText: '本地与远端均无新增变更',
+        });
+      }
+
+      const localSnapshot = await getLocalSnapshot();
+      const localMatchesBaseline = sameSnapshotContent(localSnapshot, baseSnapshot);
       if (localMatchesBaseline) {
         reportProgress(runOptions?.onProgress, {
           stage: 'finalizing',
@@ -330,12 +376,12 @@ export class LeafTabSyncEngine {
           progress: 100,
           message: '同步完成',
         });
-        return {
+        return createSyncResult({
           kind: 'noop',
           remoteCommitId: baseline.commitId,
           snapshot: baseSnapshot,
           summaryText: '本地与远端均无新增变更',
-        };
+        });
       }
 
       if (hasPendingLocalChanges) {
@@ -374,12 +420,12 @@ export class LeafTabSyncEngine {
               progress: 100,
               message: '同步完成',
             });
-            return {
+            return createSyncResult({
               kind: 'push',
               remoteCommitId: writeResult.commit.id,
               snapshot: localSnapshot,
               summaryText: '同步完成：远端没有新的变化，已上传本地变化。',
-            };
+            });
           }
         } finally {
           await this.config.remoteStore.releaseLock();
@@ -388,6 +434,7 @@ export class LeafTabSyncEngine {
     }
 
     if (mode === 'auto' && !hasBaseline && remoteHead !== undefined && remoteCommitId === null) {
+      const localSnapshot = await getLocalSnapshot();
       reportProgress(runOptions?.onProgress, {
         stage: 'acquiring-lock',
         progress: 34,
@@ -426,12 +473,12 @@ export class LeafTabSyncEngine {
             progress: 100,
             message: '同步完成',
           });
-          return {
+          return createSyncResult({
             kind: 'push',
             remoteCommitId: writeResult.commit.id,
             snapshot: localSnapshot,
             summaryText: '远端为空，已用本地快照建立首次同步状态',
-          };
+          });
         }
       } finally {
         await this.config.remoteStore.releaseLock();
@@ -452,13 +499,13 @@ export class LeafTabSyncEngine {
     remoteSnapshot = remoteState.snapshot || this.config.createEmptySnapshot();
     const remoteMatchesBaseline = sameSnapshotContent(remoteSnapshot, baseSnapshot);
 
-    if (mode === 'auto' && hasBaseline && !hasPendingLocalChanges && !localMatchesBaseline) {
+    if (mode === 'auto' && hasBaseline && !hasPendingLocalChanges) {
       const authoritativeSnapshot = remoteMatchesBaseline ? baseSnapshot : remoteSnapshot;
       const authoritativeCommitId = remoteMatchesBaseline
-        ? (baseline?.commitId || remoteState.commit?.id || null)
-        : (remoteState.commit?.id || null);
+        ? (baseline?.commitId || remoteState.commit?.id || remoteCommitId || null)
+        : (remoteState.commit?.id || remoteCommitId || null);
 
-      if (!sameSnapshotContent(localSnapshot, authoritativeSnapshot)) {
+      if (!remoteMatchesBaseline) {
         reportProgress(runOptions?.onProgress, {
           stage: 'applying-local',
           progress: 70,
@@ -485,15 +532,18 @@ export class LeafTabSyncEngine {
         progress: 100,
         message: '同步完成',
       });
-      return {
-        kind: sameSnapshotContent(localSnapshot, authoritativeSnapshot) ? 'noop' : 'pull',
+      return createSyncResult({
+        kind: remoteMatchesBaseline ? 'noop' : 'pull',
         remoteCommitId: authoritativeCommitId,
         snapshot: authoritativeSnapshot,
         summaryText: remoteMatchesBaseline
-          ? '本机没有待同步变更，已恢复主同步源中的书签状态。'
+          ? '本地与远端均无新增变更'
           : '主同步源已有更新，本机没有待同步变更，已优先使用远端数据。',
-      };
+      });
     }
+
+    const localSnapshot = await getLocalSnapshot();
+    const localMatchesBaseline = sameSnapshotContent(localSnapshot, baseSnapshot);
 
     if (mode === 'auto' && !hasBaseline) {
       if (remoteState.snapshot) {
@@ -503,7 +553,7 @@ export class LeafTabSyncEngine {
             progress: 100,
             message: '需要选择首次同步方式',
           });
-          return {
+          return createSyncResult({
             kind: 'conflict',
             remoteCommitId: remoteState.commit?.id || null,
             snapshot: localSnapshot,
@@ -516,7 +566,7 @@ export class LeafTabSyncEngine {
               remoteCommitId: remoteState.commit?.id || null,
             },
             summaryText: '本机和远端都有书签数据，请先选择首次同步方式',
-          };
+          });
         }
         reportProgress(runOptions?.onProgress, {
           stage: 'finalizing',
@@ -534,12 +584,12 @@ export class LeafTabSyncEngine {
           progress: 100,
           message: '同步完成',
         });
-        return {
+        return createSyncResult({
           kind: sameSnapshotContent(localSnapshot, remoteSnapshot) ? 'noop' : 'pull',
           remoteCommitId: remoteState.commit?.id || null,
           snapshot: remoteSnapshot,
           summaryText: '尚未建立基线，已优先使用远端快照',
-        };
+        });
       }
 
       reportProgress(runOptions?.onProgress, {
@@ -572,12 +622,12 @@ export class LeafTabSyncEngine {
             progress: 100,
             message: '同步完成',
           });
-          return {
+          return createSyncResult({
             kind: 'pull',
             remoteCommitId: latestRemote.commit?.id || null,
             snapshot: latestRemote.snapshot,
             summaryText: '尚未建立基线，已优先使用远端快照',
-          };
+          });
         }
 
         reportProgress(runOptions?.onProgress, {
@@ -602,12 +652,12 @@ export class LeafTabSyncEngine {
           progress: 100,
           message: '同步完成',
         });
-        return {
+        return createSyncResult({
           kind: 'push',
           remoteCommitId: writeResult.commit.id,
           snapshot: localSnapshot,
           summaryText: '远端为空，已用本地快照建立首次同步状态',
-        };
+        });
       } finally {
         await this.config.remoteStore.releaseLock();
       }
@@ -630,12 +680,12 @@ export class LeafTabSyncEngine {
         progress: 100,
         message: '同步完成',
       });
-      return {
+      return createSyncResult({
         kind: 'noop',
         remoteCommitId: remoteState.commit?.id || baseline?.commitId || null,
         snapshot: baseSnapshot,
         summaryText: '本地与远端均无新增变更',
-      };
+      });
     }
 
     if (mode === 'push-local') {
@@ -671,12 +721,12 @@ export class LeafTabSyncEngine {
             progress: 100,
             message: '同步完成',
           });
-          return {
+          return createSyncResult({
             kind: 'noop',
             remoteCommitId: latestRemote.commit?.id || null,
             snapshot: localSnapshot,
             summaryText: '远端数据已经和本地一致',
-          };
+          });
         }
 
         reportProgress(runOptions?.onProgress, {
@@ -706,12 +756,12 @@ export class LeafTabSyncEngine {
           progress: 100,
           message: '同步完成',
         });
-        return {
+        return createSyncResult({
           kind: 'push',
           remoteCommitId: writeResult.commit.id,
           snapshot: localSnapshot,
           summaryText: '已将本地数据写入远端',
-        };
+        });
       } finally {
         await this.config.remoteStore.releaseLock();
       }
@@ -742,14 +792,14 @@ export class LeafTabSyncEngine {
         progress: 100,
         message: '同步完成',
       });
-      return {
+      return createSyncResult({
         kind: sameSnapshotContent(localSnapshot, remoteSnapshot) ? 'noop' : 'pull',
         remoteCommitId: remoteState.commit?.id || null,
         snapshot: remoteSnapshot,
         summaryText: sameSnapshotContent(localSnapshot, remoteSnapshot)
           ? '本地与远端数据已经一致'
           : '已从远端拉取同步数据',
-      };
+      });
     }
 
     reportProgress(runOptions?.onProgress, {
@@ -770,6 +820,22 @@ export class LeafTabSyncEngine {
     let finalSnapshot = mergeResult.snapshot;
     let finalSummary = summarizeLeafTabSyncMerge(baseSnapshot, finalMergeResult);
     let finalSummaryText = formatLeafTabSyncSummaryText(finalSummary);
+
+    if (finalMergeResult.conflicts.length > 0) {
+      reportProgress(runOptions?.onProgress, {
+        stage: 'completed',
+        progress: 100,
+        message: '检测到同步冲突，等待处理',
+      });
+      return createSyncResult({
+        kind: 'conflict',
+        remoteCommitId: remoteState.commit?.id || remoteCommitId || null,
+        snapshot: localSnapshot,
+        mergeResult: finalMergeResult,
+        summary: finalSummary,
+        summaryText: createConcurrentConflictSummaryText(finalMergeResult.conflicts.length),
+      });
+    }
 
     if (!sameSnapshotContent(remoteSnapshot, finalSnapshot)) {
       reportProgress(runOptions?.onProgress, {
@@ -796,6 +862,21 @@ export class LeafTabSyncEngine {
           finalSnapshot = finalMergeResult.snapshot;
           finalSummary = summarizeLeafTabSyncMerge(baseSnapshot, finalMergeResult);
           finalSummaryText = formatLeafTabSyncSummaryText(finalSummary);
+          if (finalMergeResult.conflicts.length > 0) {
+            reportProgress(runOptions?.onProgress, {
+              stage: 'completed',
+              progress: 100,
+              message: '检测到同步冲突，等待处理',
+            });
+            return createSyncResult({
+              kind: 'conflict',
+              remoteCommitId: latestRemote.commit?.id || null,
+              snapshot: localSnapshot,
+              mergeResult: finalMergeResult,
+              summary: finalSummary,
+              summaryText: createConcurrentConflictSummaryText(finalMergeResult.conflicts.length),
+            });
+          }
         }
 
         if (!sameSnapshotContent(latestRemoteSnapshot, finalSnapshot)) {
@@ -831,14 +912,14 @@ export class LeafTabSyncEngine {
             progress: 100,
             message: '同步完成',
           });
-          return {
+          return createSyncResult({
             kind: sameSnapshotContent(localSnapshot, finalSnapshot) ? 'push' : 'merge',
             remoteCommitId: writeResult.commit.id,
             snapshot: finalSnapshot,
             mergeResult: finalMergeResult,
             summary: finalSummary,
             summaryText: finalSummaryText,
-          };
+          });
         }
 
         await this.config.baselineStore.save(createLeafTabSyncBaseline({
@@ -860,14 +941,14 @@ export class LeafTabSyncEngine {
             progress: 100,
             message: '同步完成',
           });
-          return {
+          return createSyncResult({
             kind: 'pull',
             remoteCommitId: latestRemote.commit?.id || null,
             snapshot: finalSnapshot,
             mergeResult: finalMergeResult,
             summary: finalSummary,
             summaryText: finalSummaryText,
-          };
+          });
         }
 
         reportProgress(runOptions?.onProgress, {
@@ -875,14 +956,14 @@ export class LeafTabSyncEngine {
           progress: 100,
           message: '同步完成',
         });
-        return {
+        return createSyncResult({
           kind: 'noop',
           remoteCommitId: latestRemote.commit?.id || null,
           snapshot: finalSnapshot,
           mergeResult: finalMergeResult,
           summary: finalSummary,
           summaryText: finalSummaryText,
-        };
+        });
       } finally {
         await this.config.remoteStore.releaseLock();
       }
@@ -905,14 +986,14 @@ export class LeafTabSyncEngine {
         progress: 100,
         message: '同步完成',
       });
-      return {
+      return createSyncResult({
         kind: 'noop',
         remoteCommitId: remoteState.commit?.id || null,
         snapshot: finalSnapshot,
         mergeResult: finalMergeResult,
         summary: finalSummary,
         summaryText: finalSummaryText,
-      };
+      });
     }
 
     reportProgress(runOptions?.onProgress, {
@@ -939,13 +1020,13 @@ export class LeafTabSyncEngine {
       message: '同步完成',
     });
 
-    return {
+    return createSyncResult({
       kind: 'pull',
       remoteCommitId: remoteState.commit?.id || null,
       snapshot: finalSnapshot,
       mergeResult: finalMergeResult,
       summary: finalSummary,
       summaryText: finalSummaryText,
-    };
+    });
   }
 }

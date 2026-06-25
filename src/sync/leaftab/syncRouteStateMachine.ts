@@ -1,4 +1,5 @@
-import type { LeafTabSyncEngineResult } from './engine';
+import type { LeafTabSyncEngineResult, LeafTabSyncInitialChoice } from './engine';
+import type { LeafTabSyncSnapshot } from './schema';
 
 export type LeafTabSyncRemoteKind = 'webdav' | 'aira-cloud';
 
@@ -83,4 +84,29 @@ export const shouldMirrorLeafTabPrimarySyncResult = (
 ) => {
   if (route.secondaryPolicy === 'mirror-primary') return true;
   return result.kind === 'pull' || result.kind === 'merge';
+};
+
+export const shouldBuildLeafTabPrimaryLocalSnapshot = (hasPendingLocalChanges: boolean) => {
+  return hasPendingLocalChanges;
+};
+
+export type LeafTabDualSecondarySyncPlan = {
+  mode: Extract<LeafTabSyncInitialChoice, 'push-local'>;
+  snapshot: LeafTabSyncSnapshot;
+};
+
+export const createLeafTabDualSecondarySyncPlan = (
+  route: Extract<LeafTabSyncRoute, { kind: 'dual' }>,
+  result: LeafTabSyncEngineResult,
+): LeafTabDualSecondarySyncPlan => {
+  if (!shouldMirrorLeafTabPrimarySyncResult(route, result)) {
+    return {
+      mode: 'push-local',
+      snapshot: result.snapshot,
+    };
+  }
+  return {
+    mode: 'push-local',
+    snapshot: result.snapshot,
+  };
 };

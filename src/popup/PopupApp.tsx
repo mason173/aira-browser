@@ -839,14 +839,26 @@ function ConfiguredHome({
   const dualEnabled = cloudEnabled && webdavEnabled;
   const primaryRemoteKind = syncRuntime.state.leafTabPrimaryRemoteKind
     ?? (cloudEnabled ? 'aira-cloud' : (webdavEnabled ? 'webdav' : null));
+  const latestAnalysis = syncRuntime.state.leafTabSyncAnalysis;
+  const latestAnalysisRemoteKind = syncRuntime.state.leafTabSyncAnalysisRemoteKind;
   const webdavAnalysis = syncRuntime.state.leafTabWebdavSyncAnalysis;
   const cloudAnalysis = syncRuntime.state.leafTabCloudSyncAnalysis;
+  const displayedCloudSummary = latestAnalysisRemoteKind === 'aira-cloud'
+    ? latestAnalysis?.remoteSummary
+    : cloudAnalysis?.remoteSummary;
+  const displayedWebdavSummary = latestAnalysisRemoteKind === 'webdav'
+    ? latestAnalysis?.remoteSummary
+    : webdavAnalysis?.remoteSummary;
+  const displayedLocalSummary = latestAnalysis?.localSummary
+    || (primaryRemoteKind === 'webdav'
+      ? (webdavAnalysis?.localSummary || cloudAnalysis?.localSummary)
+      : (cloudAnalysis?.localSummary || webdavAnalysis?.localSummary));
   const localDataLabel = formatBookmarkDataLabel(
-    (webdavAnalysis || cloudAnalysis)?.localSummary,
+    displayedLocalSummary,
     profile.localDataLabel,
   );
-  const cloudDataLabel = formatBookmarkDataLabel(cloudAnalysis?.remoteSummary, profile.remoteDataLabel);
-  const webdavDataLabel = formatBookmarkDataLabel(webdavAnalysis?.remoteSummary, profile.remoteDataLabel);
+  const cloudDataLabel = formatBookmarkDataLabel(displayedCloudSummary, profile.remoteDataLabel);
+  const webdavDataLabel = formatBookmarkDataLabel(displayedWebdavSummary, profile.remoteDataLabel);
   const singleRemoteDataLabel = cloudEnabled && !webdavEnabled ? cloudDataLabel : webdavDataLabel;
   const membershipLabel = resolveMembershipLabel(profile.membershipPlan, t);
   const remoteCheckLabel = formatRemoteAutoSyncDiagnosticLabel(

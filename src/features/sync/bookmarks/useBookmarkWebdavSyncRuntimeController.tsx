@@ -49,8 +49,9 @@ import {
   markLeafTabBookmarkSyncApplyStarted,
 } from '@/sync/leaftab/localChangeTracker';
 import {
+  createLeafTabDualSecondarySyncPlan,
   resolveLeafTabSyncRoute,
-  shouldMirrorLeafTabPrimarySyncResult,
+  shouldBuildLeafTabPrimaryLocalSnapshot,
   type LeafTabSyncRoute,
 } from '@/sync/leaftab/syncRouteStateMachine';
 import {
@@ -272,7 +273,7 @@ const runtimeSummaryFromSnapshot = (snapshot: LeafTabSyncSnapshot): LeafTabSyncA
 const createAnalysisFromSyncedSnapshot = (
   result: LeafTabSyncEngineResult,
 ): LeafTabSyncAnalysis => {
-  const nextSummary = runtimeSummaryFromSnapshot(result.snapshot);
+  const nextSummary = result.snapshotSummary;
   return {
     hasBaseline: true,
     localSummary: nextSummary,
@@ -302,6 +303,10 @@ const SHARED_EXTENSION_STORAGE_KEYS: string[] = [
   'webdav_last_error_message',
   ...Object.values(WEBDAV_STORAGE_KEYS),
 ];
+
+const isSharedSyncStorageKey = (key: string) => (
+  SHARED_EXTENSION_STORAGE_KEYS.includes(key) || key.startsWith(LEAFTAB_SYNC_ANALYSIS_CACHE_PREFIX)
+);
 
 const syncSharedExtensionStorageToLocalStorage = async () => {
   const record = await readAllExtensionStorageRecords();
@@ -351,8 +356,8 @@ const createInitialChoiceAnalysisFromConflict = (
 ): LeafTabSyncAnalysis => (
   result.initialChoiceAnalysis || {
     hasBaseline: false,
-    localSummary: runtimeSummaryFromSnapshot(result.snapshot),
-    remoteSummary: runtimeSummaryFromSnapshot(result.snapshot),
+    localSummary: result.snapshotSummary,
+    remoteSummary: result.snapshotSummary,
     requiresInitialChoice: true,
     suggestedInitialChoice: 'merge',
     remoteCommitId: result.remoteCommitId,
@@ -587,6 +592,7 @@ export function useLeafTabSyncRuntimeController(
   const [leafTabInitialSyncChoiceRequest, setLeafTabInitialSyncChoiceRequest] =
     useState<LeafTabInitialSyncChoiceRequest | null>(null);
   const initialSyncChoiceResolverRef = useRef<((choice: LeafTabSyncInitialChoice | null) => void) | null>(null);
+  const initialLocalSummaryHydratedRef = useRef(false);
   const leafTabSyncDeviceId = useMemo(() => getOrCreateLeafTabSyncDeviceId(), []);
   const leafTabBookmarkSyncScope = useMemo(() => readLeafTabBookmarkSyncScope(), []);
   const leafTabSyncRootPath = LEAFTAB_SYNC_DEFAULT_ROOT_PATH;
@@ -1215,7 +1221,10 @@ export function useLeafTabSyncRuntimeController(
         setLeafTabSyncAnalysis(cachedCloud.analysis);
       }
 
-      void updateCachedLocalSummaries();
+      if (!initialLocalSummaryHydratedRef.current) {
+        initialLocalSummaryHydratedRef.current = true;
+        void updateCachedLocalSummaries();
+      }
     })();
 
     return () => {
@@ -1294,7 +1303,7 @@ export function useLeafTabSyncRuntimeController(
         return;
       }
       const changedKeys = Object.keys(changes);
-      if (!changedKeys.some((key) => SHARED_EXTENSION_STORAGE_KEYS.includes(key))) {
+      if (!changedKeys.some(isSharedSyncStorageKey)) {
         return;
       }
       void syncSharedExtensionStorageToLocalStorage().then(() => {
@@ -1355,7 +1364,7 @@ export function useLeafTabSyncRuntimeController(
       let result = isCloud
         ? await runCloudSyncOnce(runMode, mergedOptions)
         : await runLeafTabSyncOnce(runMode, mergedOptions);
-      if (result?.kind === 'conflict' && runMode === 'auto') {
+      if (result?.kind === 'conflict' && runMode === 'auto' && result.initialChoiceAnalysis?.requiresInitialChoice) {
         if (options?.silentSuccess && options?.allowConfigPrompt === false) {
           return null;
         }
@@ -1368,6 +1377,12 @@ export function useLeafTabSyncRuntimeController(
           : await runLeafTabSyncOnce(choice, mergedOptions);
       }
       if (result) {
+        if (result.kind === 'conflict') {
+          if (!options?.silentSuccess) {
+            toast.error(result.summaryText || '检测到同步冲突，请先处理');
+          }
+          return result;
+        }
         setLeafTabSyncAnalysisRemoteKind(remoteKind);
         const syncedAnalysis = createAnalysisFromSyncedSnapshot(result);
         if (isCloud) {
@@ -1526,11 +1541,16 @@ export function useLeafTabSyncRuntimeController(
         if (!granted) {
           throw new Error('未授予书签权限，无法同步书签');
         }
-        const bookmarkTree = await captureBookmarkTreeDraft();
-        const primarySnapshot = await buildSnapshotForRemoteKind(route.primaryRemoteKind, bookmarkTree);
+        const hasPendingLocalChanges = hasPendingLeafTabLocalBookmarkChanges();
+        const bookmarkTree = shouldBuildLeafTabPrimaryLocalSnapshot(hasPendingLocalChanges)
+          ? await captureBookmarkTreeDraft()
+          : null;
+        const primarySnapshot = bookmarkTree
+          ? await buildSnapshotForRemoteKind(route.primaryRemoteKind, bookmarkTree)
+          : null;
         const primaryResult = await handleLeafTabSync({
           remoteKind: route.primaryRemoteKind,
-          localSnapshotOverride: primarySnapshot,
+          localSnapshotOverride: primarySnapshot || undefined,
           allowConfigPrompt: isAuto ? false : undefined,
           requestBookmarkPermission: false,
           silentSuccess: true,
@@ -1550,7 +1570,7 @@ export function useLeafTabSyncRuntimeController(
           return false;
         }
 
-        const shouldMirror = shouldMirrorLeafTabPrimarySyncResult(route, primaryResult);
+        const secondaryPlan = createLeafTabDualSecondarySyncPlan(route, primaryResult);
         if (!isAuto) {
           updateSyncProgress('dual', {
             stage: 'reading-state',
@@ -1558,15 +1578,12 @@ export function useLeafTabSyncRuntimeController(
             message: resolveDualProgressMessage(route.secondaryRemoteKind),
           }, 52);
         }
-        const secondarySnapshot = shouldMirror
-          ? primaryResult.snapshot
-          : await buildSnapshotForRemoteKind(route.secondaryRemoteKind, bookmarkTree);
         let secondaryResult: LeafTabSyncEngineResult | null = null;
         try {
           secondaryResult = await handleLeafTabSync({
             remoteKind: route.secondaryRemoteKind,
-            localSnapshotOverride: secondarySnapshot,
-            mode: shouldMirror ? 'push-local' : 'auto',
+            localSnapshotOverride: secondaryPlan.snapshot,
+            mode: secondaryPlan.mode,
             allowConfigPrompt: isAuto ? false : undefined,
             requestBookmarkPermission: false,
             silentSuccess: true,

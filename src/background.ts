@@ -35,13 +35,13 @@ import {
 import type { LeafTabSyncSnapshot } from '@/sync/leaftab/schema';
 import {
   buildLeafTabSyncSnapshot,
-  countLeafTabLiveBookmarkEntities,
   createLeafTabSyncBuildState,
   normalizeLeafTabLiveBookmarkSnapshot,
 } from '@/sync/leaftab/snapshot';
 import {
+  createLeafTabDualSecondarySyncPlan,
   resolveLeafTabSyncRoute,
-  shouldMirrorLeafTabPrimarySyncResult,
+  shouldBuildLeafTabPrimaryLocalSnapshot,
   type LeafTabSyncRemoteKind,
 } from '@/sync/leaftab/syncRouteStateMachine';
 import { LeafTabSyncWebdavStore } from '@/sync/leaftab/webdavStore';
@@ -208,7 +208,7 @@ async function writeAnalysisCacheForRemote(
   remoteKind: LeafTabSyncRemoteKind,
   result: LeafTabSyncEngineResult,
 ): Promise<void> {
-  const summary = countLeafTabLiveBookmarkEntities(result.snapshot);
+  const summary = result.snapshotSummary;
   const analysis = {
     hasBaseline: true,
     localSummary: {
@@ -620,9 +620,12 @@ async function runBackgroundAutoSync(trigger?: BackgroundSyncTrigger): Promise<b
       await updateBackgroundDebugState({
         lastReason: `syncing-primary:${route.primaryRemoteKind}`,
       });
-      const primarySnapshot = await buildLocalSnapshot(primaryBaselineStorageKey, config.deviceId);
+      const hasPendingLocalChanges = (await readPendingLeafTabLocalBookmarkChangedAtFromExtensionStorage()) > 0;
+      const primarySnapshot = shouldBuildLeafTabPrimaryLocalSnapshot(hasPendingLocalChanges)
+        ? await buildLocalSnapshot(primaryBaselineStorageKey, config.deviceId)
+        : null;
       const primaryResult = await runSingleRemoteSync(config, route.primaryRemoteKind, {
-        localSnapshotOverride: primarySnapshot,
+        localSnapshotOverride: primarySnapshot || undefined,
       });
       if (primaryResult.kind === 'conflict') {
         await updateBackgroundDebugState({
@@ -635,13 +638,7 @@ async function runBackgroundAutoSync(trigger?: BackgroundSyncTrigger): Promise<b
       await writeAnalysisCacheForRemote(config, route.primaryRemoteKind, primaryResult);
       await markSyncSuccess(route.primaryRemoteKind);
 
-      const secondaryBaselineStorageKey = route.secondaryRemoteKind === 'aira-cloud'
-        ? config.cloudBaselineStorageKey
-        : config.webdavBaselineStorageKey;
-      const shouldMirror = shouldMirrorLeafTabPrimarySyncResult(route, primaryResult);
-      const secondarySnapshot = shouldMirror
-        ? primaryResult.snapshot
-        : await buildLocalSnapshot(secondaryBaselineStorageKey, config.deviceId);
+      const secondaryPlan = createLeafTabDualSecondarySyncPlan(route, primaryResult);
       await updateBackgroundDebugState({
         lastReason: `syncing-secondary:${route.secondaryRemoteKind}`,
       });
@@ -649,8 +646,8 @@ async function runBackgroundAutoSync(trigger?: BackgroundSyncTrigger): Promise<b
       let secondaryError: unknown = null;
       try {
         secondaryResult = await runSingleRemoteSync(config, route.secondaryRemoteKind, {
-          localSnapshotOverride: secondarySnapshot,
-          mode: shouldMirror ? 'push-local' : 'auto',
+          localSnapshotOverride: secondaryPlan.snapshot,
+          mode: secondaryPlan.mode,
         });
       } catch (error) {
         secondaryError = error;
