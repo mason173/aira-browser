@@ -27,26 +27,6 @@ export type LeafTabRemoteAutoSyncDiagnostic = {
   lastError: string;
 };
 
-export type LeafTabBackgroundDebugState = {
-  lastWakeAt: string;
-  lastBookmarkEventAt: string;
-  lastLocalAlarmScheduledAt: string;
-  lastLocalAlarmFiredAt: string;
-  lastRemoteProbeAt: string;
-  lastSyncStartedAt: string;
-  lastSyncFinishedAt: string;
-  lastRoute: string;
-  lastTriggerProvider: LeafTabSyncRemoteKind | '';
-  lastResult: 'idle' | 'running' | 'success' | 'conflict' | 'error' | 'skipped';
-  lastReason: string;
-  lastError: string;
-  pendingLocalChangedAt: string;
-  cloudBaselineCommitId: string;
-  webdavBaselineCommitId: string;
-  cloudRemoteCommitId: string;
-  webdavRemoteCommitId: string;
-};
-
 export type LeafTabRemoteAutoSyncProbeResult = {
   hasChanges: boolean;
   provider?: LeafTabSyncRemoteKind;
@@ -113,7 +93,6 @@ export type LeafTabSyncConfigState = {
   leafTabCloudUserId: string;
   leafTabPrimaryRemoteKind: LeafTabSyncRemoteKind | null;
   leafTabRemoteAutoSyncDiagnostic: LeafTabRemoteAutoSyncDiagnostic | null;
-  leafTabBackgroundDebugState: LeafTabBackgroundDebugState | null;
 };
 
 export type LeafTabSyncState =

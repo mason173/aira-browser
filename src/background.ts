@@ -59,8 +59,10 @@ const WEBDAV_PROXY_MESSAGE_TYPE = 'LEAFTAB_WEBDAV_PROXY';
 const LOCAL_SYNC_ALARM_NAME = 'aira.leaftab.auto-sync.local-change';
 const REMOTE_PROBE_ALARM_NAME = 'aira.leaftab.auto-sync.remote-probe';
 const AUTO_SYNC_BOOKMARK_CHANGE_DELAY_MINUTES = 0.5;
-const AUTO_SYNC_REMOTE_PROBE_STARTUP_DELAY_MINUTES = 1;
-const AUTO_SYNC_REMOTE_PROBE_INTERVAL_MINUTES = 1;
+const AUTO_SYNC_REMOTE_PROBE_ACTIVE_STARTUP_DELAY_MINUTES = 0.5;
+const AUTO_SYNC_REMOTE_PROBE_ACTIVE_INTERVAL_MINUTES = 0.5;
+const AUTO_SYNC_REMOTE_PROBE_BACKGROUND_INTERVAL_MINUTES = 3;
+const AUTO_SYNC_REMOTE_PROBE_IDLE_DETECTION_SECONDS = 90;
 const AUTO_SYNC_APPLY_SUPPRESS_MS = 20_000;
 const LEAFTAB_SYNC_DEFAULT_ROOT_PATH = 'aira/v1/bookmarks';
 const LEAFTAB_SYNC_ANALYSIS_CACHE_PREFIX = 'leaftab_sync_v1_analysis';
@@ -68,26 +70,6 @@ const BACKGROUND_KEEPALIVE_INTERVAL_MS = 20_000;
 
 let activeAutoSyncPromise: Promise<boolean> | null = null;
 let bookmarkApplySuppressedUntil = 0;
-
-type BackgroundDebugState = {
-  lastWakeAt?: string;
-  lastBookmarkEventAt?: string;
-  lastLocalAlarmScheduledAt?: string;
-  lastLocalAlarmFiredAt?: string;
-  lastRemoteProbeAt?: string;
-  lastSyncStartedAt?: string;
-  lastSyncFinishedAt?: string;
-  lastRoute?: string;
-  lastTriggerProvider?: LeafTabSyncRemoteKind | '';
-  lastResult?: 'idle' | 'running' | 'success' | 'conflict' | 'error' | 'skipped';
-  lastReason?: string;
-  lastError?: string;
-  pendingLocalChangedAt?: string;
-  cloudBaselineCommitId?: string;
-  webdavBaselineCommitId?: string;
-  cloudRemoteCommitId?: string;
-  webdavRemoteCommitId?: string;
-};
 
 type BackgroundSyncConfig = {
   deviceId: string;
@@ -124,6 +106,10 @@ function getStorageApi() {
   return globalThis.chrome?.storage;
 }
 
+function getIdleApi() {
+  return globalThis.chrome?.idle;
+}
+
 function getNowIso() {
   return new Date().toISOString();
 }
@@ -153,28 +139,8 @@ function startBackgroundKeepAlive(): { stop: () => void } {
   };
 }
 
-function parseBackgroundDebugState(raw: unknown): BackgroundDebugState {
-  if (typeof raw !== 'string' || !raw.trim()) {
-    return {};
-  }
-  try {
-    const parsed = JSON.parse(raw) as BackgroundDebugState | null;
-    return parsed && typeof parsed === 'object' ? parsed : {};
-  } catch {
-    return {};
-  }
-}
-
-async function updateBackgroundDebugState(patch: Partial<BackgroundDebugState>): Promise<void> {
-  const key = LEAFTAB_BACKGROUND_STORAGE_KEYS.debugState;
-  const record = await readExtensionStorageRecord([key]);
-  const current = parseBackgroundDebugState(record[key]);
-  await writeExtensionStorageRecord({
-    [key]: JSON.stringify({
-      ...current,
-      ...patch,
-    }),
-  });
+async function updateBackgroundDebugState(_patch: Record<string, unknown>): Promise<void> {
+  // Background debug storage is intentionally disabled; keep call sites easy to restore if needed.
 }
 
 function createBaselineStorageKeyForRemote(remoteKind: LeafTabSyncRemoteKind, rootPath: string, uid?: string) {
@@ -761,18 +727,40 @@ async function scheduleLocalChangeAlarm(): Promise<void> {
   });
 }
 
-async function scheduleRemoteProbeAlarm(delayMinutes = AUTO_SYNC_REMOTE_PROBE_STARTUP_DELAY_MINUTES): Promise<void> {
+async function resolveRemoteProbeDelayMinutes(isStartup: boolean = false): Promise<number> {
+  const idle = getIdleApi();
+  if (!idle?.queryState) {
+    return isStartup
+      ? AUTO_SYNC_REMOTE_PROBE_ACTIVE_STARTUP_DELAY_MINUTES
+      : AUTO_SYNC_REMOTE_PROBE_ACTIVE_INTERVAL_MINUTES;
+  }
+  try {
+    const state = await idle.queryState(AUTO_SYNC_REMOTE_PROBE_IDLE_DETECTION_SECONDS);
+    if (state === 'idle' || state === 'locked') {
+      return AUTO_SYNC_REMOTE_PROBE_BACKGROUND_INTERVAL_MINUTES;
+    }
+    return isStartup
+      ? AUTO_SYNC_REMOTE_PROBE_ACTIVE_STARTUP_DELAY_MINUTES
+      : AUTO_SYNC_REMOTE_PROBE_ACTIVE_INTERVAL_MINUTES;
+  } catch {
+    return isStartup
+      ? AUTO_SYNC_REMOTE_PROBE_ACTIVE_STARTUP_DELAY_MINUTES
+      : AUTO_SYNC_REMOTE_PROBE_ACTIVE_INTERVAL_MINUTES;
+  }
+}
+
+async function scheduleRemoteProbeAlarm(delayMinutes?: number): Promise<void> {
   const alarms = getAlarmsApi();
   if (!alarms?.create) {
     return;
   }
-  const scheduledAt = new Date(Date.now() + delayMinutes * 60_000).toISOString();
+  const resolvedDelayMinutes = delayMinutes ?? await resolveRemoteProbeDelayMinutes();
+  const scheduledAt = new Date(Date.now() + resolvedDelayMinutes * 60_000).toISOString();
   await writeExtensionStorageRecord({
     [LEAFTAB_BACKGROUND_STORAGE_KEYS.nextRemoteProbeAt]: scheduledAt,
   });
   alarms.create(REMOTE_PROBE_ALARM_NAME, {
-    delayInMinutes: delayMinutes,
-    periodInMinutes: AUTO_SYNC_REMOTE_PROBE_INTERVAL_MINUTES,
+    delayInMinutes: resolvedDelayMinutes,
   });
 }
 
@@ -788,7 +776,7 @@ async function clearBackgroundAlarms(): Promise<void> {
   ]);
 }
 
-async function reconcileBackgroundSchedules(): Promise<void> {
+async function reconcileBackgroundSchedules(isStartup: boolean = false): Promise<void> {
   const config = await readBackgroundSyncConfig();
   const hasAnySync = (config.cloudEnabled && Boolean(config.cloudUid))
     || (config.webdavEnabled && Boolean(config.webdavConfig?.url));
@@ -796,45 +784,49 @@ async function reconcileBackgroundSchedules(): Promise<void> {
     await clearBackgroundAlarms();
     return;
   }
-  await scheduleRemoteProbeAlarm();
+  await scheduleRemoteProbeAlarm(await resolveRemoteProbeDelayMinutes(isStartup));
 }
 
 async function handleRemoteProbeAlarm(): Promise<void> {
-  const config = await readBackgroundSyncConfig();
-  const route = resolveLeafTabSyncRoute({
-    cloudEnabled: config.cloudEnabled,
-    cloudAvailable: Boolean(config.cloudUid),
-    webdavEnabled: config.webdavEnabled,
-    webdavAvailable: Boolean(config.webdavConfig?.url),
-    preferredPrimaryRemoteKind: config.primaryRemoteKind ?? undefined,
-  });
-  if (route.kind === 'none') {
-    return;
-  }
-  await writeExtensionStorageRecord({
-    [LEAFTAB_BACKGROUND_STORAGE_KEYS.lastRemoteProbeAt]: getNowIso(),
-  });
-  await updateBackgroundDebugState({
-    lastRemoteProbeAt: getNowIso(),
-  });
-  const probeKinds: LeafTabSyncRemoteKind[] = route.kind === 'dual'
-    ? [route.primaryRemoteKind]
-    : [route.remoteKind];
-  for (const remoteKind of probeKinds) {
-    const probe = await probeRemoteChangesForKind(config, remoteKind).catch(() => null);
-    if (probe) {
-      await updateBackgroundDebugState({
-        cloudBaselineCommitId: remoteKind === 'aira-cloud' ? (probe.baselineCommitId || '') : undefined,
-        cloudRemoteCommitId: remoteKind === 'aira-cloud' ? (probe.remoteCommitId || '') : undefined,
-        webdavBaselineCommitId: remoteKind === 'webdav' ? (probe.baselineCommitId || '') : undefined,
-        webdavRemoteCommitId: remoteKind === 'webdav' ? (probe.remoteCommitId || '') : undefined,
-        lastTriggerProvider: probe.provider,
-      });
-    }
-    if (probe?.hasChanges) {
-      await runBackgroundAutoSync({ provider: remoteKind });
+  try {
+    const config = await readBackgroundSyncConfig();
+    const route = resolveLeafTabSyncRoute({
+      cloudEnabled: config.cloudEnabled,
+      cloudAvailable: Boolean(config.cloudUid),
+      webdavEnabled: config.webdavEnabled,
+      webdavAvailable: Boolean(config.webdavConfig?.url),
+      preferredPrimaryRemoteKind: config.primaryRemoteKind ?? undefined,
+    });
+    if (route.kind === 'none') {
       return;
     }
+    await writeExtensionStorageRecord({
+      [LEAFTAB_BACKGROUND_STORAGE_KEYS.lastRemoteProbeAt]: getNowIso(),
+    });
+    await updateBackgroundDebugState({
+      lastRemoteProbeAt: getNowIso(),
+    });
+    const probeKinds: LeafTabSyncRemoteKind[] = route.kind === 'dual'
+      ? [route.primaryRemoteKind]
+      : [route.remoteKind];
+    for (const remoteKind of probeKinds) {
+      const probe = await probeRemoteChangesForKind(config, remoteKind).catch(() => null);
+      if (probe) {
+        await updateBackgroundDebugState({
+          cloudBaselineCommitId: remoteKind === 'aira-cloud' ? (probe.baselineCommitId || '') : undefined,
+          cloudRemoteCommitId: remoteKind === 'aira-cloud' ? (probe.remoteCommitId || '') : undefined,
+          webdavBaselineCommitId: remoteKind === 'webdav' ? (probe.baselineCommitId || '') : undefined,
+          webdavRemoteCommitId: remoteKind === 'webdav' ? (probe.remoteCommitId || '') : undefined,
+          lastTriggerProvider: probe.provider,
+        });
+      }
+      if (probe?.hasChanges) {
+        await runBackgroundAutoSync({ provider: remoteKind });
+        return;
+      }
+    }
+  } finally {
+    await reconcileBackgroundSchedules();
   }
 }
 
@@ -899,12 +891,15 @@ function bindLifecycleListeners(): void {
     void updateBackgroundDebugState({
       lastWakeAt: getNowIso(),
     });
-    void reconcileBackgroundSchedules();
+    void reconcileBackgroundSchedules(true);
   });
   runtime?.onInstalled?.addListener?.(() => {
     void updateBackgroundDebugState({
       lastWakeAt: getNowIso(),
     });
+    void reconcileBackgroundSchedules(true);
+  });
+  getIdleApi()?.onStateChanged?.addListener?.((_state) => {
     void reconcileBackgroundSchedules();
   });
   getStorageApi()?.onChanged?.addListener?.((changes, areaName) => {

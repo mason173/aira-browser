@@ -192,25 +192,6 @@ const formatLastSync = (raw: string | null, fallback: string) => {
   }).format(new Date(timestamp));
 };
 
-const formatDebugTime = (raw: string | null | undefined) => {
-  if (!raw) return '未记录';
-  const timestamp = Date.parse(raw);
-  if (!Number.isFinite(timestamp)) return raw;
-  return new Intl.DateTimeFormat(undefined, {
-    year: 'numeric',
-    month: 'numeric',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-    second: '2-digit',
-  }).format(new Date(timestamp));
-};
-
-const formatBackgroundResult = (result: string, reason: string) => {
-  const resultLabel = result || 'idle';
-  return reason ? `${resultLabel} (${reason})` : resultLabel;
-};
-
 async function confirmPrimarySwitchStrategy(
   targetLabel: string,
 ): Promise<LeafTabPrimarySyncSwitchStrategy | null> {
@@ -1268,7 +1249,6 @@ function AdvancedSyncPage({
     ? syncRuntime.state.leafTabSyncAnalysis
     : null;
   const remoteDataLabel = formatBookmarkDataLabel(webdavAnalysis?.remoteSummary, fallbackProfile.remoteDataLabel);
-  const backgroundDebug = syncRuntime.state.leafTabBackgroundDebugState;
 
   const runOverwrite = async (mode: Extract<LeafTabSyncInitialChoice, 'pull-remote' | 'push-local'>) => {
     const confirmed = window.confirm(mode === 'pull-remote'
@@ -1316,69 +1296,6 @@ function AdvancedSyncPage({
             />
           </div>
         </AdvancedSection>
-
-        {backgroundDebug ? (
-          <AdvancedSection title="后台调试">
-            <div className="overflow-hidden rounded-[8px] border border-border bg-card">
-              <InfoRow
-                label="后台状态"
-                value={formatBackgroundResult(backgroundDebug.lastResult, backgroundDebug.lastReason)}
-              />
-              <InfoRow
-                label="后台唤醒"
-                value={formatDebugTime(backgroundDebug.lastWakeAt)}
-              />
-              <InfoRow
-                label="书签变更"
-                value={formatDebugTime(backgroundDebug.lastBookmarkEventAt)}
-              />
-              <InfoRow
-                label="待推送变更"
-                value={formatDebugTime(backgroundDebug.pendingLocalChangedAt)}
-              />
-              <InfoRow
-                label="本地闹钟计划"
-                value={formatDebugTime(backgroundDebug.lastLocalAlarmScheduledAt)}
-              />
-              <InfoRow
-                label="本地闹钟触发"
-                value={formatDebugTime(backgroundDebug.lastLocalAlarmFiredAt)}
-              />
-              <InfoRow
-                label="远端探测"
-                value={formatDebugTime(backgroundDebug.lastRemoteProbeAt)}
-              />
-              <InfoRow
-                label="最近启动同步"
-                value={formatDebugTime(backgroundDebug.lastSyncStartedAt)}
-              />
-              <InfoRow
-                label="最近完成同步"
-                value={formatDebugTime(backgroundDebug.lastSyncFinishedAt)}
-              />
-              <InfoRow
-                label="最近路由"
-                value={backgroundDebug.lastRoute || '未记录'}
-              />
-              <InfoRow
-                label="触发来源"
-                value={backgroundDebug.lastTriggerProvider || '未记录'}
-              />
-              <InfoRow
-                label="Cloud 提交"
-                value={`${backgroundDebug.cloudBaselineCommitId || '-'} -> ${backgroundDebug.cloudRemoteCommitId || '-'}`}
-              />
-              <InfoRow
-                label="WebDAV 提交"
-                value={`${backgroundDebug.webdavBaselineCommitId || '-'} -> ${backgroundDebug.webdavRemoteCommitId || '-'}`}
-              />
-              <InfoRow
-                label="最近错误"
-                value={backgroundDebug.lastError || '无'}
-              />
-            </div>
-          </AdvancedSection>
-        ) : null}
 
         {!webdavConfigured ? (
           <AdvancedSection title={t('popup.advanced.bookmarkCloudSync', { defaultValue: 'WebDAV 同步' })}>

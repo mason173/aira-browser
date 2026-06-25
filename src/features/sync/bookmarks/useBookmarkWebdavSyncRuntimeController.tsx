@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from '@/components/ui/sonner';
 import type {
-  LeafTabBackgroundDebugState,
   LeafTabInitialSyncChoiceRequest,
   LeafTabPrimarySyncSwitchStrategy,
   LeafTabRemoteAutoSyncDiagnostic,
@@ -293,7 +292,6 @@ const SHARED_EXTENSION_STORAGE_KEYS: string[] = [
   LEAFTAB_BACKGROUND_STORAGE_KEYS.nextRemoteProbeAt,
   LEAFTAB_BACKGROUND_STORAGE_KEYS.autoSyncRunning,
   LEAFTAB_BACKGROUND_STORAGE_KEYS.autoSyncLastError,
-  LEAFTAB_BACKGROUND_STORAGE_KEYS.debugState,
   AIRA_CLOUD_SYNC_ENABLED_KEY,
   AIRA_CLOUD_LAST_SYNC_AT_KEY,
   AIRA_CLOUD_LAST_ERROR_AT_KEY,
@@ -427,47 +425,6 @@ const createLeafTabRemoteAutoSyncDiagnostic = (
   lastError: probe.error || '',
   ...overrides,
 });
-
-const readLeafTabBackgroundDebugState = (): LeafTabBackgroundDebugState | null => {
-  try {
-    const raw = localStorage.getItem(LEAFTAB_BACKGROUND_STORAGE_KEYS.debugState);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as Partial<LeafTabBackgroundDebugState> | null;
-    if (!parsed || typeof parsed !== 'object') return null;
-    return {
-      lastWakeAt: typeof parsed.lastWakeAt === 'string' ? parsed.lastWakeAt : '',
-      lastBookmarkEventAt: typeof parsed.lastBookmarkEventAt === 'string' ? parsed.lastBookmarkEventAt : '',
-      lastLocalAlarmScheduledAt: typeof parsed.lastLocalAlarmScheduledAt === 'string' ? parsed.lastLocalAlarmScheduledAt : '',
-      lastLocalAlarmFiredAt: typeof parsed.lastLocalAlarmFiredAt === 'string' ? parsed.lastLocalAlarmFiredAt : '',
-      lastRemoteProbeAt: typeof parsed.lastRemoteProbeAt === 'string' ? parsed.lastRemoteProbeAt : '',
-      lastSyncStartedAt: typeof parsed.lastSyncStartedAt === 'string' ? parsed.lastSyncStartedAt : '',
-      lastSyncFinishedAt: typeof parsed.lastSyncFinishedAt === 'string' ? parsed.lastSyncFinishedAt : '',
-      lastRoute: typeof parsed.lastRoute === 'string' ? parsed.lastRoute : '',
-      lastTriggerProvider:
-        parsed.lastTriggerProvider === 'aira-cloud' || parsed.lastTriggerProvider === 'webdav'
-          ? parsed.lastTriggerProvider
-          : '',
-      lastResult:
-        parsed.lastResult === 'running'
-        || parsed.lastResult === 'success'
-        || parsed.lastResult === 'conflict'
-        || parsed.lastResult === 'error'
-        || parsed.lastResult === 'skipped'
-        || parsed.lastResult === 'idle'
-          ? parsed.lastResult
-          : 'idle',
-      lastReason: typeof parsed.lastReason === 'string' ? parsed.lastReason : '',
-      lastError: typeof parsed.lastError === 'string' ? parsed.lastError : '',
-      pendingLocalChangedAt: typeof parsed.pendingLocalChangedAt === 'string' ? parsed.pendingLocalChangedAt : '',
-      cloudBaselineCommitId: typeof parsed.cloudBaselineCommitId === 'string' ? parsed.cloudBaselineCommitId : '',
-      webdavBaselineCommitId: typeof parsed.webdavBaselineCommitId === 'string' ? parsed.webdavBaselineCommitId : '',
-      cloudRemoteCommitId: typeof parsed.cloudRemoteCommitId === 'string' ? parsed.cloudRemoteCommitId : '',
-      webdavRemoteCommitId: typeof parsed.webdavRemoteCommitId === 'string' ? parsed.webdavRemoteCommitId : '',
-    };
-  } catch {
-    return null;
-  }
-};
 
 type RunWebdavBookmarkSyncOnceParams = {
   webdavConfig: NonNullable<ReturnType<typeof readWebdavConfigFromStorage>> & {
@@ -1766,7 +1723,6 @@ export function useLeafTabSyncRuntimeController(
     leafTabCloudUserId: cloudUid,
     leafTabPrimaryRemoteKind: preferredPrimaryRemoteKind,
     leafTabRemoteAutoSyncDiagnostic,
-    leafTabBackgroundDebugState: readLeafTabBackgroundDebugState(),
   }), [
     leafTabSyncLastResult,
     leafTabInitialSyncChoiceRequest,
