@@ -20,6 +20,9 @@ export const WEBDAV_STORAGE_KEYS = {
   syncIntervalMinutes: "webdav_sync_interval_minutes",
   syncConflictPolicy: "webdav_sync_conflict_policy",
   nextSyncAt: "webdav_next_sync_at",
+  backupFailureCooldownKey: "webdav_backup_failure_cooldown_key",
+  backupFailureCooldownUntil: "webdav_backup_failure_cooldown_until",
+  backupFailureMessage: "webdav_backup_failure_message",
 } as const;
 
 export const WEBDAV_BOOKMARK_SYNC_ROOT_SUFFIX = "aira/v1/bookmarks";

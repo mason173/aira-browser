@@ -13,5 +13,6 @@ export const LEAFTAB_BACKGROUND_STORAGE_KEYS = {
   nextRemoteProbeAt: 'leaftab_background_next_remote_probe_at',
   autoSyncRunning: 'leaftab_background_auto_sync_running',
   autoSyncLastError: 'leaftab_background_auto_sync_last_error',
+  autoSyncRetryProvider: 'leaftab_background_auto_sync_retry_provider',
   debugState: 'leaftab_background_debug_state',
 } as const;

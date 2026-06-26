@@ -1,9 +1,12 @@
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
+const crypto = require('crypto');
 
 const RELEASE_EDITION = 'final';
 const RELEASE_MARKER_FILE = '.release-edition';
+const COMMUNITY_EXTENSION_ID = 'plnjjlkaaonbccmjpfljbbbbaahfklem';
+const FIREFOX_EXTENSION_ID = 'airatab@cc';
 
 function detectReleaseEditionByManifest(manifest) {
   void manifest;
@@ -39,9 +42,28 @@ function readReleaseMarkerFromZip(zipPath) {
   }
 }
 
+function computeExtensionIdFromManifestKey(manifestKey) {
+  const compactKey = String(manifestKey || '').replace(/\s+/g, '');
+  if (!compactKey) return '';
+  const pem = [
+    '-----BEGIN PUBLIC KEY-----',
+    compactKey.match(/.{1,64}/g).join('\n'),
+    '-----END PUBLIC KEY-----',
+    '',
+  ].join('\n');
+  const der = crypto.createPublicKey(pem).export({ type: 'spki', format: 'der' });
+  const hash = crypto.createHash('sha256').update(der).digest();
+  return Array.from(hash.subarray(0, 16), (byte) => (
+    String.fromCharCode(97 + (byte >> 4)) + String.fromCharCode(97 + (byte & 15))
+  )).join('');
+}
+
 module.exports = {
+  COMMUNITY_EXTENSION_ID,
+  FIREFOX_EXTENSION_ID,
   RELEASE_EDITION,
   RELEASE_MARKER_FILE,
+  computeExtensionIdFromManifestKey,
   detectReleaseEditionByManifest,
   readReleaseMarkerFromDir,
   readReleaseMarkerFromZip,

@@ -834,20 +834,13 @@ function ConfiguredHome({
   const dualEnabled = cloudEnabled && webdavEnabled;
   const primaryRemoteKind = syncRuntime.state.leafTabPrimaryRemoteKind
     ?? (cloudEnabled ? 'aira-cloud' : (webdavEnabled ? 'webdav' : null));
-  const latestAnalysis = syncRuntime.state.leafTabSyncAnalysis;
-  const latestAnalysisRemoteKind = syncRuntime.state.leafTabSyncAnalysisRemoteKind;
   const webdavAnalysis = syncRuntime.state.leafTabWebdavSyncAnalysis;
   const cloudAnalysis = syncRuntime.state.leafTabCloudSyncAnalysis;
-  const displayedCloudSummary = latestAnalysisRemoteKind === 'aira-cloud'
-    ? latestAnalysis?.remoteSummary
-    : cloudAnalysis?.remoteSummary;
-  const displayedWebdavSummary = latestAnalysisRemoteKind === 'webdav'
-    ? latestAnalysis?.remoteSummary
-    : webdavAnalysis?.remoteSummary;
-  const displayedLocalSummary = latestAnalysis?.localSummary
-    || (primaryRemoteKind === 'webdav'
-      ? (webdavAnalysis?.localSummary || cloudAnalysis?.localSummary)
-      : (cloudAnalysis?.localSummary || webdavAnalysis?.localSummary));
+  const displayedCloudSummary = syncRuntime.state.leafTabCloudRemoteSummary || cloudAnalysis?.remoteSummary;
+  const displayedWebdavSummary = syncRuntime.state.leafTabWebdavRemoteSummary || webdavAnalysis?.remoteSummary;
+  const displayedLocalSummary = syncRuntime.state.leafTabLocalBookmarkSummary
+    || cloudAnalysis?.localSummary
+    || webdavAnalysis?.localSummary;
   const localDataLabel = formatBookmarkDataLabel(
     displayedLocalSummary,
     profile.localDataLabel,
@@ -1046,8 +1039,14 @@ function LoggedOutHome({
   const { t } = useTranslation();
   const syncing = syncRuntime.state.topNavSyncStatus === 'syncing';
   const webdavAnalysis = syncRuntime.state.leafTabWebdavSyncAnalysis;
-  const localDataLabel = formatBookmarkDataLabel(webdavAnalysis?.localSummary, webdavState.localDataLabel);
-  const remoteDataLabel = formatBookmarkDataLabel(webdavAnalysis?.remoteSummary, webdavState.remoteDataLabel);
+  const localDataLabel = formatBookmarkDataLabel(
+    syncRuntime.state.leafTabLocalBookmarkSummary || webdavAnalysis?.localSummary,
+    webdavState.localDataLabel,
+  );
+  const remoteDataLabel = formatBookmarkDataLabel(
+    syncRuntime.state.leafTabWebdavRemoteSummary || webdavAnalysis?.remoteSummary,
+    webdavState.remoteDataLabel,
+  );
 
   return (
     <section className="min-h-[360px] bg-background">
@@ -1259,10 +1258,11 @@ function AdvancedSyncPage({
     syncStartLabel: t('popup.advanced.syncStartValue', { defaultValue: 'WebDAV 已建立' }),
     webdavEnabled: true,
   };
-  const webdavAnalysis = syncRuntime.state.leafTabSyncAnalysisRemoteKind === 'webdav'
-    ? syncRuntime.state.leafTabSyncAnalysis
-    : null;
-  const remoteDataLabel = formatBookmarkDataLabel(webdavAnalysis?.remoteSummary, fallbackProfile.remoteDataLabel);
+  const webdavAnalysis = syncRuntime.state.leafTabWebdavSyncAnalysis;
+  const remoteDataLabel = formatBookmarkDataLabel(
+    syncRuntime.state.leafTabWebdavRemoteSummary || webdavAnalysis?.remoteSummary,
+    fallbackProfile.remoteDataLabel,
+  );
 
   const runOverwrite = async (mode: Extract<LeafTabSyncInitialChoice, 'pull-remote' | 'push-local'>) => {
     const confirmed = window.confirm(mode === 'pull-remote'

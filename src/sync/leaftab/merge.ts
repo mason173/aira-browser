@@ -158,8 +158,10 @@ const mergeOrderIds = (
   availableIds: Set<string>,
 ) => {
   const result: string[] = [];
+  const seen = new Set<string>();
   const add = (id: string) => {
-    if (!availableIds.has(id) || result.includes(id)) return;
+    if (!availableIds.has(id) || seen.has(id)) return;
+    seen.add(id);
     result.push(id);
   };
 
@@ -331,8 +333,11 @@ export const mergeLeafTabSyncSnapshot = (
       ids = mergeOrderIds(baseIds, localIds, remoteIds, availableIds);
     }
 
+    const mergedIds = new Set(ids);
     Array.from(availableIds).sort().forEach((id) => {
-      if (!ids.includes(id)) ids.push(id);
+      if (mergedIds.has(id)) return;
+      mergedIds.add(id);
+      ids.push(id);
     });
 
     const metadata = resolveOrderMetadata(

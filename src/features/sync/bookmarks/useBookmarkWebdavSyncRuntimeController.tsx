@@ -26,6 +26,7 @@ import { readLeafTabBookmarkSyncScope } from '@/sync/leaftab/bookmarkScope';
 import type { LeafTabBookmarkTreeDraft } from '@/sync/leaftab/bookmarks';
 import type {
   LeafTabSyncAnalysis,
+  LeafTabSyncDataSummary,
   LeafTabSyncEngineProgress,
   LeafTabSyncEngineResult,
   LeafTabSyncInitialChoice,
@@ -44,6 +45,7 @@ import { ensureExtensionPermission } from '@/utils/extensionPermissions';
 import {
   clearPendingLeafTabLocalBookmarkChanges,
   hasPendingLeafTabLocalBookmarkChanges,
+  LEAFTAB_LOCAL_BOOKMARK_CHANGED_AT_KEY,
   markLeafTabBookmarkSyncApplyFinished,
   markLeafTabBookmarkSyncApplyStarted,
 } from '@/sync/leaftab/localChangeTracker';
@@ -53,6 +55,14 @@ import {
   shouldBuildLeafTabPrimaryLocalSnapshot,
   type LeafTabSyncRoute,
 } from '@/sync/leaftab/syncRouteStateMachine';
+import {
+  clearWebdavBackupFailureCooldown,
+  readWebdavBackupCooldownResult,
+  recordWebdavBackupFailureCooldown,
+  WEBDAV_BACKUP_REQUEST_TIMEOUT_MS,
+  WEBDAV_BACKUP_TOTAL_TIMEOUT_MS,
+  withWebdavBackupTimeout,
+} from '@/sync/leaftab/webdavBackupPolicy';
 import {
   hasWebdavUrlConfiguredFromStorage,
   isWebdavSyncEnabledFromStorage,
@@ -68,6 +78,8 @@ import {
 
 const LEAFTAB_SYNC_DEFAULT_ROOT_PATH = WEBDAV_BOOKMARK_SYNC_ROOT_SUFFIX;
 const LEAFTAB_SYNC_ANALYSIS_CACHE_PREFIX = 'leaftab_sync_v1_analysis';
+const LEAFTAB_SYNC_SUMMARY_CACHE_PREFIX = 'leaftab_sync_v1_summary';
+const LEAFTAB_AUTO_SYNC_MESSAGE_TYPE = 'LEAFTAB_AUTO_SYNC_NOW';
 
 const formatLiteSyncTimestamp = (value: string | null | undefined) => {
   if (!value) return '';
@@ -132,9 +144,29 @@ const createLeafTabSyncAnalysisCacheKey = (
   return `${LEAFTAB_SYNC_ANALYSIS_CACHE_PREFIX}:${remoteKind}:${rootSegment}:${createStorageHash(identity || 'default')}`;
 };
 
-const isLeafTabSyncDataSummary = (value: unknown): value is LeafTabSyncAnalysis['localSummary'] => {
+const createLeafTabSyncSummaryCacheKey = (
+  kind: LeafTabSyncRemoteKind | 'local',
+  rootPath: string,
+  identity: string,
+) => {
+  const rootSegment = (rootPath || LEAFTAB_SYNC_DEFAULT_ROOT_PATH).replace(/[^a-zA-Z0-9_-]+/g, '_');
+  return `${LEAFTAB_SYNC_SUMMARY_CACHE_PREFIX}:${kind}:${rootSegment}:${createStorageHash(identity || 'default')}`;
+};
+
+const createWebdavCacheIdentity = (
+  config: (NonNullable<ReturnType<typeof readWebdavConfigFromStorage>> & { rootPath: string }) | null,
+) => {
+  if (!config?.url) return '';
+  return [
+    config.url,
+    config.username,
+    config.rootPath,
+  ].join('|');
+};
+
+const isLeafTabSyncDataSummary = (value: unknown): value is LeafTabSyncDataSummary => {
   if (!value || typeof value !== 'object') return false;
-  const summary = value as Partial<LeafTabSyncAnalysis['localSummary']>;
+  const summary = value as Partial<LeafTabSyncDataSummary>;
   return Number.isFinite(summary.bookmarkFolders)
     && Number.isFinite(summary.bookmarkItems)
     && Number.isFinite(summary.tombstones);
@@ -208,6 +240,48 @@ const writeLeafTabSyncAnalysisCache = (cacheKey: string, analysis: LeafTabSyncAn
   return updatedAt;
 };
 
+const readLeafTabSyncSummaryCache = (cacheKey: string): LeafTabSyncDataSummary | null => {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(cacheKey) || 'null') as {
+      summary?: unknown;
+    } | null;
+    return isLeafTabSyncDataSummary(parsed?.summary) ? parsed.summary : null;
+  } catch {
+    return null;
+  }
+};
+
+const writeLeafTabSyncSummaryCache = (
+  cacheKey: string,
+  summary: LeafTabSyncDataSummary,
+): string => {
+  const updatedAt = new Date().toISOString();
+  try {
+    localStorage.setItem(cacheKey, JSON.stringify({
+      version: 1,
+      updatedAt,
+      summary,
+    }));
+  } catch {}
+  void writeExtensionStorageRecord({
+    [cacheKey]: JSON.stringify({
+      version: 1,
+      updatedAt,
+      summary,
+    }),
+  });
+  return updatedAt;
+};
+
+const requestBackgroundLeafTabAutoSync = (provider: LeafTabSyncRemoteKind) => {
+  try {
+    chrome.runtime?.sendMessage?.({
+      type: LEAFTAB_AUTO_SYNC_MESSAGE_TYPE,
+      provider,
+    }, () => undefined);
+  } catch {}
+};
+
 const createLeafTabSyncAnalysisWithLocalSummary = (
   analysis: LeafTabSyncAnalysis,
   localSummary: LeafTabSyncAnalysis['localSummary'],
@@ -263,7 +337,7 @@ const formatLeafTabSyncErrorMessage = (error: unknown, remoteKind: LeafTabSyncRe
   return String((error as Error)?.message || `${providerName}失败`);
 };
 
-const runtimeSummaryFromSnapshot = (snapshot: LeafTabSyncSnapshot): LeafTabSyncAnalysis['localSummary'] => ({
+const runtimeSummaryFromSnapshot = (snapshot: LeafTabSyncSnapshot): LeafTabSyncDataSummary => ({
   bookmarkFolders: Object.keys(snapshot.bookmarkFolders || {}).length,
   bookmarkItems: Object.keys(snapshot.bookmarkItems || {}).length,
   tombstones: Object.keys(snapshot.tombstones || {}).length,
@@ -286,12 +360,14 @@ const createAnalysisFromSyncedSnapshot = (
 const SHARED_EXTENSION_STORAGE_KEYS: string[] = [
   LEAFTAB_SYNC_DEVICE_ID_KEY,
   LEAFTAB_SYNC_LOCAL_SUMMARY_AT_KEY,
+  LEAFTAB_LOCAL_BOOKMARK_CHANGED_AT_KEY,
   LEAFTAB_PRIMARY_SYNC_REMOTE_KIND_KEY,
   LEAFTAB_BACKGROUND_STORAGE_KEYS.pendingLocalChangedAt,
   LEAFTAB_BACKGROUND_STORAGE_KEYS.lastRemoteProbeAt,
   LEAFTAB_BACKGROUND_STORAGE_KEYS.nextRemoteProbeAt,
   LEAFTAB_BACKGROUND_STORAGE_KEYS.autoSyncRunning,
   LEAFTAB_BACKGROUND_STORAGE_KEYS.autoSyncLastError,
+  LEAFTAB_BACKGROUND_STORAGE_KEYS.autoSyncRetryProvider,
   AIRA_CLOUD_SYNC_ENABLED_KEY,
   AIRA_CLOUD_LAST_SYNC_AT_KEY,
   AIRA_CLOUD_LAST_ERROR_AT_KEY,
@@ -303,7 +379,9 @@ const SHARED_EXTENSION_STORAGE_KEYS: string[] = [
 ];
 
 const isSharedSyncStorageKey = (key: string) => (
-  SHARED_EXTENSION_STORAGE_KEYS.includes(key) || key.startsWith(LEAFTAB_SYNC_ANALYSIS_CACHE_PREFIX)
+  SHARED_EXTENSION_STORAGE_KEYS.includes(key)
+  || key.startsWith(LEAFTAB_SYNC_ANALYSIS_CACHE_PREFIX)
+  || key.startsWith(LEAFTAB_SYNC_SUMMARY_CACHE_PREFIX)
 );
 
 const syncSharedExtensionStorageToLocalStorage = async () => {
@@ -318,7 +396,7 @@ const syncSharedExtensionStorageToLocalStorage = async () => {
   });
   for (let index = localStorage.length - 1; index >= 0; index -= 1) {
     const key = localStorage.key(index);
-    if (!key || !key.startsWith(LEAFTAB_SYNC_ANALYSIS_CACHE_PREFIX)) {
+    if (!key || (!key.startsWith(LEAFTAB_SYNC_ANALYSIS_CACHE_PREFIX) && !key.startsWith(LEAFTAB_SYNC_SUMMARY_CACHE_PREFIX))) {
       continue;
     }
     if (!(key in record)) {
@@ -326,7 +404,7 @@ const syncSharedExtensionStorageToLocalStorage = async () => {
     }
   }
   Object.entries(record).forEach(([key, value]) => {
-    if (!key.startsWith(LEAFTAB_SYNC_ANALYSIS_CACHE_PREFIX)) {
+    if (!key.startsWith(LEAFTAB_SYNC_ANALYSIS_CACHE_PREFIX) && !key.startsWith(LEAFTAB_SYNC_SUMMARY_CACHE_PREFIX)) {
       return;
     }
     if (value === undefined || value === null || value === '') {
@@ -407,6 +485,17 @@ const resolvePrimarySwitchMode = (
 const isDualLeafTabSyncRoute = (
   route: LeafTabSyncRoute,
 ): route is Extract<LeafTabSyncRoute, { kind: 'dual' }> => route.kind === 'dual';
+
+const createWebdavBackupTargetFromConfig = (
+  config: (NonNullable<ReturnType<typeof readWebdavConfigFromStorage>> & { rootPath: string }) | null,
+) => {
+  if (!config?.url) return null;
+  return {
+    url: config.url,
+    username: config.username,
+    rootPath: config.rootPath,
+  };
+};
 
 const createLeafTabRemoteAutoSyncDiagnostic = (
   probe: LeafTabRemoteAutoSyncProbeResult,
@@ -497,6 +586,7 @@ const runWebdavBookmarkSyncOnce = async (params: RunWebdavBookmarkSyncOnceParams
     password: params.webdavConfig.password,
     rootPath: params.webdavConfig.rootPath,
     requestPermission: params.webdavConfig.requestPermission,
+    requestTimeoutMs: params.options?.webdavRequestTimeoutMs,
   });
   return runBookmarkSyncWithRemoteStore({
     ...params,
@@ -539,6 +629,9 @@ export function useLeafTabSyncRuntimeController(
   const [leafTabSyncLastResult, setLeafTabSyncLastResult] = useState<LeafTabSyncEngineResult | null>(null);
   const [leafTabSyncAnalysis, setLeafTabSyncAnalysis] = useState<LeafTabSyncAnalysis | null>(null);
   const [leafTabSyncAnalysisRemoteKind, setLeafTabSyncAnalysisRemoteKind] = useState<LeafTabSyncRemoteKind | null>(null);
+  const [leafTabLocalBookmarkSummary, setLeafTabLocalBookmarkSummary] = useState<LeafTabSyncDataSummary | null>(null);
+  const [leafTabWebdavRemoteSummary, setLeafTabWebdavRemoteSummary] = useState<LeafTabSyncDataSummary | null>(null);
+  const [leafTabCloudRemoteSummary, setLeafTabCloudRemoteSummary] = useState<LeafTabSyncDataSummary | null>(null);
   const [leafTabWebdavSyncAnalysis, setLeafTabWebdavSyncAnalysis] = useState<LeafTabSyncAnalysis | null>(null);
   const [leafTabCloudSyncAnalysis, setLeafTabCloudSyncAnalysis] = useState<LeafTabSyncAnalysis | null>(null);
   const [leafTabWebdavAnalysisCheckedAt, setLeafTabWebdavAnalysisCheckedAt] = useState<string | null>(null);
@@ -550,6 +643,7 @@ export function useLeafTabSyncRuntimeController(
     useState<LeafTabInitialSyncChoiceRequest | null>(null);
   const initialSyncChoiceResolverRef = useRef<((choice: LeafTabSyncInitialChoice | null) => void) | null>(null);
   const initialLocalSummaryHydratedRef = useRef(false);
+  const remoteSummaryHydratedKeyRef = useRef('');
   const leafTabSyncDeviceId = useMemo(() => getOrCreateLeafTabSyncDeviceId(), []);
   const leafTabBookmarkSyncScope = useMemo(() => readLeafTabBookmarkSyncScope(), []);
   const leafTabSyncRootPath = LEAFTAB_SYNC_DEFAULT_ROOT_PATH;
@@ -592,12 +686,28 @@ export function useLeafTabSyncRuntimeController(
       requestPermission: true,
     };
   }, [leafTabSyncRootPath, localVersion]);
+  const leafTabWebdavCacheIdentity = useMemo(
+    () => createWebdavCacheIdentity(webdavConfig),
+    [webdavConfig?.rootPath, webdavConfig?.url, webdavConfig?.username],
+  );
   const leafTabWebdavAnalysisCacheKey = useMemo(
-    () => createLeafTabSyncAnalysisCacheKey('webdav', leafTabSyncRootPath, webdavConfig?.url || ''),
-    [leafTabSyncRootPath, webdavConfig?.url],
+    () => createLeafTabSyncAnalysisCacheKey('webdav', leafTabSyncRootPath, leafTabWebdavCacheIdentity),
+    [leafTabSyncRootPath, leafTabWebdavCacheIdentity],
   );
   const leafTabCloudAnalysisCacheKey = useMemo(
     () => createLeafTabSyncAnalysisCacheKey('aira-cloud', leafTabSyncRootPath, cloudUid),
+    [cloudUid, leafTabSyncRootPath],
+  );
+  const leafTabLocalSummaryCacheKey = useMemo(
+    () => createLeafTabSyncSummaryCacheKey('local', leafTabSyncRootPath, leafTabSyncDeviceId),
+    [leafTabSyncDeviceId, leafTabSyncRootPath],
+  );
+  const leafTabWebdavSummaryCacheKey = useMemo(
+    () => createLeafTabSyncSummaryCacheKey('webdav', leafTabSyncRootPath, leafTabWebdavCacheIdentity),
+    [leafTabSyncRootPath, leafTabWebdavCacheIdentity],
+  );
+  const leafTabCloudSummaryCacheKey = useMemo(
+    () => createLeafTabSyncSummaryCacheKey('aira-cloud', leafTabSyncRootPath, cloudUid),
     [cloudUid, leafTabSyncRootPath],
   );
 
@@ -865,15 +975,21 @@ export function useLeafTabSyncRuntimeController(
     setLeafTabSyncAnalysisRemoteKind('webdav');
     setLeafTabSyncAnalysis(analysis);
     setLeafTabWebdavSyncAnalysis(analysis);
+    setLeafTabLocalBookmarkSummary(analysis.localSummary);
+    setLeafTabWebdavRemoteSummary(analysis.remoteSummary);
+    writeLeafTabSyncSummaryCache(leafTabLocalSummaryCacheKey, analysis.localSummary);
+    writeLeafTabSyncSummaryCache(leafTabWebdavSummaryCacheKey, analysis.remoteSummary);
     setLeafTabWebdavAnalysisCheckedAt(writeLeafTabSyncAnalysisCache(leafTabWebdavAnalysisCacheKey, analysis));
     return analysis;
   }, [
     applyWebdavBookmarkSnapshot,
     buildBookmarkSnapshotForBaseline,
+    leafTabLocalSummaryCacheKey,
     leafTabSyncBaselineStorageKey,
     leafTabSyncAnalysisRemoteKind,
     leafTabSyncDeviceId,
     leafTabWebdavAnalysisCacheKey,
+    leafTabWebdavSummaryCacheKey,
     webdavConfig,
   ]);
 
@@ -906,6 +1022,10 @@ export function useLeafTabSyncRuntimeController(
     setLeafTabSyncAnalysisRemoteKind('aira-cloud');
     setLeafTabSyncAnalysis(analysis);
     setLeafTabCloudSyncAnalysis(analysis);
+    setLeafTabLocalBookmarkSummary(analysis.localSummary);
+    setLeafTabCloudRemoteSummary(analysis.remoteSummary);
+    writeLeafTabSyncSummaryCache(leafTabLocalSummaryCacheKey, analysis.localSummary);
+    writeLeafTabSyncSummaryCache(leafTabCloudSummaryCacheKey, analysis.remoteSummary);
     setLeafTabCloudAnalysisCheckedAt(writeLeafTabSyncAnalysisCache(leafTabCloudAnalysisCacheKey, analysis));
     return analysis;
   }, [
@@ -914,6 +1034,8 @@ export function useLeafTabSyncRuntimeController(
     cloudUid,
     leafTabCloudBaselineStorageKey,
     leafTabCloudAnalysisCacheKey,
+    leafTabCloudSummaryCacheKey,
+    leafTabLocalSummaryCacheKey,
     leafTabSyncAnalysisRemoteKind,
     leafTabSyncDeviceId,
     leafTabSyncRootPath,
@@ -975,8 +1097,12 @@ export function useLeafTabSyncRuntimeController(
       'webdav_last_error_at',
       'webdav_last_error_message',
     ]);
+    const target = createWebdavBackupTargetFromConfig(webdavConfig);
+    if (target) {
+      void clearWebdavBackupFailureCooldown(target);
+    }
     emitWebdavSyncStatusChanged();
-  }, [emitWebdavSyncStatusChanged]);
+  }, [emitWebdavSyncStatusChanged, webdavConfig]);
 
   const markWebdavSyncError = useCallback((error: unknown) => {
     console.error('[LeafTab][WebDAV sync]', error);
@@ -1109,6 +1235,8 @@ export function useLeafTabSyncRuntimeController(
     const localSummary = await captureLocalBookmarkSummary();
     if (!localSummary) return;
     markLocalSummaryCheckedAt();
+    setLeafTabLocalBookmarkSummary(localSummary);
+    writeLeafTabSyncSummaryCache(leafTabLocalSummaryCacheKey, localSummary);
 
     setLeafTabWebdavSyncAnalysis((current) => {
       if (!current) return current;
@@ -1139,6 +1267,7 @@ export function useLeafTabSyncRuntimeController(
   }, [
     captureLocalBookmarkSummary,
     leafTabCloudAnalysisCacheKey,
+    leafTabLocalSummaryCacheKey,
     leafTabSyncAnalysisRemoteKind,
     leafTabWebdavAnalysisCacheKey,
     markLocalSummaryCheckedAt,
@@ -1150,6 +1279,60 @@ export function useLeafTabSyncRuntimeController(
     ));
   }, []);
 
+  const refreshCachedRemoteSummariesFromHead = useCallback(async () => {
+    const runtime = await importLeafTabSyncRuntime();
+    const tasks: Promise<void>[] = [];
+    if (webdavConfig?.url) {
+      tasks.push((async () => {
+        const webdavStore = new runtime.LeafTabSyncWebdavStore({
+          url: webdavConfig.url,
+          username: webdavConfig.username,
+          password: webdavConfig.password,
+          rootPath: webdavConfig.rootPath,
+          requestPermission: false,
+          requestTimeoutMs: WEBDAV_BACKUP_REQUEST_TIMEOUT_MS,
+        });
+        const remoteHead = await webdavStore.readHead();
+        const headSummary = remoteHead.summary || remoteHead.commit?.summary;
+        const summary = remoteHead.commitId === null
+          ? { bookmarkFolders: 0, bookmarkItems: 0, tombstones: 0 }
+          : headSummary;
+        if (!summary) return;
+        setLeafTabWebdavRemoteSummary(summary);
+        writeLeafTabSyncSummaryCache(leafTabWebdavSummaryCacheKey, summary);
+      })().catch(() => undefined));
+    }
+    if (cloudUid) {
+      tasks.push((async () => {
+        const cloudStore = new runtime.LeafTabSyncAiraCloudStore(cloudUid);
+        const remoteHead = await cloudStore.readHead();
+        const headSummary = remoteHead.summary || remoteHead.commit?.summary;
+        const summary = remoteHead.commitId === null
+          ? { bookmarkFolders: 0, bookmarkItems: 0, tombstones: 0 }
+          : headSummary;
+        if (!summary) return;
+        setLeafTabCloudRemoteSummary(summary);
+        writeLeafTabSyncSummaryCache(leafTabCloudSummaryCacheKey, summary);
+        const baseline = await new runtime.LeafTabSyncExtensionStorageBaselineStore(leafTabCloudBaselineStorageKey).load();
+        const cloudIsPrimary = preferredPrimaryRemoteKind !== 'webdav';
+        if (cloudIsPrimary &&
+          remoteHead.commitId &&
+          baseline?.commitId &&
+          remoteHead.commitId !== baseline.commitId) {
+          requestBackgroundLeafTabAutoSync('aira-cloud');
+        }
+      })().catch(() => undefined));
+    }
+    await Promise.all(tasks);
+  }, [
+    cloudUid,
+    leafTabCloudBaselineStorageKey,
+    leafTabCloudSummaryCacheKey,
+    leafTabWebdavSummaryCacheKey,
+    preferredPrimaryRemoteKind,
+    webdavConfig,
+  ]);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -1160,8 +1343,18 @@ export function useLeafTabSyncRuntimeController(
       const cachedCloud = cloudUid
         ? await readCachedOrBaselineAnalysis(leafTabCloudAnalysisCacheKey, leafTabCloudBaselineStorageKey)
         : { analysis: null, updatedAt: null };
+      const cachedLocalSummary = readLeafTabSyncSummaryCache(leafTabLocalSummaryCacheKey);
+      const cachedWebdavSummary = webdavConfig?.url
+        ? readLeafTabSyncSummaryCache(leafTabWebdavSummaryCacheKey)
+        : null;
+      const cachedCloudSummary = cloudUid
+        ? readLeafTabSyncSummaryCache(leafTabCloudSummaryCacheKey)
+        : null;
       if (cancelled) return;
 
+      setLeafTabLocalBookmarkSummary(cachedLocalSummary);
+      setLeafTabWebdavRemoteSummary(cachedWebdavSummary || cachedWebdav.analysis?.remoteSummary || null);
+      setLeafTabCloudRemoteSummary(cachedCloudSummary || cachedCloud.analysis?.remoteSummary || null);
       setLeafTabWebdavSyncAnalysis(cachedWebdav.analysis);
       setLeafTabCloudSyncAnalysis(cachedCloud.analysis);
       setLeafTabWebdavAnalysisCheckedAt(cachedWebdav.updatedAt);
@@ -1182,6 +1375,11 @@ export function useLeafTabSyncRuntimeController(
         initialLocalSummaryHydratedRef.current = true;
         void updateCachedLocalSummaries();
       }
+      const remoteSummaryHydrationKey = `${leafTabWebdavCacheIdentity}|${cloudUid}`;
+      if (remoteSummaryHydratedKeyRef.current !== remoteSummaryHydrationKey) {
+        remoteSummaryHydratedKeyRef.current = remoteSummaryHydrationKey;
+        void refreshCachedRemoteSummariesFromHead();
+      }
     })();
 
     return () => {
@@ -1191,10 +1389,15 @@ export function useLeafTabSyncRuntimeController(
     cloudUid,
     leafTabCloudBaselineStorageKey,
     leafTabCloudAnalysisCacheKey,
+    leafTabCloudSummaryCacheKey,
+    leafTabLocalSummaryCacheKey,
+    leafTabWebdavCacheIdentity,
+    leafTabWebdavSummaryCacheKey,
     localVersion,
     leafTabSyncBaselineStorageKey,
     leafTabSyncAnalysisRemoteKind,
     leafTabWebdavAnalysisCacheKey,
+    refreshCachedRemoteSummariesFromHead,
     readCachedOrBaselineAnalysis,
     updateCachedLocalSummaries,
     webdavConfig?.url,
@@ -1342,13 +1545,19 @@ export function useLeafTabSyncRuntimeController(
         }
         setLeafTabSyncAnalysisRemoteKind(remoteKind);
         const syncedAnalysis = createAnalysisFromSyncedSnapshot(result);
+        setLeafTabLocalBookmarkSummary(syncedAnalysis.localSummary);
+        writeLeafTabSyncSummaryCache(leafTabLocalSummaryCacheKey, syncedAnalysis.localSummary);
         if (isCloud) {
           markCloudSyncSuccess();
           setLeafTabCloudSyncAnalysis(syncedAnalysis);
+          setLeafTabCloudRemoteSummary(syncedAnalysis.remoteSummary);
+          writeLeafTabSyncSummaryCache(leafTabCloudSummaryCacheKey, syncedAnalysis.remoteSummary);
           setLeafTabCloudAnalysisCheckedAt(writeLeafTabSyncAnalysisCache(leafTabCloudAnalysisCacheKey, syncedAnalysis));
         } else {
           markWebdavSyncSuccess();
           setLeafTabWebdavSyncAnalysis(syncedAnalysis);
+          setLeafTabWebdavRemoteSummary(syncedAnalysis.remoteSummary);
+          writeLeafTabSyncSummaryCache(leafTabWebdavSummaryCacheKey, syncedAnalysis.remoteSummary);
           setLeafTabWebdavAnalysisCheckedAt(writeLeafTabSyncAnalysisCache(leafTabWebdavAnalysisCacheKey, syncedAnalysis));
         }
         updateLeafTabRemoteAutoSyncDiagnostic({
@@ -1400,7 +1609,9 @@ export function useLeafTabSyncRuntimeController(
       if (shouldShowDialogProgress) {
         failSyncProgress(error, remoteKind);
       }
-      toast.error(formatLeafTabSyncErrorMessage(error, remoteKind));
+      if (!options?.silentSuccess) {
+        toast.error(formatLeafTabSyncErrorMessage(error, remoteKind));
+      }
       return null;
     } finally {
       setWebdavSyncRunActive(false);
@@ -1418,7 +1629,10 @@ export function useLeafTabSyncRuntimeController(
     finishSyncProgress,
     failSyncProgress,
     leafTabCloudAnalysisCacheKey,
+    leafTabCloudSummaryCacheKey,
+    leafTabLocalSummaryCacheKey,
     leafTabWebdavAnalysisCacheKey,
+    leafTabWebdavSummaryCacheKey,
     updateLeafTabRemoteAutoSyncDiagnostic,
     setCloudSyncEnabledInStorage,
     setWebdavSyncEnabledInStorage,
@@ -1535,9 +1749,30 @@ export function useLeafTabSyncRuntimeController(
             message: resolveDualProgressMessage(route.secondaryRemoteKind),
           }, 52);
         }
+        const secondaryWebdavTarget = route.secondaryRemoteKind === 'webdav'
+          ? createWebdavBackupTargetFromConfig(webdavConfig)
+          : null;
+        const secondaryCooldownReason = secondaryWebdavTarget
+          ? await readWebdavBackupCooldownResult(secondaryWebdavTarget)
+          : null;
+        if (secondaryCooldownReason) {
+          updateLeafTabRemoteAutoSyncDiagnostic({
+            hasChanges: false,
+            provider: route.secondaryRemoteKind,
+            error: secondaryCooldownReason,
+          }, {
+            lastSyncAttempted: isAuto,
+            lastSyncSucceeded: isAuto ? true : null,
+            lastError: secondaryCooldownReason,
+          });
+          if (!isAuto) {
+            finishSyncProgress(`${primaryResult.summaryText || '主同步已完成'}；${secondaryCooldownReason}`);
+          }
+          return true;
+        }
         let secondaryResult: LeafTabSyncEngineResult | null = null;
         try {
-          secondaryResult = await handleLeafTabSync({
+          const secondaryTask = handleLeafTabSync({
             remoteKind: route.secondaryRemoteKind,
             localSnapshotOverride: secondaryPlan.snapshot,
             mode: secondaryPlan.mode,
@@ -1545,6 +1780,9 @@ export function useLeafTabSyncRuntimeController(
             requestBookmarkPermission: false,
             silentSuccess: true,
             showProgressIndicator: false,
+            webdavRequestTimeoutMs: route.secondaryRemoteKind === 'webdav'
+              ? WEBDAV_BACKUP_REQUEST_TIMEOUT_MS
+              : undefined,
             onProgress: isAuto
               ? undefined
               : (progress) => updateSyncProgress(
@@ -1553,12 +1791,22 @@ export function useLeafTabSyncRuntimeController(
                 50 + (progress.progress * 0.5),
               ),
           });
+          secondaryResult = route.secondaryRemoteKind === 'webdav'
+            ? await withWebdavBackupTimeout(
+              secondaryTask,
+              WEBDAV_BACKUP_TOTAL_TIMEOUT_MS,
+              'WebDAV 备份连接超时，已跳过本次备份，不影响主同步。',
+            )
+            : await secondaryTask;
         } catch (error) {
           secondaryResult = null;
           if (route.secondaryRemoteKind === 'aira-cloud') {
             markCloudSyncError(error);
           } else {
             markWebdavSyncError(error);
+          }
+          if (secondaryWebdavTarget) {
+            await recordWebdavBackupFailureCooldown(secondaryWebdavTarget, error);
           }
           if (!isAuto) {
             finishSyncProgress(`${primaryResult.summaryText || '主同步已完成'}；${resolveRemoteProgressName(route.secondaryRemoteKind)}备份失败，可稍后重试`);
@@ -1572,6 +1820,9 @@ export function useLeafTabSyncRuntimeController(
           } else {
             markWebdavSyncError(new Error('备份未完成'));
           }
+          if (secondaryWebdavTarget) {
+            await recordWebdavBackupFailureCooldown(secondaryWebdavTarget, new Error('备份未完成'));
+          }
           if (!isAuto) {
             finishSyncProgress(`${primaryResult.summaryText || '主同步已完成'}；${resolveRemoteProgressName(route.secondaryRemoteKind)}备份未完成，可稍后重试`);
           }
@@ -1583,11 +1834,17 @@ export function useLeafTabSyncRuntimeController(
           } else {
             markWebdavSyncError(new Error('备份源需要处理冲突'));
           }
+          if (secondaryWebdavTarget) {
+            await recordWebdavBackupFailureCooldown(secondaryWebdavTarget, new Error('备份源需要处理冲突'));
+          }
           if (!isAuto) {
             finishSyncProgress(`${primaryResult.summaryText || '主同步已完成'}；${resolveRemoteProgressName(route.secondaryRemoteKind)}备份需要处理冲突`);
             toast.error(`${resolveRemoteProgressName(route.secondaryRemoteKind)}备份需要处理冲突，主同步已完成`);
           }
           return true;
+        }
+        if (secondaryWebdavTarget) {
+          await clearWebdavBackupFailureCooldown(secondaryWebdavTarget);
         }
         if (!isAuto) {
           finishSyncProgress(secondaryResult.summaryText || primaryResult.summaryText || '云端和 WebDAV 已同步完成');
@@ -1669,6 +1926,7 @@ export function useLeafTabSyncRuntimeController(
       setLeafTabSyncAnalysisRemoteKind(null);
     }
     setLeafTabWebdavSyncAnalysis(null);
+    setLeafTabWebdavRemoteSummary(null);
     setLeafTabWebdavAnalysisCheckedAt(null);
   }, [leafTabSyncAnalysisRemoteKind, webdavConfig?.url]);
 
@@ -1679,6 +1937,7 @@ export function useLeafTabSyncRuntimeController(
       setLeafTabSyncAnalysisRemoteKind(null);
     }
     setLeafTabCloudSyncAnalysis(null);
+    setLeafTabCloudRemoteSummary(null);
     setLeafTabCloudAnalysisCheckedAt(null);
   }, [cloudUid, leafTabSyncAnalysisRemoteKind]);
 
@@ -1699,6 +1958,9 @@ export function useLeafTabSyncRuntimeController(
       : (leafTabSyncState.status === 'syncing' || webdavSyncRunActive ? 'syncing' : 'idle'),
     leafTabSyncAnalysis,
     leafTabSyncAnalysisRemoteKind,
+    leafTabLocalBookmarkSummary,
+    leafTabWebdavRemoteSummary,
+    leafTabCloudRemoteSummary,
     leafTabWebdavSyncAnalysis,
     leafTabCloudSyncAnalysis,
     leafTabSyncProgress,
@@ -1728,6 +1990,9 @@ export function useLeafTabSyncRuntimeController(
     leafTabInitialSyncChoiceRequest,
     leafTabSyncAnalysis,
     leafTabSyncAnalysisRemoteKind,
+    leafTabLocalBookmarkSummary,
+    leafTabWebdavRemoteSummary,
+    leafTabCloudRemoteSummary,
     leafTabWebdavSyncAnalysis,
     leafTabCloudSyncAnalysis,
     leafTabWebdavAnalysisCheckedAt,

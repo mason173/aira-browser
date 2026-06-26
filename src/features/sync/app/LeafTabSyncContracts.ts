@@ -1,5 +1,6 @@
 import type {
   LeafTabSyncAnalysis,
+  LeafTabSyncDataSummary,
   LeafTabSyncEngineProgress,
   LeafTabSyncEngineResult,
   LeafTabSyncInitialChoice,
@@ -43,6 +44,7 @@ export type LeafTabSyncWebdavActionOptions = LeafTabSyncRunnerOptionsBase & {
   allowConfigPrompt?: boolean;
   remoteKind?: LeafTabSyncRemoteKind;
   localSnapshotOverride?: LeafTabSyncSnapshot;
+  webdavRequestTimeoutMs?: number;
 };
 
 export type LeafTabInitialSyncChoiceRequest = {
@@ -69,6 +71,9 @@ export type LeafTabSyncStatusState = {
 export type LeafTabSyncConfigState = {
   leafTabSyncAnalysis: LeafTabSyncAnalysis | null;
   leafTabSyncAnalysisRemoteKind: LeafTabSyncRemoteKind | null;
+  leafTabLocalBookmarkSummary: LeafTabSyncDataSummary | null;
+  leafTabWebdavRemoteSummary: LeafTabSyncDataSummary | null;
+  leafTabCloudRemoteSummary: LeafTabSyncDataSummary | null;
   leafTabWebdavSyncAnalysis: LeafTabSyncAnalysis | null;
   leafTabCloudSyncAnalysis: LeafTabSyncAnalysis | null;
   leafTabSyncProgress: LeafTabSyncProgressState;

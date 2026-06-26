@@ -563,38 +563,49 @@ const buildEntityNodeLookup = (draft: LeafTabBookmarkTreeDraft) => {
 
 const appendMissingOrderedIds = (
   ids: string[],
-  parentEntityId: string,
+  childIds: string[],
+) => {
+  const nextIds = ids.slice();
+  const seen = new Set(nextIds);
+  const append = (id: string) => {
+    if (seen.has(id)) return;
+    seen.add(id);
+    nextIds.push(id);
+  };
+
+  childIds.forEach(append);
+  return nextIds;
+};
+
+const buildChildIdsByParent = (
   folderLookup: Record<string, { title: string; parentId: string | null }>,
   itemLookup: Record<string, { title: string; parentId: string | null; url: string }>,
 ) => {
-  const nextIds = ids.slice();
-  const append = (id: string) => {
-    if (!nextIds.includes(id)) {
-      nextIds.push(id);
+  const childIdsByParent = new Map<string, string[]>();
+  const add = (parentId: string | null, id: string) => {
+    const key = parentId || ROOT_ORDER_KEY;
+    const current = childIdsByParent.get(key);
+    if (current) {
+      current.push(id);
+      return;
     }
+    childIdsByParent.set(key, [id]);
   };
 
-  Object.entries(folderLookup).forEach(([id, folder]) => {
-    if (folder.parentId === parentEntityId) append(id);
-  });
-  Object.entries(itemLookup).forEach(([id, item]) => {
-    if (item.parentId === parentEntityId) append(id);
-  });
-  return nextIds;
+  Object.entries(folderLookup).forEach(([id, folder]) => add(folder.parentId, id));
+  Object.entries(itemLookup).forEach(([id, item]) => add(item.parentId, id));
+  return childIdsByParent;
 };
 
 const resolveDesiredChildren = (
   parentEntityId: string,
-  folderLookup: Record<string, { title: string; parentId: string | null }>,
-  itemLookup: Record<string, { title: string; parentId: string | null; url: string }>,
   orderIdsByParent: Record<string, string[]>,
+  childIdsByParent: Map<string, string[]>,
 ) => {
   return appendMissingOrderedIds(
     orderIdsByParent[parentEntityId] || [],
-    parentEntityId,
-    folderLookup,
-    itemLookup,
-  ).filter((id) => Boolean(folderLookup[id] || itemLookup[id]));
+    childIdsByParent.get(parentEntityId) || [],
+  );
 };
 
 const ensureBookmarkNode = async (params: {
@@ -705,13 +716,13 @@ export const replaceLeafTabBookmarkTree = async (params: {
   });
   const entityNodeLookup = buildEntityNodeLookup(currentDraft);
   const nodeIdToEntityId: Record<string, string> = { ...currentDraft.nodeIdToEntityId };
+  const childIdsByParent = buildChildIdsByParent(params.folderLookup, params.itemLookup);
 
   const applyChildren = async (parentEntityId: string, parentNodeId: string) => {
     const childIds = resolveDesiredChildren(
       parentEntityId,
-      params.folderLookup,
-      params.itemLookup,
       params.orderIdsByParent,
+      childIdsByParent,
     );
 
     for (let index = 0; index < childIds.length; index += 1) {

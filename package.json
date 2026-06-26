@@ -1,6 +1,6 @@
 {
       "name": "airatab",
-      "version": "0.1.0",
+      "version": "0.1.6",
       "private": true,
       "dependencies": {
             "@radix-ui/react-dialog": "^1.1.6",
@@ -38,10 +38,11 @@
             "check": "npm run typecheck && npm run build",
             "build:final": "node scripts/build-final.js",
             "pack:zip": "node scripts/package-release-zips.js",
-            "pack:zip:no-icons": "npm run build && node scripts/package-release-zips.js",
-            "pack:zip:optimized": "npm run pack:zip:no-icons",
+            "pack:zip:no-icons": "node scripts/package-release-zips.js",
+            "pack:zip:optimized": "npm run pack:zip",
             "pack:release": "npm run pack:zip",
             "pack:release:all": "npm run pack:zip:optimized",
+            "release:bump": "node scripts/package-release-zips.js --bump",
             "verify:release": "node scripts/verify-release.js"
       },
       "license": "UNLICENSED"

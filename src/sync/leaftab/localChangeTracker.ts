@@ -4,7 +4,7 @@ import {
   writeExtensionStorageRecord,
 } from '@/platform/extensionStorage';
 
-const LOCAL_BOOKMARK_CHANGED_AT_KEY = 'leaftab_sync_v1_local_bookmark_changed_at';
+export const LEAFTAB_LOCAL_BOOKMARK_CHANGED_AT_KEY = 'leaftab_sync_v1_local_bookmark_changed_at';
 const BOOKMARK_SYNC_APPLY_SUPPRESS_UNTIL_KEY = 'leaftab_sync_v1_apply_suppress_until';
 const APPLY_EVENT_SUPPRESS_MS = 20_000;
 
@@ -48,28 +48,28 @@ export const markLeafTabBookmarkSyncApplyFinished = (nowMs = Date.now()) => {
 export const markLeafTabLocalBookmarkChanged = (nowMs = Date.now()) => {
   if (isLeafTabBookmarkSyncApplyEventSuppressed(nowMs)) return false;
   try {
-    globalThis.localStorage?.setItem(LOCAL_BOOKMARK_CHANGED_AT_KEY, String(nowMs));
+    globalThis.localStorage?.setItem(LEAFTAB_LOCAL_BOOKMARK_CHANGED_AT_KEY, String(nowMs));
   } catch {}
   void writeExtensionStorageRecord({
-    [LOCAL_BOOKMARK_CHANGED_AT_KEY]: String(nowMs),
+    [LEAFTAB_LOCAL_BOOKMARK_CHANGED_AT_KEY]: String(nowMs),
   });
   return true;
 };
 
 export const hasPendingLeafTabLocalBookmarkChanges = () => {
-  return readNumber(LOCAL_BOOKMARK_CHANGED_AT_KEY) > 0;
+  return readNumber(LEAFTAB_LOCAL_BOOKMARK_CHANGED_AT_KEY) > 0;
 };
 
 export const clearPendingLeafTabLocalBookmarkChanges = () => {
   try {
-    globalThis.localStorage?.removeItem(LOCAL_BOOKMARK_CHANGED_AT_KEY);
+    globalThis.localStorage?.removeItem(LEAFTAB_LOCAL_BOOKMARK_CHANGED_AT_KEY);
   } catch {}
-  void removeExtensionStorageKeys([LOCAL_BOOKMARK_CHANGED_AT_KEY]);
+  void removeExtensionStorageKeys([LEAFTAB_LOCAL_BOOKMARK_CHANGED_AT_KEY]);
 };
 
 export const readPendingLeafTabLocalBookmarkChangedAtFromExtensionStorage = async (): Promise<number> => {
-  const result = await readExtensionStorageRecord([LOCAL_BOOKMARK_CHANGED_AT_KEY]);
-  const value = Number(result[LOCAL_BOOKMARK_CHANGED_AT_KEY] || 0);
+  const result = await readExtensionStorageRecord([LEAFTAB_LOCAL_BOOKMARK_CHANGED_AT_KEY]);
+  const value = Number(result[LEAFTAB_LOCAL_BOOKMARK_CHANGED_AT_KEY] || 0);
   return Number.isFinite(value) ? value : 0;
 };
 
@@ -80,10 +80,10 @@ export const markLeafTabLocalBookmarkChangedInExtensionStorage = async (nowMs = 
     return;
   }
   await writeExtensionStorageRecord({
-    [LOCAL_BOOKMARK_CHANGED_AT_KEY]: String(nowMs),
+    [LEAFTAB_LOCAL_BOOKMARK_CHANGED_AT_KEY]: String(nowMs),
   });
 };
 
 export const clearPendingLeafTabLocalBookmarkChangesInExtensionStorage = async (): Promise<void> => {
-  await removeExtensionStorageKeys([LOCAL_BOOKMARK_CHANGED_AT_KEY]);
+  await removeExtensionStorageKeys([LEAFTAB_LOCAL_BOOKMARK_CHANGED_AT_KEY]);
 };

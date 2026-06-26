@@ -49,6 +49,14 @@ import {
   resolveLeafTabSyncRoute,
   type LeafTabSyncRemoteKind,
 } from '@/sync/leaftab/syncRouteStateMachine';
+import {
+  clearWebdavBackupFailureCooldown,
+  readWebdavBackupCooldownResult,
+  recordWebdavBackupFailureCooldown,
+  WEBDAV_BACKUP_REQUEST_TIMEOUT_MS,
+  WEBDAV_BACKUP_TOTAL_TIMEOUT_MS,
+  withWebdavBackupTimeout,
+} from '@/sync/leaftab/webdavBackupPolicy';
 import { LeafTabSyncWebdavStore } from '@/sync/leaftab/webdavStore';
 import {
   readWebdavConfigFromExtensionStorage,
@@ -61,9 +69,11 @@ import {
 } from '@/platform/extensionStorage';
 
 const WEBDAV_PROXY_MESSAGE_TYPE = 'LEAFTAB_WEBDAV_PROXY';
+const AUTO_SYNC_MESSAGE_TYPE = 'LEAFTAB_AUTO_SYNC_NOW';
 const LOCAL_SYNC_ALARM_NAME = 'aira.leaftab.auto-sync.local-change';
 const REMOTE_PROBE_ALARM_NAME = 'aira.leaftab.auto-sync.remote-probe';
 const AUTO_SYNC_BOOKMARK_CHANGE_DELAY_MINUTES = 1;
+const AUTO_SYNC_RETRY_DELAY_MINUTES = 3;
 const AUTO_SYNC_REMOTE_PROBE_ACTIVE_STARTUP_DELAY_MINUTES = 1;
 const AUTO_SYNC_REMOTE_PROBE_ACTIVE_INTERVAL_MINUTES = 3;
 const AUTO_SYNC_REMOTE_PROBE_BACKGROUND_INTERVAL_MINUTES = 3;
@@ -71,9 +81,8 @@ const AUTO_SYNC_REMOTE_PROBE_IDLE_DETECTION_SECONDS = 90;
 const AUTO_SYNC_APPLY_SUPPRESS_MS = 20_000;
 const LEAFTAB_SYNC_DEFAULT_ROOT_PATH = 'aira/v1/bookmarks';
 const LEAFTAB_SYNC_ANALYSIS_CACHE_PREFIX = 'leaftab_sync_v1_analysis';
+const LEAFTAB_SYNC_SUMMARY_CACHE_PREFIX = 'leaftab_sync_v1_summary';
 const BACKGROUND_KEEPALIVE_INTERVAL_MS = 20_000;
-const WEBDAV_BACKUP_REQUEST_TIMEOUT_MS = 3_000;
-const WEBDAV_BACKUP_TOTAL_TIMEOUT_MS = 8_000;
 
 let activeAutoSyncPromise: Promise<boolean> | null = null;
 let bookmarkApplySuppressedUntil = 0;
@@ -178,6 +187,23 @@ function createAnalysisCacheKey(
   return `${LEAFTAB_SYNC_ANALYSIS_CACHE_PREFIX}:${remoteKind}:${rootSegment}:${createStorageHash(identity || 'default')}`;
 }
 
+function createSummaryCacheKey(
+  kind: LeafTabSyncRemoteKind | 'local',
+  rootPath: string,
+  identity: string,
+): string {
+  const rootSegment = (rootPath || LEAFTAB_SYNC_DEFAULT_ROOT_PATH).replace(/[^a-zA-Z0-9_-]+/g, '_');
+  return `${LEAFTAB_SYNC_SUMMARY_CACHE_PREFIX}:${kind}:${rootSegment}:${createStorageHash(identity || 'default')}`;
+}
+
+function createWebdavCacheIdentity(config: BackgroundSyncConfig): string {
+  return [
+    config.webdavConfig?.url || '',
+    config.webdavConfig?.username || '',
+    config.rootPath,
+  ].join('|');
+}
+
 async function writeAnalysisCacheForRemote(
   config: BackgroundSyncConfig,
   remoteKind: LeafTabSyncRemoteKind,
@@ -204,7 +230,13 @@ async function writeAnalysisCacheForRemote(
   const cacheKey = createAnalysisCacheKey(
     remoteKind,
     config.rootPath,
-    remoteKind === 'aira-cloud' ? config.cloudUid : (config.webdavConfig?.url || ''),
+    remoteKind === 'aira-cloud' ? config.cloudUid : createWebdavCacheIdentity(config),
+  );
+  const localSummaryCacheKey = createSummaryCacheKey('local', config.rootPath, config.deviceId);
+  const remoteSummaryCacheKey = createSummaryCacheKey(
+    remoteKind,
+    config.rootPath,
+    remoteKind === 'aira-cloud' ? config.cloudUid : createWebdavCacheIdentity(config),
   );
   await writeExtensionStorageRecord({
     [cacheKey]: JSON.stringify({
@@ -212,7 +244,43 @@ async function writeAnalysisCacheForRemote(
       updatedAt,
       analysis,
     }),
+    [localSummaryCacheKey]: JSON.stringify({
+      version: 1,
+      updatedAt,
+      summary,
+    }),
+    [remoteSummaryCacheKey]: JSON.stringify({
+      version: 1,
+      updatedAt,
+      summary,
+    }),
   });
+}
+
+async function writeLocalSummaryCacheFromCurrentBookmarks(config: BackgroundSyncConfig): Promise<void> {
+  try {
+    const bookmarkTree = await captureLeafTabBookmarkTreeDraft({
+      scope: getDefaultLeafTabBookmarkSyncScope(),
+      requestPermission: false,
+      throwOnPermissionDenied: true,
+    });
+    const updatedAt = getNowIso();
+    const summary = {
+      bookmarkFolders: bookmarkTree.folders.length,
+      bookmarkItems: bookmarkTree.items.length,
+      tombstones: 0,
+    };
+    await writeExtensionStorageRecord({
+      [createSummaryCacheKey('local', config.rootPath, config.deviceId)]: JSON.stringify({
+        version: 1,
+        updatedAt,
+        summary,
+      }),
+      [LEAFTAB_SYNC_LOCAL_SUMMARY_AT_KEY]: updatedAt,
+    });
+  } catch {
+    // Bookmark changes must still be synced even when a background summary refresh cannot read bookmarks.
+  }
 }
 
 async function getOrCreateDeviceId(): Promise<string> {
@@ -440,25 +508,16 @@ async function runSingleRemoteSync(
   });
 }
 
-async function withTimeout<T>(task: Promise<T>, timeoutMs: number, message: string): Promise<T> {
-  let timeoutId: ReturnType<typeof globalThis.setTimeout> | null = null;
-  try {
-    return await Promise.race([
-      task,
-      new Promise<T>((_resolve, reject) => {
-        timeoutId = globalThis.setTimeout(() => {
-          reject(new Error(message));
-        }, timeoutMs);
-      }),
-    ]);
-  } finally {
-    if (timeoutId !== null) {
-      globalThis.clearTimeout(timeoutId);
-    }
-  }
+function createWebdavBackupTarget(config: BackgroundSyncConfig) {
+  if (!config.webdavConfig?.url) return null;
+  return {
+    url: config.webdavConfig.url,
+    username: config.webdavConfig.username,
+    rootPath: config.rootPath,
+  };
 }
 
-async function markSyncSuccess(remoteKind: LeafTabSyncRemoteKind): Promise<void> {
+async function markSyncSuccess(remoteKind: LeafTabSyncRemoteKind, config?: BackgroundSyncConfig): Promise<void> {
   const nowIso = getNowIso();
   if (remoteKind === 'aira-cloud') {
     await writeExtensionStorageRecord({
@@ -481,6 +540,10 @@ async function markSyncSuccess(remoteKind: LeafTabSyncRemoteKind): Promise<void>
     'webdav_last_error_at',
     'webdav_last_error_message',
   ]);
+  const target = remoteKind === 'webdav' && config ? createWebdavBackupTarget(config) : null;
+  if (target) {
+    await clearWebdavBackupFailureCooldown(target);
+  }
 }
 
 async function markSyncError(remoteKind: LeafTabSyncRemoteKind, error: unknown): Promise<void> {
@@ -617,10 +680,13 @@ async function runBackgroundAutoSync(trigger?: BackgroundSyncTrigger): Promise<b
             cloudRemoteCommitId: route.remoteKind === 'aira-cloud' ? (result.remoteCommitId || '') : undefined,
             webdavRemoteCommitId: route.remoteKind === 'webdav' ? (result.remoteCommitId || '') : undefined,
           });
+          await removeExtensionStorageKeys([
+            LEAFTAB_BACKGROUND_STORAGE_KEYS.autoSyncRetryProvider,
+          ]);
           return false;
         }
         await writeAnalysisCacheForRemote(config, route.remoteKind, result);
-        await markSyncSuccess(route.remoteKind);
+        await markSyncSuccess(route.remoteKind, config);
         await updateBackgroundDebugState({
           lastSyncFinishedAt: getNowIso(),
           lastResult: 'success',
@@ -632,6 +698,7 @@ async function runBackgroundAutoSync(trigger?: BackgroundSyncTrigger): Promise<b
         });
         await removeExtensionStorageKeys([
           LEAFTAB_BACKGROUND_STORAGE_KEYS.pendingLocalChangedAt,
+          LEAFTAB_BACKGROUND_STORAGE_KEYS.autoSyncRetryProvider,
           WEBDAV_STORAGE_KEYS.nextSyncAt,
         ]);
         return true;
@@ -649,15 +716,45 @@ async function runBackgroundAutoSync(trigger?: BackgroundSyncTrigger): Promise<b
           lastResult: 'conflict',
           lastReason: `${route.primaryRemoteKind}:primary`,
         });
+        await removeExtensionStorageKeys([
+          LEAFTAB_BACKGROUND_STORAGE_KEYS.autoSyncRetryProvider,
+        ]);
         return false;
       }
       await writeAnalysisCacheForRemote(config, route.primaryRemoteKind, primaryResult);
-      await markSyncSuccess(route.primaryRemoteKind);
+      await markSyncSuccess(route.primaryRemoteKind, config);
 
       const secondaryPlan = createLeafTabDualSecondarySyncPlan(route, primaryResult);
       await updateBackgroundDebugState({
         lastReason: `syncing-secondary:${route.secondaryRemoteKind}`,
       });
+      const secondaryWebdavTarget = route.secondaryRemoteKind === 'webdav'
+        ? createWebdavBackupTarget(config)
+        : null;
+      const secondaryCooldownReason = secondaryWebdavTarget
+        ? await readWebdavBackupCooldownResult(secondaryWebdavTarget)
+        : null;
+      if (secondaryCooldownReason) {
+        await updateBackgroundDebugState({
+          lastSyncFinishedAt: getNowIso(),
+          lastResult: 'success',
+          lastReason: `${route.primaryRemoteKind}+${route.secondaryRemoteKind}:backup-cooldown`,
+          lastError: secondaryCooldownReason,
+          cloudRemoteCommitId: route.primaryRemoteKind === 'aira-cloud'
+            ? (primaryResult.remoteCommitId || '')
+            : '',
+          webdavRemoteCommitId: route.primaryRemoteKind === 'webdav'
+            ? (primaryResult.remoteCommitId || '')
+            : '',
+          pendingLocalChangedAt: '',
+        });
+        await removeExtensionStorageKeys([
+          LEAFTAB_BACKGROUND_STORAGE_KEYS.pendingLocalChangedAt,
+          LEAFTAB_BACKGROUND_STORAGE_KEYS.autoSyncRetryProvider,
+          WEBDAV_STORAGE_KEYS.nextSyncAt,
+        ]);
+        return true;
+      }
       let secondaryResult: LeafTabSyncEngineResult | null = null;
       let secondaryError: unknown = null;
       try {
@@ -669,7 +766,7 @@ async function runBackgroundAutoSync(trigger?: BackgroundSyncTrigger): Promise<b
             : undefined,
         });
         secondaryResult = route.secondaryRemoteKind === 'webdav'
-          ? await withTimeout(
+          ? await withWebdavBackupTimeout(
               secondaryTask,
               WEBDAV_BACKUP_TOTAL_TIMEOUT_MS,
               'WebDAV 备份连接超时，已跳过本次备份，不影响主同步。',
@@ -680,6 +777,9 @@ async function runBackgroundAutoSync(trigger?: BackgroundSyncTrigger): Promise<b
       }
       if (secondaryError !== null) {
         await markSyncError(route.secondaryRemoteKind, secondaryError);
+        if (secondaryWebdavTarget) {
+          await recordWebdavBackupFailureCooldown(secondaryWebdavTarget, secondaryError);
+        }
         await updateBackgroundDebugState({
           lastSyncFinishedAt: getNowIso(),
           lastResult: 'success',
@@ -695,6 +795,7 @@ async function runBackgroundAutoSync(trigger?: BackgroundSyncTrigger): Promise<b
         });
         await removeExtensionStorageKeys([
           LEAFTAB_BACKGROUND_STORAGE_KEYS.pendingLocalChangedAt,
+          LEAFTAB_BACKGROUND_STORAGE_KEYS.autoSyncRetryProvider,
           WEBDAV_STORAGE_KEYS.nextSyncAt,
         ]);
         return true;
@@ -704,6 +805,9 @@ async function runBackgroundAutoSync(trigger?: BackgroundSyncTrigger): Promise<b
       }
       if (secondaryResult.kind === 'conflict') {
         await markSyncError(route.secondaryRemoteKind, new Error('备份源需要处理冲突'));
+        if (secondaryWebdavTarget) {
+          await recordWebdavBackupFailureCooldown(secondaryWebdavTarget, new Error('备份源需要处理冲突'));
+        }
         await updateBackgroundDebugState({
           lastSyncFinishedAt: getNowIso(),
           lastResult: 'success',
@@ -718,12 +822,13 @@ async function runBackgroundAutoSync(trigger?: BackgroundSyncTrigger): Promise<b
         });
         await removeExtensionStorageKeys([
           LEAFTAB_BACKGROUND_STORAGE_KEYS.pendingLocalChangedAt,
+          LEAFTAB_BACKGROUND_STORAGE_KEYS.autoSyncRetryProvider,
           WEBDAV_STORAGE_KEYS.nextSyncAt,
         ]);
         return true;
       }
       await writeAnalysisCacheForRemote(config, route.secondaryRemoteKind, secondaryResult);
-      await markSyncSuccess(route.secondaryRemoteKind);
+      await markSyncSuccess(route.secondaryRemoteKind, config);
       await updateBackgroundDebugState({
         lastSyncFinishedAt: getNowIso(),
         lastResult: 'success',
@@ -739,6 +844,7 @@ async function runBackgroundAutoSync(trigger?: BackgroundSyncTrigger): Promise<b
       });
       await removeExtensionStorageKeys([
         LEAFTAB_BACKGROUND_STORAGE_KEYS.pendingLocalChangedAt,
+        LEAFTAB_BACKGROUND_STORAGE_KEYS.autoSyncRetryProvider,
         WEBDAV_STORAGE_KEYS.nextSyncAt,
       ]);
       return true;
@@ -753,6 +859,7 @@ async function runBackgroundAutoSync(trigger?: BackgroundSyncTrigger): Promise<b
         lastResult: 'error',
         lastError: String((error as Error)?.message || error || 'unknown'),
       });
+      await schedulePrimarySyncRetry(route.kind === 'single' ? route.remoteKind : route.primaryRemoteKind, 'primary-failed');
       console.error('[Aira][background auto sync]', error);
       return false;
     } finally {
@@ -775,7 +882,16 @@ async function scheduleLocalChangeAlarm(): Promise<void> {
   if (!alarms?.create) {
     return;
   }
-  const scheduledAt = new Date(Date.now() + AUTO_SYNC_BOOKMARK_CHANGE_DELAY_MINUTES * 60_000).toISOString();
+  await scheduleLocalSyncAlarmAfter(AUTO_SYNC_BOOKMARK_CHANGE_DELAY_MINUTES);
+}
+
+async function scheduleLocalSyncAlarmAfter(delayMinutes: number): Promise<void> {
+  const alarms = getAlarmsApi();
+  if (!alarms?.create) {
+    return;
+  }
+  const safeDelayMinutes = Math.max(0.1, delayMinutes);
+  const scheduledAt = new Date(Date.now() + safeDelayMinutes * 60_000).toISOString();
   await updateBackgroundDebugState({
     lastLocalAlarmScheduledAt: scheduledAt,
   });
@@ -783,8 +899,18 @@ async function scheduleLocalChangeAlarm(): Promise<void> {
     [WEBDAV_STORAGE_KEYS.nextSyncAt]: scheduledAt,
   });
   alarms.create(LOCAL_SYNC_ALARM_NAME, {
-    delayInMinutes: AUTO_SYNC_BOOKMARK_CHANGE_DELAY_MINUTES,
+    delayInMinutes: safeDelayMinutes,
   });
+}
+
+async function schedulePrimarySyncRetry(provider: LeafTabSyncRemoteKind, reason: string): Promise<void> {
+  await updateBackgroundDebugState({
+    lastReason: `${provider}:${reason}:retry-scheduled`,
+  });
+  await writeExtensionStorageRecord({
+    [LEAFTAB_BACKGROUND_STORAGE_KEYS.autoSyncRetryProvider]: provider,
+  });
+  await scheduleLocalSyncAlarmAfter(AUTO_SYNC_RETRY_DELAY_MINUTES);
 }
 
 async function resolveRemoteProbeDelayMinutes(isStartup: boolean = false): Promise<number> {
@@ -898,14 +1024,24 @@ async function handleRemoteProbeAlarm(): Promise<void> {
 }
 
 async function handleLocalChangeAlarm(): Promise<void> {
-  const pendingLocalChangedAt = await readPendingLeafTabLocalBookmarkChangedAtFromExtensionStorage();
+  const [pendingLocalChangedAt, retryRecord] = await Promise.all([
+    readPendingLeafTabLocalBookmarkChangedAtFromExtensionStorage(),
+    readExtensionStorageRecord([LEAFTAB_BACKGROUND_STORAGE_KEYS.autoSyncRetryProvider]),
+  ]);
+  const retryProviderValue = retryRecord[LEAFTAB_BACKGROUND_STORAGE_KEYS.autoSyncRetryProvider];
+  const retryProvider: LeafTabSyncRemoteKind | undefined =
+    retryProviderValue === 'aira-cloud' || retryProviderValue === 'webdav'
+      ? retryProviderValue
+      : undefined;
   await updateBackgroundDebugState({
     lastLocalAlarmFiredAt: getNowIso(),
     pendingLocalChangedAt: pendingLocalChangedAt > 0 ? String(pendingLocalChangedAt) : '',
+    lastTriggerProvider: retryProvider || '',
   });
-  if (pendingLocalChangedAt <= 0) {
+  if (pendingLocalChangedAt <= 0 && !retryProvider) {
     await removeExtensionStorageKeys([
       LEAFTAB_BACKGROUND_STORAGE_KEYS.pendingLocalChangedAt,
+      LEAFTAB_BACKGROUND_STORAGE_KEYS.autoSyncRetryProvider,
       WEBDAV_STORAGE_KEYS.nextSyncAt,
     ]);
     return;
@@ -917,7 +1053,7 @@ async function handleLocalChangeAlarm(): Promise<void> {
     ]);
     return;
   }
-  await runBackgroundAutoSync();
+  await runBackgroundAutoSync({ provider: retryProvider });
 }
 
 function shouldSuppressBookmarkEvent(): boolean {
@@ -939,6 +1075,7 @@ async function handleBookmarkMutation(): Promise<void> {
     [LEAFTAB_BACKGROUND_STORAGE_KEYS.pendingLocalChangedAt]: nowIso,
   });
   const config = await readBackgroundSyncConfig();
+  await writeLocalSummaryCacheFromCurrentBookmarks(config);
   if (!canRunBackgroundAutoSync(config)) {
     await removeExtensionStorageKeys([
       WEBDAV_STORAGE_KEYS.nextSyncAt,
@@ -1073,7 +1210,22 @@ function bindLifecycleListeners(): void {
 
 function bindWebdavProxyMessageListener(): void {
   getRuntime()?.onMessage.addListener((message, _sender, sendResponse) => {
-    if (!message || message.type !== WEBDAV_PROXY_MESSAGE_TYPE) return;
+    if (!message) return;
+    if (message.type === AUTO_SYNC_MESSAGE_TYPE) {
+      const provider = message.provider === 'webdav' || message.provider === 'aira-cloud'
+        ? message.provider
+        : undefined;
+      void runBackgroundAutoSync({ provider }).then((ok) => {
+        sendResponse({ success: ok });
+      }).catch((error) => {
+        sendResponse({
+          success: false,
+          error: String((error as Error)?.message || error || 'unknown'),
+        });
+      });
+      return true;
+    }
+    if (message.type !== WEBDAV_PROXY_MESSAGE_TYPE) return;
 
     const payload = message.payload || {};
     const method = String(payload.method || 'GET').toUpperCase();
