@@ -1,5 +1,6 @@
 import type { LeafTabBookmarkTreeDraft } from './bookmarks';
 import type {
+  LeafTabSyncBookmarkDataSet,
   LeafTabSyncBookmarkFolderEntity,
   LeafTabSyncBookmarkItemEntity,
   LeafTabSyncBookmarkOrder,
@@ -27,6 +28,7 @@ export interface LeafTabSnapshotBuildState {
   orders?: {
     bookmarkOrders?: Record<string, LeafTabOrderMetadata>;
   };
+  appPrivateBookmarks?: LeafTabSyncBookmarkDataSet;
 }
 
 type ResolvedBookmarkFolderEntry = {
@@ -194,6 +196,20 @@ const resolveBookmarkTreeInput = (
   };
 };
 
+const cloneBookmarkDataSet = (
+  value: LeafTabSyncBookmarkDataSet | null | undefined,
+): LeafTabSyncBookmarkDataSet | undefined => {
+  if (!value) {
+    return undefined;
+  }
+  return {
+    bookmarkFolders: { ...(value.bookmarkFolders || {}) },
+    bookmarkItems: { ...(value.bookmarkItems || {}) },
+    bookmarkOrders: { ...(value.bookmarkOrders || {}) },
+    tombstones: { ...(value.tombstones || {}) },
+  };
+};
+
 export const createLeafTabSyncBuildState = (params: {
   previousSnapshot?: LeafTabSyncSnapshot | null;
   bookmarkTree?: LeafTabBookmarkTreeDraft | null;
@@ -210,6 +226,7 @@ export const createLeafTabSyncBuildState = (params: {
     orders: {
       bookmarkOrders: {},
     },
+    appPrivateBookmarks: cloneBookmarkDataSet(previousSnapshot?.appPrivateBookmarks),
   };
 
   const {
@@ -336,6 +353,7 @@ export const buildLeafTabSyncSnapshot = (params: {
     bookmarkItems,
     bookmarkOrders,
     tombstones,
+    appPrivateBookmarks: cloneBookmarkDataSet(params.state?.appPrivateBookmarks),
   };
 };
 

@@ -4,6 +4,7 @@ import {
   type LeafTabSyncBookmarkFolderEntity,
   type LeafTabSyncBookmarkItemEntity,
   type LeafTabSyncBookmarkOrder,
+  type LeafTabSyncBookmarkDataSet,
   type LeafTabSyncCommitFile,
   type LeafTabSyncHeadFile,
   type LeafTabSyncSnapshot,
@@ -32,6 +33,7 @@ type AiraCloudSnapshot = {
   bookmarkItems?: LeafTabSyncBookmarkItemEntity[];
   bookmarkOrders?: LeafTabSyncBookmarkOrder[];
   tombstones?: LeafTabSyncTombstone[];
+  appPrivateBookmarks?: LeafTabSyncBookmarkDataSet;
 };
 
 type AiraCloudResponse = {
@@ -79,6 +81,7 @@ const toCloudSnapshot = (snapshot: LeafTabSyncSnapshot): AiraCloudSnapshot => ({
   bookmarkItems: objectValues(snapshot.bookmarkItems),
   bookmarkOrders: objectValues(snapshot.bookmarkOrders),
   tombstones: objectValues(snapshot.tombstones),
+  appPrivateBookmarks: snapshot.appPrivateBookmarks,
 });
 
 const fromCloudSnapshot = (snapshot: AiraCloudSnapshot | null | undefined): LeafTabSyncSnapshot | null => {
@@ -93,6 +96,7 @@ const fromCloudSnapshot = (snapshot: AiraCloudSnapshot | null | undefined): Leaf
     bookmarkItems: recordById(snapshot.bookmarkItems),
     bookmarkOrders: orderRecordByParent(snapshot.bookmarkOrders),
     tombstones: recordById(snapshot.tombstones),
+    appPrivateBookmarks: snapshot.appPrivateBookmarks,
   };
 };
 

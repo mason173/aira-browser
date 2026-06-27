@@ -360,6 +360,10 @@ export const clearLeafTabLocalBookmarkOperationOutbox = async (): Promise<void> 
   await removeExtensionStorageKeys([OUTBOX_STORAGE_KEY]);
 };
 
+export const hasPendingLeafTabLocalBookmarkOperationOutbox = async (): Promise<boolean> => {
+  return (await readOutbox()).length > 0;
+};
+
 export const buildLeafTabPendingLocalOperationsFromOutbox = async (params: {
   baseSnapshot: LeafTabSyncSnapshot;
   deviceId: string;

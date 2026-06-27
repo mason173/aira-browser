@@ -1,5 +1,6 @@
 export const LEAFTAB_SYNC_SCHEMA_VERSION = 2 as const;
 export const LEAFTAB_SYNC_DEFAULT_ROOT = 'aira/v1/bookmarks';
+export const LEAFTAB_SYNC_APP_PRIVATE_BOOKMARKS_FILE = 'app-private-bookmarks.json';
 export const LEAFTAB_SYNC_BOOKMARK_FOLDER_PACK_SHARDS = 4;
 export const LEAFTAB_SYNC_BOOKMARK_ITEM_PACK_SHARDS = 16;
 export const LEAFTAB_SYNC_TOMBSTONE_PACK_SHARDS = 8;
@@ -56,6 +57,13 @@ export interface LeafTabSyncTombstone {
   lastKnownRevision: number;
 }
 
+export interface LeafTabSyncBookmarkDataSet {
+  bookmarkFolders: Record<string, LeafTabSyncBookmarkFolderEntity>;
+  bookmarkItems: Record<string, LeafTabSyncBookmarkItemEntity>;
+  bookmarkOrders: Record<string, LeafTabSyncBookmarkOrder>;
+  tombstones: Record<string, LeafTabSyncTombstone>;
+}
+
 export interface LeafTabSyncHeadFile {
   version: typeof LEAFTAB_SYNC_SCHEMA_VERSION;
   commitId: string;
@@ -104,6 +112,7 @@ export interface LeafTabSyncSnapshot {
   bookmarkItems: Record<string, LeafTabSyncBookmarkItemEntity>;
   bookmarkOrders: Record<string, LeafTabSyncBookmarkOrder>;
   tombstones: Record<string, LeafTabSyncTombstone>;
+  appPrivateBookmarks?: LeafTabSyncBookmarkDataSet;
 }
 
 export interface LeafTabSyncBaselineFileEntry {
@@ -220,7 +229,31 @@ export const normalizeLeafTabSyncSnapshot = (
     bookmarkItems: snapshot.bookmarkItems || {},
     bookmarkOrders: snapshot.bookmarkOrders || {},
     tombstones: snapshot.tombstones || {},
+    appPrivateBookmarks: normalizeLeafTabSyncBookmarkDataSet(snapshot.appPrivateBookmarks),
   };
+};
+
+export const normalizeLeafTabSyncBookmarkDataSet = (
+  value: LeafTabSyncBookmarkDataSet | null | undefined,
+): LeafTabSyncBookmarkDataSet | undefined => {
+  if (!value) {
+    return undefined;
+  }
+  const normalized: LeafTabSyncBookmarkDataSet = {
+    bookmarkFolders: value.bookmarkFolders || {},
+    bookmarkItems: value.bookmarkItems || {},
+    bookmarkOrders: value.bookmarkOrders || {},
+    tombstones: value.tombstones || {},
+  };
+  if (
+    Object.keys(normalized.bookmarkFolders).length === 0 &&
+    Object.keys(normalized.bookmarkItems).length === 0 &&
+    Object.keys(normalized.bookmarkOrders).length === 0 &&
+    Object.keys(normalized.tombstones).length === 0
+  ) {
+    return undefined;
+  }
+  return normalized;
 };
 
 export const isLeafTabSyncBookmarkFolderEntity = (

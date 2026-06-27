@@ -14,6 +14,7 @@ import type {
 import {
   createLeafTabSyncCommitFile,
   createLeafTabSyncHeadFile,
+  LEAFTAB_SYNC_APP_PRIVATE_BOOKMARKS_FILE,
   getLeafTabSyncCommitPath,
   getLeafTabSyncHeadPath,
   getLeafTabSyncManifestPath,
@@ -224,6 +225,11 @@ const buildSnapshotPayloadMap = (
     } satisfies LeafTabSyncManifestFile;
   }
 
+  const appPrivateBookmarksPath = `${rootPath}/${LEAFTAB_SYNC_APP_PRIVATE_BOOKMARKS_FILE}`;
+  if (shouldIncludePath(includePaths, appPrivateBookmarksPath)) {
+    payloads[appPrivateBookmarksPath] = snapshot.appPrivateBookmarks || null;
+  }
+
   return payloads;
 };
 
@@ -319,6 +325,10 @@ export const collectLeafTabSyncChangedPayloadPaths = (
     'tombstones',
     rootPath,
   ).forEach((path) => changedPaths.add(path));
+
+  if (!sameContent(previousSnapshot.appPrivateBookmarks, nextSnapshot.appPrivateBookmarks)) {
+    changedPaths.add(`${rootPath}/${LEAFTAB_SYNC_APP_PRIVATE_BOOKMARKS_FILE}`);
+  }
 
   changedPaths.add(getLeafTabSyncManifestPath(rootPath));
   return changedPaths;
