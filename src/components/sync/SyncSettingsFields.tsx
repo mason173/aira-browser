@@ -132,7 +132,7 @@ export function SyncToggleField({
           if (!disabled) onCheckedChange(value);
         }}
         disabled={disabled}
-        className="relative flex h-6 w-10 items-center justify-start rounded-full border border-border p-0.5 transition-colors data-[state=checked]:justify-end data-[state=checked]:bg-primary data-[state=unchecked]:bg-input"
+        className="relative flex h-6 w-10 items-center justify-start rounded-full p-0.5 transition-colors data-[state=checked]:justify-end"
       >
         <SwitchThumb className="h-full aspect-square rounded-full" pressedAnimation={{ width: 22 }} />
       </Switch>

@@ -18,7 +18,10 @@ import type {
   LeafTabRemoteAutoSyncDiagnostic,
   LeafTabSyncFacade,
 } from '@/features/sync/app/LeafTabSyncContracts';
-import { LEAFTAB_BOOKMARK_AUTO_SYNC_ENABLED_KEY } from '@/features/sync/app/leafTabSyncStorageKeys';
+import {
+  AIRA_CLOUD_SYNC_ENABLED_KEY,
+  LEAFTAB_BOOKMARK_AUTO_SYNC_ENABLED_KEY,
+} from '@/features/sync/app/leafTabSyncStorageKeys';
 import QRCodeStyling from 'qr-code-styling';
 import {
   RiArrowLeftSLine,
@@ -43,12 +46,18 @@ import {
   writeWebdavStorageStateToStorage,
 } from '@/utils/webdavConfig';
 import { writeExtensionStorageRecord } from '@/platform/extensionStorage';
+import {
+  readPhonePagePushEnabledFromLocalStorage,
+  writePhonePagePushEnabled,
+} from '@/features/phone-page-push/pagePushPreferences';
 import type { LeafTabSyncAnalysis, LeafTabSyncInitialChoice } from '@/sync/leaftab';
 import {
   clearAiraDesktopLoginProfile,
   createAiraDesktopLoginSession,
+  isAiraDesktopProfilePro,
   pollAiraDesktopLoginStatus,
   readAiraDesktopLoginProfile,
+  refreshAiraDesktopMembershipProfile,
   writeAiraDesktopLoginProfile,
   type AiraDesktopLoginSession,
 } from './desktopLogin';
@@ -70,12 +79,14 @@ type ConfiguredHomeState = {
   identityStatus: string;
   membershipPlan: string;
   membershipStatus: string;
+  membershipExpiresAt: number;
   isDesktopLoggedIn: boolean;
   lastSyncLabel: string;
   localDataLabel: string;
   remoteDataLabel: string;
   syncStartLabel: string;
   webdavEnabled: boolean;
+  phonePagePushEnabled: boolean;
 };
 
 type WebdavHomeState = {
@@ -98,6 +109,15 @@ const writeBookmarkAutoSyncEnabled = (enabled: boolean) => {
   localStorage.setItem(LEAFTAB_BOOKMARK_AUTO_SYNC_ENABLED_KEY, String(enabled));
   void writeExtensionStorageRecord({
     [LEAFTAB_BOOKMARK_AUTO_SYNC_ENABLED_KEY]: String(enabled),
+  });
+};
+
+const disableProOnlyLocalFeatures = () => {
+  writePhonePagePushEnabled(false);
+  writeBookmarkAutoSyncEnabled(false);
+  localStorage.setItem(AIRA_CLOUD_SYNC_ENABLED_KEY, 'false');
+  void writeExtensionStorageRecord({
+    [AIRA_CLOUD_SYNC_ENABLED_KEY]: 'false',
   });
 };
 
@@ -292,6 +312,8 @@ function readConfiguredHomeState(t: ReturnType<typeof useTranslation>['t']): Con
     const desktopLoginProfile = readAiraDesktopLoginProfile();
     if (desktopLoginProfile && desktopLoginProfile.uid) {
       const webdavEnabled = (localStorage.getItem(WEBDAV_STORAGE_KEYS.syncEnabled) ?? 'false') === 'true';
+      const isPro = isAiraDesktopProfilePro(desktopLoginProfile);
+      const phonePagePushEnabled = isPro && readPhonePagePushEnabledFromLocalStorage();
       return {
         nickname: desktopLoginProfile.displayName,
         uid: desktopLoginProfile.uidSuffix ? `AIRA-${desktopLoginProfile.uidSuffix}` : getShortUid(desktopLoginProfile.uid),
@@ -300,6 +322,7 @@ function readConfiguredHomeState(t: ReturnType<typeof useTranslation>['t']): Con
         identityStatus: t('popup.profile.signedIn', { defaultValue: '已登录' }),
         membershipPlan: desktopLoginProfile.membershipPlan,
         membershipStatus: desktopLoginProfile.membershipStatus,
+        membershipExpiresAt: desktopLoginProfile.membershipExpiresAt,
         isDesktopLoggedIn: true,
         lastSyncLabel: formatLastSync(
           localStorage.getItem('webdav_last_sync_at'),
@@ -309,12 +332,36 @@ function readConfiguredHomeState(t: ReturnType<typeof useTranslation>['t']): Con
         remoteDataLabel: t('popup.dashboard.dataCountUnknown', { defaultValue: '未读取' }),
         syncStartLabel: t('popup.advanced.syncStartValue', { defaultValue: 'WebDAV 已建立' }),
         webdavEnabled,
+        phonePagePushEnabled,
       };
     }
     return null;
   } catch {
     return null;
   }
+}
+
+async function refreshAndRequirePro(t: ReturnType<typeof useTranslation>['t']) {
+  try {
+    const latestProfile = await refreshAiraDesktopMembershipProfile(readAiraDesktopLoginProfile(), { force: true });
+    if (isAiraDesktopProfilePro(latestProfile)) {
+      return true;
+    }
+    disableProOnlyLocalFeatures();
+    toast.error(t('popup.profile.proRequired', { defaultValue: '此功能需要 Aira Pro' }));
+    return false;
+  } catch {
+    toast.error(t('popup.profile.membershipCheckFailed', { defaultValue: '会员状态校验失败，请稍后再试' }));
+    return false;
+  }
+}
+
+function isConfiguredHomeStatePro(profile: ConfiguredHomeState | null): boolean {
+  if ((profile?.membershipPlan || '').trim().toLowerCase() !== 'pro') {
+    return false;
+  }
+  const expiresAt = Number(profile?.membershipExpiresAt || 0);
+  return expiresAt === 0 || expiresAt > Date.now();
 }
 
 function readWebdavHomeState(t: ReturnType<typeof useTranslation>['t']): WebdavHomeState {
@@ -526,10 +573,17 @@ function LoginQrPanel({ onLoggedIn }: { onLoggedIn: () => void }) {
           .then((result) => {
             if (disposed) return;
             if (result.status === 'confirmed') {
-              writeAiraDesktopLoginProfile({
+              const confirmedProfile = {
                 ...result.account,
+                desktopPushToken: nextSession.desktopPushToken,
+                membershipCheckedAt: new Date().toISOString(),
                 loggedInAt: new Date().toISOString(),
-              });
+              };
+              writeAiraDesktopLoginProfile(confirmedProfile);
+              if (isAiraDesktopProfilePro(confirmedProfile)) {
+                writePhonePagePushEnabled(true);
+                window.dispatchEvent(new CustomEvent('phone-page-push-setting-changed'));
+              }
               setStatus('confirmed');
               setMessage(t('popup.login.success', { defaultValue: '已登录 Aira 同步助手' }));
               onLoggedIn();
@@ -960,6 +1014,10 @@ function ConfiguredHome({
           className="h-10 w-full rounded-[8px] text-sm font-medium"
           disabled={syncing}
           onClick={() => {
+            if (!cloudEnabled && !webdavEnabled) {
+              onOpenWebdav();
+              return;
+            }
             void syncRuntime.actions.handleActiveSyncNowFromCenter();
           }}
         >
@@ -967,7 +1025,7 @@ function ConfiguredHome({
             ? t('popup.dashboard.syncing', { defaultValue: '同步中...' })
             : (cloudEnabled || webdavEnabled)
               ? t('popup.dashboard.syncNow', { defaultValue: '立即同步' })
-              : t('popup.cloud.enableBookmarkSync', { defaultValue: '开启书签云同步' })}
+              : t('popup.dashboard.enableWebdavSync', { defaultValue: '开启 WebDAV 同步' })}
         </Button>
 
         <div className="space-y-2">
@@ -985,6 +1043,32 @@ function ConfiguredHome({
             </span>
             <RiArrowRightSLine className="size-4 shrink-0 text-muted-foreground" />
           </button>
+        </div>
+
+        <div className="space-y-2">
+          <SectionLabel>{t('popup.dashboard.phonePushTitle', { defaultValue: '手机联动' })}</SectionLabel>
+          <div className="overflow-hidden rounded-[8px] border border-border bg-card px-3 py-2">
+            <SyncToggleField
+              label={t('popup.dashboard.phonePushEnabled', { defaultValue: '接收手机网页推送' })}
+              description={isConfiguredHomeStatePro(profile)
+                ? t('popup.dashboard.phonePushDesc', {
+                    defaultValue: '开启后，这台电脑浏览器会自动接收并打开手机推送的当前网页。',
+                  })
+                : t('popup.dashboard.phonePushProDesc', {
+                    defaultValue: '接收手机网页推送是 Aira Pro 功能，开通后可用。',
+              })}
+              checked={profile.phonePagePushEnabled}
+              disabled={!isConfiguredHomeStatePro(profile)}
+              onCheckedChange={async (enabled) => {
+                if (enabled && !(await refreshAndRequirePro(t))) {
+                  window.dispatchEvent(new CustomEvent('phone-page-push-setting-changed'));
+                  return;
+                }
+                writePhonePagePushEnabled(enabled);
+                window.dispatchEvent(new CustomEvent('phone-page-push-setting-changed'));
+              }}
+            />
+          </div>
         </div>
       </div>
     </section>
@@ -1251,12 +1335,14 @@ function AdvancedSyncPage({
     identityStatus: t('popup.profile.notSignedIn', { defaultValue: '未登录' }),
     membershipPlan: 'guest',
     membershipStatus: 'missing_profile',
+    membershipExpiresAt: 0,
     isDesktopLoggedIn: false,
     lastSyncLabel: t('popup.dashboard.lastSyncPlaceholder', { defaultValue: '6/24/2026, 10:45:55 AM' }),
     localDataLabel: t('popup.dashboard.dataCountPlaceholder', { defaultValue: '723 个文件夹，9212 个书签' }),
     remoteDataLabel: t('popup.dashboard.dataCountPlaceholder', { defaultValue: '723 个文件夹，9212 个书签' }),
     syncStartLabel: t('popup.advanced.syncStartValue', { defaultValue: 'WebDAV 已建立' }),
     webdavEnabled: true,
+    phonePagePushEnabled: false,
   };
   const webdavAnalysis = syncRuntime.state.leafTabWebdavSyncAnalysis;
   const remoteDataLabel = formatBookmarkDataLabel(
@@ -1418,7 +1504,8 @@ function BookmarkCloudPage({
   const primaryRemoteKind = syncRuntime.state.leafTabPrimaryRemoteKind
     ?? (cloudEnabled ? 'aira-cloud' : (webdavEnabled ? 'webdav' : null));
   const [bookmarkAutoSyncEnabled, setBookmarkAutoSyncEnabled] = useState(readBookmarkAutoSyncEnabledFromLocalStorage);
-  const canUseBookmarkAutoSync = (profile?.membershipPlan || 'guest') === 'pro';
+  const canUseBookmarkAutoSync = isConfiguredHomeStatePro(profile);
+  const canUseAiraCloudSync = canUseBookmarkAutoSync;
 
   return (
     <section className="min-h-[360px] bg-background">
@@ -1460,7 +1547,10 @@ function BookmarkCloudPage({
                   })}
               checked={bookmarkAutoSyncEnabled}
               disabled={!canUseBookmarkAutoSync || syncing}
-              onCheckedChange={(enabled) => {
+              onCheckedChange={async (enabled) => {
+                if (enabled && !(await refreshAndRequirePro(t))) {
+                  return;
+                }
                 setBookmarkAutoSyncEnabled(enabled);
                 writeBookmarkAutoSyncEnabled(enabled);
               }}
@@ -1471,10 +1561,13 @@ function BookmarkCloudPage({
         <Button
           type="button"
           className="h-10 w-full rounded-[8px]"
-          disabled={syncing}
-          onClick={() => {
+          disabled={syncing || (cloudLoggedIn && !canUseAiraCloudSync)}
+          onClick={async () => {
             if (!cloudLoggedIn) {
               onOpenLogin();
+            } else if (!canUseAiraCloudSync) {
+              disableProOnlyLocalFeatures();
+              toast.error(t('popup.profile.proRequired', { defaultValue: '此功能需要 Aira Pro' }));
             } else if (cloudEnabled) {
               void syncRuntime.actions.handleCloudSyncNowFromCenter();
             } else {
@@ -1494,6 +1587,8 @@ function BookmarkCloudPage({
             ? t('popup.dashboard.syncing', { defaultValue: '同步中...' })
             : !cloudLoggedIn
               ? t('popup.cloud.loginAndEnable', { defaultValue: '使用账号登录并开启' })
+              : !canUseAiraCloudSync
+                ? t('popup.cloud.proRequiredAction', { defaultValue: 'Aira Pro 可用' })
               : cloudEnabled
                 ? t('popup.cloud.resync', { defaultValue: '重新同步' })
                 : t('popup.cloud.enableBookmarkSync', { defaultValue: '开启书签云同步' })}
@@ -1940,10 +2035,25 @@ export function PopupApp() {
     const refresh = () => setLocalVersion((value) => value + 1);
     window.addEventListener('webdav-config-changed', refresh);
     window.addEventListener('webdav-sync-status-changed', refresh);
+    window.addEventListener('phone-page-push-setting-changed', refresh);
     return () => {
       window.removeEventListener('webdav-config-changed', refresh);
       window.removeEventListener('webdav-sync-status-changed', refresh);
+      window.removeEventListener('phone-page-push-setting-changed', refresh);
     };
+  }, []);
+
+  useEffect(() => {
+    const profile = readAiraDesktopLoginProfile();
+    if (!profile?.uid) return;
+    refreshAiraDesktopMembershipProfile(profile)
+      .then((latestProfile) => {
+        if (latestProfile && !isAiraDesktopProfilePro(latestProfile)) {
+          disableProOnlyLocalFeatures();
+        }
+        setLocalVersion((value) => value + 1);
+      })
+      .catch(() => undefined);
   }, []);
 
   useEffect(() => {
@@ -1964,6 +2074,7 @@ export function PopupApp() {
           localVersion={localVersion}
           onLogout={() => {
             clearAiraDesktopLoginProfile();
+            disableProOnlyLocalFeatures();
             setLocalVersion((value) => value + 1);
             toast.success(t('popup.profile.loggedOut', { defaultValue: '已退出登录' }));
           }}

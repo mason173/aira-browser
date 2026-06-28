@@ -6,6 +6,7 @@ export const AIRA_CLOUD_SYNC_ENABLED_KEY = 'aira_cloud_bookmark_sync_enabled';
 export const AIRA_CLOUD_LAST_SYNC_AT_KEY = 'aira_cloud_last_sync_at';
 export const AIRA_CLOUD_LAST_ERROR_AT_KEY = 'aira_cloud_last_error_at';
 export const AIRA_CLOUD_LAST_ERROR_MESSAGE_KEY = 'aira_cloud_last_error_message';
+export const AIRA_PHONE_PAGE_PUSH_ENABLED_KEY = 'aira_phone_page_push_enabled_v1';
 
 export const LEAFTAB_BACKGROUND_STORAGE_KEYS = {
   pendingLocalChangedAt: 'leaftab_background_pending_local_changed_at',

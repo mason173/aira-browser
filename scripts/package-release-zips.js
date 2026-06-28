@@ -5,6 +5,7 @@ const {
   COMMUNITY_EXTENSION_ID,
   FIREFOX_EXTENSION_ID,
   RELEASE_EDITION,
+  RELEASE_PACKAGE_BASENAME,
   computeExtensionIdFromManifestKey,
   detectReleaseEditionByManifest,
   readReleaseMarkerFromDir,
@@ -201,9 +202,9 @@ if (builtEdition !== RELEASE_EDITION) {
 }
 
 const packageLabel = RELEASE_EDITION;
-const storeZip = path.join(root, `airatab-${packageLabel}-chrome-edge-store-v${version}.zip`);
-const communityZip = path.join(root, `airatab-${packageLabel}-chrome-edge-community-v${version}.zip`);
-const firefoxZip = path.join(root, `airatab-${packageLabel}-firefox-store-v${version}.zip`);
+const storeZip = path.join(root, `${RELEASE_PACKAGE_BASENAME}-${packageLabel}-chrome-edge-store-v${version}.zip`);
+const communityZip = path.join(root, `${RELEASE_PACKAGE_BASENAME}-${packageLabel}-chrome-edge-community-v${version}.zip`);
+const firefoxZip = path.join(root, `${RELEASE_PACKAGE_BASENAME}-${packageLabel}-firefox-store-v${version}.zip`);
 
 console.log('[pack] Creating release zip files...');
 copyDir(buildDir, packWorkDir);

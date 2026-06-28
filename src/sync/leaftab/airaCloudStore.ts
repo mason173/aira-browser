@@ -128,10 +128,12 @@ const createHead = (commitId: string | null, updatedAt?: number | string): LeafT
 
 export class LeafTabSyncAiraCloudStore implements LeafTabSyncRemoteStore {
   private readonly uid: string;
+  private readonly desktopPushToken: string;
   private readonly endpoint: string;
 
-  constructor(uid: string, endpoint = AIRA_CLOUD_SYNC_ENDPOINT) {
+  constructor(uid: string, desktopPushToken = '', endpoint = AIRA_CLOUD_SYNC_ENDPOINT) {
     this.uid = uid.trim();
+    this.desktopPushToken = desktopPushToken.trim();
     this.endpoint = endpoint.trim().replace(/\/+$/, '');
   }
 
@@ -150,6 +152,7 @@ export class LeafTabSyncAiraCloudStore implements LeafTabSyncRemoteStore {
     this.assertConfigured();
     const response = await this.post('/head', {
       uid: this.uid,
+      desktopPushToken: this.desktopPushToken,
       source: 'airatab',
     });
     const commitId = typeof response.commitId === 'string' && response.commitId.trim()
@@ -173,6 +176,7 @@ export class LeafTabSyncAiraCloudStore implements LeafTabSyncRemoteStore {
     this.assertConfigured();
     const response = await this.post('/read-ops', {
       uid: this.uid,
+      desktopPushToken: this.desktopPushToken,
       source: 'airatab',
       sinceCommitId: params.sinceCommitId,
     });
@@ -195,6 +199,7 @@ export class LeafTabSyncAiraCloudStore implements LeafTabSyncRemoteStore {
     this.assertConfigured();
     const response = await this.post('/read', {
       uid: this.uid,
+      desktopPushToken: this.desktopPushToken,
       source: 'airatab',
     }, AIRA_CLOUD_LARGE_REQUEST_TIMEOUT_MS);
     const snapshot = fromCloudSnapshot(response.snapshot);
@@ -216,6 +221,7 @@ export class LeafTabSyncAiraCloudStore implements LeafTabSyncRemoteStore {
     this.assertConfigured();
     const response = await this.post('/write', {
       uid: this.uid,
+      desktopPushToken: this.desktopPushToken,
       source: 'airatab',
       deviceId: params.deviceId,
       parentCommitId: params.parentCommitId ?? null,
@@ -242,6 +248,7 @@ export class LeafTabSyncAiraCloudStore implements LeafTabSyncRemoteStore {
     }
     const response = await this.post('/write-ops', {
       uid: this.uid,
+      desktopPushToken: this.desktopPushToken,
       source: 'airatab',
       deviceId: params.deviceId,
       parentCommitId: params.parentCommitId,

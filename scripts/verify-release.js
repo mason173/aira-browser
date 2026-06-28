@@ -5,6 +5,7 @@ const {
   COMMUNITY_EXTENSION_ID,
   FIREFOX_EXTENSION_ID,
   RELEASE_EDITION,
+  RELEASE_PACKAGE_BASENAME,
   computeExtensionIdFromManifestKey,
   detectReleaseEditionByManifest,
   readReleaseMarkerFromZip,
@@ -171,9 +172,9 @@ function main() {
   }
   const args = process.argv.slice(2);
   const defaultZips = [
-    path.join(root, `airatab-${expectedEdition}-chrome-edge-store-v${releaseVersion}.zip`),
-    path.join(root, `airatab-${expectedEdition}-chrome-edge-community-v${releaseVersion}.zip`),
-    path.join(root, `airatab-${expectedEdition}-firefox-store-v${releaseVersion}.zip`),
+    path.join(root, `${RELEASE_PACKAGE_BASENAME}-${expectedEdition}-chrome-edge-store-v${releaseVersion}.zip`),
+    path.join(root, `${RELEASE_PACKAGE_BASENAME}-${expectedEdition}-chrome-edge-community-v${releaseVersion}.zip`),
+    path.join(root, `${RELEASE_PACKAGE_BASENAME}-${expectedEdition}-firefox-store-v${releaseVersion}.zip`),
   ];
   const zipPaths = args.length > 0 ? args.map((p) => path.resolve(root, p)) : defaultZips;
 

@@ -5,6 +5,7 @@ const crypto = require('crypto');
 
 const RELEASE_EDITION = 'final';
 const RELEASE_MARKER_FILE = '.release-edition';
+const RELEASE_PACKAGE_BASENAME = 'aira-sync-assistant';
 const COMMUNITY_EXTENSION_ID = 'plnjjlkaaonbccmjpfljbbbbaahfklem';
 const FIREFOX_EXTENSION_ID = 'airatab@cc';
 
@@ -63,6 +64,7 @@ module.exports = {
   FIREFOX_EXTENSION_ID,
   RELEASE_EDITION,
   RELEASE_MARKER_FILE,
+  RELEASE_PACKAGE_BASENAME,
   computeExtensionIdFromManifestKey,
   detectReleaseEditionByManifest,
   readReleaseMarkerFromDir,

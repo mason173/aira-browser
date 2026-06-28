@@ -18,6 +18,7 @@ import {
   AIRA_CLOUD_LAST_SYNC_AT_KEY,
   AIRA_CLOUD_SYNC_ENABLED_KEY,
   LEAFTAB_BACKGROUND_STORAGE_KEYS,
+  LEAFTAB_BOOKMARK_AUTO_SYNC_ENABLED_KEY,
   LEAFTAB_PRIMARY_SYNC_REMOTE_KIND_KEY,
   LEAFTAB_SYNC_DEVICE_ID_KEY,
   LEAFTAB_SYNC_LOCAL_SUMMARY_AT_KEY,
@@ -79,7 +80,9 @@ import {
   WEBDAV_STORAGE_KEYS,
 } from '@/utils/webdavConfig';
 import {
+  isAiraDesktopProfilePro,
   readAiraDesktopLoginProfile,
+  refreshAiraDesktopMembershipProfile,
   syncAiraDesktopLoginProfileToExtensionStorage,
 } from '@/popup/desktopLogin';
 
@@ -722,6 +725,14 @@ export function useLeafTabSyncRuntimeController(
     return readAiraDesktopLoginProfile();
   }, [localVersion]);
   const cloudUid = desktopLoginProfile?.uid || '';
+  const cloudDesktopPushToken = desktopLoginProfile?.desktopPushToken || '';
+  const isCloudSyncEntitled = useMemo(() => {
+    if ((desktopLoginProfile?.membershipPlan || '').trim().toLowerCase() !== 'pro') {
+      return false;
+    }
+    const expiresAt = Number(desktopLoginProfile?.membershipExpiresAt || 0);
+    return expiresAt === 0 || expiresAt > Date.now();
+  }, [desktopLoginProfile]);
   const cloudSyncEnabled = useMemo(() => {
     void localVersion;
     return (localStorage.getItem(AIRA_CLOUD_SYNC_ENABLED_KEY) ?? 'false') === 'true';
@@ -1560,7 +1571,7 @@ export function useLeafTabSyncRuntimeController(
         ? leafTabCloudBaselineStorageKey
         : leafTabSyncBaselineStorageKey,
       createRemoteStore: () => remoteKind === 'aira-cloud'
-        ? new LeafTabSyncAiraCloudStore(cloudUid || '')
+        ? new LeafTabSyncAiraCloudStore(cloudUid || '', cloudDesktopPushToken)
         : new LeafTabSyncWebdavStore({
             url: webdavConfig?.url || '',
             username: webdavConfig?.username,
@@ -1597,6 +1608,21 @@ export function useLeafTabSyncRuntimeController(
     if (isCloud && !cloudUid) {
       toast.error('请先扫码登录 Aira 账号');
       return null;
+    }
+    if (isCloud) {
+      const latestProfile = await refreshAiraDesktopMembershipProfile(readAiraDesktopLoginProfile(), { force: true }).catch(() => null);
+      if (!isAiraDesktopProfilePro(latestProfile)) {
+        localStorage.setItem(AIRA_CLOUD_SYNC_ENABLED_KEY, 'false');
+        localStorage.setItem(LEAFTAB_BOOKMARK_AUTO_SYNC_ENABLED_KEY, 'false');
+        void writeExtensionStorageRecord({
+          [AIRA_CLOUD_SYNC_ENABLED_KEY]: 'false',
+          [LEAFTAB_BOOKMARK_AUTO_SYNC_ENABLED_KEY]: 'false',
+        });
+        if (options?.silentSuccess !== true) {
+          toast.error('Aira 云同步需要 Aira Pro');
+        }
+        return null;
+      }
     }
 
     const runMode: LeafTabSyncInitialChoice | 'auto' = options?.mode || 'auto';
@@ -1824,9 +1850,19 @@ export function useLeafTabSyncRuntimeController(
     trigger?: LeafTabRemoteAutoSyncProbeResult;
   }) => {
     const isAuto = options?.auto === true;
+    if (isAuto) {
+      const latestProfile = await refreshAiraDesktopMembershipProfile(readAiraDesktopLoginProfile(), { force: true }).catch(() => null);
+      if (!isAiraDesktopProfilePro(latestProfile)) {
+        localStorage.setItem(LEAFTAB_BOOKMARK_AUTO_SYNC_ENABLED_KEY, 'false');
+        void writeExtensionStorageRecord({
+          [LEAFTAB_BOOKMARK_AUTO_SYNC_ENABLED_KEY]: 'false',
+        });
+        return false;
+      }
+    }
     const triggerProvider = options?.trigger?.hasChanges ? options.trigger.provider : undefined;
     const webdavEnabledNow = isWebdavSyncEnabledFromStorage();
-    const cloudEnabledNow = (localStorage.getItem(AIRA_CLOUD_SYNC_ENABLED_KEY) ?? 'false') === 'true';
+    const cloudEnabledNow = isCloudSyncEntitled && (localStorage.getItem(AIRA_CLOUD_SYNC_ENABLED_KEY) ?? 'false') === 'true';
     const route = resolveLeafTabSyncRoute({
       cloudEnabled: cloudEnabledNow,
       cloudAvailable: Boolean(cloudUid),
@@ -2113,7 +2149,7 @@ export function useLeafTabSyncRuntimeController(
     leafTabBookmarkSyncScopeLabel: '书签栏 / 其他书签',
     leafTabLocalSummaryCheckedAt: formatLeafTabSyncCacheTimestamp(readLocalSummaryCheckedAt()),
     leafTabCloudLoggedIn: Boolean(cloudUid),
-    leafTabCloudSyncEnabled: cloudSyncEnabled,
+    leafTabCloudSyncEnabled: cloudSyncEnabled && isCloudSyncEntitled,
     leafTabCloudLastSyncLabel: formatLiteSyncTimestamp(localStorage.getItem(AIRA_CLOUD_LAST_SYNC_AT_KEY)),
     leafTabCloudAnalysisCheckedAt: formatLeafTabSyncCacheTimestamp(leafTabCloudAnalysisCheckedAt),
     leafTabCloudUserId: cloudUid,
@@ -2138,6 +2174,7 @@ export function useLeafTabSyncRuntimeController(
     leafTabWebdavEnabled,
     leafTabWebdavProfileLabel,
     cloudSyncEnabled,
+    isCloudSyncEntitled,
     cloudUid,
     preferredPrimaryRemoteKind,
     leafTabRemoteAutoSyncDiagnostic,
