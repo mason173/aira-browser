@@ -60,6 +60,7 @@ export type LeafTabSyncProgressState = {
   title: string;
   detail: string;
   progress: number;
+  remoteKind: LeafTabSyncRemoteKind | 'dual' | null;
   latestProgress: LeafTabSyncEngineProgress | null;
 };
 

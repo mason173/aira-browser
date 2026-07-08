@@ -492,6 +492,27 @@ function FirstSyncChoiceDialog({ syncRuntime }: { syncRuntime: PopupSyncRuntime 
 function SyncProgressDialog({ syncRuntime }: { syncRuntime: PopupSyncRuntime }) {
   const { t } = useTranslation();
   const progress = syncRuntime.state.leafTabSyncProgress;
+  const lastResult = syncRuntime.state.leafTabSyncLastResult;
+  const isConflict = lastResult?.kind === 'conflict' && !progress.inProgress;
+  const conflictCount = lastResult?.kind === 'conflict'
+    ? lastResult.mergeResult?.conflicts.length || 0
+    : 0;
+  const conflictRemoteKind = progress.remoteKind === 'aira-cloud' || progress.remoteKind === 'webdav'
+    ? progress.remoteKind
+    : syncRuntime.state.leafTabPrimaryRemoteKind || (syncRuntime.state.leafTabCloudSyncEnabled ? 'aira-cloud' : 'webdav');
+  const conflictRemoteLabel = conflictRemoteKind === 'aira-cloud'
+    ? t('popup.progress.cloudRemote', { defaultValue: 'Aira 云端' })
+    : t('popup.progress.webdavRemote', { defaultValue: 'WebDAV' });
+  const resolveConflict = (mode: Extract<LeafTabSyncInitialChoice, 'push-local' | 'pull-remote'>) => {
+    void syncRuntime.actions.handleLeafTabSync({
+      remoteKind: conflictRemoteKind,
+      mode,
+      allowConfigPrompt: false,
+      requestBookmarkPermission: true,
+      silentSuccess: true,
+      showProgressIndicator: true,
+    });
+  };
 
   return (
     <Dialog
@@ -522,6 +543,12 @@ function SyncProgressDialog({ syncRuntime }: { syncRuntime: PopupSyncRuntime }) 
                 className="h-10 w-10 animate-spin text-primary"
                 strokeWidth={2.2}
               />
+            ) : isConflict ? (
+              <RiSlidersFill
+                aria-hidden="true"
+                className="h-10 w-10 text-primary"
+                strokeWidth={2.2}
+              />
             ) : (
               <RiCheckFill
                 aria-hidden="true"
@@ -531,7 +558,51 @@ function SyncProgressDialog({ syncRuntime }: { syncRuntime: PopupSyncRuntime }) 
             )}
             <p className="text-sm font-medium leading-6 text-foreground">{progress.detail}</p>
           </div>
-          {!progress.inProgress ? (
+          {isConflict ? (
+            <div className="grid gap-2">
+              <p className="text-xs leading-5 text-muted-foreground">
+                {conflictCount > 0
+                  ? t('popup.progress.conflictHelpWithCount', {
+                      count: conflictCount,
+                      remote: conflictRemoteLabel,
+                      defaultValue: `检测到 ${conflictCount} 处双向修改。请选择要保留本机书签，还是使用 ${conflictRemoteLabel} 覆盖本机。`,
+                    })
+                  : t('popup.progress.conflictHelp', {
+                      remote: conflictRemoteLabel,
+                      defaultValue: `请选择要保留本机书签，还是使用 ${conflictRemoteLabel} 覆盖本机。`,
+                    })}
+              </p>
+              <Button
+                type="button"
+                className="h-10 w-full rounded-[8px]"
+                onClick={() => resolveConflict('push-local')}
+              >
+                {t('popup.progress.keepLocal', {
+                  remote: conflictRemoteLabel,
+                  defaultValue: `保留本机，覆盖 ${conflictRemoteLabel}`,
+                })}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-10 w-full rounded-[8px]"
+                onClick={() => resolveConflict('pull-remote')}
+              >
+                {t('popup.progress.useRemote', {
+                  remote: conflictRemoteLabel,
+                  defaultValue: `使用 ${conflictRemoteLabel}，覆盖本机`,
+                })}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                className="h-10 w-full rounded-[8px]"
+                onClick={() => syncRuntime.actions.handleDismissSyncProgress()}
+              >
+                {t('popup.progress.later', { defaultValue: '稍后处理' })}
+              </Button>
+            </div>
+          ) : !progress.inProgress ? (
             <Button
               type="button"
               className="h-10 w-full rounded-[8px]"

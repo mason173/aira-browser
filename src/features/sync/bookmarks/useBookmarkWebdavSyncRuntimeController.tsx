@@ -515,6 +515,7 @@ const createIdleProgressState = (): LeafTabSyncProgressState => ({
   title: '',
   detail: '',
   progress: 0,
+  remoteKind: null,
   latestProgress: null,
 });
 
@@ -1267,6 +1268,7 @@ export function useLeafTabSyncRuntimeController(
       title: '正在同步书签',
       detail: resolveProgressDetail(remoteKind, detail),
       progress: 8,
+      remoteKind,
       latestProgress: null,
     });
   }, []);
@@ -1282,6 +1284,7 @@ export function useLeafTabSyncRuntimeController(
       title: '正在同步书签',
       detail: resolveProgressDetail(remoteKind, progress.message),
       progress: Math.max(0, Math.min(100, Math.round(mappedProgress ?? progress.progress))),
+      remoteKind,
       latestProgress: progress,
     }));
   }, []);
@@ -1297,6 +1300,21 @@ export function useLeafTabSyncRuntimeController(
     }));
   }, []);
 
+  const conflictSyncProgress = useCallback((
+    detail: string,
+    remoteKind: LeafTabSyncRemoteKind = 'webdav',
+  ) => {
+    setLeafTabSyncProgress((current) => ({
+      ...current,
+      open: true,
+      inProgress: false,
+      title: '需要处理同步冲突',
+      detail: detail || '检测到同步冲突，请选择保留哪一端的数据。',
+      progress: 100,
+      remoteKind,
+    }));
+  }, []);
+
   const failSyncProgress = useCallback((error: unknown, remoteKind: LeafTabSyncRemoteKind = 'webdav') => {
     setLeafTabSyncProgress((current) => ({
       ...current,
@@ -1305,6 +1323,7 @@ export function useLeafTabSyncRuntimeController(
       title: '同步失败',
       detail: formatLeafTabSyncErrorMessage(error, remoteKind),
       progress: Math.max(current.progress, 100),
+      remoteKind,
     }));
   }, []);
 
@@ -1693,6 +1712,9 @@ export function useLeafTabSyncRuntimeController(
       }
       if (result) {
         if (result.kind === 'conflict') {
+          if (shouldShowDialogProgress) {
+            conflictSyncProgress(result.summaryText || '检测到同步冲突，请选择保留哪一端的数据。', remoteKind);
+          }
           if (!options?.silentSuccess) {
             toast.error(result.summaryText || '检测到同步冲突，请先处理');
           }
@@ -1785,6 +1807,7 @@ export function useLeafTabSyncRuntimeController(
     beginSyncProgress,
     updateSyncProgress,
     finishSyncProgress,
+    conflictSyncProgress,
     failSyncProgress,
     leafTabCloudBaselineStorageKey,
     leafTabSyncBaselineStorageKey,
@@ -2125,7 +2148,9 @@ export function useLeafTabSyncRuntimeController(
     leafTabSyncState,
     topNavSyncStatus: leafTabSyncState.status === 'error'
       ? 'error'
-      : (leafTabSyncState.status === 'syncing' || webdavSyncRunActive ? 'syncing' : 'idle'),
+      : leafTabSyncState.status === 'conflict'
+        ? 'conflict'
+        : (leafTabSyncState.status === 'syncing' || webdavSyncRunActive ? 'syncing' : 'idle'),
     leafTabSyncAnalysis,
     leafTabSyncAnalysisRemoteKind,
     leafTabLocalBookmarkSummary,
