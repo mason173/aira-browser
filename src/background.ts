@@ -4,10 +4,9 @@ import {
   AIRA_CLOUD_LAST_SYNC_AT_KEY,
   AIRA_CLOUD_SYNC_ENABLED_KEY,
   LEAFTAB_BACKGROUND_STORAGE_KEYS,
-  LEAFTAB_BOOKMARK_AUTO_SYNC_ENABLED_KEY,
-  LEAFTAB_PRIMARY_SYNC_REMOTE_KIND_KEY,
+  LEAFTAB_PENDING_BOOKMARK_CONFLICT_KEY,
+  LEAFTAB_SELECTED_SYNC_SOURCE_KEY,
   LEAFTAB_SYNC_DEVICE_ID_KEY,
-  LEAFTAB_SYNC_LOCAL_SUMMARY_AT_KEY,
 } from '@/features/sync/app/leafTabSyncStorageKeys';
 import {
   isAiraDesktopProfilePro,
@@ -32,7 +31,9 @@ import {
   captureLeafTabBookmarkTreeDraft,
   replaceLeafTabBookmarkTree,
 } from '@/sync/leaftab/bookmarks';
-import { LeafTabSyncAiraCloudStore } from '@/sync/leaftab/airaCloudStore';
+import {
+  LeafTabSyncAiraCloudError,
+} from '@/sync/leaftab/airaCloudStore';
 import {
   clearPendingLeafTabLocalBookmarkChangesInExtensionStorage,
   markLeafTabLocalBookmarkChangedInExtensionStorage,
@@ -45,14 +46,18 @@ import {
   hasPendingLeafTabLocalBookmarkOperationOutbox,
 } from '@/sync/leaftab/localOperationOutbox';
 import {
-  probeLeafTabBookmarkSyncChanges,
   type LeafTabBookmarkSyncChangeProbeResult,
 } from '@/sync/leaftab/changeProbe';
 import {
-  LeafTabSyncEngine,
   type LeafTabSyncEngineResult,
-  type LeafTabSyncInitialChoice,
 } from '@/sync/leaftab/engine';
+import {
+  BookmarkSyncModule,
+  clearPendingBookmarkConflict,
+  persistPendingBookmarkConflict,
+  type BookmarkSyncSource as LeafTabSyncRemoteKind,
+} from '@/features/sync/bookmarks/BookmarkSyncModule';
+import { resolveLeafTabSelectedSyncSource } from '@/sync/leaftab/source';
 import type { LeafTabSyncSnapshot } from '@/sync/leaftab/schema';
 import {
   buildLeafTabSyncSnapshot,
@@ -60,19 +65,9 @@ import {
   normalizeLeafTabLiveBookmarkSnapshot,
 } from '@/sync/leaftab/snapshot';
 import {
-  createLeafTabDualSecondarySyncPlan,
-  resolveLeafTabSyncRoute,
-  type LeafTabSyncRemoteKind,
-} from '@/sync/leaftab/syncRouteStateMachine';
-import {
-  clearWebdavBackupFailureCooldown,
-  readWebdavBackupCooldownResult,
-  recordWebdavBackupFailureCooldown,
-  WEBDAV_BACKUP_REQUEST_TIMEOUT_MS,
-  WEBDAV_BACKUP_TOTAL_TIMEOUT_MS,
-  withWebdavBackupTimeout,
-} from '@/sync/leaftab/webdavBackupPolicy';
-import { LeafTabSyncWebdavStore } from '@/sync/leaftab/webdavStore';
+  LeafTabSyncWebdavError,
+  LeafTabSyncWebdavTopologyError,
+} from '@/sync/leaftab/webdavStore';
 import {
   readWebdavConfigFromExtensionStorage,
   WEBDAV_STORAGE_KEYS,
@@ -96,10 +91,7 @@ const AUTO_SYNC_REMOTE_PROBE_ACTIVE_INTERVAL_MINUTES = 3;
 const AUTO_SYNC_REMOTE_PROBE_BACKGROUND_INTERVAL_MINUTES = 3;
 const AUTO_SYNC_REMOTE_PROBE_IDLE_DETECTION_SECONDS = 90;
 const AUTO_SYNC_APPLY_SUPPRESS_MS = 20_000;
-const LOCAL_SUMMARY_REFRESH_DEBOUNCE_MS = 5_000;
 const LEAFTAB_SYNC_DEFAULT_ROOT_PATH = 'aira/v1/bookmarks';
-const LEAFTAB_SYNC_ANALYSIS_CACHE_PREFIX = 'leaftab_sync_v1_analysis';
-const LEAFTAB_SYNC_SUMMARY_CACHE_PREFIX = 'leaftab_sync_v1_summary';
 const BACKGROUND_KEEPALIVE_INTERVAL_MS = 20_000;
 const PHONE_PAGE_PUSH_FALLBACK_TITLE = 'Aira';
 const PHONE_PAGE_PUSH_POLL_INTERVAL_MS = 500;
@@ -113,7 +105,6 @@ let activeAutoSyncPromise: Promise<boolean> | null = null;
 let activePhonePagePushPollPromise: Promise<boolean> | null = null;
 let phonePagePushPollTimer: ReturnType<typeof globalThis.setTimeout> | null = null;
 let bookmarkApplySuppressedUntil = 0;
-let localSummaryRefreshTimer: ReturnType<typeof setTimeout> | null = null;
 let phonePagePushEnabled = true;
 
 async function disableDesktopProFeatureSettings(): Promise<void> {
@@ -121,7 +112,6 @@ async function disableDesktopProFeatureSettings(): Promise<void> {
   await writeExtensionStorageRecord({
     [AIRA_CLOUD_SYNC_ENABLED_KEY]: 'false',
     aira_phone_page_push_enabled_v1: 'false',
-    [LEAFTAB_BOOKMARK_AUTO_SYNC_ENABLED_KEY]: 'false',
   });
 }
 
@@ -144,9 +134,8 @@ type BackgroundSyncConfig = {
   cloudDesktopPushToken: string;
   cloudEnabled: boolean;
   webdavEnabled: boolean;
-  bookmarkAutoSyncEnabled: boolean;
-  bookmarkAutoSyncEntitled: boolean;
-  primaryRemoteKind: LeafTabSyncRemoteKind | null;
+  selectedSource: LeafTabSyncRemoteKind | null;
+  hasPendingConflict: boolean;
   webdavConfig: (Awaited<ReturnType<typeof readWebdavConfigFromExtensionStorage>> & {
     rootPath: string;
     requestPermission: boolean;
@@ -494,129 +483,6 @@ function createBaselineStorageKeyForRemote(remoteKind: LeafTabSyncRemoteKind, ro
   return `leaftab_sync_v1_baseline:${suffix}`;
 }
 
-function createStorageHash(source: string): string {
-  let hash = 0;
-  for (let index = 0; index < source.length; index += 1) {
-    hash = ((hash << 5) - hash + source.charCodeAt(index)) | 0;
-  }
-  return Math.abs(hash).toString(36);
-}
-
-function createAnalysisCacheKey(
-  remoteKind: LeafTabSyncRemoteKind,
-  rootPath: string,
-  identity: string,
-): string {
-  const rootSegment = (rootPath || LEAFTAB_SYNC_DEFAULT_ROOT_PATH).replace(/[^a-zA-Z0-9_-]+/g, '_');
-  return `${LEAFTAB_SYNC_ANALYSIS_CACHE_PREFIX}:${remoteKind}:${rootSegment}:${createStorageHash(identity || 'default')}`;
-}
-
-function createSummaryCacheKey(
-  kind: LeafTabSyncRemoteKind | 'local',
-  rootPath: string,
-  identity: string,
-): string {
-  const rootSegment = (rootPath || LEAFTAB_SYNC_DEFAULT_ROOT_PATH).replace(/[^a-zA-Z0-9_-]+/g, '_');
-  return `${LEAFTAB_SYNC_SUMMARY_CACHE_PREFIX}:${kind}:${rootSegment}:${createStorageHash(identity || 'default')}`;
-}
-
-function createWebdavCacheIdentity(config: BackgroundSyncConfig): string {
-  return [
-    config.webdavConfig?.url || '',
-    config.webdavConfig?.username || '',
-    config.rootPath,
-  ].join('|');
-}
-
-async function writeAnalysisCacheForRemote(
-  config: BackgroundSyncConfig,
-  remoteKind: LeafTabSyncRemoteKind,
-  result: LeafTabSyncEngineResult,
-): Promise<void> {
-  const summary = result.snapshotSummary;
-  const analysis = {
-    hasBaseline: true,
-    localSummary: {
-      bookmarkFolders: summary.bookmarkFolders,
-      bookmarkItems: summary.bookmarkItems,
-      tombstones: summary.tombstones,
-    },
-    remoteSummary: {
-      bookmarkFolders: summary.bookmarkFolders,
-      bookmarkItems: summary.bookmarkItems,
-      tombstones: summary.tombstones,
-    },
-    requiresInitialChoice: false,
-    suggestedInitialChoice: null,
-    remoteCommitId: result.remoteCommitId,
-  };
-  const updatedAt = getNowIso();
-  const cacheKey = createAnalysisCacheKey(
-    remoteKind,
-    config.rootPath,
-    remoteKind === 'aira-cloud' ? config.cloudUid : createWebdavCacheIdentity(config),
-  );
-  const localSummaryCacheKey = createSummaryCacheKey('local', config.rootPath, config.deviceId);
-  const remoteSummaryCacheKey = createSummaryCacheKey(
-    remoteKind,
-    config.rootPath,
-    remoteKind === 'aira-cloud' ? config.cloudUid : createWebdavCacheIdentity(config),
-  );
-  await writeExtensionStorageRecord({
-    [cacheKey]: JSON.stringify({
-      version: 1,
-      updatedAt,
-      analysis,
-    }),
-    [localSummaryCacheKey]: JSON.stringify({
-      version: 1,
-      updatedAt,
-      summary,
-    }),
-    [remoteSummaryCacheKey]: JSON.stringify({
-      version: 1,
-      updatedAt,
-      summary,
-    }),
-  });
-}
-
-async function writeLocalSummaryCacheFromCurrentBookmarks(config: BackgroundSyncConfig): Promise<void> {
-  try {
-    const bookmarkTree = await captureLeafTabBookmarkTreeDraft({
-      scope: getDefaultLeafTabBookmarkSyncScope(),
-      requestPermission: false,
-      throwOnPermissionDenied: true,
-    });
-    const updatedAt = getNowIso();
-    const summary = {
-      bookmarkFolders: bookmarkTree.folders.length,
-      bookmarkItems: bookmarkTree.items.length,
-      tombstones: 0,
-    };
-    await writeExtensionStorageRecord({
-      [createSummaryCacheKey('local', config.rootPath, config.deviceId)]: JSON.stringify({
-        version: 1,
-        updatedAt,
-        summary,
-      }),
-      [LEAFTAB_SYNC_LOCAL_SUMMARY_AT_KEY]: updatedAt,
-    });
-  } catch {
-    // Bookmark changes must still be synced even when a background summary refresh cannot read bookmarks.
-  }
-}
-
-function scheduleLocalSummaryCacheRefresh(config: BackgroundSyncConfig): void {
-  if (localSummaryRefreshTimer !== null) {
-    clearTimeout(localSummaryRefreshTimer);
-  }
-  localSummaryRefreshTimer = setTimeout(() => {
-    localSummaryRefreshTimer = null;
-    void writeLocalSummaryCacheFromCurrentBookmarks(config);
-  }, LOCAL_SUMMARY_REFRESH_DEBOUNCE_MS);
-}
-
 async function getOrCreateDeviceId(): Promise<string> {
   const result = await readExtensionStorageRecord([LEAFTAB_SYNC_DEVICE_ID_KEY]);
   const existing = String(result[LEAFTAB_SYNC_DEVICE_ID_KEY] || '').trim();
@@ -639,8 +505,8 @@ async function readBackgroundSyncConfig(): Promise<BackgroundSyncConfig> {
     readWebdavConfigFromExtensionStorage({ allowDisabled: true }),
     readExtensionStorageRecord([
       AIRA_CLOUD_SYNC_ENABLED_KEY,
-      LEAFTAB_PRIMARY_SYNC_REMOTE_KIND_KEY,
-      LEAFTAB_BOOKMARK_AUTO_SYNC_ENABLED_KEY,
+      LEAFTAB_SELECTED_SYNC_SOURCE_KEY,
+      LEAFTAB_PENDING_BOOKMARK_CONFLICT_KEY,
       WEBDAV_STORAGE_KEYS.syncEnabled,
     ]),
   ]);
@@ -649,11 +515,18 @@ async function readBackgroundSyncConfig(): Promise<BackgroundSyncConfig> {
   const cloudDesktopPushToken = loginProfile?.desktopPushToken?.trim() || '';
   const cloudEnabled = String(sharedRecord[AIRA_CLOUD_SYNC_ENABLED_KEY] ?? 'false') === 'true';
   const webdavEnabled = String(sharedRecord[WEBDAV_STORAGE_KEYS.syncEnabled] ?? 'false') === 'true';
-  const bookmarkAutoSyncEnabled = String(sharedRecord[LEAFTAB_BOOKMARK_AUTO_SYNC_ENABLED_KEY] ?? 'true') !== 'false';
-  const bookmarkAutoSyncEntitled = String(loginProfile?.membershipPlan || '').trim() === 'pro';
-  const primaryRemoteKind = sharedRecord[LEAFTAB_PRIMARY_SYNC_REMOTE_KIND_KEY] === 'webdav'
-    ? 'webdav'
-    : (sharedRecord[LEAFTAB_PRIMARY_SYNC_REMOTE_KIND_KEY] === 'aira-cloud' ? 'aira-cloud' : null);
+  const selectedSourceResolution = resolveLeafTabSelectedSyncSource({
+    selectedSource: sharedRecord[LEAFTAB_SELECTED_SYNC_SOURCE_KEY],
+    airaCloudEnabled: sharedRecord[AIRA_CLOUD_SYNC_ENABLED_KEY],
+    webdavEnabled: sharedRecord[WEBDAV_STORAGE_KEYS.syncEnabled],
+  });
+  const selectedSource = selectedSourceResolution.source;
+  if (selectedSourceResolution.needsMigration && selectedSource) {
+    await writeExtensionStorageRecord({
+      [LEAFTAB_SELECTED_SYNC_SOURCE_KEY]: selectedSource,
+    });
+  }
+  const hasPendingConflict = Boolean(sharedRecord[LEAFTAB_PENDING_BOOKMARK_CONFLICT_KEY]);
 
   return {
     deviceId,
@@ -661,9 +534,8 @@ async function readBackgroundSyncConfig(): Promise<BackgroundSyncConfig> {
     cloudDesktopPushToken,
     cloudEnabled,
     webdavEnabled,
-    bookmarkAutoSyncEnabled,
-    bookmarkAutoSyncEntitled,
-    primaryRemoteKind,
+    selectedSource,
+    hasPendingConflict,
     webdavConfig: webdavConfig?.url
       ? {
           ...webdavConfig,
@@ -678,7 +550,16 @@ async function readBackgroundSyncConfig(): Promise<BackgroundSyncConfig> {
 }
 
 function canRunBackgroundAutoSync(config: BackgroundSyncConfig): boolean {
-  return config.bookmarkAutoSyncEnabled && config.bookmarkAutoSyncEntitled;
+  if (config.hasPendingConflict) {
+    return false;
+  }
+  if (config.selectedSource === 'aira-cloud') {
+    return config.cloudEnabled && Boolean(config.cloudUid) && Boolean(config.cloudDesktopPushToken);
+  }
+  if (config.selectedSource === 'webdav') {
+    return config.webdavEnabled && Boolean(config.webdavConfig?.url);
+  }
+  return false;
 }
 
 async function buildLocalSnapshot(
@@ -759,65 +640,73 @@ async function applyLocalSnapshot(snapshot: LeafTabSyncSnapshot): Promise<void> 
   }
 }
 
-async function createEngineForRemote(
+async function createBookmarkSyncModuleForBackground(
   config: BackgroundSyncConfig,
   remoteKind: LeafTabSyncRemoteKind,
   pendingLocalChanges: boolean,
   options?: {
     webdavRequestTimeoutMs?: number;
   },
-) {
+): Promise<BookmarkSyncModule> {
   const rootPath = config.rootPath;
   const baselineStorageKey = remoteKind === 'aira-cloud'
     ? config.cloudBaselineStorageKey
     : config.webdavBaselineStorageKey;
-  const remoteStore = remoteKind === 'aira-cloud'
-    ? new LeafTabSyncAiraCloudStore(config.cloudUid, config.cloudDesktopPushToken)
-    : new LeafTabSyncWebdavStore({
-        url: config.webdavConfig?.url || '',
-        username: config.webdavConfig?.username,
-        password: config.webdavConfig?.password,
-        rootPath,
-        requestPermission: false,
-        requestTimeoutMs: options?.webdavRequestTimeoutMs,
-      });
-
-  return new LeafTabSyncEngine({
-    deviceId: config.deviceId,
-    remoteStore,
-    baselineStore: new LeafTabSyncExtensionStorageBaselineStore(baselineStorageKey),
-    buildLocalSnapshot: () => buildLocalSnapshot(baselineStorageKey, config.deviceId),
-    applyLocalSnapshot,
-    hasPendingLocalChanges: () => pendingLocalChanges,
-    clearPendingLocalChanges: () => {
-      void clearPendingLeafTabLocalBookmarkChangesInExtensionStorage();
-    },
-    buildPendingLocalOperations: (baseSnapshot) => buildLeafTabPendingLocalOperationsFromOutbox({
-      baseSnapshot,
-      deviceId: config.deviceId,
-    }),
-    clearPendingLocalOperations: () => clearLeafTabLocalBookmarkOperationOutbox(),
-    createEmptySnapshot: () => ({
-      meta: {
-        version: 2,
-        deviceId: config.deviceId,
-        generatedAt: new Date(0).toISOString(),
-      },
-      bookmarkFolders: {},
-      bookmarkItems: {},
-      bookmarkOrders: {
-        __root__: {
-          type: 'bookmark-order',
-          parentId: null,
-          ids: [],
-          updatedAt: new Date(0).toISOString(),
-          updatedBy: config.deviceId,
-          revision: 1,
+  return new BookmarkSyncModule({
+    sourceConfig: remoteKind === 'aira-cloud'
+      ? {
+          source: 'aira-cloud',
+          uid: config.cloudUid,
+          desktopPushToken: config.cloudDesktopPushToken,
+        }
+      : {
+          source: 'webdav',
+          webdav: {
+            url: config.webdavConfig?.url || '',
+            username: config.webdavConfig?.username,
+            password: config.webdavConfig?.password,
+            rootPath,
+            requestPermission: false,
+            requestTimeoutMs: options?.webdavRequestTimeoutMs,
+          },
         },
-      },
-      tombstones: {},
-    }),
+    deviceId: config.deviceId,
     rootPath,
+    baselineStorageKey,
+    local: {
+      buildSnapshot: () => buildLocalSnapshot(baselineStorageKey, config.deviceId),
+      applySnapshot: applyLocalSnapshot,
+      hasPendingChanges: () => pendingLocalChanges,
+      hasPendingOperations: hasPendingLeafTabLocalBookmarkOperationOutbox,
+      clearPendingChanges: () => {
+        void clearPendingLeafTabLocalBookmarkChangesInExtensionStorage();
+      },
+      buildPendingOperations: (baseSnapshot) => buildLeafTabPendingLocalOperationsFromOutbox({
+        baseSnapshot,
+        deviceId: config.deviceId,
+      }),
+      clearPendingOperations: () => clearLeafTabLocalBookmarkOperationOutbox(),
+      createEmptySnapshot: () => ({
+        meta: {
+          version: 2,
+          deviceId: config.deviceId,
+          generatedAt: new Date(0).toISOString(),
+        },
+        bookmarkFolders: {},
+        bookmarkItems: {},
+        bookmarkOrders: {
+          __root__: {
+            type: 'bookmark-order',
+            parentId: null,
+            ids: [],
+            updatedAt: new Date(0).toISOString(),
+            updatedBy: config.deviceId,
+            revision: 1,
+          },
+        },
+        tombstones: {},
+      }),
+    },
   });
 }
 
@@ -825,16 +714,15 @@ async function runSingleRemoteSync(
   config: BackgroundSyncConfig,
   remoteKind: LeafTabSyncRemoteKind,
   options?: {
-    mode?: LeafTabSyncInitialChoice | 'auto';
     localSnapshotOverride?: LeafTabSyncSnapshot;
     webdavRequestTimeoutMs?: number;
   },
 ): Promise<LeafTabSyncEngineResult> {
   const pendingLocalChanges = (await readPendingLeafTabLocalBookmarkChangedAtFromExtensionStorage()) > 0;
-  const engine = await createEngineForRemote(config, remoteKind, pendingLocalChanges, {
+  const module = await createBookmarkSyncModuleForBackground(config, remoteKind, pendingLocalChanges, {
     webdavRequestTimeoutMs: options?.webdavRequestTimeoutMs,
   });
-  return engine.sync(options?.mode || 'auto', {
+  return module.sync({
     localSnapshotOverride: options?.localSnapshotOverride,
     onProgress: (progress) => {
       void updateBackgroundDebugState({
@@ -844,21 +732,11 @@ async function runSingleRemoteSync(
   });
 }
 
-function createWebdavBackupTarget(config: BackgroundSyncConfig) {
-  if (!config.webdavConfig?.url) return null;
-  return {
-    url: config.webdavConfig.url,
-    username: config.webdavConfig.username,
-    rootPath: config.rootPath,
-  };
-}
-
-async function markSyncSuccess(remoteKind: LeafTabSyncRemoteKind, config?: BackgroundSyncConfig): Promise<void> {
+async function markSyncSuccess(remoteKind: LeafTabSyncRemoteKind): Promise<void> {
   const nowIso = getNowIso();
   if (remoteKind === 'aira-cloud') {
     await writeExtensionStorageRecord({
       [AIRA_CLOUD_LAST_SYNC_AT_KEY]: nowIso,
-      [LEAFTAB_SYNC_LOCAL_SUMMARY_AT_KEY]: nowIso,
       [LEAFTAB_BACKGROUND_STORAGE_KEYS.autoSyncLastError]: '',
     });
     await removeExtensionStorageKeys([
@@ -869,17 +747,12 @@ async function markSyncSuccess(remoteKind: LeafTabSyncRemoteKind, config?: Backg
   }
   await writeExtensionStorageRecord({
     webdav_last_sync_at: nowIso,
-    [LEAFTAB_SYNC_LOCAL_SUMMARY_AT_KEY]: nowIso,
     [LEAFTAB_BACKGROUND_STORAGE_KEYS.autoSyncLastError]: '',
   });
   await removeExtensionStorageKeys([
     'webdav_last_error_at',
     'webdav_last_error_message',
   ]);
-  const target = remoteKind === 'webdav' && config ? createWebdavBackupTarget(config) : null;
-  if (target) {
-    await clearWebdavBackupFailureCooldown(target);
-  }
 }
 
 async function markSyncError(remoteKind: LeafTabSyncRemoteKind, error: unknown): Promise<void> {
@@ -900,77 +773,14 @@ async function markSyncError(remoteKind: LeafTabSyncRemoteKind, error: unknown):
   });
 }
 
-async function readBaselineCommitId(
-  baselineStorageKey: string,
-): Promise<string | null | undefined> {
-  const baseline = await new LeafTabSyncExtensionStorageBaselineStore(baselineStorageKey).load();
-  if (!baseline) return undefined;
-  return typeof baseline.commitId === 'string' && baseline.commitId.length > 0
-    ? baseline.commitId
-    : null;
-}
-
-async function probeRemoteChangesForKind(
-  config: BackgroundSyncConfig,
-  remoteKind: LeafTabSyncRemoteKind,
-): Promise<{
-  hasChanges: boolean;
-  provider: LeafTabSyncRemoteKind;
-  baselineCommitId: string | null;
-  remoteCommitId: string | null;
-}> {
-  const baselineCommitId = await readBaselineCommitId(
-    remoteKind === 'aira-cloud' ? config.cloudBaselineStorageKey : config.webdavBaselineStorageKey,
-  );
-  const store = remoteKind === 'aira-cloud'
-    ? new LeafTabSyncAiraCloudStore(config.cloudUid, config.cloudDesktopPushToken)
-    : new LeafTabSyncWebdavStore({
-        url: config.webdavConfig?.url || '',
-        username: config.webdavConfig?.username,
-        password: config.webdavConfig?.password,
-        rootPath: config.rootPath,
-        requestPermission: false,
-      });
-  const remoteHead = store.readHead ? await store.readHead() : null;
-  const remoteCommitId = remoteHead?.commitId ?? null;
-  const hasChanges = remoteCommitId === null
-    ? Boolean(baselineCommitId)
-    : (baselineCommitId === undefined || baselineCommitId === null || baselineCommitId.length <= 0
-      ? true
-      : remoteCommitId !== baselineCommitId);
-  return {
-    hasChanges,
-    provider: remoteKind,
-    baselineCommitId: baselineCommitId ?? null,
-    remoteCommitId,
-  };
-}
-
 async function probeSyncPreflightForKind(
   config: BackgroundSyncConfig,
   remoteKind: LeafTabSyncRemoteKind,
 ): Promise<LeafTabBookmarkSyncChangeProbeResult> {
-  return probeLeafTabBookmarkSyncChanges({
-    provider: remoteKind,
-    baselineStorageKey: remoteKind === 'aira-cloud'
-      ? config.cloudBaselineStorageKey
-      : config.webdavBaselineStorageKey,
-    createRemoteStore: () => remoteKind === 'aira-cloud'
-      ? new LeafTabSyncAiraCloudStore(config.cloudUid, config.cloudDesktopPushToken)
-      : new LeafTabSyncWebdavStore({
-          url: config.webdavConfig?.url || '',
-          username: config.webdavConfig?.username,
-          password: config.webdavConfig?.password,
-          rootPath: config.rootPath,
-          requestPermission: false,
-        }),
-    hasPendingLocalChanges: async () => (
-      await readPendingLeafTabLocalBookmarkChangedAtFromExtensionStorage()
-    ) > 0,
-    hasPendingLocalOperationOutbox: hasPendingLeafTabLocalBookmarkOperationOutbox,
-  });
+  const pendingLocalChanges = (await readPendingLeafTabLocalBookmarkChangedAtFromExtensionStorage()) > 0;
+  const module = await createBookmarkSyncModuleForBackground(config, remoteKind, pendingLocalChanges);
+  return module.probeChanges();
 }
-
 async function skipBackgroundSyncAsUnchanged(
   provider: LeafTabSyncRemoteKind,
   probe: LeafTabBookmarkSyncChangeProbeResult,
@@ -992,259 +802,132 @@ async function skipBackgroundSyncAsUnchanged(
   ]);
 }
 
+function isActionRequiredSyncError(error: unknown): boolean {
+  if (error instanceof LeafTabSyncWebdavTopologyError) return true;
+  if (error instanceof LeafTabSyncWebdavError) {
+    return error.status === 401 || error.status === 403;
+  }
+  if (error instanceof LeafTabSyncAiraCloudError) {
+    return [
+      'invalid_desktop_push_token',
+      'desktop_session_expired',
+      'pro_required',
+      'extension_sync_requires_aira_primary',
+      'invalid_sync_topology',
+    ].includes(error.code);
+  }
+  const message = String((error as Error)?.message || error || '');
+  return /请先|重新扫码|权限|认证|凭据|不是 App 当前的主同步|尚未由 Aira App 初始化/i.test(message);
+}
+
 async function runBackgroundAutoSync(trigger?: BackgroundSyncTrigger): Promise<boolean> {
   if (activeAutoSyncPromise) {
     return activeAutoSyncPromise;
   }
   activeAutoSyncPromise = (async () => {
-    const entitled = await refreshDesktopMembershipForProFeature().catch(() => false);
-    if (!entitled) {
-      await updateBackgroundDebugState({
-        lastSyncStartedAt: getNowIso(),
-        lastSyncFinishedAt: getNowIso(),
-        lastResult: 'skipped',
-        lastReason: 'pro_required',
-      });
-      return false;
-    }
     const config = await readBackgroundSyncConfig();
-    if (!canRunBackgroundAutoSync(config)) {
+    const remoteKind = config.selectedSource;
+    if (!remoteKind || !canRunBackgroundAutoSync(config)) {
       await updateBackgroundDebugState({
         lastSyncStartedAt: getNowIso(),
         lastSyncFinishedAt: getNowIso(),
         lastResult: 'skipped',
-        lastReason: config.bookmarkAutoSyncEnabled ? 'pro_required' : 'auto_sync_disabled',
+        lastReason: config.hasPendingConflict
+          ? 'pending_conflict'
+          : remoteKind ? 'selected_source_unavailable' : 'no_selected_source',
       });
       return false;
     }
-    const keepAlive = startBackgroundKeepAlive();
-    const route = resolveLeafTabSyncRoute({
-      cloudEnabled: config.cloudEnabled,
-      cloudAvailable: Boolean(config.cloudUid),
-      webdavEnabled: config.webdavEnabled,
-      webdavAvailable: Boolean(config.webdavConfig?.url),
-      preferredPrimaryRemoteKind: config.primaryRemoteKind ?? undefined,
-      triggerProvider: trigger?.provider,
-    });
-    const [cloudBaselineCommitId, webdavBaselineCommitId] = await Promise.all([
-      config.cloudEnabled && config.cloudUid
-        ? readBaselineCommitId(config.cloudBaselineStorageKey).catch(() => null)
-        : Promise.resolve(null),
-      config.webdavEnabled && config.webdavConfig?.url
-        ? readBaselineCommitId(config.webdavBaselineStorageKey).catch(() => null)
-        : Promise.resolve(null),
-    ]);
-    const routeLabel = route.kind === 'single'
-      ? `single:${route.remoteKind}`
-      : route.kind === 'dual'
-        ? `dual:${route.primaryRemoteKind}->${route.secondaryRemoteKind}`
-        : `none:${route.reason}`;
+    if (trigger?.provider && trigger.provider !== remoteKind) {
+      await updateBackgroundDebugState({
+        lastSyncStartedAt: getNowIso(),
+        lastSyncFinishedAt: getNowIso(),
+        lastResult: 'skipped',
+        lastReason: `inactive_source:${trigger.provider}`,
+      });
+      return false;
+    }
+    if (remoteKind === 'aira-cloud') {
+      const entitled = await refreshDesktopMembershipForProFeature().catch(() => false);
+      if (!entitled) {
+        const error = new LeafTabSyncAiraCloudError(
+          'Aira 云同步需要有效的 Pro 权限，请恢复权限后重试。',
+          'pro_required',
+        );
+        await markSyncError(remoteKind, error);
+        await updateBackgroundDebugState({
+          lastSyncStartedAt: getNowIso(),
+          lastSyncFinishedAt: getNowIso(),
+          lastResult: 'action-required',
+          lastReason: 'pro_required',
+          lastError: error.message,
+        });
+        return false;
+      }
+    }
+
+    const baselineStorageKey = remoteKind === 'aira-cloud'
+      ? config.cloudBaselineStorageKey
+      : config.webdavBaselineStorageKey;
+    const baseline = await new LeafTabSyncExtensionStorageBaselineStore(baselineStorageKey).load().catch(() => null);
+    const baselineCommitId = baseline?.commitId || null;
     await updateBackgroundDebugState({
       lastSyncStartedAt: getNowIso(),
       lastSyncFinishedAt: '',
       lastTriggerProvider: trigger?.provider || '',
-      lastRoute: routeLabel,
-      lastResult: route.kind === 'none' ? 'skipped' : 'running',
-      lastReason: route.kind === 'none' ? route.reason : '',
+      lastRoute: `single:${remoteKind}`,
+      lastResult: 'running',
+      lastReason: '',
       lastError: '',
-      cloudBaselineCommitId: cloudBaselineCommitId || '',
-      webdavBaselineCommitId: webdavBaselineCommitId || '',
-    });
-    if (route.kind === 'none') {
-      return false;
-    }
-
-    const preflightProvider = route.kind === 'single' ? route.remoteKind : route.primaryRemoteKind;
-    if (!(trigger?.hasRemoteChanges === true && trigger.provider === preflightProvider)) {
-      const preflight = await probeSyncPreflightForKind(config, preflightProvider);
-      await updateBackgroundDebugState({
-        cloudRemoteCommitId: preflightProvider === 'aira-cloud' ? (preflight.remoteCommitId || '') : undefined,
-        webdavRemoteCommitId: preflightProvider === 'webdav' ? (preflight.remoteCommitId || '') : undefined,
-      });
-      if (preflight.canSkipSync) {
-        await skipBackgroundSyncAsUnchanged(preflightProvider, preflight);
-        return false;
-      }
-    }
-
-    await writeExtensionStorageRecord({
-      [LEAFTAB_BACKGROUND_STORAGE_KEYS.autoSyncRunning]: 'true',
+      cloudBaselineCommitId: remoteKind === 'aira-cloud' ? (baselineCommitId || '') : '',
+      webdavBaselineCommitId: remoteKind === 'webdav' ? (baselineCommitId || '') : '',
     });
 
+    const keepAlive = startBackgroundKeepAlive();
     try {
-      if (route.kind === 'single') {
+      if (!(trigger?.hasRemoteChanges === true && trigger.provider === remoteKind)) {
+        const preflight = await probeSyncPreflightForKind(config, remoteKind);
         await updateBackgroundDebugState({
-          lastReason: `syncing:${route.remoteKind}`,
+          cloudRemoteCommitId: remoteKind === 'aira-cloud' ? (preflight.remoteCommitId || '') : undefined,
+          webdavRemoteCommitId: remoteKind === 'webdav' ? (preflight.remoteCommitId || '') : undefined,
         });
-        const result = await runSingleRemoteSync(config, route.remoteKind);
-        if (result.kind === 'conflict') {
-          await updateBackgroundDebugState({
-            lastSyncFinishedAt: getNowIso(),
-            lastResult: 'conflict',
-            lastReason: route.remoteKind,
-            cloudRemoteCommitId: route.remoteKind === 'aira-cloud' ? (result.remoteCommitId || '') : undefined,
-            webdavRemoteCommitId: route.remoteKind === 'webdav' ? (result.remoteCommitId || '') : undefined,
-          });
-          await removeExtensionStorageKeys([
-            LEAFTAB_BACKGROUND_STORAGE_KEYS.autoSyncRetryProvider,
-          ]);
+        if (preflight.canSkipSync) {
+          await skipBackgroundSyncAsUnchanged(remoteKind, preflight);
           return false;
         }
-        await writeAnalysisCacheForRemote(config, route.remoteKind, result);
-        await markSyncSuccess(route.remoteKind, config);
-        await updateBackgroundDebugState({
-          lastSyncFinishedAt: getNowIso(),
-          lastResult: 'success',
-          lastReason: route.remoteKind,
-          lastError: '',
-          cloudRemoteCommitId: route.remoteKind === 'aira-cloud' ? (result.remoteCommitId || '') : undefined,
-          webdavRemoteCommitId: route.remoteKind === 'webdav' ? (result.remoteCommitId || '') : undefined,
-          pendingLocalChangedAt: '',
-        });
-        await removeExtensionStorageKeys([
-          LEAFTAB_BACKGROUND_STORAGE_KEYS.pendingLocalChangedAt,
-          LEAFTAB_BACKGROUND_STORAGE_KEYS.autoSyncRetryProvider,
-          WEBDAV_STORAGE_KEYS.nextSyncAt,
-        ]);
-        return true;
       }
 
+      await writeExtensionStorageRecord({
+        [LEAFTAB_BACKGROUND_STORAGE_KEYS.autoSyncRunning]: 'true',
+      });
       await updateBackgroundDebugState({
-        lastReason: `syncing-primary:${route.primaryRemoteKind}`,
+        lastReason: `syncing:${remoteKind}`,
       });
-      const primaryResult = await runSingleRemoteSync(config, route.primaryRemoteKind, {
-        localSnapshotOverride: undefined,
-      });
-      if (primaryResult.kind === 'conflict') {
+      const result = await runSingleRemoteSync(config, remoteKind);
+      if (result.kind === 'conflict') {
+        await persistPendingBookmarkConflict(remoteKind, result);
         await updateBackgroundDebugState({
           lastSyncFinishedAt: getNowIso(),
           lastResult: 'conflict',
-          lastReason: `${route.primaryRemoteKind}:primary`,
+          lastReason: remoteKind,
+          cloudRemoteCommitId: remoteKind === 'aira-cloud' ? (result.remoteCommitId || '') : undefined,
+          webdavRemoteCommitId: remoteKind === 'webdav' ? (result.remoteCommitId || '') : undefined,
         });
         await removeExtensionStorageKeys([
           LEAFTAB_BACKGROUND_STORAGE_KEYS.autoSyncRetryProvider,
         ]);
         return false;
       }
-      await writeAnalysisCacheForRemote(config, route.primaryRemoteKind, primaryResult);
-      await markSyncSuccess(route.primaryRemoteKind, config);
 
-      const secondaryPlan = createLeafTabDualSecondarySyncPlan(route, primaryResult);
-      await updateBackgroundDebugState({
-        lastReason: `syncing-secondary:${route.secondaryRemoteKind}`,
-      });
-      const secondaryWebdavTarget = route.secondaryRemoteKind === 'webdav'
-        ? createWebdavBackupTarget(config)
-        : null;
-      const secondaryCooldownReason = secondaryWebdavTarget
-        ? await readWebdavBackupCooldownResult(secondaryWebdavTarget)
-        : null;
-      if (secondaryCooldownReason) {
-        await updateBackgroundDebugState({
-          lastSyncFinishedAt: getNowIso(),
-          lastResult: 'success',
-          lastReason: `${route.primaryRemoteKind}+${route.secondaryRemoteKind}:backup-cooldown`,
-          lastError: secondaryCooldownReason,
-          cloudRemoteCommitId: route.primaryRemoteKind === 'aira-cloud'
-            ? (primaryResult.remoteCommitId || '')
-            : '',
-          webdavRemoteCommitId: route.primaryRemoteKind === 'webdav'
-            ? (primaryResult.remoteCommitId || '')
-            : '',
-          pendingLocalChangedAt: '',
-        });
-        await removeExtensionStorageKeys([
-          LEAFTAB_BACKGROUND_STORAGE_KEYS.pendingLocalChangedAt,
-          LEAFTAB_BACKGROUND_STORAGE_KEYS.autoSyncRetryProvider,
-          WEBDAV_STORAGE_KEYS.nextSyncAt,
-        ]);
-        return true;
-      }
-      let secondaryResult: LeafTabSyncEngineResult | null = null;
-      let secondaryError: unknown = null;
-      try {
-        const secondaryTask = runSingleRemoteSync(config, route.secondaryRemoteKind, {
-          localSnapshotOverride: secondaryPlan.snapshot,
-          mode: secondaryPlan.mode,
-          webdavRequestTimeoutMs: route.secondaryRemoteKind === 'webdav'
-            ? WEBDAV_BACKUP_REQUEST_TIMEOUT_MS
-            : undefined,
-        });
-        secondaryResult = route.secondaryRemoteKind === 'webdav'
-          ? await withWebdavBackupTimeout(
-              secondaryTask,
-              WEBDAV_BACKUP_TOTAL_TIMEOUT_MS,
-              'WebDAV 备份连接超时，已跳过本次备份，不影响主同步。',
-            )
-          : await secondaryTask;
-      } catch (error) {
-        secondaryError = error;
-      }
-      if (secondaryError !== null) {
-        await markSyncError(route.secondaryRemoteKind, secondaryError);
-        if (secondaryWebdavTarget) {
-          await recordWebdavBackupFailureCooldown(secondaryWebdavTarget, secondaryError);
-        }
-        await updateBackgroundDebugState({
-          lastSyncFinishedAt: getNowIso(),
-          lastResult: 'success',
-          lastReason: `${route.primaryRemoteKind}+${route.secondaryRemoteKind}:backup-failed`,
-          lastError: String((secondaryError as Error)?.message || secondaryError || 'unknown'),
-          cloudRemoteCommitId: route.primaryRemoteKind === 'aira-cloud'
-            ? (primaryResult.remoteCommitId || '')
-            : '',
-          webdavRemoteCommitId: route.primaryRemoteKind === 'webdav'
-            ? (primaryResult.remoteCommitId || '')
-            : '',
-          pendingLocalChangedAt: '',
-        });
-        await removeExtensionStorageKeys([
-          LEAFTAB_BACKGROUND_STORAGE_KEYS.pendingLocalChangedAt,
-          LEAFTAB_BACKGROUND_STORAGE_KEYS.autoSyncRetryProvider,
-          WEBDAV_STORAGE_KEYS.nextSyncAt,
-        ]);
-        return true;
-      }
-      if (secondaryResult === null) {
-        return true;
-      }
-      if (secondaryResult.kind === 'conflict') {
-        await markSyncError(route.secondaryRemoteKind, new Error('备份源需要处理冲突'));
-        if (secondaryWebdavTarget) {
-          await recordWebdavBackupFailureCooldown(secondaryWebdavTarget, new Error('备份源需要处理冲突'));
-        }
-        await updateBackgroundDebugState({
-          lastSyncFinishedAt: getNowIso(),
-          lastResult: 'success',
-          lastReason: `${route.primaryRemoteKind}+${route.secondaryRemoteKind}:backup-conflict`,
-          cloudRemoteCommitId: route.primaryRemoteKind === 'aira-cloud'
-            ? (primaryResult.remoteCommitId || '')
-            : (secondaryResult.remoteCommitId || ''),
-          webdavRemoteCommitId: route.primaryRemoteKind === 'webdav'
-            ? (primaryResult.remoteCommitId || '')
-            : (secondaryResult.remoteCommitId || ''),
-          pendingLocalChangedAt: '',
-        });
-        await removeExtensionStorageKeys([
-          LEAFTAB_BACKGROUND_STORAGE_KEYS.pendingLocalChangedAt,
-          LEAFTAB_BACKGROUND_STORAGE_KEYS.autoSyncRetryProvider,
-          WEBDAV_STORAGE_KEYS.nextSyncAt,
-        ]);
-        return true;
-      }
-      await writeAnalysisCacheForRemote(config, route.secondaryRemoteKind, secondaryResult);
-      await markSyncSuccess(route.secondaryRemoteKind, config);
+      await clearPendingBookmarkConflict();
+      await markSyncSuccess(remoteKind);
       await updateBackgroundDebugState({
         lastSyncFinishedAt: getNowIso(),
         lastResult: 'success',
-        lastReason: `${route.primaryRemoteKind}+${route.secondaryRemoteKind}`,
+        lastReason: remoteKind,
         lastError: '',
-        cloudRemoteCommitId: route.primaryRemoteKind === 'aira-cloud'
-          ? (primaryResult.remoteCommitId || '')
-          : (secondaryResult.remoteCommitId || ''),
-        webdavRemoteCommitId: route.primaryRemoteKind === 'webdav'
-          ? (primaryResult.remoteCommitId || '')
-          : (secondaryResult.remoteCommitId || ''),
+        cloudRemoteCommitId: remoteKind === 'aira-cloud' ? (result.remoteCommitId || '') : undefined,
+        webdavRemoteCommitId: remoteKind === 'webdav' ? (result.remoteCommitId || '') : undefined,
         pendingLocalChangedAt: '',
       });
       await removeExtensionStorageKeys([
@@ -1254,17 +937,21 @@ async function runBackgroundAutoSync(trigger?: BackgroundSyncTrigger): Promise<b
       ]);
       return true;
     } catch (error) {
-      if (route.kind === 'single') {
-        await markSyncError(route.remoteKind, error);
-      } else {
-        await markSyncError(route.primaryRemoteKind, error);
-      }
+      await markSyncError(remoteKind, error);
+      const actionRequired = isActionRequiredSyncError(error);
       await updateBackgroundDebugState({
         lastSyncFinishedAt: getNowIso(),
-        lastResult: 'error',
+        lastResult: actionRequired ? 'action-required' : 'error',
+        lastReason: remoteKind,
         lastError: String((error as Error)?.message || error || 'unknown'),
       });
-      await schedulePrimarySyncRetry(route.kind === 'single' ? route.remoteKind : route.primaryRemoteKind, 'primary-failed');
+      if (!actionRequired) {
+        await scheduleSelectedSourceSyncRetry(remoteKind, 'temporary-failure');
+      } else {
+        await removeExtensionStorageKeys([
+          LEAFTAB_BACKGROUND_STORAGE_KEYS.autoSyncRetryProvider,
+        ]);
+      }
       console.error('[Aira][background auto sync]', error);
       return false;
     } finally {
@@ -1308,7 +995,7 @@ async function scheduleLocalSyncAlarmAfter(delayMinutes: number): Promise<void> 
   });
 }
 
-async function schedulePrimarySyncRetry(provider: LeafTabSyncRemoteKind, reason: string): Promise<void> {
+async function scheduleSelectedSourceSyncRetry(provider: LeafTabSyncRemoteKind, reason: string): Promise<void> {
   await updateBackgroundDebugState({
     lastReason: `${provider}:${reason}:retry-scheduled`,
   });
@@ -1373,9 +1060,7 @@ async function reconcileBackgroundSchedules(isStartup: boolean = false): Promise
     await clearBackgroundAlarms();
     return;
   }
-  const hasAnySync = (config.cloudEnabled && Boolean(config.cloudUid))
-    || (config.webdavEnabled && Boolean(config.webdavConfig?.url));
-  if (!hasAnySync) {
+  if (!config.selectedSource) {
     await clearBackgroundAlarms();
     return;
   }
@@ -1392,14 +1077,8 @@ async function handleRemoteProbeAlarm(): Promise<void> {
     if (!canRunBackgroundAutoSync(config)) {
       return;
     }
-    const route = resolveLeafTabSyncRoute({
-      cloudEnabled: config.cloudEnabled,
-      cloudAvailable: Boolean(config.cloudUid),
-      webdavEnabled: config.webdavEnabled,
-      webdavAvailable: Boolean(config.webdavConfig?.url),
-      preferredPrimaryRemoteKind: config.primaryRemoteKind ?? undefined,
-    });
-    if (route.kind === 'none') {
+    const remoteKind = config.selectedSource;
+    if (!remoteKind) {
       return;
     }
     await writeExtensionStorageRecord({
@@ -1408,24 +1087,19 @@ async function handleRemoteProbeAlarm(): Promise<void> {
     await updateBackgroundDebugState({
       lastRemoteProbeAt: getNowIso(),
     });
-    const probeKinds: LeafTabSyncRemoteKind[] = route.kind === 'dual'
-      ? [route.primaryRemoteKind]
-      : [route.remoteKind];
-    for (const remoteKind of probeKinds) {
-      const probe = await probeRemoteChangesForKind(config, remoteKind).catch(() => null);
-      if (probe) {
-        await updateBackgroundDebugState({
-          cloudBaselineCommitId: remoteKind === 'aira-cloud' ? (probe.baselineCommitId || '') : undefined,
-          cloudRemoteCommitId: remoteKind === 'aira-cloud' ? (probe.remoteCommitId || '') : undefined,
-          webdavBaselineCommitId: remoteKind === 'webdav' ? (probe.baselineCommitId || '') : undefined,
-          webdavRemoteCommitId: remoteKind === 'webdav' ? (probe.remoteCommitId || '') : undefined,
-          lastTriggerProvider: probe.provider,
-        });
-      }
-      if (probe?.hasChanges) {
-        await runBackgroundAutoSync({ provider: remoteKind, hasRemoteChanges: true });
-        return;
-      }
+    const probe = await probeSyncPreflightForKind(config, remoteKind).catch(() => null);
+    if (probe) {
+      await updateBackgroundDebugState({
+        cloudBaselineCommitId: remoteKind === 'aira-cloud' ? (probe.baselineCommitId || '') : undefined,
+        cloudRemoteCommitId: remoteKind === 'aira-cloud' ? (probe.remoteCommitId || '') : undefined,
+        webdavBaselineCommitId: remoteKind === 'webdav' ? (probe.baselineCommitId || '') : undefined,
+        webdavRemoteCommitId: remoteKind === 'webdav' ? (probe.remoteCommitId || '') : undefined,
+        lastTriggerProvider: probe.provider,
+      });
+    }
+    if (probe?.hasRemoteChanges) {
+      await runBackgroundAutoSync({ provider: remoteKind, hasRemoteChanges: true });
+      return;
     }
   } finally {
     await reconcileBackgroundSchedules();
@@ -1484,7 +1158,6 @@ async function handleBookmarkMutation(): Promise<void> {
     [LEAFTAB_BACKGROUND_STORAGE_KEYS.pendingLocalChangedAt]: nowIso,
   });
   const config = await readBackgroundSyncConfig();
-  scheduleLocalSummaryCacheRefresh(config);
   if (!canRunBackgroundAutoSync(config)) {
     await removeExtensionStorageKeys([
       WEBDAV_STORAGE_KEYS.nextSyncAt,
@@ -1610,13 +1283,12 @@ function bindLifecycleListeners(): void {
     }
     const relevantKeys = [
       AIRA_CLOUD_SYNC_ENABLED_KEY,
-      LEAFTAB_BOOKMARK_AUTO_SYNC_ENABLED_KEY,
+      LEAFTAB_SELECTED_SYNC_SOURCE_KEY,
+      LEAFTAB_PENDING_BOOKMARK_CONFLICT_KEY,
       WEBDAV_STORAGE_KEYS.syncEnabled,
       WEBDAV_STORAGE_KEYS.url,
       WEBDAV_STORAGE_KEYS.username,
       WEBDAV_STORAGE_KEYS.password,
-      WEBDAV_STORAGE_KEYS.syncBySchedule,
-      WEBDAV_STORAGE_KEYS.syncIntervalMinutes,
       'aira_desktop_login_profile_v1',
       'aira_phone_page_push_enabled_v1',
     ];

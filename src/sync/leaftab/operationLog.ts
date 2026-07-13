@@ -5,7 +5,10 @@ import type {
   LeafTabSyncSnapshot,
   LeafTabSyncTombstone,
 } from './schema';
-import { LEAFTAB_SYNC_SCHEMA_VERSION } from './schema';
+import {
+  cloneLeafTabSyncSnapshotMeta,
+  createLeafTabSyncTombstoneKey,
+} from './schema';
 import type { LeafTabSyncOperation } from './remoteStore';
 
 const ROOT_ORDER_KEY = '__root__';
@@ -25,7 +28,7 @@ const createOperationId = (kind: string, entityId: string, updatedAt: string, in
 
 const orderKey = (parentId: string | null | undefined) => parentId || ROOT_ORDER_KEY;
 
-const tombstoneKey = (tombstone: LeafTabSyncTombstone) => `${tombstone.type}|${tombstone.id}`;
+const tombstoneKey = createLeafTabSyncTombstoneKey;
 
 const sameFolder = (
   left: LeafTabSyncBookmarkFolderEntity,
@@ -185,8 +188,8 @@ export const applyLeafTabSyncOperations = (
   const folderById = new Map(Object.entries(baseline.bookmarkFolders));
   const itemById = new Map(Object.entries(baseline.bookmarkItems));
   const orderByKey = new Map(Object.entries(baseline.bookmarkOrders));
-  const tombstoneById = new Map(
-    Object.values(baseline.tombstones).map((tombstone) => [tombstone.id, tombstone]),
+  const tombstoneByKey = new Map(
+    Object.values(baseline.tombstones).map((tombstone) => [tombstoneKey(tombstone), tombstone]),
   );
 
   operations.forEach((operation) => {
@@ -201,7 +204,7 @@ export const applyLeafTabSyncOperations = (
         updatedBy: operation.updatedBy,
         revision: operation.revision,
       });
-      tombstoneById.delete(operation.entityId);
+      tombstoneByKey.delete(createLeafTabSyncTombstoneKey('bookmark-folder', operation.entityId));
     } else if (operation.kind === 'upsert_item') {
       itemById.set(operation.entityId, {
         id: operation.entityId,
@@ -214,7 +217,7 @@ export const applyLeafTabSyncOperations = (
         updatedBy: operation.updatedBy,
         revision: operation.revision,
       });
-      tombstoneById.delete(operation.entityId);
+      tombstoneByKey.delete(createLeafTabSyncTombstoneKey('bookmark-item', operation.entityId));
     } else if (operation.kind === 'upsert_order') {
       const parentId = operation.parentId ?? null;
       orderByKey.set(orderKey(parentId), {
@@ -226,31 +229,40 @@ export const applyLeafTabSyncOperations = (
         revision: operation.revision,
       });
     } else if (operation.kind === 'delete_entity') {
-      folderById.delete(operation.entityId);
-      itemById.delete(operation.entityId);
-      orderByKey.delete(operation.entityId);
+      if (operation.entityType === 'bookmark-folder') {
+        folderById.delete(operation.entityId);
+        orderByKey.delete(operation.entityId);
+      } else if (operation.entityType === 'bookmark-item') {
+        itemById.delete(operation.entityId);
+      } else {
+        // Legacy operations did not carry a type. Preserve their original broad-delete semantics.
+        folderById.delete(operation.entityId);
+        itemById.delete(operation.entityId);
+        orderByKey.delete(operation.entityId);
+      }
       removeDeletedEntityFromOrders(orderByKey, operation.entityId, operation.updatedAt, operation.updatedBy);
       if (operation.entityType) {
-        tombstoneById.set(operation.entityId, {
+        const tombstone: LeafTabSyncTombstone = {
           id: operation.entityId,
           type: operation.entityType,
           deletedAt: operation.updatedAt,
           deletedBy: operation.updatedBy,
           lastKnownRevision: operation.lastKnownRevision ?? operation.revision,
-        });
+        };
+        tombstoneByKey.set(tombstoneKey(tombstone), tombstone);
       }
     }
   });
 
   return {
-    meta: {
-      version: LEAFTAB_SYNC_SCHEMA_VERSION,
+    meta: cloneLeafTabSyncSnapshotMeta(baseline.meta, {
       deviceId: deviceId || baseline.meta.deviceId,
       generatedAt: generatedAt || new Date().toISOString(),
-    },
+    }),
     bookmarkFolders: Object.fromEntries(folderById),
     bookmarkItems: Object.fromEntries(itemById),
     bookmarkOrders: Object.fromEntries(orderByKey),
-    tombstones: Object.fromEntries(tombstoneById),
+    tombstones: Object.fromEntries(tombstoneByKey),
+    appPrivateBookmarks: baseline.appPrivateBookmarks,
   };
 };

@@ -7,7 +7,11 @@ import type {
   LeafTabSyncSnapshot,
   LeafTabSyncTombstone,
 } from './schema';
-import { LEAFTAB_SYNC_SCHEMA_VERSION } from './schema';
+import {
+  cloneLeafTabSyncSnapshotMeta,
+  createLeafTabSyncTombstoneKey,
+  type LeafTabSyncSnapshotMeta,
+} from './schema';
 
 type LeafTabEntityMetadata = {
   createdAt: string;
@@ -23,6 +27,7 @@ type LeafTabOrderMetadata = {
 };
 
 export interface LeafTabSnapshotBuildState {
+  snapshotMeta?: LeafTabSyncSnapshotMeta;
   entities?: Record<string, LeafTabEntityMetadata>;
   tombstones?: Record<string, LeafTabSyncTombstone>;
   orders?: {
@@ -54,12 +59,13 @@ const BROWSER_ROOT_FOLDERS: Record<string, string> = {
 };
 
 const getEntityMetadata = (
+  type: 'bookmark-folder' | 'bookmark-item',
   id: string,
   deviceId: string,
   timestamp: string,
   state?: LeafTabSnapshotBuildState,
 ): LeafTabEntityMetadata => {
-  const fromState = state?.entities?.[id];
+  const fromState = state?.entities?.[createLeafTabSyncTombstoneKey(type, id)];
   if (fromState) return fromState;
   return {
     createdAt: timestamp,
@@ -219,6 +225,7 @@ export const createLeafTabSyncBuildState = (params: {
   const generatedAt = params.generatedAt || new Date().toISOString();
   const previousSnapshot = params.previousSnapshot || null;
   const state: LeafTabSnapshotBuildState = {
+    snapshotMeta: previousSnapshot ? cloneLeafTabSyncSnapshotMeta(previousSnapshot.meta) : undefined,
     entities: {},
     tombstones: {
       ...(previousSnapshot?.tombstones || {}),
@@ -237,7 +244,8 @@ export const createLeafTabSyncBuildState = (params: {
 
   resolvedBookmarkFolderEntries.forEach((folder) => {
     const previousEntity = previousSnapshot?.bookmarkFolders[folder.folderId];
-    state.entities![folder.folderId] = previousEntity && isSameBookmarkFolderValue(folder, previousEntity)
+    const entityKey = createLeafTabSyncTombstoneKey('bookmark-folder', folder.folderId);
+    state.entities![entityKey] = previousEntity && isSameBookmarkFolderValue(folder, previousEntity)
       ? {
           createdAt: previousEntity.createdAt,
           updatedAt: previousEntity.updatedAt,
@@ -245,12 +253,13 @@ export const createLeafTabSyncBuildState = (params: {
           revision: previousEntity.revision,
         }
       : createUpdatedEntityMetadata(previousEntity, params.deviceId, generatedAt);
-    delete state.tombstones![folder.folderId];
+    delete state.tombstones![createLeafTabSyncTombstoneKey('bookmark-folder', folder.folderId)];
   });
 
   resolvedBookmarkItemEntries.forEach((item) => {
     const previousEntity = previousSnapshot?.bookmarkItems[item.bookmarkId];
-    state.entities![item.bookmarkId] = previousEntity && isSameBookmarkItemValue(item, previousEntity)
+    const entityKey = createLeafTabSyncTombstoneKey('bookmark-item', item.bookmarkId);
+    state.entities![entityKey] = previousEntity && isSameBookmarkItemValue(item, previousEntity)
       ? {
           createdAt: previousEntity.createdAt,
           updatedAt: previousEntity.updatedAt,
@@ -258,18 +267,20 @@ export const createLeafTabSyncBuildState = (params: {
           revision: previousEntity.revision,
         }
       : createUpdatedEntityMetadata(previousEntity, params.deviceId, generatedAt);
-    delete state.tombstones![item.bookmarkId];
+    delete state.tombstones![createLeafTabSyncTombstoneKey('bookmark-item', item.bookmarkId)];
   });
 
   Object.values(previousSnapshot?.bookmarkFolders || {}).forEach((entity) => {
-    if (!state.entities?.[entity.id]) {
-      state.tombstones![entity.id] = createTombstone(entity, params.deviceId, generatedAt);
+    if (!state.entities?.[createLeafTabSyncTombstoneKey(entity.type, entity.id)]) {
+      const tombstone = createTombstone(entity, params.deviceId, generatedAt);
+      state.tombstones![createLeafTabSyncTombstoneKey(tombstone)] = tombstone;
     }
   });
 
   Object.values(previousSnapshot?.bookmarkItems || {}).forEach((entity) => {
-    if (!state.entities?.[entity.id]) {
-      state.tombstones![entity.id] = createTombstone(entity, params.deviceId, generatedAt);
+    if (!state.entities?.[createLeafTabSyncTombstoneKey(entity.type, entity.id)]) {
+      const tombstone = createTombstone(entity, params.deviceId, generatedAt);
+      state.tombstones![createLeafTabSyncTombstoneKey(tombstone)] = tombstone;
     }
   });
 
@@ -305,7 +316,13 @@ export const buildLeafTabSyncSnapshot = (params: {
   const tombstones = { ...(params.state?.tombstones || {}) };
 
   resolvedBookmarkFolderEntries.forEach((folder) => {
-    const metadata = getEntityMetadata(folder.folderId, params.deviceId, generatedAt, params.state);
+    const metadata = getEntityMetadata(
+      'bookmark-folder',
+      folder.folderId,
+      params.deviceId,
+      generatedAt,
+      params.state,
+    );
     bookmarkFolders[folder.folderId] = {
       id: folder.folderId,
       type: 'bookmark-folder',
@@ -313,11 +330,17 @@ export const buildLeafTabSyncSnapshot = (params: {
       title: folder.title,
       ...metadata,
     };
-    delete tombstones[folder.folderId];
+    delete tombstones[createLeafTabSyncTombstoneKey('bookmark-folder', folder.folderId)];
   });
 
   resolvedBookmarkItemEntries.forEach((item) => {
-    const metadata = getEntityMetadata(item.bookmarkId, params.deviceId, generatedAt, params.state);
+    const metadata = getEntityMetadata(
+      'bookmark-item',
+      item.bookmarkId,
+      params.deviceId,
+      generatedAt,
+      params.state,
+    );
     bookmarkItems[item.bookmarkId] = {
       id: item.bookmarkId,
       type: 'bookmark-item',
@@ -326,7 +349,7 @@ export const buildLeafTabSyncSnapshot = (params: {
       url: item.url,
       ...metadata,
     };
-    delete tombstones[item.bookmarkId];
+    delete tombstones[createLeafTabSyncTombstoneKey('bookmark-item', item.bookmarkId)];
   });
 
   Object.entries(bookmarkOrderIdsByParent).forEach(([orderKey, ids]) => {
@@ -344,11 +367,10 @@ export const buildLeafTabSyncSnapshot = (params: {
   });
 
   return {
-    meta: {
-      version: LEAFTAB_SYNC_SCHEMA_VERSION,
+    meta: cloneLeafTabSyncSnapshotMeta(params.state?.snapshotMeta, {
       deviceId: params.deviceId,
       generatedAt,
-    },
+    }),
     bookmarkFolders,
     bookmarkItems,
     bookmarkOrders,

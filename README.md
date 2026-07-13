@@ -1,8 +1,11 @@
-# Airatab
+# AiraTab
 
-Airatab is a private Chromium extension for WebDAV bookmark sync.
+AiraTab is the desktop browser extension paired with the Aira app. It has two responsibilities:
 
-The extension no longer replaces the browser new tab page. The only user-facing entry is the browser extension action popup, where users can configure WebDAV, enable or disable sync, and trigger bookmark sync manually.
+- Synchronize browser bookmarks through one selected source: Aira Cloud or user-provided WebDAV.
+- Receive a webpage pushed from the phone and immediately open it in a new active desktop tab.
+
+The extension does not replace the new-tab page and does not synchronize personalization settings.
 
 ## Development
 
@@ -22,16 +25,21 @@ The production extension output is written to `build/`. Load that folder from Ch
 
 ## Data And Sync
 
-- WebDAV connection settings stay in browser extension storage.
-- Sync currently targets browser bookmarks only.
-- The background service worker only proxies WebDAV requests.
+- One bookmark sync source is active at a time. Inactive sources are not read or written in the background.
+- Aira Cloud requires a valid desktop login, Aira Pro, and permission from the App-owned sync topology.
+- WebDAV is available to every user without an Aira login. WebDAV credentials stay in extension storage.
+- Selecting a source enables automatic bookmark sync. There is no separate automatic-sync switch or custom interval.
+- First sync and ordinary differences merge automatically. Only a real two-sided conflict asks whether the computer or the current sync source wins.
+- The extension follows the Primary source initialized by the Aira app. It does not create or switch the shared topology and does not maintain an extension-side backup source.
+- Phone Page Push remains independent from bookmark sync and keeps its existing login, polling, lease, open-tab, and acknowledgement flow.
 - Do not commit private keys, account credentials, WebDAV passwords, generated builds, release zips, or local test data.
 
 ## Structure
 
 - `src/popup`: popup UI and popup-local i18n resources.
-- `src/sync`: WebDAV bookmark sync engine and browser bookmark snapshot logic.
-- `src/components`: small UI surface used by the popup.
+- `src/features/sync/bookmarks/BookmarkSyncModule.ts`: the small narrative interface for bookmark view state, source choice, synchronization, and conflict resolution.
+- `src/sync/leaftab`: lossless Aira bookmark protocol, merge engine, provider adapters, and browser bookmark snapshot logic.
+- `src/background.ts`: single-source automatic bookmark sync and the unchanged Phone Page Push receiver.
 - `public`: extension manifest, service worker, locales, and icons.
 - `scripts`: release build and packaging helpers.
 

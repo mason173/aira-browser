@@ -3,18 +3,21 @@ import type {
   LeafTabSyncCommitFile,
   LeafTabSyncHeadFile,
   LeafTabSyncManifestFile,
-  LeafTabSyncBookmarkDataSet,
   LeafTabSyncSnapshot,
 } from './schema';
 import {
+  cloneLeafTabSyncSnapshotMeta,
+  createLeafTabSyncOrderKey,
+  createLeafTabSyncTombstoneKey,
   getLeafTabSyncCommitPath,
   getLeafTabSyncHeadPath,
   isLeafTabSyncBookmarkFolderEntity,
   isLeafTabSyncBookmarkItemEntity,
+  isLeafTabSyncBookmarkOrder,
   isLeafTabSyncTombstone,
   LEAFTAB_SYNC_DEFAULT_ROOT,
   LEAFTAB_SYNC_APP_PRIVATE_BOOKMARKS_FILE,
-  LEAFTAB_SYNC_SCHEMA_VERSION,
+  normalizeLeafTabSyncBookmarkDataSet,
 } from './schema';
 
 const isRecord = (value: unknown): value is Record<string, unknown> => {
@@ -74,7 +77,7 @@ export const materializeLeafTabSyncSnapshotFromPayloadMap = (
   const bookmarkItems: LeafTabSyncSnapshot['bookmarkItems'] = {};
   const bookmarkOrders: LeafTabSyncSnapshot['bookmarkOrders'] = {};
   const tombstones: LeafTabSyncSnapshot['tombstones'] = {};
-  const appPrivateBookmarks = parseLeafTabSyncJsonLike<LeafTabSyncBookmarkDataSet>(
+  const appPrivateBookmarks = parseLeafTabSyncJsonLike<unknown>(
     payloadMap[`${normalizedRootPath}/${LEAFTAB_SYNC_APP_PRIVATE_BOOKMARKS_FILE}`],
   );
 
@@ -102,9 +105,8 @@ export const materializeLeafTabSyncSnapshotFromPayloadMap = (
 
     if (packRef.kind === 'bookmark-orders') {
       Object.values(isRecord(value.orders) ? value.orders : {}).forEach((order) => {
-        if (isRecord(order) && (order as { type?: unknown }).type === 'bookmark-order') {
-          const typedOrder = order as unknown as LeafTabSyncSnapshot['bookmarkOrders'][string];
-          bookmarkOrders[typedOrder.parentId || '__root__'] = typedOrder;
+        if (isLeafTabSyncBookmarkOrder(order)) {
+          bookmarkOrders[createLeafTabSyncOrderKey(order.parentId)] = order;
         }
       });
       return;
@@ -113,22 +115,21 @@ export const materializeLeafTabSyncSnapshotFromPayloadMap = (
     if (packRef.kind === 'tombstones') {
       Object.values(isRecord(value.entities) ? value.entities : {}).forEach((entry) => {
         if (isLeafTabSyncTombstone(entry)) {
-          tombstones[entry.id] = entry;
+          tombstones[createLeafTabSyncTombstoneKey(entry)] = entry;
         }
       });
     }
   });
 
   return {
-    meta: {
-      version: LEAFTAB_SYNC_SCHEMA_VERSION,
-      deviceId: commit.deviceId,
+    meta: cloneLeafTabSyncSnapshotMeta(manifest, {
+      deviceId: manifest.deviceId || commit.deviceId,
       generatedAt: manifest.generatedAt || commit.createdAt,
-    },
+    }),
     bookmarkFolders,
     bookmarkItems,
     bookmarkOrders,
     tombstones,
-    appPrivateBookmarks: appPrivateBookmarks || undefined,
+    appPrivateBookmarks: normalizeLeafTabSyncBookmarkDataSet(appPrivateBookmarks),
   };
 };

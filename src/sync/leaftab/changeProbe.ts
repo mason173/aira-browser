@@ -1,6 +1,6 @@
 import { LeafTabSyncExtensionStorageBaselineStore } from './baseline';
 import type { LeafTabSyncRemoteStore } from './remoteStore';
-import type { LeafTabSyncRemoteKind } from './syncRouteStateMachine';
+import type { LeafTabSyncRemoteKind } from './source';
 
 export type LeafTabBookmarkSyncChangeProbeStatus =
   | 'unchanged'

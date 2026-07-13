@@ -1,14 +1,12 @@
 import {
   createLeafTabSyncCommitFile,
   createLeafTabSyncHeadFile,
-  type LeafTabSyncBookmarkFolderEntity,
-  type LeafTabSyncBookmarkItemEntity,
-  type LeafTabSyncBookmarkOrder,
-  type LeafTabSyncBookmarkDataSet,
+  normalizeLeafTabSyncSnapshot,
+  toLeafTabSyncWireSnapshot,
   type LeafTabSyncCommitFile,
   type LeafTabSyncHeadFile,
   type LeafTabSyncSnapshot,
-  type LeafTabSyncTombstone,
+  type LeafTabSyncWireSnapshot,
 } from './schema';
 import type {
   LeafTabSyncRemoteHead,
@@ -27,14 +25,7 @@ const AIRA_CLOUD_SYNC_ENDPOINT = 'https://api.aira.cool/sync/huawei';
 const AIRA_CLOUD_REQUEST_TIMEOUT_MS = 60_000;
 const AIRA_CLOUD_LARGE_REQUEST_TIMEOUT_MS = 600_000;
 
-type AiraCloudSnapshot = {
-  meta?: LeafTabSyncSnapshot['meta'];
-  bookmarkFolders?: LeafTabSyncBookmarkFolderEntity[];
-  bookmarkItems?: LeafTabSyncBookmarkItemEntity[];
-  bookmarkOrders?: LeafTabSyncBookmarkOrder[];
-  tombstones?: LeafTabSyncTombstone[];
-  appPrivateBookmarks?: LeafTabSyncBookmarkDataSet;
-};
+type AiraCloudSnapshot = Partial<LeafTabSyncWireSnapshot>;
 
 type AiraCloudResponse = {
   ok?: boolean;
@@ -56,49 +47,28 @@ type AiraCloudResponse = {
   appliedOperationCount?: number;
 };
 
-const objectValues = <T>(record: Record<string, T> | null | undefined): T[] => {
-  return Object.values(record || {});
-};
-
 const normalizeCount = (value: unknown) => {
   const count = Number(value);
   return Number.isFinite(count) && count >= 0 ? Math.floor(count) : 0;
 };
 
-const recordById = <T extends { id: string }>(items: T[] | null | undefined): Record<string, T> => {
-  return Object.fromEntries((items || []).map((item) => [item.id, item]));
-};
-
-const orderRecordByParent = (
-  orders: LeafTabSyncBookmarkOrder[] | null | undefined,
-): Record<string, LeafTabSyncBookmarkOrder> => {
-  return Object.fromEntries((orders || []).map((order) => [order.parentId || '__root__', order]));
-};
-
-const toCloudSnapshot = (snapshot: LeafTabSyncSnapshot): AiraCloudSnapshot => ({
-  meta: snapshot.meta,
-  bookmarkFolders: objectValues(snapshot.bookmarkFolders),
-  bookmarkItems: objectValues(snapshot.bookmarkItems),
-  bookmarkOrders: objectValues(snapshot.bookmarkOrders),
-  tombstones: objectValues(snapshot.tombstones),
-  appPrivateBookmarks: snapshot.appPrivateBookmarks,
-});
+const toCloudSnapshot = (snapshot: LeafTabSyncSnapshot): AiraCloudSnapshot => toLeafTabSyncWireSnapshot(snapshot);
 
 const fromCloudSnapshot = (snapshot: AiraCloudSnapshot | null | undefined): LeafTabSyncSnapshot | null => {
-  if (!snapshot?.meta) return null;
-  return {
-    meta: {
-      version: 2,
-      deviceId: String(snapshot.meta.deviceId || 'aira-cloud'),
-      generatedAt: String(snapshot.meta.generatedAt || new Date(0).toISOString()),
-    },
-    bookmarkFolders: recordById(snapshot.bookmarkFolders),
-    bookmarkItems: recordById(snapshot.bookmarkItems),
-    bookmarkOrders: orderRecordByParent(snapshot.bookmarkOrders),
-    tombstones: recordById(snapshot.tombstones),
-    appPrivateBookmarks: snapshot.appPrivateBookmarks,
-  };
+  return normalizeLeafTabSyncSnapshot(snapshot);
 };
+
+export class LeafTabSyncAiraCloudError extends Error {
+  readonly code: string;
+  readonly status: number;
+
+  constructor(message: string, code = '', status = 0) {
+    super(message);
+    this.name = 'LeafTabSyncAiraCloudError';
+    this.code = code;
+    this.status = status;
+  }
+}
 
 const createCommitFromSnapshot = (
   commitId: string,
@@ -131,7 +101,7 @@ export class LeafTabSyncAiraCloudStore implements LeafTabSyncRemoteStore {
   private readonly desktopPushToken: string;
   private readonly endpoint: string;
 
-  constructor(uid: string, desktopPushToken = '', endpoint = AIRA_CLOUD_SYNC_ENDPOINT) {
+  constructor(uid: string, desktopPushToken: string, endpoint = AIRA_CLOUD_SYNC_ENDPOINT) {
     this.uid = uid.trim();
     this.desktopPushToken = desktopPushToken.trim();
     this.endpoint = endpoint.trim().replace(/\/+$/, '');
@@ -273,6 +243,9 @@ export class LeafTabSyncAiraCloudStore implements LeafTabSyncRemoteStore {
     if (!this.uid) {
       throw new Error('请先扫码登录 Aira 账号。');
     }
+    if (!this.desktopPushToken) {
+      throw new LeafTabSyncAiraCloudError('Aira 桌面登录状态无效，请重新扫码登录。', 'invalid_desktop_push_token');
+    }
   }
 
   private async post(path: string, body: unknown, timeoutMs = AIRA_CLOUD_REQUEST_TIMEOUT_MS): Promise<AiraCloudResponse> {
@@ -289,9 +262,22 @@ export class LeafTabSyncAiraCloudStore implements LeafTabSyncRemoteStore {
         signal: controller.signal,
       });
       const text = await response.text();
-      const parsed = text ? JSON.parse(text) as AiraCloudResponse : {};
+      let parsed: AiraCloudResponse = {};
+      try {
+        parsed = text ? JSON.parse(text) as AiraCloudResponse : {};
+      } catch {
+        throw new LeafTabSyncAiraCloudError(
+          `Aira 云同步响应格式错误（${response.status}）。`,
+          'invalid_response',
+          response.status,
+        );
+      }
       if (!response.ok || parsed.ok !== true) {
-        throw new Error(parsed.message || `Aira 云同步请求失败（${response.status}）。`);
+        throw new LeafTabSyncAiraCloudError(
+          parsed.message || `Aira 云同步请求失败（${response.status}）。`,
+          String(parsed.code || ''),
+          response.status,
+        );
       }
       return parsed;
     } finally {
