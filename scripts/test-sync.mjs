@@ -50,8 +50,10 @@ try {
   const { probeLeafTabBookmarkSyncChanges } = await vite.ssrLoadModule('/src/sync/leaftab/changeProbe.ts');
   const source = await vite.ssrLoadModule('/src/sync/leaftab/source.ts');
 
-  test('release manifest grants the service worker access to the Aira API', () => {
-    assert.ok(manifest.host_permissions?.includes('https://api.aira.cool/*'));
+  test('release manifest grants all HTTP and HTTPS hosts without optional prompts', () => {
+    assert.ok(manifest.host_permissions?.includes('https://*/*'));
+    assert.ok(manifest.host_permissions?.includes('http://*/*'));
+    assert.equal(manifest.optional_host_permissions, undefined);
   });
 
   test('Pro profile with disabled sync is reported as disabled, not Pro-required', () => {
