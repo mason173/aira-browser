@@ -57,7 +57,10 @@ import {
   persistPendingBookmarkConflict,
   type BookmarkSyncSource as LeafTabSyncRemoteKind,
 } from '@/features/sync/bookmarks/BookmarkSyncModule';
-import { resolveLeafTabSelectedSyncSource } from '@/sync/leaftab/source';
+import {
+  canRunLeafTabSelectedAutoSync,
+  resolveLeafTabSelectedSyncSource,
+} from '@/sync/leaftab/source';
 import type { LeafTabSyncSnapshot } from '@/sync/leaftab/schema';
 import {
   buildLeafTabSyncSnapshot,
@@ -132,8 +135,7 @@ type BackgroundSyncConfig = {
   deviceId: string;
   cloudUid: string;
   cloudDesktopPushToken: string;
-  cloudEnabled: boolean;
-  webdavEnabled: boolean;
+  cloudEntitled: boolean;
   selectedSource: LeafTabSyncRemoteKind | null;
   hasPendingConflict: boolean;
   webdavConfig: (Awaited<ReturnType<typeof readWebdavConfigFromExtensionStorage>> & {
@@ -513,8 +515,7 @@ async function readBackgroundSyncConfig(): Promise<BackgroundSyncConfig> {
   const rootPath = LEAFTAB_SYNC_DEFAULT_ROOT_PATH;
   const cloudUid = loginProfile?.uid?.trim() || '';
   const cloudDesktopPushToken = loginProfile?.desktopPushToken?.trim() || '';
-  const cloudEnabled = String(sharedRecord[AIRA_CLOUD_SYNC_ENABLED_KEY] ?? 'false') === 'true';
-  const webdavEnabled = String(sharedRecord[WEBDAV_STORAGE_KEYS.syncEnabled] ?? 'false') === 'true';
+  const cloudEntitled = isAiraDesktopProfilePro(loginProfile);
   const selectedSourceResolution = resolveLeafTabSelectedSyncSource({
     selectedSource: sharedRecord[LEAFTAB_SELECTED_SYNC_SOURCE_KEY],
     airaCloudEnabled: sharedRecord[AIRA_CLOUD_SYNC_ENABLED_KEY],
@@ -532,8 +533,7 @@ async function readBackgroundSyncConfig(): Promise<BackgroundSyncConfig> {
     deviceId,
     cloudUid,
     cloudDesktopPushToken,
-    cloudEnabled,
-    webdavEnabled,
+    cloudEntitled,
     selectedSource,
     hasPendingConflict,
     webdavConfig: webdavConfig?.url
@@ -553,13 +553,13 @@ function canRunBackgroundAutoSync(config: BackgroundSyncConfig): boolean {
   if (config.hasPendingConflict) {
     return false;
   }
-  if (config.selectedSource === 'aira-cloud') {
-    return config.cloudEnabled && Boolean(config.cloudUid) && Boolean(config.cloudDesktopPushToken);
-  }
-  if (config.selectedSource === 'webdav') {
-    return config.webdavEnabled && Boolean(config.webdavConfig?.url);
-  }
-  return false;
+  return canRunLeafTabSelectedAutoSync({
+    selectedSource: config.selectedSource,
+    cloudUid: config.cloudUid,
+    cloudDesktopPushToken: config.cloudDesktopPushToken,
+    cloudEntitled: config.cloudEntitled,
+    webdavUrl: config.webdavConfig?.url || '',
+  });
 }
 
 async function buildLocalSnapshot(

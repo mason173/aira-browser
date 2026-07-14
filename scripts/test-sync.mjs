@@ -46,6 +46,7 @@ try {
   const { LeafTabSyncEngine } = await vite.ssrLoadModule('/src/sync/leaftab/engine.ts');
   const { LeafTabSyncMemoryBaselineStore } = await vite.ssrLoadModule('/src/sync/leaftab/baseline.ts');
   const { probeLeafTabBookmarkSyncChanges } = await vite.ssrLoadModule('/src/sync/leaftab/changeProbe.ts');
+  const source = await vite.ssrLoadModule('/src/sync/leaftab/source.ts');
 
   test('Pro profile with disabled sync is reported as disabled, not Pro-required', () => {
     assert.equal(resolveAiraDesktopSyncStatus({
@@ -81,6 +82,18 @@ try {
       membershipPlan: 'club',
       membershipExpiresAt: 0,
     }, true), 'pro-required');
+  });
+
+  test('selected Aira cloud source can auto-sync when the legacy enabled flag is false', () => {
+    assert.equal(source.canRunLeafTabSelectedAutoSync({
+      selectedSource: 'aira-cloud',
+      cloudUid: '1956796357180173504',
+      cloudDesktopPushToken: 'desktop-token',
+      cloudEntitled: true,
+      airaCloudEnabled: false,
+      webdavEnabled: false,
+      webdavUrl: '',
+    }), true);
   });
 
   test('writing a desktop profile emits a profile-changed event', () => {

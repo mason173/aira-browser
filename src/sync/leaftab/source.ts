@@ -27,6 +27,27 @@ export const resolveLeafTabSelectedSyncSource = (values: {
   };
 };
 
+export const canRunLeafTabSelectedAutoSync = (values: {
+  selectedSource: unknown;
+  cloudUid: unknown;
+  cloudDesktopPushToken: unknown;
+  cloudEntitled: unknown;
+  webdavUrl: unknown;
+  airaCloudEnabled?: unknown;
+  webdavEnabled?: unknown;
+}): boolean => {
+  const selectedSource = parseLeafTabSyncRemoteKind(values.selectedSource);
+  if (selectedSource === 'aira-cloud') {
+    return values.cloudEntitled === true
+      && String(values.cloudUid || '').trim().length > 0
+      && String(values.cloudDesktopPushToken || '').trim().length > 0;
+  }
+  if (selectedSource === 'webdav') {
+    return String(values.webdavUrl || '').trim().length > 0;
+  }
+  return false;
+};
+
 export type LeafTabPendingBookmarkConflict = {
   provider: LeafTabSyncRemoteKind;
   detectedAt: string;

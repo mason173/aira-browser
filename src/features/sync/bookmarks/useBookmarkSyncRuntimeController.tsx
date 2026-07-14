@@ -413,7 +413,8 @@ export function useBookmarkSyncRuntimeController(
     void localVersion;
     return readSelectedSyncSourceFromStorage();
   }, [localVersion]);
-  const leafTabCloudSyncStatus = resolveAiraDesktopSyncStatus(desktopLoginProfile, cloudSyncEnabled);
+  const cloudSyncEffectivelyEnabled = cloudSyncEnabled || selectedSyncSource === 'aira-cloud';
+  const leafTabCloudSyncStatus = resolveAiraDesktopSyncStatus(desktopLoginProfile, cloudSyncEffectivelyEnabled);
   const leafTabCloudBaselineStorageKey = useMemo(
     () => createLeafTabSyncBaselineStorageKeyForRemote('aira-cloud', leafTabSyncRootPath, cloudUid),
     [cloudUid, leafTabSyncRootPath],
@@ -1173,7 +1174,7 @@ export function useBookmarkSyncRuntimeController(
     leafTabWebdavProfileLabel,
     leafTabWebdavLastSyncLabel: formatLiteSyncTimestamp(localStorage.getItem('webdav_last_sync_at')),
     leafTabCloudLoggedIn: leafTabCloudSyncStatus !== 'login-required',
-    leafTabCloudSyncEnabled: cloudSyncEnabled,
+    leafTabCloudSyncEnabled: cloudSyncEffectivelyEnabled,
     leafTabCloudSyncStatus,
     leafTabCloudLastSyncLabel: formatLiteSyncTimestamp(localStorage.getItem(AIRA_CLOUD_LAST_SYNC_AT_KEY)),
     leafTabSelectedSyncSource: selectedSyncSource,
@@ -1187,7 +1188,7 @@ export function useBookmarkSyncRuntimeController(
     webdavSyncRunActive,
     leafTabWebdavConfigured,
     leafTabWebdavProfileLabel,
-    cloudSyncEnabled,
+    cloudSyncEffectivelyEnabled,
     leafTabCloudSyncStatus,
     cloudUid,
     selectedSyncSource,
