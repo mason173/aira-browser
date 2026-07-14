@@ -1069,6 +1069,7 @@ async function reconcileBackgroundSchedules(isStartup: boolean = false): Promise
 }
 
 async function handleRemoteProbeAlarm(): Promise<void> {
+  const keepAlive = startBackgroundKeepAlive();
   try {
     const config = await readBackgroundSyncConfig();
     if (!canRunBackgroundAutoSync(config)) {
@@ -1114,6 +1115,7 @@ async function handleRemoteProbeAlarm(): Promise<void> {
       return;
     }
   } finally {
+    keepAlive.stop();
     await reconcileBackgroundSchedules();
   }
 }

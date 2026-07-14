@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { createServer } from 'vite';
 
 const vite = await createServer({
@@ -39,6 +40,7 @@ const asyncTest = async (name, fn) => {
 };
 
 try {
+  const manifest = JSON.parse(readFileSync(new URL('../public/manifest.final.json', import.meta.url), 'utf8'));
   const { resolveAiraDesktopSyncStatus } = await vite.ssrLoadModule(
     '/src/features/sync/bookmarks/desktopSyncEligibility.ts',
   );
@@ -47,6 +49,10 @@ try {
   const { LeafTabSyncMemoryBaselineStore } = await vite.ssrLoadModule('/src/sync/leaftab/baseline.ts');
   const { probeLeafTabBookmarkSyncChanges } = await vite.ssrLoadModule('/src/sync/leaftab/changeProbe.ts');
   const source = await vite.ssrLoadModule('/src/sync/leaftab/source.ts');
+
+  test('release manifest grants the service worker access to the Aira API', () => {
+    assert.ok(manifest.host_permissions?.includes('https://api.aira.cool/*'));
+  });
 
   test('Pro profile with disabled sync is reported as disabled, not Pro-required', () => {
     assert.equal(resolveAiraDesktopSyncStatus({

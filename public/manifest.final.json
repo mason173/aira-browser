@@ -20,6 +20,9 @@
     "storage",
     "unlimitedStorage"
   ],
+  "host_permissions": [
+    "https://api.aira.cool/*"
+  ],
   "optional_host_permissions": [
     "https://*/*",
     "http://*/*"
