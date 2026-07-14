@@ -14,7 +14,6 @@ import { toast } from '@/components/ui/sonner';
 import { SyncToggleField } from '@/components/sync/SyncSettingsFields';
 import { useBookmarkSyncRuntimeController } from '@/features/sync/bookmarks/useBookmarkSyncRuntimeController';
 import type { LeafTabSyncFacade } from '@/features/sync/app/LeafTabSyncContracts';
-import { AIRA_CLOUD_SYNC_ENABLED_KEY } from '@/features/sync/app/leafTabSyncStorageKeys';
 import QRCodeStyling from 'qr-code-styling';
 import {
   RiArrowLeftSLine,
@@ -35,21 +34,23 @@ import {
   readWebdavStorageStateFromStorage,
   writeWebdavStorageStateToStorage,
 } from '@/utils/webdavConfig';
-import { writeExtensionStorageRecord } from '@/platform/extensionStorage';
 import {
   readPhonePagePushEnabledFromLocalStorage,
   writePhonePagePushEnabled,
 } from '@/features/phone-page-push/pagePushPreferences';
 import {
-  clearAiraDesktopLoginProfile,
+  AIRA_DESKTOP_LOGIN_PROFILE_CHANGED_EVENT,
   createAiraDesktopLoginSession,
-  isAiraDesktopProfilePro,
+  disconnectAiraDesktopLogin,
   pollAiraDesktopLoginStatus,
-  readAiraDesktopLoginProfile,
-  refreshAiraDesktopMembershipProfile,
-  writeAiraDesktopLoginProfile,
   type AiraDesktopLoginSession,
 } from './desktopLogin';
+import {
+  isAiraDesktopConnectionProfilePro,
+  readAiraDesktopConnectionProfile,
+  refreshAiraDesktopConnectionProfileMembership,
+  resolveAiraDesktopProCapability,
+} from '@/features/desktop-connection/desktopConnectionProfile';
 
 type PopupView = 'home' | 'webdav' | 'sync-method' | 'advanced' | 'login';
 
@@ -73,14 +74,6 @@ type ConfiguredHomeState = {
 };
 
 type PopupSyncRuntime = Pick<LeafTabSyncFacade, 'state' | 'actions'>;
-
-const disableProOnlyLocalFeatures = () => {
-  writePhonePagePushEnabled(false);
-  localStorage.setItem(AIRA_CLOUD_SYNC_ENABLED_KEY, 'false');
-  void writeExtensionStorageRecord({
-    [AIRA_CLOUD_SYNC_ENABLED_KEY]: 'false',
-  });
-};
 
 const getShortUid = (source: string) => {
   const normalized = source.trim();
@@ -145,9 +138,14 @@ function formatCountdownTime(remainingMs: number) {
 
 function readConfiguredHomeState(t: ReturnType<typeof useTranslation>['t']): ConfiguredHomeState | null {
   try {
-    const desktopLoginProfile = readAiraDesktopLoginProfile();
-    if (desktopLoginProfile && desktopLoginProfile.uid) {
-      const isPro = isAiraDesktopProfilePro(desktopLoginProfile);
+    const desktopLoginProfile = readAiraDesktopConnectionProfile();
+    if (
+      desktopLoginProfile
+      && desktopLoginProfile.uid
+      && desktopLoginProfile.deviceCredential
+      && desktopLoginProfile.connectionStatus !== 'reauth-required'
+    ) {
+      const isPro = isAiraDesktopConnectionProfilePro(desktopLoginProfile);
       const phonePagePushEnabled = isPro && readPhonePagePushEnabledFromLocalStorage();
       return {
         nickname: desktopLoginProfile.displayName,
@@ -169,12 +167,14 @@ function readConfiguredHomeState(t: ReturnType<typeof useTranslation>['t']): Con
 
 async function refreshAndRequirePro(t: ReturnType<typeof useTranslation>['t']) {
   try {
-    const latestProfile = await refreshAiraDesktopMembershipProfile(readAiraDesktopLoginProfile(), { force: true });
-    if (isAiraDesktopProfilePro(latestProfile)) {
+    const latestProfile = await refreshAiraDesktopConnectionProfileMembership({ force: true });
+    const capability = resolveAiraDesktopProCapability(latestProfile);
+    if (capability === 'ready') {
       return true;
     }
-    disableProOnlyLocalFeatures();
-    toast.error(t('popup.profile.proRequired', { defaultValue: '此功能需要 Aira Pro' }));
+    toast.error(capability === 'pro-required'
+      ? t('popup.profile.proRequired', { defaultValue: '此功能需要 Aira Pro' })
+      : t('popup.profile.membershipCheckFailed', { defaultValue: '会员状态校验失败，请稍后再试' }));
     return false;
   } catch {
     toast.error(t('popup.profile.membershipCheckFailed', { defaultValue: '会员状态校验失败，请稍后再试' }));
@@ -350,19 +350,8 @@ function LoginQrPanel({ onLoggedIn }: { onLoggedIn: () => void }) {
           .then((result) => {
             if (disposed) return;
             if (result.status === 'confirmed') {
-              const confirmedProfile = {
-                ...result.account,
-                desktopPushToken: nextSession.desktopPushToken,
-                membershipCheckedAt: new Date().toISOString(),
-                loggedInAt: new Date().toISOString(),
-              };
-              writeAiraDesktopLoginProfile(confirmedProfile);
-              if (isAiraDesktopProfilePro(confirmedProfile)) {
-                writePhonePagePushEnabled(true);
-                window.dispatchEvent(new CustomEvent('phone-page-push-setting-changed'));
-              }
               setStatus('confirmed');
-              setMessage(t('popup.login.success', { defaultValue: '已登录 Aira 同步助手' }));
+              setMessage(t('popup.login.success', { defaultValue: '桌面设备已连接' }));
               onLoggedIn();
               return;
             }
@@ -382,7 +371,7 @@ function LoginQrPanel({ onLoggedIn }: { onLoggedIn: () => void }) {
           .catch((error: Error) => {
             if (disposed) return;
             setStatus('error');
-            setMessage(error.message || t('popup.login.error', { defaultValue: '二维码登录暂时不可用' }));
+            setMessage(error.message || t('popup.login.error', { defaultValue: '设备配对二维码暂时不可用' }));
           });
       }, delayMs);
     };
@@ -405,7 +394,7 @@ function LoginQrPanel({ onLoggedIn }: { onLoggedIn: () => void }) {
       .catch((error: Error) => {
         if (disposed) return;
         setStatus('error');
-        setMessage(error.message || t('popup.login.error', { defaultValue: '二维码登录暂时不可用' }));
+        setMessage(error.message || t('popup.login.error', { defaultValue: '设备配对二维码暂时不可用' }));
       });
 
     return () => {
@@ -442,7 +431,7 @@ function LoginQrPanel({ onLoggedIn }: { onLoggedIn: () => void }) {
         {qrDataUrl ? (
           <img
             src={qrDataUrl}
-            alt={t('popup.login.qrAlt', { defaultValue: 'Aira desktop login QR code' })}
+            alt={t('popup.login.qrAlt', { defaultValue: 'Aira desktop device pairing QR code' })}
             className="h-full w-full rounded-[10px]"
           />
         ) : (
@@ -661,7 +650,7 @@ function BookmarkSyncControls({
   const syncing = syncRuntime.state.topNavSyncStatus === 'syncing';
   const sourceLabel = selectedSource === 'aira-cloud' ? 'Aira 云同步' : 'WebDAV';
   const statusLabel = selectedSource === 'aira-cloud' && !syncRuntime.state.leafTabCloudLoggedIn
-    ? t('popup.dashboard.loginRequired', { defaultValue: '需要重新登录 Aira' })
+    ? t('popup.dashboard.loginRequired', { defaultValue: '需要重新连接桌面设备' })
     : selectedSource === 'aira-cloud' && syncRuntime.state.leafTabCloudSyncStatus === 'pro-required'
       ? t('popup.dashboard.proRequired', { defaultValue: '需要有效的 Aira Pro' })
       : selectedSource === 'aira-cloud' && syncRuntime.state.leafTabCloudSyncStatus === 'disabled'
@@ -691,7 +680,7 @@ function BookmarkSyncControls({
         <MenuItem
           icon={<RiCloudFill className="size-4" />}
           title="Aira 云同步"
-          description={t('popup.home.cloudDesc', { defaultValue: '需要 Aira 桌面登录和 Pro 权限' })}
+          description={t('popup.home.cloudDesc', { defaultValue: '需要连接 Aira 桌面设备和 Pro 权限' })}
           status="PRO"
           onClick={onSelectCloud}
         />
@@ -1083,7 +1072,7 @@ function SyncMethodPage({
             ? t('popup.syncMethod.cloudReady', {
                 defaultValue: `${profile?.nickname || '当前账号'} · 需要 Aira Pro`,
               })
-            : t('popup.home.cloudDesc', { defaultValue: '需要 Aira 桌面登录和 Pro 权限' })}
+            : t('popup.home.cloudDesc', { defaultValue: '需要连接 Aira 桌面设备和 Pro 权限' })}
           status={selectedSource === 'aira-cloud'
             ? t('popup.syncMethod.current', { defaultValue: '当前使用' })
             : 'PRO'}
@@ -1456,21 +1445,20 @@ export function PopupApp() {
     window.addEventListener('webdav-config-changed', refresh);
     window.addEventListener('webdav-sync-status-changed', refresh);
     window.addEventListener('phone-page-push-setting-changed', refresh);
+    window.addEventListener(AIRA_DESKTOP_LOGIN_PROFILE_CHANGED_EVENT, refresh);
     return () => {
       window.removeEventListener('webdav-config-changed', refresh);
       window.removeEventListener('webdav-sync-status-changed', refresh);
       window.removeEventListener('phone-page-push-setting-changed', refresh);
+      window.removeEventListener(AIRA_DESKTOP_LOGIN_PROFILE_CHANGED_EVENT, refresh);
     };
   }, []);
 
   useEffect(() => {
-    const profile = readAiraDesktopLoginProfile();
+    const profile = readAiraDesktopConnectionProfile();
     if (!profile?.uid) return;
-    refreshAiraDesktopMembershipProfile(profile)
-      .then((latestProfile) => {
-        if (latestProfile && !isAiraDesktopProfilePro(latestProfile)) {
-          disableProOnlyLocalFeatures();
-        }
+    refreshAiraDesktopConnectionProfileMembership()
+      .then(() => {
         setLocalVersion((value) => value + 1);
       })
       .catch(() => undefined);
@@ -1512,10 +1500,12 @@ export function PopupApp() {
           syncRuntime={syncRuntime}
           localVersion={localVersion}
           onLogout={() => {
-            clearAiraDesktopLoginProfile();
-            disableProOnlyLocalFeatures();
-            setLocalVersion((value) => value + 1);
-            toast.success(t('popup.profile.loggedOut', { defaultValue: '已退出登录' }));
+            void disconnectAiraDesktopLogin().then(() => {
+              setLocalVersion((value) => value + 1);
+              toast.success(t('popup.profile.loggedOut', { defaultValue: '已退出登录' }));
+            }).catch(() => {
+              toast.error(t('popup.profile.logoutFailed', { defaultValue: '退出失败，请检查网络后重试' }));
+            });
           }}
           onOpenLogin={() => setView('login')}
           onSelectCloud={selectCloudOrLogin}

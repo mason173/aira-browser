@@ -98,12 +98,12 @@ const createHead = (commitId: string | null, updatedAt?: number | string): LeafT
 
 export class LeafTabSyncAiraCloudStore implements LeafTabSyncRemoteStore {
   private readonly uid: string;
-  private readonly desktopPushToken: string;
+  private readonly deviceCredential: string;
   private readonly endpoint: string;
 
-  constructor(uid: string, desktopPushToken: string, endpoint = AIRA_CLOUD_SYNC_ENDPOINT) {
+  constructor(uid: string, deviceCredential: string, endpoint = AIRA_CLOUD_SYNC_ENDPOINT) {
     this.uid = uid.trim();
-    this.desktopPushToken = desktopPushToken.trim();
+    this.deviceCredential = deviceCredential.trim();
     this.endpoint = endpoint.trim().replace(/\/+$/, '');
   }
 
@@ -122,7 +122,7 @@ export class LeafTabSyncAiraCloudStore implements LeafTabSyncRemoteStore {
     this.assertConfigured();
     const response = await this.post('/head', {
       uid: this.uid,
-      desktopPushToken: this.desktopPushToken,
+      desktopPushToken: this.deviceCredential,
       source: 'airatab',
     });
     const commitId = typeof response.commitId === 'string' && response.commitId.trim()
@@ -146,7 +146,7 @@ export class LeafTabSyncAiraCloudStore implements LeafTabSyncRemoteStore {
     this.assertConfigured();
     const response = await this.post('/read-ops', {
       uid: this.uid,
-      desktopPushToken: this.desktopPushToken,
+      desktopPushToken: this.deviceCredential,
       source: 'airatab',
       sinceCommitId: params.sinceCommitId,
     });
@@ -169,7 +169,7 @@ export class LeafTabSyncAiraCloudStore implements LeafTabSyncRemoteStore {
     this.assertConfigured();
     const response = await this.post('/read', {
       uid: this.uid,
-      desktopPushToken: this.desktopPushToken,
+      desktopPushToken: this.deviceCredential,
       source: 'airatab',
     }, AIRA_CLOUD_LARGE_REQUEST_TIMEOUT_MS);
     const snapshot = fromCloudSnapshot(response.snapshot);
@@ -191,7 +191,7 @@ export class LeafTabSyncAiraCloudStore implements LeafTabSyncRemoteStore {
     this.assertConfigured();
     const response = await this.post('/write', {
       uid: this.uid,
-      desktopPushToken: this.desktopPushToken,
+      desktopPushToken: this.deviceCredential,
       source: 'airatab',
       deviceId: params.deviceId,
       parentCommitId: params.parentCommitId ?? null,
@@ -218,7 +218,7 @@ export class LeafTabSyncAiraCloudStore implements LeafTabSyncRemoteStore {
     }
     const response = await this.post('/write-ops', {
       uid: this.uid,
-      desktopPushToken: this.desktopPushToken,
+      desktopPushToken: this.deviceCredential,
       source: 'airatab',
       deviceId: params.deviceId,
       parentCommitId: params.parentCommitId,
@@ -243,7 +243,7 @@ export class LeafTabSyncAiraCloudStore implements LeafTabSyncRemoteStore {
     if (!this.uid) {
       throw new Error('请先扫码登录 Aira 账号。');
     }
-    if (!this.desktopPushToken) {
+    if (!this.deviceCredential) {
       throw new LeafTabSyncAiraCloudError('Aira 桌面登录状态无效，请重新扫码登录。', 'invalid_desktop_push_token');
     }
   }

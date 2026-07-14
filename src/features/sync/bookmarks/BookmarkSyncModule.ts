@@ -94,7 +94,7 @@ export type BookmarkSyncSourceConfig =
   | {
       source: 'aira-cloud';
       uid: string;
-      desktopPushToken: string;
+      deviceCredential: string;
     }
   | {
       source: 'webdav';
@@ -263,7 +263,7 @@ export class BookmarkSyncModule {
   private createRemoteStore(): LeafTabSyncRemoteStore {
     const sourceConfig = this.config.sourceConfig;
     return sourceConfig.source === 'aira-cloud'
-      ? new LeafTabSyncAiraCloudStore(sourceConfig.uid, sourceConfig.desktopPushToken)
+      ? new LeafTabSyncAiraCloudStore(sourceConfig.uid, sourceConfig.deviceCredential)
       : new LeafTabSyncWebdavStore(sourceConfig.webdav);
   }
 }

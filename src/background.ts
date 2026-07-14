@@ -2,23 +2,25 @@ import {
   AIRA_CLOUD_LAST_ERROR_AT_KEY,
   AIRA_CLOUD_LAST_ERROR_MESSAGE_KEY,
   AIRA_CLOUD_LAST_SYNC_AT_KEY,
-  AIRA_CLOUD_SYNC_ENABLED_KEY,
   LEAFTAB_BACKGROUND_STORAGE_KEYS,
   LEAFTAB_PENDING_BOOKMARK_CONFLICT_KEY,
   LEAFTAB_SELECTED_SYNC_SOURCE_KEY,
   LEAFTAB_SYNC_DEVICE_ID_KEY,
 } from '@/features/sync/app/leafTabSyncStorageKeys';
 import {
-  isAiraDesktopProfilePro,
-  readAiraDesktopLoginProfileFromExtensionStorage,
-  refreshAiraDesktopMembershipProfile,
-  shouldRefreshAiraDesktopMembershipProfile,
-} from '@/popup/desktopLogin';
+  isAiraDesktopConnectionProfilePro,
+  readAiraDesktopConnectionProfileFromExtensionStorage,
+  refreshAiraDesktopConnectionProfileMembership,
+  resolveAiraDesktopProCapability,
+  shouldRefreshAiraDesktopConnectionMembership,
+  type AiraDesktopProCapabilityStatus,
+} from '@/features/desktop-connection/desktopConnectionProfile';
 import {
   PHONE_PAGE_PUSH_MESSAGE_TYPE,
   type PhonePagePushMessage,
 } from '@/features/phone-page-push/pagePushMessages';
 import {
+  isPhonePagePushPreferenceStorageKey,
   readPhonePagePushEnabledFromExtensionStorage,
 } from '@/features/phone-page-push/pagePushPreferences';
 import {
@@ -34,6 +36,21 @@ import {
 import {
   LeafTabSyncAiraCloudError,
 } from '@/sync/leaftab/airaCloudStore';
+import {
+  AiraDesktopConnectionRemoteError,
+  isAiraDesktopCredentialRejection,
+} from '@/features/desktop-connection/AiraDesktopConnectionModule';
+import {
+  AIRA_DESKTOP_CONNECTION_STORAGE_KEY,
+  recordAiraDesktopConnectionFailure,
+} from '@/features/desktop-connection/desktopConnectionRuntime';
+import {
+  AIRA_CLOUD_SELECTED_ACCOUNT_KEY,
+  createAiraAccountSelectedSyncSourceKey,
+  isAiraCloudSyncPreferenceStorageKey,
+  readAiraCloudSyncEnabledFromExtensionStorage,
+  resolveAiraCloudSelectedSourceForAccount,
+} from '@/features/sync/bookmarks/airaCloudPreferences';
 import {
   clearPendingLeafTabLocalBookmarkChangesInExtensionStorage,
   markLeafTabLocalBookmarkChangedInExtensionStorage,
@@ -60,6 +77,7 @@ import {
 } from '@/features/sync/bookmarks/BookmarkSyncModule';
 import {
   canRunLeafTabSelectedAutoSync,
+  parseLeafTabSyncRemoteKind,
   resolveLeafTabSelectedSyncSource,
 } from '@/sync/leaftab/source';
 import type { LeafTabSyncSnapshot } from '@/sync/leaftab/schema';
@@ -111,31 +129,22 @@ let phonePagePushPollTimer: ReturnType<typeof globalThis.setTimeout> | null = nu
 let bookmarkApplySuppressedUntil = 0;
 let phonePagePushEnabled = true;
 
-async function disableDesktopProFeatureSettings(): Promise<void> {
-  phonePagePushEnabled = false;
-  await writeExtensionStorageRecord({
-    [AIRA_CLOUD_SYNC_ENABLED_KEY]: 'false',
-    aira_phone_page_push_enabled_v1: 'false',
-  });
-}
-
-async function refreshDesktopMembershipForProFeature(): Promise<boolean> {
-  const profile = await readAiraDesktopLoginProfileFromExtensionStorage();
-  if (!profile?.uid) {
-    return false;
+async function refreshDesktopMembershipForProFeature(): Promise<AiraDesktopProCapabilityStatus> {
+  try {
+    const profile = await readAiraDesktopConnectionProfileFromExtensionStorage();
+    const currentCapability = resolveAiraDesktopProCapability(profile);
+    if (currentCapability === 'login-required') return currentCapability;
+    const latestProfile = await refreshAiraDesktopConnectionProfileMembership({ force: true });
+    return resolveAiraDesktopProCapability(latestProfile);
+  } catch {
+    return 'temporarily-unavailable';
   }
-  const latestProfile = await refreshAiraDesktopMembershipProfile(profile, { force: true });
-  const entitled = isAiraDesktopProfilePro(latestProfile);
-  if (!entitled) {
-    await disableDesktopProFeatureSettings();
-  }
-  return entitled;
 }
 
 type BackgroundSyncConfig = {
   deviceId: string;
   cloudUid: string;
-  cloudDesktopPushToken: string;
+  cloudDeviceCredential: string;
   selectedSource: LeafTabSyncRemoteKind | null;
   hasPendingConflict: boolean;
   webdavConfig: (Awaited<ReturnType<typeof readWebdavConfigFromExtensionStorage>> & {
@@ -339,12 +348,32 @@ async function postPhonePagePushJson<T>(path: string, body: unknown): Promise<T>
       signal: controller.signal,
     });
     const text = await response.text();
-    const parsed = text ? JSON.parse(text) as T : {} as T;
-    if (!response.ok) {
-      const error = parsed as { message?: string };
-      throw new Error(error.message || `Aira API request failed (${response.status}).`);
+    let parsed: T & { ok?: boolean; code?: string; message?: string };
+    try {
+      parsed = text ? JSON.parse(text) as typeof parsed : {} as typeof parsed;
+    } catch {
+      throw new AiraDesktopConnectionRemoteError(
+        'invalid_response',
+        `Aira API response was invalid (${response.status}).`,
+        response.status,
+      );
+    }
+    if (!response.ok || parsed.ok === false) {
+      throw new AiraDesktopConnectionRemoteError(
+        String(parsed.code || (response.ok ? 'remote_rejected' : 'http_error')),
+        parsed.message || `Aira API request failed (${response.status}).`,
+        response.status,
+      );
     }
     return parsed;
+  } catch (error) {
+    if (error instanceof AiraDesktopConnectionRemoteError) {
+      throw error;
+    }
+    throw new AiraDesktopConnectionRemoteError(
+      'network_unavailable',
+      String((error as Error)?.message || error || 'Aira service is unavailable.'),
+    );
   } finally {
     globalThis.clearTimeout(timeout);
   }
@@ -356,27 +385,23 @@ async function resolvePhonePagePushPollProfile() {
     return null;
   }
 
-  const profile = await readAiraDesktopLoginProfileFromExtensionStorage();
-  if (!profile?.uid || !profile.desktopPushToken) {
+  const profile = await readAiraDesktopConnectionProfileFromExtensionStorage();
+  if (!profile?.uid || !profile.deviceCredential) {
     return null;
   }
 
-  const isCachedPro = isAiraDesktopProfilePro(profile);
-  if (!isCachedPro || shouldRefreshAiraDesktopMembershipProfile(profile)) {
+  const isCachedPro = isAiraDesktopConnectionProfilePro(profile);
+  if (!isCachedPro || shouldRefreshAiraDesktopConnectionMembership(profile)) {
     try {
-      const latestProfile = await refreshAiraDesktopMembershipProfile(profile, {
+      const latestProfile = await refreshAiraDesktopConnectionProfileMembership({
         force: !isCachedPro,
       });
-      if (!isAiraDesktopProfilePro(latestProfile)) {
-        await disableDesktopProFeatureSettings();
+      if (!isAiraDesktopConnectionProfilePro(latestProfile)) {
         return null;
       }
       return latestProfile;
     } catch (error) {
-      if (!isCachedPro) {
-        await disableDesktopProFeatureSettings();
-        return null;
-      }
+      if (!isCachedPro) return null;
       console.warn('[Aira][PhonePush] membership refresh failed; using cached active Pro state', error);
     }
   }
@@ -458,17 +483,18 @@ async function pollPhonePagePushOnce(options: { waitMs?: number } = {}): Promise
 
   activePhonePagePushPollPromise = (async () => {
     const profile = await resolvePhonePagePushPollProfile();
-    if (!profile?.desktopPushToken) {
+    if (!profile?.deviceCredential) {
       clearPhonePagePushPollTimer();
       await clearPhonePagePushPollAlarm();
       return false;
     }
 
     let nextDelayMs = PHONE_PAGE_PUSH_POLL_INTERVAL_MS;
+    let continuePolling = true;
     const keepAlive = startBackgroundKeepAlive();
     try {
       const response = await postPhonePagePushJson<PhonePagePushPollResponse>('/phone-page-push/poll', {
-        desktopPushToken: profile.desktopPushToken,
+        desktopPushToken: profile.deviceCredential,
         source: PHONE_PAGE_PUSH_SOURCE,
         waitMs: Math.max(0, Math.min(PHONE_PAGE_PUSH_LONG_POLL_WAIT_MS, Number(options.waitMs || 0))),
       });
@@ -487,24 +513,39 @@ async function pollPhonePagePushOnce(options: { waitMs?: number } = {}): Promise
 
       nextDelayMs = 0;
       const opened = await openPhonePagePushPayload(task || {}, title);
-      await ackPhonePagePushTask({
-        desktopPushToken: profile.desktopPushToken,
-        taskId,
-        leaseToken,
-        status: opened ? 'opened' : 'failed',
-        error: opened ? '' : 'tabs.create unavailable or failed',
-      }).catch((error) => {
+      try {
+        await ackPhonePagePushTask({
+          desktopPushToken: profile.deviceCredential,
+          taskId,
+          leaseToken,
+          status: opened ? 'opened' : 'failed',
+          error: opened ? '' : 'tabs.create unavailable or failed',
+        });
+      } catch (error) {
+        const snapshot = await recordAiraDesktopConnectionFailure(error).catch(() => null);
+        if (snapshot?.status === 'reauth-required') {
+          continuePolling = false;
+        }
         console.warn('[Aira][PhonePush] ack failed', error);
-      });
+      }
       return opened;
     } catch (error) {
       nextDelayMs = PHONE_PAGE_PUSH_ERROR_RETRY_MS;
+      const snapshot = await recordAiraDesktopConnectionFailure(error).catch(() => null);
+      if (snapshot?.status === 'reauth-required') {
+        continuePolling = false;
+      }
       console.warn('[Aira][PhonePush] poll failed', error);
       return false;
     } finally {
       keepAlive.stop();
-      schedulePhonePagePushPollTimer(nextDelayMs);
-      await schedulePhonePagePushPollAlarm(PHONE_PAGE_PUSH_ALARM_FALLBACK_MS);
+      if (continuePolling) {
+        schedulePhonePagePushPollTimer(nextDelayMs);
+        await schedulePhonePagePushPollAlarm(PHONE_PAGE_PUSH_ALARM_FALLBACK_MS);
+      } else {
+        clearPhonePagePushPollTimer();
+        await clearPhonePagePushPollAlarm();
+      }
     }
   })();
 
@@ -540,37 +581,57 @@ async function getOrCreateDeviceId(): Promise<string> {
 }
 
 async function readBackgroundSyncConfig(): Promise<BackgroundSyncConfig> {
-  const [deviceId, loginProfile, webdavConfig, sharedRecord] = await Promise.all([
+  const [deviceId, loginProfile, webdavConfig] = await Promise.all([
     getOrCreateDeviceId(),
-    readAiraDesktopLoginProfileFromExtensionStorage(),
+    readAiraDesktopConnectionProfileFromExtensionStorage(),
     readWebdavConfigFromExtensionStorage({ allowDisabled: true }),
-    readExtensionStorageRecord([
-      AIRA_CLOUD_SYNC_ENABLED_KEY,
-      LEAFTAB_SELECTED_SYNC_SOURCE_KEY,
-      LEAFTAB_PENDING_BOOKMARK_CONFLICT_KEY,
-      WEBDAV_STORAGE_KEYS.syncEnabled,
-    ]),
   ]);
   const rootPath = LEAFTAB_SYNC_DEFAULT_ROOT_PATH;
   const cloudUid = loginProfile?.uid?.trim() || '';
-  const cloudDesktopPushToken = loginProfile?.desktopPushToken?.trim() || '';
+  const cloudDeviceCredential = loginProfile?.deviceCredential?.trim() || '';
+  const scopedSelectedSourceKey = cloudUid ? createAiraAccountSelectedSyncSourceKey(cloudUid) : '';
+  const [airaCloudEnabled, sharedRecord] = await Promise.all([
+    readAiraCloudSyncEnabledFromExtensionStorage(cloudUid),
+    readExtensionStorageRecord([
+      AIRA_CLOUD_SELECTED_ACCOUNT_KEY,
+      LEAFTAB_SELECTED_SYNC_SOURCE_KEY,
+      LEAFTAB_PENDING_BOOKMARK_CONFLICT_KEY,
+      WEBDAV_STORAGE_KEYS.syncEnabled,
+      ...(scopedSelectedSourceKey ? [scopedSelectedSourceKey] : []),
+    ]),
+  ]);
+  const scopedSelectedSource = scopedSelectedSourceKey
+    ? parseLeafTabSyncRemoteKind(sharedRecord[scopedSelectedSourceKey])
+    : null;
   const selectedSourceResolution = resolveLeafTabSelectedSyncSource({
     selectedSource: sharedRecord[LEAFTAB_SELECTED_SYNC_SOURCE_KEY],
-    airaCloudEnabled: sharedRecord[AIRA_CLOUD_SYNC_ENABLED_KEY],
+    airaCloudEnabled,
     webdavEnabled: sharedRecord[WEBDAV_STORAGE_KEYS.syncEnabled],
   });
-  const selectedSource = selectedSourceResolution.source;
-  if (selectedSourceResolution.needsMigration && selectedSource) {
-    await writeExtensionStorageRecord({
-      [LEAFTAB_SELECTED_SYNC_SOURCE_KEY]: selectedSource,
-    });
+  const selectedSource = scopedSelectedSource || resolveAiraCloudSelectedSourceForAccount({
+    selectedSource: selectedSourceResolution.source,
+    uid: cloudUid,
+    selectedAccountUid: sharedRecord[AIRA_CLOUD_SELECTED_ACCOUNT_KEY],
+    enabledForAccount: airaCloudEnabled,
+  });
+  if (!scopedSelectedSource && selectedSource && cloudUid) {
+    const migration: Record<string, unknown> = {
+      [scopedSelectedSourceKey]: selectedSource,
+    };
+    if (selectedSourceResolution.needsMigration) {
+      migration[LEAFTAB_SELECTED_SYNC_SOURCE_KEY] = selectedSource;
+    }
+    if (selectedSource === 'aira-cloud') {
+      migration[AIRA_CLOUD_SELECTED_ACCOUNT_KEY] = cloudUid;
+    }
+    await writeExtensionStorageRecord(migration);
   }
   const hasPendingConflict = Boolean(sharedRecord[LEAFTAB_PENDING_BOOKMARK_CONFLICT_KEY]);
 
   return {
     deviceId,
     cloudUid,
-    cloudDesktopPushToken,
+    cloudDeviceCredential,
     selectedSource,
     hasPendingConflict,
     webdavConfig: webdavConfig?.url
@@ -593,7 +654,7 @@ function canRunBackgroundAutoSync(config: BackgroundSyncConfig): boolean {
   return canRunLeafTabSelectedAutoSync({
     selectedSource: config.selectedSource,
     cloudUid: config.cloudUid,
-    cloudDesktopPushToken: config.cloudDesktopPushToken,
+    cloudDeviceCredential: config.cloudDeviceCredential,
     webdavUrl: config.webdavConfig?.url || '',
   });
 }
@@ -693,7 +754,7 @@ async function createBookmarkSyncModuleForBackground(
       ? {
           source: 'aira-cloud',
           uid: config.cloudUid,
-          desktopPushToken: config.cloudDesktopPushToken,
+          deviceCredential: config.cloudDeviceCredential,
         }
       : {
           source: 'webdav',
@@ -885,18 +946,36 @@ async function runBackgroundAutoSync(trigger?: BackgroundSyncTrigger): Promise<b
       return false;
     }
     if (remoteKind === 'aira-cloud') {
-      const entitled = await refreshDesktopMembershipForProFeature().catch(() => false);
-      if (!entitled) {
+      const capability = await refreshDesktopMembershipForProFeature();
+      if (capability !== 'ready') {
+        if (capability === 'temporarily-unavailable') {
+          const error = new LeafTabSyncAiraCloudError(
+            'Aira 服务暂时不可用，请稍后重试。',
+            'temporary_failure',
+          );
+          await markSyncError(remoteKind, error);
+          await updateBackgroundDebugState({
+            lastSyncStartedAt: getNowIso(),
+            lastSyncFinishedAt: getNowIso(),
+            lastResult: 'error',
+            lastReason: capability,
+            lastError: error.message,
+          });
+          await scheduleSelectedSourceSyncRetry(remoteKind, capability);
+          return false;
+        }
         const error = new LeafTabSyncAiraCloudError(
-          'Aira 云同步需要有效的 Pro 权限，请恢复权限后重试。',
-          'pro_required',
+          capability === 'login-required'
+            ? 'Aira 桌面设备需要重新连接。'
+            : 'Aira 云同步需要有效的 Pro 权限，请恢复权限后重试。',
+          capability === 'login-required' ? 'invalid_desktop_push_token' : 'pro_required',
         );
         await markSyncError(remoteKind, error);
         await updateBackgroundDebugState({
           lastSyncStartedAt: getNowIso(),
           lastSyncFinishedAt: getNowIso(),
           lastResult: 'action-required',
-          lastReason: 'pro_required',
+          lastReason: capability,
           lastError: error.message,
         });
         return false;
@@ -975,6 +1054,9 @@ async function runBackgroundAutoSync(trigger?: BackgroundSyncTrigger): Promise<b
       return true;
     } catch (error) {
       await markSyncError(remoteKind, error);
+      if (error instanceof LeafTabSyncAiraCloudError && isAiraDesktopCredentialRejection(error)) {
+        await recordAiraDesktopConnectionFailure(error).catch(() => null);
+      }
       const actionRequired = isActionRequiredSyncError(error);
       await updateBackgroundDebugState({
         lastSyncFinishedAt: getNowIso(),
@@ -1339,7 +1421,6 @@ function bindLifecycleListeners(): void {
       return;
     }
     const relevantKeys = [
-      AIRA_CLOUD_SYNC_ENABLED_KEY,
       LEAFTAB_SELECTED_SYNC_SOURCE_KEY,
       LEAFTAB_PENDING_BOOKMARK_CONFLICT_KEY,
       WEBDAV_STORAGE_KEYS.syncEnabled,
@@ -1347,15 +1428,23 @@ function bindLifecycleListeners(): void {
       WEBDAV_STORAGE_KEYS.username,
       WEBDAV_STORAGE_KEYS.password,
       'aira_desktop_login_profile_v1',
-      'aira_phone_page_push_enabled_v1',
+      AIRA_DESKTOP_CONNECTION_STORAGE_KEY,
     ];
-    if (Object.keys(changes).some((key) => relevantKeys.includes(key))) {
+    const changedKeys = Object.keys(changes);
+    const phonePagePushPreferenceChanged = changedKeys.some(isPhonePagePushPreferenceStorageKey);
+    const relevantChanged = changedKeys.some((key) => (
+      relevantKeys.includes(key)
+      || isAiraCloudSyncPreferenceStorageKey(key)
+      || isPhonePagePushPreferenceStorageKey(key)
+    ));
+    if (relevantChanged) {
       void reconcileBackgroundSchedules();
       void reconcilePhonePagePushSchedule();
       void pollPhonePagePushOnce();
-      if (Object.prototype.hasOwnProperty.call(changes, 'aira_phone_page_push_enabled_v1')) {
-        const nextValue = changes.aira_phone_page_push_enabled_v1?.newValue;
-        phonePagePushEnabled = nextValue === undefined ? true : String(nextValue) !== 'false';
+      if (phonePagePushPreferenceChanged) {
+        void readPhonePagePushEnabledFromExtensionStorage().then((enabled) => {
+          phonePagePushEnabled = enabled;
+        });
       }
     }
   });
@@ -1438,6 +1527,7 @@ function bindPhonePagePushMessageListener(): void {
     const normalized = normalizePhonePagePushMessage(message);
     if (!normalized) return;
     void (async () => {
+      phonePagePushEnabled = await readPhonePagePushEnabledFromExtensionStorage();
       if (!phonePagePushEnabled) {
         sendResponse({
           success: false,
@@ -1445,11 +1535,15 @@ function bindPhonePagePushMessageListener(): void {
         });
         return;
       }
-      const entitled = await refreshDesktopMembershipForProFeature().catch(() => false);
-      if (!entitled) {
+      const capability = await refreshDesktopMembershipForProFeature();
+      if (capability !== 'ready') {
         sendResponse({
           success: false,
-          error: 'Aira Pro is required',
+          error: capability === 'login-required'
+            ? 'Aira desktop reconnection is required'
+            : capability === 'pro-required'
+              ? 'Aira Pro is required'
+              : 'Aira service is temporarily unavailable',
         });
         return;
       }

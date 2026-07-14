@@ -30,7 +30,7 @@ export const resolveLeafTabSelectedSyncSource = (values: {
 export const canRunLeafTabSelectedAutoSync = (values: {
   selectedSource: unknown;
   cloudUid: unknown;
-  cloudDesktopPushToken: unknown;
+  cloudDeviceCredential: unknown;
   cloudEntitled?: unknown;
   webdavUrl: unknown;
   airaCloudEnabled?: unknown;
@@ -39,7 +39,7 @@ export const canRunLeafTabSelectedAutoSync = (values: {
   const selectedSource = parseLeafTabSyncRemoteKind(values.selectedSource);
   if (selectedSource === 'aira-cloud') {
     return String(values.cloudUid || '').trim().length > 0
-      && String(values.cloudDesktopPushToken || '').trim().length > 0;
+      && String(values.cloudDeviceCredential || '').trim().length > 0;
   }
   if (selectedSource === 'webdav') {
     return String(values.webdavUrl || '').trim().length > 0;

@@ -1,48 +1,48 @@
-import { readExtensionStorageRecord, removeExtensionStorageKeys, writeExtensionStorageRecord } from '@/platform/extensionStorage';
+import { readAiraDesktopConnectionSnapshot } from '@/features/desktop-connection/desktopConnectionRuntime';
+import { AiraAccountBooleanPreferenceModule } from '@/features/desktop-connection/AiraAccountPreferenceModule';
 
 export const PHONE_PAGE_PUSH_ENABLED_KEY = 'aira_phone_page_push_enabled_v1';
+const PHONE_PAGE_PUSH_ACCOUNT_KEY_PREFIX = 'aira_phone_page_push_enabled_v2';
+const PHONE_PAGE_PUSH_LEGACY_OWNER_KEY = 'aira_phone_page_push_legacy_owner_v1';
+const LEGACY_DESKTOP_LOGIN_PROFILE_KEY = 'aira_desktop_login_profile_v1';
+
+const preference = new AiraAccountBooleanPreferenceModule({
+  legacyKey: PHONE_PAGE_PUSH_ENABLED_KEY,
+  scopedKeyPrefix: PHONE_PAGE_PUSH_ACCOUNT_KEY_PREFIX,
+  legacyOwnerKey: PHONE_PAGE_PUSH_LEGACY_OWNER_KEY,
+  defaultValue: true,
+});
+
+export const createPhonePagePushPreferenceKey = (uid: string): string => (
+  preference.createKey(uid)
+);
+
+export const isPhonePagePushPreferenceStorageKey = (key: string): boolean => preference.isStorageKey(key);
 
 export const readPhonePagePushEnabledFromLocalStorage = (): boolean => {
-  try {
-    const raw = localStorage.getItem(PHONE_PAGE_PUSH_ENABLED_KEY);
-    if (raw === null) return true;
-    return raw !== 'false';
-  } catch {
-    return true;
-  }
+  return preference.readLocal(readCurrentPopupUid());
 };
 
 export const writePhonePagePushEnabled = (enabled: boolean): void => {
-  const value = String(enabled);
-  try {
-    localStorage.setItem(PHONE_PAGE_PUSH_ENABLED_KEY, value);
-  } catch {
-    // Ignore localStorage failures in extension contexts.
-  }
-  void writeExtensionStorageRecord({
-    [PHONE_PAGE_PUSH_ENABLED_KEY]: value,
-  });
+  preference.write(readCurrentPopupUid(), enabled);
 };
 
 export const readPhonePagePushEnabledFromExtensionStorage = async (): Promise<boolean> => {
   try {
-    const result = await readExtensionStorageRecord([PHONE_PAGE_PUSH_ENABLED_KEY]);
-    if (!Object.prototype.hasOwnProperty.call(result, PHONE_PAGE_PUSH_ENABLED_KEY)) {
-      return true;
-    }
-    return String(result[PHONE_PAGE_PUSH_ENABLED_KEY]) !== 'false';
+    const snapshot = await readAiraDesktopConnectionSnapshot();
+    return preference.readExtension(snapshot.account?.uid || '');
   } catch {
     return true;
   }
 };
 
-export const syncPhonePagePushEnabledToExtensionStorage = async (): Promise<void> => {
-  const enabled = readPhonePagePushEnabledFromLocalStorage();
-  if (enabled === true) {
-    await writeExtensionStorageRecord({
-      [PHONE_PAGE_PUSH_ENABLED_KEY]: 'true',
-    });
-    return;
+const readCurrentPopupUid = (): string => {
+  try {
+    const raw = localStorage.getItem(LEGACY_DESKTOP_LOGIN_PROFILE_KEY);
+    if (!raw) return '';
+    const profile = JSON.parse(raw) as { uid?: string };
+    return String(profile.uid || '').trim();
+  } catch {
+    return '';
   }
-  await removeExtensionStorageKeys([PHONE_PAGE_PUSH_ENABLED_KEY]);
 };

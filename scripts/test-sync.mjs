@@ -44,7 +44,7 @@ try {
   const [
     { resolveAiraDesktopSyncStatus },
     { BookmarkSyncModule, createBookmarkSyncSourceIdentity },
-    login,
+    connectionProfile,
     pagePushPreferences,
     { LeafTabSyncEngine },
     { LeafTabSyncMemoryBaselineStore },
@@ -53,15 +53,21 @@ try {
       shouldRunLeafTabBookmarkSyncForProbe,
     },
     source,
+    desktopConnection,
+    airaCloudPreferences,
+    { LeafTabSyncAiraCloudError },
   ] = await Promise.all([
     vite.ssrLoadModule('/src/features/sync/bookmarks/desktopSyncEligibility.ts'),
     vite.ssrLoadModule('/src/features/sync/bookmarks/BookmarkSyncModule.ts'),
-    vite.ssrLoadModule('/src/popup/desktopLogin.ts'),
+    vite.ssrLoadModule('/src/features/desktop-connection/desktopConnectionProfile.ts'),
     vite.ssrLoadModule('/src/features/phone-page-push/pagePushPreferences.ts'),
     vite.ssrLoadModule('/src/sync/leaftab/engine.ts'),
     vite.ssrLoadModule('/src/sync/leaftab/baseline.ts'),
     vite.ssrLoadModule('/src/sync/leaftab/changeProbe.ts'),
     vite.ssrLoadModule('/src/sync/leaftab/source.ts'),
+    vite.ssrLoadModule('/src/features/desktop-connection/AiraDesktopConnectionModule.ts'),
+    vite.ssrLoadModule('/src/features/sync/bookmarks/airaCloudPreferences.ts'),
+    vite.ssrLoadModule('/src/sync/leaftab/airaCloudStore.ts'),
   ]);
 
   test('release manifest grants all HTTP and HTTPS hosts without optional prompts', () => {
@@ -73,7 +79,7 @@ try {
   test('Pro profile with disabled sync is reported as disabled, not Pro-required', () => {
     assert.equal(resolveAiraDesktopSyncStatus({
       uid: '1956796357180173504',
-      desktopPushToken: 'desktop-token',
+      deviceCredential: 'desktop-token',
       membershipPlan: 'pro',
       membershipExpiresAt: 0,
     }, false), 'disabled');
@@ -82,7 +88,7 @@ try {
   test('Pro profile with enabled sync is ready', () => {
     assert.equal(resolveAiraDesktopSyncStatus({
       uid: '1956796357180173504',
-      desktopPushToken: 'desktop-token',
+      deviceCredential: 'desktop-token',
       membershipPlan: 'pro',
       membershipExpiresAt: 0,
     }, true), 'ready');
@@ -91,7 +97,7 @@ try {
   test('missing desktop token requires desktop login', () => {
     assert.equal(resolveAiraDesktopSyncStatus({
       uid: '1956796357180173504',
-      desktopPushToken: '',
+      deviceCredential: '',
       membershipPlan: 'pro',
       membershipExpiresAt: 0,
     }, true), 'login-required');
@@ -100,7 +106,7 @@ try {
   test('non-Pro profile requires Pro', () => {
     assert.equal(resolveAiraDesktopSyncStatus({
       uid: '1956796357180173504',
-      desktopPushToken: 'desktop-token',
+      deviceCredential: 'desktop-token',
       membershipPlan: 'club',
       membershipExpiresAt: 0,
     }, true), 'pro-required');
@@ -110,7 +116,7 @@ try {
     assert.equal(source.canRunLeafTabSelectedAutoSync({
       selectedSource: 'aira-cloud',
       cloudUid: '1956796357180173504',
-      cloudDesktopPushToken: 'desktop-token',
+      cloudDeviceCredential: 'desktop-token',
       cloudEntitled: false,
       airaCloudEnabled: false,
       webdavEnabled: false,
@@ -132,6 +138,100 @@ try {
     }
   });
 
+  test('phone page push preference is isolated by Aira account on the same Desktop Device', () => {
+    const profileKey = 'aira_desktop_login_profile_v1';
+    const setAccount = (uid) => storage.set(profileKey, JSON.stringify({ uid }));
+    try {
+      setAccount('preference-account-a');
+      pagePushPreferences.writePhonePagePushEnabled(true);
+      setAccount('preference-account-b');
+      pagePushPreferences.writePhonePagePushEnabled(false);
+      assert.equal(pagePushPreferences.readPhonePagePushEnabledFromLocalStorage(), false);
+      setAccount('preference-account-a');
+      assert.equal(pagePushPreferences.readPhonePagePushEnabledFromLocalStorage(), true);
+    } finally {
+      storage.delete(profileKey);
+      storage.delete(pagePushPreferences.PHONE_PAGE_PUSH_ENABLED_KEY);
+    }
+  });
+
+  test('Aira Cloud sync intent is isolated by Aira account on the same Desktop Device', () => {
+    try {
+      airaCloudPreferences.writeAiraCloudSyncEnabled('cloud-account-a', true);
+      assert.equal(airaCloudPreferences.readAiraCloudSyncEnabledFromLocalStorage('cloud-account-a'), true);
+      assert.equal(airaCloudPreferences.readAiraCloudSyncEnabledFromLocalStorage('cloud-account-b'), false);
+      airaCloudPreferences.writeAiraCloudSyncEnabled('cloud-account-b', false);
+      assert.equal(airaCloudPreferences.readAiraCloudSyncEnabledFromLocalStorage('cloud-account-a'), true);
+      assert.equal(airaCloudPreferences.readAiraCloudSyncEnabledFromLocalStorage('cloud-account-b'), false);
+      assert.equal(airaCloudPreferences.resolveAiraCloudSelectedSourceForAccount({
+        selectedSource: 'aira-cloud',
+        uid: 'cloud-account-a',
+        selectedAccountUid: 'cloud-account-b',
+        enabledForAccount: true,
+      }), 'aira-cloud');
+      assert.equal(airaCloudPreferences.resolveAiraCloudSelectedSourceForAccount({
+        selectedSource: 'aira-cloud',
+        uid: 'cloud-account-c',
+        selectedAccountUid: 'cloud-account-b',
+        enabledForAccount: false,
+      }), null);
+    } finally {
+      for (const key of Array.from(storage.keys())) {
+        if (key.startsWith('aira_cloud_bookmark_sync_')) {
+          storage.delete(key);
+        }
+      }
+    }
+  });
+
+  await asyncTest('selected sync source is restored independently for each Aira account', async () => {
+    const legacySelectedSourceKey = 'leaftab_primary_sync_remote_kind';
+    try {
+      storage.set(legacySelectedSourceKey, 'aira-cloud');
+      await airaCloudPreferences.persistAiraAccountSelectedSyncSource('aira-cloud', 'source-account-b');
+      storage.set(legacySelectedSourceKey, 'webdav');
+      await airaCloudPreferences.persistAiraAccountSelectedSyncSource('webdav', 'source-account-a');
+
+      assert.equal(airaCloudPreferences.readAiraCloudSelectedSourceFromLocalStorage(
+        'webdav',
+        'source-account-a',
+        false,
+      ), 'webdav');
+      assert.equal(airaCloudPreferences.readAiraCloudSelectedSourceFromLocalStorage(
+        'webdav',
+        'source-account-b',
+        true,
+      ), 'aira-cloud');
+    } finally {
+      storage.delete(legacySelectedSourceKey);
+      storage.delete(airaCloudPreferences.AIRA_CLOUD_SELECTED_ACCOUNT_KEY);
+      for (const key of Array.from(storage.keys())) {
+        if (key.startsWith('leaftab_primary_sync_remote_kind_v2:')) {
+          storage.delete(key);
+        }
+      }
+    }
+  });
+
+  test('temporary entitlement failure is not reported as Pro-required', () => {
+    assert.equal(connectionProfile.resolveAiraDesktopProCapability({
+      uid: 'degraded-user',
+      uidSuffix: 'd-user',
+      displayName: 'Degraded User',
+      avatarUri: '',
+      membershipPlan: 'club',
+      membershipStatus: 'missing_plan_default_club',
+      membershipExpiresAt: 0,
+      membershipCheckedAt: '2026-07-14T00:00:00.000Z',
+      loggedInAt: '2026-07-14T00:00:00.000Z',
+      deviceCredential: 'degraded-token',
+      deviceId: 'degraded-device',
+      connectionStatus: 'degraded',
+      connectedAt: '2026-07-14T00:00:00.000Z',
+      lastErrorCode: 'network_unavailable',
+    }), 'temporarily-unavailable');
+  });
+
   test('bookmark overview source identity separates WebDAV endpoints without using passwords', () => {
     const createIdentity = (url, password) => createBookmarkSyncSourceIdentity({
       source: 'webdav',
@@ -147,45 +247,282 @@ try {
     assert.equal(createIdentity('https://dav-a.example', 'first'), createIdentity('https://dav-a.example', 'second'));
   });
 
-  test('writing a desktop profile emits a profile-changed event', () => {
-    const events = [];
-    globalThis.window = new EventTarget();
-    window.addEventListener(login.AIRA_DESKTOP_LOGIN_PROFILE_CHANGED_EVENT, () => events.push('changed'));
-    login.writeAiraDesktopLoginProfile({
-      uid: '1956796357180173504',
-      uidSuffix: '173504',
-      displayName: 'Leo',
-      avatarUri: '',
-      membershipPlan: 'pro',
-      membershipStatus: 'active_pro',
-      membershipExpiresAt: 0,
-      membershipCheckedAt: new Date().toISOString(),
-      loggedInAt: new Date().toISOString(),
-      desktopPushToken: 'desktop-token',
+  await asyncTest('revoked Device Credential becomes reauth-required without a zombie authorized session', async () => {
+    let stored = {
+      version: 1,
+      status: 'connected',
+      deviceId: 'desktop-device',
+      deviceName: 'Desktop',
+      account: {
+        uid: 'desktop-user',
+        uidSuffix: 'p-user',
+        displayName: 'Desktop User',
+        avatarUri: '',
+      },
+      membership: {
+        plan: 'pro',
+        status: 'active_pro',
+        expiresAt: 0,
+        checkedAt: '2026-07-14T00:00:00.000Z',
+      },
+      credential: 'revoked-token',
+      lastError: null,
+    };
+    const module = new desktopConnection.AiraDesktopConnectionModule({
+      storage: {
+        read: async () => stored,
+        write: async (next) => { stored = next; },
+        clear: async () => { stored = null; },
+      },
+      remote: {
+        createPairing: async () => { throw new Error('unused'); },
+        pollPairing: async () => { throw new Error('unused'); },
+        refreshMembership: async () => {
+          throw new desktopConnection.AiraDesktopConnectionRemoteError(
+            'invalid_desktop_push_token',
+            '桌面设备凭证无效。',
+          );
+        },
+        revoke: async () => undefined,
+      },
+      now: () => Date.parse('2026-07-14T01:00:00.000Z'),
     });
-    assert.deepEqual(events, ['changed']);
+
+    const snapshot = await module.refreshMembership({ force: true });
+    assert.equal(snapshot.status, 'reauth-required');
+    assert.equal(snapshot.account?.uid, 'desktop-user');
+    assert.equal(await module.getAuthorizedSession(), null);
+    assert.equal(stored.credential, '');
   });
 
-  test('profile-changed event refreshes the cached sync identity after login', () => {
-    storage.delete('aira_desktop_login_profile_v1');
-    globalThis.window = new EventTarget();
-    let controllerProfile = login.readAiraDesktopLoginProfile();
-    window.addEventListener(login.AIRA_DESKTOP_LOGIN_PROFILE_CHANGED_EVENT, () => {
-      controllerProfile = login.readAiraDesktopLoginProfile();
+  await asyncTest('Aira Cloud credential failure is absorbed by the Desktop Connection module', async () => {
+    let stored = {
+      version: 1,
+      status: 'connected',
+      deviceId: 'cloud-device',
+      deviceName: 'Cloud Device',
+      account: { uid: 'cloud-user', uidSuffix: 'd-user', displayName: 'Cloud User', avatarUri: '' },
+      membership: { plan: 'pro', status: 'active_pro', expiresAt: 0, checkedAt: '2026-07-14T00:00:00.000Z' },
+      credential: 'cloud-token',
+      lastError: null,
+    };
+    const module = new desktopConnection.AiraDesktopConnectionModule({
+      storage: {
+        read: async () => stored,
+        write: async (next) => { stored = next; },
+        clear: async () => { stored = null; },
+      },
+      remote: {
+        createPairing: async () => { throw new Error('unused'); },
+        pollPairing: async () => { throw new Error('unused'); },
+        refreshMembership: async () => { throw new Error('unused'); },
+        revoke: async () => undefined,
+      },
     });
-    login.writeAiraDesktopLoginProfile({
-      uid: '1956796357180173504',
-      uidSuffix: '173504',
-      displayName: 'Leo',
-      avatarUri: '',
-      membershipPlan: 'pro',
-      membershipStatus: 'active_pro',
-      membershipExpiresAt: 0,
-      membershipCheckedAt: new Date().toISOString(),
-      loggedInAt: new Date().toISOString(),
-      desktopPushToken: 'desktop-token',
+
+    const snapshot = await module.recordRemoteFailure(
+      new LeafTabSyncAiraCloudError(
+        'Aira desktop credential was revoked.',
+        'invalid_desktop_push_token',
+        401,
+      ),
+    );
+
+    assert.equal(snapshot.status, 'reauth-required');
+    assert.equal(snapshot.lastError?.code, 'invalid_desktop_push_token');
+    assert.equal(await module.getAuthorizedSession(), null);
+  });
+
+  await asyncTest('temporary membership failure keeps the Device Credential for automatic recovery', async () => {
+    let stored = {
+      version: 1,
+      status: 'connected',
+      deviceId: 'recover-device',
+      deviceName: 'Recover Device',
+      account: { uid: 'recover-user', uidSuffix: 'r-user', displayName: 'Recover User', avatarUri: '' },
+      membership: { plan: 'pro', status: 'active_pro', expiresAt: 0, checkedAt: '2026-07-14T00:00:00.000Z' },
+      credential: 'recover-token',
+      lastError: null,
+    };
+    const module = new desktopConnection.AiraDesktopConnectionModule({
+      storage: {
+        read: async () => stored,
+        write: async (next) => { stored = next; },
+        clear: async () => { stored = null; },
+      },
+      remote: {
+        createPairing: async () => { throw new Error('unused'); },
+        pollPairing: async () => { throw new Error('unused'); },
+        refreshMembership: async () => {
+          throw new desktopConnection.AiraDesktopConnectionRemoteError('network_unavailable', 'offline');
+        },
+        revoke: async () => undefined,
+      },
     });
-    assert.equal(resolveAiraDesktopSyncStatus(controllerProfile, true), 'ready');
+
+    const snapshot = await module.refreshMembership({ force: true });
+    assert.equal(snapshot.status, 'degraded');
+    assert.equal((await module.getAuthorizedSession())?.deviceCredential, 'recover-token');
+  });
+
+  await asyncTest('confirmed pairing persists one connected Desktop Device Session', async () => {
+    let stored = null;
+    const module = new desktopConnection.AiraDesktopConnectionModule({
+      storage: {
+        read: async () => stored,
+        write: async (next) => { stored = next; },
+        clear: async () => { stored = null; },
+      },
+      remote: {
+        createPairing: async (device) => ({
+          sessionId: 'pairing-session',
+          pollToken: 'poll-token',
+          deviceCredential: 'device-credential',
+          deviceId: device.deviceId,
+          deviceName: device.deviceName,
+          qrPayload: 'aira://desktop-login',
+          expiresAt: Date.parse('2026-07-14T02:00:00.000Z'),
+          pollIntervalMs: 1000,
+        }),
+        pollPairing: async () => ({
+          status: 'confirmed',
+          account: {
+            uid: 'paired-user',
+            uidSuffix: 'd-user',
+            displayName: 'Paired User',
+            avatarUri: '',
+          },
+          membership: {
+            plan: 'pro',
+            status: 'active_pro',
+            expiresAt: 0,
+            checkedAt: '2026-07-14T01:00:00.000Z',
+          },
+          confirmedAt: Date.parse('2026-07-14T01:00:00.000Z'),
+        }),
+        refreshMembership: async () => { throw new Error('unused'); },
+        revoke: async () => undefined,
+      },
+      device: { deviceId: 'stable-device', deviceName: 'Stable Device' },
+    });
+
+    const pairing = await module.createPairing();
+    const result = await module.pollPairing(pairing);
+    const authorized = await module.getAuthorizedSession();
+
+    assert.equal(result.status, 'confirmed');
+    assert.equal((await module.getSnapshot()).status, 'connected');
+    assert.equal(stored.deviceId, 'stable-device');
+    assert.equal(authorized?.deviceCredential, 'device-credential');
+  });
+
+  await asyncTest('disconnect revokes only the current Desktop Device Session before clearing storage', async () => {
+    let stored = {
+      version: 1,
+      status: 'connected',
+      deviceId: 'logout-device',
+      deviceName: 'Logout Device',
+      account: {
+        uid: 'logout-user',
+        uidSuffix: 't-user',
+        displayName: 'Logout User',
+        avatarUri: '',
+      },
+      membership: {
+        plan: 'pro',
+        status: 'active_pro',
+        expiresAt: 0,
+        checkedAt: '2026-07-14T01:00:00.000Z',
+      },
+      credential: 'logout-token',
+      lastError: null,
+    };
+    const revoked = [];
+    const module = new desktopConnection.AiraDesktopConnectionModule({
+      storage: {
+        read: async () => stored,
+        write: async (next) => { stored = next; },
+        clear: async () => { stored = null; },
+      },
+      remote: {
+        createPairing: async () => { throw new Error('unused'); },
+        pollPairing: async () => { throw new Error('unused'); },
+        refreshMembership: async () => { throw new Error('unused'); },
+        revoke: async (session) => { revoked.push(session); },
+      },
+    });
+
+    const snapshot = await module.disconnectCurrentDevice();
+    assert.equal(revoked.length, 1);
+    assert.equal(revoked[0].deviceId, 'logout-device');
+    assert.equal(snapshot.status, 'disconnected');
+    assert.equal(stored, null);
+  });
+
+  await asyncTest('failed current-device revoke keeps the Desktop Device Session for retry', async () => {
+    let stored = {
+      version: 1,
+      status: 'connected',
+      deviceId: 'retry-logout-device',
+      deviceName: 'Retry Logout Device',
+      account: { uid: 'retry-logout-user', uidSuffix: 't-user', displayName: 'Retry User', avatarUri: '' },
+      membership: { plan: 'pro', status: 'active_pro', expiresAt: 0, checkedAt: '2026-07-14T01:00:00.000Z' },
+      credential: 'retry-logout-token',
+      lastError: null,
+    };
+    const module = new desktopConnection.AiraDesktopConnectionModule({
+      storage: {
+        read: async () => stored,
+        write: async (next) => { stored = next; },
+        clear: async () => { stored = null; },
+      },
+      remote: {
+        createPairing: async () => { throw new Error('unused'); },
+        pollPairing: async () => { throw new Error('unused'); },
+        refreshMembership: async () => { throw new Error('unused'); },
+        revoke: async () => { throw new Error('offline'); },
+      },
+    });
+
+    await assert.rejects(module.disconnectCurrentDevice(), /offline/);
+    assert.equal(stored.credential, 'retry-logout-token');
+    assert.equal((await module.getAuthorizedSession())?.deviceId, 'retry-logout-device');
+  });
+
+  await asyncTest('fresh membership snapshot avoids an unnecessary remote refresh', async () => {
+    const checkedAt = '2026-07-14T01:00:00.000Z';
+    let refreshCalls = 0;
+    const stored = {
+      version: 1,
+      status: 'connected',
+      deviceId: 'cached-membership-device',
+      deviceName: 'Cached Membership Device',
+      account: { uid: 'cached-user', uidSuffix: 'd-user', displayName: 'Cached User', avatarUri: '' },
+      membership: { plan: 'pro', status: 'active_pro', expiresAt: 0, checkedAt },
+      credential: 'cached-token',
+      lastError: null,
+    };
+    const module = new desktopConnection.AiraDesktopConnectionModule({
+      storage: {
+        read: async () => stored,
+        write: async () => undefined,
+        clear: async () => undefined,
+      },
+      remote: {
+        createPairing: async () => { throw new Error('unused'); },
+        pollPairing: async () => { throw new Error('unused'); },
+        refreshMembership: async () => {
+          refreshCalls += 1;
+          throw new Error('should not refresh');
+        },
+        revoke: async () => undefined,
+      },
+      now: () => Date.parse(checkedAt) + 60_000,
+    });
+
+    const snapshot = await module.refreshMembership();
+    assert.equal(snapshot.status, 'connected');
+    assert.equal(refreshCalls, 0);
   });
 
   await asyncTest('sync analysis keeps local and remote bookmark counts separate', async () => {
