@@ -1,6 +1,10 @@
-import { LeafTabSyncExtensionStorageBaselineStore } from './baseline';
+import {
+  getLeafTabSyncBaselineSnapshot,
+  LeafTabSyncExtensionStorageBaselineStore,
+} from './baseline';
 import type { LeafTabSyncRemoteStore } from './remoteStore';
 import type { LeafTabSyncRemoteKind } from './source';
+import { countLeafTabLiveBookmarkEntities } from './snapshot';
 
 export type LeafTabBookmarkSyncChangeProbeStatus =
   | 'unchanged'
@@ -25,14 +29,22 @@ export interface ProbeLeafTabBookmarkSyncChangesParams {
   createRemoteStore: () => LeafTabSyncRemoteStore;
   hasPendingLocalChanges: () => boolean | Promise<boolean>;
   hasPendingLocalOperationOutbox?: () => boolean | Promise<boolean>;
+  readLocalSummary?: () => Promise<{
+    bookmarkFolders: number;
+    bookmarkItems: number;
+  }>;
 }
 
-const getBaselineCommitId = async (baselineStorageKey: string): Promise<string | null | undefined> => {
+const getBaselineProbeState = async (baselineStorageKey: string) => {
   const baseline = await new LeafTabSyncExtensionStorageBaselineStore(baselineStorageKey).load();
   if (!baseline) return undefined;
-  return typeof baseline.commitId === 'string' && baseline.commitId.length > 0
-    ? baseline.commitId
-    : null;
+  const snapshot = getLeafTabSyncBaselineSnapshot(baseline);
+  return {
+    commitId: typeof baseline.commitId === 'string' && baseline.commitId.length > 0
+      ? baseline.commitId
+      : null,
+    summary: snapshot ? countLeafTabLiveBookmarkEntities(snapshot) : null,
+  };
 };
 
 const readRemoteCommitId = async (store: LeafTabSyncRemoteStore): Promise<string | null> => {
@@ -86,10 +98,10 @@ export const probeLeafTabBookmarkSyncChanges = async (
     );
   }
 
-  let baselineCommitId: string | null | undefined;
+  let baselineState: Awaited<ReturnType<typeof getBaselineProbeState>>;
   let remoteCommitId: string | null;
   try {
-    baselineCommitId = await getBaselineCommitId(params.baselineStorageKey);
+    baselineState = await getBaselineProbeState(params.baselineStorageKey);
     remoteCommitId = await readRemoteCommitId(params.createRemoteStore());
   } catch (error) {
     return createProbeResult(
@@ -103,6 +115,7 @@ export const probeLeafTabBookmarkSyncChanges = async (
       String((error as Error)?.message || error || '轻量同步状态读取失败。'),
     );
   }
+  const baselineCommitId = baselineState?.commitId;
 
   if (baselineCommitId === undefined) {
     return createProbeResult(
@@ -118,6 +131,35 @@ export const probeLeafTabBookmarkSyncChanges = async (
   }
 
   if (baselineCommitId === remoteCommitId) {
+    if (params.readLocalSummary && baselineState?.summary) {
+      try {
+        const localSummary = await params.readLocalSummary();
+        if (localSummary.bookmarkFolders !== baselineState.summary.bookmarkFolders ||
+          localSummary.bookmarkItems !== baselineState.summary.bookmarkItems) {
+          return createProbeResult(
+            'changed',
+            false,
+            true,
+            false,
+            params.provider,
+            baselineCommitId,
+            remoteCommitId,
+            '本机书签数量与同步基线不一致，需要重新核对。',
+          );
+        }
+      } catch (error) {
+        return createProbeResult(
+          'unknown',
+          false,
+          false,
+          false,
+          params.provider,
+          baselineCommitId,
+          remoteCommitId,
+          String((error as Error)?.message || error || '本机书签数量读取失败。'),
+        );
+      }
+    }
     return createProbeResult(
       'unchanged',
       true,

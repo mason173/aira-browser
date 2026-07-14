@@ -45,6 +45,7 @@ try {
   const login = await vite.ssrLoadModule('/src/popup/desktopLogin.ts');
   const { LeafTabSyncEngine } = await vite.ssrLoadModule('/src/sync/leaftab/engine.ts');
   const { LeafTabSyncMemoryBaselineStore } = await vite.ssrLoadModule('/src/sync/leaftab/baseline.ts');
+  const { probeLeafTabBookmarkSyncChanges } = await vite.ssrLoadModule('/src/sync/leaftab/changeProbe.ts');
 
   test('Pro profile with disabled sync is reported as disabled, not Pro-required', () => {
     assert.equal(resolveAiraDesktopSyncStatus({
@@ -370,6 +371,38 @@ try {
     await assert.rejects(() => engine.sync('auto'), /simulated bookmark API failure/);
     const baseline = await baselineStore.load();
     assert.equal(baseline?.commitId, 'base-1');
+  });
+
+  await asyncTest('same remote commit does not skip when local counts differ from the baseline', async () => {
+    const baselineKey = 'stale-baseline';
+    const timestamp = '2026-01-01T00:00:00.000Z';
+    storage.set(baselineKey, JSON.stringify({
+      commitId: 'remote-2',
+      snapshot: {
+        meta: { version: 2, deviceId: 'fixture', generatedAt: timestamp },
+        bookmarkFolders: { folder: { id: 'folder', type: 'bookmark-folder' } },
+        bookmarkItems: { item: { id: 'item', type: 'bookmark-item' } },
+        bookmarkOrders: {},
+        tombstones: {},
+      },
+      files: {},
+      savedAt: timestamp,
+    }));
+    const result = await probeLeafTabBookmarkSyncChanges({
+      provider: 'aira-cloud',
+      baselineStorageKey: baselineKey,
+      createRemoteStore: () => ({
+        acquireLock: async () => undefined,
+        releaseLock: async () => undefined,
+        readCommitId: async () => 'remote-2',
+        readState: async () => ({ head: null, commit: null, snapshot: null }),
+        writeState: async () => ({ head: {}, commit: { id: 'remote-2' } }),
+      }),
+      hasPendingLocalChanges: async () => false,
+      readLocalSummary: async () => ({ bookmarkFolders: 2, bookmarkItems: 2 }),
+    });
+    assert.equal(result.canSkipSync, false);
+    assert.equal(result.hasLocalChanges, true);
   });
 
   console.log(`${passed} sync tests passed`);

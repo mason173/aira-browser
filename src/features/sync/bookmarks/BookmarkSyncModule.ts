@@ -163,6 +163,13 @@ export class BookmarkSyncModule {
       createRemoteStore: () => this.createRemoteStore(),
       hasPendingLocalChanges: this.config.local.hasPendingChanges || (() => false),
       hasPendingLocalOperationOutbox: this.config.local.hasPendingOperations,
+      readLocalSummary: async () => {
+        const snapshot = await this.config.local.buildSnapshot();
+        return {
+          bookmarkFolders: Object.keys(snapshot.bookmarkFolders).length,
+          bookmarkItems: Object.keys(snapshot.bookmarkItems).length,
+        };
+      },
     });
   }
 
