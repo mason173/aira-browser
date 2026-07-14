@@ -196,6 +196,182 @@ try {
     assert.deepEqual(analysis.remoteSummary, { bookmarkFolders: 4, bookmarkItems: 5, tombstones: 0 });
   });
 
+  await asyncTest('remote bookmark deletion is applied to the local tree', async () => {
+    const timestamp = '2026-01-01T00:00:00.000Z';
+    const item = {
+      id: 'item-1',
+      type: 'bookmark-item',
+      parentId: null,
+      title: 'Item 1',
+      url: 'https://example.com/1',
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      updatedBy: 'fixture',
+      revision: 1,
+    };
+    const baseSnapshot = {
+      meta: { version: 2, deviceId: 'fixture', generatedAt: timestamp },
+      bookmarkFolders: {},
+      bookmarkItems: { [item.id]: item },
+      bookmarkOrders: {
+        __root__: {
+          type: 'bookmark-order',
+          parentId: null,
+          ids: [item.id],
+          updatedAt: timestamp,
+          updatedBy: 'fixture',
+          revision: 1,
+        },
+      },
+      tombstones: {},
+    };
+    const remoteSnapshot = {
+      ...baseSnapshot,
+      bookmarkItems: {},
+      bookmarkOrders: {
+        __root__: {
+          ...baseSnapshot.bookmarkOrders.__root__,
+          ids: [],
+        },
+      },
+      tombstones: {
+        'bookmark-item|item-1': {
+          id: item.id,
+          type: 'bookmark-item',
+          deletedAt: '2026-01-01T00:01:00.000Z',
+          deletedBy: 'phone',
+          lastKnownRevision: item.revision,
+        },
+      },
+    };
+    const baselineStore = new LeafTabSyncMemoryBaselineStore();
+    await baselineStore.save({
+      commitId: 'base-1',
+      snapshot: baseSnapshot,
+      files: {},
+      savedAt: timestamp,
+    });
+    let appliedSnapshot = null;
+    const engine = new LeafTabSyncEngine({
+      deviceId: 'desktop',
+      baselineStore,
+      buildLocalSnapshot: async () => baseSnapshot,
+      applyLocalSnapshot: async (snapshot) => {
+        appliedSnapshot = snapshot;
+      },
+      createEmptySnapshot: () => ({
+        meta: { version: 2, deviceId: 'desktop', generatedAt: timestamp },
+        bookmarkFolders: {},
+        bookmarkItems: {},
+        bookmarkOrders: {},
+        tombstones: {},
+      }),
+      remoteStore: {
+        acquireLock: async () => undefined,
+        releaseLock: async () => undefined,
+        readHead: async () => ({
+          head: null,
+          commit: null,
+          commitId: 'remote-2',
+          updatedAt: 0,
+          summary: { bookmarkFolders: 0, bookmarkItems: 0, tombstones: 1 },
+        }),
+        readState: async () => ({
+          head: null,
+          commit: { id: 'remote-2' },
+          snapshot: remoteSnapshot,
+        }),
+        writeState: async () => ({ head: {}, commit: { id: 'remote-3' } }),
+      },
+    });
+
+    const result = await engine.sync('auto');
+    assert.equal(result.kind, 'pull');
+    assert.ok(appliedSnapshot);
+    assert.equal(Object.keys(appliedSnapshot.bookmarkItems).length, 0);
+    assert.equal(Object.keys(appliedSnapshot.tombstones).length, 1);
+  });
+
+  await asyncTest('failed local apply does not advance the sync baseline', async () => {
+    const timestamp = '2026-01-01T00:00:00.000Z';
+    const item = {
+      id: 'item-1',
+      type: 'bookmark-item',
+      parentId: null,
+      title: 'Item 1',
+      url: 'https://example.com/1',
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      updatedBy: 'fixture',
+      revision: 1,
+    };
+    const baseSnapshot = {
+      meta: { version: 2, deviceId: 'fixture', generatedAt: timestamp },
+      bookmarkFolders: {},
+      bookmarkItems: { [item.id]: item },
+      bookmarkOrders: {},
+      tombstones: {},
+    };
+    const remoteSnapshot = {
+      ...baseSnapshot,
+      bookmarkItems: {},
+      tombstones: {
+        'bookmark-item|item-1': {
+          id: item.id,
+          type: 'bookmark-item',
+          deletedAt: '2026-01-01T00:01:00.000Z',
+          deletedBy: 'phone',
+          lastKnownRevision: item.revision,
+        },
+      },
+    };
+    const baselineStore = new LeafTabSyncMemoryBaselineStore();
+    await baselineStore.save({
+      commitId: 'base-1',
+      snapshot: baseSnapshot,
+      files: {},
+      savedAt: timestamp,
+    });
+
+    const engine = new LeafTabSyncEngine({
+      deviceId: 'desktop',
+      baselineStore,
+      buildLocalSnapshot: async () => baseSnapshot,
+      applyLocalSnapshot: async () => {
+        throw new Error('simulated bookmark API failure');
+      },
+      hasPendingLocalChanges: () => true,
+      createEmptySnapshot: () => ({
+        meta: { version: 2, deviceId: 'desktop', generatedAt: timestamp },
+        bookmarkFolders: {},
+        bookmarkItems: {},
+        bookmarkOrders: {},
+        tombstones: {},
+      }),
+      remoteStore: {
+        acquireLock: async () => undefined,
+        releaseLock: async () => undefined,
+        readHead: async () => ({
+          head: null,
+          commit: null,
+          commitId: 'remote-2',
+          updatedAt: 0,
+          summary: { bookmarkFolders: 0, bookmarkItems: 0, tombstones: 1 },
+        }),
+        readState: async () => ({
+          head: null,
+          commit: { id: 'remote-2' },
+          snapshot: remoteSnapshot,
+        }),
+        writeState: async () => ({ head: {}, commit: { id: 'remote-3' } }),
+      },
+    });
+
+    await assert.rejects(() => engine.sync('auto'), /simulated bookmark API failure/);
+    const baseline = await baselineStore.load();
+    assert.equal(baseline?.commitId, 'base-1');
+  });
+
   console.log(`${passed} sync tests passed`);
 } finally {
   await vite.close();

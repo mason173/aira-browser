@@ -966,14 +966,8 @@ export class LeafTabSyncEngine {
             deviceId: this.config.deviceId,
             parentCommitId: latestRemote.commit?.id || null,
           });
-          await this.config.baselineStore.save(createLeafTabSyncBaseline({
-            snapshot: finalSnapshot,
-            commitId: writeResult.commit.id,
-            rootPath: this.config.rootPath,
-          }));
-          await this.clearPendingLocalState();
-
-          if (!sameSnapshotContent(localSnapshot, finalSnapshot)) {
+          const localNeedsApply = !sameSnapshotContent(localSnapshot, finalSnapshot);
+          if (localNeedsApply) {
             reportProgress(runOptions?.onProgress, {
               stage: 'applying-local',
               progress: 88,
@@ -981,6 +975,12 @@ export class LeafTabSyncEngine {
             });
             await this.config.applyLocalSnapshot(cloneSnapshot(finalSnapshot));
           }
+          await this.config.baselineStore.save(createLeafTabSyncBaseline({
+            snapshot: finalSnapshot,
+            commitId: writeResult.commit.id,
+            rootPath: this.config.rootPath,
+          }));
+          await this.clearPendingLocalState();
 
           reportProgress(runOptions?.onProgress, {
             stage: 'completed',
@@ -997,20 +997,22 @@ export class LeafTabSyncEngine {
           });
         }
 
-        await this.config.baselineStore.save(createLeafTabSyncBaseline({
-          snapshot: finalSnapshot,
-          commitId: latestRemote.commit?.id || null,
-          rootPath: this.config.rootPath,
-        }));
-        await this.clearPendingLocalState();
-
-        if (!sameSnapshotContent(localSnapshot, finalSnapshot)) {
+        const localNeedsApply = !sameSnapshotContent(localSnapshot, finalSnapshot);
+        if (localNeedsApply) {
           reportProgress(runOptions?.onProgress, {
             stage: 'applying-local',
             progress: 86,
             message: '正在将远端数据写入本地',
           });
           await this.config.applyLocalSnapshot(cloneSnapshot(finalSnapshot));
+        }
+        await this.config.baselineStore.save(createLeafTabSyncBaseline({
+          snapshot: finalSnapshot,
+          commitId: latestRemote.commit?.id || null,
+          rootPath: this.config.rootPath,
+        }));
+        await this.clearPendingLocalState();
+        if (localNeedsApply) {
           reportProgress(runOptions?.onProgress, {
             stage: 'completed',
             progress: 100,
