@@ -676,6 +676,11 @@ function BookmarkSyncControls({
   const lastSyncLabel = selectedSource === 'aira-cloud'
     ? syncRuntime.state.leafTabCloudLastSyncLabel
     : syncRuntime.state.leafTabWebdavLastSyncLabel;
+  const formatDataSummary = (summary: typeof syncRuntime.state.leafTabLocalSummary) => {
+    if (syncRuntime.state.leafTabSummaryLoading && !summary) return '读取中...';
+    if (!summary) return '尚未读取';
+    return `${summary.bookmarkFolders} 个文件夹 · ${summary.bookmarkItems} 个书签`;
+  };
 
   if (!selectedSource) {
     return (
@@ -719,6 +724,16 @@ function BookmarkSyncControls({
           <InfoRow
             label={t('popup.dashboard.lastSync', { defaultValue: '最近同步' })}
             value={lastSyncLabel || t('popup.dashboard.neverSynced', { defaultValue: '尚未同步' })}
+          />
+          <InfoRow
+            label={t('popup.dashboard.localData', { defaultValue: '本机数据' })}
+            value={formatDataSummary(syncRuntime.state.leafTabLocalSummary)}
+          />
+          <InfoRow
+            label={selectedSource === 'aira-cloud'
+              ? t('popup.dashboard.cloudData', { defaultValue: '云端数据' })
+              : t('popup.dashboard.webdavData', { defaultValue: 'WebDAV 数据' })}
+            value={formatDataSummary(syncRuntime.state.leafTabRemoteSummary)}
           />
         </div>
       </div>

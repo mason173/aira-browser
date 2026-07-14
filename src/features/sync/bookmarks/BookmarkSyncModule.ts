@@ -8,6 +8,7 @@ import {
 } from '@/platform/extensionStorage';
 import {
   LeafTabSyncEngine,
+  type LeafTabSyncDataSummary,
   type LeafTabSyncEngineProgress,
   type LeafTabSyncEngineResult,
 } from '@/sync/leaftab/engine';
@@ -34,6 +35,11 @@ export type BookmarkSyncSource = LeafTabSyncRemoteKind;
 export type BookmarkSyncConflictChoice = 'computer' | 'current-source';
 
 export type BookmarkSyncPendingConflict = LeafTabPendingBookmarkConflict;
+
+export type BookmarkSyncDataOverview = {
+  local: LeafTabSyncDataSummary;
+  remote: LeafTabSyncDataSummary;
+};
 
 const normalizePendingConflict = (value: unknown): BookmarkSyncPendingConflict | null => {
   if (!value || typeof value !== 'object') return null;
@@ -158,6 +164,14 @@ export class BookmarkSyncModule {
       hasPendingLocalChanges: this.config.local.hasPendingChanges || (() => false),
       hasPendingLocalOperationOutbox: this.config.local.hasPendingOperations,
     });
+  }
+
+  async readSummary(): Promise<BookmarkSyncDataOverview> {
+    const analysis = await this.createEngine().analyze();
+    return {
+      local: analysis.localSummary,
+      remote: analysis.remoteSummary,
+    };
   }
 
   resolveConflict(

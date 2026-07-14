@@ -1,4 +1,5 @@
 import type {
+  LeafTabSyncDataSummary,
   LeafTabSyncEngineProgress,
   LeafTabSyncEngineResult,
 } from '@/sync/leaftab/engine';
@@ -31,6 +32,9 @@ export type LeafTabSyncState = {
   leafTabPendingBookmarkConflict: LeafTabPendingBookmarkConflict | null;
   leafTabSyncHasConfig: boolean;
   leafTabSyncLastResult: LeafTabSyncEngineResult | null;
+  leafTabLocalSummary: LeafTabSyncDataSummary | null;
+  leafTabRemoteSummary: LeafTabSyncDataSummary | null;
+  leafTabSummaryLoading: boolean;
   leafTabWebdavConfigured: boolean;
   leafTabWebdavProfileLabel: string;
   leafTabWebdavLastSyncLabel: string;

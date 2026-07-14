@@ -47,6 +47,7 @@ import {
   persistPendingBookmarkConflict,
   readPendingBookmarkConflict,
   type BookmarkSyncConflictChoice,
+  type BookmarkSyncDataOverview,
   type BookmarkSyncSourceConfig,
 } from './BookmarkSyncModule';
 import {
@@ -385,6 +386,9 @@ export function useBookmarkSyncRuntimeController(
   const [localVersion, setLocalVersion] = useState(0);
   const [webdavSyncRunActive, setWebdavSyncRunActive] = useState(false);
   const [leafTabSyncLastResult, setLeafTabSyncLastResult] = useState<LeafTabSyncEngineResult | null>(null);
+  const [leafTabBookmarkDataOverview, setLeafTabBookmarkDataOverview] =
+    useState<BookmarkSyncDataOverview | null>(null);
+  const [leafTabSummaryLoading, setLeafTabSummaryLoading] = useState(false);
   const [leafTabSyncProgress, setLeafTabSyncProgress] = useState<LeafTabSyncProgressState>(() => createIdleProgressState());
   const [leafTabPendingBookmarkConflict, setLeafTabPendingBookmarkConflict] =
     useState<LeafTabPendingBookmarkConflict | null>(null);
@@ -409,6 +413,7 @@ export function useBookmarkSyncRuntimeController(
     void localVersion;
     return readSelectedSyncSourceFromStorage();
   }, [localVersion]);
+  const leafTabCloudSyncStatus = resolveAiraDesktopSyncStatus(desktopLoginProfile, cloudSyncEnabled);
   const leafTabCloudBaselineStorageKey = useMemo(
     () => createLeafTabSyncBaselineStorageKeyForRemote('aira-cloud', leafTabSyncRootPath, cloudUid),
     [cloudUid, leafTabSyncRootPath],
@@ -536,6 +541,9 @@ export function useBookmarkSyncRuntimeController(
         options,
       });
       setLeafTabSyncLastResult(result);
+      if (result.kind !== 'conflict') {
+        setLeafTabBookmarkDataOverview({ local: result.snapshotSummary, remote: result.snapshotSummary });
+      }
       if (result.kind === 'conflict') {
         markSyncConflict();
       } else {
@@ -579,6 +587,9 @@ export function useBookmarkSyncRuntimeController(
         options,
       });
       setLeafTabSyncLastResult(result);
+      if (result.kind !== 'conflict') {
+        setLeafTabBookmarkDataOverview({ local: result.snapshotSummary, remote: result.snapshotSummary });
+      }
       if (result.kind === 'conflict') {
         markSyncConflict();
       } else {
@@ -866,6 +877,86 @@ export function useBookmarkSyncRuntimeController(
     webdavConfig?.username,
   ]);
 
+  const refreshBookmarkDataOverview = useCallback(async () => {
+    if (!selectedSyncSource) {
+      setLeafTabBookmarkDataOverview(null);
+      setLeafTabSummaryLoading(false);
+      return;
+    }
+    if (leafTabPendingBookmarkConflict) {
+      setLeafTabSummaryLoading(false);
+      return;
+    }
+    if (selectedSyncSource === 'aira-cloud' && leafTabCloudSyncStatus === 'login-required') {
+      setLeafTabSummaryLoading(false);
+      return;
+    }
+    if (selectedSyncSource === 'aira-cloud' && leafTabCloudSyncStatus === 'pro-required') {
+      setLeafTabSummaryLoading(false);
+      return;
+    }
+    if (selectedSyncSource === 'webdav' && !webdavConfig?.url) {
+      setLeafTabSummaryLoading(false);
+      return;
+    }
+
+    const baselineStorageKey = selectedSyncSource === 'aira-cloud'
+      ? leafTabCloudBaselineStorageKey
+      : leafTabSyncBaselineStorageKey;
+    const sourceConfig: BookmarkSyncSourceConfig = selectedSyncSource === 'aira-cloud'
+      ? {
+          source: 'aira-cloud',
+          uid: cloudUid,
+          desktopPushToken: cloudDesktopPushToken,
+        }
+      : {
+          source: 'webdav',
+          webdav: {
+            url: webdavConfig?.url || '',
+            username: webdavConfig?.username,
+            password: webdavConfig?.password,
+            rootPath: leafTabSyncRootPath,
+            requestPermission: false,
+          },
+        };
+
+    setLeafTabSummaryLoading(true);
+    try {
+      const overview = await createBookmarkSyncModule({
+        sourceConfig,
+        rootPath: leafTabSyncRootPath,
+        deviceId: leafTabSyncDeviceId,
+        baselineStorageKey,
+        buildLocalSnapshot: () => buildBookmarkSnapshotForBaseline(baselineStorageKey),
+        applyLocalSnapshot: applyWebdavBookmarkSnapshot,
+      }).readSummary();
+      setLeafTabBookmarkDataOverview(overview);
+    } catch {
+      // Summary is informational; keep the last known counts when a remote head is unavailable.
+    } finally {
+      setLeafTabSummaryLoading(false);
+    }
+  }, [
+    applyWebdavBookmarkSnapshot,
+    buildBookmarkSnapshotForBaseline,
+    cloudDesktopPushToken,
+    cloudUid,
+    leafTabCloudBaselineStorageKey,
+    leafTabCloudSyncStatus,
+    leafTabPendingBookmarkConflict,
+    leafTabSyncBaselineStorageKey,
+    leafTabSyncDeviceId,
+    leafTabSyncRootPath,
+    selectedSyncSource,
+    webdavConfig?.password,
+    webdavConfig?.url,
+    webdavConfig?.username,
+  ]);
+
+  useEffect(() => {
+    void refreshBookmarkDataOverview();
+  }, [refreshBookmarkDataOverview]);
+
   const handleLeafTabSync = useCallback(async (options?: LeafTabRuntimeSyncOptions) => {
     const remoteKind = options?.remoteKind || 'webdav';
     const isCloud = remoteKind === 'aira-cloud';
@@ -1054,7 +1145,6 @@ export function useBookmarkSyncRuntimeController(
   ]);
 
   const leafTabWebdavConfigured = hasWebdavUrlConfiguredFromStorage();
-  const leafTabCloudSyncStatus = resolveAiraDesktopSyncStatus(desktopLoginProfile, cloudSyncEnabled);
 
   const leafTabWebdavProfileLabel = useMemo(() => {
     const config = readWebdavConfigFromStorage({ allowDisabled: true });
@@ -1076,6 +1166,9 @@ export function useBookmarkSyncRuntimeController(
     leafTabPendingBookmarkConflict,
     leafTabSyncHasConfig: Boolean(webdavConfig?.url),
     leafTabSyncLastResult,
+    leafTabLocalSummary: leafTabBookmarkDataOverview?.local || null,
+    leafTabRemoteSummary: leafTabBookmarkDataOverview?.remote || null,
+    leafTabSummaryLoading,
     leafTabWebdavConfigured,
     leafTabWebdavProfileLabel,
     leafTabWebdavLastSyncLabel: formatLiteSyncTimestamp(localStorage.getItem('webdav_last_sync_at')),
@@ -1086,6 +1179,8 @@ export function useBookmarkSyncRuntimeController(
     leafTabSelectedSyncSource: selectedSyncSource,
   }), [
     leafTabSyncLastResult,
+    leafTabBookmarkDataOverview,
+    leafTabSummaryLoading,
     leafTabPendingBookmarkConflict,
     leafTabSyncProgress,
     leafTabSyncState,
