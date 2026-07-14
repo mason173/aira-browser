@@ -23,6 +23,10 @@ export interface LeafTabBookmarkSyncChangeProbeResult {
   summary: string;
 }
 
+export const shouldRunLeafTabBookmarkSyncForProbe = (
+  probe: LeafTabBookmarkSyncChangeProbeResult | null | undefined,
+): boolean => probe?.status === 'changed' && probe.canSkipSync === false;
+
 export interface ProbeLeafTabBookmarkSyncChangesParams {
   provider: LeafTabSyncRemoteKind;
   baselineStorageKey: string;

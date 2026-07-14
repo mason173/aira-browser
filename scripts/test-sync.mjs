@@ -47,7 +47,10 @@ try {
   const login = await vite.ssrLoadModule('/src/popup/desktopLogin.ts');
   const { LeafTabSyncEngine } = await vite.ssrLoadModule('/src/sync/leaftab/engine.ts');
   const { LeafTabSyncMemoryBaselineStore } = await vite.ssrLoadModule('/src/sync/leaftab/baseline.ts');
-  const { probeLeafTabBookmarkSyncChanges } = await vite.ssrLoadModule('/src/sync/leaftab/changeProbe.ts');
+  const {
+    probeLeafTabBookmarkSyncChanges,
+    shouldRunLeafTabBookmarkSyncForProbe,
+  } = await vite.ssrLoadModule('/src/sync/leaftab/changeProbe.ts');
   const source = await vite.ssrLoadModule('/src/sync/leaftab/source.ts');
 
   test('release manifest grants all HTTP and HTTPS hosts without optional prompts', () => {
@@ -424,6 +427,7 @@ try {
     });
     assert.equal(result.canSkipSync, false);
     assert.equal(result.hasLocalChanges, true);
+    assert.equal(shouldRunLeafTabBookmarkSyncForProbe(result), true);
   });
 
   console.log(`${passed} sync tests passed`);

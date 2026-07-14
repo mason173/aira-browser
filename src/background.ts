@@ -46,6 +46,7 @@ import {
   hasPendingLeafTabLocalBookmarkOperationOutbox,
 } from '@/sync/leaftab/localOperationOutbox';
 import {
+  shouldRunLeafTabBookmarkSyncForProbe,
   type LeafTabBookmarkSyncChangeProbeResult,
 } from '@/sync/leaftab/changeProbe';
 import {
@@ -1110,8 +1111,11 @@ async function handleRemoteProbeAlarm(): Promise<void> {
       await markSyncError(remoteKind, new Error(probe.summary || '自动同步检查失败。'));
       return;
     }
-    if (probe?.hasRemoteChanges) {
-      await runBackgroundAutoSync({ provider: remoteKind, hasRemoteChanges: true });
+    if (shouldRunLeafTabBookmarkSyncForProbe(probe)) {
+      await runBackgroundAutoSync({
+        provider: remoteKind,
+        hasRemoteChanges: probe?.hasRemoteChanges === true,
+      });
       return;
     }
   } finally {
