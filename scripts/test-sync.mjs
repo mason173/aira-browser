@@ -9,10 +9,29 @@ const vite = await createServer({
 });
 
 const storage = new Map();
+const extensionStorage = new Map();
 globalThis.localStorage = {
   getItem: (key) => storage.has(key) ? storage.get(key) : null,
   setItem: (key, value) => storage.set(key, String(value)),
   removeItem: (key) => storage.delete(key),
+};
+globalThis.chrome = {
+  storage: {
+    local: {
+      get: async (keys) => {
+        const selectedKeys = Array.isArray(keys) ? keys : Array.from(extensionStorage.keys());
+        return Object.fromEntries(selectedKeys
+          .filter((key) => extensionStorage.has(key))
+          .map((key) => [key, extensionStorage.get(key)]));
+      },
+      set: async (values) => {
+        Object.entries(values).forEach(([key, value]) => extensionStorage.set(key, value));
+      },
+      remove: async (keys) => {
+        (Array.isArray(keys) ? keys : [keys]).forEach((key) => extensionStorage.delete(key));
+      },
+    },
+  },
 };
 
 let passed = 0;
@@ -54,6 +73,7 @@ try {
     },
     source,
     desktopConnection,
+    desktopConnectionRuntime,
     airaCloudPreferences,
     { LeafTabSyncAiraCloudError },
   ] = await Promise.all([
@@ -66,6 +86,7 @@ try {
     vite.ssrLoadModule('/src/sync/leaftab/changeProbe.ts'),
     vite.ssrLoadModule('/src/sync/leaftab/source.ts'),
     vite.ssrLoadModule('/src/features/desktop-connection/AiraDesktopConnectionModule.ts'),
+    vite.ssrLoadModule('/src/features/desktop-connection/desktopConnectionRuntime.ts'),
     vite.ssrLoadModule('/src/features/sync/bookmarks/airaCloudPreferences.ts'),
     vite.ssrLoadModule('/src/sync/leaftab/airaCloudStore.ts'),
   ]);
@@ -94,7 +115,7 @@ try {
     }, true), 'ready');
   });
 
-  test('missing desktop token requires desktop login', () => {
+  test('missing Device Credential requires reconnecting the Desktop Device Session', () => {
     assert.equal(resolveAiraDesktopSyncStatus({
       uid: '1956796357180173504',
       deviceCredential: '',
@@ -127,31 +148,29 @@ try {
   test('phone page push defaults to enabled and honors explicit choices', () => {
     const phonePagePushEnabledKey = pagePushPreferences.PHONE_PAGE_PUSH_ENABLED_KEY;
     storage.delete(phonePagePushEnabledKey);
-    assert.equal(pagePushPreferences.readPhonePagePushEnabledFromLocalStorage(), true);
+    assert.equal(pagePushPreferences.readPhonePagePushEnabledFromLocalStorage(''), true);
     try {
       storage.set(phonePagePushEnabledKey, 'true');
-      assert.equal(pagePushPreferences.readPhonePagePushEnabledFromLocalStorage(), true);
+      assert.equal(pagePushPreferences.readPhonePagePushEnabledFromLocalStorage(''), true);
       storage.set(phonePagePushEnabledKey, 'false');
-      assert.equal(pagePushPreferences.readPhonePagePushEnabledFromLocalStorage(), false);
+      assert.equal(pagePushPreferences.readPhonePagePushEnabledFromLocalStorage(''), false);
     } finally {
       storage.delete(phonePagePushEnabledKey);
     }
   });
 
   test('phone page push preference is isolated by Aira account on the same Desktop Device', () => {
-    const profileKey = 'aira_desktop_login_profile_v1';
-    const setAccount = (uid) => storage.set(profileKey, JSON.stringify({ uid }));
     try {
-      setAccount('preference-account-a');
-      pagePushPreferences.writePhonePagePushEnabled(true);
-      setAccount('preference-account-b');
-      pagePushPreferences.writePhonePagePushEnabled(false);
-      assert.equal(pagePushPreferences.readPhonePagePushEnabledFromLocalStorage(), false);
-      setAccount('preference-account-a');
-      assert.equal(pagePushPreferences.readPhonePagePushEnabledFromLocalStorage(), true);
+      pagePushPreferences.writePhonePagePushEnabled('preference-account-a', true);
+      pagePushPreferences.writePhonePagePushEnabled('preference-account-b', false);
+      assert.equal(pagePushPreferences.readPhonePagePushEnabledFromLocalStorage('preference-account-b'), false);
+      assert.equal(pagePushPreferences.readPhonePagePushEnabledFromLocalStorage('preference-account-a'), true);
     } finally {
-      storage.delete(profileKey);
-      storage.delete(pagePushPreferences.PHONE_PAGE_PUSH_ENABLED_KEY);
+      for (const key of Array.from(storage.keys())) {
+        if (key.startsWith('aira_phone_page_push_')) {
+          storage.delete(key);
+        }
+      }
     }
   });
 
@@ -223,13 +242,44 @@ try {
       membershipStatus: 'missing_plan_default_club',
       membershipExpiresAt: 0,
       membershipCheckedAt: '2026-07-14T00:00:00.000Z',
-      loggedInAt: '2026-07-14T00:00:00.000Z',
       deviceCredential: 'degraded-token',
       deviceId: 'degraded-device',
       connectionStatus: 'degraded',
-      connectedAt: '2026-07-14T00:00:00.000Z',
       lastErrorCode: 'network_unavailable',
     }), 'temporarily-unavailable');
+  });
+
+  await asyncTest('legacy Desktop Device Session is imported once and the legacy profile is removed', async () => {
+    const legacyProfileKey = 'aira_desktop_login_profile_v1';
+    const canonicalConnectionKey = 'aira_desktop_connection_v1';
+    const legacyDeviceIdKey = 'leaftab_sync_v1_device_id';
+    const legacyProfile = JSON.stringify({
+      uid: 'legacy-user',
+      uidSuffix: 'y-user',
+      displayName: 'Legacy User',
+      membershipPlan: 'pro',
+      membershipStatus: 'active_pro',
+      membershipExpiresAt: 0,
+      membershipCheckedAt: '2026-07-14T00:00:00.000Z',
+      desktopPushToken: 'legacy-device-credential',
+    });
+    extensionStorage.set(legacyProfileKey, legacyProfile);
+    extensionStorage.set(legacyDeviceIdKey, 'stable-legacy-device');
+    storage.set(legacyProfileKey, legacyProfile);
+    try {
+      const snapshot = await desktopConnectionRuntime.readAiraDesktopConnectionSnapshot();
+      assert.equal(snapshot.account?.uid, 'legacy-user');
+      assert.equal(snapshot.deviceId, 'stable-legacy-device');
+      assert.ok(extensionStorage.has(canonicalConnectionKey));
+      assert.equal(extensionStorage.has(legacyProfileKey), false);
+      assert.equal(storage.has(legacyProfileKey), false);
+    } finally {
+      extensionStorage.delete(canonicalConnectionKey);
+      extensionStorage.delete(legacyProfileKey);
+      extensionStorage.delete(legacyDeviceIdKey);
+      extensionStorage.delete('aira_desktop_device_id_v1');
+      storage.delete(legacyProfileKey);
+    }
   });
 
   test('bookmark overview source identity separates WebDAV endpoints without using passwords', () => {

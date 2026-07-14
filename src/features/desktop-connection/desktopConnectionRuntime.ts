@@ -19,8 +19,7 @@ import {
 const AIRA_API_BASE_URL = 'https://api.aira.cool';
 const AIRA_DESKTOP_REQUEST_TIMEOUT_MS = 25_000;
 export const AIRA_DESKTOP_CONNECTION_STORAGE_KEY = 'aira_desktop_connection_v1';
-export const AIRA_DESKTOP_DEVICE_ID_KEY = 'aira_desktop_device_id_v1';
-export const AIRA_DESKTOP_CONNECTION_CHANGED_EVENT = 'aira-desktop-connection-changed';
+const AIRA_DESKTOP_DEVICE_ID_KEY = 'aira_desktop_device_id_v1';
 const LEGACY_DESKTOP_LOGIN_PROFILE_KEY = 'aira_desktop_login_profile_v1';
 const LEGACY_SYNC_DEVICE_ID_KEY = 'leaftab_sync_v1_device_id';
 
@@ -96,7 +95,10 @@ class ChromeDesktopConnectionStorage implements AiraDesktopConnectionStorage {
     ]);
     const stored = parseConnectionRecord(record[AIRA_DESKTOP_CONNECTION_STORAGE_KEY]);
     if (stored) {
-      writePopupProjection(stored);
+      if (record[LEGACY_DESKTOP_LOGIN_PROFILE_KEY] !== undefined) {
+        await removeExtensionStorageKeys([LEGACY_DESKTOP_LOGIN_PROFILE_KEY]);
+      }
+      removeLegacyProfileFromPopup();
       return stored;
     }
     const migrated = migrateLegacyProfile(
@@ -107,18 +109,16 @@ class ChromeDesktopConnectionStorage implements AiraDesktopConnectionStorage {
       return null;
     }
     await this.write(migrated);
+    await removeExtensionStorageKeys([LEGACY_DESKTOP_LOGIN_PROFILE_KEY]);
+    removeLegacyProfileFromPopup();
     return migrated;
   }
 
   async write(record: AiraDesktopConnectionRecord): Promise<void> {
     const serialized = JSON.stringify(record);
-    const legacyProjection = JSON.stringify(toLegacyProjection(record));
     await writeExtensionStorageRecord({
       [AIRA_DESKTOP_CONNECTION_STORAGE_KEY]: serialized,
-      [LEGACY_DESKTOP_LOGIN_PROFILE_KEY]: legacyProjection,
     });
-    writePopupProjection(record);
-    emitConnectionChanged();
   }
 
   async clear(): Promise<void> {
@@ -126,18 +126,13 @@ class ChromeDesktopConnectionStorage implements AiraDesktopConnectionStorage {
       AIRA_DESKTOP_CONNECTION_STORAGE_KEY,
       LEGACY_DESKTOP_LOGIN_PROFILE_KEY,
     ]);
-    try {
-      localStorage.removeItem(LEGACY_DESKTOP_LOGIN_PROFILE_KEY);
-    } catch {
-      // Extension service workers do not expose localStorage.
-    }
-    emitConnectionChanged();
+    removeLegacyProfileFromPopup();
   }
 }
 
 class HttpAiraDesktopConnectionRemote implements AiraDesktopConnectionRemote {
   async createPairing(device: { deviceId: string; deviceName: string }): Promise<AiraDesktopPairingSession> {
-    const response = await postJson('/desktop-login/create', device);
+    const response = await postAiraDesktopJson<RemoteResponse>('/desktop-login/create', device);
     return {
       sessionId: requiredString(response.sessionId, 'Login service returned an invalid session.'),
       pollToken: requiredString(response.pollToken, 'Login service returned an invalid poll token.'),
@@ -151,7 +146,7 @@ class HttpAiraDesktopConnectionRemote implements AiraDesktopConnectionRemote {
   }
 
   async pollPairing(session: AiraDesktopPairingSession): Promise<AiraDesktopPairingStatus> {
-    const response = await postJson('/desktop-login/status', {
+    const response = await postAiraDesktopJson<RemoteResponse>('/desktop-login/status', {
       sessionId: session.sessionId,
       pollToken: session.pollToken,
     });
@@ -182,7 +177,7 @@ class HttpAiraDesktopConnectionRemote implements AiraDesktopConnectionRemote {
   }
 
   async refreshMembership(session: AiraDesktopAuthorizedSession): Promise<AiraDesktopMembershipResponse> {
-    const response = await postJson('/desktop-login/membership-state', {
+    const response = await postAiraDesktopJson<RemoteResponse>('/desktop-login/membership-state', {
       desktopPushToken: session.deviceCredential,
       deviceId: session.deviceId,
       deviceName: session.deviceName,
@@ -206,9 +201,10 @@ class HttpAiraDesktopConnectionRemote implements AiraDesktopConnectionRemote {
   }
 
   async revoke(session: AiraDesktopAuthorizedSession): Promise<void> {
-    await postJson('/desktop-session/revoke', {
+    await postAiraDesktopJson<RemoteResponse>('/desktop-session/revoke', {
       desktopPushToken: session.deviceCredential,
       deviceId: session.deviceId,
+      deviceName: session.deviceName,
     });
   }
 }
@@ -231,7 +227,7 @@ async function getOrCreateDesktopDeviceIdentity(): Promise<{ deviceId: string; d
   };
 }
 
-async function postJson(path: string, body: unknown): Promise<RemoteResponse> {
+export async function postAiraDesktopJson<T>(path: string, body: unknown): Promise<T> {
   const controller = new AbortController();
   const timeout = globalThis.setTimeout(() => controller.abort(), AIRA_DESKTOP_REQUEST_TIMEOUT_MS);
   try {
@@ -258,7 +254,7 @@ async function postJson(path: string, body: unknown): Promise<RemoteResponse> {
         response.status,
       );
     }
-    return parsed;
+    return parsed as T;
   } catch (error) {
     if (error instanceof AiraDesktopConnectionRemoteError) {
       throw error;
@@ -350,35 +346,11 @@ function migrateLegacyProfile(
   };
 }
 
-function toLegacyProjection(record: AiraDesktopConnectionRecord): Record<string, unknown> {
-  return {
-    uid: record.account?.uid || '',
-    uidSuffix: record.account?.uidSuffix || '',
-    displayName: record.account?.displayName || '',
-    avatarUri: record.account?.avatarUri || '',
-    membershipPlan: record.membership?.plan || 'club',
-    membershipStatus: record.membership?.status || 'missing_plan_default_club',
-    membershipExpiresAt: record.membership?.expiresAt || 0,
-    membershipCheckedAt: record.membership?.checkedAt || '',
-    loggedInAt: '',
-    desktopPushToken: record.credential,
-    deviceId: record.deviceId,
-    connectionStatus: record.status,
-    lastErrorCode: record.lastError?.code || '',
-  };
-}
-
-function writePopupProjection(record: AiraDesktopConnectionRecord): void {
+function removeLegacyProfileFromPopup(): void {
   try {
-    localStorage.setItem(LEGACY_DESKTOP_LOGIN_PROFILE_KEY, JSON.stringify(toLegacyProjection(record)));
+    localStorage.removeItem(LEGACY_DESKTOP_LOGIN_PROFILE_KEY);
   } catch {
     // Extension service workers do not expose localStorage.
-  }
-}
-
-function emitConnectionChanged(): void {
-  if (typeof window !== 'undefined') {
-    window.dispatchEvent(new Event(AIRA_DESKTOP_CONNECTION_CHANGED_EVENT));
   }
 }
 

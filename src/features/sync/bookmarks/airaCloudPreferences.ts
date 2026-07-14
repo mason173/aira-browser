@@ -16,8 +16,6 @@ const preference = new AiraAccountBooleanPreferenceModule({
   defaultValue: false,
 });
 
-export const createAiraCloudSyncPreferenceKey = (uid: string): string => preference.createKey(uid);
-
 export const createAiraAccountSelectedSyncSourceKey = (uid: string): string => (
   `${AIRA_ACCOUNT_SELECTED_SYNC_SOURCE_KEY_PREFIX}:${encodeURIComponent(uid.trim())}`
 );

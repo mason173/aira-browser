@@ -39,18 +39,17 @@ import {
   writePhonePagePushEnabled,
 } from '@/features/phone-page-push/pagePushPreferences';
 import {
-  AIRA_DESKTOP_LOGIN_PROFILE_CHANGED_EVENT,
-  createAiraDesktopLoginSession,
-  disconnectAiraDesktopLogin,
-  pollAiraDesktopLoginStatus,
-  type AiraDesktopLoginSession,
-} from './desktopLogin';
-import {
   isAiraDesktopConnectionProfilePro,
-  readAiraDesktopConnectionProfile,
   refreshAiraDesktopConnectionProfileMembership,
   resolveAiraDesktopProCapability,
+  type AiraDesktopConnectionProfile,
 } from '@/features/desktop-connection/desktopConnectionProfile';
+import type { AiraDesktopPairingSession } from '@/features/desktop-connection/AiraDesktopConnectionModule';
+import {
+  disconnectAiraDesktopDevice,
+  getAiraDesktopConnectionModule,
+} from '@/features/desktop-connection/desktopConnectionRuntime';
+import { useAiraDesktopConnectionProfile } from '@/features/desktop-connection/useAiraDesktopConnectionProfile';
 
 type PopupView = 'home' | 'webdav' | 'sync-method' | 'advanced' | 'login';
 
@@ -136,33 +135,33 @@ function formatCountdownTime(remainingMs: number) {
   return `${minutes}:${String(seconds).padStart(2, '0')}`;
 }
 
-function readConfiguredHomeState(t: ReturnType<typeof useTranslation>['t']): ConfiguredHomeState | null {
-  try {
-    const desktopLoginProfile = readAiraDesktopConnectionProfile();
-    if (
-      desktopLoginProfile
-      && desktopLoginProfile.uid
-      && desktopLoginProfile.deviceCredential
-      && desktopLoginProfile.connectionStatus !== 'reauth-required'
-    ) {
-      const isPro = isAiraDesktopConnectionProfilePro(desktopLoginProfile);
-      const phonePagePushEnabled = isPro && readPhonePagePushEnabledFromLocalStorage();
-      return {
-        nickname: desktopLoginProfile.displayName,
-        uid: desktopLoginProfile.uidSuffix ? `AIRA-${desktopLoginProfile.uidSuffix}` : getShortUid(desktopLoginProfile.uid),
-        userId: desktopLoginProfile.uid,
-        avatarUri: desktopLoginProfile.avatarUri,
-        identityStatus: t('popup.profile.signedIn', { defaultValue: '已登录' }),
-        membershipPlan: desktopLoginProfile.membershipPlan,
-        membershipExpiresAt: desktopLoginProfile.membershipExpiresAt,
-        isDesktopLoggedIn: true,
-        phonePagePushEnabled,
-      };
-    }
-    return null;
-  } catch {
+function readConfiguredHomeState(
+  t: ReturnType<typeof useTranslation>['t'],
+  desktopConnectionProfile: AiraDesktopConnectionProfile | null,
+): ConfiguredHomeState | null {
+  if (
+    !desktopConnectionProfile?.uid
+    || !desktopConnectionProfile.deviceCredential
+    || desktopConnectionProfile.connectionStatus === 'reauth-required'
+  ) {
     return null;
   }
+  const isPro = isAiraDesktopConnectionProfilePro(desktopConnectionProfile);
+  const phonePagePushEnabled = isPro
+    && readPhonePagePushEnabledFromLocalStorage(desktopConnectionProfile.uid);
+  return {
+    nickname: desktopConnectionProfile.displayName,
+    uid: desktopConnectionProfile.uidSuffix
+      ? `AIRA-${desktopConnectionProfile.uidSuffix}`
+      : getShortUid(desktopConnectionProfile.uid),
+    userId: desktopConnectionProfile.uid,
+    avatarUri: desktopConnectionProfile.avatarUri,
+    identityStatus: t('popup.profile.signedIn', { defaultValue: '已登录' }),
+    membershipPlan: desktopConnectionProfile.membershipPlan,
+    membershipExpiresAt: desktopConnectionProfile.membershipExpiresAt,
+    isDesktopLoggedIn: true,
+    phonePagePushEnabled,
+  };
 }
 
 async function refreshAndRequirePro(t: ReturnType<typeof useTranslation>['t']) {
@@ -325,7 +324,7 @@ function SyncProgressDialog({ syncRuntime }: { syncRuntime: PopupSyncRuntime }) 
 
 function LoginQrPanel({ onLoggedIn }: { onLoggedIn: () => void }) {
   const { t } = useTranslation();
-  const [session, setSession] = useState<AiraDesktopLoginSession | null>(null);
+  const [session, setSession] = useState<AiraDesktopPairingSession | null>(null);
   const [qrDataUrl, setQrDataUrl] = useState('');
   const [status, setStatus] = useState<'loading' | 'pending' | 'confirmed' | 'expired' | 'error'>('loading');
   const [message, setMessage] = useState('');
@@ -343,10 +342,11 @@ function LoginQrPanel({ onLoggedIn }: { onLoggedIn: () => void }) {
       }
     };
 
-    const schedulePoll = (nextSession: AiraDesktopLoginSession, delayMs: number) => {
+    const schedulePoll = (nextSession: AiraDesktopPairingSession, delayMs: number) => {
       clearPollTimer();
       timer = window.setTimeout(() => {
-        pollAiraDesktopLoginStatus(nextSession)
+        getAiraDesktopConnectionModule()
+          .then((module) => module.pollPairing(nextSession))
           .then((result) => {
             if (disposed) return;
             if (result.status === 'confirmed') {
@@ -379,7 +379,8 @@ function LoginQrPanel({ onLoggedIn }: { onLoggedIn: () => void }) {
     setStatus('loading');
     setRemainingMs(0);
     setMessage(t('popup.login.loading', { defaultValue: '正在生成二维码' }));
-    createAiraDesktopLoginSession()
+    getAiraDesktopConnectionModule()
+      .then((module) => module.createPairing())
       .then(async (nextSession) => {
         if (disposed) return;
         const nextQrDataUrl = await createStyledQrDataUrl(nextSession.qrPayload);
@@ -826,7 +827,7 @@ function ConfiguredHome({
                   window.dispatchEvent(new CustomEvent('phone-page-push-setting-changed'));
                   return;
                 }
-                writePhonePagePushEnabled(enabled);
+                writePhonePagePushEnabled(profile.userId, enabled);
                 window.dispatchEvent(new CustomEvent('phone-page-push-setting-changed'));
               }}
             />
@@ -918,6 +919,7 @@ function LoggedOutHome({
 }
 
 function PopupHome({
+  profile,
   syncRuntime,
   onLogout,
   onOpenLogin,
@@ -925,8 +927,8 @@ function PopupHome({
   onOpenWebdav,
   onOpenSyncMethod,
   onOpenAdvanced,
-  localVersion,
 }: {
+  profile: ConfiguredHomeState | null;
   syncRuntime: PopupSyncRuntime;
   onLogout: () => void;
   onOpenLogin: () => void;
@@ -934,15 +936,11 @@ function PopupHome({
   onOpenWebdav: () => void;
   onOpenSyncMethod: () => void;
   onOpenAdvanced: () => void;
-  localVersion: number;
 }) {
-  const { t } = useTranslation();
-  const configuredHomeState = useMemo(() => readConfiguredHomeState(t), [localVersion, t]);
-
-  if (configuredHomeState) {
+  if (profile) {
     return (
       <ConfiguredHome
-        profile={configuredHomeState}
+        profile={profile}
         syncRuntime={syncRuntime}
         onLogout={onLogout}
         onSelectCloud={onSelectCloud}
@@ -1432,37 +1430,36 @@ export function PopupApp() {
   const [pendingWebdavSyncAfterSave, setPendingWebdavSyncAfterSave] = useState(false);
   const [pendingCloudSelectionAfterLogin, setPendingCloudSelectionAfterLogin] = useState(false);
   const { t } = useTranslation();
+  const desktopConnectionProfile = useAiraDesktopConnectionProfile();
   const syncRuntime = useBookmarkSyncRuntimeController({
+    desktopConnectionProfile,
     openWebdavConfig: () => setView('webdav'),
   });
   const configuredHomeState = useMemo(() => {
     void localVersion;
-    return readConfiguredHomeState(t);
-  }, [localVersion, t]);
+    return readConfiguredHomeState(t, desktopConnectionProfile);
+  }, [desktopConnectionProfile, localVersion, t]);
 
   useEffect(() => {
     const refresh = () => setLocalVersion((value) => value + 1);
     window.addEventListener('webdav-config-changed', refresh);
     window.addEventListener('webdav-sync-status-changed', refresh);
     window.addEventListener('phone-page-push-setting-changed', refresh);
-    window.addEventListener(AIRA_DESKTOP_LOGIN_PROFILE_CHANGED_EVENT, refresh);
     return () => {
       window.removeEventListener('webdav-config-changed', refresh);
       window.removeEventListener('webdav-sync-status-changed', refresh);
       window.removeEventListener('phone-page-push-setting-changed', refresh);
-      window.removeEventListener(AIRA_DESKTOP_LOGIN_PROFILE_CHANGED_EVENT, refresh);
     };
   }, []);
 
   useEffect(() => {
-    const profile = readAiraDesktopConnectionProfile();
-    if (!profile?.uid) return;
+    if (!desktopConnectionProfile?.uid) return;
     refreshAiraDesktopConnectionProfileMembership()
       .then(() => {
         setLocalVersion((value) => value + 1);
       })
       .catch(() => undefined);
-  }, []);
+  }, [desktopConnectionProfile?.uid]);
 
   useEffect(() => {
     if (!pendingWebdavSyncAfterSave || !syncRuntime.state.leafTabSyncHasConfig) return;
@@ -1497,10 +1494,10 @@ export function PopupApp() {
     <main className="w-[360px] max-w-full overflow-hidden bg-background text-foreground [font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe_UI',sans-serif]">
       {view === 'home' && (
         <PopupHome
+          profile={configuredHomeState}
           syncRuntime={syncRuntime}
-          localVersion={localVersion}
           onLogout={() => {
-            void disconnectAiraDesktopLogin().then(() => {
+            void disconnectAiraDesktopDevice().then(() => {
               setLocalVersion((value) => value + 1);
               toast.success(t('popup.profile.loggedOut', { defaultValue: '已退出登录' }));
             }).catch(() => {

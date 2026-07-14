@@ -9,7 +9,7 @@ import {
 } from '@/features/sync/app/leafTabSyncStorageKeys';
 import {
   isAiraDesktopConnectionProfilePro,
-  readAiraDesktopConnectionProfileFromExtensionStorage,
+  readAiraDesktopConnectionProfile,
   refreshAiraDesktopConnectionProfileMembership,
   resolveAiraDesktopProCapability,
   shouldRefreshAiraDesktopConnectionMembership,
@@ -37,11 +37,11 @@ import {
   LeafTabSyncAiraCloudError,
 } from '@/sync/leaftab/airaCloudStore';
 import {
-  AiraDesktopConnectionRemoteError,
   isAiraDesktopCredentialRejection,
 } from '@/features/desktop-connection/AiraDesktopConnectionModule';
 import {
   AIRA_DESKTOP_CONNECTION_STORAGE_KEY,
+  postAiraDesktopJson,
   recordAiraDesktopConnectionFailure,
 } from '@/features/desktop-connection/desktopConnectionRuntime';
 import {
@@ -102,7 +102,6 @@ import {
 
 const WEBDAV_PROXY_MESSAGE_TYPE = 'LEAFTAB_WEBDAV_PROXY';
 const AUTO_SYNC_MESSAGE_TYPE = 'LEAFTAB_AUTO_SYNC_NOW';
-const AIRA_API_BASE_URL = 'https://api.aira.cool';
 const LOCAL_SYNC_ALARM_NAME = 'aira.leaftab.auto-sync.local-change';
 const REMOTE_PROBE_ALARM_NAME = 'aira.leaftab.auto-sync.remote-probe';
 const PHONE_PAGE_PUSH_POLL_ALARM_NAME = 'aira.phone-page-push.poll';
@@ -119,7 +118,6 @@ const PHONE_PAGE_PUSH_FALLBACK_TITLE = 'Aira';
 const PHONE_PAGE_PUSH_POLL_INTERVAL_MS = 500;
 const PHONE_PAGE_PUSH_LONG_POLL_WAIT_MS = 20_000;
 const PHONE_PAGE_PUSH_ERROR_RETRY_MS = 5_000;
-const PHONE_PAGE_PUSH_REQUEST_TIMEOUT_MS = 25_000;
 const PHONE_PAGE_PUSH_ALARM_FALLBACK_MS = 30_000;
 const PHONE_PAGE_PUSH_SOURCE = 'airatab_desktop_extension';
 
@@ -131,7 +129,7 @@ let phonePagePushEnabled = true;
 
 async function refreshDesktopMembershipForProFeature(): Promise<AiraDesktopProCapabilityStatus> {
   try {
-    const profile = await readAiraDesktopConnectionProfileFromExtensionStorage();
+    const profile = await readAiraDesktopConnectionProfile();
     const currentCapability = resolveAiraDesktopProCapability(profile);
     if (currentCapability === 'login-required') return currentCapability;
     const latestProfile = await refreshAiraDesktopConnectionProfileMembership({ force: true });
@@ -334,58 +332,13 @@ async function openPhonePagePushPayload(payload: PhonePagePushUrlPayload, title:
   return openPhonePagePushTab(originalUrl, title);
 }
 
-async function postPhonePagePushJson<T>(path: string, body: unknown): Promise<T> {
-  const controller = new AbortController();
-  const timeout = globalThis.setTimeout(() => controller.abort(), PHONE_PAGE_PUSH_REQUEST_TIMEOUT_MS);
-  try {
-    const response = await fetch(`${AIRA_API_BASE_URL}${path}`, {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json; charset=utf-8',
-      },
-      body: JSON.stringify(body),
-      signal: controller.signal,
-    });
-    const text = await response.text();
-    let parsed: T & { ok?: boolean; code?: string; message?: string };
-    try {
-      parsed = text ? JSON.parse(text) as typeof parsed : {} as typeof parsed;
-    } catch {
-      throw new AiraDesktopConnectionRemoteError(
-        'invalid_response',
-        `Aira API response was invalid (${response.status}).`,
-        response.status,
-      );
-    }
-    if (!response.ok || parsed.ok === false) {
-      throw new AiraDesktopConnectionRemoteError(
-        String(parsed.code || (response.ok ? 'remote_rejected' : 'http_error')),
-        parsed.message || `Aira API request failed (${response.status}).`,
-        response.status,
-      );
-    }
-    return parsed;
-  } catch (error) {
-    if (error instanceof AiraDesktopConnectionRemoteError) {
-      throw error;
-    }
-    throw new AiraDesktopConnectionRemoteError(
-      'network_unavailable',
-      String((error as Error)?.message || error || 'Aira service is unavailable.'),
-    );
-  } finally {
-    globalThis.clearTimeout(timeout);
-  }
-}
-
 async function resolvePhonePagePushPollProfile() {
   phonePagePushEnabled = await readPhonePagePushEnabledFromExtensionStorage();
   if (!phonePagePushEnabled) {
     return null;
   }
 
-  const profile = await readAiraDesktopConnectionProfileFromExtensionStorage();
+  const profile = await readAiraDesktopConnectionProfile();
   if (!profile?.uid || !profile.deviceCredential) {
     return null;
   }
@@ -458,13 +411,17 @@ async function reconcilePhonePagePushSchedule(isStartup: boolean = false): Promi
 
 async function ackPhonePagePushTask(params: {
   desktopPushToken: string;
+  deviceId: string;
+  deviceName: string;
   taskId: string;
   leaseToken: string;
   status: 'opened' | 'failed';
   error?: string;
 }): Promise<void> {
-  const response = await postPhonePagePushJson<PhonePagePushAckResponse>('/phone-page-push/ack', {
+  const response = await postAiraDesktopJson<PhonePagePushAckResponse>('/phone-page-push/ack', {
     desktopPushToken: params.desktopPushToken,
+    deviceId: params.deviceId,
+    deviceName: params.deviceName,
     taskId: params.taskId,
     leaseToken: params.leaseToken,
     status: params.status,
@@ -493,8 +450,10 @@ async function pollPhonePagePushOnce(options: { waitMs?: number } = {}): Promise
     let continuePolling = true;
     const keepAlive = startBackgroundKeepAlive();
     try {
-      const response = await postPhonePagePushJson<PhonePagePushPollResponse>('/phone-page-push/poll', {
+      const response = await postAiraDesktopJson<PhonePagePushPollResponse>('/phone-page-push/poll', {
         desktopPushToken: profile.deviceCredential,
+        deviceId: profile.deviceId,
+        deviceName: profile.deviceName,
         source: PHONE_PAGE_PUSH_SOURCE,
         waitMs: Math.max(0, Math.min(PHONE_PAGE_PUSH_LONG_POLL_WAIT_MS, Number(options.waitMs || 0))),
       });
@@ -516,6 +475,8 @@ async function pollPhonePagePushOnce(options: { waitMs?: number } = {}): Promise
       try {
         await ackPhonePagePushTask({
           desktopPushToken: profile.deviceCredential,
+          deviceId: profile.deviceId,
+          deviceName: profile.deviceName,
           taskId,
           leaseToken,
           status: opened ? 'opened' : 'failed',
@@ -583,7 +544,7 @@ async function getOrCreateDeviceId(): Promise<string> {
 async function readBackgroundSyncConfig(): Promise<BackgroundSyncConfig> {
   const [deviceId, loginProfile, webdavConfig] = await Promise.all([
     getOrCreateDeviceId(),
-    readAiraDesktopConnectionProfileFromExtensionStorage(),
+    readAiraDesktopConnectionProfile(),
     readWebdavConfigFromExtensionStorage({ allowDisabled: true }),
   ]);
   const rootPath = LEAFTAB_SYNC_DEFAULT_ROOT_PATH;
@@ -1427,7 +1388,6 @@ function bindLifecycleListeners(): void {
       WEBDAV_STORAGE_KEYS.url,
       WEBDAV_STORAGE_KEYS.username,
       WEBDAV_STORAGE_KEYS.password,
-      'aira_desktop_login_profile_v1',
       AIRA_DESKTOP_CONNECTION_STORAGE_KEY,
     ];
     const changedKeys = Object.keys(changes);

@@ -8,7 +8,6 @@ import {
   refreshAiraDesktopConnectionMembership,
 } from './desktopConnectionRuntime';
 
-const LEGACY_DESKTOP_LOGIN_PROFILE_KEY = 'aira_desktop_login_profile_v1';
 const MEMBERSHIP_REFRESH_MIN_INTERVAL_MS = 5 * 60 * 1000;
 
 export type AiraDesktopConnectionProfile = {
@@ -20,9 +19,9 @@ export type AiraDesktopConnectionProfile = {
   membershipStatus: string;
   membershipExpiresAt: number;
   membershipCheckedAt: string;
-  connectedAt: string;
   deviceCredential: string;
   deviceId: string;
+  deviceName: string;
   connectionStatus: AiraDesktopConnectionStatus;
   lastErrorCode: string;
 };
@@ -33,25 +32,12 @@ export type AiraDesktopProCapabilityStatus =
   | 'pro-required'
   | 'temporarily-unavailable';
 
-export function readAiraDesktopConnectionProfile(): AiraDesktopConnectionProfile | null {
-  try {
-    const raw = localStorage.getItem(LEGACY_DESKTOP_LOGIN_PROFILE_KEY);
-    return raw ? normalizeProfile(JSON.parse(raw) as Record<string, unknown>) : null;
-  } catch {
-    return null;
-  }
-}
-
-export async function readAiraDesktopConnectionProfileFromExtensionStorage(): Promise<AiraDesktopConnectionProfile | null> {
+export async function readAiraDesktopConnectionProfile(): Promise<AiraDesktopConnectionProfile | null> {
   const [snapshot, session] = await Promise.all([
     readAiraDesktopConnectionSnapshot(),
     readAiraDesktopAuthorizedSession(),
   ]);
   return profileFromConnection(snapshot, session?.deviceCredential || '');
-}
-
-export async function syncAiraDesktopConnectionProjection(): Promise<void> {
-  await readAiraDesktopConnectionSnapshot();
 }
 
 export function isAiraDesktopConnectionProfilePro(profile: AiraDesktopConnectionProfile | null): boolean {
@@ -103,9 +89,9 @@ function normalizeProfile(raw: Record<string, unknown>): AiraDesktopConnectionPr
     membershipStatus: String(raw.membershipStatus || 'missing_plan_default_club').trim(),
     membershipExpiresAt: Number(raw.membershipExpiresAt || 0),
     membershipCheckedAt: String(raw.membershipCheckedAt || '').trim(),
-    connectedAt: String(raw.connectedAt || raw.loggedInAt || '').trim(),
-    deviceCredential: String(raw.deviceCredential || raw.desktopPushToken || '').trim(),
+    deviceCredential: String(raw.deviceCredential || '').trim(),
     deviceId: String(raw.deviceId || '').trim(),
+    deviceName: String(raw.deviceName || '').trim(),
     connectionStatus: normalizeConnectionStatus(raw.connectionStatus),
     lastErrorCode: String(raw.lastErrorCode || '').trim(),
   };
@@ -124,6 +110,7 @@ function profileFromConnection(
     membershipCheckedAt: snapshot.membership?.checkedAt || '',
     deviceCredential,
     deviceId: snapshot.deviceId,
+    deviceName: snapshot.deviceName,
     connectionStatus: snapshot.status,
     lastErrorCode: snapshot.lastError?.code || '',
   });
