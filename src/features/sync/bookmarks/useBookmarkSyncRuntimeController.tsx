@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from '@/components/ui/sonner';
 import type {
   LeafTabPendingBookmarkConflict,
@@ -21,6 +21,7 @@ import {
 import { readLeafTabBookmarkSyncScope } from '@/sync/leaftab/bookmarkScope';
 import type { LeafTabBookmarkTreeDraft } from '@/sync/leaftab/bookmarks';
 import type {
+  LeafTabSyncDataSummary,
   LeafTabSyncEngineProgress,
   LeafTabSyncEngineResult,
 } from '@/sync/leaftab/engine';
@@ -45,6 +46,7 @@ import type { LeafTabBookmarkSyncChangeProbeResult } from '@/sync/leaftab/change
 import {
   BookmarkSyncModule,
   clearPendingBookmarkConflict,
+  createBookmarkSyncSourceIdentity,
   persistPendingBookmarkConflict,
   readPendingBookmarkConflict,
   type BookmarkSyncConflictChoice,
@@ -177,6 +179,13 @@ const runtimeSummaryFromSnapshot = (snapshot: LeafTabSyncSnapshot) => ({
   bookmarkFolders: Object.keys(snapshot.bookmarkFolders || {}).length,
   bookmarkItems: Object.keys(snapshot.bookmarkItems || {}).length,
   tombstones: Object.keys(snapshot.tombstones || {}).length,
+});
+
+const createBookmarkDataOverviewFromSummary = (
+  summary: LeafTabSyncDataSummary,
+): BookmarkSyncDataOverview => ({
+  local: summary,
+  remote: summary,
 });
 
 const createNoopSyncResultFromProbe = async (
@@ -393,6 +402,8 @@ export function useBookmarkSyncRuntimeController(
   const [leafTabBookmarkDataOverview, setLeafTabBookmarkDataOverview] =
     useState<BookmarkSyncDataOverview | null>(null);
   const [leafTabSummaryLoading, setLeafTabSummaryLoading] = useState(false);
+  const leafTabSummaryRefreshRequestRef = useRef(0);
+  const leafTabSummarySourceKeyRef = useRef('');
   const [leafTabSyncProgress, setLeafTabSyncProgress] = useState<LeafTabSyncProgressState>(() => createIdleProgressState());
   const [leafTabPendingBookmarkConflict, setLeafTabPendingBookmarkConflict] =
     useState<LeafTabPendingBookmarkConflict | null>(null);
@@ -546,9 +557,6 @@ export function useBookmarkSyncRuntimeController(
         options,
       });
       setLeafTabSyncLastResult(result);
-      if (result.kind !== 'conflict') {
-        setLeafTabBookmarkDataOverview({ local: result.snapshotSummary, remote: result.snapshotSummary });
-      }
       if (result.kind === 'conflict') {
         markSyncConflict();
       } else {
@@ -592,9 +600,6 @@ export function useBookmarkSyncRuntimeController(
         options,
       });
       setLeafTabSyncLastResult(result);
-      if (result.kind !== 'conflict') {
-        setLeafTabBookmarkDataOverview({ local: result.snapshotSummary, remote: result.snapshotSummary });
-      }
       if (result.kind === 'conflict') {
         markSyncConflict();
       } else {
@@ -883,24 +888,11 @@ export function useBookmarkSyncRuntimeController(
   ]);
 
   const refreshBookmarkDataOverview = useCallback(async () => {
+    const requestId = leafTabSummaryRefreshRequestRef.current + 1;
+    leafTabSummaryRefreshRequestRef.current = requestId;
     if (!selectedSyncSource) {
+      leafTabSummarySourceKeyRef.current = '';
       setLeafTabBookmarkDataOverview(null);
-      setLeafTabSummaryLoading(false);
-      return;
-    }
-    if (leafTabPendingBookmarkConflict) {
-      setLeafTabSummaryLoading(false);
-      return;
-    }
-    if (selectedSyncSource === 'aira-cloud' && leafTabCloudSyncStatus === 'login-required') {
-      setLeafTabSummaryLoading(false);
-      return;
-    }
-    if (selectedSyncSource === 'aira-cloud' && leafTabCloudSyncStatus === 'pro-required') {
-      setLeafTabSummaryLoading(false);
-      return;
-    }
-    if (selectedSyncSource === 'webdav' && !webdavConfig?.url) {
       setLeafTabSummaryLoading(false);
       return;
     }
@@ -924,22 +916,51 @@ export function useBookmarkSyncRuntimeController(
             requestPermission: false,
           },
         };
+    const summarySourceIdentity = createBookmarkSyncSourceIdentity(sourceConfig, leafTabSyncRootPath);
+    if (leafTabSummarySourceKeyRef.current !== summarySourceIdentity) {
+      leafTabSummarySourceKeyRef.current = summarySourceIdentity;
+      setLeafTabBookmarkDataOverview(null);
+    }
 
     setLeafTabSummaryLoading(true);
     try {
-      const overview = await createBookmarkSyncModule({
+      const module = createBookmarkSyncModule({
         sourceConfig,
         rootPath: leafTabSyncRootPath,
         deviceId: leafTabSyncDeviceId,
         baselineStorageKey,
         buildLocalSnapshot: () => buildBookmarkSnapshotForBaseline(baselineStorageKey),
         applyLocalSnapshot: applyWebdavBookmarkSnapshot,
-      }).readSummary();
-      setLeafTabBookmarkDataOverview(overview);
-    } catch {
-      // Summary is informational; keep the last known counts when a remote head is unavailable.
+      });
+      const overviewPromise = module.readSummary({
+        includeRemote: selectedSyncSource === 'aira-cloud'
+          ? leafTabCloudSyncStatus !== 'login-required' && leafTabCloudSyncStatus !== 'pro-required'
+          : Boolean(webdavConfig?.url),
+      });
+      const baselineSnapshot = selectedSyncSource === 'aira-cloud'
+        ? await readLeafTabSyncBaselineSnapshot(baselineStorageKey)
+        : null;
+      if (leafTabSummaryRefreshRequestRef.current !== requestId) {
+        return;
+      }
+      if (baselineSnapshot) {
+        const baselineOverview = createBookmarkDataOverviewFromSummary(
+          runtimeSummaryFromSnapshot(baselineSnapshot),
+        );
+        setLeafTabBookmarkDataOverview((current) => current || baselineOverview);
+      }
+      const overview = await overviewPromise;
+      if (leafTabSummaryRefreshRequestRef.current !== requestId) {
+        return;
+      }
+      setLeafTabBookmarkDataOverview((current) => ({
+        local: overview.local || current?.local || null,
+        remote: overview.remote || current?.remote || null,
+      }));
     } finally {
-      setLeafTabSummaryLoading(false);
+      if (leafTabSummaryRefreshRequestRef.current === requestId) {
+        setLeafTabSummaryLoading(false);
+      }
     }
   }, [
     applyWebdavBookmarkSnapshot,
@@ -948,7 +969,6 @@ export function useBookmarkSyncRuntimeController(
     cloudUid,
     leafTabCloudBaselineStorageKey,
     leafTabCloudSyncStatus,
-    leafTabPendingBookmarkConflict,
     leafTabSyncBaselineStorageKey,
     leafTabSyncDeviceId,
     leafTabSyncRootPath,
@@ -1049,6 +1069,7 @@ export function useBookmarkSyncRuntimeController(
           await clearPendingBookmarkConflict();
           setLeafTabPendingBookmarkConflict(null);
         }
+        setLeafTabBookmarkDataOverview(createBookmarkDataOverviewFromSummary(result.snapshotSummary));
         if (isCloud) {
           markCloudSyncSuccess();
         } else {

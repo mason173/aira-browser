@@ -41,17 +41,26 @@ const asyncTest = async (name, fn) => {
 
 try {
   const manifest = JSON.parse(readFileSync(new URL('../public/manifest.final.json', import.meta.url), 'utf8'));
-  const { resolveAiraDesktopSyncStatus } = await vite.ssrLoadModule(
-    '/src/features/sync/bookmarks/desktopSyncEligibility.ts',
-  );
-  const login = await vite.ssrLoadModule('/src/popup/desktopLogin.ts');
-  const { LeafTabSyncEngine } = await vite.ssrLoadModule('/src/sync/leaftab/engine.ts');
-  const { LeafTabSyncMemoryBaselineStore } = await vite.ssrLoadModule('/src/sync/leaftab/baseline.ts');
-  const {
-    probeLeafTabBookmarkSyncChanges,
-    shouldRunLeafTabBookmarkSyncForProbe,
-  } = await vite.ssrLoadModule('/src/sync/leaftab/changeProbe.ts');
-  const source = await vite.ssrLoadModule('/src/sync/leaftab/source.ts');
+  const [
+    { resolveAiraDesktopSyncStatus },
+    { BookmarkSyncModule, createBookmarkSyncSourceIdentity },
+    login,
+    { LeafTabSyncEngine },
+    { LeafTabSyncMemoryBaselineStore },
+    {
+      probeLeafTabBookmarkSyncChanges,
+      shouldRunLeafTabBookmarkSyncForProbe,
+    },
+    source,
+  ] = await Promise.all([
+    vite.ssrLoadModule('/src/features/sync/bookmarks/desktopSyncEligibility.ts'),
+    vite.ssrLoadModule('/src/features/sync/bookmarks/BookmarkSyncModule.ts'),
+    vite.ssrLoadModule('/src/popup/desktopLogin.ts'),
+    vite.ssrLoadModule('/src/sync/leaftab/engine.ts'),
+    vite.ssrLoadModule('/src/sync/leaftab/baseline.ts'),
+    vite.ssrLoadModule('/src/sync/leaftab/changeProbe.ts'),
+    vite.ssrLoadModule('/src/sync/leaftab/source.ts'),
+  ]);
 
   test('release manifest grants all HTTP and HTTPS hosts without optional prompts', () => {
     assert.ok(manifest.host_permissions?.includes('https://*/*'));
@@ -105,6 +114,21 @@ try {
       webdavEnabled: false,
       webdavUrl: '',
     }), true);
+  });
+
+  test('bookmark overview source identity separates WebDAV endpoints without using passwords', () => {
+    const createIdentity = (url, password) => createBookmarkSyncSourceIdentity({
+      source: 'webdav',
+      webdav: {
+        url,
+        username: 'leo',
+        password,
+        rootPath: 'AiraTab',
+        requestPermission: false,
+      },
+    }, 'AiraTab');
+    assert.notEqual(createIdentity('https://dav-a.example', 'secret'), createIdentity('https://dav-b.example', 'secret'));
+    assert.equal(createIdentity('https://dav-a.example', 'first'), createIdentity('https://dav-a.example', 'second'));
   });
 
   test('writing a desktop profile emits a profile-changed event', () => {
@@ -219,6 +243,69 @@ try {
     const analysis = await engine.analyze();
     assert.deepEqual(analysis.localSummary, { bookmarkFolders: 2, bookmarkItems: 3, tombstones: 0 });
     assert.deepEqual(analysis.remoteSummary, { bookmarkFolders: 4, bookmarkItems: 5, tombstones: 0 });
+  });
+
+  await asyncTest('bookmark overview keeps local counts when the remote summary is unavailable', async () => {
+    const timestamp = '2026-01-01T00:00:00.000Z';
+    const localSnapshot = {
+      meta: { version: 2, deviceId: 'fixture', generatedAt: timestamp },
+      bookmarkFolders: {
+        folder: {
+          id: 'folder',
+          type: 'bookmark-folder',
+          parentId: null,
+          title: 'Folder',
+          createdAt: timestamp,
+          updatedAt: timestamp,
+          updatedBy: 'fixture',
+          revision: 1,
+        },
+      },
+      bookmarkItems: {
+        item: {
+          id: 'item',
+          type: 'bookmark-item',
+          parentId: 'folder',
+          title: 'Item',
+          url: 'https://example.com',
+          createdAt: timestamp,
+          updatedAt: timestamp,
+          updatedBy: 'fixture',
+          revision: 1,
+        },
+      },
+      bookmarkOrders: {},
+      tombstones: {},
+    };
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => {
+      throw new Error('simulated remote outage');
+    };
+    try {
+      const module = new BookmarkSyncModule({
+        sourceConfig: {
+          source: 'webdav',
+          webdav: {
+            url: 'https://example.invalid/dav',
+            rootPath: 'AiraTab',
+            requestPermission: false,
+          },
+        },
+        deviceId: 'fixture-device',
+        rootPath: 'AiraTab',
+        baselineStorageKey: 'fixture-overview-baseline',
+        local: {
+          buildSnapshot: async () => localSnapshot,
+          applySnapshot: async () => undefined,
+          createEmptySnapshot: () => localSnapshot,
+        },
+      });
+      const overview = await module.readSummary();
+      assert.deepEqual(overview.local, { bookmarkFolders: 1, bookmarkItems: 1, tombstones: 0 });
+      assert.equal(overview.remote, null);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 
   await asyncTest('remote bookmark deletion is applied to the local tree', async () => {

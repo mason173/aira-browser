@@ -22,6 +22,7 @@ import type {
   LeafTabSyncRemoteStore,
 } from '@/sync/leaftab/remoteStore';
 import type { LeafTabSyncSnapshot } from '@/sync/leaftab/schema';
+import { countLeafTabLiveBookmarkEntities } from '@/sync/leaftab/snapshot';
 import type {
   LeafTabPendingBookmarkConflict,
   LeafTabSyncRemoteKind,
@@ -37,8 +38,8 @@ export type BookmarkSyncConflictChoice = 'computer' | 'current-source';
 export type BookmarkSyncPendingConflict = LeafTabPendingBookmarkConflict;
 
 export type BookmarkSyncDataOverview = {
-  local: LeafTabSyncDataSummary;
-  remote: LeafTabSyncDataSummary;
+  local: LeafTabSyncDataSummary | null;
+  remote: LeafTabSyncDataSummary | null;
 };
 
 const normalizePendingConflict = (value: unknown): BookmarkSyncPendingConflict | null => {
@@ -100,6 +101,22 @@ export type BookmarkSyncSourceConfig =
       webdav: LeafTabSyncWebdavStoreConfig;
     };
 
+export const createBookmarkSyncSourceIdentity = (
+  sourceConfig: BookmarkSyncSourceConfig,
+  rootPath: string,
+): string => {
+  const normalizedRootPath = String(rootPath || '').trim();
+  if (sourceConfig.source === 'aira-cloud') {
+    return `aira-cloud:${String(sourceConfig.uid || '').trim()}:${normalizedRootPath}`;
+  }
+  return [
+    'webdav',
+    String(sourceConfig.webdav.url || '').trim(),
+    String(sourceConfig.webdav.username || '').trim(),
+    String(sourceConfig.webdav.rootPath || normalizedRootPath).trim(),
+  ].join(':');
+};
+
 export interface BookmarkSyncLocalAdapter {
   buildSnapshot: () => Promise<LeafTabSyncSnapshot>;
   applySnapshot: (snapshot: LeafTabSyncSnapshot) => Promise<void>;
@@ -124,6 +141,10 @@ export interface BookmarkSyncRunOptions {
   localSnapshotOverride?: LeafTabSyncSnapshot;
   onProgress?: (progress: LeafTabSyncEngineProgress) => void;
   conflictChoice?: BookmarkSyncConflictChoice;
+}
+
+export interface BookmarkSyncReadSummaryOptions {
+  includeRemote?: boolean;
 }
 
 export class BookmarkSyncModule {
@@ -173,11 +194,17 @@ export class BookmarkSyncModule {
     });
   }
 
-  async readSummary(): Promise<BookmarkSyncDataOverview> {
-    const analysis = await this.createEngine().analyze();
+  async readSummary(options: BookmarkSyncReadSummaryOptions = {}): Promise<BookmarkSyncDataOverview> {
+    const remoteSummaryPromise: Promise<LeafTabSyncDataSummary | null> = options.includeRemote === false
+      ? Promise.resolve(null)
+      : this.readRemoteSummary();
+    const [localResult, remoteResult] = await Promise.allSettled([
+      this.config.local.buildSnapshot().then((snapshot) => countLeafTabLiveBookmarkEntities(snapshot)),
+      remoteSummaryPromise,
+    ]);
     return {
-      local: analysis.localSummary,
-      remote: analysis.remoteSummary,
+      local: localResult.status === 'fulfilled' ? localResult.value : null,
+      remote: remoteResult.status === 'fulfilled' ? remoteResult.value : null,
     };
   }
 
@@ -211,6 +238,26 @@ export class BookmarkSyncModule {
       createEmptySnapshot: local.createEmptySnapshot,
       rootPath: this.config.rootPath,
     });
+  }
+
+  private async readRemoteSummary(): Promise<LeafTabSyncDataSummary> {
+    const remoteStore = this.createRemoteStore();
+    if (remoteStore.readHead) {
+      const remoteHead = await remoteStore.readHead();
+      const headSummary = remoteHead.summary || remoteHead.commit?.summary;
+      if (headSummary) {
+        return {
+          bookmarkFolders: Number(headSummary.bookmarkFolders || 0),
+          bookmarkItems: Number(headSummary.bookmarkItems || 0),
+          tombstones: Number(headSummary.tombstones || 0),
+        };
+      }
+      if (!remoteHead.commitId) {
+        return countLeafTabLiveBookmarkEntities(null);
+      }
+    }
+    const remoteState = await remoteStore.readState();
+    return countLeafTabLiveBookmarkEntities(remoteState.snapshot);
   }
 
   private createRemoteStore(): LeafTabSyncRemoteStore {

@@ -51,7 +51,7 @@ import {
   type AiraDesktopLoginSession,
 } from './desktopLogin';
 
-type PopupView = 'home' | 'webdav' | 'sync-method' | 'login';
+type PopupView = 'home' | 'webdav' | 'sync-method' | 'advanced' | 'login';
 
 type WebdavProviderOption = {
   id: string;
@@ -648,11 +648,13 @@ function BookmarkSyncControls({
   onSelectCloud,
   onOpenWebdav,
   onOpenSyncMethod,
+  onOpenAdvanced,
 }: {
   syncRuntime: PopupSyncRuntime;
   onSelectCloud: () => void;
   onOpenWebdav: () => void;
   onOpenSyncMethod: () => void;
+  onOpenAdvanced: () => void;
 }) {
   const { t } = useTranslation();
   const selectedSource = syncRuntime.state.leafTabSelectedSyncSource;
@@ -726,20 +728,6 @@ function BookmarkSyncControls({
             value={lastSyncLabel || t('popup.dashboard.neverSynced', { defaultValue: '尚未同步' })}
           />
           <InfoRow
-            label={t('popup.dashboard.lastAutoCheck', { defaultValue: '最近自动检查' })}
-            value={syncRuntime.state.leafTabAutoSyncLastProbeLabel || '尚未检查'}
-          />
-          <InfoRow
-            label={t('popup.dashboard.nextAutoCheck', { defaultValue: '下次自动检查' })}
-            value={syncRuntime.state.leafTabAutoSyncNextProbeLabel || '未计划'}
-          />
-          {syncRuntime.state.leafTabAutoSyncError && (
-            <InfoRow
-              label={t('popup.dashboard.autoSyncError', { defaultValue: '自动同步错误' })}
-              value={syncRuntime.state.leafTabAutoSyncError}
-            />
-          )}
-          <InfoRow
             label={t('popup.dashboard.localData', { defaultValue: '本机数据' })}
             value={formatDataSummary(syncRuntime.state.leafTabLocalSummary)}
           />
@@ -772,6 +760,18 @@ function BookmarkSyncControls({
       >
         {t('popup.dashboard.changeSyncMethod', { defaultValue: '更改同步方式' })}
       </Button>
+
+      <div className="space-y-2">
+        <SectionLabel>{t('popup.dashboard.syncToolsTitle', { defaultValue: '同步工具' })}</SectionLabel>
+        <MenuItem
+          icon={<RiSlidersFill className="size-4" />}
+          title={t('popup.dashboard.advancedOptions', { defaultValue: '高级同步选项' })}
+          description={t('popup.advanced.autoSyncDiagnosticsDesc', {
+            defaultValue: '查看自动检查计划与最近错误',
+          })}
+          onClick={onOpenAdvanced}
+        />
+      </div>
     </div>
   );
 }
@@ -783,6 +783,7 @@ function ConfiguredHome({
   onSelectCloud,
   onOpenWebdav,
   onOpenSyncMethod,
+  onOpenAdvanced,
 }: {
   profile: ConfiguredHomeState;
   syncRuntime: PopupSyncRuntime;
@@ -790,6 +791,7 @@ function ConfiguredHome({
   onSelectCloud: () => void;
   onOpenWebdav: () => void;
   onOpenSyncMethod: () => void;
+  onOpenAdvanced: () => void;
 }) {
   const { t } = useTranslation();
   return (
@@ -801,6 +803,7 @@ function ConfiguredHome({
           onSelectCloud={onSelectCloud}
           onOpenWebdav={onOpenWebdav}
           onOpenSyncMethod={onOpenSyncMethod}
+          onOpenAdvanced={onOpenAdvanced}
         />
 
         <div className="space-y-2">
@@ -883,12 +886,14 @@ function LoggedOutHome({
   onSelectCloud,
   onOpenWebdav,
   onOpenSyncMethod,
+  onOpenAdvanced,
 }: {
   syncRuntime: PopupSyncRuntime;
   onOpenLogin: () => void;
   onSelectCloud: () => void;
   onOpenWebdav: () => void;
   onOpenSyncMethod: () => void;
+  onOpenAdvanced: () => void;
 }) {
   const { t } = useTranslation();
 
@@ -916,6 +921,7 @@ function LoggedOutHome({
           onSelectCloud={onSelectCloud}
           onOpenWebdav={onOpenWebdav}
           onOpenSyncMethod={onOpenSyncMethod}
+          onOpenAdvanced={onOpenAdvanced}
         />
       </div>
     </section>
@@ -929,6 +935,7 @@ function PopupHome({
   onSelectCloud,
   onOpenWebdav,
   onOpenSyncMethod,
+  onOpenAdvanced,
   localVersion,
 }: {
   syncRuntime: PopupSyncRuntime;
@@ -937,6 +944,7 @@ function PopupHome({
   onSelectCloud: () => void;
   onOpenWebdav: () => void;
   onOpenSyncMethod: () => void;
+  onOpenAdvanced: () => void;
   localVersion: number;
 }) {
   const { t } = useTranslation();
@@ -951,6 +959,7 @@ function PopupHome({
         onSelectCloud={onSelectCloud}
         onOpenWebdav={onOpenWebdav}
         onOpenSyncMethod={onOpenSyncMethod}
+        onOpenAdvanced={onOpenAdvanced}
       />
     );
   }
@@ -962,7 +971,45 @@ function PopupHome({
       onSelectCloud={onSelectCloud}
       onOpenWebdav={onOpenWebdav}
       onOpenSyncMethod={onOpenSyncMethod}
+      onOpenAdvanced={onOpenAdvanced}
     />
+  );
+}
+
+function AdvancedSettingsPage({
+  syncRuntime,
+  onBack,
+}: {
+  syncRuntime: PopupSyncRuntime;
+  onBack: () => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <section className="min-h-[360px] bg-background">
+      <PopupHeader
+        title={t('popup.dashboard.advancedOptions', { defaultValue: '高级同步选项' })}
+        onBack={onBack}
+      />
+      <div className="space-y-2 px-3 py-3">
+        <SectionLabel>
+          {t('popup.advanced.autoSyncDiagnostics', { defaultValue: '自动同步诊断' })}
+        </SectionLabel>
+        <div className="overflow-hidden rounded-[8px] border border-border bg-card">
+          <InfoRow
+            label={t('popup.dashboard.lastAutoCheck', { defaultValue: '最近自动检查' })}
+            value={syncRuntime.state.leafTabAutoSyncLastProbeLabel || '尚未检查'}
+          />
+          <InfoRow
+            label={t('popup.dashboard.nextAutoCheck', { defaultValue: '下次自动检查' })}
+            value={syncRuntime.state.leafTabAutoSyncNextProbeLabel || '未计划'}
+          />
+          <InfoRow
+            label={t('popup.dashboard.autoSyncError', { defaultValue: '自动同步错误' })}
+            value={syncRuntime.state.leafTabAutoSyncError || '无'}
+          />
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -1474,6 +1521,7 @@ export function PopupApp() {
           onSelectCloud={selectCloudOrLogin}
           onOpenWebdav={() => setView('webdav')}
           onOpenSyncMethod={() => setView('sync-method')}
+          onOpenAdvanced={() => setView('advanced')}
         />
       )}
       {view === 'webdav' && (
@@ -1498,6 +1546,12 @@ export function PopupApp() {
           }}
           onOpenWebdav={() => setView('webdav')}
           onSelected={() => setView('home')}
+        />
+      )}
+      {view === 'advanced' && (
+        <AdvancedSettingsPage
+          syncRuntime={syncRuntime}
+          onBack={() => setView('home')}
         />
       )}
       {view === 'login' && (
