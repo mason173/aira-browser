@@ -152,9 +152,14 @@ type BackgroundSyncTrigger = {
   hasRemoteChanges?: boolean;
 };
 
-type PhonePagePushTaskPayload = {
-  taskId?: unknown;
+type PhonePagePushUrlPayload = {
   url?: unknown;
+  originalUrl?: unknown;
+  desktopUrl?: unknown;
+};
+
+type PhonePagePushTaskPayload = PhonePagePushUrlPayload & {
+  taskId?: unknown;
   title?: unknown;
 };
 
@@ -230,13 +235,22 @@ function normalizePhonePagePushMessage(message: unknown): PhonePagePushMessage |
   if (!message || typeof message !== 'object') return null;
   const candidate = message as Partial<PhonePagePushMessage>;
   if (candidate.type !== PHONE_PAGE_PUSH_MESSAGE_TYPE) return null;
-  const payload = (candidate.payload || {}) as { url?: unknown; title?: unknown };
-  const url = normalizePhonePagePushUrl(payload.url);
+  const payload = (candidate.payload || {}) as {
+    url?: unknown;
+    originalUrl?: unknown;
+    desktopUrl?: unknown;
+    title?: unknown;
+  };
+  const originalUrl = normalizePhonePagePushUrl(payload.originalUrl) || normalizePhonePagePushUrl(payload.url);
+  const desktopUrl = normalizePhonePagePushUrl(payload.desktopUrl);
+  const url = desktopUrl || normalizePhonePagePushUrl(payload.url) || originalUrl;
   if (!url) return null;
   return {
     type: PHONE_PAGE_PUSH_MESSAGE_TYPE,
     payload: {
       url,
+      originalUrl: originalUrl || undefined,
+      desktopUrl: desktopUrl || undefined,
       title: typeof payload.title === 'string' ? payload.title.trim() : '',
     },
   };
@@ -258,6 +272,16 @@ function normalizePhonePagePushUrl(value: unknown): string {
 
 function normalizePhonePagePushTitle(value: unknown): string {
   return typeof value === 'string' ? value.trim().slice(0, 240) : '';
+}
+
+function resolvePhonePagePushOpenUrl(payload: PhonePagePushUrlPayload | null | undefined): string {
+  return normalizePhonePagePushUrl(payload?.desktopUrl)
+    || normalizePhonePagePushUrl(payload?.url)
+    || normalizePhonePagePushUrl(payload?.originalUrl);
+}
+
+function resolvePhonePagePushOriginalUrl(payload: PhonePagePushUrlPayload | null | undefined): string {
+  return normalizePhonePagePushUrl(payload?.originalUrl) || normalizePhonePagePushUrl(payload?.url);
 }
 
 function normalizePhonePagePushDelayMs(value: unknown, fallbackMs: number): number {
@@ -284,6 +308,21 @@ async function openPhonePagePushTab(url: string, title: string): Promise<boolean
     console.error('[Aira][PhonePush] open tab failed', title || url, error);
     return false;
   }
+}
+
+async function openPhonePagePushPayload(payload: PhonePagePushUrlPayload, title: string): Promise<boolean> {
+  const preferredUrl = resolvePhonePagePushOpenUrl(payload);
+  if (!preferredUrl) {
+    return false;
+  }
+  if (await openPhonePagePushTab(preferredUrl, title)) {
+    return true;
+  }
+  const originalUrl = resolvePhonePagePushOriginalUrl(payload);
+  if (!originalUrl || originalUrl === preferredUrl) {
+    return false;
+  }
+  return openPhonePagePushTab(originalUrl, title);
 }
 
 async function postPhonePagePushJson<T>(path: string, body: unknown): Promise<T> {
@@ -440,14 +479,14 @@ async function pollPhonePagePushOnce(options: { waitMs?: number } = {}): Promise
       const task = response.task || null;
       const taskId = typeof task?.taskId === 'string' ? task.taskId.trim() : '';
       const leaseToken = typeof response.leaseToken === 'string' ? response.leaseToken.trim() : '';
-      const url = normalizePhonePagePushUrl(task?.url);
+      const url = resolvePhonePagePushOpenUrl(task);
       const title = normalizePhonePagePushTitle(task?.title) || PHONE_PAGE_PUSH_FALLBACK_TITLE;
       if (!taskId || !leaseToken || !url) {
         return false;
       }
 
       nextDelayMs = 0;
-      const opened = await openPhonePagePushTab(url, title);
+      const opened = await openPhonePagePushPayload(task || {}, title);
       await ackPhonePagePushTask({
         desktopPushToken: profile.desktopPushToken,
         taskId,
@@ -1424,7 +1463,7 @@ function bindPhonePagePushMessageListener(): void {
         return;
       }
 
-      const opened = await openPhonePagePushTab(payload.url, payload.title || PHONE_PAGE_PUSH_FALLBACK_TITLE);
+      const opened = await openPhonePagePushPayload(payload, payload.title || PHONE_PAGE_PUSH_FALLBACK_TITLE);
       sendResponse({
         success: opened,
         error: opened ? undefined : 'Unable to open pushed page',
