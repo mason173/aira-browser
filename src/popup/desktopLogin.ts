@@ -3,6 +3,7 @@ import { readExtensionStorageRecord, removeExtensionStorageKeys, writeExtensionS
 const AIRA_API_BASE_URL = 'https://api.aira.cool';
 const AIRA_DESKTOP_LOGIN_PROFILE_KEY = 'aira_desktop_login_profile_v1';
 const AIRA_DESKTOP_MEMBERSHIP_REFRESH_MIN_INTERVAL_MS = 5 * 60 * 1000;
+export const AIRA_DESKTOP_LOGIN_PROFILE_CHANGED_EVENT = 'aira-desktop-login-profile-changed';
 
 export type AiraDesktopLoginProfile = {
   uid: string;
@@ -148,6 +149,7 @@ export function writeAiraDesktopLoginProfile(profile: AiraDesktopLoginProfile): 
   } catch {
     // Extension service workers do not expose localStorage.
   }
+  emitDesktopLoginProfileChanged();
   void writeExtensionStorageRecord({
     [AIRA_DESKTOP_LOGIN_PROFILE_KEY]: JSON.stringify(profile),
   });
@@ -161,7 +163,14 @@ export function clearAiraDesktopLoginProfile(): void {
   } catch {
     // Extension service workers do not expose localStorage.
   }
+  emitDesktopLoginProfileChanged();
   void removeExtensionStorageKeys([AIRA_DESKTOP_LOGIN_PROFILE_KEY]);
+}
+
+function emitDesktopLoginProfileChanged(): void {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event(AIRA_DESKTOP_LOGIN_PROFILE_CHANGED_EVENT));
+  }
 }
 
 export async function readAiraDesktopLoginProfileFromExtensionStorage(): Promise<AiraDesktopLoginProfile | null> {

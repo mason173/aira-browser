@@ -660,8 +660,10 @@ function BookmarkSyncControls({
   const sourceLabel = selectedSource === 'aira-cloud' ? 'Aira 云同步' : 'WebDAV';
   const statusLabel = selectedSource === 'aira-cloud' && !syncRuntime.state.leafTabCloudLoggedIn
     ? t('popup.dashboard.loginRequired', { defaultValue: '需要重新登录 Aira' })
-    : selectedSource === 'aira-cloud' && !syncRuntime.state.leafTabCloudSyncEnabled
+    : selectedSource === 'aira-cloud' && syncRuntime.state.leafTabCloudSyncStatus === 'pro-required'
       ? t('popup.dashboard.proRequired', { defaultValue: '需要有效的 Aira Pro' })
+      : selectedSource === 'aira-cloud' && syncRuntime.state.leafTabCloudSyncStatus === 'disabled'
+        ? t('popup.dashboard.disabledStatus', { defaultValue: '同步未启用' })
       : selectedSource === 'webdav' && !syncRuntime.state.leafTabWebdavConfigured
         ? t('popup.dashboard.webdavConfigRequired', { defaultValue: '需要配置 WebDAV' })
         : syncRuntime.state.topNavSyncStatus === 'conflict'

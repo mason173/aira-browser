@@ -58,11 +58,13 @@ import {
   WEBDAV_STORAGE_KEYS,
 } from '@/utils/webdavConfig';
 import {
+  AIRA_DESKTOP_LOGIN_PROFILE_CHANGED_EVENT,
   isAiraDesktopProfilePro,
   readAiraDesktopLoginProfile,
   refreshAiraDesktopMembershipProfile,
   syncAiraDesktopLoginProfileToExtensionStorage,
 } from '@/popup/desktopLogin';
+import { resolveAiraDesktopSyncStatus } from './desktopSyncEligibility';
 
 const LEAFTAB_SYNC_DEFAULT_ROOT_PATH = WEBDAV_BOOKMARK_SYNC_ROOT_SUFFIX;
 
@@ -399,13 +401,6 @@ export function useBookmarkSyncRuntimeController(
   }, [localVersion]);
   const cloudUid = desktopLoginProfile?.uid || '';
   const cloudDesktopPushToken = desktopLoginProfile?.desktopPushToken || '';
-  const isCloudSyncEntitled = useMemo(() => {
-    if ((desktopLoginProfile?.membershipPlan || '').trim().toLowerCase() !== 'pro') {
-      return false;
-    }
-    const expiresAt = Number(desktopLoginProfile?.membershipExpiresAt || 0);
-    return expiresAt === 0 || expiresAt > Date.now();
-  }, [desktopLoginProfile]);
   const cloudSyncEnabled = useMemo(() => {
     void localVersion;
     return (localStorage.getItem(AIRA_CLOUD_SYNC_ENABLED_KEY) ?? 'false') === 'true';
@@ -814,10 +809,12 @@ export function useBookmarkSyncRuntimeController(
     };
     window.addEventListener('webdav-config-changed', refreshLocalState);
     window.addEventListener('webdav-sync-status-changed', refreshLocalState);
+    window.addEventListener(AIRA_DESKTOP_LOGIN_PROFILE_CHANGED_EVENT, refreshLocalState);
     chrome.storage?.onChanged?.addListener?.(handleExtensionStorageChanged);
     return () => {
       window.removeEventListener('webdav-config-changed', refreshLocalState);
       window.removeEventListener('webdav-sync-status-changed', refreshLocalState);
+      window.removeEventListener(AIRA_DESKTOP_LOGIN_PROFILE_CHANGED_EVENT, refreshLocalState);
       chrome.storage?.onChanged?.removeListener?.(handleExtensionStorageChanged);
     };
   }, [leafTabSyncDeviceId]);
@@ -1057,6 +1054,7 @@ export function useBookmarkSyncRuntimeController(
   ]);
 
   const leafTabWebdavConfigured = hasWebdavUrlConfiguredFromStorage();
+  const leafTabCloudSyncStatus = resolveAiraDesktopSyncStatus(desktopLoginProfile, cloudSyncEnabled);
 
   const leafTabWebdavProfileLabel = useMemo(() => {
     const config = readWebdavConfigFromStorage({ allowDisabled: true });
@@ -1081,8 +1079,9 @@ export function useBookmarkSyncRuntimeController(
     leafTabWebdavConfigured,
     leafTabWebdavProfileLabel,
     leafTabWebdavLastSyncLabel: formatLiteSyncTimestamp(localStorage.getItem('webdav_last_sync_at')),
-    leafTabCloudLoggedIn: Boolean(cloudUid),
-    leafTabCloudSyncEnabled: cloudSyncEnabled && isCloudSyncEntitled,
+    leafTabCloudLoggedIn: leafTabCloudSyncStatus !== 'login-required',
+    leafTabCloudSyncEnabled: cloudSyncEnabled,
+    leafTabCloudSyncStatus,
     leafTabCloudLastSyncLabel: formatLiteSyncTimestamp(localStorage.getItem(AIRA_CLOUD_LAST_SYNC_AT_KEY)),
     leafTabSelectedSyncSource: selectedSyncSource,
   }), [
@@ -1094,7 +1093,7 @@ export function useBookmarkSyncRuntimeController(
     leafTabWebdavConfigured,
     leafTabWebdavProfileLabel,
     cloudSyncEnabled,
-    isCloudSyncEntitled,
+    leafTabCloudSyncStatus,
     cloudUid,
     selectedSyncSource,
     webdavConfig,

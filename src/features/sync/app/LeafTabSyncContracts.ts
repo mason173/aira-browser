@@ -6,6 +6,7 @@ import type {
   LeafTabPendingBookmarkConflict,
   LeafTabSyncRemoteKind,
 } from '@/sync/leaftab/source';
+import type { AiraDesktopSyncStatus } from '@/features/sync/bookmarks/desktopSyncEligibility';
 
 export type {
   LeafTabPendingBookmarkConflict,
@@ -35,6 +36,7 @@ export type LeafTabSyncState = {
   leafTabWebdavLastSyncLabel: string;
   leafTabCloudLoggedIn: boolean;
   leafTabCloudSyncEnabled: boolean;
+  leafTabCloudSyncStatus: AiraDesktopSyncStatus;
   leafTabCloudLastSyncLabel: string;
   leafTabSelectedSyncSource: LeafTabSyncRemoteKind | null;
 };
