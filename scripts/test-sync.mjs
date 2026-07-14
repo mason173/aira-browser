@@ -45,6 +45,7 @@ try {
     { resolveAiraDesktopSyncStatus },
     { BookmarkSyncModule, createBookmarkSyncSourceIdentity },
     login,
+    pagePushPreferences,
     { LeafTabSyncEngine },
     { LeafTabSyncMemoryBaselineStore },
     {
@@ -56,6 +57,7 @@ try {
     vite.ssrLoadModule('/src/features/sync/bookmarks/desktopSyncEligibility.ts'),
     vite.ssrLoadModule('/src/features/sync/bookmarks/BookmarkSyncModule.ts'),
     vite.ssrLoadModule('/src/popup/desktopLogin.ts'),
+    vite.ssrLoadModule('/src/features/phone-page-push/pagePushPreferences.ts'),
     vite.ssrLoadModule('/src/sync/leaftab/engine.ts'),
     vite.ssrLoadModule('/src/sync/leaftab/baseline.ts'),
     vite.ssrLoadModule('/src/sync/leaftab/changeProbe.ts'),
@@ -114,6 +116,20 @@ try {
       webdavEnabled: false,
       webdavUrl: '',
     }), true);
+  });
+
+  test('phone page push defaults to enabled and honors explicit choices', () => {
+    const phonePagePushEnabledKey = pagePushPreferences.PHONE_PAGE_PUSH_ENABLED_KEY;
+    storage.delete(phonePagePushEnabledKey);
+    assert.equal(pagePushPreferences.readPhonePagePushEnabledFromLocalStorage(), true);
+    try {
+      storage.set(phonePagePushEnabledKey, 'true');
+      assert.equal(pagePushPreferences.readPhonePagePushEnabledFromLocalStorage(), true);
+      storage.set(phonePagePushEnabledKey, 'false');
+      assert.equal(pagePushPreferences.readPhonePagePushEnabledFromLocalStorage(), false);
+    } finally {
+      storage.delete(phonePagePushEnabledKey);
+    }
   });
 
   test('bookmark overview source identity separates WebDAV endpoints without using passwords', () => {

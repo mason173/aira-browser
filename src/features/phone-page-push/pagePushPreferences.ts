@@ -1,6 +1,6 @@
 import { readExtensionStorageRecord, removeExtensionStorageKeys, writeExtensionStorageRecord } from '@/platform/extensionStorage';
 
-const PHONE_PAGE_PUSH_ENABLED_KEY = 'aira_phone_page_push_enabled_v1';
+export const PHONE_PAGE_PUSH_ENABLED_KEY = 'aira_phone_page_push_enabled_v1';
 
 export const readPhonePagePushEnabledFromLocalStorage = (): boolean => {
   try {
@@ -46,4 +46,3 @@ export const syncPhonePagePushEnabledToExtensionStorage = async (): Promise<void
   }
   await removeExtensionStorageKeys([PHONE_PAGE_PUSH_ENABLED_KEY]);
 };
-
