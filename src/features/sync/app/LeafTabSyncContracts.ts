@@ -43,6 +43,9 @@ export type LeafTabSyncState = {
   leafTabCloudSyncStatus: AiraDesktopSyncStatus;
   leafTabCloudLastSyncLabel: string;
   leafTabSelectedSyncSource: LeafTabSyncRemoteKind | null;
+  leafTabAutoSyncLastProbeLabel: string;
+  leafTabAutoSyncNextProbeLabel: string;
+  leafTabAutoSyncError: string;
 };
 
 export type LeafTabSyncActions = {

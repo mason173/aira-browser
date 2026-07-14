@@ -13,6 +13,7 @@ import {
   AIRA_CLOUD_LAST_ERROR_MESSAGE_KEY,
   AIRA_CLOUD_LAST_SYNC_AT_KEY,
   AIRA_CLOUD_SYNC_ENABLED_KEY,
+  LEAFTAB_BACKGROUND_STORAGE_KEYS,
   LEAFTAB_PENDING_BOOKMARK_CONFLICT_KEY,
   LEAFTAB_SELECTED_SYNC_SOURCE_KEY,
   LEAFTAB_SYNC_DEVICE_ID_KEY,
@@ -205,6 +206,9 @@ const SHARED_EXTENSION_STORAGE_KEYS: string[] = [
   'webdav_last_sync_at',
   'webdav_last_error_at',
   'webdav_last_error_message',
+  LEAFTAB_BACKGROUND_STORAGE_KEYS.lastRemoteProbeAt,
+  LEAFTAB_BACKGROUND_STORAGE_KEYS.nextRemoteProbeAt,
+  LEAFTAB_BACKGROUND_STORAGE_KEYS.autoSyncLastError,
   WEBDAV_STORAGE_KEYS.profileName,
   WEBDAV_STORAGE_KEYS.url,
   WEBDAV_STORAGE_KEYS.username,
@@ -1178,6 +1182,13 @@ export function useBookmarkSyncRuntimeController(
     leafTabCloudSyncStatus,
     leafTabCloudLastSyncLabel: formatLiteSyncTimestamp(localStorage.getItem(AIRA_CLOUD_LAST_SYNC_AT_KEY)),
     leafTabSelectedSyncSource: selectedSyncSource,
+    leafTabAutoSyncLastProbeLabel: formatLiteSyncTimestamp(
+      localStorage.getItem(LEAFTAB_BACKGROUND_STORAGE_KEYS.lastRemoteProbeAt),
+    ),
+    leafTabAutoSyncNextProbeLabel: formatLiteSyncTimestamp(
+      localStorage.getItem(LEAFTAB_BACKGROUND_STORAGE_KEYS.nextRemoteProbeAt),
+    ),
+    leafTabAutoSyncError: localStorage.getItem(LEAFTAB_BACKGROUND_STORAGE_KEYS.autoSyncLastError) || '',
   }), [
     leafTabSyncLastResult,
     leafTabBookmarkDataOverview,

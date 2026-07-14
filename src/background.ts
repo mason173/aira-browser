@@ -135,7 +135,6 @@ type BackgroundSyncConfig = {
   deviceId: string;
   cloudUid: string;
   cloudDesktopPushToken: string;
-  cloudEntitled: boolean;
   selectedSource: LeafTabSyncRemoteKind | null;
   hasPendingConflict: boolean;
   webdavConfig: (Awaited<ReturnType<typeof readWebdavConfigFromExtensionStorage>> & {
@@ -515,7 +514,6 @@ async function readBackgroundSyncConfig(): Promise<BackgroundSyncConfig> {
   const rootPath = LEAFTAB_SYNC_DEFAULT_ROOT_PATH;
   const cloudUid = loginProfile?.uid?.trim() || '';
   const cloudDesktopPushToken = loginProfile?.desktopPushToken?.trim() || '';
-  const cloudEntitled = isAiraDesktopProfilePro(loginProfile);
   const selectedSourceResolution = resolveLeafTabSelectedSyncSource({
     selectedSource: sharedRecord[LEAFTAB_SELECTED_SYNC_SOURCE_KEY],
     airaCloudEnabled: sharedRecord[AIRA_CLOUD_SYNC_ENABLED_KEY],
@@ -533,7 +531,6 @@ async function readBackgroundSyncConfig(): Promise<BackgroundSyncConfig> {
     deviceId,
     cloudUid,
     cloudDesktopPushToken,
-    cloudEntitled,
     selectedSource,
     hasPendingConflict,
     webdavConfig: webdavConfig?.url
@@ -557,7 +554,6 @@ function canRunBackgroundAutoSync(config: BackgroundSyncConfig): boolean {
     selectedSource: config.selectedSource,
     cloudUid: config.cloudUid,
     cloudDesktopPushToken: config.cloudDesktopPushToken,
-    cloudEntitled: config.cloudEntitled,
     webdavUrl: config.webdavConfig?.url || '',
   });
 }
@@ -798,6 +794,7 @@ async function skipBackgroundSyncAsUnchanged(
   await removeExtensionStorageKeys([
     LEAFTAB_BACKGROUND_STORAGE_KEYS.pendingLocalChangedAt,
     LEAFTAB_BACKGROUND_STORAGE_KEYS.autoSyncRetryProvider,
+    LEAFTAB_BACKGROUND_STORAGE_KEYS.autoSyncLastError,
     WEBDAV_STORAGE_KEYS.nextSyncAt,
   ]);
 }
@@ -1087,7 +1084,18 @@ async function handleRemoteProbeAlarm(): Promise<void> {
     await updateBackgroundDebugState({
       lastRemoteProbeAt: getNowIso(),
     });
-    const probe = await probeSyncPreflightForKind(config, remoteKind).catch(() => null);
+    let probe: LeafTabBookmarkSyncChangeProbeResult | null = null;
+    try {
+      probe = await probeSyncPreflightForKind(config, remoteKind);
+    } catch (error) {
+      await markSyncError(remoteKind, error);
+      await updateBackgroundDebugState({
+        lastResult: 'error',
+        lastReason: `${remoteKind}:remote-probe`,
+        lastError: String((error as Error)?.message || error || 'unknown'),
+      });
+      return;
+    }
     if (probe) {
       await updateBackgroundDebugState({
         cloudBaselineCommitId: remoteKind === 'aira-cloud' ? (probe.baselineCommitId || '') : undefined,
@@ -1096,6 +1104,10 @@ async function handleRemoteProbeAlarm(): Promise<void> {
         webdavRemoteCommitId: remoteKind === 'webdav' ? (probe.remoteCommitId || '') : undefined,
         lastTriggerProvider: probe.provider,
       });
+    }
+    if (probe?.status === 'unknown') {
+      await markSyncError(remoteKind, new Error(probe.summary || '自动同步检查失败。'));
+      return;
     }
     if (probe?.hasRemoteChanges) {
       await runBackgroundAutoSync({ provider: remoteKind, hasRemoteChanges: true });

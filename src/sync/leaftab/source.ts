@@ -31,15 +31,14 @@ export const canRunLeafTabSelectedAutoSync = (values: {
   selectedSource: unknown;
   cloudUid: unknown;
   cloudDesktopPushToken: unknown;
-  cloudEntitled: unknown;
+  cloudEntitled?: unknown;
   webdavUrl: unknown;
   airaCloudEnabled?: unknown;
   webdavEnabled?: unknown;
 }): boolean => {
   const selectedSource = parseLeafTabSyncRemoteKind(values.selectedSource);
   if (selectedSource === 'aira-cloud') {
-    return values.cloudEntitled === true
-      && String(values.cloudUid || '').trim().length > 0
+    return String(values.cloudUid || '').trim().length > 0
       && String(values.cloudDesktopPushToken || '').trim().length > 0;
   }
   if (selectedSource === 'webdav') {

@@ -84,12 +84,12 @@ try {
     }, true), 'pro-required');
   });
 
-  test('selected Aira cloud source can auto-sync when the legacy enabled flag is false', () => {
+  test('selected Aira cloud source schedules auto-sync even with stale cached entitlement', () => {
     assert.equal(source.canRunLeafTabSelectedAutoSync({
       selectedSource: 'aira-cloud',
       cloudUid: '1956796357180173504',
       cloudDesktopPushToken: 'desktop-token',
-      cloudEntitled: true,
+      cloudEntitled: false,
       airaCloudEnabled: false,
       webdavEnabled: false,
       webdavUrl: '',

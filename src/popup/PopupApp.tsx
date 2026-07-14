@@ -726,6 +726,20 @@ function BookmarkSyncControls({
             value={lastSyncLabel || t('popup.dashboard.neverSynced', { defaultValue: '尚未同步' })}
           />
           <InfoRow
+            label={t('popup.dashboard.lastAutoCheck', { defaultValue: '最近自动检查' })}
+            value={syncRuntime.state.leafTabAutoSyncLastProbeLabel || '尚未检查'}
+          />
+          <InfoRow
+            label={t('popup.dashboard.nextAutoCheck', { defaultValue: '下次自动检查' })}
+            value={syncRuntime.state.leafTabAutoSyncNextProbeLabel || '未计划'}
+          />
+          {syncRuntime.state.leafTabAutoSyncError && (
+            <InfoRow
+              label={t('popup.dashboard.autoSyncError', { defaultValue: '自动同步错误' })}
+              value={syncRuntime.state.leafTabAutoSyncError}
+            />
+          )}
+          <InfoRow
             label={t('popup.dashboard.localData', { defaultValue: '本机数据' })}
             value={formatDataSummary(syncRuntime.state.leafTabLocalSummary)}
           />
