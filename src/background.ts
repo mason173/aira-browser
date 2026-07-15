@@ -726,6 +726,7 @@ async function createBookmarkSyncModuleForBackground(
             rootPath,
             requestPermission: false,
             requestTimeoutMs: options?.webdavRequestTimeoutMs,
+            requireAppPrimaryTopology: false,
           },
         },
     deviceId: config.deviceId,

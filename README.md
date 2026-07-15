@@ -30,7 +30,7 @@ The production extension output is written to `build/`. Load that folder from Ch
 - WebDAV is available without an Aira Account Session. WebDAV credentials stay in extension storage.
 - Selecting a source enables automatic bookmark sync. There is no separate automatic-sync switch or custom interval.
 - First sync and ordinary differences merge automatically. Only a real two-sided conflict asks whether the computer or the current sync source wins.
-- The extension follows the Primary source initialized by the Aira app. It does not create or switch the shared topology and does not maintain an extension-side backup source.
+- Aira Cloud follows the Primary source initialized by the Aira app. User-configured WebDAV is standalone and may initialize its own bookmark-sync location.
 - Phone Page Push remains independent from bookmark sync. It uses the Desktop Device Session for silent background polling, per-device delivery, open-tab handling, and acknowledgement.
 - Do not commit private keys, account credentials, WebDAV passwords, generated builds, release zips, or local test data.
 

@@ -312,6 +312,7 @@ type RunWebdavBookmarkSyncOnceParams = {
     rootPath: string;
     requestPermission: boolean;
   };
+  accountUid: string;
   deviceId: string;
   baselineStorageKey: string;
   buildLocalSnapshot: () => Promise<LeafTabSyncSnapshot>;
@@ -338,6 +339,7 @@ type LeafTabRuntimeSyncOptions = LeafTabSyncActionOptions & {
 
 type CreateBookmarkSyncModuleParams = {
   sourceConfig: BookmarkSyncSourceConfig;
+  selectionAccountUid?: string;
   rootPath: string;
   deviceId: string;
   baselineStorageKey: string;
@@ -347,6 +349,7 @@ type CreateBookmarkSyncModuleParams = {
 
 const createBookmarkSyncModule = ({
   sourceConfig,
+  selectionAccountUid,
   rootPath,
   deviceId,
   baselineStorageKey,
@@ -367,7 +370,7 @@ const createBookmarkSyncModule = ({
     },
     persistSelectedSource: (source) => persistSelectedSyncSource(
       source,
-      sourceConfig.source === 'aira-cloud' ? sourceConfig.uid : '',
+      selectionAccountUid || (sourceConfig.source === 'aira-cloud' ? sourceConfig.uid : ''),
     ),
   });
 
@@ -402,8 +405,10 @@ const runWebdavBookmarkSyncOnce = async (params: RunWebdavBookmarkSyncOnceParams
         rootPath: params.webdavConfig.rootPath,
         requestPermission: params.webdavConfig.requestPermission,
         requestTimeoutMs: params.options?.webdavRequestTimeoutMs,
+        requireAppPrimaryTopology: false,
       },
     },
+    selectionAccountUid: params.accountUid,
     rootPath: params.webdavConfig.rootPath,
   });
 };
@@ -416,6 +421,7 @@ const runAiraCloudBookmarkSyncOnce = async (params: RunAiraCloudBookmarkSyncOnce
       uid: params.uid,
       deviceCredential: params.deviceCredential,
     },
+    selectionAccountUid: params.uid,
   });
 };
 
@@ -576,6 +582,7 @@ export function useBookmarkSyncRuntimeController(
     try {
       const result = await runWebdavBookmarkSyncOnce({
         webdavConfig,
+        accountUid: cloudUid,
         deviceId: leafTabSyncDeviceId,
         baselineStorageKey: leafTabSyncBaselineStorageKey,
         buildLocalSnapshot: () => options?.localSnapshotOverride
@@ -598,6 +605,7 @@ export function useBookmarkSyncRuntimeController(
   }, [
     applyWebdavBookmarkSnapshot,
     buildBookmarkSnapshotForBaseline,
+    cloudUid,
     leafTabSyncBaselineStorageKey,
     leafTabSyncDeviceId,
     markSyncConflict,
@@ -882,6 +890,7 @@ export function useBookmarkSyncRuntimeController(
             password: webdavConfig?.password,
             rootPath: webdavConfig?.rootPath || leafTabSyncRootPath,
             requestPermission: false,
+            requireAppPrimaryTopology: false,
             },
           },
       rootPath: remoteKind === 'webdav'
@@ -935,6 +944,7 @@ export function useBookmarkSyncRuntimeController(
             password: webdavConfig?.password,
             rootPath: leafTabSyncRootPath,
             requestPermission: false,
+            requireAppPrimaryTopology: false,
           },
         };
     const summarySourceIdentity = createBookmarkSyncSourceIdentity(sourceConfig, leafTabSyncRootPath);
