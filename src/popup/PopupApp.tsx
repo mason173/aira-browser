@@ -215,6 +215,7 @@ function SyncProgressDialog({ syncRuntime }: { syncRuntime: PopupSyncRuntime }) 
   const conflictRemoteLabel = conflictRemoteKind === 'aira-cloud'
     ? t('popup.progress.cloudRemote', { defaultValue: 'Aira 云端' })
     : t('popup.progress.webdavRemote', { defaultValue: 'WebDAV' });
+  const displayProgress = Math.max(0, Math.min(100, Math.round(progress.progress)));
   const resolveConflict = (choice: 'computer' | 'current-source') => {
     void syncRuntime.actions.handleResolveBookmarkConflict(choice);
   };
@@ -263,6 +264,19 @@ function SyncProgressDialog({ syncRuntime }: { syncRuntime: PopupSyncRuntime }) 
             )}
             <p className="text-sm font-medium leading-6 text-foreground">{progress.detail}</p>
           </div>
+          {progress.inProgress ? (
+            <div className="space-y-1.5">
+              <div className="h-2 overflow-hidden rounded-full bg-secondary">
+                <div
+                  className="h-full rounded-full bg-primary transition-[width] duration-200"
+                  style={{ width: `${displayProgress}%` }}
+                />
+              </div>
+              <div className="text-center text-xs text-muted-foreground">
+                {displayProgress}%
+              </div>
+            </div>
+          ) : null}
           {isConflict ? (
             <div className="grid gap-2">
               <p className="text-xs leading-5 text-muted-foreground">

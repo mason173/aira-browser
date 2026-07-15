@@ -333,6 +333,7 @@ type RunAiraCloudBookmarkSyncOnceParams = {
 type LeafTabRuntimeSyncOptions = LeafTabSyncActionOptions & {
   selectSourceAfterSuccess?: boolean;
   conflictChoice?: BookmarkSyncConflictChoice;
+  progressAlreadyOpen?: boolean;
 };
 
 type CreateBookmarkSyncModuleParams = {
@@ -1091,7 +1092,7 @@ export function useBookmarkSyncRuntimeController(
         }
       },
     };
-    if (shouldRunFullSync && shouldShowDialogProgress) {
+    if (shouldRunFullSync && shouldShowDialogProgress && !options?.progressAlreadyOpen) {
       beginSyncProgress(remoteKind);
     }
     try {
@@ -1301,6 +1302,10 @@ export function useBookmarkSyncRuntimeController(
         toast.error('请先处理当前书签同步冲突，再更改同步方式');
         return false;
       }
+      const canStartProgress = remoteKind === 'webdav' && Boolean(webdavConfig?.url);
+      if (canStartProgress) {
+        beginSyncProgress(remoteKind);
+      }
       const result = await handleLeafTabSync({
         remoteKind,
         selectSourceAfterSuccess: true,
@@ -1309,6 +1314,7 @@ export function useBookmarkSyncRuntimeController(
         requestBookmarkPermission: true,
         silentSuccess: true,
         showProgressIndicator: true,
+        progressAlreadyOpen: canStartProgress,
       });
       if (!result || result.kind === 'conflict') {
         return false;
@@ -1353,6 +1359,7 @@ export function useBookmarkSyncRuntimeController(
     leafTabPendingBookmarkConflict,
     leafTabSyncProgress.remoteKind,
     selectedSyncSource,
+    webdavConfig?.url,
   ]);
 
   return {
