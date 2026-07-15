@@ -8,6 +8,7 @@ const {
   RELEASE_PACKAGE_BASENAME,
   computeExtensionIdFromManifestKey,
   detectReleaseEditionByManifest,
+  getCommunityReleasePackageFilename,
   readReleaseMarkerFromDir,
 } = require('./release-utils');
 
@@ -203,7 +204,7 @@ if (builtEdition !== RELEASE_EDITION) {
 
 const packageLabel = RELEASE_EDITION;
 const storeZip = path.join(root, `${RELEASE_PACKAGE_BASENAME}-${packageLabel}-chrome-edge-store-v${version}.zip`);
-const communityZip = path.join(root, `${RELEASE_PACKAGE_BASENAME}-${packageLabel}-chrome-edge-community-v${version}.zip`);
+const communityZip = path.join(root, getCommunityReleasePackageFilename(version));
 const firefoxZip = path.join(root, `${RELEASE_PACKAGE_BASENAME}-${packageLabel}-firefox-store-v${version}.zip`);
 
 console.log('[pack] Creating release zip files...');

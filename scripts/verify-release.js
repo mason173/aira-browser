@@ -8,6 +8,7 @@ const {
   RELEASE_PACKAGE_BASENAME,
   computeExtensionIdFromManifestKey,
   detectReleaseEditionByManifest,
+  getCommunityReleasePackageFilename,
   readReleaseMarkerFromZip,
 } = require('./release-utils');
 
@@ -32,10 +33,12 @@ function readManifestFromZip(zipPath) {
   }
 }
 
-function detectPackageKind(zipPath) {
+function detectPackageKind(zipPath, manifest) {
   const name = path.basename(zipPath).toLowerCase();
-  if (name.includes('-firefox-')) return 'firefox';
-  if (name.includes('-community-')) return 'community';
+  if (name.includes('-firefox-') || manifest.browser_specific_settings?.gecko?.id === FIREFOX_EXTENSION_ID) {
+    return 'firefox';
+  }
+  if (name === getCommunityReleasePackageFilename(manifest.version).toLowerCase()) return 'community';
   return 'store';
 }
 
@@ -47,8 +50,8 @@ function verifyZip({ zipPath, expectedEdition, expectedVersion, expectedVersionN
   if (!fs.existsSync(zipPath)) {
     throw new Error(`Zip not found: ${zipPath}`);
   }
-  const packageKind = detectPackageKind(zipPath);
   const manifest = readManifestFromZip(zipPath);
+  const packageKind = detectPackageKind(zipPath, manifest);
   const actualEdition = readReleaseMarkerFromZip(zipPath) || detectReleaseEditionByManifest(manifest);
   const actualVersion = String(manifest.version || '');
   const actualVersionName = String(manifest.version_name || '');
@@ -173,7 +176,7 @@ function main() {
   const args = process.argv.slice(2);
   const defaultZips = [
     path.join(root, `${RELEASE_PACKAGE_BASENAME}-${expectedEdition}-chrome-edge-store-v${releaseVersion}.zip`),
-    path.join(root, `${RELEASE_PACKAGE_BASENAME}-${expectedEdition}-chrome-edge-community-v${releaseVersion}.zip`),
+    path.join(root, getCommunityReleasePackageFilename(releaseVersion)),
     path.join(root, `${RELEASE_PACKAGE_BASENAME}-${expectedEdition}-firefox-store-v${releaseVersion}.zip`),
   ];
   const zipPaths = args.length > 0 ? args.map((p) => path.resolve(root, p)) : defaultZips;

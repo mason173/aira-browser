@@ -6,6 +6,7 @@ const crypto = require('crypto');
 const RELEASE_EDITION = 'final';
 const RELEASE_MARKER_FILE = '.release-edition';
 const RELEASE_PACKAGE_BASENAME = 'aira-sync-assistant';
+const COMMUNITY_RELEASE_PACKAGE_BASENAME = 'Aira-Sync';
 const COMMUNITY_EXTENSION_ID = 'plnjjlkaaonbccmjpfljbbbbaahfklem';
 const FIREFOX_EXTENSION_ID = 'airatab@cc';
 
@@ -32,6 +33,10 @@ function readReleaseMarkerFromDir(dirPath) {
 function writeReleaseMarkerToDir(dirPath) {
   fs.mkdirSync(dirPath, { recursive: true });
   fs.writeFileSync(path.join(dirPath, RELEASE_MARKER_FILE), `${RELEASE_EDITION}\n`);
+}
+
+function getCommunityReleasePackageFilename(version) {
+  return `${COMMUNITY_RELEASE_PACKAGE_BASENAME}-v${version}.zip`;
 }
 
 function readReleaseMarkerFromZip(zipPath) {
@@ -67,6 +72,7 @@ module.exports = {
   RELEASE_PACKAGE_BASENAME,
   computeExtensionIdFromManifestKey,
   detectReleaseEditionByManifest,
+  getCommunityReleasePackageFilename,
   readReleaseMarkerFromDir,
   readReleaseMarkerFromZip,
   writeReleaseMarkerToDir,
