@@ -1310,7 +1310,7 @@ function WebdavConfigPage({
     setSaving(true);
     try {
       const current = readWebdavStorageStateFromStorage(t('settings.backup.webdav.defaultProfileName', { defaultValue: '默认配置' }));
-      writeWebdavStorageStateToStorage({
+      await writeWebdavStorageStateToStorage({
         ...current,
         url: trimmedUrl,
         username,

@@ -48,14 +48,17 @@ export const readWebdavStorageStateFromStorage = (defaultProfileName = ""): Webd
   };
 };
 
-export const writeWebdavStorageStateToStorage = (state: WebdavStorageState, defaultProfileName = "") => {
+export const writeWebdavStorageStateToStorage = async (
+  state: WebdavStorageState,
+  defaultProfileName = "",
+): Promise<void> => {
   const profileName = state.profileName.trim() || defaultProfileName;
   localStorage.setItem(WEBDAV_STORAGE_KEYS.profileName, profileName);
   localStorage.setItem(WEBDAV_STORAGE_KEYS.url, state.url.trim());
   localStorage.setItem(WEBDAV_STORAGE_KEYS.username, state.username.trim());
   localStorage.setItem(WEBDAV_STORAGE_KEYS.password, state.password || "");
   localStorage.setItem(WEBDAV_STORAGE_KEYS.syncEnabled, String(state.syncEnabled));
-  void writeExtensionStorageRecord({
+  await writeExtensionStorageRecord({
     [WEBDAV_STORAGE_KEYS.profileName]: profileName,
     [WEBDAV_STORAGE_KEYS.url]: state.url.trim(),
     [WEBDAV_STORAGE_KEYS.username]: state.username.trim(),
@@ -115,9 +118,9 @@ export const removeWebdavNextSyncAtFromExtensionStorage = async (): Promise<void
   await removeExtensionStorageKeys([WEBDAV_STORAGE_KEYS.nextSyncAt]);
 };
 
-export const enableWebdavBookmarkSyncInStorage = (defaultProfileName = "") => {
+export const enableWebdavBookmarkSyncInStorage = async (defaultProfileName = ""): Promise<void> => {
   const current = readWebdavStorageStateFromStorage(defaultProfileName);
-  writeWebdavStorageStateToStorage({
+  await writeWebdavStorageStateToStorage({
     ...current,
     syncEnabled: true,
   }, defaultProfileName);
