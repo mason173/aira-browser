@@ -29,7 +29,6 @@ import {
   RiSlidersFill,
   RiUserFill,
 } from '@/icons/ri-compat';
-import { ensureOriginPermission } from '@/utils/extensionPermissions';
 import {
   readWebdavStorageStateFromStorage,
   writeWebdavStorageStateToStorage,
@@ -1310,14 +1309,6 @@ function WebdavConfigPage({
 
     setSaving(true);
     try {
-      const granted = await ensureOriginPermission(trimmedUrl, { requestIfNeeded: true }).catch(() => false);
-      if (!granted) {
-        toast.error(t('settings.backup.webdav.originPermissionDenied', {
-          defaultValue: '未授予 WebDAV 站点访问权限，无法启用同步。',
-        }));
-        return false;
-      }
-
       const current = readWebdavStorageStateFromStorage(t('settings.backup.webdav.defaultProfileName', { defaultValue: '默认配置' }));
       writeWebdavStorageStateToStorage({
         ...current,
@@ -1336,9 +1327,13 @@ function WebdavConfigPage({
   };
 
   const handleSaveAndUse = async () => {
-    const saved = await saveWebdavConfig();
-    if (!saved) return;
-    onSaved({ syncAfterSave: true });
+    try {
+      const saved = await saveWebdavConfig();
+      if (!saved) return;
+      onSaved({ syncAfterSave: true });
+    } catch (error) {
+      toast.error(String((error as Error)?.message || 'WebDAV 配置保存失败'));
+    }
   };
 
   const actionTitle = syncing

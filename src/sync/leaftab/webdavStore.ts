@@ -226,7 +226,7 @@ export class LeafTabSyncWebdavStore implements LeafTabSyncRemoteStore {
   }
 
   private async ensurePermission(_relativePath: string) {
-    if (this.permissionGranted) return;
+    if (this.permissionGranted || !this.config.requestPermission) return;
     const granted = await ensureOriginPermission(this.config.url, {
       requestIfNeeded: this.config.requestPermission,
     });

@@ -477,7 +477,7 @@ export function useBookmarkSyncRuntimeController(
     return {
       ...config,
       rootPath: leafTabSyncRootPath,
-      requestPermission: true,
+      requestPermission: false,
     };
   }, [leafTabSyncRootPath, localVersion]);
   const captureBookmarkTreeDraft = useCallback(async (): Promise<LeafTabBookmarkTreeDraft> => {
