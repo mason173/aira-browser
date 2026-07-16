@@ -267,6 +267,194 @@ const collectChildrenByParent = (snapshot: LeafTabSyncSnapshot) => {
   return map;
 };
 
+const INITIAL_SYNC_CANONICAL_ROOT_IDS = new Set([
+  'browser_root_toolbar',
+  'browser_root_other',
+  'aira_private_root_toolbar',
+  'aira_private_root_other',
+]);
+
+const hashInitialCollision = (value: string) => {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
+};
+
+const createInitialCollisionId = (
+  type: 'folder' | 'item',
+  originalId: string,
+  parentId: string | null,
+  title: string,
+  url: string,
+  remoteDeviceId: string,
+  reservedIds: Set<string>,
+) => {
+  const fingerprint = `${type}|${originalId}|${parentId || ''}|${title}|${url}|${remoteDeviceId}`;
+  const base = `${type === 'folder' ? 'bkf' : 'bkm'}_initial_${hashInitialCollision(fingerprint)}`;
+  let candidate = base;
+  let suffix = 1;
+  while (reservedIds.has(candidate)) {
+    candidate = `${base}_${suffix}`;
+    suffix += 1;
+  }
+  reservedIds.add(candidate);
+  return candidate;
+};
+
+const remapInitialRemoteCollisions = (
+  localSnapshot: LeafTabSyncSnapshot,
+  remoteSnapshot: LeafTabSyncSnapshot,
+) => {
+  const localFolders = localSnapshot.bookmarkFolders;
+  const localItems = localSnapshot.bookmarkItems;
+  const remoteFolders = remoteSnapshot.bookmarkFolders;
+  const reservedIds = new Set([
+    ...Object.keys(localFolders),
+    ...Object.keys(localItems),
+    ...Object.keys(remoteFolders),
+    ...Object.keys(remoteSnapshot.bookmarkItems),
+  ]);
+  const entityIdMap = new Map<string, string>();
+  const pendingFolders = Object.values(remoteFolders).map(cloneEntity);
+  const remappedFolders: Record<string, LeafTabSyncBookmarkFolderEntity> = {};
+
+  while (pendingFolders.length > 0) {
+    let progressed = false;
+    for (let index = pendingFolders.length - 1; index >= 0; index -= 1) {
+      const folder = pendingFolders[index];
+      const parentIsPending = folder.parentId !== null && Boolean(remoteFolders[folder.parentId]) &&
+        !entityIdMap.has(folder.parentId) && folder.parentId !== folder.id;
+      if (parentIsPending) continue;
+      const parentId = folder.parentId === null
+        ? null
+        : entityIdMap.get(folder.parentId) || folder.parentId;
+      const localFolder = localFolders[folder.id];
+      const compatible = Boolean(localFolder) && !localItems[folder.id] &&
+        localFolder.parentId === parentId && localFolder.title === folder.title;
+      const collides = Boolean(localItems[folder.id]) || (Boolean(localFolder) && !compatible);
+      const id = collides && !INITIAL_SYNC_CANONICAL_ROOT_IDS.has(folder.id)
+        ? createInitialCollisionId(
+            'folder',
+            folder.id,
+            parentId,
+            folder.title,
+            '',
+            remoteSnapshot.meta.deviceId,
+            reservedIds,
+          )
+        : folder.id;
+      entityIdMap.set(folder.id, id);
+      remappedFolders[id] = { ...folder, id, parentId };
+      pendingFolders.splice(index, 1);
+      progressed = true;
+    }
+    if (progressed) continue;
+    const folder = pendingFolders.pop();
+    if (!folder) break;
+    const parentId = folder.parentId === null
+      ? null
+      : entityIdMap.get(folder.parentId) || folder.parentId;
+    const id = createInitialCollisionId(
+      'folder',
+      folder.id,
+      parentId,
+      folder.title,
+      '',
+      remoteSnapshot.meta.deviceId,
+      reservedIds,
+    );
+    entityIdMap.set(folder.id, id);
+    remappedFolders[id] = { ...folder, id, parentId };
+  }
+
+  const remappedItems: Record<string, LeafTabSyncBookmarkItemEntity> = {};
+  Object.values(remoteSnapshot.bookmarkItems).forEach((item) => {
+    const parentId = item.parentId === null
+      ? null
+      : entityIdMap.get(item.parentId) || item.parentId;
+    const localItem = localItems[item.id];
+    const compatible = Boolean(localItem) && !localFolders[item.id] &&
+      localItem.parentId === parentId && localItem.title === item.title && localItem.url === item.url;
+    const collides = Boolean(localFolders[item.id]) || (Boolean(localItem) && !compatible);
+    const id = collides
+      ? createInitialCollisionId(
+          'item',
+          item.id,
+          parentId,
+          item.title,
+          item.url,
+          remoteSnapshot.meta.deviceId,
+          reservedIds,
+        )
+      : item.id;
+    entityIdMap.set(item.id, id);
+    remappedItems[id] = { ...item, id, parentId };
+  });
+
+  const remappedOrders: Record<string, LeafTabSyncBookmarkOrder> = {};
+  Object.values(remoteSnapshot.bookmarkOrders).forEach((order) => {
+    const parentId = order.parentId === null
+      ? null
+      : entityIdMap.get(order.parentId) || order.parentId;
+    const nextOrder = {
+      ...order,
+      parentId,
+      ids: order.ids.map((id) => entityIdMap.get(id) || id),
+    };
+    remappedOrders[parentId || '__root__'] = nextOrder;
+  });
+
+  return {
+    ...remoteSnapshot,
+    bookmarkFolders: remappedFolders,
+    bookmarkItems: remappedItems,
+    bookmarkOrders: remappedOrders,
+  };
+};
+
+const prepareMissingBaselineSnapshots = (
+  localSnapshot: LeafTabSyncSnapshot,
+  remoteSnapshot: LeafTabSyncSnapshot,
+) => {
+  const remappedRemote = remapInitialRemoteCollisions(localSnapshot, remoteSnapshot);
+  const liveFolderIds = new Set([
+    ...Object.keys(localSnapshot.bookmarkFolders),
+    ...Object.keys(remappedRemote.bookmarkFolders),
+  ]);
+  const liveItemIds = new Set([
+    ...Object.keys(localSnapshot.bookmarkItems),
+    ...Object.keys(remappedRemote.bookmarkItems),
+  ]);
+  const tombstones: Record<string, LeafTabSyncTombstone> = {};
+  const keepNewestTombstone = (entry: LeafTabSyncTombstone) => {
+    const hasLiveEntity = entry.type === 'bookmark-folder'
+      ? liveFolderIds.has(entry.id)
+      : liveItemIds.has(entry.id);
+    if (hasLiveEntity) return;
+    const key = createLeafTabSyncTombstoneKey(entry);
+    const current = tombstones[key];
+    if (!current || entry.lastKnownRevision > current.lastKnownRevision ||
+      (entry.lastKnownRevision === current.lastKnownRevision && entry.deletedAt > current.deletedAt)) {
+      tombstones[key] = cloneTombstone(entry);
+    }
+  };
+  Object.values(localSnapshot.tombstones).forEach(keepNewestTombstone);
+  Object.values(remappedRemote.tombstones).forEach(keepNewestTombstone);
+  return {
+    local: {
+      ...localSnapshot,
+      tombstones: {},
+    },
+    remote: {
+      ...remappedRemote,
+      tombstones,
+    },
+  };
+};
+
 export const mergeLeafTabSyncSnapshot = (
   baseSnapshot: LeafTabSyncSnapshot,
   localSnapshot: LeafTabSyncSnapshot,
@@ -436,4 +624,26 @@ export const mergeLeafTabSyncSnapshot = (
     orderSources,
     conflicts,
   };
+};
+
+export const mergeLeafTabSyncSnapshotWithoutBaseline = (
+  localSnapshot: LeafTabSyncSnapshot,
+  remoteSnapshot: LeafTabSyncSnapshot,
+  options: {
+    deviceId: string;
+    generatedAt?: string;
+  },
+): LeafTabSyncMergeResult => {
+  const prepared = prepareMissingBaselineSnapshots(localSnapshot, remoteSnapshot);
+  const emptyBase: LeafTabSyncSnapshot = {
+    meta: cloneLeafTabSyncSnapshotMeta(localSnapshot.meta, {
+      deviceId: options.deviceId,
+      generatedAt: options.generatedAt || new Date().toISOString(),
+    }),
+    bookmarkFolders: {},
+    bookmarkItems: {},
+    bookmarkOrders: {},
+    tombstones: {},
+  };
+  return mergeLeafTabSyncSnapshot(emptyBase, prepared.local, prepared.remote, options);
 };

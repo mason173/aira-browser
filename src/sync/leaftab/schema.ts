@@ -93,6 +93,7 @@ export interface LeafTabSyncCommitFile {
   createdAt: string;
   parentCommitId: string | null;
   manifestPath: string;
+  appPrivateBookmarksPath?: string;
   operationsPath?: string;
   summary: {
     bookmarkFolders: number;
@@ -184,10 +185,6 @@ export const getLeafTabSyncHeadPath = (rootPath = LEAFTAB_SYNC_DEFAULT_ROOT) => 
   return `${normalizeRoot(rootPath)}/head.json`;
 };
 
-export const getLeafTabSyncLockPath = (rootPath = LEAFTAB_SYNC_DEFAULT_ROOT) => {
-  return `${normalizeRoot(rootPath)}/sync.lock.json`;
-};
-
 export const getLeafTabSyncCommitPath = (
   commitId: string,
   rootPath = LEAFTAB_SYNC_DEFAULT_ROOT,
@@ -195,17 +192,28 @@ export const getLeafTabSyncCommitPath = (
   return `${normalizeRoot(rootPath)}/commits/${commitId}.json`;
 };
 
-export const getLeafTabSyncManifestPath = (rootPath = LEAFTAB_SYNC_DEFAULT_ROOT) => {
-  return `${normalizeRoot(rootPath)}/manifest.json`;
+export const getLeafTabSyncManifestPath = (
+  commitId: string,
+  rootPath = LEAFTAB_SYNC_DEFAULT_ROOT,
+) => {
+  return `${normalizeRoot(rootPath)}/commits/${commitId}.manifest.json`;
+};
+
+export const getLeafTabSyncAppPrivateBookmarksPath = (
+  commitId: string,
+  rootPath = LEAFTAB_SYNC_DEFAULT_ROOT,
+) => {
+  return `${normalizeRoot(rootPath)}/packs/${commitId}-${LEAFTAB_SYNC_APP_PRIVATE_BOOKMARKS_FILE}`;
 };
 
 export const getLeafTabSyncPackPath = (
   kind: LeafTabSyncPackKind,
-  shard: string | null = null,
+  shard: string | null,
+  commitId: string,
   rootPath = LEAFTAB_SYNC_DEFAULT_ROOT,
 ) => {
   const shardSuffix = shard ? `-${shard}` : '';
-  return `${normalizeRoot(rootPath)}/packs/${kind}${shardSuffix}.pack.json`;
+  return `${normalizeRoot(rootPath)}/packs/${commitId}-${kind}${shardSuffix}.pack.json`;
 };
 
 export const createLeafTabSyncHeadFile = (
@@ -233,7 +241,11 @@ export const createLeafTabSyncCommitFile = (params: {
     deviceId: params.deviceId,
     createdAt,
     parentCommitId: params.parentCommitId ?? null,
-    manifestPath: getLeafTabSyncManifestPath(params.rootPath || LEAFTAB_SYNC_DEFAULT_ROOT),
+    manifestPath: getLeafTabSyncManifestPath(id, params.rootPath || LEAFTAB_SYNC_DEFAULT_ROOT),
+    appPrivateBookmarksPath: getLeafTabSyncAppPrivateBookmarksPath(
+      id,
+      params.rootPath || LEAFTAB_SYNC_DEFAULT_ROOT,
+    ),
     ...(params.operationsPath ? { operationsPath: params.operationsPath } : {}),
     summary: {
       bookmarkFolders: Object.keys(params.snapshot.bookmarkFolders).length,

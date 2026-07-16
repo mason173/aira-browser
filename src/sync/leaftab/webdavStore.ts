@@ -4,15 +4,13 @@ import {
   createLeafTabSyncHeadFile,
   getLeafTabSyncCommitPath,
   getLeafTabSyncHeadPath,
-  getLeafTabSyncLockPath,
-  LEAFTAB_SYNC_APP_PRIVATE_BOOKMARKS_FILE,
   LEAFTAB_SYNC_DEFAULT_ROOT,
   type LeafTabSyncManifestFile,
   type LeafTabSyncCommitFile,
   type LeafTabSyncHeadFile,
   type LeafTabSyncSnapshot,
 } from './schema';
-import { collectLeafTabSyncChangedPayloadPaths, createLeafTabSyncSerializedSnapshot } from './fileMap';
+import { createLeafTabSyncSerializedSnapshot } from './fileMap';
 import { materializeLeafTabSyncSnapshotFromPayloadMap } from './snapshotCodec';
 import type {
   LeafTabSyncOperation,
@@ -41,12 +39,7 @@ type WebdavRequestResult = {
   status: number;
   ok: boolean;
   text: string;
-};
-
-type WebdavLockFile = {
-  deviceId: string;
-  acquiredAt: string;
-  expiresAt: string;
+  headers: Record<string, string>;
 };
 
 type LeafTabSyncRemoteCacheEntry = {
@@ -71,6 +64,11 @@ type LeafTabSyncOperationChainResult = {
   reason?: string;
 };
 
+type LeafTabSyncWebdavHeadRead = {
+  head: LeafTabSyncHeadFile | null;
+  etag: string | null;
+};
+
 export class LeafTabSyncWebdavError extends Error {
   status: number;
   operation: string;
@@ -82,16 +80,6 @@ export class LeafTabSyncWebdavError extends Error {
     this.status = status;
     this.operation = operation;
     this.relativePath = relativePath || null;
-  }
-}
-
-export class LeafTabSyncWebdavLockError extends Error {
-  lock: WebdavLockFile;
-
-  constructor(lock: WebdavLockFile) {
-    super(`LeafTab 同步当前被设备 ${lock.deviceId} 占用，锁将持续到 ${lock.expiresAt}`);
-    this.name = 'LeafTabSyncWebdavLockError';
-    this.lock = lock;
   }
 }
 
@@ -164,6 +152,7 @@ export class LeafTabSyncWebdavStore implements LeafTabSyncRemoteStore {
   private readonly config: Required<LeafTabSyncWebdavStoreConfig>;
   private readonly remoteCacheStorageKey: string;
   private permissionGranted = false;
+  private conditionalWritesVerified = false;
   private readonly ensuredCollections = new Set<string>();
   private static readonly memoryRemoteCache = new Map<string, LeafTabSyncRemoteCacheEntry>();
 
@@ -279,6 +268,9 @@ export class LeafTabSyncWebdavStore implements LeafTabSyncRemoteStore {
         status: Number(response?.status || 0),
         ok: Boolean(response?.ok),
         text: typeof response?.bodyText === 'string' ? response.bodyText : '',
+        headers: response?.headers && typeof response.headers === 'object'
+          ? response.headers as Record<string, string>
+          : {},
       };
     } catch (error) {
       const message = String((error as Error)?.message || '');
@@ -316,6 +308,7 @@ export class LeafTabSyncWebdavStore implements LeafTabSyncRemoteStore {
         status: response.status,
         ok: response.ok,
         text,
+        headers: Object.fromEntries(response.headers.entries()),
       };
     } finally {
       globalThis.clearTimeout(timeout);
@@ -338,7 +331,7 @@ export class LeafTabSyncWebdavStore implements LeafTabSyncRemoteStore {
     }
   }
 
-  private async getText(relativePath: string): Promise<string | null> {
+  private async getTextResult(relativePath: string): Promise<WebdavRequestResult | null> {
     const response = await this.request('GET', relativePath, {
       headers: {},
     });
@@ -349,7 +342,12 @@ export class LeafTabSyncWebdavStore implements LeafTabSyncRemoteStore {
     if (!response.ok) {
       throw new LeafTabSyncWebdavError('download', response.status, relativePath);
     }
-    return response.text;
+    return response;
+  }
+
+  private async getText(relativePath: string): Promise<string | null> {
+    const response = await this.getTextResult(relativePath);
+    return response?.text || null;
   }
 
   private async getJson<T>(relativePath: string): Promise<T | null> {
@@ -357,19 +355,28 @@ export class LeafTabSyncWebdavStore implements LeafTabSyncRemoteStore {
     return text ? parseJsonOrNull<T>(text) : null;
   }
 
-  private async putText(relativePath: string, body: string, contentType = 'application/json') {
+  private async putText(
+    relativePath: string,
+    body: string,
+    contentType = 'application/json',
+    headers?: Record<string, string>,
+  ) {
     await this.ensureCollections(relativePath);
     const response = await this.request('PUT', relativePath, {
-      headers: { 'Content-Type': contentType },
+      headers: {
+        'Content-Type': contentType,
+        ...(headers || {}),
+      },
       body,
     });
     if (!response.ok) {
       throw new LeafTabSyncWebdavError('upload', response.status, relativePath);
     }
+    return response;
   }
 
-  private async putJson(relativePath: string, payload: unknown) {
-    await this.putText(relativePath, JSON.stringify(payload, null, 2));
+  private async putJson(relativePath: string, payload: unknown, headers?: Record<string, string>) {
+    await this.putText(relativePath, JSON.stringify(payload, null, 2), 'application/json', headers);
   }
 
   private async deletePath(relativePath: string) {
@@ -377,27 +384,6 @@ export class LeafTabSyncWebdavStore implements LeafTabSyncRemoteStore {
     if (!(response.ok || response.status === 404)) {
       throw new LeafTabSyncWebdavError('delete', response.status, relativePath);
     }
-  }
-
-  async acquireLock(deviceId: string, ttlMs = 2 * 60 * 1000) {
-    const lockPath = getLeafTabSyncLockPath(this.config.rootPath);
-    const now = new Date();
-    const currentLock = await this.getJson<WebdavLockFile>(lockPath);
-    if (currentLock && Date.parse(currentLock.expiresAt) > now.getTime() && currentLock.deviceId !== deviceId) {
-      throw new LeafTabSyncWebdavLockError(currentLock);
-    }
-
-    const nextLock: WebdavLockFile = {
-      deviceId,
-      acquiredAt: now.toISOString(),
-      expiresAt: new Date(now.getTime() + ttlMs).toISOString(),
-    };
-    await this.putJson(lockPath, nextLock);
-    return nextLock;
-  }
-
-  async releaseLock() {
-    await this.deletePath(getLeafTabSyncLockPath(this.config.rootPath));
   }
 
   async readJsonFile<T>(relativePath: string): Promise<T | null> {
@@ -477,8 +463,10 @@ export class LeafTabSyncWebdavStore implements LeafTabSyncRemoteStore {
     const payloadMap = Object.fromEntries([
       [commit.manifestPath, manifest],
       [
-        `${this.config.rootPath}/${LEAFTAB_SYNC_APP_PRIVATE_BOOKMARKS_FILE}`,
-        await this.getJson<unknown>(`${this.config.rootPath}/${LEAFTAB_SYNC_APP_PRIVATE_BOOKMARKS_FILE}`),
+        commit.appPrivateBookmarksPath || '',
+        commit.appPrivateBookmarksPath
+          ? await this.getJson<unknown>(commit.appPrivateBookmarksPath)
+          : null,
       ],
       ...packEntries.map(([packRef, value]) => [packRef.path, value]),
     ]);
@@ -507,9 +495,8 @@ export class LeafTabSyncWebdavStore implements LeafTabSyncRemoteStore {
   }
 
   async readHead(): Promise<LeafTabSyncRemoteHead> {
-    const head = await this.getJson<LeafTabSyncHeadFile>(
-      getLeafTabSyncHeadPath(this.config.rootPath),
-    );
+    const headRead = await this.readHeadWithValidator();
+    const head = headRead.head;
     if (!head?.commitId) {
       return {
         head: null,
@@ -535,6 +522,59 @@ export class LeafTabSyncWebdavStore implements LeafTabSyncRemoteStore {
           }
         : undefined,
     };
+  }
+
+  private async readHeadWithValidator(): Promise<LeafTabSyncWebdavHeadRead> {
+    const response = await this.getTextResult(getLeafTabSyncHeadPath(this.config.rootPath));
+    if (!response) {
+      return { head: null, etag: null };
+    }
+    const head = parseJsonOrNull<LeafTabSyncHeadFile>(response.text);
+    return {
+      head: head?.commitId ? head : null,
+      etag: this.readHeaderValue(response.headers, 'etag'),
+    };
+  }
+
+  private readHeaderValue(headers: Record<string, string>, targetName: string) {
+    const target = targetName.toLowerCase();
+    const key = Object.keys(headers).find((candidate) => candidate.toLowerCase() === target);
+    const value = key ? headers[key] : '';
+    return typeof value === 'string' && value.trim() ? value.trim() : null;
+  }
+
+  private assertExactParent(head: LeafTabSyncHeadFile | null, expectedParentCommitId: string | null) {
+    const actualParentCommitId = head?.commitId || null;
+    if (actualParentCommitId !== expectedParentCommitId) {
+      throw new Error(
+        `WebDAV 远端已更新，请先重新拉取后再同步。当前远端 commit=${actualParentCommitId || ''}`,
+      );
+    }
+  }
+
+  private async publishHeadConditionally(
+    headRead: LeafTabSyncWebdavHeadRead,
+    expectedParentCommitId: string | null,
+    nextHead: LeafTabSyncHeadFile,
+  ) {
+    this.assertExactParent(headRead.head, expectedParentCommitId);
+    const headers: Record<string, string> = expectedParentCommitId === null
+      ? { 'If-None-Match': '*' }
+      : (() => {
+          if (!headRead.etag) {
+            throw new Error('WebDAV 服务未提供 ETag，无法安全发布同步提交。');
+          }
+          return { 'If-Match': headRead.etag };
+        })();
+    try {
+      await this.putJson(getLeafTabSyncHeadPath(this.config.rootPath), nextHead, headers);
+    } catch (error) {
+      if (error instanceof LeafTabSyncWebdavError && (error.status === 409 || error.status === 412)) {
+        this.clearRemoteCache();
+        throw new Error('WebDAV 远端已被其他设备更新，请重新同步。');
+      }
+      throw error;
+    }
   }
 
   async readOperations(params: LeafTabSyncReadOperationsParams): Promise<LeafTabSyncReadOperationsResult> {
@@ -576,26 +616,21 @@ export class LeafTabSyncWebdavStore implements LeafTabSyncRemoteStore {
   }
 
   async writeState(params: LeafTabSyncWriteStateParams): Promise<LeafTabSyncWriteStateResult> {
+    await this.ensureConditionalWriteSupport();
+    const expectedParentCommitId = params.parentCommitId ?? null;
+    const headRead = await this.readHeadWithValidator();
+    this.assertExactParent(headRead.head, expectedParentCommitId);
     const commit = createLeafTabSyncCommitFile({
       deviceId: params.deviceId,
       createdAt: params.createdAt,
-      parentCommitId: params.parentCommitId ?? null,
+      parentCommitId: expectedParentCommitId,
       snapshot: params.snapshot,
       rootPath: this.config.rootPath,
     });
-
-    const changedPaths = collectLeafTabSyncChangedPayloadPaths(
-      params.previousSnapshot,
-      params.snapshot,
-      {
-        rootPath: this.config.rootPath,
-      },
-    );
     const serialized = createLeafTabSyncSerializedSnapshot(params.snapshot, {
       rootPath: this.config.rootPath,
       commit,
       head: createLeafTabSyncHeadFile(commit.id, commit.createdAt),
-      includePaths: changedPaths,
     });
 
     const writes = Object.entries(serialized.payloads)
@@ -608,7 +643,7 @@ export class LeafTabSyncWebdavStore implements LeafTabSyncRemoteStore {
 
     await this.putJson(getLeafTabSyncCommitPath(commit.id, this.config.rootPath), commit);
     const head = serialized.head;
-    await this.putJson(getLeafTabSyncHeadPath(this.config.rootPath), head);
+    await this.publishHeadConditionally(headRead, expectedParentCommitId, head);
 
     this.writeRemoteCache({
       commitId: commit.id,
@@ -624,6 +659,9 @@ export class LeafTabSyncWebdavStore implements LeafTabSyncRemoteStore {
     if (params.operations.length <= 0) {
       throw new Error('没有可上传的 WebDAV 书签增量变更。');
     }
+    await this.ensureConditionalWriteSupport();
+    const headRead = await this.readHeadWithValidator();
+    this.assertExactParent(headRead.head, params.parentCommitId);
     const createdAt = params.createdAt || params.snapshot.meta.generatedAt;
     const operationsPath = this.getOperationsPathForCommitId(
       createLeafTabSyncCommitFile({
@@ -643,18 +681,10 @@ export class LeafTabSyncWebdavStore implements LeafTabSyncRemoteStore {
       operationsPath,
     });
 
-    const changedPaths = collectLeafTabSyncChangedPayloadPaths(
-      params.previousSnapshot,
-      params.snapshot,
-      {
-        rootPath: this.config.rootPath,
-      },
-    );
     const serialized = createLeafTabSyncSerializedSnapshot(params.snapshot, {
       rootPath: this.config.rootPath,
       commit,
       head: createLeafTabSyncHeadFile(commit.id, commit.createdAt),
-      includePaths: changedPaths,
     });
     const operationsFile: LeafTabSyncOperationsFile = {
       version: LEAFTAB_SYNC_OPERATIONS_FILE_VERSION,
@@ -677,7 +707,7 @@ export class LeafTabSyncWebdavStore implements LeafTabSyncRemoteStore {
 
     await this.putJson(getLeafTabSyncCommitPath(commit.id, this.config.rootPath), commit);
     const head = serialized.head;
-    await this.putJson(getLeafTabSyncHeadPath(this.config.rootPath), head);
+    await this.publishHeadConditionally(headRead, params.parentCommitId, head);
 
     this.writeRemoteCache({
       commitId: commit.id,
@@ -691,6 +721,63 @@ export class LeafTabSyncWebdavStore implements LeafTabSyncRemoteStore {
       commit,
       appliedOperationCount: params.operations.length,
     };
+  }
+
+  private async ensureConditionalWriteSupport() {
+    if (this.conditionalWritesVerified) return;
+    const probeId = `${Date.now().toString(36)}-${Math.floor(Math.random() * 0x100000000).toString(36)}`;
+    const probePath = `${this.config.rootPath}/ops/cas-probe-${probeId}.json`;
+    await this.ensureCollections(probePath);
+    try {
+      const first = await this.request('PUT', probePath, {
+        headers: {
+          'Content-Type': 'application/json',
+          'If-None-Match': '*',
+        },
+        body: '{"step":1}',
+      });
+      if (!first.ok) {
+        throw new LeafTabSyncWebdavError('cas-probe-create', first.status, probePath);
+      }
+      const read = await this.getTextResult(probePath);
+      const etag = read ? this.readHeaderValue(read.headers, 'etag') : null;
+      if (!etag) {
+        throw new Error('WebDAV 服务未提供 ETag，不支持安全同步。');
+      }
+      const duplicateCreate = await this.request('PUT', probePath, {
+        headers: {
+          'Content-Type': 'application/json',
+          'If-None-Match': '*',
+        },
+        body: '{"step":2}',
+      });
+      if (duplicateCreate.status !== 409 && duplicateCreate.status !== 412) {
+        throw new Error('WebDAV 服务忽略 If-None-Match，不支持安全同步。');
+      }
+      const matchedUpdate = await this.request('PUT', probePath, {
+        headers: {
+          'Content-Type': 'application/json',
+          'If-Match': etag,
+        },
+        body: '{"step":3}',
+      });
+      if (!matchedUpdate.ok) {
+        throw new LeafTabSyncWebdavError('cas-probe-update', matchedUpdate.status, probePath);
+      }
+      const staleUpdate = await this.request('PUT', probePath, {
+        headers: {
+          'Content-Type': 'application/json',
+          'If-Match': etag,
+        },
+        body: '{"step":4}',
+      });
+      if (staleUpdate.status !== 409 && staleUpdate.status !== 412) {
+        throw new Error('WebDAV 服务忽略 If-Match，不支持安全同步。');
+      }
+      this.conditionalWritesVerified = true;
+    } finally {
+      await this.deletePath(probePath).catch(() => undefined);
+    }
   }
 
   private async readOperationChain(

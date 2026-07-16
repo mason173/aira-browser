@@ -12,7 +12,6 @@ import {
   isLeafTabSyncBookmarkOrder,
   isLeafTabSyncTombstone,
   LEAFTAB_SYNC_DEFAULT_ROOT,
-  LEAFTAB_SYNC_APP_PRIVATE_BOOKMARKS_FILE,
   normalizeLeafTabSyncBookmarkDataSet,
 } from './schema';
 
@@ -45,20 +44,20 @@ export const parseLeafTabSyncJsonLike = <T>(value: unknown): T | null => {
 
 export const materializeLeafTabSyncSnapshotFromPayloadMap = (
   payloadMap: Record<string, unknown>,
-  commit: Pick<LeafTabSyncCommitFile, 'manifestPath' | 'createdAt' | 'deviceId'>,
+  commit: Pick<
+    LeafTabSyncCommitFile,
+    'manifestPath' | 'appPrivateBookmarksPath' | 'createdAt' | 'deviceId'
+  >,
 ): LeafTabSyncSnapshot | null => {
   const manifest = parseLeafTabSyncJsonLike<LeafTabSyncManifestFile>(payloadMap[commit.manifestPath]);
   if (!manifest?.packs?.length) return null;
-  const normalizedRootPath = normalizeLeafTabSyncRootPath(
-    commit.manifestPath.split('/').slice(0, -1).join('/'),
-  );
 
   const bookmarkFolders: LeafTabSyncSnapshot['bookmarkFolders'] = {};
   const bookmarkItems: LeafTabSyncSnapshot['bookmarkItems'] = {};
   const bookmarkOrders: LeafTabSyncSnapshot['bookmarkOrders'] = {};
   const tombstones: LeafTabSyncSnapshot['tombstones'] = {};
   const appPrivateBookmarks = parseLeafTabSyncJsonLike<unknown>(
-    payloadMap[`${normalizedRootPath}/${LEAFTAB_SYNC_APP_PRIVATE_BOOKMARKS_FILE}`],
+    commit.appPrivateBookmarksPath ? payloadMap[commit.appPrivateBookmarksPath] : null,
   );
 
   manifest.packs.forEach((packRef) => {

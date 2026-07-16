@@ -95,8 +95,6 @@ import {
 const WEBDAV_PROXY_MESSAGE_TYPE = 'LEAFTAB_WEBDAV_PROXY';
 const LOCAL_SYNC_ALARM_NAME = 'aira.leaftab.g2.auto-sync.local-change';
 const REMOTE_PROBE_ALARM_NAME = 'aira.leaftab.g2.auto-sync.remote-probe';
-const PREVIOUS_LOCAL_SYNC_ALARM_NAME = 'aira.leaftab.auto-sync.local-change';
-const PREVIOUS_REMOTE_PROBE_ALARM_NAME = 'aira.leaftab.auto-sync.remote-probe';
 const PHONE_PAGE_PUSH_POLL_ALARM_NAME = 'aira.phone-page-push.poll';
 const AUTO_SYNC_BOOKMARK_CHANGE_DELAY_MINUTES = 1;
 const AUTO_SYNC_RETRY_DELAY_MINUTES = 3;
@@ -1046,8 +1044,6 @@ async function clearBackgroundAlarms(): Promise<void> {
   if (alarms?.clear) {
     await alarms.clear(LOCAL_SYNC_ALARM_NAME);
     await alarms.clear(REMOTE_PROBE_ALARM_NAME);
-    await alarms.clear(PREVIOUS_LOCAL_SYNC_ALARM_NAME);
-    await alarms.clear(PREVIOUS_REMOTE_PROBE_ALARM_NAME);
   }
   await removeExtensionStorageKeys([
     LEAFTAB_BACKGROUND_STORAGE_KEYS.nextRemoteProbeAt,
@@ -1056,11 +1052,6 @@ async function clearBackgroundAlarms(): Promise<void> {
 }
 
 async function reconcileBackgroundSchedules(isStartup: boolean = false): Promise<void> {
-  const alarms = getAlarmsApi();
-  if (alarms?.clear) {
-    await alarms.clear(PREVIOUS_LOCAL_SYNC_ALARM_NAME);
-    await alarms.clear(PREVIOUS_REMOTE_PROBE_ALARM_NAME);
-  }
   const config = await readBackgroundSyncConfig();
   if (!canRunBackgroundAutoSync(config)) {
     await clearBackgroundAlarms();
@@ -1375,6 +1366,7 @@ function bindWebdavProxyMessageListener(): void {
           status: response.status,
           ok: response.ok,
           bodyText: responseText,
+          headers: Object.fromEntries(response.headers.entries()),
         });
       } catch (error) {
         console.error('[Aira][WebDAV proxy]', method, url, error);

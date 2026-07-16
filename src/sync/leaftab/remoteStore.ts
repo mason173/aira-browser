@@ -47,8 +47,6 @@ export interface LeafTabSyncRemoteHead {
 
 export interface LeafTabSyncWriteStateParams {
   snapshot: LeafTabSyncSnapshot;
-  previousSnapshot?: LeafTabSyncSnapshot | null;
-  previousFiles?: unknown[];
   deviceId: string;
   parentCommitId?: string | null;
   createdAt?: string;
@@ -76,8 +74,6 @@ export interface LeafTabSyncReadOperationsResult {
 export interface LeafTabSyncWriteOperationsParams {
   snapshot: LeafTabSyncSnapshot;
   operations: LeafTabSyncOperation[];
-  previousSnapshot?: LeafTabSyncSnapshot | null;
-  previousFiles?: unknown[];
   deviceId: string;
   parentCommitId: string;
   createdAt?: string;
@@ -88,8 +84,6 @@ export interface LeafTabSyncWriteOperationsResult extends LeafTabSyncWriteStateR
 }
 
 export interface LeafTabSyncRemoteStore {
-  acquireLock(deviceId: string, ttlMs?: number): Promise<unknown>;
-  releaseLock(): Promise<void>;
   readHead?(): Promise<LeafTabSyncRemoteHead>;
   readCommitId?(): Promise<string | null>;
   readOperations?(params: LeafTabSyncReadOperationsParams): Promise<LeafTabSyncReadOperationsResult>;

@@ -1,6 +1,7 @@
 import { createLeafTabSyncBaseline, type LeafTabSyncBaselineStore, getLeafTabSyncBaselineSnapshot } from './baseline';
 import {
   mergeLeafTabSyncSnapshot,
+  mergeLeafTabSyncSnapshotWithoutBaseline,
   type LeafTabSyncConflictResolution,
   type LeafTabSyncMergeResult,
 } from './merge';
@@ -42,7 +43,7 @@ export interface LeafTabSyncEngineProgress {
   stage:
     | 'reading-state'
     | 'merging'
-    | 'acquiring-lock'
+    | 'confirming-remote'
     | 'rechecking-remote'
     | 'uploading-remote'
     | 'applying-local'
@@ -242,7 +243,6 @@ export class LeafTabSyncEngine {
           return await this.config.remoteStore.writeOperations({
             snapshot: params.localSnapshot,
             operations,
-            previousSnapshot: params.baseSnapshot,
             deviceId: this.config.deviceId,
             parentCommitId: params.parentCommitId,
             createdAt: params.localSnapshot.meta.generatedAt,
@@ -254,7 +254,6 @@ export class LeafTabSyncEngine {
     }
     return this.config.remoteStore.writeState({
       snapshot: params.localSnapshot,
-      previousSnapshot: params.baseSnapshot,
       deviceId: this.config.deviceId,
       parentCommitId: params.parentCommitId,
     });
@@ -289,7 +288,6 @@ export class LeafTabSyncEngine {
       writeResult = await this.config.remoteStore.writeOperations({
         snapshot,
         operations,
-        previousSnapshot: params.baseSnapshot,
         deviceId: this.config.deviceId,
         parentCommitId: params.parentCommitId,
         createdAt: generatedAt,
@@ -404,12 +402,11 @@ export class LeafTabSyncEngine {
     if (!resolvingConflict && hasBaseline && baseline?.commitId && remoteCommitId === baseline.commitId) {
       if (!runOptions?.localSnapshotOverride) {
         reportProgress(runOptions?.onProgress, {
-          stage: 'acquiring-lock',
+          stage: 'confirming-remote',
           progress: 34,
-          message: '正在锁定同步位置',
+          message: '正在确认同步位置',
         });
-        await this.config.remoteStore.acquireLock(this.config.deviceId);
-        try {
+        {
           reportProgress(runOptions?.onProgress, {
             stage: 'rechecking-remote',
             progress: 52,
@@ -426,8 +423,6 @@ export class LeafTabSyncEngine {
               return operationResult;
             }
           }
-        } finally {
-          await this.config.remoteStore.releaseLock();
         }
       }
 
@@ -458,12 +453,11 @@ export class LeafTabSyncEngine {
       }
 
       reportProgress(runOptions?.onProgress, {
-        stage: 'acquiring-lock',
+        stage: 'confirming-remote',
         progress: 34,
-        message: '正在锁定同步位置',
+        message: '正在确认同步位置',
       });
-      await this.config.remoteStore.acquireLock(this.config.deviceId);
-      try {
+      {
         reportProgress(runOptions?.onProgress, {
           stage: 'rechecking-remote',
           progress: 52,
@@ -499,20 +493,17 @@ export class LeafTabSyncEngine {
             summaryText: '同步完成：远端没有新的变化，已上传本地变化。',
           });
         }
-      } finally {
-        await this.config.remoteStore.releaseLock();
       }
     }
 
     if (!hasBaseline && remoteHead !== undefined && remoteCommitId === null) {
       const localSnapshot = await getLocalSnapshot();
       reportProgress(runOptions?.onProgress, {
-        stage: 'acquiring-lock',
+        stage: 'confirming-remote',
         progress: 34,
-        message: '正在锁定同步位置',
+        message: '正在确认同步位置',
       });
-      await this.config.remoteStore.acquireLock(this.config.deviceId);
-      try {
+      {
         reportProgress(runOptions?.onProgress, {
           stage: 'rechecking-remote',
           progress: 52,
@@ -529,7 +520,6 @@ export class LeafTabSyncEngine {
           });
           const writeResult = await this.config.remoteStore.writeState({
             snapshot: localSnapshot,
-            previousSnapshot: null,
             deviceId: this.config.deviceId,
             parentCommitId: null,
           });
@@ -551,8 +541,6 @@ export class LeafTabSyncEngine {
             summaryText: '远端为空，已用本地快照建立首次同步状态',
           });
         }
-      } finally {
-        await this.config.remoteStore.releaseLock();
       }
     }
 
@@ -601,12 +589,11 @@ export class LeafTabSyncEngine {
 
     if (!hasBaseline && !remoteState.snapshot) {
       reportProgress(runOptions?.onProgress, {
-        stage: 'acquiring-lock',
+        stage: 'confirming-remote',
         progress: 34,
-        message: '正在锁定同步位置',
+        message: '正在确认同步位置',
       });
-      await this.config.remoteStore.acquireLock(this.config.deviceId);
-      try {
+      {
         reportProgress(runOptions?.onProgress, {
           stage: 'rechecking-remote',
           progress: 52,
@@ -624,7 +611,6 @@ export class LeafTabSyncEngine {
           });
           const writeResult = await this.config.remoteStore.writeState({
             snapshot: localSnapshot,
-            previousSnapshot: null,
             deviceId: this.config.deviceId,
             parentCommitId: null,
           });
@@ -646,8 +632,6 @@ export class LeafTabSyncEngine {
             summaryText: '远端为空，已用本地快照建立首次同步状态',
           });
         }
-      } finally {
-        await this.config.remoteStore.releaseLock();
       }
     }
 
@@ -681,15 +665,22 @@ export class LeafTabSyncEngine {
       progress: 24,
       message: '正在合并本机与远端差异',
     });
-    const mergeResult = mergeLeafTabSyncSnapshot(
-      baseSnapshot,
-      localSnapshot,
-      remoteSnapshot,
-      {
-        deviceId: this.config.deviceId,
-        conflictResolution: runOptions?.conflictResolution,
-      },
-    );
+    const mergeSnapshots = (nextRemoteSnapshot: LeafTabSyncSnapshot) => hasBaseline
+      ? mergeLeafTabSyncSnapshot(
+          baseSnapshot,
+          localSnapshot,
+          nextRemoteSnapshot,
+          {
+            deviceId: this.config.deviceId,
+            conflictResolution: runOptions?.conflictResolution,
+          },
+        )
+      : mergeLeafTabSyncSnapshotWithoutBaseline(
+          localSnapshot,
+          nextRemoteSnapshot,
+          { deviceId: this.config.deviceId },
+        );
+    const mergeResult = mergeSnapshots(remoteSnapshot);
 
     let finalMergeResult = mergeResult;
     let finalSnapshot = mergeResult.snapshot;
@@ -714,12 +705,11 @@ export class LeafTabSyncEngine {
 
     if (!sameSnapshotContent(remoteSnapshot, finalSnapshot)) {
       reportProgress(runOptions?.onProgress, {
-        stage: 'acquiring-lock',
+        stage: 'confirming-remote',
         progress: 40,
-        message: '正在锁定同步位置',
+        message: '正在确认同步位置',
       });
-      await this.config.remoteStore.acquireLock(this.config.deviceId);
-      try {
+      {
         reportProgress(runOptions?.onProgress, {
           stage: 'rechecking-remote',
           progress: 54,
@@ -728,15 +718,7 @@ export class LeafTabSyncEngine {
         const latestRemote = await this.config.remoteStore.readState();
         const latestRemoteSnapshot = latestRemote.snapshot || this.config.createEmptySnapshot();
         if (!sameSnapshotContent(latestRemoteSnapshot, remoteSnapshot)) {
-          finalMergeResult = mergeLeafTabSyncSnapshot(
-            baseSnapshot,
-            localSnapshot,
-            latestRemoteSnapshot,
-            {
-              deviceId: this.config.deviceId,
-              conflictResolution: runOptions?.conflictResolution,
-            },
-          );
+          finalMergeResult = mergeSnapshots(latestRemoteSnapshot);
           finalSnapshot = finalMergeResult.snapshot;
           finalSummary = summarizeLeafTabSyncMerge(baseSnapshot, finalMergeResult);
           finalSummaryText = formatLeafTabSyncSummaryText(finalSummary);
@@ -765,7 +747,6 @@ export class LeafTabSyncEngine {
           });
           const writeResult = await this.config.remoteStore.writeState({
             snapshot: finalSnapshot,
-            previousSnapshot: latestRemote.snapshot,
             deviceId: this.config.deviceId,
             parentCommitId: latestRemote.commit?.id || null,
           });
@@ -844,8 +825,6 @@ export class LeafTabSyncEngine {
           summary: finalSummary,
           summaryText: finalSummaryText,
         });
-      } finally {
-        await this.config.remoteStore.releaseLock();
       }
     }
 

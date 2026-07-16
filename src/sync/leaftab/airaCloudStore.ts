@@ -107,12 +107,6 @@ export class LeafTabSyncAiraCloudStore implements LeafTabSyncRemoteStore {
     this.endpoint = endpoint.trim().replace(/\/+$/, '');
   }
 
-  async acquireLock() {
-    return null;
-  }
-
-  async releaseLock() {}
-
   async readCommitId(): Promise<string | null> {
     const head = await this.readHead();
     return head.commitId;
