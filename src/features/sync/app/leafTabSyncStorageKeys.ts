@@ -1,4 +1,5 @@
 export const LEAFTAB_SYNC_DEVICE_ID_KEY = 'leaftab_sync_g2_device_id';
+export const LEAFTAB_SYNC_DEVICE_ID_REQUEST_TYPE = 'AIRA_LEAFTAB_SYNC_G2_DEVICE_ID';
 export const LEAFTAB_SYNC_DEFAULT_ROOT_PATH = 'aira/g2/bookmarks';
 export const LEAFTAB_BOOKMARK_MAPPING_KEY = 'leaftab_sync_g2_bookmark_mapping:roots:toolbar+other';
 export const LEAFTAB_SELECTED_SYNC_SOURCE_KEY = 'leaftab_sync_g2_active_provider';

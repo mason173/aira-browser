@@ -250,7 +250,6 @@ export class BookmarkSyncModule {
       baselineStore: new LeafTabSyncExtensionStorageBaselineStore(this.config.baselineStorageKey),
       buildLocalSnapshot: local.buildSnapshot,
       applyLocalSnapshot: local.applySnapshot,
-      hasPendingLocalChanges: local.hasPendingChanges,
       clearPendingLocalChanges: local.clearPendingChanges,
       buildPendingLocalOperations: (baseSnapshot: LeafTabSyncSnapshot) => (
         buildLeafTabPendingLocalOperationsFromOutbox({

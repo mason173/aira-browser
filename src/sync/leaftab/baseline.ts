@@ -84,16 +84,7 @@ export class LeafTabSyncExtensionStorageBaselineStore implements LeafTabSyncBase
 
     const result = await storageArea.get(this.key);
     const value = result?.[this.key];
-    if (value) {
-      return value as LeafTabSyncBaseline;
-    }
-
-    const fallback = this.getFallback();
-    const fallbackValue = fallback ? await fallback.load() : null;
-    if (fallbackValue) {
-      await this.save(fallbackValue);
-    }
-    return fallbackValue;
+    return value ? value as LeafTabSyncBaseline : null;
   }
 
   async save(baseline: LeafTabSyncBaseline) {

@@ -1177,7 +1177,7 @@ function WebdavProviderPickerPage({
   return (
     <section className="min-h-[520px] bg-background">
       <PopupHeader
-        title={t('settings.backup.webdav.providerLabel', { defaultValue: 'WebDAV 服务商' })}
+        title={t('settings.webdav.providerLabel', { defaultValue: 'WebDAV 服务商' })}
         onBack={onBack}
       />
 
@@ -1232,12 +1232,12 @@ function WebdavConfigPage({
   const providers = useMemo<WebdavProviderOption[]>(() => ([
     {
       id: 'custom',
-      label: t('settings.backup.webdav.providerCustom', { defaultValue: '自定义服务' }),
+      label: t('settings.webdav.providerCustom', { defaultValue: '自定义服务' }),
       iconUrl: '/webdav-providers/webdav_provider_custom.svg',
     },
     {
       id: 'jianguoyun',
-      label: t('settings.backup.webdav.providers.jianguoyun', { defaultValue: '坚果云' }),
+      label: t('settings.webdav.providers.jianguoyun', { defaultValue: '坚果云' }),
       url: 'https://dav.jianguoyun.com/dav/',
       iconUrl: '/webdav-providers/webdav_provider_jianguoyun.svg',
     },
@@ -1276,13 +1276,13 @@ function WebdavConfigPage({
   const selectedProvider = useMemo(() => {
     return providers.find((item) => item.id === provider) ?? {
       id: 'custom',
-      label: t('settings.backup.webdav.providerCustom', { defaultValue: '自定义服务' }),
+      label: t('settings.webdav.providerCustom', { defaultValue: '自定义服务' }),
       iconUrl: '/webdav-providers/webdav_provider_custom.svg',
     };
   }, [provider, providers]);
 
   useEffect(() => {
-    const saved = readWebdavStorageStateFromStorage(t('settings.backup.webdav.defaultProfileName', { defaultValue: '默认配置' }));
+    const saved = readWebdavStorageStateFromStorage(t('settings.webdav.defaultProfileName', { defaultValue: '默认配置' }));
     setUrl(saved.url);
     setUsername(saved.username);
     setPassword(saved.password);
@@ -1303,23 +1303,23 @@ function WebdavConfigPage({
   const saveWebdavConfig = async () => {
     const trimmedUrl = url.trim();
     if (!trimmedUrl) {
-      toast.error(t('settings.backup.webdav.urlRequired', { defaultValue: '请输入 WebDAV 地址' }));
+      toast.error(t('settings.webdav.urlRequired', { defaultValue: '请输入 WebDAV 地址' }));
       return false;
     }
 
     setSaving(true);
     try {
-      const current = readWebdavStorageStateFromStorage(t('settings.backup.webdav.defaultProfileName', { defaultValue: '默认配置' }));
+      const current = readWebdavStorageStateFromStorage(t('settings.webdav.defaultProfileName', { defaultValue: '默认配置' }));
       await writeWebdavStorageStateToStorage({
         ...current,
         url: trimmedUrl,
         username,
         password,
         syncEnabled: false,
-      }, t('settings.backup.webdav.defaultProfileName', { defaultValue: '默认配置' }));
+      }, t('settings.webdav.defaultProfileName', { defaultValue: '默认配置' }));
       window.dispatchEvent(new CustomEvent('webdav-config-changed'));
       window.dispatchEvent(new CustomEvent('webdav-sync-status-changed'));
-      toast.success(t('settings.backup.webdav.configSaved', { defaultValue: 'WebDAV 配置已保存' }));
+      toast.success(t('settings.webdav.configSaved', { defaultValue: 'WebDAV 配置已保存' }));
       return true;
     } finally {
       setSaving(false);
@@ -1337,8 +1337,8 @@ function WebdavConfigPage({
   };
 
   const actionTitle = syncing
-    ? t('settings.backup.webdav.enablingAction', { defaultValue: '正在连接 WebDAV' })
-    : t('settings.backup.webdav.saveAndUseAction', { defaultValue: '保存并使用 WebDAV' });
+    ? t('settings.webdav.enablingAction', { defaultValue: '正在连接 WebDAV' })
+    : t('settings.webdav.saveAndUseAction', { defaultValue: '保存并使用 WebDAV' });
 
   if (showProviderPicker) {
     return (
@@ -1354,7 +1354,7 @@ function WebdavConfigPage({
   return (
     <section className="min-h-[520px] bg-background">
       <PopupHeader
-        title={t('settings.backup.webdav.entry', { defaultValue: 'WebDAV 同步' })}
+        title={t('settings.webdav.entry', { defaultValue: 'WebDAV 同步' })}
         onBack={onBack}
       />
 
@@ -1366,7 +1366,7 @@ function WebdavConfigPage({
             onClick={() => setShowProviderPicker(true)}
           >
             <span className="min-w-0 flex-1 text-sm font-medium leading-5 text-foreground">
-              {t('settings.backup.webdav.providerLabel', { defaultValue: 'WebDAV 服务商' })}
+              {t('settings.webdav.providerLabel', { defaultValue: 'WebDAV 服务商' })}
             </span>
             <span className="max-w-[120px] truncate text-sm leading-5 text-muted-foreground">
               {selectedProvider.label}
@@ -1375,7 +1375,7 @@ function WebdavConfigPage({
           </button>
         </div>
 
-        <NativeField label={t('settings.backup.webdav.url', { defaultValue: 'WebDAV 地址' })}>
+        <NativeField label={t('settings.webdav.url', { defaultValue: 'WebDAV 地址' })}>
           <Input
             value={url}
             onChange={(event) => setUrl(event.target.value)}
@@ -1384,22 +1384,22 @@ function WebdavConfigPage({
           />
         </NativeField>
 
-        <NativeField label={t('settings.backup.webdav.username', { defaultValue: '用户名' })}>
+        <NativeField label={t('settings.webdav.username', { defaultValue: '用户名' })}>
           <Input
             value={username}
             onChange={(event) => setUsername(event.target.value)}
-            placeholder={t('settings.backup.webdav.usernamePlaceholder', { defaultValue: '可选' })}
+            placeholder={t('settings.webdav.usernamePlaceholder', { defaultValue: '可选' })}
             className="h-10 rounded-[8px]"
           />
         </NativeField>
 
-        <NativeField label={t('settings.backup.webdav.password', { defaultValue: '密码' })}>
+        <NativeField label={t('settings.webdav.password', { defaultValue: '密码' })}>
           <div className="relative">
             <Input
               type={showPassword ? 'text' : 'password'}
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              placeholder={t('settings.backup.webdav.passwordPlaceholder', { defaultValue: '可选' })}
+              placeholder={t('settings.webdav.passwordPlaceholder', { defaultValue: '可选' })}
               className="h-10 rounded-[8px] pr-10"
             />
             <button

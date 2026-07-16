@@ -7,6 +7,7 @@ import {
   LEAFTAB_PENDING_BOOKMARK_CONFLICT_KEY,
   LEAFTAB_SELECTED_SYNC_SOURCE_KEY,
   LEAFTAB_SYNC_DEVICE_ID_KEY,
+  LEAFTAB_SYNC_DEVICE_ID_REQUEST_TYPE,
   LEAFTAB_SYNC_DEFAULT_ROOT_PATH,
   WEBDAV_LAST_ERROR_AT_KEY,
   WEBDAV_LAST_ERROR_MESSAGE_KEY,
@@ -59,7 +60,6 @@ import {
   appendLeafTabLocalBookmarkOperationEvent,
 } from '@/sync/leaftab/localOperationOutbox';
 import {
-  shouldRunLeafTabBookmarkSyncForProbe,
   type LeafTabBookmarkSyncChangeProbeResult,
 } from '@/sync/leaftab/changeProbe';
 import {
@@ -114,6 +114,7 @@ const PHONE_PAGE_PUSH_ALARM_FALLBACK_MS = 30_000;
 const PHONE_PAGE_PUSH_SOURCE = 'airatab_desktop_extension';
 
 let activeAutoSyncPromise: Promise<boolean> | null = null;
+let activeDeviceIdPromise: Promise<string> | null = null;
 let activePhonePagePushPollPromise: Promise<boolean> | null = null;
 let phonePagePushPollTimer: ReturnType<typeof globalThis.setTimeout> | null = null;
 let bookmarkApplySuppressedUntil = 0;
@@ -153,7 +154,7 @@ type BackgroundSyncConfig = {
 
 type BackgroundSyncTrigger = {
   provider?: LeafTabSyncRemoteKind;
-  hasRemoteChanges?: boolean;
+  preflightCompleted?: boolean;
 };
 
 type PhonePagePushUrlPayload = {
@@ -515,18 +516,28 @@ async function pollPhonePagePushOnce(options: { waitMs?: number } = {}): Promise
 }
 
 async function getOrCreateDeviceId(): Promise<string> {
-  const result = await readExtensionStorageRecord([LEAFTAB_SYNC_DEVICE_ID_KEY]);
-  const existing = String(result[LEAFTAB_SYNC_DEVICE_ID_KEY] || '').trim();
-  if (existing) {
-    return existing;
+  if (activeDeviceIdPromise) {
+    return activeDeviceIdPromise;
   }
-  const created = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-    ? crypto.randomUUID()
-    : `dev_${Date.now()}_${Math.random().toString(16).slice(2)}`;
-  await writeExtensionStorageRecord({
-    [LEAFTAB_SYNC_DEVICE_ID_KEY]: created,
-  });
-  return created;
+  activeDeviceIdPromise = (async () => {
+    const result = await readExtensionStorageRecord([LEAFTAB_SYNC_DEVICE_ID_KEY]);
+    const existing = String(result[LEAFTAB_SYNC_DEVICE_ID_KEY] || '').trim();
+    if (existing) {
+      return existing;
+    }
+    const created = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `dev_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+    await writeExtensionStorageRecord({
+      [LEAFTAB_SYNC_DEVICE_ID_KEY]: created,
+    });
+    return created;
+  })();
+  try {
+    return await activeDeviceIdPromise;
+  } finally {
+    activeDeviceIdPromise = null;
+  }
 }
 
 async function readBackgroundSyncConfig(): Promise<BackgroundSyncConfig> {
@@ -775,27 +786,6 @@ async function probeSyncPreflightForKind(
   const module = await createBookmarkSyncModuleForBackground(config, remoteKind, pendingLocalChanges);
   return module.probeChanges();
 }
-async function skipBackgroundSyncAsUnchanged(
-  provider: LeafTabSyncRemoteKind,
-  probe: LeafTabBookmarkSyncChangeProbeResult,
-): Promise<void> {
-  await updateBackgroundDebugState({
-    lastSyncFinishedAt: getNowIso(),
-    lastResult: 'skipped',
-    lastReason: `${provider}:unchanged`,
-    lastError: '',
-    lastTriggerProvider: provider,
-    cloudRemoteCommitId: provider === 'aira-cloud' ? (probe.remoteCommitId || '') : undefined,
-    webdavRemoteCommitId: provider === 'webdav' ? (probe.remoteCommitId || '') : undefined,
-    pendingLocalChangedAt: '',
-  });
-  await removeExtensionStorageKeys([
-    LEAFTAB_BACKGROUND_STORAGE_KEYS.pendingLocalChangedAt,
-    LEAFTAB_BACKGROUND_STORAGE_KEYS.autoSyncRetryProvider,
-    LEAFTAB_BACKGROUND_STORAGE_KEYS.autoSyncLastError,
-    WEBDAV_STORAGE_KEYS.nextSyncAt,
-  ]);
-}
 
 function isActionRequiredSyncError(error: unknown): boolean {
   if (error instanceof LeafTabSyncWebdavError) {
@@ -895,16 +885,12 @@ async function runBackgroundAutoSync(trigger?: BackgroundSyncTrigger): Promise<b
 
     const keepAlive = startBackgroundKeepAlive();
     try {
-      if (!(trigger?.hasRemoteChanges === true && trigger.provider === remoteKind)) {
+      if (!(trigger?.preflightCompleted === true && trigger.provider === remoteKind)) {
         const preflight = await probeSyncPreflightForKind(config, remoteKind);
         await updateBackgroundDebugState({
           cloudRemoteCommitId: remoteKind === 'aira-cloud' ? (preflight.remoteCommitId || '') : undefined,
           webdavRemoteCommitId: remoteKind === 'webdav' ? (preflight.remoteCommitId || '') : undefined,
         });
-        if (preflight.canSkipSync) {
-          await skipBackgroundSyncAsUnchanged(remoteKind, preflight);
-          return false;
-        }
       }
 
       await writeExtensionStorageRecord({
@@ -1133,13 +1119,10 @@ async function handleRemoteProbeAlarm(): Promise<void> {
       await markSyncError(remoteKind, new Error(probe.summary || '自动同步检查失败。'));
       return;
     }
-    if (shouldRunLeafTabBookmarkSyncForProbe(probe)) {
-      await runBackgroundAutoSync({
-        provider: remoteKind,
-        hasRemoteChanges: probe?.hasRemoteChanges === true,
-      });
-      return;
-    }
+    await runBackgroundAutoSync({
+      provider: remoteKind,
+      preflightCompleted: true,
+    });
   } finally {
     keepAlive.stop();
     await reconcileBackgroundSchedules();
@@ -1408,6 +1391,23 @@ function bindWebdavProxyMessageListener(): void {
   });
 }
 
+function bindLeafTabSyncDeviceIdMessageListener(): void {
+  getRuntime()?.onMessage.addListener((message, _sender, sendResponse) => {
+    if (message?.type !== LEAFTAB_SYNC_DEVICE_ID_REQUEST_TYPE) return;
+    void getOrCreateDeviceId()
+      .then((deviceId) => {
+        sendResponse({ success: true, deviceId });
+      })
+      .catch((error) => {
+        sendResponse({
+          success: false,
+          error: String(error instanceof Error ? error.message : error),
+        });
+      });
+    return true;
+  });
+}
+
 function bindPhonePagePushMessageListener(): void {
   getRuntime()?.onMessage.addListener((message, _sender, sendResponse) => {
     const normalized = normalizePhonePagePushMessage(message);
@@ -1454,6 +1454,7 @@ function bindPhonePagePushMessageListener(): void {
 }
 
 bindWebdavProxyMessageListener();
+bindLeafTabSyncDeviceIdMessageListener();
 bindPhonePagePushMessageListener();
 bindBookmarkListeners();
 bindAlarmListeners();

@@ -14,7 +14,6 @@ export type LeafTabBookmarkSyncChangeProbeStatus =
 
 export interface LeafTabBookmarkSyncChangeProbeResult {
   status: LeafTabBookmarkSyncChangeProbeStatus;
-  canSkipSync: boolean;
   hasLocalChanges: boolean;
   hasRemoteChanges: boolean;
   provider: LeafTabSyncRemoteKind;
@@ -22,10 +21,6 @@ export interface LeafTabBookmarkSyncChangeProbeResult {
   remoteCommitId: string | null;
   summary: string;
 }
-
-export const shouldRunLeafTabBookmarkSyncForProbe = (
-  probe: LeafTabBookmarkSyncChangeProbeResult | null | undefined,
-): boolean => probe?.status === 'changed' && probe.canSkipSync === false;
 
 export interface ProbeLeafTabBookmarkSyncChangesParams {
   provider: LeafTabSyncRemoteKind;
@@ -64,7 +59,6 @@ const readRemoteCommitId = async (store: LeafTabSyncRemoteStore): Promise<string
 
 const createProbeResult = (
   status: LeafTabBookmarkSyncChangeProbeStatus,
-  canSkipSync: boolean,
   hasLocalChanges: boolean,
   hasRemoteChanges: boolean,
   provider: LeafTabSyncRemoteKind,
@@ -73,7 +67,6 @@ const createProbeResult = (
   summary: string,
 ): LeafTabBookmarkSyncChangeProbeResult => ({
   status,
-  canSkipSync,
   hasLocalChanges,
   hasRemoteChanges,
   provider,
@@ -92,7 +85,6 @@ export const probeLeafTabBookmarkSyncChanges = async (
   if (hasDirtyMarker || hasOutbox) {
     return createProbeResult(
       'changed',
-      false,
       true,
       false,
       params.provider,
@@ -112,7 +104,6 @@ export const probeLeafTabBookmarkSyncChanges = async (
       'unknown',
       false,
       false,
-      false,
       params.provider,
       null,
       null,
@@ -124,7 +115,6 @@ export const probeLeafTabBookmarkSyncChanges = async (
   if (baselineCommitId === undefined) {
     return createProbeResult(
       'changed',
-      false,
       false,
       remoteCommitId !== null,
       params.provider,
@@ -142,7 +132,6 @@ export const probeLeafTabBookmarkSyncChanges = async (
           localSummary.bookmarkItems !== baselineState.summary.bookmarkItems) {
           return createProbeResult(
             'changed',
-            false,
             true,
             false,
             params.provider,
@@ -156,7 +145,6 @@ export const probeLeafTabBookmarkSyncChanges = async (
           'unknown',
           false,
           false,
-          false,
           params.provider,
           baselineCommitId,
           remoteCommitId,
@@ -166,19 +154,17 @@ export const probeLeafTabBookmarkSyncChanges = async (
     }
     return createProbeResult(
       'unchanged',
-      true,
       false,
       false,
       params.provider,
       baselineCommitId,
       remoteCommitId,
-      '本机和云端没有新的书签变更。',
+      '轻量检查未发现变化，仍需由完整同步确认本机快照。',
     );
   }
 
   return createProbeResult(
     'changed',
-    false,
     false,
     true,
     params.provider,

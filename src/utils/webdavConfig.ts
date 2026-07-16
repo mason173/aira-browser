@@ -50,11 +50,6 @@ export const writeWebdavStorageStateToStorage = async (
   defaultProfileName = "",
 ): Promise<void> => {
   const profileName = state.profileName.trim() || defaultProfileName;
-  localStorage.setItem(WEBDAV_STORAGE_KEYS.profileName, profileName);
-  localStorage.setItem(WEBDAV_STORAGE_KEYS.url, state.url.trim());
-  localStorage.setItem(WEBDAV_STORAGE_KEYS.username, state.username.trim());
-  localStorage.setItem(WEBDAV_STORAGE_KEYS.password, state.password || "");
-  localStorage.setItem(WEBDAV_STORAGE_KEYS.syncEnabled, String(state.syncEnabled));
   await writeExtensionStorageRecord({
     [WEBDAV_STORAGE_KEYS.profileName]: profileName,
     [WEBDAV_STORAGE_KEYS.url]: state.url.trim(),
@@ -62,6 +57,11 @@ export const writeWebdavStorageStateToStorage = async (
     [WEBDAV_STORAGE_KEYS.password]: state.password || "",
     [WEBDAV_STORAGE_KEYS.syncEnabled]: String(state.syncEnabled),
   });
+  localStorage.setItem(WEBDAV_STORAGE_KEYS.profileName, profileName);
+  localStorage.setItem(WEBDAV_STORAGE_KEYS.url, state.url.trim());
+  localStorage.setItem(WEBDAV_STORAGE_KEYS.username, state.username.trim());
+  localStorage.setItem(WEBDAV_STORAGE_KEYS.password, state.password || "");
+  localStorage.setItem(WEBDAV_STORAGE_KEYS.syncEnabled, String(state.syncEnabled));
 };
 
 export const seedWebdavCredentialsToExtensionStorage = async (

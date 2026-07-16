@@ -8,48 +8,16 @@ export const LEAFTAB_LOCAL_BOOKMARK_CHANGED_AT_KEY = 'leaftab_sync_g2_local_book
 const BOOKMARK_SYNC_APPLY_SUPPRESS_UNTIL_KEY = 'leaftab_sync_g2_apply_suppress_until';
 const APPLY_EVENT_SUPPRESS_MS = 20_000;
 
-const readNumber = (key: string) => {
-  try {
-    const value = Number(globalThis.localStorage?.getItem(key) || 0);
-    return Number.isFinite(value) ? value : 0;
-  } catch {
-    return 0;
-  }
-};
-
-export const markLeafTabBookmarkSyncApplyStarted = (nowMs = Date.now()) => {
-  try {
-    globalThis.localStorage?.setItem(
-      BOOKMARK_SYNC_APPLY_SUPPRESS_UNTIL_KEY,
-      String(nowMs + APPLY_EVENT_SUPPRESS_MS),
-    );
-  } catch {}
-  void writeExtensionStorageRecord({
+export const markLeafTabBookmarkSyncApplyStarted = async (nowMs = Date.now()): Promise<void> => {
+  await writeExtensionStorageRecord({
     [BOOKMARK_SYNC_APPLY_SUPPRESS_UNTIL_KEY]: String(nowMs + APPLY_EVENT_SUPPRESS_MS),
   });
 };
 
-export const markLeafTabBookmarkSyncApplyFinished = (nowMs = Date.now()) => {
-  try {
-    globalThis.localStorage?.setItem(
-      BOOKMARK_SYNC_APPLY_SUPPRESS_UNTIL_KEY,
-      String(nowMs + APPLY_EVENT_SUPPRESS_MS),
-    );
-  } catch {}
-  void writeExtensionStorageRecord({
+export const markLeafTabBookmarkSyncApplyFinished = async (nowMs = Date.now()): Promise<void> => {
+  await writeExtensionStorageRecord({
     [BOOKMARK_SYNC_APPLY_SUPPRESS_UNTIL_KEY]: String(nowMs + APPLY_EVENT_SUPPRESS_MS),
   });
-};
-
-export const hasPendingLeafTabLocalBookmarkChanges = () => {
-  return readNumber(LEAFTAB_LOCAL_BOOKMARK_CHANGED_AT_KEY) > 0;
-};
-
-export const clearPendingLeafTabLocalBookmarkChanges = () => {
-  try {
-    globalThis.localStorage?.removeItem(LEAFTAB_LOCAL_BOOKMARK_CHANGED_AT_KEY);
-  } catch {}
-  void removeExtensionStorageKeys([LEAFTAB_LOCAL_BOOKMARK_CHANGED_AT_KEY]);
 };
 
 export const readPendingLeafTabLocalBookmarkChangedAtFromExtensionStorage = async (): Promise<number> => {

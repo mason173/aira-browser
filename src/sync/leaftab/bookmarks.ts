@@ -1,5 +1,9 @@
 import { getBookmarksApi } from '@/platform/runtime';
-import { readExtensionStorageRecord, writeExtensionStorageRecord } from '@/platform/extensionStorage';
+import {
+  getExtensionStorageArea,
+  readExtensionStorageRecord,
+  writeExtensionStorageRecord,
+} from '@/platform/extensionStorage';
 import { ensureExtensionPermission } from '@/utils/extensionPermissions';
 import { LEAFTAB_BOOKMARK_MAPPING_KEY } from '@/features/sync/app/leafTabSyncStorageKeys';
 
@@ -271,34 +275,31 @@ const readBookmarkMappingFromLocalStorage = (): LeafTabBookmarkMappingState => {
 
 const readBookmarkMapping = async (): Promise<LeafTabBookmarkMappingState> => {
   const storageKey = LEAFTAB_BOOKMARK_MAPPING_KEY;
-  try {
-    const result = await readExtensionStorageRecord([storageKey]);
-    const raw = typeof result[storageKey] === 'string' ? result[storageKey] : '';
-    if (!raw) {
-      const localCopy = readBookmarkMappingFromLocalStorage();
-      if (Object.keys(localCopy.nodeIdToEntityId).length > 0) {
-        await writeExtensionStorageRecord({
-          [storageKey]: JSON.stringify(localCopy),
-        });
-      }
-      return localCopy;
-    }
-    const parsed = JSON.parse(raw) as Partial<LeafTabBookmarkMappingState>;
-    return {
-      version: 1,
-      nodeIdToEntityId:
-        parsed?.nodeIdToEntityId && typeof parsed.nodeIdToEntityId === 'object'
-          ? Object.fromEntries(
-              Object.entries(parsed.nodeIdToEntityId).filter(
-                ([nodeId, entityId]) => typeof nodeId === 'string' && typeof entityId === 'string',
-              ),
-            )
-          : {},
-      savedAt: typeof parsed?.savedAt === 'string' ? parsed.savedAt : new Date(0).toISOString(),
-    };
-  } catch {
+  if (!getExtensionStorageArea()) {
     return readBookmarkMappingFromLocalStorage();
   }
+  const result = await readExtensionStorageRecord([storageKey]);
+  const raw = typeof result[storageKey] === 'string' ? result[storageKey] : '';
+  if (!raw) {
+    return {
+      version: 1,
+      nodeIdToEntityId: {},
+      savedAt: new Date(0).toISOString(),
+    };
+  }
+  const parsed = JSON.parse(raw) as Partial<LeafTabBookmarkMappingState>;
+  return {
+    version: 1,
+    nodeIdToEntityId:
+      parsed?.nodeIdToEntityId && typeof parsed.nodeIdToEntityId === 'object'
+        ? Object.fromEntries(
+            Object.entries(parsed.nodeIdToEntityId).filter(
+              ([nodeId, entityId]) => typeof nodeId === 'string' && typeof entityId === 'string',
+            ),
+          )
+        : {},
+    savedAt: typeof parsed?.savedAt === 'string' ? parsed.savedAt : new Date(0).toISOString(),
+  };
 };
 
 const writeBookmarkMapping = async (
@@ -310,12 +311,16 @@ const writeBookmarkMapping = async (
     nodeIdToEntityId,
     savedAt: new Date().toISOString(),
   } satisfies LeafTabBookmarkMappingState);
-  try {
+  if (!getExtensionStorageArea()) {
     globalThis.localStorage?.setItem(storageKey, nextValue);
-  } catch {}
+    return;
+  }
   await writeExtensionStorageRecord({
     [storageKey]: nextValue,
   });
+  try {
+    globalThis.localStorage?.removeItem(storageKey);
+  } catch {}
 };
 
 const createFolderEntityId = (parentId: string | null, title: string, occurrence: number) => {

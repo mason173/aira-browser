@@ -31,16 +31,16 @@ export const readAiraCloudSyncEnabledFromExtensionStorage = async (uid: string):
   return String(record[storageKey] || '') === 'true';
 };
 
-export const writeAiraCloudSyncEnabled = (uid: string, enabled: boolean): void => {
+export const writeAiraCloudSyncEnabled = async (uid: string, enabled: boolean): Promise<void> => {
   const normalizedUid = uid.trim();
   if (!normalizedUid) return;
   const storageKey = createAiraCloudSyncPreferenceKey(normalizedUid);
+  await writeExtensionStorageRecord({
+    [storageKey]: String(enabled),
+  });
   try {
     localStorage.setItem(storageKey, String(enabled));
   } catch {
-    // Extension service workers do not expose localStorage.
+    // Popup localStorage is only a UI cache; extension storage is authoritative.
   }
-  void writeExtensionStorageRecord({
-    [storageKey]: String(enabled),
-  }).catch(() => undefined);
 };
