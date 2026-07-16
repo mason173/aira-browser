@@ -4,7 +4,6 @@ import {
   AIRA_CLOUD_LAST_SYNC_AT_KEY,
   createLeafTabSyncBaselineStorageKey,
   LEAFTAB_BACKGROUND_STORAGE_KEYS,
-  LEAFTAB_LEGACY_SELECTED_SYNC_SOURCE_KEY,
   LEAFTAB_PENDING_BOOKMARK_CONFLICT_KEY,
   LEAFTAB_SELECTED_SYNC_SOURCE_KEY,
   LEAFTAB_SYNC_DEVICE_ID_KEY,
@@ -547,19 +546,11 @@ async function readBackgroundSyncConfig(): Promise<BackgroundSyncConfig> {
   const cloudSyncEnabled = await readAiraCloudSyncEnabledFromExtensionStorage(cloudUid);
   const sharedRecord = await readExtensionStorageRecord([
     LEAFTAB_SELECTED_SYNC_SOURCE_KEY,
-    LEAFTAB_LEGACY_SELECTED_SYNC_SOURCE_KEY,
     LEAFTAB_PENDING_BOOKMARK_CONFLICT_KEY,
   ]);
-  const selectedSourceResolution = resolveLeafTabSelectedSyncSource({
-    selectedSource: sharedRecord[LEAFTAB_SELECTED_SYNC_SOURCE_KEY],
-    legacySelectedSource: sharedRecord[LEAFTAB_LEGACY_SELECTED_SYNC_SOURCE_KEY],
-  });
-  const selectedSource = selectedSourceResolution.source;
-  if (selectedSource && selectedSourceResolution.needsMigration) {
-    await writeExtensionStorageRecord({
-      [LEAFTAB_SELECTED_SYNC_SOURCE_KEY]: selectedSource,
-    });
-  }
+  const selectedSource = resolveLeafTabSelectedSyncSource(
+    sharedRecord[LEAFTAB_SELECTED_SYNC_SOURCE_KEY],
+  );
   const hasPendingConflict = Boolean(sharedRecord[LEAFTAB_PENDING_BOOKMARK_CONFLICT_KEY]);
 
   return {

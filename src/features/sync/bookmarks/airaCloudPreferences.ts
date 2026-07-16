@@ -1,26 +1,46 @@
-import { AiraAccountBooleanPreferenceModule } from '@/features/desktop-connection/AiraAccountPreferenceModule';
-import { AIRA_CLOUD_SYNC_ENABLED_KEY } from '@/features/sync/app/leafTabSyncStorageKeys';
+import {
+  readExtensionStorageRecord,
+  writeExtensionStorageRecord,
+} from '@/platform/extensionStorage';
 
-const AIRA_CLOUD_SYNC_ACCOUNT_KEY_PREFIX = 'aira_cloud_bookmark_sync_enabled_v2';
-const AIRA_CLOUD_SYNC_LEGACY_OWNER_KEY = 'aira_cloud_bookmark_sync_legacy_owner_v1';
+const AIRA_CLOUD_SYNC_ACCOUNT_KEY_PREFIX = 'aira_cloud_bookmark_sync_g2_enabled';
 
-const preference = new AiraAccountBooleanPreferenceModule({
-  legacyKey: AIRA_CLOUD_SYNC_ENABLED_KEY,
-  scopedKeyPrefix: AIRA_CLOUD_SYNC_ACCOUNT_KEY_PREFIX,
-  legacyOwnerKey: AIRA_CLOUD_SYNC_LEGACY_OWNER_KEY,
-  defaultValue: false,
-});
+const createAiraCloudSyncPreferenceKey = (uid: string): string => (
+  `${AIRA_CLOUD_SYNC_ACCOUNT_KEY_PREFIX}:${encodeURIComponent(uid.trim())}`
+);
 
 export const isAiraCloudSyncPreferenceStorageKey = (key: string): boolean => (
-  preference.isStorageKey(key)
+  key.startsWith(`${AIRA_CLOUD_SYNC_ACCOUNT_KEY_PREFIX}:`)
 );
 
-export const readAiraCloudSyncEnabledFromLocalStorage = (uid: string): boolean => preference.readLocal(uid);
+export const readAiraCloudSyncEnabledFromLocalStorage = (uid: string): boolean => {
+  const normalizedUid = uid.trim();
+  if (!normalizedUid) return false;
+  try {
+    return localStorage.getItem(createAiraCloudSyncPreferenceKey(normalizedUid)) === 'true';
+  } catch {
+    return false;
+  }
+};
 
-export const readAiraCloudSyncEnabledFromExtensionStorage = (uid: string): Promise<boolean> => (
-  preference.readExtension(uid)
-);
+export const readAiraCloudSyncEnabledFromExtensionStorage = async (uid: string): Promise<boolean> => {
+  const normalizedUid = uid.trim();
+  if (!normalizedUid) return false;
+  const storageKey = createAiraCloudSyncPreferenceKey(normalizedUid);
+  const record = await readExtensionStorageRecord([storageKey]);
+  return String(record[storageKey] || '') === 'true';
+};
 
 export const writeAiraCloudSyncEnabled = (uid: string, enabled: boolean): void => {
-  preference.write(uid, enabled);
+  const normalizedUid = uid.trim();
+  if (!normalizedUid) return;
+  const storageKey = createAiraCloudSyncPreferenceKey(normalizedUid);
+  try {
+    localStorage.setItem(storageKey, String(enabled));
+  } catch {
+    // Extension service workers do not expose localStorage.
+  }
+  void writeExtensionStorageRecord({
+    [storageKey]: String(enabled),
+  }).catch(() => undefined);
 };

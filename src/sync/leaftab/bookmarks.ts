@@ -6,7 +6,6 @@ import {
   getDefaultLeafTabBookmarkSyncScope as getDefaultBookmarkSyncScope,
   getLeafTabBookmarkScopeStorageKey,
   normalizeLeafTabBookmarkSyncScope,
-  writeLeafTabBookmarkSyncScope as persistLeafTabBookmarkSyncScope,
   type LeafTabBookmarkSyncScope,
   type LeafTabBookmarkSyncScopeRole,
 } from './bookmarkScope';
@@ -78,7 +77,7 @@ const ROOT_FOLDER_TITLE_PATTERNS: Array<{
 ];
 
 const ROOT_ORDER_KEY = '__root__';
-const MAPPING_KEY_PREFIX = 'leaftab_sync_bookmark_mapping_v1:';
+const MAPPING_KEY_PREFIX = 'leaftab_sync_g2_bookmark_mapping:';
 const BOOKMARK_DRAFT_CACHE_TTL_MS = 5 * 60 * 1000;
 const bookmarkDraftCache = new Map<string, LeafTabBookmarkDraftCacheEntry>();
 let bookmarkDraftCacheListenersBound = false;
@@ -431,11 +430,6 @@ export const getDefaultLeafTabBookmarkSyncScope = (): LeafTabBookmarkSyncScope =
 
 export const readLeafTabBookmarkSyncScope = (): LeafTabBookmarkSyncScope => {
   return getDefaultBookmarkSyncScope();
-};
-
-export const writeLeafTabBookmarkSyncScope = (scope: LeafTabBookmarkSyncScope) => {
-  persistLeafTabBookmarkSyncScope(scope);
-  invalidateLeafTabBookmarkDraftCache();
 };
 
 export const formatLeafTabBookmarkSyncScopeLabel = (

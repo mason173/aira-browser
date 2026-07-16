@@ -1,9 +1,7 @@
 export const LEAFTAB_SYNC_DEVICE_ID_KEY = 'leaftab_sync_g2_device_id';
 export const LEAFTAB_SYNC_DEFAULT_ROOT_PATH = 'aira/g2/bookmarks';
 export const LEAFTAB_SELECTED_SYNC_SOURCE_KEY = 'leaftab_sync_g2_active_provider';
-export const LEAFTAB_LEGACY_SELECTED_SYNC_SOURCE_KEY = 'leaftab_primary_sync_remote_kind';
 export const LEAFTAB_PENDING_BOOKMARK_CONFLICT_KEY = 'leaftab_sync_g2_pending_bookmark_conflict';
-export const AIRA_CLOUD_SYNC_ENABLED_KEY = 'aira_cloud_bookmark_sync_enabled';
 export const AIRA_CLOUD_LAST_SYNC_AT_KEY = 'aira_cloud_bookmark_sync_g2_last_sync_at';
 export const AIRA_CLOUD_LAST_ERROR_AT_KEY = 'aira_cloud_bookmark_sync_g2_last_error_at';
 export const AIRA_CLOUD_LAST_ERROR_MESSAGE_KEY = 'aira_cloud_bookmark_sync_g2_last_error_message';

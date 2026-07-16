@@ -10,7 +10,6 @@ const DEFAULT_SCOPE: LeafTabBookmarkSyncScope = {
   pathSegments: [],
 };
 
-const SCOPE_STORAGE_KEY = 'leaftab_sync_bookmark_scope_v1';
 const FIXED_SCOPE_STORAGE_KEY = 'roots:toolbar+other';
 
 export const normalizeLeafTabBookmarkSyncScope = (
@@ -31,22 +30,7 @@ export const getDefaultLeafTabBookmarkSyncScope = (): LeafTabBookmarkSyncScope =
 };
 
 export const readLeafTabBookmarkSyncScope = (): LeafTabBookmarkSyncScope => {
-  try {
-    const raw = globalThis.localStorage?.getItem(SCOPE_STORAGE_KEY);
-    if (!raw) return getDefaultLeafTabBookmarkSyncScope();
-    return normalizeLeafTabBookmarkSyncScope(JSON.parse(raw) as LeafTabBookmarkSyncScope);
-  } catch {
-    return getDefaultLeafTabBookmarkSyncScope();
-  }
-};
-
-export const writeLeafTabBookmarkSyncScope = (scope: LeafTabBookmarkSyncScope) => {
-  try {
-    globalThis.localStorage?.setItem(
-      SCOPE_STORAGE_KEY,
-      JSON.stringify(normalizeLeafTabBookmarkSyncScope(scope)),
-    );
-  } catch {}
+  return getDefaultLeafTabBookmarkSyncScope();
 };
 
 export const formatLeafTabBookmarkSyncScopeLabel = (

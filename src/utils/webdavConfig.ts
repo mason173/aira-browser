@@ -10,8 +10,8 @@ export const WEBDAV_STORAGE_KEYS = {
   url: "webdav_url",
   username: "webdav_username",
   password: "webdav_password",
-  syncEnabled: "webdav_sync_enabled",
-  nextSyncAt: "webdav_next_sync_at",
+  syncEnabled: "webdav_bookmark_sync_g2_enabled",
+  nextSyncAt: "webdav_bookmark_sync_g2_next_sync_at",
 } as const;
 
 export const WEBDAV_BOOKMARK_SYNC_ROOT_SUFFIX = "aira/g2/bookmarks";

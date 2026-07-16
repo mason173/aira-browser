@@ -7,20 +7,9 @@ export const parseLeafTabSyncRemoteKind = (value: unknown): LeafTabSyncRemoteKin
   return null;
 };
 
-export const resolveLeafTabSelectedSyncSource = (values: {
-  selectedSource: unknown;
-  legacySelectedSource?: unknown;
-}): { source: LeafTabSyncRemoteKind | null; needsMigration: boolean } => {
-  const selectedSource = parseLeafTabSyncRemoteKind(values.selectedSource);
-  if (selectedSource) {
-    return { source: selectedSource, needsMigration: false };
-  }
-  const legacySource = parseLeafTabSyncRemoteKind(values.legacySelectedSource);
-  return {
-    source: legacySource,
-    needsMigration: Boolean(legacySource),
-  };
-};
+export const resolveLeafTabSelectedSyncSource = (value: unknown): LeafTabSyncRemoteKind | null => (
+  parseLeafTabSyncRemoteKind(value)
+);
 
 export const canRunLeafTabSelectedAutoSync = (values: {
   selectedSource: unknown;

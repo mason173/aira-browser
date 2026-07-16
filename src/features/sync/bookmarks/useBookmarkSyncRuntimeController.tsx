@@ -12,10 +12,8 @@ import {
   AIRA_CLOUD_LAST_ERROR_AT_KEY,
   AIRA_CLOUD_LAST_ERROR_MESSAGE_KEY,
   AIRA_CLOUD_LAST_SYNC_AT_KEY,
-  AIRA_CLOUD_SYNC_ENABLED_KEY,
   createLeafTabSyncBaselineStorageKey,
   LEAFTAB_BACKGROUND_STORAGE_KEYS,
-  LEAFTAB_LEGACY_SELECTED_SYNC_SOURCE_KEY,
   LEAFTAB_PENDING_BOOKMARK_CONFLICT_KEY,
   LEAFTAB_SELECTED_SYNC_SOURCE_KEY,
   LEAFTAB_SYNC_DEVICE_ID_KEY,
@@ -211,8 +209,6 @@ const createNoopSyncResultFromProbe = async (
 const SHARED_EXTENSION_STORAGE_KEYS: string[] = [
   LEAFTAB_SYNC_DEVICE_ID_KEY,
   LEAFTAB_SELECTED_SYNC_SOURCE_KEY,
-  LEAFTAB_LEGACY_SELECTED_SYNC_SOURCE_KEY,
-  AIRA_CLOUD_SYNC_ENABLED_KEY,
   AIRA_CLOUD_LAST_SYNC_AT_KEY,
   AIRA_CLOUD_LAST_ERROR_AT_KEY,
   AIRA_CLOUD_LAST_ERROR_MESSAGE_KEY,
@@ -262,17 +258,7 @@ const createIdleProgressState = (): LeafTabSyncProgressState => ({
 });
 
 const readSelectedSyncSourceFromStorage = (): LeafTabSyncRemoteKind | null => {
-  const resolution = resolveLeafTabSelectedSyncSource({
-    selectedSource: localStorage.getItem(LEAFTAB_SELECTED_SYNC_SOURCE_KEY),
-    legacySelectedSource: localStorage.getItem(LEAFTAB_LEGACY_SELECTED_SYNC_SOURCE_KEY),
-  });
-  if (resolution.source && resolution.needsMigration) {
-    localStorage.setItem(LEAFTAB_SELECTED_SYNC_SOURCE_KEY, resolution.source);
-    void writeExtensionStorageRecord({
-      [LEAFTAB_SELECTED_SYNC_SOURCE_KEY]: resolution.source,
-    });
-  }
-  return resolution.source;
+  return resolveLeafTabSelectedSyncSource(localStorage.getItem(LEAFTAB_SELECTED_SYNC_SOURCE_KEY));
 };
 
 const persistSelectedSyncSource = async (source: LeafTabSyncRemoteKind) => {
