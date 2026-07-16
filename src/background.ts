@@ -32,9 +32,6 @@ import {
   LeafTabSyncExtensionStorageBaselineStore,
 } from '@/sync/leaftab/baseline';
 import {
-  getDefaultLeafTabBookmarkSyncScope,
-} from '@/sync/leaftab/bookmarkScope';
-import {
   captureLeafTabBookmarkTreeDraft,
   replaceLeafTabBookmarkTree,
 } from '@/sync/leaftab/bookmarks';
@@ -60,9 +57,6 @@ import {
 } from '@/sync/leaftab/localChangeTracker';
 import {
   appendLeafTabLocalBookmarkOperationEvent,
-  buildLeafTabPendingLocalOperationsFromOutbox,
-  clearLeafTabLocalBookmarkOperationOutbox,
-  hasPendingLeafTabLocalBookmarkOperationOutbox,
 } from '@/sync/leaftab/localOperationOutbox';
 import {
   shouldRunLeafTabBookmarkSyncForProbe,
@@ -79,7 +73,7 @@ import {
 } from '@/features/sync/bookmarks/BookmarkSyncModule';
 import {
   canRunLeafTabSelectedAutoSync,
-  resolveLeafTabSelectedSyncSource,
+  parseLeafTabSyncRemoteKind,
 } from '@/sync/leaftab/source';
 import type { LeafTabSyncSnapshot } from '@/sync/leaftab/schema';
 import {
@@ -99,9 +93,10 @@ import {
 } from '@/platform/extensionStorage';
 
 const WEBDAV_PROXY_MESSAGE_TYPE = 'LEAFTAB_WEBDAV_PROXY';
-const AUTO_SYNC_MESSAGE_TYPE = 'LEAFTAB_AUTO_SYNC_NOW';
-const LOCAL_SYNC_ALARM_NAME = 'aira.leaftab.auto-sync.local-change';
-const REMOTE_PROBE_ALARM_NAME = 'aira.leaftab.auto-sync.remote-probe';
+const LOCAL_SYNC_ALARM_NAME = 'aira.leaftab.g2.auto-sync.local-change';
+const REMOTE_PROBE_ALARM_NAME = 'aira.leaftab.g2.auto-sync.remote-probe';
+const PREVIOUS_LOCAL_SYNC_ALARM_NAME = 'aira.leaftab.auto-sync.local-change';
+const PREVIOUS_REMOTE_PROBE_ALARM_NAME = 'aira.leaftab.auto-sync.remote-probe';
 const PHONE_PAGE_PUSH_POLL_ALARM_NAME = 'aira.phone-page-push.poll';
 const AUTO_SYNC_BOOKMARK_CHANGE_DELAY_MINUTES = 1;
 const AUTO_SYNC_RETRY_DELAY_MINUTES = 3;
@@ -548,7 +543,7 @@ async function readBackgroundSyncConfig(): Promise<BackgroundSyncConfig> {
     LEAFTAB_SELECTED_SYNC_SOURCE_KEY,
     LEAFTAB_PENDING_BOOKMARK_CONFLICT_KEY,
   ]);
-  const selectedSource = resolveLeafTabSelectedSyncSource(
+  const selectedSource = parseLeafTabSyncRemoteKind(
     sharedRecord[LEAFTAB_SELECTED_SYNC_SOURCE_KEY],
   );
   const hasPendingConflict = Boolean(sharedRecord[LEAFTAB_PENDING_BOOKMARK_CONFLICT_KEY]);
@@ -594,9 +589,7 @@ async function buildLocalSnapshot(
   baselineStorageKey: string,
   deviceId: string,
 ): Promise<LeafTabSyncSnapshot> {
-  const scope = getDefaultLeafTabBookmarkSyncScope();
   const bookmarkTree = await captureLeafTabBookmarkTreeDraft({
-    scope,
     requestPermission: false,
     throwOnPermissionDenied: true,
   });
@@ -634,7 +627,6 @@ async function applyLocalSnapshot(snapshot: LeafTabSyncSnapshot): Promise<void> 
   bookmarkApplySuppressedUntil = Date.now() + AUTO_SYNC_APPLY_SUPPRESS_MS;
   try {
     const applied = await replaceLeafTabBookmarkTree({
-      scope: getDefaultLeafTabBookmarkSyncScope(),
       folderLookup: Object.fromEntries(
         Object.values(liveSnapshot.bookmarkFolders).map((folder) => [
           folder.id,
@@ -705,35 +697,9 @@ async function createBookmarkSyncModuleForBackground(
       buildSnapshot: () => buildLocalSnapshot(baselineStorageKey, config.deviceId),
       applySnapshot: applyLocalSnapshot,
       hasPendingChanges: () => pendingLocalChanges,
-      hasPendingOperations: hasPendingLeafTabLocalBookmarkOperationOutbox,
       clearPendingChanges: () => {
         void clearPendingLeafTabLocalBookmarkChangesInExtensionStorage();
       },
-      buildPendingOperations: (baseSnapshot) => buildLeafTabPendingLocalOperationsFromOutbox({
-        baseSnapshot,
-        deviceId: config.deviceId,
-      }),
-      clearPendingOperations: () => clearLeafTabLocalBookmarkOperationOutbox(),
-      createEmptySnapshot: () => ({
-        meta: {
-          version: 2,
-          deviceId: config.deviceId,
-          generatedAt: new Date(0).toISOString(),
-        },
-        bookmarkFolders: {},
-        bookmarkItems: {},
-        bookmarkOrders: {
-          __root__: {
-            type: 'bookmark-order',
-            parentId: null,
-            ids: [],
-            updatedAt: new Date(0).toISOString(),
-            updatedBy: config.deviceId,
-            revision: 1,
-          },
-        },
-        tombstones: {},
-      }),
     },
   });
 }
@@ -1094,6 +1060,8 @@ async function clearBackgroundAlarms(): Promise<void> {
   if (alarms?.clear) {
     await alarms.clear(LOCAL_SYNC_ALARM_NAME);
     await alarms.clear(REMOTE_PROBE_ALARM_NAME);
+    await alarms.clear(PREVIOUS_LOCAL_SYNC_ALARM_NAME);
+    await alarms.clear(PREVIOUS_REMOTE_PROBE_ALARM_NAME);
   }
   await removeExtensionStorageKeys([
     LEAFTAB_BACKGROUND_STORAGE_KEYS.nextRemoteProbeAt,
@@ -1102,6 +1070,11 @@ async function clearBackgroundAlarms(): Promise<void> {
 }
 
 async function reconcileBackgroundSchedules(isStartup: boolean = false): Promise<void> {
+  const alarms = getAlarmsApi();
+  if (alarms?.clear) {
+    await alarms.clear(PREVIOUS_LOCAL_SYNC_ALARM_NAME);
+    await alarms.clear(PREVIOUS_REMOTE_PROBE_ALARM_NAME);
+  }
   const config = await readBackgroundSyncConfig();
   if (!canRunBackgroundAutoSync(config)) {
     await clearBackgroundAlarms();
@@ -1380,20 +1353,6 @@ function bindLifecycleListeners(): void {
 function bindWebdavProxyMessageListener(): void {
   getRuntime()?.onMessage.addListener((message, _sender, sendResponse) => {
     if (!message) return;
-    if (message.type === AUTO_SYNC_MESSAGE_TYPE) {
-      const provider = message.provider === 'webdav' || message.provider === 'aira-cloud'
-        ? message.provider
-        : undefined;
-      void runBackgroundAutoSync({ provider }).then((ok) => {
-        sendResponse({ success: ok });
-      }).catch((error) => {
-        sendResponse({
-          success: false,
-          error: String((error as Error)?.message || error || 'unknown'),
-        });
-      });
-      return true;
-    }
     if (message.type !== WEBDAV_PROXY_MESSAGE_TYPE) return;
 
     const payload = message.payload || {};

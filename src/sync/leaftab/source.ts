@@ -7,10 +7,6 @@ export const parseLeafTabSyncRemoteKind = (value: unknown): LeafTabSyncRemoteKin
   return null;
 };
 
-export const resolveLeafTabSelectedSyncSource = (value: unknown): LeafTabSyncRemoteKind | null => (
-  parseLeafTabSyncRemoteKind(value)
-);
-
 export const canRunLeafTabSelectedAutoSync = (values: {
   selectedSource: unknown;
   cloudUid: unknown;

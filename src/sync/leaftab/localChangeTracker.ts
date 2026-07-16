@@ -17,10 +17,6 @@ const readNumber = (key: string) => {
   }
 };
 
-export const isLeafTabBookmarkSyncApplyEventSuppressed = (nowMs = Date.now()) => {
-  return readNumber(BOOKMARK_SYNC_APPLY_SUPPRESS_UNTIL_KEY) > nowMs;
-};
-
 export const markLeafTabBookmarkSyncApplyStarted = (nowMs = Date.now()) => {
   try {
     globalThis.localStorage?.setItem(
@@ -43,17 +39,6 @@ export const markLeafTabBookmarkSyncApplyFinished = (nowMs = Date.now()) => {
   void writeExtensionStorageRecord({
     [BOOKMARK_SYNC_APPLY_SUPPRESS_UNTIL_KEY]: String(nowMs + APPLY_EVENT_SUPPRESS_MS),
   });
-};
-
-export const markLeafTabLocalBookmarkChanged = (nowMs = Date.now()) => {
-  if (isLeafTabBookmarkSyncApplyEventSuppressed(nowMs)) return false;
-  try {
-    globalThis.localStorage?.setItem(LEAFTAB_LOCAL_BOOKMARK_CHANGED_AT_KEY, String(nowMs));
-  } catch {}
-  void writeExtensionStorageRecord({
-    [LEAFTAB_LOCAL_BOOKMARK_CHANGED_AT_KEY]: String(nowMs),
-  });
-  return true;
 };
 
 export const hasPendingLeafTabLocalBookmarkChanges = () => {

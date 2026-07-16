@@ -6,7 +6,6 @@ export const LEAFTAB_SYNC_BOOKMARK_ITEM_PACK_SHARDS = 16;
 export const LEAFTAB_SYNC_TOMBSTONE_PACK_SHARDS = 8;
 
 export type LeafTabSyncEntityType = 'bookmark-folder' | 'bookmark-item';
-export type LeafTabSyncOrderType = 'bookmark-order';
 
 export type LeafTabSyncSnapshotMeta = {
   version: typeof LEAFTAB_SYNC_SCHEMA_VERSION;
@@ -35,10 +34,6 @@ export interface LeafTabSyncBookmarkItemEntity extends LeafTabSyncBaseEntity {
   title: string;
   url: string;
 }
-
-export type LeafTabSyncEntity =
-  | LeafTabSyncBookmarkFolderEntity
-  | LeafTabSyncBookmarkItemEntity;
 
 export interface LeafTabSyncBookmarkOrder {
   type: 'bookmark-order';
@@ -131,14 +126,8 @@ export interface LeafTabSyncWireSnapshot {
   appPrivateBookmarks?: LeafTabSyncWireBookmarkDataSet;
 }
 
-export interface LeafTabSyncBaselineFileEntry {
-  sha: string | null;
-  content: string;
-}
-
 export interface LeafTabSyncBaseline {
   commitId: string | null;
-  files: Record<string, LeafTabSyncBaselineFileEntry>;
   snapshot?: LeafTabSyncSnapshot;
   savedAt: string;
 }
@@ -180,14 +169,6 @@ export const cloneLeafTabSyncSnapshotMeta = (
     deviceId,
     generatedAt,
   };
-};
-
-export const createLeafTabSyncDeviceId = () => {
-  try {
-    return crypto.randomUUID();
-  } catch {
-    return `dev_${Date.now()}_${Math.random().toString(16).slice(2)}`;
-  }
 };
 
 export const createLeafTabSyncCommitId = (

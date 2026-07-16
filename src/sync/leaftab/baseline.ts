@@ -1,5 +1,5 @@
 import { normalizeLeafTabSyncSnapshot, type LeafTabSyncBaseline, type LeafTabSyncSnapshot } from './schema';
-import { createLeafTabSyncBaselineFromSnapshot, type LeafTabSyncFileMap } from './fileMap';
+import { createLeafTabSyncBaselineFromSnapshot } from './fileMap';
 
 export interface LeafTabSyncBaselineStore {
   load(): Promise<LeafTabSyncBaseline | null>;
@@ -89,11 +89,11 @@ export class LeafTabSyncExtensionStorageBaselineStore implements LeafTabSyncBase
     }
 
     const fallback = this.getFallback();
-    const legacyValue = fallback ? await fallback.load() : null;
-    if (legacyValue) {
-      await this.save(legacyValue);
+    const fallbackValue = fallback ? await fallback.load() : null;
+    if (fallbackValue) {
+      await this.save(fallbackValue);
     }
-    return legacyValue;
+    return fallbackValue;
   }
 
   async save(baseline: LeafTabSyncBaseline) {
@@ -139,13 +139,4 @@ export const getLeafTabSyncBaselineSnapshot = (
   baseline: LeafTabSyncBaseline | null,
 ): LeafTabSyncSnapshot | null => {
   return normalizeLeafTabSyncSnapshot(baseline?.snapshot || null);
-};
-
-export const getLeafTabSyncBaselineFileMap = (
-  baseline: LeafTabSyncBaseline | null,
-): LeafTabSyncFileMap => {
-  if (!baseline) return {};
-  return Object.fromEntries(
-    Object.entries(baseline.files || {}).map(([path, entry]) => [path, entry.content]),
-  );
 };

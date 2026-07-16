@@ -364,33 +364,6 @@ export const createLeafTabSyncSerializedSnapshot = (
   };
 };
 
-export const serializeLeafTabSyncSnapshotToFileMap = (
-  snapshot: LeafTabSyncSnapshot,
-  options?: {
-    rootPath?: string;
-    commit?: LeafTabSyncCommitFile | null;
-    head?: LeafTabSyncHeadFile | null;
-  },
-): LeafTabSyncFileMap => {
-  return createLeafTabSyncSerializedSnapshot(snapshot, options).files;
-};
-
-export const serializeLeafTabSyncSnapshotPayloadFileMap = (
-  snapshot: LeafTabSyncSnapshot,
-  options?: {
-    rootPath?: string;
-    commit?: LeafTabSyncCommitFile | null;
-  },
-): LeafTabSyncFileMap => {
-  const serialized = createLeafTabSyncSerializedSnapshot(snapshot, {
-    rootPath: options?.rootPath,
-    commit: options?.commit,
-  });
-  return Object.fromEntries(
-    Object.entries(serialized.payloads).map(([path, payload]) => [path, stableStringify(payload)]),
-  );
-};
-
 export const createLeafTabSyncBaselineFromSnapshot = (
   snapshot: LeafTabSyncSnapshot,
   options?: {
@@ -406,21 +379,8 @@ export const createLeafTabSyncBaselineFromSnapshot = (
     snapshot,
     rootPath,
   });
-  const head = createLeafTabSyncHeadFile(commit.id, commit.createdAt);
-  const files = serializeLeafTabSyncSnapshotToFileMap(snapshot, {
-    rootPath,
-    commit,
-    head,
-  });
-
   return {
     commitId: options?.commitId ?? commit.id,
-    files: Object.fromEntries(
-      Object.entries(files).map(([path, content]) => [
-        path,
-        { sha: null, content },
-      ]),
-    ),
     snapshot,
     savedAt: snapshot.meta.generatedAt,
   };

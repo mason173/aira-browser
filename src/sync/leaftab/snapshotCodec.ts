@@ -1,7 +1,5 @@
-import type { LeafTabSyncFileMap } from './fileMap';
 import type {
   LeafTabSyncCommitFile,
-  LeafTabSyncHeadFile,
   LeafTabSyncManifestFile,
   LeafTabSyncSnapshot,
 } from './schema';
@@ -9,8 +7,6 @@ import {
   cloneLeafTabSyncSnapshotMeta,
   createLeafTabSyncOrderKey,
   createLeafTabSyncTombstoneKey,
-  getLeafTabSyncCommitPath,
-  getLeafTabSyncHeadPath,
   isLeafTabSyncBookmarkFolderEntity,
   isLeafTabSyncBookmarkItemEntity,
   isLeafTabSyncBookmarkOrder,
@@ -45,22 +41,6 @@ export const parseLeafTabSyncJsonLike = <T>(value: unknown): T | null => {
   }
 
   return null;
-};
-
-export const materializeLeafTabSyncSnapshotFromFiles = (
-  files: LeafTabSyncFileMap,
-  rootPath: string,
-): LeafTabSyncSnapshot | null => {
-  const normalizedRootPath = normalizeLeafTabSyncRootPath(rootPath);
-  const head = parseLeafTabSyncJsonLike<LeafTabSyncHeadFile>(files[getLeafTabSyncHeadPath(normalizedRootPath)]);
-  if (!head?.commitId) return null;
-
-  const commit = parseLeafTabSyncJsonLike<LeafTabSyncCommitFile>(
-    files[getLeafTabSyncCommitPath(head.commitId, normalizedRootPath)],
-  );
-  if (!commit?.manifestPath) return null;
-
-  return materializeLeafTabSyncSnapshotFromPayloadMap(files, commit);
 };
 
 export const materializeLeafTabSyncSnapshotFromPayloadMap = (

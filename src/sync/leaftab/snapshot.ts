@@ -379,14 +379,6 @@ export const buildLeafTabSyncSnapshot = (params: {
   };
 };
 
-export const projectLeafTabSyncSnapshotToBookmarkState = (
-  snapshot: LeafTabSyncSnapshot,
-) => ({
-  bookmarkFolders: filterLeafTabLiveBookmarkFolders(snapshot),
-  bookmarkItems: filterLeafTabLiveBookmarkItems(snapshot),
-  bookmarkOrders: filterLeafTabLiveBookmarkOrders(snapshot),
-});
-
 const buildDeletedEntityIdSet = (
   snapshot: LeafTabSyncSnapshot,
   type: 'bookmark-folder' | 'bookmark-item',

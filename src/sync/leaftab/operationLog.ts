@@ -235,22 +235,17 @@ export const applyLeafTabSyncOperations = (
       } else if (operation.entityType === 'bookmark-item') {
         itemById.delete(operation.entityId);
       } else {
-        // Legacy operations did not carry a type. Preserve their original broad-delete semantics.
-        folderById.delete(operation.entityId);
-        itemById.delete(operation.entityId);
-        orderByKey.delete(operation.entityId);
+        return;
       }
       removeDeletedEntityFromOrders(orderByKey, operation.entityId, operation.updatedAt, operation.updatedBy);
-      if (operation.entityType) {
-        const tombstone: LeafTabSyncTombstone = {
-          id: operation.entityId,
-          type: operation.entityType,
-          deletedAt: operation.updatedAt,
-          deletedBy: operation.updatedBy,
-          lastKnownRevision: operation.lastKnownRevision ?? operation.revision,
-        };
-        tombstoneByKey.set(tombstoneKey(tombstone), tombstone);
-      }
+      const tombstone: LeafTabSyncTombstone = {
+        id: operation.entityId,
+        type: operation.entityType,
+        deletedAt: operation.updatedAt,
+        deletedBy: operation.updatedBy,
+        lastKnownRevision: operation.lastKnownRevision ?? operation.revision,
+      };
+      tombstoneByKey.set(tombstoneKey(tombstone), tombstone);
     }
   });
 

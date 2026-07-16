@@ -3,11 +3,8 @@ import {
   removeExtensionStorageKeys,
   writeExtensionStorageRecord,
 } from '@/platform/extensionStorage';
+import { LEAFTAB_BOOKMARK_MAPPING_KEY } from '@/features/sync/app/leafTabSyncStorageKeys';
 import { getBookmarksApi } from '@/platform/runtime';
-import {
-  getDefaultLeafTabBookmarkSyncScope,
-  getLeafTabBookmarkScopeStorageKey,
-} from './bookmarkScope';
 import type { LeafTabSyncSnapshot } from './schema';
 import type { LeafTabSyncOperation } from './remoteStore';
 
@@ -56,7 +53,6 @@ type BookmarkMappingState = {
 };
 
 const OUTBOX_STORAGE_KEY = 'leaftab_sync_g2_local_operation_outbox';
-const MAPPING_KEY_PREFIX = 'leaftab_sync_g2_bookmark_mapping:';
 const ROOT_ORDER_KEY = '__root__';
 const MAX_STORED_OUTBOX_EVENTS = 500;
 const MAX_DIRECT_OPERATION_EVENTS = 120;
@@ -74,7 +70,7 @@ const ROOT_FOLDER_ID_MAP: Record<string, 'toolbar' | 'other' | 'mobile' | 'unkno
 const getRoleEntityId = (role: 'toolbar' | 'other') => `browser_root_${role}`;
 
 const getMappingStorageKey = () => {
-  return `${MAPPING_KEY_PREFIX}${getLeafTabBookmarkScopeStorageKey(getDefaultLeafTabBookmarkSyncScope())}`;
+  return LEAFTAB_BOOKMARK_MAPPING_KEY;
 };
 
 const shortHash = (value: string) => {

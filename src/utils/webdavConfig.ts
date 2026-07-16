@@ -1,7 +1,6 @@
 import type { WebdavConfig } from "@/types/webdav";
 import {
   readExtensionStorageRecord,
-  removeExtensionStorageKeys,
   writeExtensionStorageRecord,
 } from "@/platform/extensionStorage";
 
@@ -13,8 +12,6 @@ export const WEBDAV_STORAGE_KEYS = {
   syncEnabled: "webdav_bookmark_sync_g2_enabled",
   nextSyncAt: "webdav_bookmark_sync_g2_next_sync_at",
 } as const;
-
-export const WEBDAV_BOOKMARK_SYNC_ROOT_SUFFIX = "aira/g2/bookmarks";
 
 export const isWebdavSyncEnabledFromStorage = () => {
   return (localStorage.getItem(WEBDAV_STORAGE_KEYS.syncEnabled) ?? "false") === "true";
@@ -67,17 +64,28 @@ export const writeWebdavStorageStateToStorage = async (
   });
 };
 
-export const syncWebdavStorageStateToExtensionStorage = async (
+export const seedWebdavCredentialsToExtensionStorage = async (
   defaultProfileName = "",
 ): Promise<void> => {
+  const credentialKeys = [
+    WEBDAV_STORAGE_KEYS.profileName,
+    WEBDAV_STORAGE_KEYS.url,
+    WEBDAV_STORAGE_KEYS.username,
+    WEBDAV_STORAGE_KEYS.password,
+  ];
+  const existing = await readExtensionStorageRecord(credentialKeys);
+  if (String(existing[WEBDAV_STORAGE_KEYS.url] || "").trim()) {
+    return;
+  }
   const state = readWebdavStorageStateFromStorage(defaultProfileName);
+  if (!state.url.trim()) {
+    return;
+  }
   await writeExtensionStorageRecord({
     [WEBDAV_STORAGE_KEYS.profileName]: state.profileName.trim() || defaultProfileName,
     [WEBDAV_STORAGE_KEYS.url]: state.url.trim(),
     [WEBDAV_STORAGE_KEYS.username]: state.username.trim(),
     [WEBDAV_STORAGE_KEYS.password]: state.password || "",
-    [WEBDAV_STORAGE_KEYS.syncEnabled]: String(state.syncEnabled),
-    [WEBDAV_STORAGE_KEYS.nextSyncAt]: localStorage.getItem(WEBDAV_STORAGE_KEYS.nextSyncAt) || "",
   });
 };
 
@@ -98,32 +106,6 @@ export const readWebdavStorageStateFromExtensionStorage = async (
     password,
     syncEnabled,
   };
-};
-
-export const readWebdavConfigFromExtensionStorage = async (
-  options?: { allowDisabled?: boolean },
-): Promise<WebdavConfig | null> => {
-  const state = await readWebdavStorageStateFromExtensionStorage();
-  const enabled = state.syncEnabled;
-  if (!enabled && !options?.allowDisabled) return null;
-  if (!state.url) return null;
-  return {
-    url: state.url,
-    username: state.username,
-    password: state.password,
-  };
-};
-
-export const removeWebdavNextSyncAtFromExtensionStorage = async (): Promise<void> => {
-  await removeExtensionStorageKeys([WEBDAV_STORAGE_KEYS.nextSyncAt]);
-};
-
-export const enableWebdavBookmarkSyncInStorage = async (defaultProfileName = ""): Promise<void> => {
-  const current = readWebdavStorageStateFromStorage(defaultProfileName);
-  await writeWebdavStorageStateToStorage({
-    ...current,
-    syncEnabled: true,
-  }, defaultProfileName);
 };
 
 export const readWebdavConfigFromStorage = (options?: { allowDisabled?: boolean }): WebdavConfig | null => {

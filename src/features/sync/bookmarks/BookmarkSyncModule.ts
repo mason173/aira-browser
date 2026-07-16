@@ -17,12 +17,14 @@ import {
   probeLeafTabBookmarkSyncChanges,
   type LeafTabBookmarkSyncChangeProbeResult,
 } from '@/sync/leaftab/changeProbe';
-import type {
-  LeafTabSyncOperation,
-  LeafTabSyncRemoteStore,
-} from '@/sync/leaftab/remoteStore';
-import type { LeafTabSyncSnapshot } from '@/sync/leaftab/schema';
+import type { LeafTabSyncRemoteStore } from '@/sync/leaftab/remoteStore';
+import { LEAFTAB_SYNC_SCHEMA_VERSION, type LeafTabSyncSnapshot } from '@/sync/leaftab/schema';
 import { countLeafTabLiveBookmarkEntities } from '@/sync/leaftab/snapshot';
+import {
+  buildLeafTabPendingLocalOperationsFromOutbox,
+  clearLeafTabLocalBookmarkOperationOutbox,
+  hasPendingLeafTabLocalBookmarkOperationOutbox,
+} from '@/sync/leaftab/localOperationOutbox';
 import type {
   LeafTabPendingBookmarkConflict,
   LeafTabSyncRemoteKind,
@@ -121,11 +123,7 @@ export interface BookmarkSyncLocalAdapter {
   buildSnapshot: () => Promise<LeafTabSyncSnapshot>;
   applySnapshot: (snapshot: LeafTabSyncSnapshot) => Promise<void>;
   hasPendingChanges?: () => boolean;
-  hasPendingOperations?: () => boolean | Promise<boolean>;
   clearPendingChanges?: () => void;
-  buildPendingOperations?: (baseSnapshot: LeafTabSyncSnapshot) => Promise<LeafTabSyncOperation[] | null>;
-  clearPendingOperations?: () => Promise<void> | void;
-  createEmptySnapshot: () => LeafTabSyncSnapshot;
 }
 
 export interface BookmarkSyncModuleConfig {
@@ -146,6 +144,27 @@ export interface BookmarkSyncRunOptions {
 export interface BookmarkSyncReadSummaryOptions {
   includeRemote?: boolean;
 }
+
+const createEmptyBookmarkSyncSnapshot = (deviceId: string): LeafTabSyncSnapshot => ({
+  meta: {
+    version: LEAFTAB_SYNC_SCHEMA_VERSION,
+    deviceId,
+    generatedAt: new Date(0).toISOString(),
+  },
+  bookmarkFolders: {},
+  bookmarkItems: {},
+  bookmarkOrders: {
+    __root__: {
+      type: 'bookmark-order',
+      parentId: null,
+      ids: [],
+      updatedAt: new Date(0).toISOString(),
+      updatedBy: deviceId,
+      revision: 1,
+    },
+  },
+  tombstones: {},
+});
 
 export class BookmarkSyncModule {
   private readonly config: BookmarkSyncModuleConfig;
@@ -171,7 +190,7 @@ export class BookmarkSyncModule {
 
   sync(options: BookmarkSyncRunOptions): Promise<LeafTabSyncEngineResult> {
     const engine = this.createEngine();
-    return engine.sync('auto', {
+    return engine.sync({
       localSnapshotOverride: options.localSnapshotOverride,
       onProgress: options.onProgress,
     });
@@ -183,7 +202,7 @@ export class BookmarkSyncModule {
       baselineStorageKey: this.config.baselineStorageKey,
       createRemoteStore: () => this.createRemoteStore(),
       hasPendingLocalChanges: this.config.local.hasPendingChanges || (() => false),
-      hasPendingLocalOperationOutbox: this.config.local.hasPendingOperations,
+      hasPendingLocalOperationOutbox: hasPendingLeafTabLocalBookmarkOperationOutbox,
       readLocalSummary: async () => {
         const snapshot = await this.config.local.buildSnapshot();
         return {
@@ -216,7 +235,7 @@ export class BookmarkSyncModule {
       ? 'prefer-local'
       : 'prefer-remote';
     const engine = this.createEngine();
-    return engine.sync('auto', {
+    return engine.sync({
       localSnapshotOverride: options.localSnapshotOverride,
       onProgress: options.onProgress,
       conflictResolution,
@@ -233,9 +252,14 @@ export class BookmarkSyncModule {
       applyLocalSnapshot: local.applySnapshot,
       hasPendingLocalChanges: local.hasPendingChanges,
       clearPendingLocalChanges: local.clearPendingChanges,
-      buildPendingLocalOperations: local.buildPendingOperations,
-      clearPendingLocalOperations: local.clearPendingOperations,
-      createEmptySnapshot: local.createEmptySnapshot,
+      buildPendingLocalOperations: (baseSnapshot: LeafTabSyncSnapshot) => (
+        buildLeafTabPendingLocalOperationsFromOutbox({
+          baseSnapshot,
+          deviceId: this.config.deviceId,
+        })
+      ),
+      clearPendingLocalOperations: clearLeafTabLocalBookmarkOperationOutbox,
+      createEmptySnapshot: () => createEmptyBookmarkSyncSnapshot(this.config.deviceId),
       rootPath: this.config.rootPath,
     });
   }

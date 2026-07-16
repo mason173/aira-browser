@@ -1,14 +1,7 @@
 import { getBookmarksApi } from '@/platform/runtime';
 import { readExtensionStorageRecord, writeExtensionStorageRecord } from '@/platform/extensionStorage';
 import { ensureExtensionPermission } from '@/utils/extensionPermissions';
-import {
-  formatLeafTabBookmarkSyncScopeLabel as formatBookmarkSyncScopeLabel,
-  getDefaultLeafTabBookmarkSyncScope as getDefaultBookmarkSyncScope,
-  getLeafTabBookmarkScopeStorageKey,
-  normalizeLeafTabBookmarkSyncScope,
-  type LeafTabBookmarkSyncScope,
-  type LeafTabBookmarkSyncScopeRole,
-} from './bookmarkScope';
+import { LEAFTAB_BOOKMARK_MAPPING_KEY } from '@/features/sync/app/leafTabSyncStorageKeys';
 
 export interface LeafTabBookmarkFolderDraft {
   entityId: string;
@@ -56,8 +49,9 @@ type BookmarkTreeNode = chrome.bookmarks.BookmarkTreeNode;
 type BookmarkCreateArg = chrome.bookmarks.CreateDetails;
 type BookmarkUpdateArg = chrome.bookmarks.UpdateChanges;
 type BookmarkMoveArg = chrome.bookmarks.MoveDestination;
+type LeafTabBookmarkRootRole = 'toolbar' | 'other' | 'mobile';
 
-const ROOT_FOLDER_ID_MAP: Record<string, LeafTabBookmarkSyncScopeRole | 'unknown'> = {
+const ROOT_FOLDER_ID_MAP: Record<string, LeafTabBookmarkRootRole | 'unknown'> = {
   '1': 'toolbar',
   '2': 'other',
   '3': 'mobile',
@@ -69,7 +63,7 @@ const ROOT_FOLDER_ID_MAP: Record<string, LeafTabBookmarkSyncScopeRole | 'unknown
 
 const ROOT_FOLDER_TITLE_PATTERNS: Array<{
   pattern: RegExp;
-  role: LeafTabBookmarkSyncScopeRole | 'unknown';
+  role: LeafTabBookmarkRootRole | 'unknown';
 }> = [
   { pattern: /toolbar|bookmarks bar|bookmarks toolbar|favorites bar|书签栏|收藏夹栏|lesezeichen-symbolleiste/i, role: 'toolbar' },
   { pattern: /bookmarks menu|menu|other|其他书签|其他收藏夹|weitere|sonstige/i, role: 'other' },
@@ -77,11 +71,10 @@ const ROOT_FOLDER_TITLE_PATTERNS: Array<{
 ];
 
 const ROOT_ORDER_KEY = '__root__';
-const MAPPING_KEY_PREFIX = 'leaftab_sync_g2_bookmark_mapping:';
 const BOOKMARK_DRAFT_CACHE_TTL_MS = 5 * 60 * 1000;
-const bookmarkDraftCache = new Map<string, LeafTabBookmarkDraftCacheEntry>();
+let bookmarkDraftCache: LeafTabBookmarkDraftCacheEntry | null = null;
 let bookmarkDraftCacheListenersBound = false;
-const SYNC_ROOT_ROLES: LeafTabBookmarkSyncScopeRole[] = ['toolbar', 'other'];
+const SYNC_ROOT_ROLES: LeafTabBookmarkRootRole[] = ['toolbar', 'other'];
 
 const shortHash = (value: string) => {
   let hash = 2166136261;
@@ -103,7 +96,7 @@ const slugify = (value: string) => {
 };
 
 const getOrderKey = (parentId: string | null) => parentId || ROOT_ORDER_KEY;
-const getRoleEntityId = (role: LeafTabBookmarkSyncScopeRole) => `browser_root_${role}`;
+const getRoleEntityId = (role: LeafTabBookmarkRootRole) => `browser_root_${role}`;
 
 const createEmptyBookmarkTreeDraft = (): LeafTabBookmarkTreeDraft => ({
   folders: [],
@@ -123,7 +116,7 @@ const cloneBookmarkTreeDraft = (draft: LeafTabBookmarkTreeDraft): LeafTabBookmar
   nodeIdToEntityId: { ...draft.nodeIdToEntityId },
 });
 
-const getScopeRoleLabel = (role: LeafTabBookmarkSyncScopeRole) => {
+const getScopeRoleLabel = (role: LeafTabBookmarkRootRole) => {
   if (role === 'toolbar') return '书签栏';
   if (role === 'mobile') return '移动书签';
   return '其他书签';
@@ -194,7 +187,7 @@ const removeBookmarkNode = (id: string) => {
 
 const detectRootFolderRole = (
   node: BookmarkTreeNode,
-): LeafTabBookmarkSyncScopeRole | 'unknown' => {
+): LeafTabBookmarkRootRole | 'unknown' => {
   if (node.id && ROOT_FOLDER_ID_MAP[node.id]) {
     const mapped = ROOT_FOLDER_ID_MAP[node.id];
     return mapped === 'unknown' ? 'unknown' : mapped;
@@ -208,12 +201,8 @@ const detectRootFolderRole = (
   return 'unknown';
 };
 
-const invalidateLeafTabBookmarkDraftCache = (scope?: LeafTabBookmarkSyncScope | null) => {
-  if (!scope) {
-    bookmarkDraftCache.clear();
-    return;
-  }
-  bookmarkDraftCache.delete(getLeafTabBookmarkScopeStorageKey(scope));
+const invalidateLeafTabBookmarkDraftCache = () => {
+  bookmarkDraftCache = null;
 };
 
 const ensureLeafTabBookmarkDraftCacheListeners = () => {
@@ -231,29 +220,26 @@ const ensureLeafTabBookmarkDraftCacheListeners = () => {
   bookmarkDraftCacheListenersBound = true;
 };
 
-const readCachedLeafTabBookmarkTreeDraft = (scope: LeafTabBookmarkSyncScope) => {
-  const entry = bookmarkDraftCache.get(getLeafTabBookmarkScopeStorageKey(scope));
+const readCachedLeafTabBookmarkTreeDraft = () => {
+  const entry = bookmarkDraftCache;
   if (!entry?.draft) return null;
   if (Date.now() - entry.savedAt > BOOKMARK_DRAFT_CACHE_TTL_MS) {
-    bookmarkDraftCache.delete(getLeafTabBookmarkScopeStorageKey(scope));
+    bookmarkDraftCache = null;
     return null;
   }
   return cloneBookmarkTreeDraft(entry.draft);
 };
 
-const writeCachedLeafTabBookmarkTreeDraft = (
-  scope: LeafTabBookmarkSyncScope,
-  draft: LeafTabBookmarkTreeDraft,
-) => {
-  bookmarkDraftCache.set(getLeafTabBookmarkScopeStorageKey(scope), {
+const writeCachedLeafTabBookmarkTreeDraft = (draft: LeafTabBookmarkTreeDraft) => {
+  bookmarkDraftCache = {
     draft: cloneBookmarkTreeDraft(draft),
     savedAt: Date.now(),
-  });
+  };
 };
 
-const readBookmarkMappingFromLocalStorage = (scope: LeafTabBookmarkSyncScope): LeafTabBookmarkMappingState => {
+const readBookmarkMappingFromLocalStorage = (): LeafTabBookmarkMappingState => {
   try {
-    const raw = globalThis.localStorage?.getItem(`${MAPPING_KEY_PREFIX}${getLeafTabBookmarkScopeStorageKey(scope)}`);
+    const raw = globalThis.localStorage?.getItem(LEAFTAB_BOOKMARK_MAPPING_KEY);
     if (!raw) {
       return {
         version: 1,
@@ -283,19 +269,19 @@ const readBookmarkMappingFromLocalStorage = (scope: LeafTabBookmarkSyncScope): L
   }
 };
 
-const readBookmarkMapping = async (scope: LeafTabBookmarkSyncScope): Promise<LeafTabBookmarkMappingState> => {
-  const storageKey = `${MAPPING_KEY_PREFIX}${getLeafTabBookmarkScopeStorageKey(scope)}`;
+const readBookmarkMapping = async (): Promise<LeafTabBookmarkMappingState> => {
+  const storageKey = LEAFTAB_BOOKMARK_MAPPING_KEY;
   try {
     const result = await readExtensionStorageRecord([storageKey]);
     const raw = typeof result[storageKey] === 'string' ? result[storageKey] : '';
     if (!raw) {
-      const legacy = readBookmarkMappingFromLocalStorage(scope);
-      if (Object.keys(legacy.nodeIdToEntityId).length > 0) {
+      const localCopy = readBookmarkMappingFromLocalStorage();
+      if (Object.keys(localCopy.nodeIdToEntityId).length > 0) {
         await writeExtensionStorageRecord({
-          [storageKey]: JSON.stringify(legacy),
+          [storageKey]: JSON.stringify(localCopy),
         });
       }
-      return legacy;
+      return localCopy;
     }
     const parsed = JSON.parse(raw) as Partial<LeafTabBookmarkMappingState>;
     return {
@@ -311,15 +297,14 @@ const readBookmarkMapping = async (scope: LeafTabBookmarkSyncScope): Promise<Lea
       savedAt: typeof parsed?.savedAt === 'string' ? parsed.savedAt : new Date(0).toISOString(),
     };
   } catch {
-    return readBookmarkMappingFromLocalStorage(scope);
+    return readBookmarkMappingFromLocalStorage();
   }
 };
 
 const writeBookmarkMapping = async (
-  scope: LeafTabBookmarkSyncScope,
   nodeIdToEntityId: Record<string, string>,
 ) => {
-  const storageKey = `${MAPPING_KEY_PREFIX}${getLeafTabBookmarkScopeStorageKey(scope)}`;
+  const storageKey = LEAFTAB_BOOKMARK_MAPPING_KEY;
   const nextValue = JSON.stringify({
     version: 1,
     nodeIdToEntityId,
@@ -349,7 +334,7 @@ const createItemEntityId = (
 const resolveSyncRoleRoots = async () => {
   const tree = await getBookmarkTree();
   const topLevelFolders = tree[0]?.children || [];
-  const roleRoots = new Map<LeafTabBookmarkSyncScopeRole, BookmarkTreeNode>();
+  const roleRoots = new Map<LeafTabBookmarkRootRole, BookmarkTreeNode>();
   const unmatchedRoots: BookmarkTreeNode[] = [];
 
   for (const node of topLevelFolders) {
@@ -424,26 +409,10 @@ const walkBookmarkChildren = (
   draft.orderIdsByParent[getOrderKey(parentEntityId)] = orderedIds;
 };
 
-export const getDefaultLeafTabBookmarkSyncScope = (): LeafTabBookmarkSyncScope => {
-  return getDefaultBookmarkSyncScope();
-};
-
-export const readLeafTabBookmarkSyncScope = (): LeafTabBookmarkSyncScope => {
-  return getDefaultBookmarkSyncScope();
-};
-
-export const formatLeafTabBookmarkSyncScopeLabel = (
-  scope: LeafTabBookmarkSyncScope | null | undefined,
-) => {
-  return formatBookmarkSyncScopeLabel(scope);
-};
-
 export const captureLeafTabBookmarkTreeDraft = async (options?: {
-  scope?: LeafTabBookmarkSyncScope | null;
   requestPermission?: boolean;
   throwOnPermissionDenied?: boolean;
 }): Promise<LeafTabBookmarkTreeDraft> => {
-  const scope = normalizeLeafTabBookmarkSyncScope(options?.scope);
   ensureLeafTabBookmarkDraftCacheListeners();
   const granted = await ensureExtensionPermission('bookmarks', {
     requestIfNeeded: options?.requestPermission === true,
@@ -456,13 +425,12 @@ export const captureLeafTabBookmarkTreeDraft = async (options?: {
     return createEmptyBookmarkTreeDraft();
   }
 
-  const cached = readCachedLeafTabBookmarkTreeDraft(scope);
+  const cached = readCachedLeafTabBookmarkTreeDraft();
   if (cached) {
     return cached;
   }
 
-  const cacheKey = getLeafTabBookmarkScopeStorageKey(scope);
-  const pending = bookmarkDraftCache.get(cacheKey)?.pending;
+  const pending = bookmarkDraftCache?.pending;
   if (pending) {
     return cloneBookmarkTreeDraft(await pending);
   }
@@ -476,7 +444,7 @@ export const captureLeafTabBookmarkTreeDraft = async (options?: {
       orderIdsByParent: {},
       nodeIdToEntityId: {},
     };
-    const mapping = await readBookmarkMapping(scope);
+    const mapping = await readBookmarkMapping();
     const rootIds: string[] = [];
 
     for (const role of SYNC_ROOT_ROLES) {
@@ -495,29 +463,29 @@ export const captureLeafTabBookmarkTreeDraft = async (options?: {
     }
 
     draft.orderIdsByParent[ROOT_ORDER_KEY] = rootIds;
-    await writeBookmarkMapping(scope, draft.nodeIdToEntityId);
-    writeCachedLeafTabBookmarkTreeDraft(scope, draft);
+    await writeBookmarkMapping(draft.nodeIdToEntityId);
+    writeCachedLeafTabBookmarkTreeDraft(draft);
     return draft;
   })();
 
-  bookmarkDraftCache.set(cacheKey, {
-    ...bookmarkDraftCache.get(cacheKey),
+  bookmarkDraftCache = {
+    ...bookmarkDraftCache,
     savedAt: 0,
     pending: nextPending,
-  });
+  };
 
   try {
     return cloneBookmarkTreeDraft(await nextPending);
   } finally {
-    const current = bookmarkDraftCache.get(cacheKey);
+    const current = bookmarkDraftCache;
     if (current?.pending === nextPending) {
       if (current.draft) {
-        bookmarkDraftCache.set(cacheKey, {
+        bookmarkDraftCache = {
           draft: current.draft,
           savedAt: current.savedAt,
-        });
+        };
       } else {
-        bookmarkDraftCache.delete(cacheKey);
+        bookmarkDraftCache = null;
       }
     }
   }
@@ -685,15 +653,13 @@ const shouldDeleteStaleSyncedNode = (
 };
 
 export const replaceLeafTabBookmarkTree = async (params: {
-  scope?: LeafTabBookmarkSyncScope | null;
   folderLookup: Record<string, { title: string; parentId: string | null }>;
   itemLookup: Record<string, { title: string; parentId: string | null; url: string }>;
   orderIdsByParent: Record<string, string[]>;
   tombstoneIds?: string[];
   requestPermission?: boolean;
 }) => {
-  const scope = normalizeLeafTabBookmarkSyncScope(params.scope);
-  invalidateLeafTabBookmarkDraftCache(scope);
+  invalidateLeafTabBookmarkDraftCache();
   const granted = await ensureExtensionPermission('bookmarks', {
     requestIfNeeded: params.requestPermission !== false,
   });
@@ -704,7 +670,6 @@ export const replaceLeafTabBookmarkTree = async (params: {
 
   const roleRoots = await resolveSyncRoleRoots();
   const currentDraft = await captureLeafTabBookmarkTreeDraft({
-    scope,
     requestPermission: false,
     throwOnPermissionDenied: true,
   });
@@ -789,7 +754,7 @@ export const replaceLeafTabBookmarkTree = async (params: {
     delete nodeIdToEntityId[existing.id];
   }
 
-  await writeBookmarkMapping(scope, nodeIdToEntityId);
-  invalidateLeafTabBookmarkDraftCache(scope);
+  await writeBookmarkMapping(nodeIdToEntityId);
+  invalidateLeafTabBookmarkDraftCache();
   return true;
 };
