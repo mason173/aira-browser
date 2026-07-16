@@ -14,7 +14,7 @@ export const WEBDAV_STORAGE_KEYS = {
   nextSyncAt: "webdav_next_sync_at",
 } as const;
 
-export const WEBDAV_BOOKMARK_SYNC_ROOT_SUFFIX = "aira/v1/bookmarks";
+export const WEBDAV_BOOKMARK_SYNC_ROOT_SUFFIX = "aira/g2/bookmarks";
 
 export const isWebdavSyncEnabledFromStorage = () => {
   return (localStorage.getItem(WEBDAV_STORAGE_KEYS.syncEnabled) ?? "false") === "true";

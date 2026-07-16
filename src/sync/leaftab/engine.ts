@@ -126,8 +126,8 @@ const createSyncResult = (
 
 const createConcurrentConflictSummaryText = (conflictCount: number) => (
   conflictCount > 1
-    ? `检测到 ${conflictCount} 处双向修改冲突，请先选择保留本机还是主同步源数据。`
-    : '检测到 1 处双向修改冲突，请先选择保留本机还是主同步源数据。'
+    ? `检测到 ${conflictCount} 处双向修改冲突，请先选择保留本机还是当前同步方式的数据。`
+    : '检测到 1 处双向修改冲突，请先选择保留本机还是当前同步方式的数据。'
 );
 
 const reportProgress = (
@@ -621,8 +621,8 @@ export class LeafTabSyncEngine {
           stage: 'applying-local',
           progress: 70,
           message: remoteMatchesBaseline
-            ? '正在按主同步源基线恢复本机数据'
-            : '主同步源已有更新，正在写入本机',
+            ? '正在按当前同步基线恢复本机数据'
+            : '当前同步位置已有更新，正在写入本机',
         });
         await this.config.applyLocalSnapshot(cloneSnapshot(authoritativeSnapshot));
       }
@@ -649,7 +649,7 @@ export class LeafTabSyncEngine {
         snapshot: authoritativeSnapshot,
         summaryText: remoteMatchesBaseline
           ? '本地与远端均无新增变更'
-          : '主同步源已有更新，本机没有待同步变更，已优先使用远端数据。',
+          : '当前同步位置已有更新，本机没有待同步变更，已使用远端数据。',
       });
     }
 
@@ -678,7 +678,7 @@ export class LeafTabSyncEngine {
           kind: 'noop',
           remoteCommitId: remoteState.commit?.id || null,
           snapshot: remoteSnapshot,
-          summaryText: '本机和主同步源内容一致，已建立同步基线',
+          summaryText: '本机和当前同步位置内容一致，已建立同步基线',
         });
     }
 

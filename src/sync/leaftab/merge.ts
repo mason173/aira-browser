@@ -346,17 +346,13 @@ export const mergeLeafTabSyncSnapshot = (
     if (tombstone.type === 'bookmark-item') delete nextBookmarkItems[tombstone.id];
   });
 
-  const topologyMeta = remoteSnapshot.meta.topologyId
-    ? remoteSnapshot.meta
-    : localSnapshot.meta.topologyId
-      ? localSnapshot.meta
-      : baseSnapshot.meta;
+  const mergedMeta = remoteSnapshot.meta;
   const appPrivateBookmarks = normalizeLeafTabSyncBookmarkDataSet(
     remoteSnapshot.appPrivateBookmarks ?? localSnapshot.appPrivateBookmarks ?? baseSnapshot.appPrivateBookmarks,
   );
 
   const mergedContentSnapshot: LeafTabSyncSnapshot = {
-    meta: cloneLeafTabSyncSnapshotMeta(topologyMeta, { deviceId: options.deviceId, generatedAt }),
+    meta: cloneLeafTabSyncSnapshotMeta(mergedMeta, { deviceId: options.deviceId, generatedAt }),
     bookmarkFolders: nextBookmarkFolders,
     bookmarkItems: nextBookmarkItems,
     bookmarkOrders: {},
@@ -429,7 +425,7 @@ export const mergeLeafTabSyncSnapshot = (
 
   return {
     snapshot: {
-      meta: cloneLeafTabSyncSnapshotMeta(topologyMeta, { deviceId: options.deviceId, generatedAt }),
+      meta: cloneLeafTabSyncSnapshotMeta(mergedMeta, { deviceId: options.deviceId, generatedAt }),
       bookmarkFolders: nextBookmarkFolders,
       bookmarkItems: nextBookmarkItems,
       bookmarkOrders,

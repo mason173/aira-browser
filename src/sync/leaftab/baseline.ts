@@ -27,7 +27,7 @@ export class LeafTabSyncLocalStorageBaselineStore implements LeafTabSyncBaseline
   private readonly key: string;
   private readonly storage: Storage;
 
-  constructor(key = 'leaftab_sync_v1_baseline', storage?: Storage) {
+  constructor(key = 'leaftab_sync_g2_baseline', storage?: Storage) {
     this.key = key;
     const resolvedStorage = storage || globalThis.localStorage;
     if (!resolvedStorage) {
@@ -58,7 +58,7 @@ export class LeafTabSyncLocalStorageBaselineStore implements LeafTabSyncBaseline
 export class LeafTabSyncExtensionStorageBaselineStore implements LeafTabSyncBaselineStore {
   private readonly key: string;
 
-  constructor(key = 'leaftab_sync_v1_baseline') {
+  constructor(key = 'leaftab_sync_g2_baseline') {
     this.key = key;
   }
 

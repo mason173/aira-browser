@@ -7,20 +7,15 @@ export const parseLeafTabSyncRemoteKind = (value: unknown): LeafTabSyncRemoteKin
   return null;
 };
 
-const isEnabledStorageValue = (value: unknown) => value === true || String(value ?? 'false') === 'true';
-
 export const resolveLeafTabSelectedSyncSource = (values: {
   selectedSource: unknown;
-  airaCloudEnabled: unknown;
-  webdavEnabled: unknown;
+  legacySelectedSource?: unknown;
 }): { source: LeafTabSyncRemoteKind | null; needsMigration: boolean } => {
   const selectedSource = parseLeafTabSyncRemoteKind(values.selectedSource);
   if (selectedSource) {
     return { source: selectedSource, needsMigration: false };
   }
-  const legacySource = isEnabledStorageValue(values.airaCloudEnabled)
-    ? 'aira-cloud'
-    : (isEnabledStorageValue(values.webdavEnabled) ? 'webdav' : null);
+  const legacySource = parseLeafTabSyncRemoteKind(values.legacySelectedSource);
   return {
     source: legacySource,
     needsMigration: Boolean(legacySource),
@@ -38,11 +33,13 @@ export const canRunLeafTabSelectedAutoSync = (values: {
 }): boolean => {
   const selectedSource = parseLeafTabSyncRemoteKind(values.selectedSource);
   if (selectedSource === 'aira-cloud') {
-    return String(values.cloudUid || '').trim().length > 0
+    return values.airaCloudEnabled === true
+      && String(values.cloudUid || '').trim().length > 0
       && String(values.cloudDeviceCredential || '').trim().length > 0;
   }
   if (selectedSource === 'webdav') {
-    return String(values.webdavUrl || '').trim().length > 0;
+    return values.webdavEnabled === true
+      && String(values.webdavUrl || '').trim().length > 0;
   }
   return false;
 };

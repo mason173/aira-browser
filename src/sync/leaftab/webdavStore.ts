@@ -33,7 +33,6 @@ export interface LeafTabSyncWebdavStoreConfig {
   rootPath?: string;
   requestPermission?: boolean;
   requestTimeoutMs?: number;
-  requireAppPrimaryTopology?: boolean;
 }
 
 type WebdavMethod = 'GET' | 'PUT' | 'DELETE' | 'MKCOL';
@@ -96,16 +95,6 @@ export class LeafTabSyncWebdavLockError extends Error {
   }
 }
 
-export class LeafTabSyncWebdavTopologyError extends Error {
-  readonly code: 'webdav_sync_uninitialized' | 'webdav_not_app_primary';
-
-  constructor(code: 'webdav_sync_uninitialized' | 'webdav_not_app_primary', message: string) {
-    super(message);
-    this.name = 'LeafTabSyncWebdavTopologyError';
-    this.code = code;
-  }
-}
-
 const normalizeBaseUrl = (url: string) => {
   const trimmed = (url || '').trim().replace(/\/+$/, '');
   if (!trimmed) throw new Error('Invalid WebDAV URL');
@@ -138,7 +127,7 @@ const parseJsonOrNull = <T>(text: string): T | null => {
   }
 };
 
-const REMOTE_CACHE_STORAGE_PREFIX = 'leaftab_sync_remote_state_v1:';
+const REMOTE_CACHE_STORAGE_PREFIX = 'leaftab_sync_g2_remote_state:';
 const READ_BATCH_CONCURRENCY = 4;
 const WRITE_BATCH_CONCURRENCY = 2;
 const BATCH_COOPERATIVE_PAUSE_MS = 16;
@@ -186,7 +175,6 @@ export class LeafTabSyncWebdavStore implements LeafTabSyncRemoteStore {
       rootPath: normalizeRootPath(config.rootPath),
       requestPermission: config.requestPermission !== false,
       requestTimeoutMs: Math.max(1_000, config.requestTimeoutMs ?? DEFAULT_WEBDAV_REQUEST_TIMEOUT_MS),
-      requireAppPrimaryTopology: config.requireAppPrimaryTopology !== false,
     };
     this.remoteCacheStorageKey = createRemoteCacheStorageKey(this.config.url, this.config.rootPath);
   }
@@ -454,14 +442,12 @@ export class LeafTabSyncWebdavStore implements LeafTabSyncRemoteStore {
     const remoteHead = await this.readHead();
     if (!remoteHead.head?.commitId) {
       this.clearRemoteCache();
-      this.assertInitializedTopology(null);
       return { head: null, commit: null, snapshot: null };
     }
     const head = remoteHead.head;
 
     const cached = this.readRemoteCache(head.commitId);
     if (cached) {
-      this.assertInitializedTopology(cached.snapshot);
       return {
         head,
         commit: cached.commit,
@@ -501,8 +487,6 @@ export class LeafTabSyncWebdavStore implements LeafTabSyncRemoteStore {
       this.clearRemoteCache();
       return { head, commit, snapshot: null };
     }
-    this.assertInitializedTopology(snapshot);
-
     this.writeRemoteCache({
       commitId: commit.id,
       commit,
@@ -527,7 +511,6 @@ export class LeafTabSyncWebdavStore implements LeafTabSyncRemoteStore {
       getLeafTabSyncHeadPath(this.config.rootPath),
     );
     if (!head?.commitId) {
-      this.assertInitializedTopology(null);
       return {
         head: null,
         commit: null,
@@ -539,10 +522,6 @@ export class LeafTabSyncWebdavStore implements LeafTabSyncRemoteStore {
     const commit = await this.getJson<LeafTabSyncCommitFile>(
       getLeafTabSyncCommitPath(head.commitId, this.config.rootPath),
     );
-    if (commit?.manifestPath) {
-      const manifest = await this.getJson<LeafTabSyncManifestFile>(commit.manifestPath);
-      this.assertManifestPrimaryTopology(manifest);
-    }
     return {
       head,
       commit,
@@ -597,7 +576,6 @@ export class LeafTabSyncWebdavStore implements LeafTabSyncRemoteStore {
   }
 
   async writeState(params: LeafTabSyncWriteStateParams): Promise<LeafTabSyncWriteStateResult> {
-    this.assertInitializedTopology(params.snapshot);
     const commit = createLeafTabSyncCommitFile({
       deviceId: params.deviceId,
       createdAt: params.createdAt,
@@ -643,7 +621,6 @@ export class LeafTabSyncWebdavStore implements LeafTabSyncRemoteStore {
   }
 
   async writeOperations(params: LeafTabSyncWriteOperationsParams): Promise<LeafTabSyncWriteOperationsResult> {
-    this.assertInitializedTopology(params.snapshot);
     if (params.operations.length <= 0) {
       throw new Error('没有可上传的 WebDAV 书签增量变更。');
     }
@@ -714,38 +691,6 @@ export class LeafTabSyncWebdavStore implements LeafTabSyncRemoteStore {
       commit,
       appliedOperationCount: params.operations.length,
     };
-  }
-
-  private assertManifestPrimaryTopology(manifest: LeafTabSyncManifestFile | null): void {
-    if (!this.config.requireAppPrimaryTopology) return;
-    if (!manifest?.topologyId || Number(manifest.topologyVersion || 0) <= 0) {
-      throw new LeafTabSyncWebdavTopologyError(
-        'webdav_sync_uninitialized',
-        '这个 WebDAV 位置尚未由 Aira App 初始化书签同步，请先在手机 App 中将 WebDAV 设为主同步方式。',
-      );
-    }
-    if (String(manifest.primaryRemoteKind || '').trim() !== 'webdav') {
-      throw new LeafTabSyncWebdavTopologyError(
-        'webdav_not_app_primary',
-        'WebDAV 不是 App 当前的主同步方式，请先在手机 App 中调整后再同步。',
-      );
-    }
-  }
-
-  private assertInitializedTopology(snapshot: LeafTabSyncSnapshot | null): void {
-    if (!this.config.requireAppPrimaryTopology) return;
-    if (!snapshot?.meta.topologyId || Number(snapshot.meta.topologyVersion || 0) <= 0) {
-      throw new LeafTabSyncWebdavTopologyError(
-        'webdav_sync_uninitialized',
-        '这个 WebDAV 位置尚未由 Aira App 初始化书签同步，请先在手机 App 中将 WebDAV 设为主同步方式。',
-      );
-    }
-    if (String(snapshot.meta.primaryRemoteKind || '').trim() !== 'webdav') {
-      throw new LeafTabSyncWebdavTopologyError(
-        'webdav_not_app_primary',
-        'WebDAV 不是 App 当前的主同步方式，请先在手机 App 中调整后再同步。',
-      );
-    }
   }
 
   private async readOperationChain(

@@ -4,8 +4,8 @@ import {
   writeExtensionStorageRecord,
 } from '@/platform/extensionStorage';
 
-export const LEAFTAB_LOCAL_BOOKMARK_CHANGED_AT_KEY = 'leaftab_sync_v1_local_bookmark_changed_at';
-const BOOKMARK_SYNC_APPLY_SUPPRESS_UNTIL_KEY = 'leaftab_sync_v1_apply_suppress_until';
+export const LEAFTAB_LOCAL_BOOKMARK_CHANGED_AT_KEY = 'leaftab_sync_g2_local_bookmark_changed_at';
+const BOOKMARK_SYNC_APPLY_SUPPRESS_UNTIL_KEY = 'leaftab_sync_g2_apply_suppress_until';
 const APPLY_EVENT_SUPPRESS_MS = 20_000;
 
 const readNumber = (key: string) => {

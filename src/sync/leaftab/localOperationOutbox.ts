@@ -55,8 +55,8 @@ type BookmarkMappingState = {
   savedAt: string;
 };
 
-const OUTBOX_STORAGE_KEY = 'leaftab_sync_v1_local_operation_outbox';
-const MAPPING_KEY_PREFIX = 'leaftab_sync_bookmark_mapping_v1:';
+const OUTBOX_STORAGE_KEY = 'leaftab_sync_g2_local_operation_outbox';
+const MAPPING_KEY_PREFIX = 'leaftab_sync_g2_bookmark_mapping:';
 const ROOT_ORDER_KEY = '__root__';
 const MAX_STORED_OUTBOX_EVENTS = 500;
 const MAX_DIRECT_OPERATION_EVENTS = 120;

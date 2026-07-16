@@ -222,11 +222,6 @@ const buildSnapshotPayloadMap = (
       commitId: commit.id,
       deviceId: snapshot.meta.deviceId,
       generatedAt: snapshot.meta.generatedAt,
-      topologyId: snapshot.meta.topologyId,
-      topologyVersion: snapshot.meta.topologyVersion,
-      topologyOwnerUid: snapshot.meta.topologyOwnerUid,
-      primaryRemoteKind: snapshot.meta.primaryRemoteKind,
-      backupRemoteKinds: snapshot.meta.backupRemoteKinds?.slice(),
       packs: manifestPacks,
     } satisfies LeafTabSyncManifestFile;
   }

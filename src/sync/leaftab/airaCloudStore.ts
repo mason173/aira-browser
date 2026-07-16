@@ -21,7 +21,7 @@ import type {
   LeafTabSyncWriteStateResult,
 } from './remoteStore';
 
-const AIRA_CLOUD_SYNC_ENDPOINT = 'https://api.aira.cool/sync/huawei';
+const AIRA_CLOUD_SYNC_ENDPOINT = 'https://api.aira.cool/sync/v2/bookmarks';
 const AIRA_CLOUD_REQUEST_TIMEOUT_MS = 60_000;
 const AIRA_CLOUD_LARGE_REQUEST_TIMEOUT_MS = 600_000;
 

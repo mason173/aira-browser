@@ -26,11 +26,12 @@ The production extension output is written to `build/`. Load that folder from Ch
 ## Data And Sync
 
 - One bookmark sync source is active at a time. Inactive sources are not read or written in the background.
-- Aira Cloud requires a valid Desktop Device Session, Aira Pro, and permission from the App-owned sync topology.
+- Aira Cloud requires a valid Desktop Device Session and Aira Pro.
 - WebDAV is available without an Aira Account Session. WebDAV credentials stay in extension storage.
 - Selecting a source enables automatic bookmark sync. There is no separate automatic-sync switch or custom interval.
 - First sync and ordinary differences merge automatically. Only a real two-sided conflict asks whether the computer or the current sync source wins.
-- Aira Cloud follows the Primary source initialized by the Aira app. User-configured WebDAV is standalone and may initialize its own bookmark-sync location.
+- Each extension installation chooses its own active provider. The choice is local and does not change the phone app or another extension installation.
+- Sync generation `g2` uses `/sync/v2/bookmarks` for Aira Cloud and `aira/g2/bookmarks` for WebDAV. Previous-generation remote data and transport state are not read or migrated.
 - Phone Page Push remains independent from bookmark sync. It uses the Desktop Device Session for silent background polling, per-device delivery, open-tab handling, and acknowledgement.
 - Do not commit private keys, account credentials, WebDAV passwords, generated builds, release zips, or local test data.
 

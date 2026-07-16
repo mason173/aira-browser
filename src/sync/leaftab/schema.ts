@@ -1,5 +1,5 @@
 export const LEAFTAB_SYNC_SCHEMA_VERSION = 2 as const;
-export const LEAFTAB_SYNC_DEFAULT_ROOT = 'aira/v1/bookmarks';
+export const LEAFTAB_SYNC_DEFAULT_ROOT = 'aira/g2/bookmarks';
 export const LEAFTAB_SYNC_APP_PRIVATE_BOOKMARKS_FILE = 'app-private-bookmarks.json';
 export const LEAFTAB_SYNC_BOOKMARK_FOLDER_PACK_SHARDS = 4;
 export const LEAFTAB_SYNC_BOOKMARK_ITEM_PACK_SHARDS = 16;
@@ -8,19 +8,11 @@ export const LEAFTAB_SYNC_TOMBSTONE_PACK_SHARDS = 8;
 export type LeafTabSyncEntityType = 'bookmark-folder' | 'bookmark-item';
 export type LeafTabSyncOrderType = 'bookmark-order';
 
-export interface LeafTabSyncTopologyMetadata {
-  topologyId?: string;
-  topologyVersion?: number;
-  topologyOwnerUid?: string;
-  primaryRemoteKind?: string;
-  backupRemoteKinds?: string[];
-}
-
-export type LeafTabSyncSnapshotMeta = LeafTabSyncTopologyMetadata & {
+export type LeafTabSyncSnapshotMeta = {
   version: typeof LEAFTAB_SYNC_SCHEMA_VERSION;
   deviceId: string;
   generatedAt: string;
-} & Record<string, unknown>;
+};
 
 export interface LeafTabSyncBaseEntity {
   id: string;
@@ -96,11 +88,6 @@ export interface LeafTabSyncManifestFile {
   commitId: string;
   deviceId: string;
   generatedAt: string;
-  topologyId?: string;
-  topologyVersion?: number;
-  topologyOwnerUid?: string;
-  primaryRemoteKind?: string;
-  backupRemoteKinds?: string[];
   packs: LeafTabSyncManifestPackRef[];
 }
 
@@ -170,16 +157,6 @@ const collectionValues = (value: unknown): unknown[] => {
   return [];
 };
 
-const normalizeOptionalString = (value: unknown): string | undefined => {
-  const normalized = typeof value === 'string' ? value.trim() : '';
-  return normalized || undefined;
-};
-
-const normalizeOptionalPositiveInteger = (value: unknown): number | undefined => {
-  const normalized = Math.floor(Number(value));
-  return Number.isFinite(normalized) && normalized > 0 ? normalized : undefined;
-};
-
 export const createLeafTabSyncOrderKey = (parentId: string | null | undefined) => parentId || '__root__';
 
 export const createLeafTabSyncTombstoneKey = (
@@ -198,20 +175,11 @@ export const cloneLeafTabSyncSnapshotMeta = (
   const source = isRecord(value) ? value : {};
   const deviceId = String(overrides?.deviceId || source.deviceId || 'unknown-device');
   const generatedAt = String(overrides?.generatedAt || source.generatedAt || new Date(0).toISOString());
-  const backupRemoteKinds = Array.isArray(source.backupRemoteKinds)
-    ? source.backupRemoteKinds.map((entry) => String(entry || '').trim()).filter(Boolean)
-    : undefined;
   return {
-    ...source,
     version: LEAFTAB_SYNC_SCHEMA_VERSION,
     deviceId,
     generatedAt,
-    topologyId: normalizeOptionalString(source.topologyId),
-    topologyVersion: normalizeOptionalPositiveInteger(source.topologyVersion),
-    topologyOwnerUid: normalizeOptionalString(source.topologyOwnerUid),
-    primaryRemoteKind: normalizeOptionalString(source.primaryRemoteKind),
-    backupRemoteKinds,
-  } as LeafTabSyncSnapshotMeta;
+  };
 };
 
 export const createLeafTabSyncDeviceId = () => {
