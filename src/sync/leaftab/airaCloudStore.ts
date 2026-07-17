@@ -1,5 +1,5 @@
 import {
-  normalizeLeafTabSyncSnapshot,
+  parseCanonicalLeafTabSyncWireSnapshot,
   toLeafTabSyncWireSnapshot,
   type LeafTabSyncSnapshot,
   type LeafTabSyncWireSnapshot,
@@ -39,7 +39,12 @@ const normalizeCount = (value: unknown) => {
 const toCloudSnapshot = (snapshot: LeafTabSyncSnapshot): AiraCloudSnapshot => toLeafTabSyncWireSnapshot(snapshot);
 
 const fromCloudSnapshot = (snapshot: AiraCloudSnapshot | null | undefined): LeafTabSyncSnapshot | null => {
-  return normalizeLeafTabSyncSnapshot(snapshot);
+  if (snapshot === null || snapshot === undefined) return null;
+  const parsed = parseCanonicalLeafTabSyncWireSnapshot(snapshot);
+  if (!parsed) {
+    throw new LeafTabSyncAiraCloudError('Aira 云书签同步快照格式无效。', 'invalid_snapshot');
+  }
+  return parsed;
 };
 
 export class LeafTabSyncAiraCloudError extends Error {
@@ -97,6 +102,9 @@ export class LeafTabSyncAiraCloudStore implements LeafTabSyncRemoteStore {
     const commitId = typeof response.commitId === 'string' && response.commitId.trim()
       ? response.commitId.trim()
       : null;
+    if (Boolean(snapshot) !== Boolean(commitId)) {
+      throw new LeafTabSyncAiraCloudError('Aira 云书签同步状态不完整。', 'invalid_snapshot');
+    }
     return {
       snapshot,
       commitId,

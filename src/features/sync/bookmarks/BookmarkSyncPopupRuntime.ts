@@ -9,8 +9,11 @@ import {
 } from '@/features/sync/app/leafTabSyncStorageKeys';
 import type { LeafTabPendingBookmarkConflict, LeafTabSyncRemoteKind } from '@/features/sync/app/LeafTabSyncContracts';
 import {
+  readAiraDesktopConnectionProfile,
   refreshAiraDesktopConnectionProfileMembership,
   resolveAiraDesktopProCapability,
+  type AiraDesktopConnectionProfile,
+  type AiraDesktopProCapabilityStatus,
 } from '@/features/desktop-connection/desktopConnectionProfile';
 import {
   isAiraDesktopCredentialRejection,
@@ -19,6 +22,7 @@ import {
   recordAiraDesktopConnectionFailure,
 } from '@/features/desktop-connection/desktopConnectionRuntime';
 import {
+  readAiraCloudSyncEnabledFromExtensionStorage,
   writeAiraCloudSyncEnabled,
 } from '@/features/sync/bookmarks/airaCloudPreferences';
 import {
@@ -26,7 +30,11 @@ import {
   writeExtensionStorageRecord,
 } from '@/platform/extensionStorage';
 import { ensureExtensionPermission } from '@/utils/extensionPermissions';
-import { WEBDAV_STORAGE_KEYS } from '@/utils/webdavConfig';
+import {
+  readWebdavStorageStateFromExtensionStorage,
+  writeWebdavStorageStateWithinExecutionLock,
+  type WebdavStorageState,
+} from '@/utils/webdavConfig';
 import { LeafTabSyncExtensionStorageBaselineStore } from '@/sync/leaftab/baseline';
 import type {
   LeafTabSyncEngineProgress,
@@ -35,31 +43,24 @@ import type {
 import { normalizeLeafTabSyncSnapshot, type LeafTabSyncSnapshot } from '@/sync/leaftab/schema';
 import { LeafTabSyncAiraCloudError } from '@/sync/leaftab/airaCloudStore';
 import {
+  clearPendingLeafTabLocalBookmarkChangesInExtensionStorage,
+  readPendingLeafTabLocalBookmarkChangedAtFromExtensionStorage,
+} from '@/sync/leaftab/localChangeTracker';
+import {
   clearPendingBookmarkConflict,
   createBookmarkSyncBrowserLocalAdapter,
   createBookmarkSyncRuntime,
   persistPendingBookmarkConflict,
+  readPendingBookmarkConflict,
   type BookmarkSyncConflictChoice,
   type BookmarkSyncDataOverview,
   type BookmarkSyncRuntimeProvider,
 } from './BookmarkSyncModule';
-
-export interface BookmarkSyncPopupWebdavConfig {
-  url: string;
-  username?: string;
-  password?: string;
-  requestPermission: boolean;
-}
+import { withBookmarkSyncExecutionLock } from '@/sync/leaftab/executionLock';
 
 export interface BookmarkSyncPopupRuntimeConfig {
   deviceId: string;
   rootPath: string;
-  cloudUid: string;
-  cloudDeviceCredential: string;
-  cloudSyncEnabled: boolean;
-  webdavSyncEnabled: boolean;
-  webdavConfig: BookmarkSyncPopupWebdavConfig | null;
-  pendingConflict: LeafTabPendingBookmarkConflict | null;
 }
 
 export type BookmarkSyncPopupBlockedReason =
@@ -79,7 +80,17 @@ export interface BookmarkSyncPopupActionCallbacks {
 type BookmarkSyncPopupOperation =
   | { type: 'sync-now' }
   | { type: 'select-source' }
+  | { type: 'select-webdav-candidate'; candidate: WebdavStorageState }
   | { type: 'resolve-conflict'; choice: BookmarkSyncConflictChoice };
+
+interface BookmarkSyncPopupExecutionConfig {
+  cloudUid: string;
+  cloudDeviceCredential: string;
+  cloudSyncEnabled: boolean;
+  cloudCapability: AiraDesktopProCapabilityStatus;
+  webdavState: WebdavStorageState;
+  pendingConflict: LeafTabPendingBookmarkConflict | null;
+}
 
 export type BookmarkSyncPopupRunOutcome =
   | {
@@ -109,12 +120,21 @@ export interface BookmarkSyncPopupOverviewResult {
   overview: BookmarkSyncDataOverview | null;
 }
 
+const updatePopupLocalStorageCache = (operation: () => void): void => {
+  try {
+    operation();
+  } catch {
+    // Extension storage is authoritative; localStorage is only a Popup UI cache.
+  }
+};
+
 const persistSelectedSyncSource = async (source: LeafTabSyncRemoteKind) => {
   await writeExtensionStorageRecord({
     [LEAFTAB_SELECTED_SYNC_SOURCE_KEY]: source,
   });
-  localStorage.setItem(LEAFTAB_SELECTED_SYNC_SOURCE_KEY, source);
-  window.dispatchEvent(new CustomEvent('webdav-sync-status-changed'));
+  updatePopupLocalStorageCache(() => {
+    localStorage.setItem(LEAFTAB_SELECTED_SYNC_SOURCE_KEY, source);
+  });
 };
 
 const readBaselineSnapshot = async (storageKey: string): Promise<LeafTabSyncSnapshot | null> => {
@@ -165,6 +185,13 @@ export class BookmarkSyncPopupRuntime {
     return this.execute(remoteKind, { type: 'select-source' }, callbacks);
   }
 
+  selectWebdavSource(
+    candidate: WebdavStorageState,
+    callbacks: BookmarkSyncPopupActionCallbacks = {},
+  ): Promise<BookmarkSyncPopupRunOutcome> {
+    return this.execute('webdav', { type: 'select-webdav-candidate', candidate }, callbacks);
+  }
+
   resolveConflict(
     remoteKind: LeafTabSyncRemoteKind,
     choice: BookmarkSyncConflictChoice,
@@ -178,10 +205,6 @@ export class BookmarkSyncPopupRuntime {
     operation: BookmarkSyncPopupOperation,
     callbacks: BookmarkSyncPopupActionCallbacks,
   ): Promise<BookmarkSyncPopupRunOutcome> {
-    const blocked = await this.checkEligibility(remoteKind, operation);
-    if (blocked) {
-      return blocked;
-    }
     const granted = await ensureExtensionPermission('bookmarks', { requestIfNeeded: true }).catch(() => false);
     if (!granted) {
       return {
@@ -191,35 +214,57 @@ export class BookmarkSyncPopupRuntime {
       };
     }
 
-    callbacks.onRunStarted?.();
     try {
-      const runtime = this.createRuntime(remoteKind);
-      const runOptions = { onProgress: callbacks.onProgress };
-      const result = operation.type === 'sync-now'
-        ? await runtime.module.sync(runOptions)
-        : operation.type === 'select-source'
-          ? await runtime.module.syncAndSelectSource(runOptions)
-          : await runtime.module.syncAndSelectSource({
-              ...runOptions,
-              conflictChoice: operation.choice,
+      return await withBookmarkSyncExecutionLock(async (): Promise<BookmarkSyncPopupRunOutcome> => {
+        const executionConfig = await this.readExecutionConfig(
+          remoteKind,
+          operation.type === 'select-webdav-candidate' ? operation.candidate : undefined,
+          true,
+        );
+        const blocked = this.checkEligibility(remoteKind, operation, executionConfig);
+        if (blocked) {
+          return blocked;
+        }
+        callbacks.onRunStarted?.();
+        const runtime = this.createRuntime(remoteKind, executionConfig);
+        const runOptions = { onProgress: callbacks.onProgress };
+        const result = operation.type === 'sync-now'
+          ? await runtime.module.sync(runOptions)
+          : operation.type === 'select-webdav-candidate'
+            ? await runtime.module.sync(runOptions)
+            : operation.type === 'select-source'
+            ? await runtime.module.syncAndSelectSource(runOptions)
+            : await runtime.module.syncAndSelectSource({
+                ...runOptions,
+                conflictChoice: operation.choice,
+              });
+        if (result.kind === 'conflict') {
+          if (operation.type === 'select-webdav-candidate') {
+            await writeWebdavStorageStateWithinExecutionLock({
+              ...operation.candidate,
+              syncEnabled: false,
             });
-      if (result.kind === 'conflict') {
-        const pendingConflict = await persistPendingBookmarkConflict(remoteKind, result);
-        return { type: 'conflict', result, pendingConflict };
-      }
+          }
+          const pendingConflict = await persistPendingBookmarkConflict(remoteKind, result);
+          return { type: 'conflict', result, pendingConflict };
+        }
 
-      if (!this.config.pendingConflict || this.config.pendingConflict.provider === remoteKind) {
-        await clearPendingBookmarkConflict();
-      }
-      await this.markSuccess(remoteKind);
-      if (operation.type !== 'sync-now') {
-        await this.setSourceEnabled(remoteKind, true);
-      }
-      return {
-        type: 'completed',
-        result,
-        overview: createOverviewFromSummary(result.snapshotSummary),
-      };
+        if (operation.type === 'select-webdav-candidate') {
+          await this.commitSelectedSource('webdav', executionConfig, {
+            ...operation.candidate,
+            syncEnabled: true,
+          });
+        }
+        if (!executionConfig.pendingConflict || executionConfig.pendingConflict.provider === remoteKind) {
+          await clearPendingBookmarkConflict();
+        }
+        await this.markSuccess(remoteKind);
+        return {
+          type: 'completed',
+          result,
+          overview: createOverviewFromSummary(result.snapshotSummary),
+        };
+      });
     } catch (error) {
       await this.markError(remoteKind, error);
       if (remoteKind === 'aira-cloud') {
@@ -237,7 +282,8 @@ export class BookmarkSyncPopupRuntime {
     remoteKind: LeafTabSyncRemoteKind,
     includeRemote: boolean,
   ): Promise<BookmarkSyncPopupOverviewResult> {
-    const runtime = this.createRuntime(remoteKind);
+    const executionConfig = await this.readExecutionConfig(remoteKind, undefined, false);
+    const runtime = this.createRuntime(remoteKind, executionConfig);
     const overviewPromise = runtime.module.readSummary({ includeRemote })
       .then((overview) => ({ overview }))
       .catch((error: unknown) => ({ error }));
@@ -262,12 +308,13 @@ export class BookmarkSyncPopupRuntime {
     };
   }
 
-  private async checkEligibility(
+  private checkEligibility(
     remoteKind: LeafTabSyncRemoteKind,
     operation: BookmarkSyncPopupOperation,
-  ): Promise<Extract<BookmarkSyncPopupRunOutcome, { type: 'blocked' }> | null> {
-    if (operation.type !== 'sync-now' && this.config.pendingConflict &&
-      this.config.pendingConflict.provider !== remoteKind) {
+    config: BookmarkSyncPopupExecutionConfig,
+  ): Extract<BookmarkSyncPopupRunOutcome, { type: 'blocked' }> | null {
+    if (operation.type !== 'sync-now' && config.pendingConflict &&
+      config.pendingConflict.provider !== remoteKind) {
       return {
         type: 'blocked',
         reason: 'pending-conflict',
@@ -275,14 +322,14 @@ export class BookmarkSyncPopupRuntime {
       };
     }
     if (remoteKind === 'webdav') {
-      if (!this.config.webdavConfig?.url) {
+      if (!config.webdavState.url) {
         return {
           type: 'blocked',
           reason: 'webdav-config-required',
           message: '请先配置 WebDAV',
         };
       }
-      if (operation.type === 'sync-now' && !this.config.webdavSyncEnabled) {
+      if (operation.type === 'sync-now' && !config.webdavState.syncEnabled) {
         return {
           type: 'blocked',
           reason: 'source-disabled',
@@ -291,42 +338,35 @@ export class BookmarkSyncPopupRuntime {
       }
       return null;
     }
-    if (!this.config.cloudUid || !this.config.cloudDeviceCredential) {
+    if (!config.cloudUid || !config.cloudDeviceCredential) {
       return {
         type: 'blocked',
         reason: 'cloud-login-required',
         message: '请先连接 Aira 桌面设备',
       };
     }
-    if (operation.type === 'sync-now' && !this.config.cloudSyncEnabled) {
+    if (operation.type === 'sync-now' && !config.cloudSyncEnabled) {
       return {
         type: 'blocked',
         reason: 'source-disabled',
         message: '请先为当前 Aira 账号开启云书签同步',
       };
     }
-    let capability;
-    try {
-      const latestProfile = await refreshAiraDesktopConnectionProfileMembership({ force: true });
-      capability = resolveAiraDesktopProCapability(latestProfile);
-    } catch {
-      capability = 'temporarily-unavailable';
-    }
-    if (capability === 'login-required') {
+    if (config.cloudCapability === 'login-required') {
       return {
         type: 'blocked',
         reason: 'cloud-login-required',
         message: 'Aira 桌面设备需要重新连接',
       };
     }
-    if (capability === 'temporarily-unavailable') {
+    if (config.cloudCapability === 'temporarily-unavailable') {
       return {
         type: 'blocked',
         reason: 'cloud-temporarily-unavailable',
         message: 'Aira 服务暂时不可用，请稍后再试',
       };
     }
-    if (capability === 'pro-required') {
+    if (config.cloudCapability === 'pro-required') {
       return {
         type: 'blocked',
         reason: 'cloud-pro-required',
@@ -336,19 +376,66 @@ export class BookmarkSyncPopupRuntime {
     return null;
   }
 
-  private createRuntime(remoteKind: LeafTabSyncRemoteKind, webdavRequestTimeoutMs?: number) {
+  private async readExecutionConfig(
+    remoteKind: LeafTabSyncRemoteKind,
+    candidateWebdav: WebdavStorageState | undefined,
+    refreshCloudMembership: boolean,
+  ): Promise<BookmarkSyncPopupExecutionConfig> {
+    const [storedWebdav, pendingConflict] = await Promise.all([
+      candidateWebdav
+        ? Promise.resolve(candidateWebdav)
+        : readWebdavStorageStateFromExtensionStorage(),
+      readPendingBookmarkConflict(),
+    ]);
+    let cloudProfile: AiraDesktopConnectionProfile | null = null;
+    let cloudCapability: AiraDesktopProCapabilityStatus = 'login-required';
+    if (remoteKind === 'aira-cloud') {
+      cloudProfile = await readAiraDesktopConnectionProfile();
+      if (cloudProfile?.uid && cloudProfile.deviceCredential && refreshCloudMembership) {
+        try {
+          cloudProfile = await refreshAiraDesktopConnectionProfileMembership({ force: true });
+        } catch {
+          cloudCapability = 'temporarily-unavailable';
+        }
+      }
+      if (cloudCapability !== 'temporarily-unavailable') {
+        cloudCapability = resolveAiraDesktopProCapability(cloudProfile);
+      }
+    }
+    const cloudUid = cloudProfile?.uid?.trim() || '';
+    return {
+      cloudUid,
+      cloudDeviceCredential: cloudProfile?.deviceCredential?.trim() || '',
+      cloudSyncEnabled: await readAiraCloudSyncEnabledFromExtensionStorage(cloudUid),
+      cloudCapability,
+      webdavState: {
+        profileName: storedWebdav.profileName.trim(),
+        url: storedWebdav.url.trim(),
+        username: storedWebdav.username.trim(),
+        password: storedWebdav.password,
+        syncEnabled: storedWebdav.syncEnabled,
+      },
+      pendingConflict,
+    };
+  }
+
+  private createRuntime(
+    remoteKind: LeafTabSyncRemoteKind,
+    config: BookmarkSyncPopupExecutionConfig,
+    webdavRequestTimeoutMs?: number,
+  ) {
     const provider: BookmarkSyncRuntimeProvider = remoteKind === 'aira-cloud'
       ? {
           remoteKind: 'aira-cloud',
-          uid: this.config.cloudUid,
-          deviceCredential: this.config.cloudDeviceCredential,
+          uid: config.cloudUid,
+          deviceCredential: config.cloudDeviceCredential,
         }
       : {
           remoteKind: 'webdav',
-          url: this.config.webdavConfig?.url || '',
-          username: this.config.webdavConfig?.username,
-          password: this.config.webdavConfig?.password,
-          requestPermission: this.config.webdavConfig?.requestPermission,
+          url: config.webdavState.url,
+          username: config.webdavState.username,
+          password: config.webdavState.password,
+          requestPermission: false,
           requestTimeoutMs: webdavRequestTimeoutMs,
         };
     return createBookmarkSyncRuntime({
@@ -359,8 +446,12 @@ export class BookmarkSyncPopupRuntime {
         deviceId: this.config.deviceId,
         requestPermission: true,
         invalidRootOrderMessage: '同步书签快照缺少根目录排序，已停止写入本地以避免清空书签',
+        readPendingChanges: readPendingLeafTabLocalBookmarkChangedAtFromExtensionStorage,
+        clearPendingChanges: clearPendingLeafTabLocalBookmarkChangesInExtensionStorage,
       }),
-      persistSelectedSource: persistSelectedSyncSource,
+      persistSelectedSource: (source: LeafTabSyncRemoteKind): Promise<void> => {
+        return this.commitSelectedSource(source, config);
+      },
     });
   }
 
@@ -371,17 +462,21 @@ export class BookmarkSyncPopupRuntime {
         writeExtensionStorageRecord({ [AIRA_CLOUD_LAST_SYNC_AT_KEY]: nowIso }),
         removeExtensionStorageKeys([AIRA_CLOUD_LAST_ERROR_AT_KEY, AIRA_CLOUD_LAST_ERROR_MESSAGE_KEY]),
       ]);
-      localStorage.setItem(AIRA_CLOUD_LAST_SYNC_AT_KEY, nowIso);
-      localStorage.removeItem(AIRA_CLOUD_LAST_ERROR_AT_KEY);
-      localStorage.removeItem(AIRA_CLOUD_LAST_ERROR_MESSAGE_KEY);
+      updatePopupLocalStorageCache(() => {
+        localStorage.setItem(AIRA_CLOUD_LAST_SYNC_AT_KEY, nowIso);
+        localStorage.removeItem(AIRA_CLOUD_LAST_ERROR_AT_KEY);
+        localStorage.removeItem(AIRA_CLOUD_LAST_ERROR_MESSAGE_KEY);
+      });
     } else {
       await Promise.all([
         writeExtensionStorageRecord({ [WEBDAV_LAST_SYNC_AT_KEY]: nowIso }),
         removeExtensionStorageKeys([WEBDAV_LAST_ERROR_AT_KEY, WEBDAV_LAST_ERROR_MESSAGE_KEY]),
       ]);
-      localStorage.setItem(WEBDAV_LAST_SYNC_AT_KEY, nowIso);
-      localStorage.removeItem(WEBDAV_LAST_ERROR_AT_KEY);
-      localStorage.removeItem(WEBDAV_LAST_ERROR_MESSAGE_KEY);
+      updatePopupLocalStorageCache(() => {
+        localStorage.setItem(WEBDAV_LAST_SYNC_AT_KEY, nowIso);
+        localStorage.removeItem(WEBDAV_LAST_ERROR_AT_KEY);
+        localStorage.removeItem(WEBDAV_LAST_ERROR_MESSAGE_KEY);
+      });
     }
     this.emitStatusChanged();
   }
@@ -397,20 +492,27 @@ export class BookmarkSyncPopupRuntime {
       [errorAtKey]: nowIso,
       [errorMessageKey]: message,
     });
-    localStorage.setItem(errorAtKey, nowIso);
-    localStorage.setItem(errorMessageKey, message);
+    updatePopupLocalStorageCache(() => {
+      localStorage.setItem(errorAtKey, nowIso);
+      localStorage.setItem(errorMessageKey, message);
+    });
     this.emitStatusChanged();
   }
 
-  private async setSourceEnabled(remoteKind: LeafTabSyncRemoteKind, enabled: boolean): Promise<void> {
+  private async commitSelectedSource(
+    remoteKind: LeafTabSyncRemoteKind,
+    config: BookmarkSyncPopupExecutionConfig,
+    webdavOverride?: WebdavStorageState,
+  ): Promise<void> {
     if (remoteKind === 'aira-cloud') {
-      await writeAiraCloudSyncEnabled(this.config.cloudUid, enabled);
+      await writeAiraCloudSyncEnabled(config.cloudUid, true);
     } else {
-      await writeExtensionStorageRecord({
-        [WEBDAV_STORAGE_KEYS.syncEnabled]: String(enabled),
+      await writeWebdavStorageStateWithinExecutionLock({
+        ...(webdavOverride ?? config.webdavState),
+        syncEnabled: true,
       });
-      localStorage.setItem(WEBDAV_STORAGE_KEYS.syncEnabled, String(enabled));
     }
+    await persistSelectedSyncSource(remoteKind);
     this.emitStatusChanged();
   }
 

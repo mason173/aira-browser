@@ -313,7 +313,9 @@ const isCanonicalLeafTabSyncWireDataSet = (
     || !tombstones.every(isLeafTabSyncTombstone)) {
     return false;
   }
-  return hasUniqueKeys(folders, (entry) => entry.id)
+  const folderIds = new Set(folders.map((entry) => entry.id));
+  return !items.some((entry) => folderIds.has(entry.id))
+    && hasUniqueKeys(folders, (entry) => entry.id)
     && hasUniqueKeys(items, (entry) => entry.id)
     && hasUniqueKeys(orders, (entry) => createLeafTabSyncOrderKey(entry.parentId))
     && hasUniqueKeys(tombstones, (entry) => createLeafTabSyncTombstoneKey(entry));

@@ -611,7 +611,7 @@ const ensureBookmarkNode = async (params: {
     await moveBookmarkNode(currentNode.id, {
       parentId: parentNodeId,
       index,
-    }).catch(() => currentNode as unknown as BookmarkTreeNode);
+    });
   }
 
   if (desiredNode.type === 'folder') {
@@ -655,6 +655,23 @@ const shouldDeleteStaleSyncedNode = (
   if (ROOT_ENTITY_IDS.has(entityId)) return false;
   if (folderLookup[entityId] || itemLookup[entityId]) return false;
   return true;
+};
+
+const resolveFolderDepth = (
+  folder: LeafTabBookmarkFolderDraft,
+  foldersByEntityId: Map<string, LeafTabBookmarkFolderDraft>,
+): number => {
+  let depth = 0;
+  let parentId = folder.parentId;
+  const visited = new Set<string>();
+  while (parentId && !ROOT_ENTITY_IDS.has(parentId) && !visited.has(parentId)) {
+    visited.add(parentId);
+    const parent = foldersByEntityId.get(parentId);
+    if (!parent) break;
+    depth += 1;
+    parentId = parent.parentId;
+  }
+  return depth;
 };
 
 export const replaceLeafTabBookmarkTree = async (params: {
@@ -735,6 +752,9 @@ export const replaceLeafTabBookmarkTree = async (params: {
     await applyChildren(roleEntityId, scopeRoot.id);
   }
 
+  const foldersByEntityId = new Map<string, LeafTabBookmarkFolderDraft>(
+    currentDraft.folders.map((folder) => [folder.entityId, folder]),
+  );
   const staleSyncedNodes = [
     ...currentDraft.items.map((item) => ({
       entityId: item.entityId,
@@ -743,7 +763,15 @@ export const replaceLeafTabBookmarkTree = async (params: {
     })),
     ...currentDraft.folders
       .filter((folder) => !ROOT_ENTITY_IDS.has(folder.entityId))
-      .sort((left, right) => right.parentId?.localeCompare(left.parentId || '') || 0)
+      .map((folder) => ({
+        folder,
+        depth: resolveFolderDepth(folder, foldersByEntityId),
+      }))
+      .sort((left, right) => {
+        return right.depth - left.depth
+          || left.folder.entityId.localeCompare(right.folder.entityId);
+      })
+      .map(({ folder }) => folder)
       .map((folder) => ({
         entityId: folder.entityId,
         localNodeId: folder.localNodeId,
@@ -755,7 +783,7 @@ export const replaceLeafTabBookmarkTree = async (params: {
     if (!shouldDeleteStaleSyncedNode(node.entityId, params.folderLookup, params.itemLookup)) continue;
     const existing = entityNodeLookup.get(node.entityId);
     if (!existing) continue;
-    await deleteBookmarkNode(existing).catch(() => {});
+    await deleteBookmarkNode(existing);
     delete nodeIdToEntityId[existing.id];
   }
 

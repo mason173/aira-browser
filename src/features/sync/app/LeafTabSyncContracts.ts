@@ -50,6 +50,12 @@ export type LeafTabSyncState = {
 
 export type LeafTabSyncActions = {
   handleSelectSyncSource: (remoteKind: LeafTabSyncRemoteKind) => Promise<boolean>;
+  handleSaveAndSelectWebdav: (candidate: {
+    profileName: string;
+    url: string;
+    username: string;
+    password: string;
+  }) => Promise<boolean>;
   handleActiveSyncNowFromCenter: () => Promise<boolean>;
   handleDismissSyncProgress: () => void;
   handleResolveBookmarkConflict: (choice: 'computer' | 'current-source') => Promise<boolean>;

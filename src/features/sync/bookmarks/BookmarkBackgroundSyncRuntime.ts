@@ -33,8 +33,10 @@ import {
   createBookmarkSyncBrowserLocalAdapter,
   createBookmarkSyncRuntime,
   persistPendingBookmarkConflict,
+  readPendingBookmarkConflict,
   type BookmarkSyncSource as LeafTabSyncRemoteKind,
 } from '@/features/sync/bookmarks/BookmarkSyncModule';
+import { withBookmarkSyncExecutionLock } from '@/sync/leaftab/executionLock';
 import {
   readExtensionStorageRecord,
   removeExtensionStorageKeys,
@@ -165,14 +167,14 @@ export function createBookmarkBackgroundSyncRuntime(
     const cloudUid = loginProfile?.uid?.trim() || '';
     const cloudDeviceCredential = loginProfile?.deviceCredential?.trim() || '';
     const cloudSyncEnabled = await readAiraCloudSyncEnabledFromExtensionStorage(cloudUid);
-    const sharedRecord = await readExtensionStorageRecord([
-      LEAFTAB_SELECTED_SYNC_SOURCE_KEY,
-      LEAFTAB_PENDING_BOOKMARK_CONFLICT_KEY,
+    const [sharedRecord, pendingConflict] = await Promise.all([
+      readExtensionStorageRecord([LEAFTAB_SELECTED_SYNC_SOURCE_KEY]),
+      readPendingBookmarkConflict(),
     ]);
     const selectedSource = parseLeafTabSyncRemoteKind(
       sharedRecord[LEAFTAB_SELECTED_SYNC_SOURCE_KEY],
     );
-    const hasPendingConflict = Boolean(sharedRecord[LEAFTAB_PENDING_BOOKMARK_CONFLICT_KEY]);
+    const hasPendingConflict = pendingConflict !== null;
 
     return {
       deviceId,
@@ -317,7 +319,7 @@ export function createBookmarkBackgroundSyncRuntime(
     if (activeAutoSyncPromise) {
       return activeAutoSyncPromise;
     }
-    activeAutoSyncPromise = (async () => {
+    activeAutoSyncPromise = withBookmarkSyncExecutionLock(async () => {
       const config = await readBackgroundSyncConfig();
       const remoteKind = config.selectedSource;
       if (!remoteKind || !canRunBackgroundAutoSync(config)) {
@@ -389,7 +391,7 @@ export function createBookmarkBackgroundSyncRuntime(
       } finally {
         keepAlive.stop();
       }
-    })();
+    });
 
     try {
       return await activeAutoSyncPromise;
@@ -445,13 +447,35 @@ export function createBookmarkBackgroundSyncRuntime(
       return;
     }
     const resolvedDelayMinutes = delayMinutes ?? resolvePeriodicSyncDelayMinutes(config);
-    const scheduledAt = new Date(Date.now() + resolvedDelayMinutes * 60_000).toISOString();
+    const desiredScheduledTime = Date.now() + resolvedDelayMinutes * 60_000;
+    const existing = alarms.get ? await alarms.get(PERIODIC_SYNC_ALARM_NAME) : undefined;
+    const existingScheduledTime = Number(existing?.scheduledTime || 0);
+    if (existingScheduledTime > Date.now() && existingScheduledTime <= desiredScheduledTime) {
+      await writeExtensionStorageRecord({
+        [LEAFTAB_BACKGROUND_STORAGE_KEYS.nextRemoteProbeAt]: new Date(existingScheduledTime).toISOString(),
+      });
+      return;
+    }
+    const scheduledAt = new Date(desiredScheduledTime).toISOString();
     await writeExtensionStorageRecord({
       [LEAFTAB_BACKGROUND_STORAGE_KEYS.nextRemoteProbeAt]: scheduledAt,
     });
     alarms.create(PERIODIC_SYNC_ALARM_NAME, {
       delayInMinutes: resolvedDelayMinutes,
     });
+  }
+
+  async function ensureFallbackPeriodicAlarm(): Promise<void> {
+    const alarms = getAlarmsApi();
+    if (!alarms?.create) return;
+    const existing = alarms.get ? await alarms.get(PERIODIC_SYNC_ALARM_NAME) : undefined;
+    if (Number(existing?.scheduledTime || 0) > Date.now()) return;
+    const delayMinutes = AUTO_SYNC_RETRY_DELAY_MINUTES;
+    await writeExtensionStorageRecord({
+      [LEAFTAB_BACKGROUND_STORAGE_KEYS.nextRemoteProbeAt]:
+        new Date(Date.now() + delayMinutes * 60_000).toISOString(),
+    }).catch(() => undefined);
+    alarms.create(PERIODIC_SYNC_ALARM_NAME, { delayInMinutes: delayMinutes });
   }
 
   async function clearBackgroundAlarms(): Promise<void> {
@@ -490,7 +514,12 @@ export function createBookmarkBackgroundSyncRuntime(
       }
       await runBackgroundAutoSync({ provider: config.selectedSource });
     } finally {
-      await reconcileBackgroundSchedules();
+      try {
+        await reconcileBackgroundSchedules();
+      } catch (error) {
+        console.error('[Aira][periodic sync schedule recovery]', error);
+        await ensureFallbackPeriodicAlarm();
+      }
     }
   }
 
@@ -551,24 +580,39 @@ export function createBookmarkBackgroundSyncRuntime(
     getOrCreateDeviceId,
     initialize(): void {
       bindBookmarkListeners();
-      void reconcileBackgroundSchedules();
+      void reconcileBackgroundSchedules().catch(async (error) => {
+        console.error('[Aira][background schedule initialize]', error);
+        await ensureFallbackPeriodicAlarm();
+      });
     },
     handleAlarm(alarmName: string): boolean {
       if (alarmName === LOCAL_SYNC_ALARM_NAME) {
-        void handleLocalChangeAlarm();
+        void handleLocalChangeAlarm().catch(async (error) => {
+          console.error('[Aira][local sync alarm]', error);
+          await scheduleLocalSyncAlarmAfter(AUTO_SYNC_RETRY_DELAY_MINUTES);
+        });
         return true;
       }
       if (alarmName === PERIODIC_SYNC_ALARM_NAME) {
-        void handlePeriodicSyncAlarm();
+        void handlePeriodicSyncAlarm().catch(async (error) => {
+          console.error('[Aira][periodic sync alarm]', error);
+          await ensureFallbackPeriodicAlarm();
+        });
         return true;
       }
       return false;
     },
     notifyStartup(): void {
-      void reconcileBackgroundSchedules(true);
+      void reconcileBackgroundSchedules(true).catch(async (error) => {
+        console.error('[Aira][background startup schedule]', error);
+        await ensureFallbackPeriodicAlarm();
+      });
     },
     notifyIdleStateChanged(): void {
-      void reconcileBackgroundSchedules();
+      void reconcileBackgroundSchedules().catch(async (error) => {
+        console.error('[Aira][background idle schedule]', error);
+        await ensureFallbackPeriodicAlarm();
+      });
     },
     notifyStorageChanged(changes: Record<string, unknown>, areaName: string): void {
       if (areaName !== 'local') {
@@ -588,7 +632,10 @@ export function createBookmarkBackgroundSyncRuntime(
         relevantKeys.includes(key) || isAiraCloudSyncPreferenceStorageKey(key)
       ));
       if (relevantChanged) {
-        void reconcileBackgroundSchedules();
+        void reconcileBackgroundSchedules().catch(async (error) => {
+          console.error('[Aira][background storage schedule]', error);
+          await ensureFallbackPeriodicAlarm();
+        });
       }
     },
   };

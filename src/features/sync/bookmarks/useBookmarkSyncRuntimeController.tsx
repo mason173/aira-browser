@@ -43,7 +43,6 @@ import {
 } from './BookmarkSyncPopupRuntime';
 import {
   hasWebdavUrlConfiguredFromStorage,
-  isWebdavSyncEnabledFromStorage,
   readWebdavConfigFromStorage,
   seedWebdavCredentialsToExtensionStorage,
   WEBDAV_STORAGE_KEYS,
@@ -211,7 +210,6 @@ export function useBookmarkSyncRuntimeController(
   const [syncStorageReady, setSyncStorageReady] = useState(false);
   const leafTabSyncRootPath = LEAFTAB_SYNC_DEFAULT_ROOT_PATH;
   const cloudUid = desktopConnectionProfile?.uid || '';
-  const cloudDeviceCredential = desktopConnectionProfile?.deviceCredential || '';
   const cloudSyncEnabled = useMemo(() => {
     void localVersion;
     return readAiraCloudSyncEnabledFromLocalStorage(cloudUid);
@@ -240,28 +238,12 @@ export function useBookmarkSyncRuntimeController(
       requestPermission: false,
     };
   }, [leafTabSyncRootPath, localVersion]);
-  const webdavSyncEnabled = useMemo(() => {
-    void localVersion;
-    return isWebdavSyncEnabledFromStorage();
-  }, [localVersion]);
   const bookmarkSyncRuntime = useMemo(() => new BookmarkSyncPopupRuntime({
     deviceId: leafTabSyncDeviceId,
     rootPath: leafTabSyncRootPath,
-    cloudUid,
-    cloudDeviceCredential,
-    cloudSyncEnabled,
-    webdavSyncEnabled,
-    webdavConfig,
-    pendingConflict: leafTabPendingBookmarkConflict,
   }), [
-    cloudDeviceCredential,
-    cloudSyncEnabled,
-    cloudUid,
-    leafTabPendingBookmarkConflict,
     leafTabSyncDeviceId,
     leafTabSyncRootPath,
-    webdavConfig,
-    webdavSyncEnabled,
   ]);
 
   const beginSyncProgress = useCallback((
@@ -617,6 +599,21 @@ export function useBookmarkSyncRuntimeController(
       toast.success(remoteKind === 'aira-cloud'
         ? '已选择 Aira 云同步'
         : '已选择 WebDAV 同步');
+      return true;
+    },
+    handleSaveAndSelectWebdav: async (candidate) => {
+      const result = await runBookmarkSyncAction(
+        'webdav',
+        (callbacks) => bookmarkSyncRuntime.selectWebdavSource({
+          ...candidate,
+          syncEnabled: false,
+        }, callbacks),
+        { allowConfigPrompt: false, showAllBlockedReasons: true },
+      );
+      if (!result || result.kind === 'conflict') {
+        return false;
+      }
+      toast.success('已选择 WebDAV 同步');
       return true;
     },
     handleActiveSyncNowFromCenter,

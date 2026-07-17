@@ -44,23 +44,34 @@ export const readWebdavStorageStateFromStorage = (defaultProfileName = ""): Webd
   };
 };
 
-export const writeWebdavStorageStateToStorage = async (
+export const writeWebdavStorageStateWithinExecutionLock = async (
   state: WebdavStorageState,
   defaultProfileName = "",
 ): Promise<void> => {
   const profileName = state.profileName.trim() || defaultProfileName;
+  const normalizedState: WebdavStorageState = {
+    profileName,
+    url: state.url.trim(),
+    username: state.username.trim(),
+    password: state.password || "",
+    syncEnabled: state.syncEnabled,
+  };
   await writeExtensionStorageRecord({
-    [WEBDAV_STORAGE_KEYS.profileName]: profileName,
-    [WEBDAV_STORAGE_KEYS.url]: state.url.trim(),
-    [WEBDAV_STORAGE_KEYS.username]: state.username.trim(),
-    [WEBDAV_STORAGE_KEYS.password]: state.password || "",
-    [WEBDAV_STORAGE_KEYS.syncEnabled]: String(state.syncEnabled),
+    [WEBDAV_STORAGE_KEYS.profileName]: normalizedState.profileName,
+    [WEBDAV_STORAGE_KEYS.url]: normalizedState.url,
+    [WEBDAV_STORAGE_KEYS.username]: normalizedState.username,
+    [WEBDAV_STORAGE_KEYS.password]: normalizedState.password,
+    [WEBDAV_STORAGE_KEYS.syncEnabled]: String(normalizedState.syncEnabled),
   });
-  localStorage.setItem(WEBDAV_STORAGE_KEYS.profileName, profileName);
-  localStorage.setItem(WEBDAV_STORAGE_KEYS.url, state.url.trim());
-  localStorage.setItem(WEBDAV_STORAGE_KEYS.username, state.username.trim());
-  localStorage.setItem(WEBDAV_STORAGE_KEYS.password, state.password || "");
-  localStorage.setItem(WEBDAV_STORAGE_KEYS.syncEnabled, String(state.syncEnabled));
+  try {
+    localStorage.setItem(WEBDAV_STORAGE_KEYS.profileName, profileName);
+    localStorage.setItem(WEBDAV_STORAGE_KEYS.url, normalizedState.url);
+    localStorage.setItem(WEBDAV_STORAGE_KEYS.username, normalizedState.username);
+    localStorage.setItem(WEBDAV_STORAGE_KEYS.password, normalizedState.password);
+    localStorage.setItem(WEBDAV_STORAGE_KEYS.syncEnabled, String(normalizedState.syncEnabled));
+  } catch {
+    // Popup localStorage is only a UI cache; extension storage is authoritative.
+  }
 };
 
 export const seedWebdavCredentialsToExtensionStorage = async (

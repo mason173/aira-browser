@@ -31,7 +31,6 @@ import {
 } from '@/icons/ri-compat';
 import {
   readWebdavStorageStateFromStorage,
-  writeWebdavStorageStateToStorage,
 } from '@/utils/webdavConfig';
 import {
   readPhonePagePushEnabledFromLocalStorage,
@@ -47,6 +46,7 @@ import type { AiraDesktopPairingSession } from '@/features/desktop-connection/Ai
 import {
   disconnectAiraDesktopDevice,
   getAiraDesktopConnectionModule,
+  pollAiraDesktopPairing,
 } from '@/features/desktop-connection/desktopConnectionRuntime';
 import { useAiraDesktopConnectionProfile } from '@/features/desktop-connection/useAiraDesktopConnectionProfile';
 
@@ -358,8 +358,7 @@ function LoginQrPanel({ onLoggedIn }: { onLoggedIn: () => void }) {
     const schedulePoll = (nextSession: AiraDesktopPairingSession, delayMs: number) => {
       clearPollTimer();
       timer = window.setTimeout(() => {
-        getAiraDesktopConnectionModule()
-          .then((module) => module.pollPairing(nextSession))
+        pollAiraDesktopPairing(nextSession)
           .then((result) => {
             if (disposed) return;
             if (result.status === 'confirmed') {
@@ -1216,7 +1215,7 @@ function WebdavConfigPage({
 }: {
   syncRuntime: PopupSyncRuntime;
   onBack: () => void;
-  onSaved: (options?: { syncAfterSave?: boolean }) => void;
+  onSaved: () => void;
 }) {
   const { t } = useTranslation();
   const [provider, setProvider] = useState('custom');
@@ -1224,9 +1223,8 @@ function WebdavConfigPage({
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [showProviderPicker, setShowProviderPicker] = useState(false);
-  const syncing = syncRuntime.state.topNavSyncStatus === 'syncing' || saving;
+  const syncing = syncRuntime.state.topNavSyncStatus === 'syncing';
   const hasConfig = url.trim().length > 0;
 
   const providers = useMemo<WebdavProviderOption[]>(() => ([
@@ -1300,40 +1298,28 @@ function WebdavConfigPage({
     setShowProviderPicker(false);
   };
 
-  const saveWebdavConfig = async () => {
+  const handleSaveAndUse = () => {
     const trimmedUrl = url.trim();
     if (!trimmedUrl) {
       toast.error(t('settings.webdav.urlRequired', { defaultValue: '请输入 WebDAV 地址' }));
-      return false;
+      return;
     }
-
-    setSaving(true);
-    try {
-      const current = readWebdavStorageStateFromStorage(t('settings.webdav.defaultProfileName', { defaultValue: '默认配置' }));
-      await writeWebdavStorageStateToStorage({
-        ...current,
-        url: trimmedUrl,
-        username,
-        password,
-        syncEnabled: false,
-      }, t('settings.webdav.defaultProfileName', { defaultValue: '默认配置' }));
-      window.dispatchEvent(new CustomEvent('webdav-config-changed'));
-      window.dispatchEvent(new CustomEvent('webdav-sync-status-changed'));
-      toast.success(t('settings.webdav.configSaved', { defaultValue: 'WebDAV 配置已保存' }));
-      return true;
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleSaveAndUse = async () => {
-    try {
-      const saved = await saveWebdavConfig();
-      if (!saved) return;
-      onSaved({ syncAfterSave: true });
-    } catch (error) {
+    const current = readWebdavStorageStateFromStorage(
+      t('settings.webdav.defaultProfileName', { defaultValue: '默认配置' })
+    );
+    onSaved();
+    void syncRuntime.actions.handleSaveAndSelectWebdav({
+      profileName: current.profileName,
+      url: trimmedUrl,
+      username,
+      password,
+    }).then((selected) => {
+      if (selected) {
+        toast.success(t('settings.webdav.configSaved', { defaultValue: 'WebDAV 配置已保存' }));
+      }
+    }).catch((error) => {
       toast.error(String((error as Error)?.message || 'WebDAV 配置保存失败'));
-    }
+    });
   };
 
   const actionTitle = syncing
@@ -1436,7 +1422,6 @@ function WebdavConfigPage({
 export function PopupApp() {
   const [view, setView] = useState<PopupView>('home');
   const [localVersion, setLocalVersion] = useState(0);
-  const [pendingWebdavSyncAfterSave, setPendingWebdavSyncAfterSave] = useState(false);
   const [pendingCloudSelectionAfterLogin, setPendingCloudSelectionAfterLogin] = useState(false);
   const { t } = useTranslation();
   const desktopConnectionProfile = useAiraDesktopConnectionProfile();
@@ -1469,16 +1454,6 @@ export function PopupApp() {
       })
       .catch(() => undefined);
   }, [desktopConnectionProfile?.uid]);
-
-  useEffect(() => {
-    if (!pendingWebdavSyncAfterSave || !syncRuntime.state.leafTabSyncHasConfig) return;
-    setPendingWebdavSyncAfterSave(false);
-    void syncRuntime.actions.handleSelectSyncSource('webdav');
-  }, [
-    pendingWebdavSyncAfterSave,
-    syncRuntime.actions,
-    syncRuntime.state.leafTabSyncHasConfig,
-  ]);
 
   useEffect(() => {
     if (!pendingCloudSelectionAfterLogin || !syncRuntime.state.leafTabCloudLoggedIn) return;
@@ -1524,9 +1499,8 @@ export function PopupApp() {
         <WebdavConfigPage
           syncRuntime={syncRuntime}
           onBack={() => setView('home')}
-          onSaved={(options) => {
+          onSaved={() => {
             setLocalVersion((value) => value + 1);
-            setPendingWebdavSyncAfterSave(Boolean(options?.syncAfterSave));
             setView('home');
           }}
         />

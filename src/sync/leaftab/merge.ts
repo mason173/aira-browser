@@ -254,6 +254,35 @@ const resolveOrderMetadata = (
   };
 };
 
+const chooseOrderByFreshness = (
+  local: LeafTabSyncBookmarkOrder | undefined,
+  remote: LeafTabSyncBookmarkOrder | undefined,
+) => {
+  if (!local) return { order: remote, source: 'remote' as const };
+  if (!remote) return { order: local, source: 'local' as const };
+  if (local.revision !== remote.revision) {
+    return local.revision > remote.revision
+      ? { order: local, source: 'local' as const }
+      : { order: remote, source: 'remote' as const };
+  }
+  const localTime = Date.parse(local.updatedAt || '');
+  const remoteTime = Date.parse(remote.updatedAt || '');
+  if (Number.isFinite(localTime) && Number.isFinite(remoteTime) && localTime !== remoteTime) {
+    return localTime > remoteTime
+      ? { order: local, source: 'local' as const }
+      : { order: remote, source: 'remote' as const };
+  }
+  const updatedByComparison = local.updatedBy.localeCompare(remote.updatedBy);
+  if (updatedByComparison !== 0) {
+    return updatedByComparison > 0
+      ? { order: local, source: 'local' as const }
+      : { order: remote, source: 'remote' as const };
+  }
+  return JSON.stringify(local.ids).localeCompare(JSON.stringify(remote.ids)) >= 0
+    ? { order: local, source: 'local' as const }
+    : { order: remote, source: 'remote' as const };
+};
+
 const collectChildrenByParent = (snapshot: LeafTabSyncSnapshot) => {
   const map = new Map<string, Set<string>>();
   const add = (parentId: string | null, id: string) => {
@@ -581,8 +610,11 @@ export const mergeLeafTabSyncSnapshot = (
       source = localOrder ? 'local' : remoteOrder ? 'remote' : 'merged';
       ids = localIds.filter((id) => availableIds.has(id));
     } else {
-      source = 'merged';
-      ids = mergeOrderIds(baseIds, localIds, remoteIds, availableIds);
+      const chosen = chooseOrderByFreshness(localOrder, remoteOrder);
+      source = chosen.source;
+      const primaryIds = chosen.order?.ids || [];
+      const secondaryIds = chosen.source === 'remote' ? localIds : remoteIds;
+      ids = mergeOrderIds(baseIds, primaryIds, secondaryIds, availableIds);
     }
 
     const mergedIds = new Set(ids);
@@ -591,6 +623,10 @@ export const mergeLeafTabSyncSnapshot = (
       mergedIds.add(id);
       ids.push(id);
     });
+    const sourceIds = source === 'local' ? localIds : source === 'remote' ? remoteIds : ids;
+    if (!areArraysEqual(ids, sourceIds.filter((id) => availableIds.has(id)))) {
+      source = 'merged';
+    }
 
     const metadata = resolveOrderMetadata(
       baseOrder,

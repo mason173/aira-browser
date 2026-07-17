@@ -3,6 +3,7 @@ import {
   removeExtensionStorageKeys,
   writeExtensionStorageRecord,
 } from '@/platform/extensionStorage';
+import { withBookmarkSyncExecutionLock } from '@/sync/leaftab/executionLock';
 import {
   AiraDesktopConnectionModule,
   AiraDesktopConnectionRemoteError,
@@ -69,7 +70,17 @@ export async function refreshAiraDesktopConnectionMembership(
 }
 
 export async function disconnectAiraDesktopDevice(): Promise<AiraDesktopConnectionSnapshot> {
-  return (await getAiraDesktopConnectionModule()).disconnectCurrentDevice();
+  return withBookmarkSyncExecutionLock(async (): Promise<AiraDesktopConnectionSnapshot> => {
+    return (await getAiraDesktopConnectionModule()).disconnectCurrentDevice();
+  });
+}
+
+export async function pollAiraDesktopPairing(
+  session: AiraDesktopPairingSession
+): Promise<AiraDesktopPairingStatus> {
+  return withBookmarkSyncExecutionLock(async (): Promise<AiraDesktopPairingStatus> => {
+    return (await getAiraDesktopConnectionModule()).pollPairing(session);
+  });
 }
 
 export async function recordAiraDesktopConnectionFailure(error: unknown): Promise<AiraDesktopConnectionSnapshot> {

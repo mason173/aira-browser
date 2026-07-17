@@ -35,7 +35,6 @@
             "dev": "vite --host",
             "build": "npm run build:final",
             "typecheck": "tsc --noEmit -p tsconfig.json",
-            "test:sync": "node scripts/test-sync.mjs",
             "check": "npm run typecheck && npm run build",
             "build:final": "node scripts/build-final.js",
             "pack:zip": "node scripts/package-release-zips.js",

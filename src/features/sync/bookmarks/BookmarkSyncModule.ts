@@ -32,10 +32,6 @@ import {
   createLeafTabSyncBuildState,
   normalizeLeafTabLiveBookmarkSnapshot,
 } from '@/sync/leaftab/snapshot';
-import {
-  markLeafTabBookmarkSyncApplyFinished,
-  markLeafTabBookmarkSyncApplyStarted,
-} from '@/sync/leaftab/localChangeTracker';
 import type {
   LeafTabPendingBookmarkConflict,
   LeafTabSyncRemoteKind,
@@ -220,9 +216,7 @@ export const createBookmarkSyncBrowserLocalAdapter = (
     if (hasRemoteBookmarks && !hasRootOrder) {
       throw new Error(config.invalidRootOrderMessage);
     }
-    await markLeafTabBookmarkSyncApplyStarted();
-    try {
-      const applied = await replaceLeafTabBookmarkTree({
+    const applied = await replaceLeafTabBookmarkTree({
         folderLookup: Object.fromEntries(
           Object.values(liveSnapshot.bookmarkFolders).map((folder) => [folder.id, {
             title: folder.title,
@@ -241,12 +235,9 @@ export const createBookmarkSyncBrowserLocalAdapter = (
         ),
         tombstoneIds: Object.keys(snapshot.tombstones || {}),
         requestPermission: false,
-      });
-      if (!applied) {
-        throw new Error('未授予书签权限，无法写入本地书签');
-      }
-    } finally {
-      await markLeafTabBookmarkSyncApplyFinished();
+    });
+    if (!applied) {
+      throw new Error('未授予书签权限，无法写入本地书签');
     }
   },
   readPendingChanges: config.readPendingChanges,
