@@ -12,11 +12,6 @@ import type {
   LeafTabSyncRemoteHead,
   LeafTabSyncRemoteState,
   LeafTabSyncRemoteStore,
-  LeafTabSyncReadOperationsParams,
-  LeafTabSyncReadOperationsResult,
-  LeafTabSyncOperation,
-  LeafTabSyncWriteOperationsParams,
-  LeafTabSyncWriteOperationsResult,
   LeafTabSyncWriteStateParams,
   LeafTabSyncWriteStateResult,
 } from './remoteStore';
@@ -38,13 +33,6 @@ type AiraCloudResponse = {
   bookmarkItems?: number;
   tombstones?: number;
   writtenAt?: string;
-  operations?: LeafTabSyncOperation[];
-  supportsIncremental?: boolean;
-  reason?: string;
-  sinceCommitId?: string;
-  deviceId?: string;
-  createdAt?: string;
-  appliedOperationCount?: number;
 };
 
 const normalizeCount = (value: unknown) => {
@@ -107,11 +95,6 @@ export class LeafTabSyncAiraCloudStore implements LeafTabSyncRemoteStore {
     this.endpoint = endpoint.trim().replace(/\/+$/, '');
   }
 
-  async readCommitId(): Promise<string | null> {
-    const head = await this.readHead();
-    return head.commitId;
-  }
-
   async readHead(): Promise<LeafTabSyncRemoteHead> {
     this.assertConfigured();
     const response = await this.post('/head', {
@@ -133,29 +116,6 @@ export class LeafTabSyncAiraCloudStore implements LeafTabSyncRemoteStore {
         bookmarkItems: normalizeCount(response.bookmarkItems),
         tombstones: normalizeCount(response.tombstones),
       },
-    };
-  }
-
-  async readOperations(params: LeafTabSyncReadOperationsParams): Promise<LeafTabSyncReadOperationsResult> {
-    this.assertConfigured();
-    const response = await this.post('/read-ops', {
-      uid: this.uid,
-      desktopPushToken: this.deviceCredential,
-      source: 'airatab',
-      sinceCommitId: params.sinceCommitId,
-    });
-    return {
-      commitId: typeof response.commitId === 'string' && response.commitId.trim()
-        ? response.commitId.trim()
-        : null,
-      sinceCommitId: typeof response.sinceCommitId === 'string' && response.sinceCommitId.trim()
-        ? response.sinceCommitId.trim()
-        : params.sinceCommitId,
-      deviceId: typeof response.deviceId === 'string' ? response.deviceId.trim() : '',
-      createdAt: typeof response.createdAt === 'string' ? response.createdAt.trim() : '',
-      operations: Array.isArray(response.operations) ? response.operations : [],
-      supportsIncremental: response.supportsIncremental === true,
-      reason: typeof response.reason === 'string' ? response.reason : undefined,
     };
   }
 
@@ -202,34 +162,6 @@ export class LeafTabSyncAiraCloudStore implements LeafTabSyncRemoteStore {
     return {
       head: createLeafTabSyncHeadFile(commitId, writtenAt),
       commit: createCommitFromSnapshot(commitId, params.snapshot, params.parentCommitId ?? null),
-    };
-  }
-
-  async writeOperations(params: LeafTabSyncWriteOperationsParams): Promise<LeafTabSyncWriteOperationsResult> {
-    this.assertConfigured();
-    if (params.operations.length <= 0) {
-      throw new Error('没有可上传的书签变更。');
-    }
-    const response = await this.post('/write-ops', {
-      uid: this.uid,
-      desktopPushToken: this.deviceCredential,
-      source: 'airatab',
-      deviceId: params.deviceId,
-      parentCommitId: params.parentCommitId,
-      createdAt: params.createdAt ?? params.snapshot.meta.generatedAt,
-      operations: params.operations,
-    }, AIRA_CLOUD_LARGE_REQUEST_TIMEOUT_MS);
-    const commitId = typeof response.commitId === 'string' && response.commitId.trim()
-      ? response.commitId.trim()
-      : '';
-    if (!commitId) {
-      throw new Error('Aira 云同步服务没有返回 commitId。');
-    }
-    const writtenAt = response.writtenAt || params.createdAt || params.snapshot.meta.generatedAt;
-    return {
-      head: createLeafTabSyncHeadFile(commitId, writtenAt),
-      commit: createCommitFromSnapshot(commitId, params.snapshot, params.parentCommitId),
-      appliedOperationCount: normalizeCount(response.appliedOperationCount),
     };
   }
 

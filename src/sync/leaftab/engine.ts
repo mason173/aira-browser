@@ -5,16 +5,10 @@ import {
   type LeafTabSyncConflictResolution,
   type LeafTabSyncMergeResult,
 } from './merge';
-import { createLeafTabSyncCommitFile, createLeafTabSyncHeadFile, type LeafTabSyncSnapshot } from './schema';
+import type { LeafTabSyncSnapshot } from './schema';
 import { countLeafTabLiveBookmarkEntities } from './snapshot';
 import { formatLeafTabSyncSummaryText, summarizeLeafTabSyncMerge, type LeafTabSyncChangeSummary } from './summary';
-import type {
-  LeafTabSyncOperation,
-  LeafTabSyncRemoteHead,
-  LeafTabSyncRemoteState,
-  LeafTabSyncRemoteStore,
-} from './remoteStore';
-import { applyLeafTabSyncOperations, buildLeafTabSyncOperations } from './operationLog';
+import type { LeafTabSyncRemoteState, LeafTabSyncRemoteStore } from './remoteStore';
 
 export interface LeafTabSyncDataSummary {
   bookmarkFolders: number;
@@ -59,15 +53,13 @@ export interface LeafTabSyncEngineConfig {
   baselineStore: LeafTabSyncBaselineStore;
   buildLocalSnapshot: () => Promise<LeafTabSyncSnapshot>;
   applyLocalSnapshot: (snapshot: LeafTabSyncSnapshot) => Promise<void>;
-  clearPendingLocalChanges?: () => void;
-  buildPendingLocalOperations?: (baseSnapshot: LeafTabSyncSnapshot) => Promise<LeafTabSyncOperation[] | null>;
-  clearPendingLocalOperations?: () => Promise<void> | void;
+  readPendingLocalChanges?: () => Promise<number>;
+  clearPendingLocalChanges?: (expectedChangedAt: number) => Promise<void> | void;
   createEmptySnapshot: () => LeafTabSyncSnapshot;
   rootPath?: string;
 }
 
 export interface LeafTabSyncEngineRunOptions {
-  localSnapshotOverride?: LeafTabSyncSnapshot;
   onProgress?: (progress: LeafTabSyncEngineProgress) => void;
   conflictResolution?: LeafTabSyncConflictResolution;
 }
@@ -134,43 +126,6 @@ const reportProgress = (
   });
 };
 
-const emptyRemoteState = (): LeafTabSyncRemoteState => ({
-  head: null,
-  commit: null,
-  snapshot: null,
-});
-
-const createRemoteStateFromSnapshot = (
-  snapshot: LeafTabSyncSnapshot,
-  commitId: string | null,
-  parentCommitId: string | null,
-  deviceId: string,
-  createdAt: string,
-): LeafTabSyncRemoteState => {
-  if (!commitId) {
-    return {
-      head: null,
-      commit: null,
-      snapshot,
-    };
-  }
-  const commit = createLeafTabSyncCommitFile({
-    deviceId: deviceId || snapshot.meta.deviceId,
-    createdAt: createdAt || snapshot.meta.generatedAt,
-    parentCommitId,
-    snapshot,
-  });
-  return {
-    head: createLeafTabSyncHeadFile(commitId, createdAt || snapshot.meta.generatedAt),
-    commit: {
-      ...commit,
-      id: commitId,
-      parentCommitId,
-    },
-    snapshot,
-  };
-};
-
 export class LeafTabSyncEngine {
   private readonly config: LeafTabSyncEngineConfig;
 
@@ -178,140 +133,21 @@ export class LeafTabSyncEngine {
     this.config = config;
   }
 
-  private async readRemoteHeadSafely(): Promise<LeafTabSyncRemoteHead | undefined> {
-    if (!this.config.remoteStore.readHead) {
-      return undefined;
-    }
-    try {
-      return await this.config.remoteStore.readHead();
-    } catch {
-      return undefined;
-    }
+  private resolveRemoteCommitId(state: LeafTabSyncRemoteState): string | null {
+    return state.commit?.id || state.head?.commitId || null;
   }
 
-  private async tryReadIncrementalRemoteState(params: {
-    baselineCommitId: string | null | undefined;
-    baselineSnapshot: LeafTabSyncSnapshot | null;
-    remoteCommitId: string | null;
-  }): Promise<LeafTabSyncRemoteState | null> {
-    if (!this.config.remoteStore.readOperations ||
-      !params.baselineSnapshot ||
-      !params.baselineCommitId ||
-      !params.remoteCommitId ||
-      params.remoteCommitId === params.baselineCommitId) {
-      return null;
-    }
-    try {
-      const result = await this.config.remoteStore.readOperations({
-        sinceCommitId: params.baselineCommitId,
-      });
-      if (!result.supportsIncremental || result.commitId !== params.remoteCommitId) {
-        return null;
-      }
-      const snapshot = applyLeafTabSyncOperations(
-        params.baselineSnapshot,
-        result.operations,
-        result.deviceId || this.config.deviceId,
-        result.createdAt || new Date().toISOString(),
-      );
-      return createRemoteStateFromSnapshot(
-        snapshot,
-        result.commitId,
-        params.baselineCommitId,
-        result.deviceId || this.config.deviceId,
-        result.createdAt || snapshot.meta.generatedAt,
-      );
-    } catch {
-      return null;
-    }
-  }
-
-  private async clearPendingLocalState(): Promise<void> {
-    this.config.clearPendingLocalChanges?.();
-    await this.config.clearPendingLocalOperations?.();
-  }
-
-  private async writeLocalChanges(params: {
-    localSnapshot: LeafTabSyncSnapshot;
-    baseSnapshot: LeafTabSyncSnapshot;
-    parentCommitId: string;
-  }) {
-    if (this.config.remoteStore.writeOperations) {
-      const operations = buildLeafTabSyncOperations(params.baseSnapshot, params.localSnapshot);
-      if (operations.length > 0) {
-        try {
-          return await this.config.remoteStore.writeOperations({
-            snapshot: params.localSnapshot,
-            operations,
-            deviceId: this.config.deviceId,
-            parentCommitId: params.parentCommitId,
-            createdAt: params.localSnapshot.meta.generatedAt,
-          });
-        } catch {
-          // Fall back to the full snapshot path. The parent commit is still checked there.
-        }
-      }
-    }
-    return this.config.remoteStore.writeState({
-      snapshot: params.localSnapshot,
-      deviceId: this.config.deviceId,
-      parentCommitId: params.parentCommitId,
-    });
-  }
-
-  private async tryWritePendingLocalOperations(params: {
-    baseSnapshot: LeafTabSyncSnapshot;
-    parentCommitId: string;
-    onProgress?: (progress: LeafTabSyncEngineProgress) => void;
-  }): Promise<LeafTabSyncEngineResult | null> {
-    if (!this.config.remoteStore.writeOperations || !this.config.buildPendingLocalOperations) {
-      return null;
-    }
-    const operations = await this.config.buildPendingLocalOperations(params.baseSnapshot);
-    if (!operations || operations.length <= 0) {
-      return null;
-    }
-    const generatedAt = new Date().toISOString();
-    const snapshot = applyLeafTabSyncOperations(
-      params.baseSnapshot,
-      operations,
-      this.config.deviceId,
-      generatedAt,
-    );
-    reportProgress(params.onProgress, {
-      stage: 'uploading-remote',
-      progress: 72,
-      message: '正在上传本地书签操作',
-    });
-    let writeResult;
-    try {
-      writeResult = await this.config.remoteStore.writeOperations({
-        snapshot,
-        operations,
-        deviceId: this.config.deviceId,
-        parentCommitId: params.parentCommitId,
-        createdAt: generatedAt,
-      });
-    } catch {
-      return null;
-    }
+  private async persistCompletedState(
+    snapshot: LeafTabSyncSnapshot,
+    commitId: string | null,
+    completedPendingLocalChangedAt: number,
+  ): Promise<void> {
     await this.config.baselineStore.save(createLeafTabSyncBaseline({
       snapshot,
-      commitId: writeResult.commit.id,
+      commitId,
       rootPath: this.config.rootPath,
     }));
-    await this.clearPendingLocalState();
-    reportProgress(params.onProgress, {
-      stage: 'completed',
-      progress: 100,
-      message: '同步完成',
-    });
-    return createSyncResult({
-      kind: 'push',
-      remoteCommitId: writeResult.commit.id,
-      snapshot,
-      summaryText: `同步完成：已上传 ${operations.length} 条本机书签操作。`,
-    });
+    await this.config.clearPendingLocalChanges?.(completedPendingLocalChangedAt);
   }
 
   async analyze(options?: LeafTabSyncEngineAnalyzeOptions): Promise<LeafTabSyncAnalysis> {
@@ -320,45 +156,16 @@ export class LeafTabSyncEngine {
       progress: 10,
       message: '正在读取本机与远端状态',
     });
-    const [baseline, localSnapshot, remoteHead] = await Promise.all([
+    const [baseline, localSnapshot, remoteState] = await Promise.all([
       this.config.baselineStore.load(),
       this.config.buildLocalSnapshot(),
-      this.readRemoteHeadSafely(),
+      this.config.remoteStore.readState(),
     ]);
-
-    const hasBaseline = Boolean(baseline?.snapshot || baseline?.commitId);
-    const baselineSnapshot = getLeafTabSyncBaselineSnapshot(baseline);
-    let remoteState: LeafTabSyncRemoteState | null = null;
-    let remoteSnapshot: LeafTabSyncSnapshot | null = null;
-    const remoteHeadSummary = remoteHead?.summary || remoteHead?.commit?.summary;
-    let remoteSummary = remoteHeadSummary
-      ? {
-          bookmarkFolders: remoteHeadSummary.bookmarkFolders,
-          bookmarkItems: remoteHeadSummary.bookmarkItems,
-          tombstones: remoteHeadSummary.tombstones,
-        }
-      : summarizeSnapshot(null);
-
-    const remoteCommitId = remoteHead?.commitId ?? null;
-    const canUseBaselineAsRemote =
-      remoteCommitId !== null &&
-      baselineSnapshot !== null &&
-      baseline?.commitId === remoteCommitId;
-
-    if (canUseBaselineAsRemote) {
-      remoteSnapshot = baselineSnapshot;
-      remoteSummary = summarizeSnapshot(remoteSnapshot);
-    } else if (remoteHead === undefined || !hasBaseline || (!remoteHeadSummary && remoteCommitId !== null)) {
-      remoteState = await this.config.remoteStore.readState();
-      remoteSnapshot = remoteState.snapshot;
-      remoteSummary = summarizeSnapshot(remoteSnapshot);
-    }
-
     const result: LeafTabSyncAnalysis = {
-      hasBaseline,
+      hasBaseline: Boolean(baseline?.snapshot || baseline?.commitId),
       localSummary: summarizeSnapshot(localSnapshot),
-      remoteSummary,
-      remoteCommitId: remoteState?.commit?.id || remoteCommitId,
+      remoteSummary: summarizeSnapshot(remoteState.snapshot),
+      remoteCommitId: this.resolveRemoteCommitId(remoteState),
     };
     reportProgress(options?.onProgress, {
       stage: 'completed',
@@ -376,277 +183,59 @@ export class LeafTabSyncEngine {
       progress: 8,
       message: '正在读取本机与远端数据',
     });
-    const [baseline, remoteHead] = await Promise.all([
+    const completedPendingLocalChangedAt = await this.config.readPendingLocalChanges?.() || 0;
+    const [baseline, localSnapshotValue, remoteState] = await Promise.all([
       this.config.baselineStore.load(),
-      this.readRemoteHeadSafely(),
+      this.config.buildLocalSnapshot(),
+      this.config.remoteStore.readState(),
     ]);
-
+    const localSnapshot = localSnapshotValue;
     const baseSnapshot =
       getLeafTabSyncBaselineSnapshot(baseline) || this.config.createEmptySnapshot();
     const hasBaseline = Boolean(baseline?.snapshot || baseline?.commitId);
-    const resolvingConflict = Boolean(runOptions?.conflictResolution);
-    let localSnapshotCache: LeafTabSyncSnapshot | null = null;
-    const getLocalSnapshot = async () => {
-      if (localSnapshotCache) {
-        return localSnapshotCache;
-      }
-      localSnapshotCache = runOptions?.localSnapshotOverride
-        ? cloneSnapshot(runOptions.localSnapshotOverride)
-        : await this.config.buildLocalSnapshot();
-      return localSnapshotCache;
-    };
-    let remoteState: LeafTabSyncRemoteState = emptyRemoteState();
-    let remoteSnapshot: LeafTabSyncSnapshot = this.config.createEmptySnapshot();
-    const remoteCommitId = remoteHead?.commitId ?? null;
+    const remoteCommitId = this.resolveRemoteCommitId(remoteState);
 
-    if (!resolvingConflict && hasBaseline && baseline?.commitId && remoteCommitId === baseline.commitId) {
-      if (!runOptions?.localSnapshotOverride) {
-        reportProgress(runOptions?.onProgress, {
-          stage: 'confirming-remote',
-          progress: 34,
-          message: '正在确认同步位置',
-        });
-        {
-          reportProgress(runOptions?.onProgress, {
-            stage: 'rechecking-remote',
-            progress: 52,
-            message: '正在确认远端最新状态',
-          });
-          const latestHead = await this.readRemoteHeadSafely();
-          if (latestHead?.commitId === baseline.commitId) {
-            const operationResult = await this.tryWritePendingLocalOperations({
-              baseSnapshot,
-              parentCommitId: baseline.commitId,
-              onProgress: runOptions?.onProgress,
-            });
-            if (operationResult) {
-              return operationResult;
-            }
-          }
-        }
-      }
-
-      const localSnapshot = await getLocalSnapshot();
-      const localMatchesBaseline = sameSnapshotContent(localSnapshot, baseSnapshot);
-      if (localMatchesBaseline) {
-        reportProgress(runOptions?.onProgress, {
-          stage: 'finalizing',
-          progress: 92,
-          message: '未检测到变更，正在结束同步',
-        });
-        await this.config.baselineStore.save(createLeafTabSyncBaseline({
-          snapshot: baseSnapshot,
-          commitId: baseline.commitId,
-          rootPath: this.config.rootPath,
-        }));
-        reportProgress(runOptions?.onProgress, {
-          stage: 'completed',
-          progress: 100,
-          message: '同步完成',
-        });
-        return createSyncResult({
-          kind: 'noop',
-          remoteCommitId: baseline.commitId,
-          snapshot: baseSnapshot,
-          summaryText: '本地与远端均无新增变更',
-        });
-      }
-
-      reportProgress(runOptions?.onProgress, {
-        stage: 'confirming-remote',
-        progress: 34,
-        message: '正在确认同步位置',
-      });
-      {
-        reportProgress(runOptions?.onProgress, {
-          stage: 'rechecking-remote',
-          progress: 52,
-          message: '正在确认远端最新状态',
-        });
-        const latestHead = await this.readRemoteHeadSafely();
-        if (latestHead?.commitId === baseline.commitId) {
-          reportProgress(runOptions?.onProgress, {
-            stage: 'uploading-remote',
-            progress: 72,
-            message: '正在上传本地变更',
-          });
-          const writeResult = await this.writeLocalChanges({
-            localSnapshot,
-            baseSnapshot,
-            parentCommitId: baseline.commitId,
-          });
-          await this.config.baselineStore.save(createLeafTabSyncBaseline({
-            snapshot: localSnapshot,
-            commitId: writeResult.commit.id,
-            rootPath: this.config.rootPath,
-          }));
-          await this.clearPendingLocalState();
-          reportProgress(runOptions?.onProgress, {
-            stage: 'completed',
-            progress: 100,
-            message: '同步完成',
-          });
-          return createSyncResult({
-            kind: 'push',
-            remoteCommitId: writeResult.commit.id,
-            snapshot: localSnapshot,
-            summaryText: '同步完成：远端没有新的变化，已上传本地变化。',
-          });
-        }
-      }
-    }
-
-    if (!hasBaseline && remoteHead !== undefined && remoteCommitId === null) {
-      const localSnapshot = await getLocalSnapshot();
-      reportProgress(runOptions?.onProgress, {
-        stage: 'confirming-remote',
-        progress: 34,
-        message: '正在确认同步位置',
-      });
-      {
-        reportProgress(runOptions?.onProgress, {
-          stage: 'rechecking-remote',
-          progress: 52,
-          message: '正在确认远端最新状态',
-        });
-        const latestHead = await this.readRemoteHeadSafely();
-        if (latestHead?.commitId) {
-          remoteState = await this.config.remoteStore.readState();
-        } else {
-          reportProgress(runOptions?.onProgress, {
-            stage: 'uploading-remote',
-            progress: 72,
-            message: '正在写入远端数据',
-          });
-          const writeResult = await this.config.remoteStore.writeState({
-            snapshot: localSnapshot,
-            deviceId: this.config.deviceId,
-            parentCommitId: null,
-          });
-          await this.config.baselineStore.save(createLeafTabSyncBaseline({
-            snapshot: localSnapshot,
-            commitId: writeResult.commit.id,
-            rootPath: this.config.rootPath,
-          }));
-          await this.clearPendingLocalState();
-          reportProgress(runOptions?.onProgress, {
-            stage: 'completed',
-            progress: 100,
-            message: '同步完成',
-          });
-          return createSyncResult({
-            kind: 'push',
-            remoteCommitId: writeResult.commit.id,
-            snapshot: localSnapshot,
-            summaryText: '远端为空，已用本地快照建立首次同步状态',
-          });
-        }
-      }
-    }
-
-    if (!remoteState.snapshot && hasBaseline && remoteHead !== undefined && remoteCommitId !== null) {
-      remoteState = await this.tryReadIncrementalRemoteState({
-        baselineCommitId: baseline?.commitId,
-        baselineSnapshot: baseSnapshot,
-        remoteCommitId,
-      }) || remoteState;
-    }
-
-    if (!remoteState.snapshot && (remoteHead === undefined || remoteCommitId !== null)) {
-      remoteState = await this.config.remoteStore.readState();
-    }
-    remoteSnapshot = remoteState.snapshot || this.config.createEmptySnapshot();
-    const remoteMatchesBaseline = sameSnapshotContent(remoteSnapshot, baseSnapshot);
-
-    const localSnapshot = await getLocalSnapshot();
-    const localMatchesBaseline = sameSnapshotContent(localSnapshot, baseSnapshot);
-
-    if (!hasBaseline && remoteState.snapshot &&
-      sameSnapshotContent(localSnapshot, remoteSnapshot)) {
-        reportProgress(runOptions?.onProgress, {
-          stage: 'finalizing',
-          progress: 92,
-          message: '正在收尾同步结果',
-        });
-        await this.config.baselineStore.save(createLeafTabSyncBaseline({
-          snapshot: remoteSnapshot,
-          commitId: remoteState.commit?.id || null,
-          rootPath: this.config.rootPath,
-        }));
-        await this.clearPendingLocalState();
-        reportProgress(runOptions?.onProgress, {
-          stage: 'completed',
-          progress: 100,
-          message: '同步完成',
-        });
-        return createSyncResult({
-          kind: 'noop',
-          remoteCommitId: remoteState.commit?.id || null,
-          snapshot: remoteSnapshot,
-          summaryText: '本机和当前同步位置内容一致，已建立同步基线',
-        });
+    if (!remoteState.snapshot && remoteCommitId) {
+      throw new Error('当前同步位置返回了不完整的书签快照，已停止写入以避免覆盖远端数据。');
     }
 
     if (!hasBaseline && !remoteState.snapshot) {
       reportProgress(runOptions?.onProgress, {
-        stage: 'confirming-remote',
-        progress: 34,
-        message: '正在确认同步位置',
+        stage: 'uploading-remote',
+        progress: 72,
+        message: '正在写入远端数据',
       });
-      {
-        reportProgress(runOptions?.onProgress, {
-          stage: 'rechecking-remote',
-          progress: 52,
-          message: '正在重新确认远端最新状态',
-        });
-        const latestRemote = await this.config.remoteStore.readState();
-        if (latestRemote.snapshot) {
-          remoteState = latestRemote;
-          remoteSnapshot = latestRemote.snapshot;
-        } else {
-          reportProgress(runOptions?.onProgress, {
-            stage: 'uploading-remote',
-            progress: 72,
-            message: '正在写入远端数据',
-          });
-          const writeResult = await this.config.remoteStore.writeState({
-            snapshot: localSnapshot,
-            deviceId: this.config.deviceId,
-            parentCommitId: null,
-          });
-          await this.config.baselineStore.save(createLeafTabSyncBaseline({
-            snapshot: localSnapshot,
-            commitId: writeResult.commit.id,
-            rootPath: this.config.rootPath,
-          }));
-          await this.clearPendingLocalState();
-          reportProgress(runOptions?.onProgress, {
-            stage: 'completed',
-            progress: 100,
-            message: '同步完成',
-          });
-          return createSyncResult({
-            kind: 'push',
-            remoteCommitId: writeResult.commit.id,
-            snapshot: localSnapshot,
-            summaryText: '远端为空，已用本地快照建立首次同步状态',
-          });
-        }
-      }
+      const writeResult = await this.config.remoteStore.writeState({
+        snapshot: localSnapshot,
+        deviceId: this.config.deviceId,
+        parentCommitId: null,
+      });
+      await this.persistCompletedState(
+        localSnapshot,
+        writeResult.commit.id,
+        completedPendingLocalChangedAt,
+      );
+      reportProgress(runOptions?.onProgress, {
+        stage: 'completed',
+        progress: 100,
+        message: '同步完成',
+      });
+      return createSyncResult({
+        kind: 'push',
+        remoteCommitId: writeResult.commit.id,
+        snapshot: localSnapshot,
+        summaryText: '远端为空，已用本地快照建立首次同步状态',
+      });
     }
 
-    if (!resolvingConflict && hasBaseline && localMatchesBaseline && remoteMatchesBaseline) {
+    const remoteSnapshot = remoteState.snapshot || this.config.createEmptySnapshot();
+    if (!hasBaseline && sameSnapshotContent(localSnapshot, remoteSnapshot)) {
       reportProgress(runOptions?.onProgress, {
         stage: 'finalizing',
         progress: 92,
-        message: '未检测到变更，正在结束同步',
+        message: '正在收尾同步结果',
       });
-      await this.config.baselineStore.save(createLeafTabSyncBaseline({
-        snapshot: baseSnapshot,
-        commitId: remoteState.commit?.id || baseline?.commitId || null,
-        rootPath: this.config.rootPath,
-      }));
-      await this.clearPendingLocalState();
+      await this.persistCompletedState(remoteSnapshot, remoteCommitId, completedPendingLocalChangedAt);
       reportProgress(runOptions?.onProgress, {
         stage: 'completed',
         progress: 100,
@@ -654,7 +243,33 @@ export class LeafTabSyncEngine {
       });
       return createSyncResult({
         kind: 'noop',
-        remoteCommitId: remoteState.commit?.id || baseline?.commitId || null,
+        remoteCommitId,
+        snapshot: remoteSnapshot,
+        summaryText: '本机和当前同步位置内容一致，已建立同步基线',
+      });
+    }
+
+    const localMatchesBaseline = sameSnapshotContent(localSnapshot, baseSnapshot);
+    const remoteMatchesBaseline = sameSnapshotContent(remoteSnapshot, baseSnapshot);
+    if (!runOptions?.conflictResolution && hasBaseline && localMatchesBaseline && remoteMatchesBaseline) {
+      reportProgress(runOptions?.onProgress, {
+        stage: 'finalizing',
+        progress: 92,
+        message: '未检测到变更，正在结束同步',
+      });
+      await this.persistCompletedState(
+        baseSnapshot,
+        remoteCommitId || baseline?.commitId || null,
+        completedPendingLocalChangedAt,
+      );
+      reportProgress(runOptions?.onProgress, {
+        stage: 'completed',
+        progress: 100,
+        message: '同步完成',
+      });
+      return createSyncResult({
+        kind: 'noop',
+        remoteCommitId: remoteCommitId || baseline?.commitId || null,
         snapshot: baseSnapshot,
         summaryText: '本地与远端均无新增变更',
       });
@@ -662,14 +277,14 @@ export class LeafTabSyncEngine {
 
     reportProgress(runOptions?.onProgress, {
       stage: 'merging',
-      progress: 24,
+      progress: 30,
       message: '正在合并本机与远端差异',
     });
-    const mergeSnapshots = (nextRemoteSnapshot: LeafTabSyncSnapshot) => hasBaseline
+    const mergeResult = hasBaseline
       ? mergeLeafTabSyncSnapshot(
           baseSnapshot,
           localSnapshot,
-          nextRemoteSnapshot,
+          remoteSnapshot,
           {
             deviceId: this.config.deviceId,
             conflictResolution: runOptions?.conflictResolution,
@@ -677,17 +292,14 @@ export class LeafTabSyncEngine {
         )
       : mergeLeafTabSyncSnapshotWithoutBaseline(
           localSnapshot,
-          nextRemoteSnapshot,
+          remoteSnapshot,
           { deviceId: this.config.deviceId },
         );
-    const mergeResult = mergeSnapshots(remoteSnapshot);
+    const finalSnapshot = mergeResult.snapshot;
+    const summary = summarizeLeafTabSyncMerge(baseSnapshot, mergeResult);
+    const summaryText = formatLeafTabSyncSummaryText(summary);
 
-    let finalMergeResult = mergeResult;
-    let finalSnapshot = mergeResult.snapshot;
-    let finalSummary = summarizeLeafTabSyncMerge(baseSnapshot, finalMergeResult);
-    let finalSummaryText = formatLeafTabSyncSummaryText(finalSummary);
-
-    if (finalMergeResult.conflicts.length > 0) {
+    if (mergeResult.conflicts.length > 0) {
       reportProgress(runOptions?.onProgress, {
         stage: 'completed',
         progress: 100,
@@ -695,197 +307,63 @@ export class LeafTabSyncEngine {
       });
       return createSyncResult({
         kind: 'conflict',
-        remoteCommitId: remoteState.commit?.id || remoteCommitId || null,
+        remoteCommitId,
         snapshot: localSnapshot,
-        mergeResult: finalMergeResult,
-        summary: finalSummary,
-        summaryText: createConcurrentConflictSummaryText(finalMergeResult.conflicts.length),
+        mergeResult,
+        summary,
+        summaryText: createConcurrentConflictSummaryText(mergeResult.conflicts.length),
       });
     }
 
-    if (!sameSnapshotContent(remoteSnapshot, finalSnapshot)) {
+    const remoteNeedsWrite = !sameSnapshotContent(remoteSnapshot, finalSnapshot);
+    const localNeedsApply = !sameSnapshotContent(localSnapshot, finalSnapshot);
+    let committedId = remoteCommitId;
+
+    if (remoteNeedsWrite) {
       reportProgress(runOptions?.onProgress, {
-        stage: 'confirming-remote',
-        progress: 40,
-        message: '正在确认同步位置',
+        stage: 'uploading-remote',
+        progress: 72,
+        message: '正在写入远端数据',
       });
-      {
-        reportProgress(runOptions?.onProgress, {
-          stage: 'rechecking-remote',
-          progress: 54,
-          message: '正在重新确认远端最新状态',
-        });
-        const latestRemote = await this.config.remoteStore.readState();
-        const latestRemoteSnapshot = latestRemote.snapshot || this.config.createEmptySnapshot();
-        if (!sameSnapshotContent(latestRemoteSnapshot, remoteSnapshot)) {
-          finalMergeResult = mergeSnapshots(latestRemoteSnapshot);
-          finalSnapshot = finalMergeResult.snapshot;
-          finalSummary = summarizeLeafTabSyncMerge(baseSnapshot, finalMergeResult);
-          finalSummaryText = formatLeafTabSyncSummaryText(finalSummary);
-          if (finalMergeResult.conflicts.length > 0) {
-            reportProgress(runOptions?.onProgress, {
-              stage: 'completed',
-              progress: 100,
-              message: '检测到同步冲突，等待处理',
-            });
-            return createSyncResult({
-              kind: 'conflict',
-              remoteCommitId: latestRemote.commit?.id || null,
-              snapshot: localSnapshot,
-              mergeResult: finalMergeResult,
-              summary: finalSummary,
-              summaryText: createConcurrentConflictSummaryText(finalMergeResult.conflicts.length),
-            });
-          }
-        }
-
-        if (!sameSnapshotContent(latestRemoteSnapshot, finalSnapshot)) {
-          reportProgress(runOptions?.onProgress, {
-            stage: 'uploading-remote',
-            progress: 72,
-            message: '正在写入远端数据',
-          });
-          const writeResult = await this.config.remoteStore.writeState({
-            snapshot: finalSnapshot,
-            deviceId: this.config.deviceId,
-            parentCommitId: latestRemote.commit?.id || null,
-          });
-          const localNeedsApply = !sameSnapshotContent(localSnapshot, finalSnapshot);
-          if (localNeedsApply) {
-            reportProgress(runOptions?.onProgress, {
-              stage: 'applying-local',
-              progress: 88,
-              message: '正在将最新结果写入本地',
-            });
-            await this.config.applyLocalSnapshot(cloneSnapshot(finalSnapshot));
-          }
-          await this.config.baselineStore.save(createLeafTabSyncBaseline({
-            snapshot: finalSnapshot,
-            commitId: writeResult.commit.id,
-            rootPath: this.config.rootPath,
-          }));
-          await this.clearPendingLocalState();
-
-          reportProgress(runOptions?.onProgress, {
-            stage: 'completed',
-            progress: 100,
-            message: '同步完成',
-          });
-          return createSyncResult({
-            kind: sameSnapshotContent(localSnapshot, finalSnapshot) ? 'push' : 'merge',
-            remoteCommitId: writeResult.commit.id,
-            snapshot: finalSnapshot,
-            mergeResult: finalMergeResult,
-            summary: finalSummary,
-            summaryText: finalSummaryText,
-          });
-        }
-
-        const localNeedsApply = !sameSnapshotContent(localSnapshot, finalSnapshot);
-        if (localNeedsApply) {
-          reportProgress(runOptions?.onProgress, {
-            stage: 'applying-local',
-            progress: 86,
-            message: '正在将远端数据写入本地',
-          });
-          await this.config.applyLocalSnapshot(cloneSnapshot(finalSnapshot));
-        }
-        await this.config.baselineStore.save(createLeafTabSyncBaseline({
-          snapshot: finalSnapshot,
-          commitId: latestRemote.commit?.id || null,
-          rootPath: this.config.rootPath,
-        }));
-        await this.clearPendingLocalState();
-        if (localNeedsApply) {
-          reportProgress(runOptions?.onProgress, {
-            stage: 'completed',
-            progress: 100,
-            message: '同步完成',
-          });
-          return createSyncResult({
-            kind: 'pull',
-            remoteCommitId: latestRemote.commit?.id || null,
-            snapshot: finalSnapshot,
-            mergeResult: finalMergeResult,
-            summary: finalSummary,
-            summaryText: finalSummaryText,
-          });
-        }
-
-        reportProgress(runOptions?.onProgress, {
-          stage: 'completed',
-          progress: 100,
-          message: '同步完成',
-        });
-        return createSyncResult({
-          kind: 'noop',
-          remoteCommitId: latestRemote.commit?.id || null,
-          snapshot: finalSnapshot,
-          mergeResult: finalMergeResult,
-          summary: finalSummary,
-          summaryText: finalSummaryText,
-        });
-      }
-    }
-
-    if (sameSnapshotContent(localSnapshot, finalSnapshot)) {
-      reportProgress(runOptions?.onProgress, {
-        stage: 'finalizing',
-        progress: 92,
-        message: '正在收尾同步结果',
-      });
-      await this.config.baselineStore.save(createLeafTabSyncBaseline({
+      const writeResult = await this.config.remoteStore.writeState({
         snapshot: finalSnapshot,
-        commitId: remoteState.commit?.id || null,
-        rootPath: this.config.rootPath,
-      }));
-      await this.clearPendingLocalState();
-      reportProgress(runOptions?.onProgress, {
-        stage: 'completed',
-        progress: 100,
-        message: '同步完成',
+        deviceId: this.config.deviceId,
+        parentCommitId: remoteCommitId,
       });
-      return createSyncResult({
-        kind: 'noop',
-        remoteCommitId: remoteState.commit?.id || null,
-        snapshot: finalSnapshot,
-        mergeResult: finalMergeResult,
-        summary: finalSummary,
-        summaryText: finalSummaryText,
-      });
+      committedId = writeResult.commit.id;
     }
 
-    reportProgress(runOptions?.onProgress, {
-      stage: 'applying-local',
-      progress: 84,
-      message: '正在将远端数据写入本地',
-    });
-    await this.config.applyLocalSnapshot(cloneSnapshot(finalSnapshot));
+    if (localNeedsApply) {
+      reportProgress(runOptions?.onProgress, {
+        stage: 'applying-local',
+        progress: 86,
+        message: '正在将最新结果写入本地',
+      });
+      await this.config.applyLocalSnapshot(cloneSnapshot(finalSnapshot));
+    }
+
     reportProgress(runOptions?.onProgress, {
       stage: 'finalizing',
       progress: 94,
       message: '正在收尾同步结果',
     });
-    await this.config.baselineStore.save(createLeafTabSyncBaseline({
-      snapshot: finalSnapshot,
-      commitId: remoteState.commit?.id || null,
-      rootPath: this.config.rootPath,
-    }));
-    await this.clearPendingLocalState();
-
+    await this.persistCompletedState(finalSnapshot, committedId, completedPendingLocalChangedAt);
     reportProgress(runOptions?.onProgress, {
       stage: 'completed',
       progress: 100,
       message: '同步完成',
     });
 
+    const kind: LeafTabSyncEngineResult['kind'] = remoteNeedsWrite
+      ? (localNeedsApply ? 'merge' : 'push')
+      : (localNeedsApply ? 'pull' : 'noop');
     return createSyncResult({
-      kind: 'pull',
-      remoteCommitId: remoteState.commit?.id || null,
+      kind,
+      remoteCommitId: committedId,
       snapshot: finalSnapshot,
-      mergeResult: finalMergeResult,
-      summary: finalSummary,
-      summaryText: finalSummaryText,
+      mergeResult,
+      summary,
+      summaryText,
     });
   }
 }

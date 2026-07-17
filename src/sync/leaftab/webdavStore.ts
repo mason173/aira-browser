@@ -13,13 +13,8 @@ import {
 import { createLeafTabSyncSerializedSnapshot } from './fileMap';
 import { materializeLeafTabSyncSnapshotFromPayloadMap } from './snapshotCodec';
 import type {
-  LeafTabSyncOperation,
-  LeafTabSyncReadOperationsParams,
-  LeafTabSyncReadOperationsResult,
   LeafTabSyncRemoteHead,
   LeafTabSyncRemoteStore,
-  LeafTabSyncWriteOperationsParams,
-  LeafTabSyncWriteOperationsResult,
   LeafTabSyncWriteStateParams,
   LeafTabSyncWriteStateResult,
 } from './remoteStore';
@@ -47,21 +42,6 @@ type LeafTabSyncRemoteCacheEntry = {
   commit: LeafTabSyncCommitFile;
   snapshot: LeafTabSyncSnapshot;
   savedAt: string;
-};
-
-type LeafTabSyncOperationsFile = {
-  version: 1;
-  commitId: string;
-  parentCommitId: string;
-  deviceId: string;
-  createdAt: string;
-  operations: LeafTabSyncOperation[];
-};
-
-type LeafTabSyncOperationChainResult = {
-  supportsIncremental: boolean;
-  operations: LeafTabSyncOperation[];
-  reason?: string;
 };
 
 type LeafTabSyncWebdavHeadRead = {
@@ -120,7 +100,6 @@ const READ_BATCH_CONCURRENCY = 4;
 const WRITE_BATCH_CONCURRENCY = 2;
 const BATCH_COOPERATIVE_PAUSE_MS = 16;
 const DEFAULT_WEBDAV_REQUEST_TIMEOUT_MS = 15_000;
-const LEAFTAB_SYNC_OPERATIONS_FILE_VERSION = 1;
 
 const createRemoteCacheStorageKey = (url: string, rootPath: string) => {
   const suffix = `${normalizeBaseUrl(url)}|${normalizeRootPath(rootPath)}`
@@ -489,11 +468,6 @@ export class LeafTabSyncWebdavStore implements LeafTabSyncRemoteStore {
     };
   }
 
-  async readCommitId(): Promise<string | null> {
-    const head = await this.readHead();
-    return head.commitId;
-  }
-
   async readHead(): Promise<LeafTabSyncRemoteHead> {
     const headRead = await this.readHeadWithValidator();
     const head = headRead.head;
@@ -577,44 +551,6 @@ export class LeafTabSyncWebdavStore implements LeafTabSyncRemoteStore {
     }
   }
 
-  async readOperations(params: LeafTabSyncReadOperationsParams): Promise<LeafTabSyncReadOperationsResult> {
-    const remoteHead = await this.readHead();
-    if (!remoteHead.commitId) {
-      return {
-        commitId: null,
-        sinceCommitId: params.sinceCommitId,
-        deviceId: '',
-        createdAt: '',
-        operations: [],
-        supportsIncremental: true,
-      };
-    }
-    if (remoteHead.commitId === params.sinceCommitId) {
-      return {
-        commitId: remoteHead.commitId,
-        sinceCommitId: params.sinceCommitId,
-        deviceId: remoteHead.commit?.deviceId || '',
-        createdAt: remoteHead.commit?.createdAt || '',
-        operations: [],
-        supportsIncremental: true,
-      };
-    }
-    const chain = await this.readOperationChain(
-      params.sinceCommitId,
-      remoteHead.commitId,
-      remoteHead.commit,
-    );
-    return {
-      commitId: remoteHead.commitId,
-      sinceCommitId: params.sinceCommitId,
-      deviceId: remoteHead.commit?.deviceId || '',
-      createdAt: remoteHead.commit?.createdAt || '',
-      operations: chain.operations,
-      supportsIncremental: chain.supportsIncremental,
-      reason: chain.reason,
-    };
-  }
-
   async writeState(params: LeafTabSyncWriteStateParams): Promise<LeafTabSyncWriteStateResult> {
     await this.ensureConditionalWriteSupport();
     const expectedParentCommitId = params.parentCommitId ?? null;
@@ -655,78 +591,10 @@ export class LeafTabSyncWebdavStore implements LeafTabSyncRemoteStore {
     return { head, commit };
   }
 
-  async writeOperations(params: LeafTabSyncWriteOperationsParams): Promise<LeafTabSyncWriteOperationsResult> {
-    if (params.operations.length <= 0) {
-      throw new Error('没有可上传的 WebDAV 书签增量变更。');
-    }
-    await this.ensureConditionalWriteSupport();
-    const headRead = await this.readHeadWithValidator();
-    this.assertExactParent(headRead.head, params.parentCommitId);
-    const createdAt = params.createdAt || params.snapshot.meta.generatedAt;
-    const operationsPath = this.getOperationsPathForCommitId(
-      createLeafTabSyncCommitFile({
-        deviceId: params.deviceId,
-        createdAt,
-        parentCommitId: params.parentCommitId,
-        snapshot: params.snapshot,
-        rootPath: this.config.rootPath,
-      }).id,
-    );
-    const commit = createLeafTabSyncCommitFile({
-      deviceId: params.deviceId,
-      createdAt,
-      parentCommitId: params.parentCommitId,
-      snapshot: params.snapshot,
-      rootPath: this.config.rootPath,
-      operationsPath,
-    });
-
-    const serialized = createLeafTabSyncSerializedSnapshot(params.snapshot, {
-      rootPath: this.config.rootPath,
-      commit,
-      head: createLeafTabSyncHeadFile(commit.id, commit.createdAt),
-    });
-    const operationsFile: LeafTabSyncOperationsFile = {
-      version: LEAFTAB_SYNC_OPERATIONS_FILE_VERSION,
-      commitId: commit.id,
-      parentCommitId: params.parentCommitId,
-      deviceId: params.deviceId,
-      createdAt,
-      operations: params.operations.slice(),
-    };
-
-    const writes = [
-      ...Object.entries(serialized.payloads).map(([path, payload]) => ({ path, payload })),
-      { path: operationsPath, payload: operationsFile },
-    ];
-
-    await runInBatches(writes, WRITE_BATCH_CONCURRENCY, async ({ path, payload }) => {
-      await this.putJson(path, payload);
-      return null;
-    });
-
-    await this.putJson(getLeafTabSyncCommitPath(commit.id, this.config.rootPath), commit);
-    const head = serialized.head;
-    await this.publishHeadConditionally(headRead, params.parentCommitId, head);
-
-    this.writeRemoteCache({
-      commitId: commit.id,
-      commit,
-      snapshot: params.snapshot,
-      savedAt: new Date().toISOString(),
-    });
-
-    return {
-      head,
-      commit,
-      appliedOperationCount: params.operations.length,
-    };
-  }
-
   private async ensureConditionalWriteSupport() {
     if (this.conditionalWritesVerified) return;
     const probeId = `${Date.now().toString(36)}-${Math.floor(Math.random() * 0x100000000).toString(36)}`;
-    const probePath = `${this.config.rootPath}/ops/cas-probe-${probeId}.json`;
+    const probePath = `${this.config.rootPath}/cas/cas-probe-${probeId}.json`;
     await this.ensureCollections(probePath);
     try {
       const first = await this.request('PUT', probePath, {
@@ -780,66 +648,4 @@ export class LeafTabSyncWebdavStore implements LeafTabSyncRemoteStore {
     }
   }
 
-  private async readOperationChain(
-    sinceCommitId: string,
-    currentCommitId: string,
-    currentCommit: LeafTabSyncCommitFile | null,
-  ): Promise<LeafTabSyncOperationChainResult> {
-    const operationGroups: LeafTabSyncOperation[][] = [];
-    let cursorCommitId = currentCommitId;
-    let cursorCommit = currentCommit;
-    const visitedCommits = new Set<string>();
-    for (let depth = 0; depth < 256; depth += 1) {
-      if (!cursorCommitId || visitedCommits.has(cursorCommitId)) {
-        return this.createUnsupportedOperationChain('commit_chain_cycle');
-      }
-      visitedCommits.add(cursorCommitId);
-      if (!cursorCommit) {
-        cursorCommit = await this.getJson<LeafTabSyncCommitFile>(
-          getLeafTabSyncCommitPath(cursorCommitId, this.config.rootPath),
-        );
-      }
-      if (!cursorCommit || cursorCommit.id !== cursorCommitId) {
-        return this.createUnsupportedOperationChain('commit_missing');
-      }
-      const operationsFile = await this.readOperationsFile(cursorCommit);
-      if (!operationsFile || operationsFile.commitId !== cursorCommitId) {
-        return this.createUnsupportedOperationChain('operations_missing');
-      }
-      if (operationsFile.parentCommitId !== (cursorCommit.parentCommitId || '')) {
-        return this.createUnsupportedOperationChain('operations_parent_mismatch');
-      }
-      operationGroups.unshift(operationsFile.operations);
-      if (operationsFile.parentCommitId === sinceCommitId) {
-        return {
-          supportsIncremental: true,
-          operations: operationGroups.flat(),
-        };
-      }
-      cursorCommitId = operationsFile.parentCommitId;
-      cursorCommit = null;
-    }
-    return this.createUnsupportedOperationChain('commit_chain_too_deep');
-  }
-
-  private async readOperationsFile(commit: LeafTabSyncCommitFile): Promise<LeafTabSyncOperationsFile | null> {
-    const path = commit.operationsPath || this.getOperationsPathForCommitId(commit.id);
-    const file = await this.getJson<LeafTabSyncOperationsFile>(path);
-    if (!file || !Array.isArray(file.operations)) {
-      return null;
-    }
-    return file;
-  }
-
-  private getOperationsPathForCommitId(commitId: string) {
-    return `${this.config.rootPath}/ops/${commitId}.json`;
-  }
-
-  private createUnsupportedOperationChain(reason: string): LeafTabSyncOperationChainResult {
-    return {
-      supportsIncremental: false,
-      operations: [],
-      reason,
-    };
-  }
 }
