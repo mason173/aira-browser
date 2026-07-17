@@ -38,9 +38,11 @@ The production extension output is written to `build/`. Load that folder from Ch
 ## Structure
 
 - `src/popup`: popup UI and popup-local i18n resources.
-- `src/features/sync/bookmarks/BookmarkSyncModule.ts`: the small narrative interface for bookmark view state, source choice, synchronization, and conflict resolution.
+- `src/features/sync/bookmarks/BookmarkSyncModule.ts`: the shared bookmark-sync construction seam and deep sync interface used by popup and background flows.
+- `src/features/sync/bookmarks/BookmarkSyncPopupRuntime.ts`: popup source selection, manual sync, conflict resolution, eligibility, status persistence, and summary ownership.
+- `src/features/sync/bookmarks/BookmarkBackgroundSyncRuntime.ts`: automatic-sync configuration, retry/alarm policy, change probing, and browser-bookmark event ownership.
 - `src/sync/leaftab`: lossless Aira bookmark protocol, merge engine, provider adapters, and browser bookmark snapshot logic.
-- `src/background.ts`: single-source automatic bookmark sync and the Phone Page Push background runtime.
+- `src/background.ts`: extension platform/event wiring, WebDAV request proxying, and the independent Phone Page Push runtime.
 - `public`: extension manifest, service worker, locales, and icons.
 - `scripts`: release build and packaging helpers.
 

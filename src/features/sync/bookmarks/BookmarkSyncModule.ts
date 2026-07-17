@@ -1,6 +1,9 @@
 import { LeafTabSyncExtensionStorageBaselineStore } from '@/sync/leaftab/baseline';
 import { LeafTabSyncAiraCloudStore } from '@/sync/leaftab/airaCloudStore';
-import { LEAFTAB_PENDING_BOOKMARK_CONFLICT_KEY } from '@/features/sync/app/leafTabSyncStorageKeys';
+import {
+  createLeafTabSyncBaselineStorageKey,
+  LEAFTAB_PENDING_BOOKMARK_CONFLICT_KEY,
+} from '@/features/sync/app/leafTabSyncStorageKeys';
 import {
   readAllExtensionStorageRecords,
   removeExtensionStorageKeys,
@@ -135,6 +138,42 @@ export interface BookmarkSyncModuleConfig {
   persistSelectedSource?: (source: BookmarkSyncSource) => Promise<void> | void;
 }
 
+export type BookmarkSyncRuntimeProvider =
+  | {
+      remoteKind: 'aira-cloud';
+      uid: string;
+      deviceCredential: string;
+    }
+  | {
+      remoteKind: 'webdav';
+      url: string;
+      username?: string;
+      password?: string;
+      requestPermission?: boolean;
+      requestTimeoutMs?: number;
+    };
+
+export interface BookmarkSyncRuntimeLocalAdapter {
+  buildSnapshot: (baselineStorageKey: string) => Promise<LeafTabSyncSnapshot>;
+  applySnapshot: (snapshot: LeafTabSyncSnapshot) => Promise<void>;
+  hasPendingChanges?: () => boolean;
+  clearPendingChanges?: () => void;
+}
+
+export interface BookmarkSyncRuntimeConfig {
+  provider: BookmarkSyncRuntimeProvider;
+  deviceId: string;
+  rootPath: string;
+  local: BookmarkSyncRuntimeLocalAdapter;
+  persistSelectedSource?: (source: BookmarkSyncSource) => Promise<void> | void;
+}
+
+export interface BookmarkSyncRuntime {
+  module: BookmarkSyncModule;
+  baselineStorageKey: string;
+  sourceIdentity: string;
+}
+
 export interface BookmarkSyncRunOptions {
   localSnapshotOverride?: LeafTabSyncSnapshot;
   onProgress?: (progress: LeafTabSyncEngineProgress) => void;
@@ -165,6 +204,55 @@ const createEmptyBookmarkSyncSnapshot = (deviceId: string): LeafTabSyncSnapshot 
   },
   tombstones: {},
 });
+
+export const resolveBookmarkSyncBaselineStorageKey = (
+  remoteKind: BookmarkSyncSource,
+  rootPath: string,
+  cloudUid: string = '',
+): string => createLeafTabSyncBaselineStorageKey(remoteKind, rootPath, cloudUid);
+
+export const createBookmarkSyncRuntime = (config: BookmarkSyncRuntimeConfig): BookmarkSyncRuntime => {
+  const sourceConfig: BookmarkSyncSourceConfig = config.provider.remoteKind === 'aira-cloud'
+    ? {
+        source: 'aira-cloud',
+        uid: config.provider.uid,
+        deviceCredential: config.provider.deviceCredential,
+      }
+    : {
+        source: 'webdav',
+        webdav: {
+          url: config.provider.url,
+          username: config.provider.username,
+          password: config.provider.password,
+          rootPath: config.rootPath,
+          requestPermission: config.provider.requestPermission,
+          requestTimeoutMs: config.provider.requestTimeoutMs,
+        },
+      };
+  const baselineStorageKey = resolveBookmarkSyncBaselineStorageKey(
+    config.provider.remoteKind,
+    config.rootPath,
+    config.provider.remoteKind === 'aira-cloud' ? config.provider.uid : '',
+  );
+  const module = new BookmarkSyncModule({
+    sourceConfig,
+    deviceId: config.deviceId,
+    rootPath: config.rootPath,
+    baselineStorageKey,
+    local: {
+      buildSnapshot: () => config.local.buildSnapshot(baselineStorageKey),
+      applySnapshot: config.local.applySnapshot,
+      hasPendingChanges: config.local.hasPendingChanges,
+      clearPendingChanges: config.local.clearPendingChanges,
+    },
+    persistSelectedSource: config.persistSelectedSource,
+  });
+  return {
+    module,
+    baselineStorageKey,
+    sourceIdentity: createBookmarkSyncSourceIdentity(sourceConfig, config.rootPath),
+  };
+};
 
 export class BookmarkSyncModule {
   private readonly config: BookmarkSyncModuleConfig;
