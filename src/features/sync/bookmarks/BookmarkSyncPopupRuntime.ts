@@ -33,13 +33,10 @@ import type {
   LeafTabSyncEngineResult,
 } from '@/sync/leaftab/engine';
 import { normalizeLeafTabSyncSnapshot, type LeafTabSyncSnapshot } from '@/sync/leaftab/schema';
-import {
-  markLeafTabBookmarkSyncApplyFinished,
-  markLeafTabBookmarkSyncApplyStarted,
-} from '@/sync/leaftab/localChangeTracker';
 import { LeafTabSyncAiraCloudError } from '@/sync/leaftab/airaCloudStore';
 import {
   clearPendingBookmarkConflict,
+  createBookmarkSyncBrowserLocalAdapter,
   createBookmarkSyncRuntime,
   persistPendingBookmarkConflict,
   type BookmarkSyncConflictChoice,
@@ -358,77 +355,13 @@ export class BookmarkSyncPopupRuntime {
       provider,
       rootPath: this.config.rootPath,
       deviceId: this.config.deviceId,
-      local: {
-        buildSnapshot: (baselineStorageKey: string) => this.buildLocalSnapshot(baselineStorageKey),
-        applySnapshot: (snapshot: LeafTabSyncSnapshot) => this.applyLocalSnapshot(snapshot),
-      },
+      local: createBookmarkSyncBrowserLocalAdapter({
+        deviceId: this.config.deviceId,
+        requestPermission: true,
+        invalidRootOrderMessage: '同步书签快照缺少根目录排序，已停止写入本地以避免清空书签',
+      }),
       persistSelectedSource: persistSelectedSyncSource,
     });
-  }
-
-  private async buildLocalSnapshot(baselineStorageKey: string): Promise<LeafTabSyncSnapshot> {
-    const snapshotRuntime = await import('@/sync/leaftab/snapshotRuntime');
-    const bookmarkTree = await snapshotRuntime.captureLeafTabBookmarkTreeDraft({
-      requestPermission: true,
-      throwOnPermissionDenied: true,
-    });
-    const previousSnapshot = await readBaselineSnapshot(baselineStorageKey);
-    const generatedAt = new Date().toISOString();
-    const state = snapshotRuntime.createLeafTabSyncBuildState({
-      previousSnapshot,
-      bookmarkTree,
-      deviceId: this.config.deviceId,
-      generatedAt,
-    });
-    return snapshotRuntime.buildLeafTabSyncSnapshot({
-      bookmarkTree,
-      deviceId: this.config.deviceId,
-      generatedAt,
-      state,
-    });
-  }
-
-  private async applyLocalSnapshot(snapshot: LeafTabSyncSnapshot): Promise<void> {
-    const snapshotRuntime = await import('@/sync/leaftab/snapshotRuntime');
-    const liveSnapshot = snapshotRuntime.normalizeLeafTabLiveBookmarkSnapshot(snapshot);
-    const hasRemoteBookmarks = Object.keys(liveSnapshot.bookmarkFolders).length > 0
-      || Object.keys(liveSnapshot.bookmarkItems).length > 0;
-    const hasRootOrder = Object.values(liveSnapshot.bookmarkOrders).some((order) => (
-      order.parentId === 'browser_root_toolbar'
-      || order.parentId === 'browser_root_other'
-      || order.parentId === null
-    ));
-    if (hasRemoteBookmarks && !hasRootOrder) {
-      throw new Error('同步书签快照缺少根目录排序，已停止写入本地以避免清空书签');
-    }
-    await markLeafTabBookmarkSyncApplyStarted();
-    try {
-      const applied = await snapshotRuntime.replaceLeafTabBookmarkTree({
-        folderLookup: Object.fromEntries(
-          Object.values(liveSnapshot.bookmarkFolders).map((folder) => [folder.id, {
-            title: folder.title,
-            parentId: folder.parentId,
-          }]),
-        ),
-        itemLookup: Object.fromEntries(
-          Object.values(liveSnapshot.bookmarkItems).map((item) => [item.id, {
-            title: item.title,
-            parentId: item.parentId,
-            url: item.url,
-          }]),
-        ),
-        orderIdsByParent: Object.fromEntries(
-          Object.entries(liveSnapshot.bookmarkOrders).map(([key, order]) => [key, order.ids.slice()]),
-        ),
-        tombstoneIds: Object.keys(snapshot.tombstones || {}),
-        requestPermission: false,
-      });
-      if (!applied) {
-        throw new Error('未授予书签权限，无法写入本地书签');
-      }
-    } finally {
-      await markLeafTabBookmarkSyncApplyFinished();
-    }
   }
 
   private async markSuccess(remoteKind: LeafTabSyncRemoteKind): Promise<void> {
@@ -476,13 +409,7 @@ export class BookmarkSyncPopupRuntime {
       await writeExtensionStorageRecord({
         [WEBDAV_STORAGE_KEYS.syncEnabled]: String(enabled),
       });
-      if (!enabled) {
-        await removeExtensionStorageKeys([WEBDAV_STORAGE_KEYS.nextSyncAt]);
-      }
       localStorage.setItem(WEBDAV_STORAGE_KEYS.syncEnabled, String(enabled));
-      if (!enabled) {
-        localStorage.removeItem(WEBDAV_STORAGE_KEYS.nextSyncAt);
-      }
     }
     this.emitStatusChanged();
   }

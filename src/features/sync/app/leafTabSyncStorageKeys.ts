@@ -10,25 +10,46 @@ export const AIRA_CLOUD_LAST_ERROR_MESSAGE_KEY = 'aira_cloud_bookmark_sync_g2_la
 export const WEBDAV_LAST_SYNC_AT_KEY = 'webdav_bookmark_sync_g2_last_sync_at';
 export const WEBDAV_LAST_ERROR_AT_KEY = 'webdav_bookmark_sync_g2_last_error_at';
 export const WEBDAV_LAST_ERROR_MESSAGE_KEY = 'webdav_bookmark_sync_g2_last_error_message';
+
+type LeafTabSyncBaselineProvider =
+  | {
+      remoteKind: 'aira-cloud';
+      uid: string;
+    }
+  | {
+      remoteKind: 'webdav';
+      url: string;
+      username?: string;
+    };
+
+const BOOKMARK_WEBDAV_BASELINE_PROTOCOL = 'bookmark-snapshot-v1';
+
 export const createLeafTabSyncBaselineStorageKey = (
-  remoteKind: 'aira-cloud' | 'webdav',
+  provider: LeafTabSyncBaselineProvider,
   rootPath: string = LEAFTAB_SYNC_DEFAULT_ROOT_PATH,
-  uid: string = '',
 ): string => {
-  const suffix = (rootPath || LEAFTAB_SYNC_DEFAULT_ROOT_PATH).replace(/[^a-zA-Z0-9_-]+/g, '_');
-  if (remoteKind === 'aira-cloud') {
-    const safeUid = (uid || 'unknown').replace(/[^a-zA-Z0-9_-]+/g, '_');
+  const normalizedRootPath = (rootPath || LEAFTAB_SYNC_DEFAULT_ROOT_PATH).trim()
+    .replace(/^\/+/, '')
+    .replace(/\/+$/, '') || LEAFTAB_SYNC_DEFAULT_ROOT_PATH;
+  const suffix = normalizedRootPath.replace(/[^a-zA-Z0-9_-]+/g, '_');
+  if (provider.remoteKind === 'aira-cloud') {
+    const safeUid = (provider.uid || 'unknown').replace(/[^a-zA-Z0-9_-]+/g, '_');
     return `leaftab_sync_g2_baseline:aira_cloud:${safeUid}:${suffix}`;
   }
-  return `leaftab_sync_g2_baseline:${suffix}`;
+  const endpoint = String(provider.url || '').trim().replace(/\/+$/, '');
+  const username = String(provider.username || '').trim();
+  const identity = [
+    BOOKMARK_WEBDAV_BASELINE_PROTOCOL,
+    endpoint,
+    username,
+    normalizedRootPath,
+  ].map((value) => encodeURIComponent(value)).join(':');
+  return `leaftab_sync_bookmark_snapshot_v1_baseline:webdav:${identity}`;
 };
 
 export const LEAFTAB_BACKGROUND_STORAGE_KEYS = {
-  pendingLocalChangedAt: 'leaftab_sync_g2_background_pending_local_changed_at',
   lastRemoteProbeAt: 'leaftab_sync_g2_background_last_remote_probe_at',
   nextRemoteProbeAt: 'leaftab_sync_g2_background_next_remote_probe_at',
-  autoSyncRunning: 'leaftab_sync_g2_background_auto_sync_running',
   autoSyncLastError: 'leaftab_sync_g2_background_auto_sync_last_error',
   autoSyncRetryProvider: 'leaftab_sync_g2_background_auto_sync_retry_provider',
-  debugState: 'leaftab_sync_g2_background_debug_state',
 } as const;

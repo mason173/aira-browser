@@ -1,10 +1,6 @@
 import {
-  createLeafTabSyncCommitFile,
-  createLeafTabSyncHeadFile,
   normalizeLeafTabSyncSnapshot,
   toLeafTabSyncWireSnapshot,
-  type LeafTabSyncCommitFile,
-  type LeafTabSyncHeadFile,
   type LeafTabSyncSnapshot,
   type LeafTabSyncWireSnapshot,
 } from './schema';
@@ -58,32 +54,6 @@ export class LeafTabSyncAiraCloudError extends Error {
   }
 }
 
-const createCommitFromSnapshot = (
-  commitId: string,
-  snapshot: LeafTabSyncSnapshot,
-  parentCommitId: string | null,
-): LeafTabSyncCommitFile => {
-  const commit = createLeafTabSyncCommitFile({
-    deviceId: snapshot.meta.deviceId,
-    createdAt: snapshot.meta.generatedAt,
-    parentCommitId,
-    snapshot,
-  });
-  return {
-    ...commit,
-    id: commitId,
-    parentCommitId,
-  };
-};
-
-const createHead = (commitId: string | null, updatedAt?: number | string): LeafTabSyncHeadFile | null => {
-  if (!commitId) return null;
-  const updatedAtIso = typeof updatedAt === 'number'
-    ? new Date(updatedAt).toISOString()
-    : String(updatedAt || new Date().toISOString());
-  return createLeafTabSyncHeadFile(commitId, updatedAtIso);
-};
-
 export class LeafTabSyncAiraCloudStore implements LeafTabSyncRemoteStore {
   private readonly uid: string;
   private readonly deviceCredential: string;
@@ -105,10 +75,7 @@ export class LeafTabSyncAiraCloudStore implements LeafTabSyncRemoteStore {
     const commitId = typeof response.commitId === 'string' && response.commitId.trim()
       ? response.commitId.trim()
       : null;
-    const head = createHead(commitId, response.updatedAt);
     return {
-      head,
-      commit: null,
       commitId,
       updatedAt: typeof response.updatedAt === 'number' ? response.updatedAt : 0,
       summary: {
@@ -130,14 +97,9 @@ export class LeafTabSyncAiraCloudStore implements LeafTabSyncRemoteStore {
     const commitId = typeof response.commitId === 'string' && response.commitId.trim()
       ? response.commitId.trim()
       : null;
-    const head = createHead(commitId);
-    const commit = commitId && snapshot
-      ? createCommitFromSnapshot(commitId, snapshot, null)
-      : null;
     return {
-      head,
-      commit,
       snapshot,
+      commitId,
     };
   }
 
@@ -160,8 +122,8 @@ export class LeafTabSyncAiraCloudStore implements LeafTabSyncRemoteStore {
     }
     const writtenAt = response.writtenAt || params.createdAt || params.snapshot.meta.generatedAt;
     return {
-      head: createLeafTabSyncHeadFile(commitId, writtenAt),
-      commit: createCommitFromSnapshot(commitId, params.snapshot, params.parentCommitId ?? null),
+      commitId,
+      writtenAt,
     };
   }
 

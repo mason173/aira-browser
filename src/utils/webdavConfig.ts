@@ -10,7 +10,6 @@ export const WEBDAV_STORAGE_KEYS = {
   username: "webdav_username",
   password: "webdav_password",
   syncEnabled: "webdav_bookmark_sync_g2_enabled",
-  nextSyncAt: "webdav_bookmark_sync_g2_next_sync_at",
 } as const;
 
 export const isWebdavSyncEnabledFromStorage = () => {

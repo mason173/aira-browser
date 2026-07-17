@@ -38,15 +38,15 @@ export const readPendingLeafTabLocalBookmarkChangedAtFromExtensionStorage = asyn
   });
 };
 
-export const markLeafTabLocalBookmarkChangedInExtensionStorage = async (nowMs = Date.now()): Promise<void> => {
-  await runPendingLocalBookmarkChangeOperation(async () => {
+export const markLeafTabLocalBookmarkChangedInExtensionStorage = async (nowMs = Date.now()): Promise<boolean> => {
+  return runPendingLocalBookmarkChangeOperation(async () => {
     const result = await readExtensionStorageRecord([
       BOOKMARK_SYNC_APPLY_SUPPRESS_UNTIL_KEY,
       LEAFTAB_LOCAL_BOOKMARK_CHANGED_AT_KEY,
     ]);
     const suppressUntil = Number(result[BOOKMARK_SYNC_APPLY_SUPPRESS_UNTIL_KEY] || 0);
     if (Number.isFinite(suppressUntil) && suppressUntil > nowMs) {
-      return;
+      return false;
     }
     const currentChangedAt = Number(result[LEAFTAB_LOCAL_BOOKMARK_CHANGED_AT_KEY] || 0);
     const normalizedCurrentChangedAt = Number.isFinite(currentChangedAt) ? currentChangedAt : 0;
@@ -56,6 +56,7 @@ export const markLeafTabLocalBookmarkChangedInExtensionStorage = async (nowMs = 
     await writeExtensionStorageRecord({
       [LEAFTAB_LOCAL_BOOKMARK_CHANGED_AT_KEY]: String(nextChangedAt),
     });
+    return true;
   });
 };
 

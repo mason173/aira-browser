@@ -30,9 +30,9 @@ import {
 } from '@/features/sync/bookmarks/airaCloudPreferences';
 import {
   clearPendingBookmarkConflict,
+  createBookmarkSyncBrowserLocalAdapter,
   createBookmarkSyncRuntime,
   persistPendingBookmarkConflict,
-  resolveBookmarkSyncBaselineStorageKey,
   type BookmarkSyncSource as LeafTabSyncRemoteKind,
 } from '@/features/sync/bookmarks/BookmarkSyncModule';
 import {
@@ -40,11 +40,6 @@ import {
   removeExtensionStorageKeys,
   writeExtensionStorageRecord,
 } from '@/platform/extensionStorage';
-import { LeafTabSyncExtensionStorageBaselineStore } from '@/sync/leaftab/baseline';
-import {
-  captureLeafTabBookmarkTreeDraft,
-  replaceLeafTabBookmarkTree,
-} from '@/sync/leaftab/bookmarks';
 import { LeafTabSyncAiraCloudError } from '@/sync/leaftab/airaCloudStore';
 import {
   clearPendingLeafTabLocalBookmarkChangesInExtensionStorage,
@@ -56,12 +51,6 @@ import {
   canRunLeafTabSelectedAutoSync,
   parseLeafTabSyncRemoteKind,
 } from '@/sync/leaftab/source';
-import type { LeafTabSyncSnapshot } from '@/sync/leaftab/schema';
-import {
-  buildLeafTabSyncSnapshot,
-  createLeafTabSyncBuildState,
-  normalizeLeafTabLiveBookmarkSnapshot,
-} from '@/sync/leaftab/snapshot';
 import { LeafTabSyncWebdavError } from '@/sync/leaftab/webdavStore';
 import {
   readWebdavStorageStateFromExtensionStorage,
@@ -75,7 +64,6 @@ const AUTO_SYNC_RETRY_DELAY_MINUTES = 3;
 const AUTO_SYNC_PERIODIC_STARTUP_DELAY_MINUTES = 1;
 const AUTO_SYNC_AIRA_CLOUD_INTERVAL_MINUTES = 3;
 const AUTO_SYNC_WEBDAV_INTERVAL_MINUTES = 15;
-const AUTO_SYNC_APPLY_SUPPRESS_MS = 20_000;
 
 type BackgroundSyncConfig = {
   deviceId: string;
@@ -136,16 +124,11 @@ function getNowIso() {
   return new Date().toISOString();
 }
 
-async function updateBackgroundDebugState(_patch: Record<string, unknown>): Promise<void> {
-  // Background debug storage is intentionally disabled; keep call sites easy to restore if needed.
-}
-
 export function createBookmarkBackgroundSyncRuntime(
   runtimeConfig: BookmarkBackgroundSyncRuntimeConfig,
 ): BookmarkBackgroundSyncRuntime {
   let activeAutoSyncPromise: Promise<boolean> | null = null;
   let activeDeviceIdPromise: Promise<string> | null = null;
-  let bookmarkApplySuppressedUntil = 0;
 
   async function getOrCreateDeviceId(): Promise<string> {
     if (activeDeviceIdPromise) {
@@ -226,81 +209,6 @@ export function createBookmarkBackgroundSyncRuntime(
     });
   }
 
-  async function buildLocalSnapshot(
-    baselineStorageKey: string,
-    deviceId: string,
-  ): Promise<LeafTabSyncSnapshot> {
-    const bookmarkTree = await captureLeafTabBookmarkTreeDraft({
-      requestPermission: false,
-      throwOnPermissionDenied: true,
-    });
-    const baselineStore = new LeafTabSyncExtensionStorageBaselineStore(baselineStorageKey);
-    const baseline = await baselineStore.load();
-    const previousSnapshot = baseline?.snapshot || null;
-    const generatedAt = getNowIso();
-    const state = createLeafTabSyncBuildState({
-      previousSnapshot,
-      bookmarkTree,
-      deviceId,
-      generatedAt,
-    });
-
-    return buildLeafTabSyncSnapshot({
-      bookmarkTree,
-      deviceId,
-      generatedAt,
-      state,
-    });
-  }
-
-  async function applyLocalSnapshot(snapshot: LeafTabSyncSnapshot): Promise<void> {
-    const liveSnapshot = normalizeLeafTabLiveBookmarkSnapshot(snapshot);
-    const hasRemoteBookmarks = Object.keys(liveSnapshot.bookmarkFolders).length > 0
-      || Object.keys(liveSnapshot.bookmarkItems).length > 0;
-    const hasRootOrder = Object.values(liveSnapshot.bookmarkOrders).some((order) => {
-      return order.parentId === 'browser_root_toolbar'
-        || order.parentId === 'browser_root_other'
-        || order.parentId === null;
-    });
-    if (hasRemoteBookmarks && !hasRootOrder) {
-      throw new Error('远端书签快照缺少根目录排序，已停止写入本地以避免清空书签');
-    }
-    bookmarkApplySuppressedUntil = Date.now() + AUTO_SYNC_APPLY_SUPPRESS_MS;
-    try {
-      const applied = await replaceLeafTabBookmarkTree({
-        folderLookup: Object.fromEntries(
-          Object.values(liveSnapshot.bookmarkFolders).map((folder) => [
-            folder.id,
-            {
-              title: folder.title,
-              parentId: folder.parentId,
-            },
-          ]),
-        ),
-        itemLookup: Object.fromEntries(
-          Object.values(liveSnapshot.bookmarkItems).map((item) => [
-            item.id,
-            {
-              title: item.title,
-              parentId: item.parentId,
-              url: item.url,
-            },
-          ]),
-        ),
-        orderIdsByParent: Object.fromEntries(
-          Object.entries(liveSnapshot.bookmarkOrders).map(([key, order]) => [key, order.ids.slice()]),
-        ),
-        tombstoneIds: Object.keys(snapshot.tombstones || {}),
-        requestPermission: false,
-      });
-      if (!applied) {
-        throw new Error('未授予书签权限，无法写入本地书签');
-      }
-    } finally {
-      bookmarkApplySuppressedUntil = Date.now() + AUTO_SYNC_APPLY_SUPPRESS_MS;
-    }
-  }
-
   function createBookmarkSyncRuntimeForBackground(
     config: BackgroundSyncConfig,
     remoteKind: LeafTabSyncRemoteKind,
@@ -326,12 +234,13 @@ export function createBookmarkBackgroundSyncRuntime(
           },
       deviceId: config.deviceId,
       rootPath,
-      local: {
-        buildSnapshot: (baselineStorageKey: string) => buildLocalSnapshot(baselineStorageKey, config.deviceId),
-        applySnapshot: applyLocalSnapshot,
+      local: createBookmarkSyncBrowserLocalAdapter({
+        deviceId: config.deviceId,
+        requestPermission: false,
+        invalidRootOrderMessage: '远端书签快照缺少根目录排序，已停止写入本地以避免清空书签',
         readPendingChanges: readPendingLeafTabLocalBookmarkChangedAtFromExtensionStorage,
         clearPendingChanges: clearPendingLeafTabLocalBookmarkChangesInExtensionStorage,
-      },
+      }),
     });
   }
 
@@ -345,13 +254,7 @@ export function createBookmarkBackgroundSyncRuntime(
     const runtime = createBookmarkSyncRuntimeForBackground(config, remoteKind, {
       webdavRequestTimeoutMs: options?.webdavRequestTimeoutMs,
     });
-    return runtime.module.sync({
-      onProgress: (progress) => {
-        void updateBackgroundDebugState({
-          lastReason: `${remoteKind}:${progress.stage}:${progress.message}`,
-        });
-      },
-    });
+    return runtime.module.sync({});
   }
 
   async function markSyncSuccess(remoteKind: LeafTabSyncRemoteKind): Promise<void> {
@@ -418,23 +321,9 @@ export function createBookmarkBackgroundSyncRuntime(
       const config = await readBackgroundSyncConfig();
       const remoteKind = config.selectedSource;
       if (!remoteKind || !canRunBackgroundAutoSync(config)) {
-        await updateBackgroundDebugState({
-          lastSyncStartedAt: getNowIso(),
-          lastSyncFinishedAt: getNowIso(),
-          lastResult: 'skipped',
-          lastReason: config.hasPendingConflict
-            ? 'pending_conflict'
-            : remoteKind ? 'selected_source_unavailable' : 'no_selected_source',
-        });
         return false;
       }
       if (trigger?.provider && trigger.provider !== remoteKind) {
-        await updateBackgroundDebugState({
-          lastSyncStartedAt: getNowIso(),
-          lastSyncFinishedAt: getNowIso(),
-          lastResult: 'skipped',
-          lastReason: `inactive_source:${trigger.provider}`,
-        });
         return false;
       }
       if (remoteKind === 'aira-cloud') {
@@ -446,14 +335,7 @@ export function createBookmarkBackgroundSyncRuntime(
               'temporary_failure',
             );
             await markSyncError(remoteKind, error);
-            await updateBackgroundDebugState({
-              lastSyncStartedAt: getNowIso(),
-              lastSyncFinishedAt: getNowIso(),
-              lastResult: 'error',
-              lastReason: capability,
-              lastError: error.message,
-            });
-            await scheduleSelectedSourceSyncRetry(remoteKind, capability);
+            await scheduleSelectedSourceSyncRetry(remoteKind);
             return false;
           }
           const error = new LeafTabSyncAiraCloudError(
@@ -463,54 +345,15 @@ export function createBookmarkBackgroundSyncRuntime(
             capability === 'login-required' ? 'invalid_desktop_push_token' : 'pro_required',
           );
           await markSyncError(remoteKind, error);
-          await updateBackgroundDebugState({
-            lastSyncStartedAt: getNowIso(),
-            lastSyncFinishedAt: getNowIso(),
-            lastResult: 'action-required',
-            lastReason: capability,
-            lastError: error.message,
-          });
           return false;
         }
       }
 
-      const baselineStorageKey = resolveBookmarkSyncBaselineStorageKey(
-        remoteKind,
-        config.rootPath,
-        remoteKind === 'aira-cloud' ? config.cloudUid : '',
-      );
-      const baseline = await new LeafTabSyncExtensionStorageBaselineStore(baselineStorageKey).load().catch(() => null);
-      const baselineCommitId = baseline?.commitId || null;
-      await updateBackgroundDebugState({
-        lastSyncStartedAt: getNowIso(),
-        lastSyncFinishedAt: '',
-        lastTriggerProvider: trigger?.provider || '',
-        lastRoute: `single:${remoteKind}`,
-        lastResult: 'running',
-        lastReason: '',
-        lastError: '',
-        cloudBaselineCommitId: remoteKind === 'aira-cloud' ? (baselineCommitId || '') : '',
-        webdavBaselineCommitId: remoteKind === 'webdav' ? (baselineCommitId || '') : '',
-      });
-
       const keepAlive = runtimeConfig.startKeepAlive();
       try {
-        await writeExtensionStorageRecord({
-          [LEAFTAB_BACKGROUND_STORAGE_KEYS.autoSyncRunning]: 'true',
-        });
-        await updateBackgroundDebugState({
-          lastReason: `syncing:${remoteKind}`,
-        });
         const result = await runSingleRemoteSync(config, remoteKind);
         if (result.kind === 'conflict') {
           await persistPendingBookmarkConflict(remoteKind, result);
-          await updateBackgroundDebugState({
-            lastSyncFinishedAt: getNowIso(),
-            lastResult: 'conflict',
-            lastReason: remoteKind,
-            cloudRemoteCommitId: remoteKind === 'aira-cloud' ? (result.remoteCommitId || '') : undefined,
-            webdavRemoteCommitId: remoteKind === 'webdav' ? (result.remoteCommitId || '') : undefined,
-          });
           await removeExtensionStorageKeys([
             LEAFTAB_BACKGROUND_STORAGE_KEYS.autoSyncRetryProvider,
           ]);
@@ -521,31 +364,11 @@ export function createBookmarkBackgroundSyncRuntime(
         await markSyncSuccess(remoteKind);
         const remainingPendingLocalChangedAt =
           await readPendingLeafTabLocalBookmarkChangedAtFromExtensionStorage();
-        await updateBackgroundDebugState({
-          lastSyncFinishedAt: getNowIso(),
-          lastResult: 'success',
-          lastReason: remoteKind,
-          lastError: '',
-          cloudRemoteCommitId: remoteKind === 'aira-cloud' ? (result.remoteCommitId || '') : undefined,
-          webdavRemoteCommitId: remoteKind === 'webdav' ? (result.remoteCommitId || '') : undefined,
-          pendingLocalChangedAt: remainingPendingLocalChangedAt > 0
-            ? String(remainingPendingLocalChangedAt)
-            : '',
-        });
         await removeExtensionStorageKeys([
           LEAFTAB_BACKGROUND_STORAGE_KEYS.autoSyncRetryProvider,
-          WEBDAV_STORAGE_KEYS.nextSyncAt,
         ]);
         if (remainingPendingLocalChangedAt > 0) {
-          await writeExtensionStorageRecord({
-            [LEAFTAB_BACKGROUND_STORAGE_KEYS.pendingLocalChangedAt]:
-              String(remainingPendingLocalChangedAt),
-          });
           await scheduleLocalChangeAlarm();
-        } else {
-          await removeExtensionStorageKeys([
-            LEAFTAB_BACKGROUND_STORAGE_KEYS.pendingLocalChangedAt,
-          ]);
         }
         return true;
       } catch (error) {
@@ -554,14 +377,8 @@ export function createBookmarkBackgroundSyncRuntime(
           await recordAiraDesktopConnectionFailure(error).catch(() => null);
         }
         const actionRequired = isActionRequiredSyncError(error);
-        await updateBackgroundDebugState({
-          lastSyncFinishedAt: getNowIso(),
-          lastResult: actionRequired ? 'action-required' : 'error',
-          lastReason: remoteKind,
-          lastError: String((error as Error)?.message || error || 'unknown'),
-        });
         if (!actionRequired) {
-          await scheduleSelectedSourceSyncRetry(remoteKind, 'temporary-failure');
+          await scheduleSelectedSourceSyncRetry(remoteKind);
         } else {
           await removeExtensionStorageKeys([
             LEAFTAB_BACKGROUND_STORAGE_KEYS.autoSyncRetryProvider,
@@ -571,9 +388,6 @@ export function createBookmarkBackgroundSyncRuntime(
         return false;
       } finally {
         keepAlive.stop();
-        await writeExtensionStorageRecord({
-          [LEAFTAB_BACKGROUND_STORAGE_KEYS.autoSyncRunning]: 'false',
-        });
       }
     })();
 
@@ -598,22 +412,12 @@ export function createBookmarkBackgroundSyncRuntime(
       return;
     }
     const safeDelayMinutes = Math.max(0.1, delayMinutes);
-    const scheduledAt = new Date(Date.now() + safeDelayMinutes * 60_000).toISOString();
-    await updateBackgroundDebugState({
-      lastLocalAlarmScheduledAt: scheduledAt,
-    });
-    await writeExtensionStorageRecord({
-      [WEBDAV_STORAGE_KEYS.nextSyncAt]: scheduledAt,
-    });
     alarms.create(LOCAL_SYNC_ALARM_NAME, {
       delayInMinutes: safeDelayMinutes,
     });
   }
 
-  async function scheduleSelectedSourceSyncRetry(provider: LeafTabSyncRemoteKind, reason: string): Promise<void> {
-    await updateBackgroundDebugState({
-      lastReason: `${provider}:${reason}:retry-scheduled`,
-    });
+  async function scheduleSelectedSourceSyncRetry(provider: LeafTabSyncRemoteKind): Promise<void> {
     await writeExtensionStorageRecord({
       [LEAFTAB_BACKGROUND_STORAGE_KEYS.autoSyncRetryProvider]: provider,
     });
@@ -658,7 +462,6 @@ export function createBookmarkBackgroundSyncRuntime(
     }
     await removeExtensionStorageKeys([
       LEAFTAB_BACKGROUND_STORAGE_KEYS.nextRemoteProbeAt,
-      WEBDAV_STORAGE_KEYS.nextSyncAt,
     ]);
   }
 
@@ -679,9 +482,6 @@ export function createBookmarkBackgroundSyncRuntime(
     const checkedAt = getNowIso();
     await writeExtensionStorageRecord({
       [LEAFTAB_BACKGROUND_STORAGE_KEYS.lastRemoteProbeAt]: checkedAt,
-    });
-    await updateBackgroundDebugState({
-      lastRemoteProbeAt: checkedAt,
     });
     try {
       const config = await readBackgroundSyncConfig();
@@ -704,52 +504,27 @@ export function createBookmarkBackgroundSyncRuntime(
       retryProviderValue === 'aira-cloud' || retryProviderValue === 'webdav'
         ? retryProviderValue
         : undefined;
-    await updateBackgroundDebugState({
-      lastLocalAlarmFiredAt: getNowIso(),
-      pendingLocalChangedAt: pendingLocalChangedAt > 0 ? String(pendingLocalChangedAt) : '',
-      lastTriggerProvider: retryProvider || '',
-    });
     if (pendingLocalChangedAt <= 0 && !retryProvider) {
       await removeExtensionStorageKeys([
-        LEAFTAB_BACKGROUND_STORAGE_KEYS.pendingLocalChangedAt,
         LEAFTAB_BACKGROUND_STORAGE_KEYS.autoSyncRetryProvider,
-        WEBDAV_STORAGE_KEYS.nextSyncAt,
       ]);
       return;
     }
     const config = await readBackgroundSyncConfig();
     if (!canRunBackgroundAutoSync(config)) {
-      await removeExtensionStorageKeys([
-        WEBDAV_STORAGE_KEYS.nextSyncAt,
-      ]);
       return;
     }
     await runBackgroundAutoSync({ provider: retryProvider });
   }
 
-  function shouldSuppressBookmarkEvent(): boolean {
-    return Date.now() < bookmarkApplySuppressedUntil;
-  }
-
   async function handleBookmarkMutation(): Promise<void> {
-    if (shouldSuppressBookmarkEvent()) {
+    const now = Date.now();
+    const markedPending = await markLeafTabLocalBookmarkChangedInExtensionStorage(now);
+    if (!markedPending) {
       return;
     }
-    const now = Date.now();
-    const nowIso = new Date(now).toISOString();
-    await markLeafTabLocalBookmarkChangedInExtensionStorage(now);
-    await updateBackgroundDebugState({
-      lastBookmarkEventAt: nowIso,
-      pendingLocalChangedAt: nowIso,
-    });
-    await writeExtensionStorageRecord({
-      [LEAFTAB_BACKGROUND_STORAGE_KEYS.pendingLocalChangedAt]: nowIso,
-    });
     const config = await readBackgroundSyncConfig();
     if (!canRunBackgroundAutoSync(config)) {
-      await removeExtensionStorageKeys([
-        WEBDAV_STORAGE_KEYS.nextSyncAt,
-      ]);
       return;
     }
     await scheduleLocalChangeAlarm();
@@ -776,10 +551,6 @@ export function createBookmarkBackgroundSyncRuntime(
     getOrCreateDeviceId,
     initialize(): void {
       bindBookmarkListeners();
-      void updateBackgroundDebugState({
-        lastWakeAt: getNowIso(),
-        lastResult: 'idle',
-      });
       void reconcileBackgroundSchedules();
     },
     handleAlarm(alarmName: string): boolean {
@@ -794,9 +565,6 @@ export function createBookmarkBackgroundSyncRuntime(
       return false;
     },
     notifyStartup(): void {
-      void updateBackgroundDebugState({
-        lastWakeAt: getNowIso(),
-      });
       void reconcileBackgroundSchedules(true);
     },
     notifyIdleStateChanged(): void {

@@ -1,18 +1,11 @@
-import type {
-  LeafTabSyncCommitFile,
-  LeafTabSyncHeadFile,
-  LeafTabSyncSnapshot,
-} from './schema';
+import type { LeafTabSyncSnapshot } from './schema';
 
 export interface LeafTabSyncRemoteState {
-  head: LeafTabSyncHeadFile | null;
-  commit: LeafTabSyncCommitFile | null;
   snapshot: LeafTabSyncSnapshot | null;
+  commitId: string | null;
 }
 
 export interface LeafTabSyncRemoteHead {
-  head: LeafTabSyncHeadFile | null;
-  commit: LeafTabSyncCommitFile | null;
   commitId: string | null;
   updatedAt: number;
   summary?: {
@@ -30,8 +23,8 @@ export interface LeafTabSyncWriteStateParams {
 }
 
 export interface LeafTabSyncWriteStateResult {
-  head: LeafTabSyncHeadFile;
-  commit: LeafTabSyncCommitFile;
+  commitId: string;
+  writtenAt: string;
 }
 
 export interface LeafTabSyncRemoteStore {

@@ -56,7 +56,6 @@ export interface LeafTabSyncEngineConfig {
   readPendingLocalChanges?: () => Promise<number>;
   clearPendingLocalChanges?: (expectedChangedAt: number) => Promise<void> | void;
   createEmptySnapshot: () => LeafTabSyncSnapshot;
-  rootPath?: string;
 }
 
 export interface LeafTabSyncEngineRunOptions {
@@ -134,7 +133,7 @@ export class LeafTabSyncEngine {
   }
 
   private resolveRemoteCommitId(state: LeafTabSyncRemoteState): string | null {
-    return state.commit?.id || state.head?.commitId || null;
+    return state.commitId;
   }
 
   private async persistCompletedState(
@@ -145,7 +144,6 @@ export class LeafTabSyncEngine {
     await this.config.baselineStore.save(createLeafTabSyncBaseline({
       snapshot,
       commitId,
-      rootPath: this.config.rootPath,
     }));
     await this.config.clearPendingLocalChanges?.(completedPendingLocalChangedAt);
   }
@@ -212,7 +210,7 @@ export class LeafTabSyncEngine {
       });
       await this.persistCompletedState(
         localSnapshot,
-        writeResult.commit.id,
+        writeResult.commitId,
         completedPendingLocalChangedAt,
       );
       reportProgress(runOptions?.onProgress, {
@@ -222,7 +220,7 @@ export class LeafTabSyncEngine {
       });
       return createSyncResult({
         kind: 'push',
-        remoteCommitId: writeResult.commit.id,
+        remoteCommitId: writeResult.commitId,
         snapshot: localSnapshot,
         summaryText: '远端为空，已用本地快照建立首次同步状态',
       });
@@ -330,7 +328,7 @@ export class LeafTabSyncEngine {
         deviceId: this.config.deviceId,
         parentCommitId: remoteCommitId,
       });
-      committedId = writeResult.commit.id;
+      committedId = writeResult.commitId;
     }
 
     if (localNeedsApply) {

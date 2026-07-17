@@ -1,9 +1,5 @@
 export const LEAFTAB_SYNC_SCHEMA_VERSION = 2 as const;
 export const LEAFTAB_SYNC_DEFAULT_ROOT = 'aira/g2/bookmarks';
-export const LEAFTAB_SYNC_APP_PRIVATE_BOOKMARKS_FILE = 'app-private-bookmarks.json';
-export const LEAFTAB_SYNC_BOOKMARK_FOLDER_PACK_SHARDS = 4;
-export const LEAFTAB_SYNC_BOOKMARK_ITEM_PACK_SHARDS = 16;
-export const LEAFTAB_SYNC_TOMBSTONE_PACK_SHARDS = 8;
 
 export type LeafTabSyncEntityType = 'bookmark-folder' | 'bookmark-item';
 
@@ -59,48 +55,6 @@ export interface LeafTabSyncBookmarkDataSet {
   tombstones: Record<string, LeafTabSyncTombstone>;
 }
 
-export interface LeafTabSyncHeadFile {
-  version: typeof LEAFTAB_SYNC_SCHEMA_VERSION;
-  commitId: string;
-  updatedAt: string;
-}
-
-export type LeafTabSyncPackKind =
-  | 'bookmark-folders'
-  | 'bookmark-items'
-  | 'bookmark-orders'
-  | 'tombstones';
-
-export interface LeafTabSyncManifestPackRef {
-  kind: LeafTabSyncPackKind;
-  path: string;
-  shard: string | null;
-  itemCount: number;
-}
-
-export interface LeafTabSyncManifestFile {
-  version: typeof LEAFTAB_SYNC_SCHEMA_VERSION;
-  commitId: string;
-  deviceId: string;
-  generatedAt: string;
-  packs: LeafTabSyncManifestPackRef[];
-}
-
-export interface LeafTabSyncCommitFile {
-  id: string;
-  version: typeof LEAFTAB_SYNC_SCHEMA_VERSION;
-  deviceId: string;
-  createdAt: string;
-  parentCommitId: string | null;
-  manifestPath: string;
-  appPrivateBookmarksPath?: string;
-  summary: {
-    bookmarkFolders: number;
-    bookmarkItems: number;
-    tombstones: number;
-  };
-}
-
 export interface LeafTabSyncSnapshot {
   meta: LeafTabSyncSnapshotMeta;
   bookmarkFolders: Record<string, LeafTabSyncBookmarkFolderEntity>;
@@ -132,10 +86,6 @@ export interface LeafTabSyncBaseline {
   savedAt: string;
 }
 
-const normalizeRoot = (rootPath = LEAFTAB_SYNC_DEFAULT_ROOT) => {
-  return rootPath.replace(/^\/+/, '').replace(/\/+$/, '') || LEAFTAB_SYNC_DEFAULT_ROOT;
-};
-
 const isRecord = (value: unknown): value is Record<string, unknown> => {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 };
@@ -144,6 +94,35 @@ const collectionValues = (value: unknown): unknown[] => {
   if (Array.isArray(value)) return value;
   if (isRecord(value)) return Object.values(value);
   return [];
+};
+
+const isNonEmptyString = (value: unknown): value is string => {
+  return typeof value === 'string' && value.trim().length > 0;
+};
+
+const isNullableParentId = (value: unknown): value is string | null => {
+  return value === null || isNonEmptyString(value);
+};
+
+const isNonNegativeInteger = (value: unknown): value is number => {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 && Math.floor(value) === value;
+};
+
+const hasUniqueKeys = <T>(values: T[], keyOf: (value: T) => string): boolean => {
+  const keys = new Set<string>();
+  for (const value of values) {
+    const key = keyOf(value);
+    if (keys.has(key)) return false;
+    keys.add(key);
+  }
+  return true;
+};
+
+const isLeafTabSyncSnapshotMeta = (value: unknown): value is LeafTabSyncSnapshotMeta => {
+  if (!isRecord(value)) return false;
+  return value.version === LEAFTAB_SYNC_SCHEMA_VERSION
+    && isNonEmptyString(value.deviceId)
+    && isNonEmptyString(value.generatedAt);
 };
 
 export const createLeafTabSyncOrderKey = (parentId: string | null | undefined) => parentId || '__root__';
@@ -178,78 +157,6 @@ export const createLeafTabSyncCommitId = (
   const safeTimestamp = createdAt.replace(/[:.]/g, '-');
   const compactDeviceId = (deviceId || 'device').replace(/[^a-zA-Z0-9_-]/g, '_');
   return `cmt_${safeTimestamp}_${compactDeviceId}`;
-};
-
-export const getLeafTabSyncHeadPath = (rootPath = LEAFTAB_SYNC_DEFAULT_ROOT) => {
-  return `${normalizeRoot(rootPath)}/head.json`;
-};
-
-export const getLeafTabSyncCommitPath = (
-  commitId: string,
-  rootPath = LEAFTAB_SYNC_DEFAULT_ROOT,
-) => {
-  return `${normalizeRoot(rootPath)}/commits/${commitId}.json`;
-};
-
-export const getLeafTabSyncManifestPath = (
-  commitId: string,
-  rootPath = LEAFTAB_SYNC_DEFAULT_ROOT,
-) => {
-  return `${normalizeRoot(rootPath)}/commits/${commitId}.manifest.json`;
-};
-
-export const getLeafTabSyncAppPrivateBookmarksPath = (
-  commitId: string,
-  rootPath = LEAFTAB_SYNC_DEFAULT_ROOT,
-) => {
-  return `${normalizeRoot(rootPath)}/packs/${commitId}-${LEAFTAB_SYNC_APP_PRIVATE_BOOKMARKS_FILE}`;
-};
-
-export const getLeafTabSyncPackPath = (
-  kind: LeafTabSyncPackKind,
-  shard: string | null,
-  commitId: string,
-  rootPath = LEAFTAB_SYNC_DEFAULT_ROOT,
-) => {
-  const shardSuffix = shard ? `-${shard}` : '';
-  return `${normalizeRoot(rootPath)}/packs/${commitId}-${kind}${shardSuffix}.pack.json`;
-};
-
-export const createLeafTabSyncHeadFile = (
-  commitId: string,
-  updatedAt = new Date().toISOString(),
-): LeafTabSyncHeadFile => ({
-  version: LEAFTAB_SYNC_SCHEMA_VERSION,
-  commitId,
-  updatedAt,
-});
-
-export const createLeafTabSyncCommitFile = (params: {
-  deviceId: string;
-  createdAt?: string;
-  parentCommitId?: string | null;
-  snapshot: LeafTabSyncSnapshot;
-  rootPath?: string;
-}): LeafTabSyncCommitFile => {
-  const createdAt = params.createdAt || new Date().toISOString();
-  const id = createLeafTabSyncCommitId(params.deviceId, createdAt);
-  return {
-    id,
-    version: LEAFTAB_SYNC_SCHEMA_VERSION,
-    deviceId: params.deviceId,
-    createdAt,
-    parentCommitId: params.parentCommitId ?? null,
-    manifestPath: getLeafTabSyncManifestPath(id, params.rootPath || LEAFTAB_SYNC_DEFAULT_ROOT),
-    appPrivateBookmarksPath: getLeafTabSyncAppPrivateBookmarksPath(
-      id,
-      params.rootPath || LEAFTAB_SYNC_DEFAULT_ROOT,
-    ),
-    summary: {
-      bookmarkFolders: Object.keys(params.snapshot.bookmarkFolders).length,
-      bookmarkItems: Object.keys(params.snapshot.bookmarkItems).length,
-      tombstones: Object.keys(params.snapshot.tombstones).length,
-    },
-  };
 };
 
 export const normalizeLeafTabSyncSnapshot = (
@@ -335,47 +242,94 @@ export const toLeafTabSyncWireSnapshot = (snapshot: LeafTabSyncSnapshot): LeafTa
 export const isLeafTabSyncBookmarkFolderEntity = (
   value: unknown,
 ): value is LeafTabSyncBookmarkFolderEntity => {
-  return Boolean(
-    value &&
-      typeof value === 'object' &&
-      (value as { type?: unknown }).type === 'bookmark-folder' &&
-      typeof (value as { id?: unknown }).id === 'string',
-  );
+  if (!isRecord(value)) return false;
+  return value.type === 'bookmark-folder'
+    && isNonEmptyString(value.id)
+    && isNonEmptyString(value.createdAt)
+    && isNonEmptyString(value.updatedAt)
+    && isNonEmptyString(value.updatedBy)
+    && isNonNegativeInteger(value.revision)
+    && isNullableParentId(value.parentId)
+    && typeof value.title === 'string';
 };
 
 export const isLeafTabSyncBookmarkItemEntity = (
   value: unknown,
 ): value is LeafTabSyncBookmarkItemEntity => {
-  return Boolean(
-    value &&
-      typeof value === 'object' &&
-      (value as { type?: unknown }).type === 'bookmark-item' &&
-      typeof (value as { id?: unknown }).id === 'string',
-  );
+  if (!isRecord(value)) return false;
+  return value.type === 'bookmark-item'
+    && isNonEmptyString(value.id)
+    && isNonEmptyString(value.createdAt)
+    && isNonEmptyString(value.updatedAt)
+    && isNonEmptyString(value.updatedBy)
+    && isNonNegativeInteger(value.revision)
+    && isNullableParentId(value.parentId)
+    && typeof value.title === 'string'
+    && typeof value.url === 'string';
 };
 
 export const isLeafTabSyncBookmarkOrder = (
   value: unknown,
 ): value is LeafTabSyncBookmarkOrder => {
-  return Boolean(
-    value &&
-      typeof value === 'object' &&
-      (value as { type?: unknown }).type === 'bookmark-order' &&
-      Array.isArray((value as { ids?: unknown }).ids),
-  );
+  if (!isRecord(value) || !Array.isArray(value.ids)) return false;
+  const ids = value.ids;
+  return value.type === 'bookmark-order'
+    && isNullableParentId(value.parentId)
+    && ids.every(isNonEmptyString)
+    && hasUniqueKeys(ids, (id) => id)
+    && isNonEmptyString(value.updatedAt)
+    && isNonEmptyString(value.updatedBy)
+    && isNonNegativeInteger(value.revision);
 };
 
 export const isLeafTabSyncTombstone = (
   value: unknown,
 ): value is LeafTabSyncTombstone => {
-  return Boolean(
-    value &&
-      typeof value === 'object' &&
-      typeof (value as { id?: unknown }).id === 'string' &&
-      (
-        (value as { type?: unknown }).type === 'bookmark-folder' ||
-        (value as { type?: unknown }).type === 'bookmark-item'
-      ) &&
-      typeof (value as { deletedAt?: unknown }).deletedAt === 'string',
-  );
+  if (!isRecord(value)) return false;
+  return isNonEmptyString(value.id)
+    && (value.type === 'bookmark-folder' || value.type === 'bookmark-item')
+    && isNonEmptyString(value.deletedAt)
+    && isNonEmptyString(value.deletedBy)
+    && isNonNegativeInteger(value.lastKnownRevision);
+};
+
+const isCanonicalLeafTabSyncWireDataSet = (
+  value: unknown,
+): value is LeafTabSyncWireBookmarkDataSet => {
+  if (!isRecord(value)
+    || !Array.isArray(value.bookmarkFolders)
+    || !Array.isArray(value.bookmarkItems)
+    || !Array.isArray(value.bookmarkOrders)
+    || !Array.isArray(value.tombstones)) {
+    return false;
+  }
+  const folders = value.bookmarkFolders;
+  const items = value.bookmarkItems;
+  const orders = value.bookmarkOrders;
+  const tombstones = value.tombstones;
+  if (!folders.every(isLeafTabSyncBookmarkFolderEntity)
+    || !items.every(isLeafTabSyncBookmarkItemEntity)
+    || !orders.every(isLeafTabSyncBookmarkOrder)
+    || !tombstones.every(isLeafTabSyncTombstone)) {
+    return false;
+  }
+  return hasUniqueKeys(folders, (entry) => entry.id)
+    && hasUniqueKeys(items, (entry) => entry.id)
+    && hasUniqueKeys(orders, (entry) => createLeafTabSyncOrderKey(entry.parentId))
+    && hasUniqueKeys(tombstones, (entry) => createLeafTabSyncTombstoneKey(entry));
+};
+
+export const parseCanonicalLeafTabSyncWireSnapshot = (
+  value: unknown,
+): LeafTabSyncSnapshot | null => {
+  if (!isRecord(value)
+    || !isLeafTabSyncSnapshotMeta(value.meta)
+    || !isCanonicalLeafTabSyncWireDataSet(value)) {
+    return null;
+  }
+  if (value.appPrivateBookmarks !== undefined
+    && !isCanonicalLeafTabSyncWireDataSet(value.appPrivateBookmarks)) {
+    return null;
+  }
+  return normalizeLeafTabSyncSnapshot(value);
 };
