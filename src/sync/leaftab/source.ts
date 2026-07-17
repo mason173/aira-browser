@@ -31,6 +31,7 @@ export const canRunLeafTabSelectedAutoSync = (values: {
 
 export type LeafTabPendingBookmarkConflict = {
   provider: LeafTabSyncRemoteKind;
+  sourceIdentity: string;
   detectedAt: string;
   remoteCommitId: string;
   summary: string;

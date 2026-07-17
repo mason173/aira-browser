@@ -16,13 +16,6 @@ export interface LeafTabSyncDataSummary {
   tombstones: number;
 }
 
-export interface LeafTabSyncAnalysis {
-  hasBaseline: boolean;
-  localSummary: LeafTabSyncDataSummary;
-  remoteSummary: LeafTabSyncDataSummary;
-  remoteCommitId: string | null;
-}
-
 export interface LeafTabSyncEngineResult {
   kind: 'noop' | 'push' | 'pull' | 'merge' | 'conflict';
   remoteCommitId: string | null;
@@ -61,10 +54,6 @@ export interface LeafTabSyncEngineConfig {
 export interface LeafTabSyncEngineRunOptions {
   onProgress?: (progress: LeafTabSyncEngineProgress) => void;
   conflictResolution?: LeafTabSyncConflictResolution;
-}
-
-export interface LeafTabSyncEngineAnalyzeOptions {
-  onProgress?: (progress: LeafTabSyncEngineProgress) => void;
 }
 
 const summarizeSnapshot = (snapshot: LeafTabSyncSnapshot | null): LeafTabSyncDataSummary => {
@@ -146,31 +135,6 @@ export class LeafTabSyncEngine {
       commitId,
     }));
     await this.config.clearPendingLocalChanges?.(completedPendingLocalChangedAt);
-  }
-
-  async analyze(options?: LeafTabSyncEngineAnalyzeOptions): Promise<LeafTabSyncAnalysis> {
-    reportProgress(options?.onProgress, {
-      stage: 'reading-state',
-      progress: 10,
-      message: '正在读取本机与远端状态',
-    });
-    const [baseline, localSnapshot, remoteState] = await Promise.all([
-      this.config.baselineStore.load(),
-      this.config.buildLocalSnapshot(),
-      this.config.remoteStore.readState(),
-    ]);
-    const result: LeafTabSyncAnalysis = {
-      hasBaseline: Boolean(baseline?.snapshot || baseline?.commitId),
-      localSummary: summarizeSnapshot(localSnapshot),
-      remoteSummary: summarizeSnapshot(remoteState.snapshot),
-      remoteCommitId: this.resolveRemoteCommitId(remoteState),
-    };
-    reportProgress(options?.onProgress, {
-      stage: 'completed',
-      progress: 100,
-      message: '同步状态分析完成',
-    });
-    return result;
   }
 
   async sync(

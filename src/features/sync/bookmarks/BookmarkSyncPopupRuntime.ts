@@ -9,8 +9,8 @@ import {
 } from '@/features/sync/app/leafTabSyncStorageKeys';
 import type { LeafTabPendingBookmarkConflict, LeafTabSyncRemoteKind } from '@/features/sync/app/LeafTabSyncContracts';
 import {
-  readAiraDesktopConnectionProfile,
-  refreshAiraDesktopConnectionProfileMembership,
+  readAiraDesktopConnectionProfileWithinExecutionLock,
+  refreshAiraDesktopConnectionProfileMembershipWithinExecutionLock,
   resolveAiraDesktopProCapability,
   type AiraDesktopConnectionProfile,
   type AiraDesktopProCapabilityStatus,
@@ -20,6 +20,7 @@ import {
 } from '@/features/desktop-connection/AiraDesktopConnectionModule';
 import {
   recordAiraDesktopConnectionFailure,
+  recordAiraDesktopConnectionFailureWithinExecutionLock,
 } from '@/features/desktop-connection/desktopConnectionRuntime';
 import {
   readAiraCloudSyncEnabledFromExtensionStorage,
@@ -50,8 +51,9 @@ import {
   clearPendingBookmarkConflict,
   createBookmarkSyncBrowserLocalAdapter,
   createBookmarkSyncRuntime,
+  isPendingBookmarkConflictForSource,
   persistPendingBookmarkConflict,
-  readPendingBookmarkConflict,
+  readPendingBookmarkConflictWithinExecutionLock,
   type BookmarkSyncConflictChoice,
   type BookmarkSyncDataOverview,
   type BookmarkSyncRuntimeProvider,
@@ -200,6 +202,13 @@ export class BookmarkSyncPopupRuntime {
     return this.execute(remoteKind, { type: 'resolve-conflict', choice }, callbacks);
   }
 
+  readPendingConflict(): Promise<LeafTabPendingBookmarkConflict | null> {
+    return withBookmarkSyncExecutionLock(async () => {
+      const config = await this.readExecutionConfig('webdav', undefined, false);
+      return config.pendingConflict;
+    });
+  }
+
   private async execute(
     remoteKind: LeafTabSyncRemoteKind,
     operation: BookmarkSyncPopupOperation,
@@ -214,6 +223,7 @@ export class BookmarkSyncPopupRuntime {
       };
     }
 
+    let expectedCloudIdentity: { uid: string; deviceCredential: string } | undefined;
     try {
       return await withBookmarkSyncExecutionLock(async (): Promise<BookmarkSyncPopupRunOutcome> => {
         const executionConfig = await this.readExecutionConfig(
@@ -221,6 +231,10 @@ export class BookmarkSyncPopupRuntime {
           operation.type === 'select-webdav-candidate' ? operation.candidate : undefined,
           true,
         );
+        expectedCloudIdentity = {
+          uid: executionConfig.cloudUid,
+          deviceCredential: executionConfig.cloudDeviceCredential,
+        };
         const blocked = this.checkEligibility(remoteKind, operation, executionConfig);
         if (blocked) {
           return blocked;
@@ -245,7 +259,11 @@ export class BookmarkSyncPopupRuntime {
               syncEnabled: false,
             });
           }
-          const pendingConflict = await persistPendingBookmarkConflict(remoteKind, result);
+          const pendingConflict = await persistPendingBookmarkConflict(
+            remoteKind,
+            runtime.sourceIdentity,
+            result,
+          );
           return { type: 'conflict', result, pendingConflict };
         }
 
@@ -268,7 +286,7 @@ export class BookmarkSyncPopupRuntime {
     } catch (error) {
       await this.markError(remoteKind, error);
       if (remoteKind === 'aira-cloud') {
-        await this.recordCloudCredentialFailure(error);
+        await this.recordCloudCredentialFailure(error, expectedCloudIdentity, false);
       }
       return {
         type: 'failed',
@@ -282,30 +300,35 @@ export class BookmarkSyncPopupRuntime {
     remoteKind: LeafTabSyncRemoteKind,
     includeRemote: boolean,
   ): Promise<BookmarkSyncPopupOverviewResult> {
-    const executionConfig = await this.readExecutionConfig(remoteKind, undefined, false);
-    const runtime = this.createRuntime(remoteKind, executionConfig);
-    const overviewPromise = runtime.module.readSummary({ includeRemote })
-      .then((overview) => ({ overview }))
-      .catch((error: unknown) => ({ error }));
-    const baselineSnapshot = remoteKind === 'aira-cloud'
-      ? await readBaselineSnapshot(runtime.baselineStorageKey)
-      : null;
-    const overviewResult = await overviewPromise;
-    if ('error' in overviewResult) {
-      if (remoteKind === 'aira-cloud') {
-        await this.recordCloudCredentialFailure(overviewResult.error);
+    return withBookmarkSyncExecutionLock(async (): Promise<BookmarkSyncPopupOverviewResult> => {
+      const executionConfig = await this.readExecutionConfig(remoteKind, undefined, false);
+      const runtime = this.createRuntime(remoteKind, executionConfig);
+      const overviewPromise = runtime.module.readSummary({ includeRemote })
+        .then((overview) => ({ overview }))
+        .catch((error: unknown) => ({ error }));
+      const baselineSnapshot = remoteKind === 'aira-cloud'
+        ? await readBaselineSnapshot(runtime.baselineStorageKey)
+        : null;
+      const overviewResult = await overviewPromise;
+      if ('error' in overviewResult) {
+        if (remoteKind === 'aira-cloud') {
+          await this.recordCloudCredentialFailure(overviewResult.error, {
+            uid: executionConfig.cloudUid,
+            deviceCredential: executionConfig.cloudDeviceCredential,
+          }, true);
+        }
+        return {
+          sourceIdentity: runtime.sourceIdentity,
+          baselineOverview: baselineSnapshot ? createOverviewFromSnapshot(baselineSnapshot) : null,
+          overview: null,
+        };
       }
       return {
         sourceIdentity: runtime.sourceIdentity,
         baselineOverview: baselineSnapshot ? createOverviewFromSnapshot(baselineSnapshot) : null,
-        overview: null,
+        overview: overviewResult.overview,
       };
-    }
-    return {
-      sourceIdentity: runtime.sourceIdentity,
-      baselineOverview: baselineSnapshot ? createOverviewFromSnapshot(baselineSnapshot) : null,
-      overview: overviewResult.overview,
-    };
+    });
   }
 
   private checkEligibility(
@@ -381,19 +404,17 @@ export class BookmarkSyncPopupRuntime {
     candidateWebdav: WebdavStorageState | undefined,
     refreshCloudMembership: boolean,
   ): Promise<BookmarkSyncPopupExecutionConfig> {
-    const [storedWebdav, pendingConflict] = await Promise.all([
-      candidateWebdav
-        ? Promise.resolve(candidateWebdav)
-        : readWebdavStorageStateFromExtensionStorage(),
-      readPendingBookmarkConflict(),
+    const [storedWebdav, storedPendingConflict, initialCloudProfile] = await Promise.all([
+      readWebdavStorageStateFromExtensionStorage(),
+      readPendingBookmarkConflictWithinExecutionLock(),
+      readAiraDesktopConnectionProfileWithinExecutionLock(),
     ]);
-    let cloudProfile: AiraDesktopConnectionProfile | null = null;
+    let cloudProfile: AiraDesktopConnectionProfile | null = initialCloudProfile;
     let cloudCapability: AiraDesktopProCapabilityStatus = 'login-required';
     if (remoteKind === 'aira-cloud') {
-      cloudProfile = await readAiraDesktopConnectionProfile();
       if (cloudProfile?.uid && cloudProfile.deviceCredential && refreshCloudMembership) {
         try {
-          cloudProfile = await refreshAiraDesktopConnectionProfileMembership({ force: true });
+          cloudProfile = await refreshAiraDesktopConnectionProfileMembershipWithinExecutionLock({ force: true });
         } catch {
           cloudCapability = 'temporarily-unavailable';
         }
@@ -403,17 +424,39 @@ export class BookmarkSyncPopupRuntime {
       }
     }
     const cloudUid = cloudProfile?.uid?.trim() || '';
+    const cloudDeviceCredential = cloudProfile?.deviceCredential?.trim() || '';
+    let pendingConflict = storedPendingConflict;
+    if (pendingConflict) {
+      const matchesCurrentIdentity = pendingConflict.provider === 'aira-cloud'
+        ? isPendingBookmarkConflictForSource(pendingConflict, {
+            remoteKind: 'aira-cloud',
+            uid: cloudUid,
+            deviceCredential: cloudDeviceCredential,
+          }, this.config.rootPath)
+        : isPendingBookmarkConflictForSource(pendingConflict, {
+            remoteKind: 'webdav',
+            url: storedWebdav.url,
+            username: storedWebdav.username,
+            password: storedWebdav.password,
+            requestPermission: false,
+          }, this.config.rootPath);
+      if (!matchesCurrentIdentity) {
+        await clearPendingBookmarkConflict();
+        pendingConflict = null;
+      }
+    }
+    const effectiveWebdav = candidateWebdav ?? storedWebdav;
     return {
       cloudUid,
-      cloudDeviceCredential: cloudProfile?.deviceCredential?.trim() || '',
+      cloudDeviceCredential,
       cloudSyncEnabled: await readAiraCloudSyncEnabledFromExtensionStorage(cloudUid),
       cloudCapability,
       webdavState: {
-        profileName: storedWebdav.profileName.trim(),
-        url: storedWebdav.url.trim(),
-        username: storedWebdav.username.trim(),
-        password: storedWebdav.password,
-        syncEnabled: storedWebdav.syncEnabled,
+        profileName: effectiveWebdav.profileName.trim(),
+        url: effectiveWebdav.url.trim(),
+        username: effectiveWebdav.username.trim(),
+        password: effectiveWebdav.password,
+        syncEnabled: effectiveWebdav.syncEnabled,
       },
       pendingConflict,
     };
@@ -516,9 +559,17 @@ export class BookmarkSyncPopupRuntime {
     this.emitStatusChanged();
   }
 
-  private async recordCloudCredentialFailure(error: unknown): Promise<void> {
+  private async recordCloudCredentialFailure(
+    error: unknown,
+    expectedIdentity: { uid: string; deviceCredential: string } | undefined,
+    withinExecutionLock: boolean,
+  ): Promise<void> {
     if (error instanceof LeafTabSyncAiraCloudError && isAiraDesktopCredentialRejection(error)) {
-      await recordAiraDesktopConnectionFailure(error).catch(() => null);
+      if (withinExecutionLock) {
+        await recordAiraDesktopConnectionFailureWithinExecutionLock(error, expectedIdentity).catch(() => null);
+      } else {
+        await recordAiraDesktopConnectionFailure(error, expectedIdentity).catch(() => null);
+      }
     }
   }
 

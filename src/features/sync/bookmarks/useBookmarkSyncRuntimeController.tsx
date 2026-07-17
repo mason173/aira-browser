@@ -33,7 +33,6 @@ import {
   readExtensionStorageRecord,
 } from '@/platform/extensionStorage';
 import {
-  readPendingBookmarkConflict,
   type BookmarkSyncDataOverview,
 } from './BookmarkSyncModule';
 import {
@@ -325,7 +324,7 @@ export function useBookmarkSyncRuntimeController(
     let cancelled = false;
     const refreshSharedState = async () => {
       await refreshSyncUiCacheFromExtensionStorage();
-      const pending = await readPendingBookmarkConflict();
+      const pending = await bookmarkSyncRuntime.readPendingConflict();
       if (cancelled) {
         return;
       }
@@ -378,7 +377,7 @@ export function useBookmarkSyncRuntimeController(
       window.removeEventListener('webdav-sync-status-changed', refreshLocalState);
       chrome.storage?.onChanged?.removeListener?.(handleExtensionStorageChanged);
     };
-  }, [cloudUid]);
+  }, [bookmarkSyncRuntime, cloudUid]);
 
   const refreshBookmarkDataOverview = useCallback(async () => {
     const requestId = leafTabSummaryRefreshRequestRef.current + 1;

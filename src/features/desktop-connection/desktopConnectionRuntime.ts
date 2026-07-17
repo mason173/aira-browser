@@ -12,6 +12,7 @@ import {
   type AiraDesktopConnectionRemote,
   type AiraDesktopConnectionSnapshot,
   type AiraDesktopConnectionStorage,
+  type AiraDesktopConnectionIdentityExpectation,
   type AiraDesktopMembershipResponse,
   type AiraDesktopPairingSession,
   type AiraDesktopPairingStatus,
@@ -63,7 +64,7 @@ export async function readAiraDesktopAuthorizedSession(): Promise<AiraDesktopAut
   return (await getAiraDesktopConnectionModule()).getAuthorizedSession();
 }
 
-export async function refreshAiraDesktopConnectionMembership(
+export async function refreshAiraDesktopConnectionMembershipWithinExecutionLock(
   options: { force?: boolean } = {},
 ): Promise<AiraDesktopConnectionSnapshot> {
   return (await getAiraDesktopConnectionModule()).refreshMembership(options);
@@ -83,8 +84,20 @@ export async function pollAiraDesktopPairing(
   });
 }
 
-export async function recordAiraDesktopConnectionFailure(error: unknown): Promise<AiraDesktopConnectionSnapshot> {
-  return (await getAiraDesktopConnectionModule()).recordRemoteFailure(error);
+export async function recordAiraDesktopConnectionFailure(
+  error: unknown,
+  expectedIdentity?: AiraDesktopConnectionIdentityExpectation,
+): Promise<AiraDesktopConnectionSnapshot> {
+  return withBookmarkSyncExecutionLock(() => {
+    return recordAiraDesktopConnectionFailureWithinExecutionLock(error, expectedIdentity);
+  });
+}
+
+export async function recordAiraDesktopConnectionFailureWithinExecutionLock(
+  error: unknown,
+  expectedIdentity?: AiraDesktopConnectionIdentityExpectation,
+): Promise<AiraDesktopConnectionSnapshot> {
+  return (await getAiraDesktopConnectionModule()).recordRemoteFailure(error, expectedIdentity);
 }
 
 async function createRuntimeModule(): Promise<AiraDesktopConnectionModule> {

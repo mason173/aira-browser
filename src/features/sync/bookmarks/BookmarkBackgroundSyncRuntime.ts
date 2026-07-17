@@ -12,8 +12,8 @@ import {
   WEBDAV_LAST_SYNC_AT_KEY,
 } from '@/features/sync/app/leafTabSyncStorageKeys';
 import {
-  readAiraDesktopConnectionProfile,
-  refreshAiraDesktopConnectionProfileMembership,
+  readAiraDesktopConnectionProfileWithinExecutionLock,
+  refreshAiraDesktopConnectionProfileMembershipWithinExecutionLock,
   resolveAiraDesktopProCapability,
   type AiraDesktopProCapabilityStatus,
 } from '@/features/desktop-connection/desktopConnectionProfile';
@@ -22,7 +22,7 @@ import {
 } from '@/features/desktop-connection/AiraDesktopConnectionModule';
 import {
   AIRA_DESKTOP_CONNECTION_STORAGE_KEY,
-  recordAiraDesktopConnectionFailure,
+  recordAiraDesktopConnectionFailureWithinExecutionLock,
 } from '@/features/desktop-connection/desktopConnectionRuntime';
 import {
   isAiraCloudSyncPreferenceStorageKey,
@@ -32,8 +32,9 @@ import {
   clearPendingBookmarkConflict,
   createBookmarkSyncBrowserLocalAdapter,
   createBookmarkSyncRuntime,
+  isPendingBookmarkConflictForSource,
   persistPendingBookmarkConflict,
-  readPendingBookmarkConflict,
+  readPendingBookmarkConflictWithinExecutionLock,
   type BookmarkSyncSource as LeafTabSyncRemoteKind,
 } from '@/features/sync/bookmarks/BookmarkSyncModule';
 import { withBookmarkSyncExecutionLock } from '@/sync/leaftab/executionLock';
@@ -104,10 +105,10 @@ export interface BookmarkBackgroundSyncRuntime {
 
 async function refreshDesktopMembershipForProFeature(): Promise<AiraDesktopProCapabilityStatus> {
   try {
-    const profile = await readAiraDesktopConnectionProfile();
+    const profile = await readAiraDesktopConnectionProfileWithinExecutionLock();
     const currentCapability = resolveAiraDesktopProCapability(profile);
     if (currentCapability === 'login-required') return currentCapability;
-    const latestProfile = await refreshAiraDesktopConnectionProfileMembership({ force: true });
+    const latestProfile = await refreshAiraDesktopConnectionProfileMembershipWithinExecutionLock({ force: true });
     return resolveAiraDesktopProCapability(latestProfile);
   } catch {
     return 'temporarily-unavailable';
@@ -157,10 +158,10 @@ export function createBookmarkBackgroundSyncRuntime(
     }
   }
 
-  async function readBackgroundSyncConfig(): Promise<BackgroundSyncConfig> {
+  async function readBackgroundSyncConfigWithinExecutionLock(): Promise<BackgroundSyncConfig> {
     const [deviceId, loginProfile, webdavState] = await Promise.all([
       getOrCreateDeviceId(),
-      readAiraDesktopConnectionProfile(),
+      readAiraDesktopConnectionProfileWithinExecutionLock(),
       readWebdavStorageStateFromExtensionStorage(),
     ]);
     const rootPath = LEAFTAB_SYNC_DEFAULT_ROOT_PATH;
@@ -169,12 +170,29 @@ export function createBookmarkBackgroundSyncRuntime(
     const cloudSyncEnabled = await readAiraCloudSyncEnabledFromExtensionStorage(cloudUid);
     const [sharedRecord, pendingConflict] = await Promise.all([
       readExtensionStorageRecord([LEAFTAB_SELECTED_SYNC_SOURCE_KEY]),
-      readPendingBookmarkConflict(),
+      readPendingBookmarkConflictWithinExecutionLock(),
     ]);
     const selectedSource = parseLeafTabSyncRemoteKind(
       sharedRecord[LEAFTAB_SELECTED_SYNC_SOURCE_KEY],
     );
-    const hasPendingConflict = pendingConflict !== null;
+    const pendingConflictMatchesCurrentIdentity = pendingConflict !== null && (
+      pendingConflict.provider === 'aira-cloud'
+        ? isPendingBookmarkConflictForSource(pendingConflict, {
+            remoteKind: 'aira-cloud',
+            uid: cloudUid,
+            deviceCredential: cloudDeviceCredential,
+          }, rootPath)
+        : isPendingBookmarkConflictForSource(pendingConflict, {
+            remoteKind: 'webdav',
+            url: webdavState.url,
+            username: webdavState.username,
+            password: webdavState.password,
+            requestPermission: false,
+          }, rootPath)
+    );
+    if (pendingConflict && !pendingConflictMatchesCurrentIdentity) {
+      await clearPendingBookmarkConflict();
+    }
 
     return {
       deviceId,
@@ -183,7 +201,7 @@ export function createBookmarkBackgroundSyncRuntime(
       cloudSyncEnabled,
       webdavSyncEnabled: webdavState.syncEnabled,
       selectedSource,
-      hasPendingConflict,
+      hasPendingConflict: pendingConflictMatchesCurrentIdentity,
       webdavConfig: webdavState.url
         ? {
             url: webdavState.url,
@@ -195,6 +213,12 @@ export function createBookmarkBackgroundSyncRuntime(
         : null,
       rootPath,
     };
+  }
+
+  async function readBackgroundSyncConfig(): Promise<BackgroundSyncConfig> {
+    return withBookmarkSyncExecutionLock(() => {
+      return readBackgroundSyncConfigWithinExecutionLock();
+    });
   }
 
   function canRunBackgroundAutoSync(config: BackgroundSyncConfig): boolean {
@@ -252,11 +276,14 @@ export function createBookmarkBackgroundSyncRuntime(
     options?: {
       webdavRequestTimeoutMs?: number;
     },
-  ): Promise<LeafTabSyncEngineResult> {
+  ): Promise<{ result: LeafTabSyncEngineResult; sourceIdentity: string }> {
     const runtime = createBookmarkSyncRuntimeForBackground(config, remoteKind, {
       webdavRequestTimeoutMs: options?.webdavRequestTimeoutMs,
     });
-    return runtime.module.sync({});
+    return {
+      result: await runtime.module.sync({}),
+      sourceIdentity: runtime.sourceIdentity,
+    };
   }
 
   async function markSyncSuccess(remoteKind: LeafTabSyncRemoteKind): Promise<void> {
@@ -320,7 +347,7 @@ export function createBookmarkBackgroundSyncRuntime(
       return activeAutoSyncPromise;
     }
     activeAutoSyncPromise = withBookmarkSyncExecutionLock(async () => {
-      const config = await readBackgroundSyncConfig();
+      const config = await readBackgroundSyncConfigWithinExecutionLock();
       const remoteKind = config.selectedSource;
       if (!remoteKind || !canRunBackgroundAutoSync(config)) {
         return false;
@@ -353,9 +380,10 @@ export function createBookmarkBackgroundSyncRuntime(
 
       const keepAlive = runtimeConfig.startKeepAlive();
       try {
-        const result = await runSingleRemoteSync(config, remoteKind);
+        const syncRun = await runSingleRemoteSync(config, remoteKind);
+        const result = syncRun.result;
         if (result.kind === 'conflict') {
-          await persistPendingBookmarkConflict(remoteKind, result);
+          await persistPendingBookmarkConflict(remoteKind, syncRun.sourceIdentity, result);
           await removeExtensionStorageKeys([
             LEAFTAB_BACKGROUND_STORAGE_KEYS.autoSyncRetryProvider,
           ]);
@@ -376,7 +404,10 @@ export function createBookmarkBackgroundSyncRuntime(
       } catch (error) {
         await markSyncError(remoteKind, error);
         if (error instanceof LeafTabSyncAiraCloudError && isAiraDesktopCredentialRejection(error)) {
-          await recordAiraDesktopConnectionFailure(error).catch(() => null);
+          await recordAiraDesktopConnectionFailureWithinExecutionLock(error, {
+            uid: config.cloudUid,
+            deviceCredential: config.cloudDeviceCredential,
+          }).catch(() => null);
         }
         const actionRequired = isActionRequiredSyncError(error);
         if (!actionRequired) {

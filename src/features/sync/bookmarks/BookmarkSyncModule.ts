@@ -55,8 +55,11 @@ const normalizePendingConflict = (value: unknown): BookmarkSyncPendingConflict |
   if (!value || typeof value !== 'object') return null;
   const candidate = value as Partial<BookmarkSyncPendingConflict>;
   if (candidate.provider !== 'aira-cloud' && candidate.provider !== 'webdav') return null;
+  const sourceIdentity = String(candidate.sourceIdentity || '').trim();
+  if (!sourceIdentity) return null;
   return {
     provider: candidate.provider,
+    sourceIdentity,
     detectedAt: String(candidate.detectedAt || ''),
     remoteCommitId: String(candidate.remoteCommitId || ''),
     summary: String(candidate.summary || '检测到书签同步冲突'),
@@ -72,17 +75,30 @@ const setConflictBadge = async (pending: boolean) => {
   }
 };
 
-export const readPendingBookmarkConflict = async (): Promise<BookmarkSyncPendingConflict | null> => {
+export const readPendingBookmarkConflictWithinExecutionLock = async (
+): Promise<BookmarkSyncPendingConflict | null> => {
   const record = await readAllExtensionStorageRecords();
-  return normalizePendingConflict(record[LEAFTAB_PENDING_BOOKMARK_CONFLICT_KEY]);
+  const stored = record[LEAFTAB_PENDING_BOOKMARK_CONFLICT_KEY];
+  const pending = normalizePendingConflict(stored);
+  if (stored !== undefined && !pending) {
+    await removeExtensionStorageKeys([LEAFTAB_PENDING_BOOKMARK_CONFLICT_KEY]);
+    await setConflictBadge(false);
+  }
+  return pending;
 };
 
 export const persistPendingBookmarkConflict = async (
   provider: BookmarkSyncSource,
+  sourceIdentity: string,
   result: LeafTabSyncEngineResult,
 ): Promise<BookmarkSyncPendingConflict> => {
+  const normalizedSourceIdentity = String(sourceIdentity || '').trim();
+  if (!normalizedSourceIdentity) {
+    throw new Error('无法保存缺少同步来源身份的书签冲突。');
+  }
   const pending: BookmarkSyncPendingConflict = {
     provider,
+    sourceIdentity: normalizedSourceIdentity,
     detectedAt: new Date().toISOString(),
     remoteCommitId: result.remoteCommitId || '',
     summary: result.summaryText || '检测到书签同步冲突',
@@ -114,20 +130,33 @@ export type BookmarkSyncRuntimeProvider =
       requestTimeoutMs?: number;
     };
 
-const createBookmarkSyncSourceIdentity = (
+export const createBookmarkSyncSourceIdentity = (
   provider: BookmarkSyncRuntimeProvider,
   rootPath: string,
 ): string => {
   const normalizedRootPath = String(rootPath || '').trim().replace(/^\/+/, '').replace(/\/+$/, '');
   if (provider.remoteKind === 'aira-cloud') {
-    return `aira-cloud:${String(provider.uid || '').trim()}:${normalizedRootPath}`;
+    return [
+      'aira-cloud',
+      String(provider.uid || '').trim(),
+      normalizedRootPath,
+    ].map((value) => encodeURIComponent(value)).join(':');
   }
   return [
     'webdav',
     String(provider.url || '').trim().replace(/\/+$/, ''),
     String(provider.username || '').trim(),
     normalizedRootPath,
-  ].join(':');
+  ].map((value) => encodeURIComponent(value)).join(':');
+};
+
+export const isPendingBookmarkConflictForSource = (
+  pending: BookmarkSyncPendingConflict,
+  provider: BookmarkSyncRuntimeProvider,
+  rootPath: string,
+): boolean => {
+  return pending.provider === provider.remoteKind
+    && pending.sourceIdentity === createBookmarkSyncSourceIdentity(provider, rootPath);
 };
 
 export interface BookmarkSyncLocalAdapter {

@@ -24,7 +24,8 @@ export interface LeafTabSyncWebdavStoreConfig {
   requestTimeoutMs?: number;
 }
 
-type WebdavMethod = 'GET' | 'PUT' | 'DELETE' | 'MKCOL';
+type WebdavMethod = 'GET' | 'PUT' | 'DELETE' | 'MKCOL' | 'MOVE';
+type WebdavCreateMode = 'if-none-match' | 'move-no-overwrite';
 
 type WebdavRequestResult = {
   status: number;
@@ -65,7 +66,7 @@ export class LeafTabSyncWebdavError extends Error {
 const BOOKMARK_WEBDAV_FILE_VERSION = 1;
 const BOOKMARK_WEBDAV_SNAPSHOT_FILE = 'snapshot.json';
 const DEFAULT_WEBDAV_REQUEST_TIMEOUT_MS = 15_000;
-const VERIFIED_CONDITIONAL_WRITE_PROVIDERS = new Set<string>();
+const VERIFIED_CONDITIONAL_WRITE_PROVIDERS = new Map<string, WebdavCreateMode>();
 
 const normalizeBaseUrl = (url: string) => {
   const trimmed = (url || '').trim().replace(/\/+$/, '');
@@ -144,7 +145,7 @@ export class LeafTabSyncWebdavStore implements LeafTabSyncRemoteStore {
   }
 
   async writeState(params: LeafTabSyncWriteStateParams): Promise<LeafTabSyncWriteStateResult> {
-    await this.ensureConditionalWriteSupport();
+    const createMode = await this.ensureConditionalWriteSupport();
     const expectedParentCommitId = params.parentCommitId ?? null;
     const current = await this.readSnapshotWithValidator();
     this.assertExactParent(current.file, expectedParentCommitId);
@@ -158,16 +159,20 @@ export class LeafTabSyncWebdavStore implements LeafTabSyncRemoteStore {
       createdAt,
       snapshot: toLeafTabSyncWireSnapshot(params.snapshot),
     };
-    const headers = expectedParentCommitId === null
-      ? { 'If-None-Match': '*' }
-      : (() => {
-          if (!current.etag) {
-            throw new Error('WebDAV 服务未提供 ETag，无法安全写入同步快照。');
-          }
-          return { 'If-Match': current.etag };
-        })();
     try {
-      await this.putJson(this.snapshotPath(), file, headers);
+      if (expectedParentCommitId === null && createMode === 'move-no-overwrite') {
+        await this.putJsonWithMoveNoOverwrite(this.snapshotPath(), file);
+      } else {
+        const headers = expectedParentCommitId === null
+          ? { 'If-None-Match': '*' }
+          : (() => {
+              if (!current.etag) {
+                throw new Error('WebDAV 服务未提供 ETag，无法安全写入同步快照。');
+              }
+              return { 'If-Match': current.etag };
+            })();
+        await this.putJson(this.snapshotPath(), file, headers);
+      }
     } catch (error) {
       if (error instanceof LeafTabSyncWebdavError && (error.status === 409 || error.status === 412)) {
         throw new Error('WebDAV 远端已被其他设备更新，请重新同步。');
@@ -178,6 +183,41 @@ export class LeafTabSyncWebdavStore implements LeafTabSyncRemoteStore {
       commitId,
       writtenAt: createdAt,
     };
+  }
+
+  private async putJsonWithMoveNoOverwrite(relativePath: string, payload: unknown) {
+    const suffix = `${Date.now().toString(36)}-${Math.floor(Math.random() * 0x100000000).toString(36)}`;
+    const tempPath = `${relativePath}.create-${suffix}.tmp`;
+    const body = JSON.stringify(payload);
+    try {
+      await this.ensureCollections(tempPath);
+      const upload = await this.request('PUT', tempPath, {
+        headers: { 'Content-Type': 'application/json' },
+        body,
+      });
+      if (!upload.ok) {
+        throw new LeafTabSyncWebdavError('move-upload', upload.status, tempPath);
+      }
+      const response = await this.movePath(tempPath, relativePath, false);
+      if (!response.ok) {
+        throw new LeafTabSyncWebdavError('move-create', response.status, relativePath);
+      }
+      const readBack = await this.getTextResult(relativePath);
+      if (!readBack || readBack.text !== body || !this.readHeaderValue(readBack.headers, 'etag')) {
+        throw new Error('WebDAV 服务无法确认 MOVE 首次写入结果，不支持安全同步。');
+      }
+    } finally {
+      await this.deletePath(tempPath).catch(() => undefined);
+    }
+  }
+
+  private movePath(sourcePath: string, destinationPath: string, overwrite: boolean) {
+    return this.request('MOVE', sourcePath, {
+      headers: {
+        Destination: joinUrl(this.config.url, destinationPath),
+        Overwrite: overwrite ? 'T' : 'F',
+      },
+    });
   }
 
   private snapshotPath() {
@@ -225,7 +265,8 @@ export class LeafTabSyncWebdavStore implements LeafTabSyncRemoteStore {
 
   private async ensureConditionalWriteSupport() {
     const providerKey = this.conditionalWriteProviderKey();
-    if (VERIFIED_CONDITIONAL_WRITE_PROVIDERS.has(providerKey)) return;
+    const verifiedMode = VERIFIED_CONDITIONAL_WRITE_PROVIDERS.get(providerKey);
+    if (verifiedMode) return verifiedMode;
     const probeId = `${Date.now().toString(36)}-${Math.floor(Math.random() * 0x100000000).toString(36)}`;
     const probePath = `${this.config.rootPath}/cas-probe-${probeId}.json`;
     await this.ensureCollections(probePath);
@@ -240,8 +281,8 @@ export class LeafTabSyncWebdavStore implements LeafTabSyncRemoteStore {
       if (!first.ok) {
         throw new LeafTabSyncWebdavError('cas-probe-create', first.status, probePath);
       }
-      const read = await this.getTextResult(probePath);
-      const etag = read ? this.readHeaderValue(read.headers, 'etag') : null;
+      let read = await this.getTextResult(probePath);
+      let etag = read ? this.readHeaderValue(read.headers, 'etag') : null;
       if (!etag) {
         throw new Error('WebDAV 服务未提供 ETag，不支持安全同步。');
       }
@@ -252,8 +293,18 @@ export class LeafTabSyncWebdavStore implements LeafTabSyncRemoteStore {
         },
         body: '{"step":2}',
       });
+      let createMode: WebdavCreateMode = 'if-none-match';
       if (duplicateCreate.status !== 409 && duplicateCreate.status !== 412) {
-        throw new Error('WebDAV 服务忽略 If-None-Match，不支持安全同步。');
+        if (!duplicateCreate.ok) {
+          throw new LeafTabSyncWebdavError('cas-probe-duplicate-create', duplicateCreate.status, probePath);
+        }
+        read = await this.getTextResult(probePath);
+        etag = read ? this.readHeaderValue(read.headers, 'etag') : null;
+        if (!etag) {
+          throw new Error('WebDAV 服务未提供 ETag，不支持安全同步。');
+        }
+        await this.verifyMoveNoOverwriteSupport(probeId);
+        createMode = 'move-no-overwrite';
       }
       const matchedUpdate = await this.request('PUT', probePath, {
         headers: {
@@ -275,9 +326,63 @@ export class LeafTabSyncWebdavStore implements LeafTabSyncRemoteStore {
       if (staleUpdate.status !== 409 && staleUpdate.status !== 412) {
         throw new Error('WebDAV 服务忽略 If-Match，不支持安全同步。');
       }
-      VERIFIED_CONDITIONAL_WRITE_PROVIDERS.add(providerKey);
+      VERIFIED_CONDITIONAL_WRITE_PROVIDERS.set(providerKey, createMode);
+      return createMode;
     } finally {
       await this.deletePath(probePath).catch(() => undefined);
+    }
+  }
+
+  private async verifyMoveNoOverwriteSupport(probeId: string) {
+    const sourcePath = `${this.config.rootPath}/move-probe-${probeId}-source.json`;
+    const destinationPath = `${this.config.rootPath}/move-probe-${probeId}-destination.json`;
+    const preservedBody = '{"target":1}';
+    const movedBody = '{"source":2}';
+    try {
+      const destinationCreate = await this.request('PUT', destinationPath, {
+        headers: { 'Content-Type': 'application/json' },
+        body: preservedBody,
+      });
+      if (!destinationCreate.ok) {
+        throw new LeafTabSyncWebdavError('move-probe-target', destinationCreate.status, destinationPath);
+      }
+      const sourceCreate = await this.request('PUT', sourcePath, {
+        headers: { 'Content-Type': 'application/json' },
+        body: movedBody,
+      });
+      if (!sourceCreate.ok) {
+        throw new LeafTabSyncWebdavError('move-probe-source', sourceCreate.status, sourcePath);
+      }
+      const rejectedMove = await this.movePath(sourcePath, destinationPath, false);
+      if (rejectedMove.status !== 409 && rejectedMove.status !== 412) {
+        throw new Error(
+          `WebDAV 服务忽略 MOVE Overwrite: F，不支持安全首次写入（HTTP ${rejectedMove.status}）。`,
+        );
+      }
+      const preserved = await this.getTextResult(destinationPath);
+      if (!preserved || preserved.text !== preservedBody) {
+        throw new Error('WebDAV 服务在拒绝 MOVE 后仍修改了目标文件，不支持安全首次写入。');
+      }
+      await this.deletePath(sourcePath).catch(() => undefined);
+      await this.deletePath(destinationPath).catch(() => undefined);
+      const createSource = await this.request('PUT', sourcePath, {
+        headers: { 'Content-Type': 'application/json' },
+        body: movedBody,
+      });
+      if (!createSource.ok) {
+        throw new LeafTabSyncWebdavError('move-probe-create-source', createSource.status, sourcePath);
+      }
+      const acceptedMove = await this.movePath(sourcePath, destinationPath, false);
+      if (!acceptedMove.ok) {
+        throw new LeafTabSyncWebdavError('move-probe-create', acceptedMove.status, destinationPath);
+      }
+      const moved = await this.getTextResult(destinationPath);
+      if (!moved || moved.text !== movedBody || !this.readHeaderValue(moved.headers, 'etag')) {
+        throw new Error('WebDAV 服务无法确认 MOVE 首次写入结果，不支持安全同步。');
+      }
+    } finally {
+      await this.deletePath(sourcePath).catch(() => undefined);
+      await this.deletePath(destinationPath).catch(() => undefined);
     }
   }
 

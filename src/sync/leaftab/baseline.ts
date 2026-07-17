@@ -10,19 +10,6 @@ export interface LeafTabSyncBaselineStore {
   save(baseline: LeafTabSyncBaseline): Promise<void>;
 }
 
-export class LeafTabSyncMemoryBaselineStore implements LeafTabSyncBaselineStore {
-  private value: LeafTabSyncBaseline | null = null;
-
-  async load() {
-    return this.value ? JSON.parse(JSON.stringify(this.value)) as LeafTabSyncBaseline : null;
-  }
-
-  async save(baseline: LeafTabSyncBaseline) {
-    this.value = JSON.parse(JSON.stringify(baseline)) as LeafTabSyncBaseline;
-  }
-
-}
-
 export class LeafTabSyncExtensionStorageBaselineStore implements LeafTabSyncBaselineStore {
   private readonly key: string;
 

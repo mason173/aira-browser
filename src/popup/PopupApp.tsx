@@ -72,6 +72,7 @@ type ConfiguredHomeState = {
 };
 
 type PopupSyncRuntime = Pick<LeafTabSyncFacade, 'state' | 'actions'>;
+type BookmarkDataSummary = PopupSyncRuntime['state']['leafTabLocalSummary'];
 
 const getShortUid = (source: string) => {
   const normalized = source.trim();
@@ -645,6 +646,15 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+function formatBookmarkDataSummary(
+  summary: BookmarkDataSummary,
+  loading: boolean,
+) {
+  if (loading && !summary) return '读取中...';
+  if (!summary) return '尚未读取';
+  return `${summary.bookmarkFolders} 个文件夹 · ${summary.bookmarkItems} 个书签`;
+}
+
 function BookmarkSyncControls({
   syncRuntime,
   onSelectCloud,
@@ -680,11 +690,6 @@ function BookmarkSyncControls({
   const lastSyncLabel = selectedSource === 'aira-cloud'
     ? syncRuntime.state.leafTabCloudLastSyncLabel
     : syncRuntime.state.leafTabWebdavLastSyncLabel;
-  const formatDataSummary = (summary: typeof syncRuntime.state.leafTabLocalSummary) => {
-    if (syncRuntime.state.leafTabSummaryLoading && !summary) return '读取中...';
-    if (!summary) return '尚未读取';
-    return `${summary.bookmarkFolders} 个文件夹 · ${summary.bookmarkItems} 个书签`;
-  };
 
   if (!selectedSource) {
     return (
@@ -731,13 +736,19 @@ function BookmarkSyncControls({
           />
           <InfoRow
             label={t('popup.dashboard.localData', { defaultValue: '本机数据' })}
-            value={formatDataSummary(syncRuntime.state.leafTabLocalSummary)}
+            value={formatBookmarkDataSummary(
+              syncRuntime.state.leafTabLocalSummary,
+              syncRuntime.state.leafTabSummaryLoading,
+            )}
           />
           <InfoRow
             label={selectedSource === 'aira-cloud'
               ? t('popup.dashboard.cloudData', { defaultValue: '云端数据' })
               : t('popup.dashboard.webdavData', { defaultValue: 'WebDAV 数据' })}
-            value={formatDataSummary(syncRuntime.state.leafTabRemoteSummary)}
+            value={formatBookmarkDataSummary(
+              syncRuntime.state.leafTabRemoteSummary,
+              syncRuntime.state.leafTabSummaryLoading,
+            )}
           />
         </div>
       </div>
@@ -983,6 +994,12 @@ function AdvancedSettingsPage({
   onBack: () => void;
 }) {
   const { t } = useTranslation();
+  const selectedSource = syncRuntime.state.leafTabSelectedSyncSource;
+  const remoteDataLabel = selectedSource === 'aira-cloud'
+    ? t('popup.dashboard.cloudData', { defaultValue: '云端数据' })
+    : selectedSource === 'webdav'
+      ? t('popup.dashboard.webdavData', { defaultValue: 'WebDAV 数据' })
+      : t('popup.dashboard.remoteData', { defaultValue: '云端数据' });
   return (
     <section className="min-h-[360px] bg-background">
       <PopupHeader
@@ -990,6 +1007,26 @@ function AdvancedSettingsPage({
         onBack={onBack}
       />
       <div className="space-y-2 px-3 py-3">
+        <SectionLabel>
+          {t('popup.advanced.bookmarkData', { defaultValue: '书签数据' })}
+        </SectionLabel>
+        <div className="overflow-hidden rounded-[8px] border border-border bg-card">
+          <InfoRow
+            label={t('popup.dashboard.localData', { defaultValue: '本机数据' })}
+            value={formatBookmarkDataSummary(
+              syncRuntime.state.leafTabLocalSummary,
+              syncRuntime.state.leafTabSummaryLoading,
+            )}
+          />
+          <InfoRow
+            label={remoteDataLabel}
+            value={formatBookmarkDataSummary(
+              syncRuntime.state.leafTabRemoteSummary,
+              syncRuntime.state.leafTabSummaryLoading,
+            )}
+          />
+        </div>
+
         <SectionLabel>
           {t('popup.advanced.autoSyncDiagnostics', { defaultValue: '自动同步诊断' })}
         </SectionLabel>

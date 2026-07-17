@@ -46,6 +46,11 @@ export type AiraDesktopAuthorizedSession = {
   deviceCredential: string;
 };
 
+export type AiraDesktopConnectionIdentityExpectation = Pick<
+  AiraDesktopAuthorizedSession,
+  'uid' | 'deviceCredential'
+>;
+
 export type AiraDesktopPairingSession = {
   sessionId: string;
   pollToken: string;
@@ -190,10 +195,16 @@ export class AiraDesktopConnectionModule {
     return toSnapshot(null);
   }
 
-  async recordRemoteFailure(error: unknown): Promise<AiraDesktopConnectionSnapshot> {
+  async recordRemoteFailure(
+    error: unknown,
+    expectedIdentity?: AiraDesktopConnectionIdentityExpectation,
+  ): Promise<AiraDesktopConnectionSnapshot> {
     const record = await this.storage.read();
     if (!record) {
       return toSnapshot(null);
+    }
+    if (!matchesExpectedIdentity(record, expectedIdentity)) {
+      return toSnapshot(record);
     }
     const normalized = normalizeRemoteError(error, this.now());
     const reauthRequired = isAiraDesktopCredentialRejection(normalized);
@@ -234,9 +245,23 @@ export class AiraDesktopConnectionModule {
       await this.storage.write(nextRecord);
       return toSnapshot(nextRecord);
     } catch (error) {
-      return this.recordRemoteFailure(error);
+      return this.recordRemoteFailure(error, {
+        uid: session.uid,
+        deviceCredential: session.deviceCredential,
+      });
     }
   }
+}
+
+function matchesExpectedIdentity(
+  record: AiraDesktopConnectionRecord,
+  expectedIdentity?: AiraDesktopConnectionIdentityExpectation,
+): boolean {
+  if (!expectedIdentity) {
+    return true;
+  }
+  return record.account?.uid === expectedIdentity.uid
+    && record.credential === expectedIdentity.deviceCredential;
 }
 
 function canUseCachedMembership(record: AiraDesktopConnectionRecord, now: number): boolean {

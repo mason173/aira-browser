@@ -368,7 +368,10 @@ async function pollPhonePagePushOnce(options: { waitMs?: number } = {}): Promise
           error: opened ? '' : 'tabs.create unavailable or failed',
         });
       } catch (error) {
-        const snapshot = await recordAiraDesktopConnectionFailure(error).catch(() => null);
+        const snapshot = await recordAiraDesktopConnectionFailure(error, {
+          uid: profile.uid,
+          deviceCredential: profile.deviceCredential,
+        }).catch(() => null);
         if (snapshot?.status === 'reauth-required') {
           continuePolling = false;
         }
@@ -377,7 +380,10 @@ async function pollPhonePagePushOnce(options: { waitMs?: number } = {}): Promise
       return opened;
     } catch (error) {
       nextDelayMs = PHONE_PAGE_PUSH_ERROR_RETRY_MS;
-      const snapshot = await recordAiraDesktopConnectionFailure(error).catch(() => null);
+      const snapshot = await recordAiraDesktopConnectionFailure(error, {
+        uid: profile.uid,
+        deviceCredential: profile.deviceCredential,
+      }).catch(() => null);
       if (snapshot?.status === 'reauth-required') {
         continuePolling = false;
       }

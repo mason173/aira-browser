@@ -5,8 +5,9 @@ import type {
 import {
   readAiraDesktopAuthorizedSession,
   readAiraDesktopConnectionSnapshot,
-  refreshAiraDesktopConnectionMembership,
+  refreshAiraDesktopConnectionMembershipWithinExecutionLock,
 } from './desktopConnectionRuntime';
+import { withBookmarkSyncExecutionLock } from '@/sync/leaftab/executionLock';
 
 const MEMBERSHIP_REFRESH_MIN_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -33,6 +34,13 @@ export type AiraDesktopProCapabilityStatus =
   | 'temporarily-unavailable';
 
 export async function readAiraDesktopConnectionProfile(): Promise<AiraDesktopConnectionProfile | null> {
+  return withBookmarkSyncExecutionLock(() => {
+    return readAiraDesktopConnectionProfileWithinExecutionLock();
+  });
+}
+
+export async function readAiraDesktopConnectionProfileWithinExecutionLock(
+): Promise<AiraDesktopConnectionProfile | null> {
   const [snapshot, session] = await Promise.all([
     readAiraDesktopConnectionSnapshot(),
     readAiraDesktopAuthorizedSession(),
@@ -62,7 +70,15 @@ export function resolveAiraDesktopProCapability(
 export async function refreshAiraDesktopConnectionProfileMembership(
   options: { force?: boolean } = {},
 ): Promise<AiraDesktopConnectionProfile | null> {
-  const snapshot = await refreshAiraDesktopConnectionMembership(options);
+  return withBookmarkSyncExecutionLock(() => {
+    return refreshAiraDesktopConnectionProfileMembershipWithinExecutionLock(options);
+  });
+}
+
+export async function refreshAiraDesktopConnectionProfileMembershipWithinExecutionLock(
+  options: { force?: boolean } = {},
+): Promise<AiraDesktopConnectionProfile | null> {
+  const snapshot = await refreshAiraDesktopConnectionMembershipWithinExecutionLock(options);
   const session = await readAiraDesktopAuthorizedSession();
   return profileFromConnection(snapshot, session?.deviceCredential || '');
 }

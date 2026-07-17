@@ -95,6 +95,7 @@ export const popupI18nReady = popupI18n
             advanced: {
               autoSyncDiagnostics: 'Automatic sync diagnostics',
               autoSyncDiagnosticsDesc: 'View the automatic check schedule and latest error',
+              bookmarkData: 'Bookmark data',
             },
             progress: {
               done: 'Done',
@@ -211,6 +212,7 @@ export const popupI18nReady = popupI18n
             advanced: {
               autoSyncDiagnostics: '自动同步诊断',
               autoSyncDiagnosticsDesc: '查看自动检查计划与最近错误',
+              bookmarkData: '书签数据',
             },
             progress: {
               done: '知道了',
