@@ -225,9 +225,17 @@ export class LeafTabSyncWebdavStore implements LeafTabSyncRemoteStore {
   }
 
   private async readSnapshotWithValidator(): Promise<LeafTabSyncWebdavSnapshotRead> {
-    const response = await this.getTextResult(this.snapshotPath());
-    if (!response) {
+    const path = this.snapshotPath();
+    let response = await this.request('GET', path, { headers: {} });
+    if (response.status === 409) {
+      await this.ensureCollections(path);
+      response = await this.request('GET', path, { headers: {} });
+    }
+    if (response.status === 404) {
       return { file: null, snapshot: null, etag: null };
+    }
+    if (!response.ok) {
+      throw new LeafTabSyncWebdavError('download', response.status, path);
     }
     const file = parseJsonOrNull<LeafTabSyncWebdavSnapshotFile>(response.text);
     const snapshot = parseCanonicalLeafTabSyncWireSnapshot(file?.snapshot);
@@ -507,7 +515,7 @@ export class LeafTabSyncWebdavStore implements LeafTabSyncRemoteStore {
 
   private async getTextResult(relativePath: string): Promise<WebdavRequestResult | null> {
     const response = await this.request('GET', relativePath, { headers: {} });
-    if (response.status === 404 || response.status === 409) return null;
+    if (response.status === 404) return null;
     if (!response.ok) {
       throw new LeafTabSyncWebdavError('download', response.status, relativePath);
     }
