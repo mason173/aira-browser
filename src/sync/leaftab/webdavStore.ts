@@ -279,14 +279,31 @@ export class LeafTabSyncWebdavStore implements LeafTabSyncRemoteStore {
     const probePath = `${this.config.rootPath}/cas-probe-${probeId}.json`;
     await this.ensureCollections(probePath);
     try {
-      const first = await this.request('PUT', probePath, {
+      let first = await this.request('PUT', probePath, {
         headers: {
           'Content-Type': 'application/json',
           'If-None-Match': '*',
         },
         body: '{"step":1}',
       });
-      if (!first.ok) {
+      let createMode: WebdavCreateMode = 'if-none-match';
+      if (first.status === 409 || first.status === 412) {
+        const probeReadAfterRejectedCreate = await this.getTextResult(probePath);
+        if (probeReadAfterRejectedCreate) {
+          throw new Error(
+            'WebDAV 服务拒绝首次条件写入，但探测文件实际存在，无法安全判断首次写入能力。',
+          );
+        }
+        first = await this.request('PUT', probePath, {
+          headers: { 'Content-Type': 'application/json' },
+          body: '{"step":1}',
+        });
+        if (!first.ok) {
+          throw new LeafTabSyncWebdavError('cas-probe-fallback-create', first.status, probePath);
+        }
+        await this.verifyMoveNoOverwriteSupport(probeId);
+        createMode = 'move-no-overwrite';
+      } else if (!first.ok) {
         throw new LeafTabSyncWebdavError('cas-probe-create', first.status, probePath);
       }
       let read = await this.getTextResult(probePath);
@@ -301,7 +318,6 @@ export class LeafTabSyncWebdavStore implements LeafTabSyncRemoteStore {
         },
         body: '{"step":2}',
       });
-      let createMode: WebdavCreateMode = 'if-none-match';
       if (duplicateCreate.status !== 409 && duplicateCreate.status !== 412) {
         if (!duplicateCreate.ok) {
           throw new LeafTabSyncWebdavError('cas-probe-duplicate-create', duplicateCreate.status, probePath);
@@ -311,7 +327,9 @@ export class LeafTabSyncWebdavStore implements LeafTabSyncRemoteStore {
         if (!etag) {
           throw new Error('WebDAV 服务未提供 ETag，不支持安全同步。');
         }
-        await this.verifyMoveNoOverwriteSupport(probeId);
+        if (createMode !== 'move-no-overwrite') {
+          await this.verifyMoveNoOverwriteSupport(probeId);
+        }
         createMode = 'move-no-overwrite';
       }
       const matchedUpdate = await this.request('PUT', probePath, {
