@@ -26,6 +26,12 @@ export interface LeafTabSyncWebdavStoreConfig {
 
 type WebdavMethod = 'GET' | 'PUT' | 'DELETE' | 'MKCOL' | 'MOVE';
 type WebdavCreateMode = 'if-none-match' | 'move-no-overwrite';
+type WebdavRevisionCondition = 'if-match' | 'webdav-if';
+
+type WebdavConditionalWriteSupport = {
+  createMode: WebdavCreateMode;
+  weakEtagIfVerified: boolean;
+};
 
 type WebdavRequestResult = {
   status: number;
@@ -66,7 +72,7 @@ export class LeafTabSyncWebdavError extends Error {
 const BOOKMARK_WEBDAV_FILE_VERSION = 1;
 const BOOKMARK_WEBDAV_SNAPSHOT_FILE = 'snapshot.json';
 const DEFAULT_WEBDAV_REQUEST_TIMEOUT_MS = 15_000;
-const VERIFIED_CONDITIONAL_WRITE_PROVIDERS = new Map<string, WebdavCreateMode>();
+const VERIFIED_CONDITIONAL_WRITE_PROVIDERS = new Map<string, WebdavConditionalWriteSupport>();
 
 const normalizeBaseUrl = (url: string) => {
   const trimmed = (url || '').trim().replace(/\/+$/, '');
@@ -145,7 +151,8 @@ export class LeafTabSyncWebdavStore implements LeafTabSyncRemoteStore {
   }
 
   async writeState(params: LeafTabSyncWriteStateParams): Promise<LeafTabSyncWriteStateResult> {
-    const createMode = await this.ensureConditionalWriteSupport();
+    const conditionalWriteSupport = await this.ensureConditionalWriteSupport();
+    const createMode = conditionalWriteSupport.createMode;
     const expectedParentCommitId = params.parentCommitId ?? null;
     const current = await this.readSnapshotWithValidator();
     this.assertExactParent(current.file, expectedParentCommitId);
@@ -169,7 +176,7 @@ export class LeafTabSyncWebdavStore implements LeafTabSyncRemoteStore {
               if (!current.etag) {
                 throw new Error('WebDAV 服务未提供 ETag，无法安全写入同步快照。');
               }
-              return { 'If-Match': current.etag };
+              return this.buildVerifiedRevisionCondition(current.etag, conditionalWriteSupport);
             })();
         await this.putJson(this.snapshotPath(), file, headers);
       }
@@ -332,10 +339,11 @@ export class LeafTabSyncWebdavStore implements LeafTabSyncRemoteStore {
         }
         createMode = 'move-no-overwrite';
       }
+      const revisionCondition = this.revisionConditionForEtag(etag);
       const matchedUpdate = await this.request('PUT', probePath, {
         headers: {
           'Content-Type': 'application/json',
-          'If-Match': etag,
+          ...this.buildRevisionCondition(etag, revisionCondition),
         },
         body: '{"step":3}',
       });
@@ -345,15 +353,19 @@ export class LeafTabSyncWebdavStore implements LeafTabSyncRemoteStore {
       const staleUpdate = await this.request('PUT', probePath, {
         headers: {
           'Content-Type': 'application/json',
-          'If-Match': etag,
+          ...this.buildRevisionCondition(etag, revisionCondition),
         },
         body: '{"step":4}',
       });
       if (staleUpdate.status !== 409 && staleUpdate.status !== 412) {
-        throw new Error('WebDAV 服务忽略 If-Match，不支持安全同步。');
+        throw new Error('WebDAV 服务忽略条件版本，不支持安全同步。');
       }
-      VERIFIED_CONDITIONAL_WRITE_PROVIDERS.set(providerKey, createMode);
-      return createMode;
+      const support: WebdavConditionalWriteSupport = {
+        createMode,
+        weakEtagIfVerified: revisionCondition === 'webdav-if',
+      };
+      VERIFIED_CONDITIONAL_WRITE_PROVIDERS.set(providerKey, support);
+      return support;
     } finally {
       await this.deletePath(probePath).catch(() => undefined);
     }
@@ -410,6 +422,31 @@ export class LeafTabSyncWebdavStore implements LeafTabSyncRemoteStore {
       await this.deletePath(sourcePath).catch(() => undefined);
       await this.deletePath(destinationPath).catch(() => undefined);
     }
+  }
+
+  private revisionConditionForEtag(etag: string): WebdavRevisionCondition {
+    return etag.startsWith('W/') ? 'webdav-if' : 'if-match';
+  }
+
+  private buildRevisionCondition(
+    etag: string,
+    revisionCondition: WebdavRevisionCondition,
+  ): Record<string, string> {
+    if (revisionCondition === 'webdav-if') {
+      return { If: `([${etag}])` };
+    }
+    return { 'If-Match': etag };
+  }
+
+  private buildVerifiedRevisionCondition(
+    etag: string,
+    support: WebdavConditionalWriteSupport,
+  ): Record<string, string> {
+    const revisionCondition = this.revisionConditionForEtag(etag);
+    if (revisionCondition === 'webdav-if' && !support.weakEtagIfVerified) {
+      throw new Error('WebDAV 服务未验证弱 ETag 条件能力，无法安全写入同步快照。');
+    }
+    return this.buildRevisionCondition(etag, revisionCondition);
   }
 
   private async ensurePermission(_relativePath: string) {
