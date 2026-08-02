@@ -72,6 +72,7 @@ export class LeafTabSyncWebdavError extends Error {
 const BOOKMARK_WEBDAV_FILE_VERSION = 1;
 const BOOKMARK_WEBDAV_SNAPSHOT_FILE = 'snapshot.json';
 const DEFAULT_WEBDAV_REQUEST_TIMEOUT_MS = 15_000;
+const CAS_PROBE_CONFIRMATION_DELAYS_MS = [0, 100, 250, 500] as const;
 const VERIFIED_CONDITIONAL_WRITE_PROVIDERS = new Map<string, WebdavConditionalWriteSupport>();
 
 const normalizeBaseUrl = (url: string) => {
@@ -329,11 +330,7 @@ export class LeafTabSyncWebdavStore implements LeafTabSyncRemoteStore {
         if (!duplicateCreate.ok) {
           throw new LeafTabSyncWebdavError('cas-probe-duplicate-create', duplicateCreate.status, probePath);
         }
-        read = await this.getTextResult(probePath);
-        etag = read ? this.readHeaderValue(read.headers, 'etag') : null;
-        if (!etag) {
-          throw new Error('WebDAV 服务未提供 ETag，不支持安全同步。');
-        }
+        etag = await this.confirmProbeState(probePath, '{"step":2}');
         if (createMode !== 'move-no-overwrite') {
           await this.verifyMoveNoOverwriteSupport(probeId);
         }
@@ -449,6 +446,22 @@ export class LeafTabSyncWebdavStore implements LeafTabSyncRemoteStore {
     return this.buildRevisionCondition(etag, revisionCondition);
   }
 
+  private async confirmProbeState(relativePath: string, expectedBody: string): Promise<string> {
+    for (const delayMs of CAS_PROBE_CONFIRMATION_DELAYS_MS) {
+      if (delayMs > 0) {
+        await new Promise<void>((resolve) => {
+          globalThis.setTimeout(resolve, delayMs);
+        });
+      }
+      const read = await this.getTextResult(relativePath);
+      const etag = read ? this.readHeaderValue(read.headers, 'etag') : null;
+      if (read?.text === expectedBody && etag) {
+        return etag;
+      }
+    }
+    throw new Error('WebDAV 服务未及时返回最新探测文件版本，无法安全同步。');
+  }
+
   private async ensurePermission(_relativePath: string) {
     if (this.permissionGranted) return;
     const granted = await ensureOriginPermission(this.config.url, {
@@ -529,7 +542,10 @@ export class LeafTabSyncWebdavStore implements LeafTabSyncRemoteStore {
     options?: { headers?: Record<string, string>; body?: string },
   ): Promise<WebdavRequestResult> {
     await this.ensurePermission(relativePath);
-    const headers = this.getHeaders(options?.headers);
+    const headers = this.getHeaders({
+      ...(options?.headers || {}),
+      ...(method === 'GET' ? { 'Cache-Control': 'no-cache' } : {}),
+    });
     const proxied = await this.requestViaExtensionProxy(method, relativePath, headers, options?.body);
     if (proxied) return proxied;
     const controller = new AbortController();
@@ -542,6 +558,7 @@ export class LeafTabSyncWebdavStore implements LeafTabSyncRemoteStore {
         headers,
         body: options?.body,
         signal: controller.signal,
+        cache: method === 'GET' ? 'no-store' : undefined,
       });
       return {
         status: response.status,

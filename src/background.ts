@@ -498,6 +498,7 @@ function bindWebdavProxyMessageListener(): void {
           headers,
           body,
           signal: controller.signal,
+          cache: method === 'GET' ? 'no-store' : undefined,
         });
         const responseText = await response.text();
         sendResponse({
