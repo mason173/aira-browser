@@ -1,6 +1,8 @@
 import {
   parseCanonicalLeafTabSyncWireSnapshot,
   toLeafTabSyncWireSnapshot,
+  validateCanonicalLeafTabSyncSnapshot,
+  type LeafTabSyncHistoryDescriptor,
   type LeafTabSyncSnapshot,
   type LeafTabSyncWireSnapshot,
 } from './schema';
@@ -11,8 +13,9 @@ import type {
   LeafTabSyncWriteStateParams,
   LeafTabSyncWriteStateResult,
 } from './remoteStore';
+import { LeafTabSyncTombstoneLifecycle } from './historyLifecycle';
 
-const AIRA_CLOUD_SYNC_ENDPOINT = 'https://api.aira.cool/sync/v2/bookmarks';
+const AIRA_CLOUD_SYNC_ENDPOINT = 'https://api.aira.cool/sync/v3/bookmarks';
 const AIRA_CLOUD_REQUEST_TIMEOUT_MS = 60_000;
 const AIRA_CLOUD_LARGE_REQUEST_TIMEOUT_MS = 600_000;
 
@@ -23,6 +26,7 @@ type AiraCloudResponse = {
   code?: string;
   message?: string;
   snapshot?: AiraCloudSnapshot | null;
+  history?: LeafTabSyncHistoryDescriptor | null;
   commitId?: string | null;
   updatedAt?: number;
   bookmarkFolders?: number;
@@ -63,6 +67,7 @@ export class LeafTabSyncAiraCloudStore implements LeafTabSyncRemoteStore {
   private readonly uid: string;
   private readonly deviceCredential: string;
   private readonly endpoint: string;
+  private readonly historyLifecycle = new LeafTabSyncTombstoneLifecycle();
 
   constructor(uid: string, deviceCredential: string, endpoint = AIRA_CLOUD_SYNC_ENDPOINT) {
     this.uid = uid.trim();
@@ -99,28 +104,39 @@ export class LeafTabSyncAiraCloudStore implements LeafTabSyncRemoteStore {
       source: 'airatab',
     }, AIRA_CLOUD_LARGE_REQUEST_TIMEOUT_MS);
     const snapshot = fromCloudSnapshot(response.snapshot);
+    const history = response.history === null || response.history === undefined
+      ? null
+      : this.historyLifecycle.validateHistory(response.history);
     const commitId = typeof response.commitId === 'string' && response.commitId.trim()
       ? response.commitId.trim()
       : null;
-    if (Boolean(snapshot) !== Boolean(commitId)) {
+    if (Boolean(snapshot) !== Boolean(commitId) || Boolean(snapshot) !== Boolean(history)) {
       throw new LeafTabSyncAiraCloudError('Aira 云书签同步状态不完整。', 'invalid_snapshot');
+    }
+    if (snapshot && history) {
+      this.historyLifecycle.assertSnapshotWithinHistory(snapshot, history, 'Aira 云');
     }
     return {
       snapshot,
       commitId,
+      history,
     };
   }
 
   async writeState(params: LeafTabSyncWriteStateParams): Promise<LeafTabSyncWriteStateResult> {
     this.assertConfigured();
+    const snapshot = validateCanonicalLeafTabSyncSnapshot(params.snapshot, 'Aira 云');
+    const history = this.historyLifecycle.validateHistory(params.history);
+    this.historyLifecycle.assertSnapshotWithinHistory(snapshot, history, 'Aira 云');
     const response = await this.post('/write', {
       uid: this.uid,
       desktopPushToken: this.deviceCredential,
       source: 'airatab',
       deviceId: params.deviceId,
       parentCommitId: params.parentCommitId ?? null,
-      createdAt: params.createdAt ?? params.snapshot.meta.generatedAt,
-      snapshot: toCloudSnapshot(params.snapshot),
+      createdAt: params.createdAt ?? snapshot.meta.generatedAt,
+      history,
+      snapshot: toCloudSnapshot(snapshot),
     }, AIRA_CLOUD_LARGE_REQUEST_TIMEOUT_MS);
     const commitId = typeof response.commitId === 'string' && response.commitId.trim()
       ? response.commitId.trim()
@@ -128,7 +144,7 @@ export class LeafTabSyncAiraCloudStore implements LeafTabSyncRemoteStore {
     if (!commitId) {
       throw new Error('Aira 云同步服务没有返回 commitId。');
     }
-    const writtenAt = response.writtenAt || params.createdAt || params.snapshot.meta.generatedAt;
+    const writtenAt = response.writtenAt || params.createdAt || snapshot.meta.generatedAt;
     return {
       commitId,
       writtenAt,

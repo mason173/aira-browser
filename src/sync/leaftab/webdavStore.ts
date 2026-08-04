@@ -4,6 +4,8 @@ import {
   LEAFTAB_SYNC_DEFAULT_ROOT,
   parseCanonicalLeafTabSyncWireSnapshot,
   toLeafTabSyncWireSnapshot,
+  validateCanonicalLeafTabSyncSnapshot,
+  type LeafTabSyncHistoryDescriptor,
   type LeafTabSyncSnapshot,
   type LeafTabSyncWireSnapshot,
 } from './schema';
@@ -14,6 +16,7 @@ import type {
   LeafTabSyncWriteStateParams,
   LeafTabSyncWriteStateResult,
 } from './remoteStore';
+import { LeafTabSyncTombstoneLifecycle } from './historyLifecycle';
 
 export interface LeafTabSyncWebdavStoreConfig {
   url: string;
@@ -42,6 +45,7 @@ type WebdavRequestResult = {
 
 type LeafTabSyncWebdavSnapshotFile = {
   version: number;
+  history: LeafTabSyncHistoryDescriptor;
   commitId: string;
   parentCommitId: string | null;
   deviceId: string;
@@ -69,7 +73,7 @@ export class LeafTabSyncWebdavError extends Error {
   }
 }
 
-const BOOKMARK_WEBDAV_FILE_VERSION = 1;
+const BOOKMARK_WEBDAV_FILE_VERSION = 2;
 const BOOKMARK_WEBDAV_SNAPSHOT_FILE = 'snapshot.json';
 const DEFAULT_WEBDAV_REQUEST_TIMEOUT_MS = 15_000;
 const CAS_PROBE_CONFIRMATION_DELAYS_MS = [0, 100, 250, 500] as const;
@@ -112,6 +116,7 @@ export class LeafTabSyncWebdavStore implements LeafTabSyncRemoteStore {
   private readonly config: Required<LeafTabSyncWebdavStoreConfig>;
   private permissionGranted = false;
   private readonly ensuredCollections = new Set<string>();
+  private readonly historyLifecycle = new LeafTabSyncTombstoneLifecycle();
 
   constructor(config: LeafTabSyncWebdavStoreConfig) {
     this.config = {
@@ -127,9 +132,13 @@ export class LeafTabSyncWebdavStore implements LeafTabSyncRemoteStore {
   async readState(): Promise<LeafTabSyncRemoteState> {
     const read = await this.readSnapshotWithValidator();
     if (!read.file || !read.snapshot) {
-      return { snapshot: null, commitId: null };
+      return { snapshot: null, commitId: null, history: null };
     }
-    return { snapshot: read.snapshot, commitId: read.file.commitId };
+    return {
+      snapshot: read.snapshot,
+      commitId: read.file.commitId,
+      history: read.file.history,
+    };
   }
 
   async readHead(): Promise<LeafTabSyncRemoteHead> {
@@ -152,20 +161,30 @@ export class LeafTabSyncWebdavStore implements LeafTabSyncRemoteStore {
   }
 
   async writeState(params: LeafTabSyncWriteStateParams): Promise<LeafTabSyncWriteStateResult> {
+    const snapshot = validateCanonicalLeafTabSyncSnapshot(params.snapshot, 'WebDAV ');
+    const history = this.historyLifecycle.validateHistory(params.history);
+    this.historyLifecycle.assertSnapshotWithinHistory(snapshot, history, 'WebDAV ');
     const conditionalWriteSupport = await this.ensureConditionalWriteSupport();
     const createMode = conditionalWriteSupport.createMode;
     const expectedParentCommitId = params.parentCommitId ?? null;
     const current = await this.readSnapshotWithValidator();
     this.assertExactParent(current.file, expectedParentCommitId);
-    const createdAt = params.createdAt || params.snapshot.meta.generatedAt;
+    if (current.file && !this.historyLifecycle.sameHistory(
+      this.historyLifecycle.selectNewerHistory(current.file.history, history),
+      history,
+    )) {
+      throw new Error('WebDAV 书签墓碑历史边界不能回退。');
+    }
+    const createdAt = params.createdAt || snapshot.meta.generatedAt;
     const commitId = createLeafTabSyncCommitId(params.deviceId, createdAt);
     const file: LeafTabSyncWebdavSnapshotFile = {
       version: BOOKMARK_WEBDAV_FILE_VERSION,
+      history,
       commitId,
       parentCommitId: expectedParentCommitId,
       deviceId: params.deviceId,
       createdAt,
-      snapshot: toLeafTabSyncWireSnapshot(params.snapshot),
+      snapshot: toLeafTabSyncWireSnapshot(snapshot),
     };
     try {
       if (expectedParentCommitId === null && createMode === 'move-no-overwrite') {
@@ -247,17 +266,22 @@ export class LeafTabSyncWebdavStore implements LeafTabSyncRemoteStore {
     }
     const file = parseJsonOrNull<LeafTabSyncWebdavSnapshotFile>(response.text);
     const snapshot = parseCanonicalLeafTabSyncWireSnapshot(file?.snapshot);
+    const history = file?.history
+      ? this.historyLifecycle.validateHistory(file.history)
+      : null;
     if (file?.version !== BOOKMARK_WEBDAV_FILE_VERSION
       || !file.commitId?.trim()
       || (file.parentCommitId !== null && !file.parentCommitId?.trim())
       || !file.deviceId?.trim()
       || !file.createdAt?.trim()
+      || !history
       || !snapshot
       || snapshot.meta.deviceId !== file.deviceId) {
       throw new Error('WebDAV 书签同步快照格式无效。');
     }
+    this.historyLifecycle.assertSnapshotWithinHistory(snapshot, history, 'WebDAV ');
     return {
-      file,
+      file: { ...file, history },
       snapshot,
       etag: this.readHeaderValue(response.headers, 'etag'),
     };

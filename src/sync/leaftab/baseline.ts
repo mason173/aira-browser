@@ -2,6 +2,7 @@ import {
   createLeafTabSyncCommitId,
   normalizeLeafTabSyncSnapshot,
   type LeafTabSyncBaseline,
+  type LeafTabSyncHistoryDescriptor,
   type LeafTabSyncSnapshot,
 } from './schema';
 
@@ -40,6 +41,7 @@ export class LeafTabSyncExtensionStorageBaselineStore implements LeafTabSyncBase
 
 export const createLeafTabSyncBaseline = (params: {
   snapshot: LeafTabSyncSnapshot;
+  history: LeafTabSyncHistoryDescriptor;
   commitId?: string | null;
 }) => {
   return {
@@ -47,6 +49,7 @@ export const createLeafTabSyncBaseline = (params: {
       params.snapshot.meta.deviceId,
       params.snapshot.meta.generatedAt,
     ),
+    history: params.history,
     snapshot: params.snapshot,
     savedAt: params.snapshot.meta.generatedAt,
   } satisfies LeafTabSyncBaseline;

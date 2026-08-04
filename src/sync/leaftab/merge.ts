@@ -14,6 +14,7 @@ import {
 
 export type LeafTabSyncMergeSource = 'local' | 'remote' | 'merged' | 'tombstone';
 export type LeafTabSyncConflictResolution = 'prefer-local' | 'prefer-remote';
+export type LeafTabSyncMergeIntent = 'ordinary' | 'provider-switch';
 
 export interface LeafTabSyncMergeConflict {
   id: string;
@@ -92,6 +93,7 @@ const resolveEntity = <T extends BookmarkEntity>(
     remoteTombstone: LeafTabSyncTombstone | null;
     fields: Array<keyof T>;
     conflictResolution?: LeafTabSyncConflictResolution;
+    mergeIntent?: LeafTabSyncMergeIntent;
   },
 ): {
   entity: T | null;
@@ -109,6 +111,7 @@ const resolveEntity = <T extends BookmarkEntity>(
     remoteTombstone,
     fields,
     conflictResolution,
+    mergeIntent,
   } = params;
 
   if (!localEntity && !remoteEntity) {
@@ -118,6 +121,9 @@ const resolveEntity = <T extends BookmarkEntity>(
 
   if (localEntity && !remoteEntity) {
     if (remoteTombstone) {
+      if (mergeIntent === 'provider-switch') {
+        return { entity: cloneEntity(localEntity), tombstone: null, source: 'local', conflict: null };
+      }
       if (remoteTombstone.lastKnownRevision >= localEntity.revision) {
         return { entity: null, tombstone: cloneTombstone(remoteTombstone), source: 'tombstone', conflict: null };
       }
@@ -148,6 +154,9 @@ const resolveEntity = <T extends BookmarkEntity>(
 
   if (!localEntity && remoteEntity) {
     if (localTombstone) {
+      if (mergeIntent === 'provider-switch') {
+        return { entity: cloneEntity(remoteEntity), tombstone: null, source: 'remote', conflict: null };
+      }
       if (localTombstone.lastKnownRevision >= remoteEntity.revision) {
         return { entity: null, tombstone: cloneTombstone(localTombstone), source: 'tombstone', conflict: null };
       }
@@ -492,6 +501,7 @@ export const mergeLeafTabSyncSnapshot = (
     deviceId: string;
     generatedAt?: string;
     conflictResolution?: LeafTabSyncConflictResolution;
+    mergeIntent?: LeafTabSyncMergeIntent;
   },
 ): LeafTabSyncMergeResult => {
   const generatedAt = options.generatedAt || new Date().toISOString();
@@ -517,6 +527,7 @@ export const mergeLeafTabSyncSnapshot = (
       remoteTombstone: resolveTombstone(remoteSnapshot, baseSnapshot.bookmarkFolders[id] || localSnapshot.bookmarkFolders[id]),
       fields: bookmarkFolderFields,
       conflictResolution: options.conflictResolution,
+      mergeIntent: options.mergeIntent,
     });
     entitySources[createLeafTabSyncTombstoneKey('bookmark-folder', id)] = result.source;
     if (result.entity) nextBookmarkFolders[id] = result.entity;
@@ -540,6 +551,7 @@ export const mergeLeafTabSyncSnapshot = (
       remoteTombstone: resolveTombstone(remoteSnapshot, baseSnapshot.bookmarkItems[id] || localSnapshot.bookmarkItems[id]),
       fields: bookmarkItemFields,
       conflictResolution: options.conflictResolution,
+      mergeIntent: options.mergeIntent,
     });
     entitySources[createLeafTabSyncTombstoneKey('bookmark-item', id)] = result.source;
     if (result.entity) nextBookmarkItems[id] = result.entity;

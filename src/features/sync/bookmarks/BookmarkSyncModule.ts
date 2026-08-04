@@ -7,6 +7,7 @@ import {
 import {
   createLeafTabSyncBaselineStorageKey,
   LEAFTAB_PENDING_BOOKMARK_CONFLICT_KEY,
+  LEAFTAB_SYNC_HISTORY_KEY,
 } from '@/features/sync/app/leafTabSyncStorageKeys';
 import {
   readAllExtensionStorageRecords,
@@ -19,8 +20,15 @@ import {
   type LeafTabSyncEngineProgress,
   type LeafTabSyncEngineResult,
 } from '@/sync/leaftab/engine';
-import type { LeafTabSyncConflictResolution } from '@/sync/leaftab/merge';
+import type {
+  LeafTabSyncConflictResolution,
+  LeafTabSyncMergeIntent,
+} from '@/sync/leaftab/merge';
 import type { LeafTabSyncRemoteStore } from '@/sync/leaftab/remoteStore';
+import {
+  LeafTabSyncExtensionStorageHistoryStore,
+  LeafTabSyncTombstoneLifecycle,
+} from '@/sync/leaftab/historyLifecycle';
 import {
   LEAFTAB_SYNC_SCHEMA_VERSION,
   normalizeLeafTabSyncSnapshot,
@@ -28,6 +36,7 @@ import {
 } from '@/sync/leaftab/schema';
 import {
   buildLeafTabSyncSnapshot,
+  assertLeafTabBookmarkTreeMatchesSnapshot,
   countLeafTabLiveBookmarkEntities,
   createLeafTabSyncBuildState,
   normalizeLeafTabLiveBookmarkSnapshot,
@@ -162,6 +171,7 @@ export const isPendingBookmarkConflictForSource = (
 export interface BookmarkSyncLocalAdapter {
   buildSnapshot: () => Promise<LeafTabSyncSnapshot>;
   applySnapshot: (snapshot: LeafTabSyncSnapshot) => Promise<void>;
+  verifySnapshot: (snapshot: LeafTabSyncSnapshot) => Promise<void>;
   readPendingChanges?: () => Promise<number>;
   clearPendingChanges?: (expectedChangedAt: number) => Promise<void> | void;
 }
@@ -178,6 +188,7 @@ interface BookmarkSyncModuleConfig {
 export interface BookmarkSyncRuntimeLocalAdapter {
   buildSnapshot: (baselineStorageKey: string) => Promise<LeafTabSyncSnapshot>;
   applySnapshot: (snapshot: LeafTabSyncSnapshot) => Promise<void>;
+  verifySnapshot: (snapshot: LeafTabSyncSnapshot) => Promise<void>;
   readPendingChanges?: () => Promise<number>;
   clearPendingChanges?: (expectedChangedAt: number) => Promise<void> | void;
 }
@@ -207,6 +218,7 @@ export interface BookmarkSyncRuntime {
 export interface BookmarkSyncRunOptions {
   onProgress?: (progress: LeafTabSyncEngineProgress) => void;
   conflictChoice?: BookmarkSyncConflictChoice;
+  mergeIntent?: LeafTabSyncMergeIntent;
 }
 
 export const createBookmarkSyncBrowserLocalAdapter = (
@@ -269,6 +281,13 @@ export const createBookmarkSyncBrowserLocalAdapter = (
       throw new Error('未授予书签权限，无法写入本地书签');
     }
   },
+  async verifySnapshot(snapshot: LeafTabSyncSnapshot): Promise<void> {
+    const bookmarkTree = await captureLeafTabBookmarkTreeDraft({
+      requestPermission: false,
+      throwOnPermissionDenied: true,
+    });
+    assertLeafTabBookmarkTreeMatchesSnapshot(bookmarkTree, snapshot);
+  },
   readPendingChanges: config.readPendingChanges,
   clearPendingChanges: config.clearPendingChanges,
 });
@@ -311,6 +330,7 @@ export const createBookmarkSyncRuntime = (config: BookmarkSyncRuntimeConfig): Bo
     local: {
       buildSnapshot: () => config.local.buildSnapshot(baselineStorageKey),
       applySnapshot: config.local.applySnapshot,
+      verifySnapshot: config.local.verifySnapshot,
       readPendingChanges: config.local.readPendingChanges,
       clearPendingChanges: config.local.clearPendingChanges,
     },
@@ -349,6 +369,7 @@ export class BookmarkSyncModule {
     const engine = this.createEngine();
     return engine.sync({
       onProgress: options.onProgress,
+      mergeIntent: options.mergeIntent,
     });
   }
 
@@ -377,6 +398,7 @@ export class BookmarkSyncModule {
     return engine.sync({
       onProgress: options.onProgress,
       conflictResolution,
+      mergeIntent: options.mergeIntent,
     });
   }
 
@@ -386,8 +408,12 @@ export class BookmarkSyncModule {
       deviceId: this.config.deviceId,
       remoteStore: this.createRemoteStore(),
       baselineStore: new LeafTabSyncExtensionStorageBaselineStore(this.config.baselineStorageKey),
+      historyLifecycle: new LeafTabSyncTombstoneLifecycle(
+        new LeafTabSyncExtensionStorageHistoryStore(LEAFTAB_SYNC_HISTORY_KEY),
+      ),
       buildLocalSnapshot: local.buildSnapshot,
       applyLocalSnapshot: local.applySnapshot,
+      verifyLocalSnapshot: local.verifySnapshot,
       readPendingLocalChanges: local.readPendingChanges,
       clearPendingLocalChanges: local.clearPendingChanges,
       createEmptySnapshot: () => createEmptyBookmarkSyncSnapshot(this.config.deviceId),

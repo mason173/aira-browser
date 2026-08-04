@@ -27,6 +27,7 @@ import {
   writeAiraCloudSyncEnabled,
 } from '@/features/sync/bookmarks/airaCloudPreferences';
 import {
+  readExtensionStorageRecord,
   removeExtensionStorageKeys,
   writeExtensionStorageRecord,
 } from '@/platform/extensionStorage';
@@ -59,6 +60,10 @@ import {
   type BookmarkSyncRuntimeProvider,
 } from './BookmarkSyncModule';
 import { withBookmarkSyncExecutionLock } from '@/sync/leaftab/executionLock';
+import {
+  parseLeafTabSyncRemoteKind,
+  resolveLeafTabSyncMergeIntent,
+} from '@/sync/leaftab/source';
 
 export interface BookmarkSyncPopupRuntimeConfig {
   deviceId: string;
@@ -86,6 +91,7 @@ type BookmarkSyncPopupOperation =
   | { type: 'resolve-conflict'; choice: BookmarkSyncConflictChoice };
 
 interface BookmarkSyncPopupExecutionConfig {
+  selectedSource: LeafTabSyncRemoteKind | null;
   cloudUid: string;
   cloudDeviceCredential: string;
   cloudSyncEnabled: boolean;
@@ -241,7 +247,10 @@ export class BookmarkSyncPopupRuntime {
         }
         callbacks.onRunStarted?.();
         const runtime = this.createRuntime(remoteKind, executionConfig);
-        const runOptions = { onProgress: callbacks.onProgress };
+        const runOptions = {
+          onProgress: callbacks.onProgress,
+          mergeIntent: resolveLeafTabSyncMergeIntent(executionConfig.selectedSource, remoteKind),
+        };
         const result = operation.type === 'sync-now'
           ? await runtime.module.sync(runOptions)
           : operation.type === 'select-webdav-candidate'
@@ -404,10 +413,11 @@ export class BookmarkSyncPopupRuntime {
     candidateWebdav: WebdavStorageState | undefined,
     refreshCloudMembership: boolean,
   ): Promise<BookmarkSyncPopupExecutionConfig> {
-    const [storedWebdav, storedPendingConflict, initialCloudProfile] = await Promise.all([
+    const [storedWebdav, storedPendingConflict, initialCloudProfile, selectedSourceRecord] = await Promise.all([
       readWebdavStorageStateFromExtensionStorage(),
       readPendingBookmarkConflictWithinExecutionLock(),
       readAiraDesktopConnectionProfileWithinExecutionLock(),
+      readExtensionStorageRecord([LEAFTAB_SELECTED_SYNC_SOURCE_KEY]),
     ]);
     let cloudProfile: AiraDesktopConnectionProfile | null = initialCloudProfile;
     let cloudCapability: AiraDesktopProCapabilityStatus = 'login-required';
@@ -447,6 +457,9 @@ export class BookmarkSyncPopupRuntime {
     }
     const effectiveWebdav = candidateWebdav ?? storedWebdav;
     return {
+      selectedSource: parseLeafTabSyncRemoteKind(
+        selectedSourceRecord[LEAFTAB_SELECTED_SYNC_SOURCE_KEY],
+      ),
       cloudUid,
       cloudDeviceCredential,
       cloudSyncEnabled: await readAiraCloudSyncEnabledFromExtensionStorage(cloudUid),

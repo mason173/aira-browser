@@ -504,3 +504,54 @@ export const countLeafTabLiveBookmarkEntities = (
     tombstones: Object.keys(snapshot.tombstones || {}).length,
   };
 };
+
+const sortRecord = <T>(record: Record<string, T>): Record<string, T> => {
+  return Object.fromEntries(
+    Object.entries(record).sort(([left], [right]) => left.localeCompare(right)),
+  );
+};
+
+export const assertLeafTabBookmarkTreeMatchesSnapshot = (
+  bookmarkTree: LeafTabBookmarkTreeDraft,
+  expectedSnapshot: LeafTabSyncSnapshot,
+): void => {
+  const expected = normalizeLeafTabLiveBookmarkSnapshot(expectedSnapshot);
+  const actualFolders = Object.fromEntries(bookmarkTree.folders.map((folder) => [folder.entityId, {
+    parentId: folder.parentId,
+    title: folder.title,
+  }]));
+  const actualItems = Object.fromEntries(bookmarkTree.items.map((item) => [item.entityId, {
+    parentId: item.parentId,
+    title: item.title,
+    url: item.url,
+  }]));
+  const actualOrders = Object.fromEntries(
+    Object.entries(bookmarkTree.orderIdsByParent).map(([parentId, ids]) => [parentId, ids.slice()]),
+  );
+  const expectedFolders = Object.fromEntries(Object.values(expected.bookmarkFolders).map((folder) => [folder.id, {
+    parentId: folder.parentId,
+    title: folder.title,
+  }]));
+  const expectedItems = Object.fromEntries(Object.values(expected.bookmarkItems).map((item) => [item.id, {
+    parentId: item.parentId,
+    title: item.title,
+    url: item.url,
+  }]));
+  const expectedOrders = Object.fromEntries(
+    Object.entries(expected.bookmarkOrders).map(([key, order]) => [key, order.ids.slice()]),
+  );
+
+  const actualContent = JSON.stringify({
+    folders: sortRecord(actualFolders),
+    items: sortRecord(actualItems),
+    orders: sortRecord(actualOrders),
+  });
+  const expectedContent = JSON.stringify({
+    folders: sortRecord(expectedFolders),
+    items: sortRecord(expectedItems),
+    orders: sortRecord(expectedOrders),
+  });
+  if (actualContent !== expectedContent) {
+    throw new Error('本地书签落地校验未通过，已停止提交同步基线。');
+  }
+};

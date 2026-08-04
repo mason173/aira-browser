@@ -1,5 +1,6 @@
 export const LEAFTAB_SYNC_SCHEMA_VERSION = 2 as const;
-export const LEAFTAB_SYNC_DEFAULT_ROOT = 'aira/g2/bookmarks';
+export const LEAFTAB_SYNC_DEFAULT_ROOT = 'aira/g3/bookmarks';
+export const LEAFTAB_SYNC_HISTORY_VERSION = 1 as const;
 
 export type LeafTabSyncEntityType = 'bookmark-folder' | 'bookmark-item';
 
@@ -8,6 +9,12 @@ export type LeafTabSyncSnapshotMeta = {
   deviceId: string;
   generatedAt: string;
 };
+
+export interface LeafTabSyncHistoryDescriptor {
+  version: typeof LEAFTAB_SYNC_HISTORY_VERSION;
+  epochId: string;
+  retainedFrom: string;
+}
 
 export interface LeafTabSyncBaseEntity {
   id: string;
@@ -82,6 +89,7 @@ export interface LeafTabSyncWireSnapshot {
 
 export interface LeafTabSyncBaseline {
   commitId: string | null;
+  history: LeafTabSyncHistoryDescriptor;
   snapshot?: LeafTabSyncSnapshot;
   savedAt: string;
 }
@@ -289,8 +297,62 @@ export const isLeafTabSyncTombstone = (
   return isNonEmptyString(value.id)
     && (value.type === 'bookmark-folder' || value.type === 'bookmark-item')
     && isNonEmptyString(value.deletedAt)
+    && Number.isFinite(Date.parse(value.deletedAt))
     && isNonEmptyString(value.deletedBy)
     && isNonNegativeInteger(value.lastKnownRevision);
+};
+
+const collectWireDataSetIdentityIds = (value: LeafTabSyncWireBookmarkDataSet): Set<string> => {
+  return new Set([
+    ...value.bookmarkFolders.map((entry) => entry.id),
+    ...value.bookmarkItems.map((entry) => entry.id),
+    ...value.tombstones.map((entry) => entry.id),
+  ]);
+};
+
+const hasCanonicalBookmarkTree = (
+  value: LeafTabSyncWireBookmarkDataSet,
+  folderIds: Set<string>,
+  itemIds: Set<string>,
+): boolean => {
+  const parentIdByEntityId = new Map<string, string | null>();
+  for (const folder of value.bookmarkFolders) {
+    if (folder.parentId !== null && !folderIds.has(folder.parentId)) return false;
+    parentIdByEntityId.set(folder.id, folder.parentId);
+  }
+  for (const item of value.bookmarkItems) {
+    if (item.parentId !== null && !folderIds.has(item.parentId)) return false;
+    parentIdByEntityId.set(item.id, item.parentId);
+  }
+
+  const orderedEntityIds = new Set<string>();
+  const orderIdsByParent = new Map<string, string[]>();
+  for (const order of value.bookmarkOrders) {
+    if (order.parentId !== null && !folderIds.has(order.parentId)) return false;
+    const orderKey = createLeafTabSyncOrderKey(order.parentId);
+    orderIdsByParent.set(orderKey, order.ids);
+    for (const id of order.ids) {
+      if ((!folderIds.has(id) && !itemIds.has(id))
+        || orderedEntityIds.has(id)
+        || parentIdByEntityId.get(id) !== order.parentId) {
+        return false;
+      }
+      orderedEntityIds.add(id);
+    }
+  }
+  if (orderedEntityIds.size !== folderIds.size + itemIds.size) return false;
+
+  const reachableEntityIds = new Set<string>();
+  const pendingIds = (orderIdsByParent.get('__root__') || []).slice();
+  for (let index = 0; index < pendingIds.length; index += 1) {
+    const id = pendingIds[index];
+    if (reachableEntityIds.has(id)) continue;
+    reachableEntityIds.add(id);
+    if (folderIds.has(id)) {
+      pendingIds.push(...(orderIdsByParent.get(id) || []));
+    }
+  }
+  return reachableEntityIds.size === folderIds.size + itemIds.size;
 };
 
 const isCanonicalLeafTabSyncWireDataSet = (
@@ -314,11 +376,21 @@ const isCanonicalLeafTabSyncWireDataSet = (
     return false;
   }
   const folderIds = new Set(folders.map((entry) => entry.id));
+  const itemIds = new Set(items.map((entry) => entry.id));
+  const liveIds = new Set([...folderIds, ...itemIds]);
+  const dataSet: LeafTabSyncWireBookmarkDataSet = {
+    bookmarkFolders: folders,
+    bookmarkItems: items,
+    bookmarkOrders: orders,
+    tombstones,
+  };
   return !items.some((entry) => folderIds.has(entry.id))
+    && !tombstones.some((entry) => liveIds.has(entry.id))
     && hasUniqueKeys(folders, (entry) => entry.id)
     && hasUniqueKeys(items, (entry) => entry.id)
     && hasUniqueKeys(orders, (entry) => createLeafTabSyncOrderKey(entry.parentId))
-    && hasUniqueKeys(tombstones, (entry) => createLeafTabSyncTombstoneKey(entry));
+    && hasUniqueKeys(tombstones, (entry) => createLeafTabSyncTombstoneKey(entry))
+    && hasCanonicalBookmarkTree(dataSet, folderIds, itemIds);
 };
 
 export const parseCanonicalLeafTabSyncWireSnapshot = (
@@ -333,5 +405,23 @@ export const parseCanonicalLeafTabSyncWireSnapshot = (
     && !isCanonicalLeafTabSyncWireDataSet(value.appPrivateBookmarks)) {
     return null;
   }
+  if (value.appPrivateBookmarks !== undefined) {
+    const sharedIds = collectWireDataSetIdentityIds(value);
+    const privateIds = collectWireDataSetIdentityIds(value.appPrivateBookmarks);
+    if (Array.from(privateIds).some((id) => sharedIds.has(id))) {
+      return null;
+    }
+  }
   return normalizeLeafTabSyncSnapshot(value);
+};
+
+export const validateCanonicalLeafTabSyncSnapshot = (
+  snapshot: LeafTabSyncSnapshot,
+  sourceLabel = '书签同步',
+): LeafTabSyncSnapshot => {
+  const parsed = parseCanonicalLeafTabSyncWireSnapshot(toLeafTabSyncWireSnapshot(snapshot));
+  if (!parsed) {
+    throw new Error(`${sourceLabel}书签同步快照格式无效。`);
+  }
+  return parsed;
 };

@@ -1,3 +1,5 @@
+import type { LeafTabSyncMergeIntent } from './merge';
+
 export type LeafTabSyncRemoteKind = 'aira-cloud' | 'webdav';
 
 export const parseLeafTabSyncRemoteKind = (value: unknown): LeafTabSyncRemoteKind | null => {
@@ -5,6 +7,15 @@ export const parseLeafTabSyncRemoteKind = (value: unknown): LeafTabSyncRemoteKin
     return value;
   }
   return null;
+};
+
+export const resolveLeafTabSyncMergeIntent = (
+  selectedSource: LeafTabSyncRemoteKind | null,
+  targetSource: LeafTabSyncRemoteKind,
+): LeafTabSyncMergeIntent => {
+  return selectedSource !== null && selectedSource !== targetSource
+    ? 'provider-switch'
+    : 'ordinary';
 };
 
 export const canRunLeafTabSelectedAutoSync = (values: {

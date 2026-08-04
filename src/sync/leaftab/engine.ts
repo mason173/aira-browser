@@ -1,14 +1,17 @@
-import { createLeafTabSyncBaseline, type LeafTabSyncBaselineStore, getLeafTabSyncBaselineSnapshot } from './baseline';
+import { createLeafTabSyncBaseline, type LeafTabSyncBaselineStore } from './baseline';
 import {
   mergeLeafTabSyncSnapshot,
   mergeLeafTabSyncSnapshotWithoutBaseline,
   type LeafTabSyncConflictResolution,
+  type LeafTabSyncMergeIntent,
   type LeafTabSyncMergeResult,
 } from './merge';
 import type { LeafTabSyncSnapshot } from './schema';
+import type { LeafTabSyncHistoryDescriptor } from './schema';
 import { countLeafTabLiveBookmarkEntities } from './snapshot';
 import { formatLeafTabSyncSummaryText, summarizeLeafTabSyncMerge, type LeafTabSyncChangeSummary } from './summary';
 import type { LeafTabSyncRemoteState, LeafTabSyncRemoteStore } from './remoteStore';
+import type { LeafTabSyncTombstoneLifecycle } from './historyLifecycle';
 
 export interface LeafTabSyncDataSummary {
   bookmarkFolders: number;
@@ -44,8 +47,10 @@ export interface LeafTabSyncEngineConfig {
   deviceId: string;
   remoteStore: LeafTabSyncRemoteStore;
   baselineStore: LeafTabSyncBaselineStore;
+  historyLifecycle: LeafTabSyncTombstoneLifecycle;
   buildLocalSnapshot: () => Promise<LeafTabSyncSnapshot>;
   applyLocalSnapshot: (snapshot: LeafTabSyncSnapshot) => Promise<void>;
+  verifyLocalSnapshot: (snapshot: LeafTabSyncSnapshot) => Promise<void>;
   readPendingLocalChanges?: () => Promise<number>;
   clearPendingLocalChanges?: (expectedChangedAt: number) => Promise<void> | void;
   createEmptySnapshot: () => LeafTabSyncSnapshot;
@@ -54,6 +59,7 @@ export interface LeafTabSyncEngineConfig {
 export interface LeafTabSyncEngineRunOptions {
   onProgress?: (progress: LeafTabSyncEngineProgress) => void;
   conflictResolution?: LeafTabSyncConflictResolution;
+  mergeIntent?: LeafTabSyncMergeIntent;
 }
 
 const summarizeSnapshot = (snapshot: LeafTabSyncSnapshot | null): LeafTabSyncDataSummary => {
@@ -125,15 +131,42 @@ export class LeafTabSyncEngine {
     return state.commitId;
   }
 
+  private async confirmRemoteCommit(
+    expectedCommitId: string,
+    expectedSnapshot: LeafTabSyncSnapshot,
+    expectedHistory: LeafTabSyncHistoryDescriptor,
+  ): Promise<void> {
+    const confirmed = await this.config.remoteStore.readState();
+    if (confirmed.commitId !== expectedCommitId
+      || !confirmed.history
+      || !this.config.historyLifecycle.sameHistory(confirmed.history, expectedHistory)
+      || !sameSnapshotContent(confirmed.snapshot, expectedSnapshot)) {
+      throw new Error('当前同步位置未能确认完整的书签提交。');
+    }
+  }
+
   private async persistCompletedState(
+    existingBaseline: Awaited<ReturnType<LeafTabSyncBaselineStore['load']>>,
     snapshot: LeafTabSyncSnapshot,
+    history: LeafTabSyncHistoryDescriptor,
     commitId: string | null,
     completedPendingLocalChangedAt: number,
   ): Promise<void> {
-    await this.config.baselineStore.save(createLeafTabSyncBaseline({
-      snapshot,
-      commitId,
-    }));
+    const baselineMatches = Boolean(
+      existingBaseline?.snapshot
+      && existingBaseline.commitId === commitId
+      && existingBaseline.history
+      && this.config.historyLifecycle.sameHistory(existingBaseline.history, history)
+      && sameSnapshotContent(existingBaseline.snapshot, snapshot),
+    );
+    if (!baselineMatches) {
+      await this.config.baselineStore.save(createLeafTabSyncBaseline({
+        snapshot,
+        history,
+        commitId,
+      }));
+    }
+    await this.config.historyLifecycle.confirm(history);
     await this.config.clearPendingLocalChanges?.(completedPendingLocalChangedAt);
   }
 
@@ -151,17 +184,22 @@ export class LeafTabSyncEngine {
       this.config.buildLocalSnapshot(),
       this.config.remoteStore.readState(),
     ]);
-    const localSnapshot = localSnapshotValue;
-    const baseSnapshot =
-      getLeafTabSyncBaselineSnapshot(baseline) || this.config.createEmptySnapshot();
-    const hasBaseline = Boolean(baseline?.snapshot || baseline?.commitId);
-    const remoteCommitId = this.resolveRemoteCommitId(remoteState);
-
-    if (!remoteState.snapshot && remoteCommitId) {
+    if (Boolean(remoteState.snapshot) !== Boolean(remoteState.commitId)
+      || Boolean(remoteState.snapshot) !== Boolean(remoteState.history)) {
       throw new Error('当前同步位置返回了不完整的书签快照，已停止写入以避免覆盖远端数据。');
     }
+    const historyPlan = await this.config.historyLifecycle.planMerge(
+      baseline,
+      localSnapshotValue,
+      remoteState,
+      this.config.deviceId,
+    );
+    const localSnapshot = historyPlan.localSnapshot;
+    const baseSnapshot = historyPlan.baselineSnapshot || this.config.createEmptySnapshot();
+    const hasBaseline = Boolean(historyPlan.baselineSnapshot);
+    const remoteCommitId = this.resolveRemoteCommitId(remoteState);
 
-    if (!hasBaseline && !remoteState.snapshot) {
+    if (!hasBaseline && !historyPlan.remoteSnapshot) {
       reportProgress(runOptions?.onProgress, {
         stage: 'uploading-remote',
         progress: 72,
@@ -169,11 +207,15 @@ export class LeafTabSyncEngine {
       });
       const writeResult = await this.config.remoteStore.writeState({
         snapshot: localSnapshot,
+        history: historyPlan.history,
         deviceId: this.config.deviceId,
         parentCommitId: null,
       });
+      await this.confirmRemoteCommit(writeResult.commitId, localSnapshot, historyPlan.history);
       await this.persistCompletedState(
+        baseline,
         localSnapshot,
+        historyPlan.history,
         writeResult.commitId,
         completedPendingLocalChangedAt,
       );
@@ -190,14 +232,22 @@ export class LeafTabSyncEngine {
       });
     }
 
-    const remoteSnapshot = remoteState.snapshot || this.config.createEmptySnapshot();
-    if (!hasBaseline && sameSnapshotContent(localSnapshot, remoteSnapshot)) {
+    const remoteSnapshot = historyPlan.remoteSnapshot || this.config.createEmptySnapshot();
+    if (!hasBaseline
+      && !historyPlan.requiresRemoteHistoryWrite
+      && sameSnapshotContent(localSnapshot, remoteSnapshot)) {
       reportProgress(runOptions?.onProgress, {
         stage: 'finalizing',
         progress: 92,
         message: '正在收尾同步结果',
       });
-      await this.persistCompletedState(remoteSnapshot, remoteCommitId, completedPendingLocalChangedAt);
+      await this.persistCompletedState(
+        baseline,
+        remoteSnapshot,
+        historyPlan.history,
+        remoteCommitId,
+        completedPendingLocalChangedAt,
+      );
       reportProgress(runOptions?.onProgress, {
         stage: 'completed',
         progress: 100,
@@ -220,7 +270,9 @@ export class LeafTabSyncEngine {
         message: '未检测到变更，正在结束同步',
       });
       await this.persistCompletedState(
+        baseline,
         baseSnapshot,
+        historyPlan.history,
         remoteCommitId || baseline?.commitId || null,
         completedPendingLocalChangedAt,
       );
@@ -250,6 +302,7 @@ export class LeafTabSyncEngine {
           {
             deviceId: this.config.deviceId,
             conflictResolution: runOptions?.conflictResolution,
+            mergeIntent: runOptions?.mergeIntent,
           },
         )
       : mergeLeafTabSyncSnapshotWithoutBaseline(
@@ -277,7 +330,8 @@ export class LeafTabSyncEngine {
       });
     }
 
-    const remoteNeedsWrite = !sameSnapshotContent(remoteSnapshot, finalSnapshot);
+    const remoteNeedsWrite = historyPlan.requiresRemoteHistoryWrite
+      || !sameSnapshotContent(remoteSnapshot, finalSnapshot);
     const localNeedsApply = !sameSnapshotContent(localSnapshot, finalSnapshot);
     let committedId = remoteCommitId;
 
@@ -289,10 +343,12 @@ export class LeafTabSyncEngine {
       });
       const writeResult = await this.config.remoteStore.writeState({
         snapshot: finalSnapshot,
+        history: historyPlan.history,
         deviceId: this.config.deviceId,
         parentCommitId: remoteCommitId,
       });
       committedId = writeResult.commitId;
+      await this.confirmRemoteCommit(committedId, finalSnapshot, historyPlan.history);
     }
 
     if (localNeedsApply) {
@@ -302,6 +358,7 @@ export class LeafTabSyncEngine {
         message: '正在将最新结果写入本地',
       });
       await this.config.applyLocalSnapshot(cloneSnapshot(finalSnapshot));
+      await this.config.verifyLocalSnapshot(cloneSnapshot(finalSnapshot));
     }
 
     reportProgress(runOptions?.onProgress, {
@@ -309,7 +366,13 @@ export class LeafTabSyncEngine {
       progress: 94,
       message: '正在收尾同步结果',
     });
-    await this.persistCompletedState(finalSnapshot, committedId, completedPendingLocalChangedAt);
+    await this.persistCompletedState(
+      baseline,
+      finalSnapshot,
+      historyPlan.history,
+      committedId,
+      completedPendingLocalChangedAt,
+    );
     reportProgress(runOptions?.onProgress, {
       stage: 'completed',
       progress: 100,

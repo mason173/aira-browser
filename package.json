@@ -1,6 +1,6 @@
 {
       "name": "airatab",
-      "version": "0.2.5",
+      "version": "0.2.6",
       "private": true,
       "dependencies": {
             "@radix-ui/react-dialog": "^1.1.6",
@@ -29,11 +29,13 @@
             "@types/react-dom": "^19.2.3",
             "@vitejs/plugin-react-swc": "^3.10.2",
             "typescript": "^5.9.3",
-            "vite": "6.3.5"
+            "vite": "6.3.5",
+            "vitest": "^3.2.4"
       },
       "scripts": {
             "dev": "vite --host",
             "build": "npm run build:final",
+            "test": "vitest run",
             "typecheck": "tsc --noEmit -p tsconfig.json",
             "check": "npm run typecheck && npm run build",
             "build:final": "node scripts/build-final.js",
