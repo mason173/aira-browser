@@ -466,12 +466,13 @@ const prepareMissingBaselineSnapshots = (
     ...Object.keys(localSnapshot.bookmarkItems),
     ...Object.keys(remappedRemote.bookmarkItems),
   ]);
+  const liveEntityIds = new Set([
+    ...liveFolderIds,
+    ...liveItemIds,
+  ]);
   const tombstones: Record<string, LeafTabSyncTombstone> = {};
   const keepNewestTombstone = (entry: LeafTabSyncTombstone) => {
-    const hasLiveEntity = entry.type === 'bookmark-folder'
-      ? liveFolderIds.has(entry.id)
-      : liveItemIds.has(entry.id);
-    if (hasLiveEntity) return;
+    if (liveEntityIds.has(entry.id)) return;
     const key = createLeafTabSyncTombstoneKey(entry);
     const current = tombstones[key];
     if (!current || entry.lastKnownRevision > current.lastKnownRevision ||
@@ -573,6 +574,14 @@ export const mergeLeafTabSyncSnapshot = (
   Object.values(nextTombstones).forEach((tombstone) => {
     if (tombstone.type === 'bookmark-folder') delete nextBookmarkFolders[tombstone.id];
     if (tombstone.type === 'bookmark-item') delete nextBookmarkItems[tombstone.id];
+  });
+  Object.values(nextTombstones).forEach((tombstone) => {
+    const hasLiveOppositeType = tombstone.type === 'bookmark-folder'
+      ? Boolean(nextBookmarkItems[tombstone.id])
+      : Boolean(nextBookmarkFolders[tombstone.id]);
+    if (hasLiveOppositeType) {
+      delete nextTombstones[createLeafTabSyncTombstoneKey(tombstone)];
+    }
   });
 
   const mergedMeta = remoteSnapshot.meta;
