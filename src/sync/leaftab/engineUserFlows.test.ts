@@ -13,7 +13,9 @@ import type {
   LeafTabSyncRemoteStore,
   LeafTabSyncWriteStateParams,
 } from './remoteStore';
-import type {
+import {
+  parseCanonicalLeafTabSyncWireSnapshot,
+  toLeafTabSyncWireSnapshot,
   LeafTabSyncBaseline,
   LeafTabSyncHistoryDescriptor,
   LeafTabSyncSnapshot,
@@ -91,6 +93,49 @@ const createSnapshot = (
   },
   tombstones: Object.fromEntries(tombstones.map((entry) => [`${entry.type}|${entry.id}`, entry])),
 });
+
+const createFolderTreeSnapshot = (
+  deviceId: string,
+  folderTitle: string,
+  childCount = 6,
+): LeafTabSyncSnapshot => {
+  const snapshot = createSnapshot(deviceId);
+  const folderId = 'folder-shared';
+  snapshot.bookmarkFolders[folderId] = {
+    id: folderId,
+    type: 'bookmark-folder',
+    parentId: 'browser_root_toolbar',
+    title: folderTitle,
+    createdAt: T0,
+    updatedAt: T0,
+    updatedBy: deviceId,
+    revision: 1,
+  };
+  const childIds = Array.from({ length: childCount }, (_, index) => `folder-child-${index}`);
+  childIds.forEach((id) => {
+    snapshot.bookmarkItems[id] = {
+      id,
+      type: 'bookmark-item',
+      parentId: folderId,
+      title: id,
+      url: `https://example.com/${id}`,
+      createdAt: T0,
+      updatedAt: T0,
+      updatedBy: deviceId,
+      revision: 1,
+    };
+  });
+  snapshot.bookmarkOrders.browser_root_toolbar.ids = [folderId];
+  snapshot.bookmarkOrders[folderId] = {
+    type: 'bookmark-order',
+    parentId: folderId,
+    ids: childIds,
+    updatedAt: T0,
+    updatedBy: deviceId,
+    revision: 1,
+  };
+  return snapshot;
+};
 
 class MemoryBaselineStore implements LeafTabSyncBaselineStore {
   value: LeafTabSyncBaseline | null;
@@ -288,6 +333,75 @@ describe('Airatab realistic bookmark sync flows', () => {
       kind: 'merge',
       localItems: ['local-a', 'remote-a'],
       remoteItems: ['local-a', 'remote-a'],
+    });
+  });
+
+  test('deleting a first-sync preservation folder commits the whole subtree deletion', async () => {
+    const remote = remoteWith(createFolderTreeSnapshot('phone-a', 'Phone folder'));
+    const first = await runSync({
+      local: createFolderTreeSnapshot('desktop-a', 'Desktop folder'),
+      remote,
+    });
+    const preservedFolderId = Object.keys(first.local.bookmarkFolders).find((id) => (
+      id !== 'browser_root_toolbar' && id !== 'folder-shared'
+    ));
+    expect(preservedFolderId).toBeDefined();
+    const preservedChildren = Object.values(first.local.bookmarkItems).filter((item) => (
+      item.parentId === preservedFolderId
+    ));
+    expect(preservedChildren).toHaveLength(6);
+
+    const localAfterDelete = clone(first.local);
+    const deletedFolder = localAfterDelete.bookmarkFolders[preservedFolderId!];
+    delete localAfterDelete.bookmarkFolders[preservedFolderId!];
+    delete localAfterDelete.bookmarkOrders[preservedFolderId!];
+    localAfterDelete.bookmarkOrders.browser_root_toolbar.ids =
+      localAfterDelete.bookmarkOrders.browser_root_toolbar.ids.filter((id) => id !== preservedFolderId);
+    localAfterDelete.tombstones[`bookmark-folder|${preservedFolderId}`] = {
+      id: preservedFolderId!,
+      type: 'bookmark-folder',
+      deletedAt: T1,
+      deletedBy: 'desktop-a',
+      lastKnownRevision: deletedFolder.revision,
+    };
+    preservedChildren.forEach((item) => {
+      delete localAfterDelete.bookmarkItems[item.id];
+      localAfterDelete.tombstones[`bookmark-item|${item.id}`] = {
+        id: item.id,
+        type: 'bookmark-item',
+        deletedAt: T1,
+        deletedBy: 'desktop-a',
+        lastKnownRevision: item.revision,
+      };
+    });
+
+    const second = await runSync({
+      local: localAfterDelete,
+      remote,
+      baseline: first.baselineStore.value,
+    });
+    const finalRemote = remote.state.snapshot!;
+
+    expect({
+      kind: second.result.kind,
+      remoteCommitId: remote.state.commitId,
+      localFolders: Object.keys(second.local.bookmarkFolders).length,
+      localItems: Object.keys(second.local.bookmarkItems).length,
+      remoteFolders: Object.keys(finalRemote.bookmarkFolders).length,
+      remoteItems: Object.keys(finalRemote.bookmarkItems).length,
+      staleOrder: finalRemote.bookmarkOrders[preservedFolderId!],
+      baselineCommitId: second.baselineStore.value?.commitId,
+      canonical: Boolean(parseCanonicalLeafTabSyncWireSnapshot(toLeafTabSyncWireSnapshot(finalRemote))),
+    }).toEqual({
+      kind: 'push',
+      remoteCommitId: 'commit-2',
+      localFolders: 2,
+      localItems: 6,
+      remoteFolders: 2,
+      remoteItems: 6,
+      staleOrder: undefined,
+      baselineCommitId: 'commit-2',
+      canonical: true,
     });
   });
 

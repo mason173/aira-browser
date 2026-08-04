@@ -7,8 +7,11 @@ import {
 } from './schema';
 
 const T0 = '2026-08-04T00:00:00.000Z';
+const T1 = '2026-08-04T00:01:00.000Z';
 const ROOT_ID = 'browser_root_toolbar';
 const COLLIDING_ID = 'cross-type-id';
+const COLLIDING_FOLDER_ID = 'folder-shared';
+const FOLDER_CHILD_ID = 'folder-child';
 
 const createSnapshot = (
   deviceId: string,
@@ -73,6 +76,46 @@ const createSnapshot = (
   } : {},
 });
 
+const createFolderCollisionSnapshot = (
+  deviceId: string,
+  folderTitle: string,
+): LeafTabSyncSnapshot => {
+  const snapshot = createSnapshot(deviceId);
+  snapshot.bookmarkFolders[COLLIDING_FOLDER_ID] = {
+    id: COLLIDING_FOLDER_ID,
+    type: 'bookmark-folder',
+    parentId: ROOT_ID,
+    title: folderTitle,
+    createdAt: T0,
+    updatedAt: T0,
+    updatedBy: deviceId,
+    revision: 1,
+  };
+  snapshot.bookmarkItems[FOLDER_CHILD_ID] = {
+    id: FOLDER_CHILD_ID,
+    type: 'bookmark-item',
+    parentId: COLLIDING_FOLDER_ID,
+    title: 'Folder child',
+    url: 'https://example.com/folder-child',
+    createdAt: T0,
+    updatedAt: T0,
+    updatedBy: deviceId,
+    revision: 1,
+  };
+  snapshot.bookmarkOrders[ROOT_ID].ids = [COLLIDING_FOLDER_ID];
+  snapshot.bookmarkOrders[COLLIDING_FOLDER_ID] = {
+    type: 'bookmark-order',
+    parentId: COLLIDING_FOLDER_ID,
+    ids: [FOLDER_CHILD_ID],
+    updatedAt: T0,
+    updatedBy: deviceId,
+    revision: 1,
+  };
+  return snapshot;
+};
+
+const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
+
 describe('mergeLeafTabSyncSnapshot', () => {
   test('keeps a canonical result when a live entity meets an opposite-type tombstone with the same ID', () => {
     const base = createSnapshot('baseline');
@@ -118,6 +161,59 @@ describe('mergeLeafTabSyncSnapshot', () => {
 
     expect(merged.bookmarkItems[COLLIDING_ID]).toBeUndefined();
     expect(merged.tombstones[`bookmark-item|${COLLIDING_ID}`]).toBeDefined();
+    expect(parseCanonicalLeafTabSyncWireSnapshot(toLeafTabSyncWireSnapshot(merged))).not.toBeNull();
+  });
+
+  test('allows a preservation duplicate folder and its children to be deleted on the next sync', () => {
+    const firstMerge = mergeLeafTabSyncSnapshotWithoutBaseline(
+      createFolderCollisionSnapshot('desktop-a', 'Desktop folder'),
+      createFolderCollisionSnapshot('phone-a', 'Phone folder'),
+      { deviceId: 'desktop-a', generatedAt: T0 },
+    ).snapshot;
+    expect(parseCanonicalLeafTabSyncWireSnapshot(toLeafTabSyncWireSnapshot(firstMerge))).not.toBeNull();
+
+    const preservedFolderId = Object.keys(firstMerge.bookmarkFolders).find((id) => (
+      id !== ROOT_ID && id !== COLLIDING_FOLDER_ID
+    ));
+    expect(preservedFolderId).toBeDefined();
+    const preservedChild = Object.values(firstMerge.bookmarkItems).find((item) => (
+      item.parentId === preservedFolderId
+    ));
+    expect(preservedChild).toBeDefined();
+
+    const localAfterDelete = clone(firstMerge);
+    const deletedFolder = localAfterDelete.bookmarkFolders[preservedFolderId!];
+    delete localAfterDelete.bookmarkFolders[preservedFolderId!];
+    delete localAfterDelete.bookmarkItems[preservedChild!.id];
+    delete localAfterDelete.bookmarkOrders[preservedFolderId!];
+    Object.values(localAfterDelete.bookmarkOrders).forEach((order) => {
+      order.ids = order.ids.filter((id) => id !== preservedFolderId && id !== preservedChild!.id);
+    });
+    localAfterDelete.tombstones[`bookmark-folder|${preservedFolderId}`] = {
+      id: preservedFolderId!,
+      type: 'bookmark-folder',
+      deletedAt: T1,
+      deletedBy: 'desktop-a',
+      lastKnownRevision: deletedFolder.revision,
+    };
+    localAfterDelete.tombstones[`bookmark-item|${preservedChild!.id}`] = {
+      id: preservedChild!.id,
+      type: 'bookmark-item',
+      deletedAt: T1,
+      deletedBy: 'desktop-a',
+      lastKnownRevision: preservedChild!.revision,
+    };
+    localAfterDelete.meta.generatedAt = T1;
+    expect(parseCanonicalLeafTabSyncWireSnapshot(toLeafTabSyncWireSnapshot(localAfterDelete))).not.toBeNull();
+
+    const merged = mergeLeafTabSyncSnapshot(firstMerge, localAfterDelete, firstMerge, {
+      deviceId: 'desktop-a',
+      generatedAt: T1,
+    }).snapshot;
+
+    expect(merged.bookmarkFolders[preservedFolderId!]).toBeUndefined();
+    expect(merged.bookmarkItems[preservedChild!.id]).toBeUndefined();
+    expect(merged.bookmarkOrders[preservedFolderId!]).toBeUndefined();
     expect(parseCanonicalLeafTabSyncWireSnapshot(toLeafTabSyncWireSnapshot(merged))).not.toBeNull();
   });
 });

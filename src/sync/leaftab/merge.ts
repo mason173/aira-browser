@@ -609,6 +609,7 @@ export const mergeLeafTabSyncSnapshot = (
   const orderSources: Record<string, LeafTabSyncMergeSource> = {};
 
   orderKeys.forEach((orderKey) => {
+    if (orderKey !== '__root__' && !nextBookmarkFolders[orderKey]) return;
     const baseOrder = baseSnapshot.bookmarkOrders[orderKey];
     const localOrder = localSnapshot.bookmarkOrders[orderKey];
     const remoteOrder = remoteSnapshot.bookmarkOrders[orderKey];
