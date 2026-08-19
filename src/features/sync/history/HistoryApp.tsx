@@ -165,7 +165,7 @@ export function HistoryApp() {
             variant="outline"
             size="icon"
             className="h-9 w-9 rounded-[8px]"
-            disabled={syncing || state.status !== 'ready'}
+            disabled={syncing}
             onClick={() => void load('sync')}
             title={t('history.actions.sync', { defaultValue: 'Sync now' })}
             aria-label={t('history.actions.sync', { defaultValue: 'Sync now' })}

@@ -64,9 +64,9 @@ export function createHistoryBackgroundSyncRuntime(config: {
         status = status === 'ready' ? 'ready' : 'temporarily-unavailable';
       }
     }
-    if (status !== 'ready') return { session: null, status };
     const session = await readAiraDesktopAuthorizedSession();
-    return { session, status: session ? 'ready' : 'login-required' };
+    if (!session) return { session: null, status: 'login-required' };
+    return { session, status };
   }
 
   async function bumpRevision(): Promise<void> {
@@ -113,6 +113,17 @@ export function createHistoryBackgroundSyncRuntime(config: {
       const keepAlive = config.startKeepAlive();
       try {
         await module.reconcileNativeHistory(resolved.session, forceFullReconciliation);
+        if (resolved.status !== 'ready') {
+          const message = capabilityError(resolved.status);
+          await module.markSyncError(resolved.session, new Error(message));
+          await bumpRevision();
+          if (resolved.status === 'temporarily-unavailable') {
+            await schedulePeriodic(RETRY_DELAY_MINUTES);
+          } else {
+            await clearSchedules();
+          }
+          return false;
+        }
         await module.runSync(resolved.session);
         await bumpRevision();
         return true;
@@ -203,7 +214,13 @@ export function createHistoryBackgroundSyncRuntime(config: {
     if (message.action === 'sync') {
       const success = await runBackgroundSync(false);
       const response = await listForCurrentAccount(message);
-      return { ...response, success, error: success ? undefined : response.page?.lastError || undefined };
+      return {
+        ...response,
+        success,
+        error: success
+          ? undefined
+          : response.page?.lastError || capabilityError(response.status),
+      };
     }
     const resolved = await resolveSession(false);
     if (!resolved.session) {
@@ -277,4 +294,11 @@ function emptyTimelinePage() {
     lastSyncAt: 0,
     lastError: '',
   };
+}
+
+function capabilityError(status: HistoryCapabilityStatus): string {
+  if (status === 'login-required') return 'Aira desktop connection is required.';
+  if (status === 'pro-required') return 'Aira Pro is required for History Sync.';
+  if (status === 'temporarily-unavailable') return 'History Sync is temporarily unavailable.';
+  return 'History Sync failed.';
 }
