@@ -205,8 +205,15 @@ export function createHistoryBackgroundSyncRuntime(config: {
 
   async function handleRuntimeMessage(message: HistoryRuntimeMessage): Promise<HistoryRuntimeResponse> {
     if (message.action === 'open') {
-      void runBackgroundSync(false);
-      return listForCurrentAccount(message);
+      const success = await runBackgroundSync(false);
+      const response = await listForCurrentAccount(message);
+      return {
+        ...response,
+        success,
+        error: success
+          ? undefined
+          : response.page?.lastError || capabilityError(response.status),
+      };
     }
     if (message.action === 'list') {
       return listForCurrentAccount(message);
