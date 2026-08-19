@@ -72,7 +72,7 @@ export class HistorySyncModule {
       ? cutoff
       : Math.max(cutoff, state.lastNativeReconcileAt - INCREMENTAL_RECONCILIATION_OVERLAP_MS);
     try {
-      const items = await history.search({
+      const items = await readHistorySearch(history, {
         text: '',
         startTime,
         endTime: now,
@@ -89,7 +89,7 @@ export class HistorySyncModule {
             diagnostics.invalidUrlCount += 1;
             return [];
           }
-          const visits = await history.getVisits({ url });
+          const visits = await readHistoryVisits(history, url);
           diagnostics.successfulQueryCount += 1;
           return toNativeDrafts(item, visits, cutoff, now, diagnostics);
         }));
@@ -107,7 +107,9 @@ export class HistorySyncModule {
       diagnostics.draftCount = uniqueDrafts.length;
       const reconciliationSucceeded = diagnostics.failedQueryCount === 0
         && items.length < HISTORY_SEARCH_RESULT_LIMIT
-        && uniqueDrafts.length <= HISTORY_SYNC_MAX_VISITS;
+        && uniqueDrafts.length <= HISTORY_SYNC_MAX_VISITS
+        && diagnostics.invalidTimeCount === 0
+        && diagnostics.approximateTimeCount === 0;
       const complete = full && reconciliationSucceeded;
       diagnostics.completeReconciliation = complete;
       const changed = await this.database.captureNativeVisits(
@@ -143,14 +145,18 @@ export class HistorySyncModule {
   ): Promise<number> {
     const history = globalThis.chrome?.history;
     const url = normalizeHistoryUrl(item.url);
-    if (!history?.getVisits || !url) return 0;
+    if (!url) return 0;
     const now = Date.now();
-    const visits = await history.getVisits({ url });
+    const visits = history ? await readHistoryVisits(history, url) : [];
+    const drafts = toNativeDrafts(item, visits, now - HISTORY_SYNC_RETENTION_MS, now);
+    const eventDraft = drafts.length > 0
+      ? drafts
+      : toNativeEventDraft(item, now - HISTORY_SYNC_RETENTION_MS, now);
     const changed = await this.database.captureNativeVisits(
       session.uid,
       session.deviceId,
       session.deviceName || 'Aira Desktop',
-      toNativeDrafts(item, visits, now - HISTORY_SYNC_RETENTION_MS, now),
+      eventDraft,
       false,
       now,
     );
@@ -285,11 +291,14 @@ function toNativeDrafts(
   if (!url) return [];
   return visits.flatMap((visit) => {
     if (diagnostics) diagnostics.rawVisitCount += 1;
-    // Some Chromium-compatible History implementations omit VisitItem.visitTime even though
-    // HistoryItem.lastVisitTime is present. Keep the visit instead of dropping the whole URL.
-    const visitedAt = Number(visit.visitTime || item.lastVisitTime || 0);
+    recordHistoryShape(diagnostics, item, visit);
+    const exactVisitTime = readHistoryTimestamp(visit, VISIT_TIMESTAMP_KEYS);
+    const itemTime = readHistoryTimestamp(item, ITEM_TIMESTAMP_KEYS);
+    const canUseItemTime = !exactVisitTime && visits.length === 1 && itemTime > 0;
+    const visitedAt = exactVisitTime || (canUseItemTime ? itemTime : 0);
+    if (!exactVisitTime && diagnostics) diagnostics.approximateTimeCount += 1;
     const isLocal = (visit as chrome.history.VisitItem & { isLocal?: boolean }).isLocal;
-    if (!Number.isSafeInteger(visitedAt)) {
+    if (!visitedAt) {
       if (diagnostics) diagnostics.invalidTimeCount += 1;
       return [];
     }
@@ -313,6 +322,23 @@ function toNativeDrafts(
   });
 }
 
+function toNativeEventDraft(
+  item: chrome.history.HistoryItem,
+  cutoff: number,
+  now: number,
+): NativeHistoryVisitDraft[] {
+  const url = normalizeHistoryUrl(item.url);
+  const visitedAt = readHistoryTimestamp(item, ITEM_TIMESTAMP_KEYS);
+  if (!url || !visitedAt || visitedAt < cutoff || visitedAt > now) return [];
+  return [{
+    nativeVisitId: `event:${item.id}:${visitedAt}`,
+    url,
+    title: String(item.title || '').trim(),
+    visitedAt,
+    transition: '',
+  }];
+}
+
 function normalizeHistoryUrl(value: string | undefined): string {
   try {
     const parsed = new URL(String(value || '').trim());
@@ -320,6 +346,49 @@ function normalizeHistoryUrl(value: string | undefined): string {
   } catch {
     return '';
   }
+}
+
+function readHistorySearch(
+  history: typeof chrome.history,
+  query: chrome.history.HistoryQuery,
+): Promise<chrome.history.HistoryItem[]> {
+  return callHistoryApi((callback) => history.search(query, callback));
+}
+
+function readHistoryVisits(
+  history: typeof chrome.history,
+  url: string,
+): Promise<chrome.history.VisitItem[]> {
+  return callHistoryApi((callback) => history.getVisits({ url }, callback));
+}
+
+function callHistoryApi<T>(
+  invoke: (callback: (value: T) => void) => unknown,
+): Promise<T> {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const finish = (value: T) => {
+      if (settled) return;
+      settled = true;
+      resolve(value);
+    };
+    try {
+      const result = invoke(finish);
+      if (result && typeof (result as Promise<T>).then === 'function') {
+        void (result as Promise<T>).then(finish, (error: unknown) => {
+          if (!settled) {
+            settled = true;
+            reject(error);
+          }
+        });
+      }
+    } catch (error) {
+      if (!settled) {
+        settled = true;
+        reject(error);
+      }
+    }
+  });
 }
 
 function requiresBootstrap(error: unknown): boolean {
@@ -341,6 +410,13 @@ function createNativeDiagnostics(now: number, fullReconciliation: boolean): Hist
     localVisitCount: 0,
     invalidTimeCount: 0,
     outOfRangeVisitCount: 0,
+    approximateTimeCount: 0,
+    visitShape: '',
+    itemShape: '',
+    visitTimeType: '',
+    itemLastVisitTimeType: '',
+    visitTimeValueKind: '',
+    itemLastVisitTimeValueKind: '',
     draftCount: 0,
     changedCount: 0,
     completeReconciliation: false,
@@ -358,7 +434,80 @@ function summarizeDiagnostics(diagnostics: HistoryNativeCaptureDiagnostics): str
     rawVisits: diagnostics.rawVisitCount,
     drafts: diagnostics.draftCount,
     changed: diagnostics.changedCount,
+    approximateTimes: diagnostics.approximateTimeCount,
+    visitShape: diagnostics.visitShape,
+    itemShape: diagnostics.itemShape,
+    visitTimeType: diagnostics.visitTimeType,
+    itemLastVisitTimeType: diagnostics.itemLastVisitTimeType,
+    visitTimeValueKind: diagnostics.visitTimeValueKind,
+    itemLastVisitTimeValueKind: diagnostics.itemLastVisitTimeValueKind,
     failedQueries: diagnostics.failedQueryCount,
     error: diagnostics.error,
   });
+}
+
+function recordHistoryShape(
+  diagnostics: HistoryNativeCaptureDiagnostics | undefined,
+  item: chrome.history.HistoryItem,
+  visit: chrome.history.VisitItem,
+): void {
+  if (!diagnostics || diagnostics.visitShape) return;
+  diagnostics.visitShape = Object.keys(visit).sort().join(',').slice(0, 500);
+  diagnostics.itemShape = Object.keys(item).sort().join(',').slice(0, 500);
+  const visitRecord = visit as unknown as Record<string, unknown>;
+  const itemRecord = item as unknown as Record<string, unknown>;
+  const visitTime = readFirstField(visitRecord, VISIT_TIMESTAMP_KEYS);
+  const itemTime = readFirstField(itemRecord, ITEM_TIMESTAMP_KEYS);
+  diagnostics.visitTimeType = typeof visitTime;
+  diagnostics.itemLastVisitTimeType = typeof itemTime;
+  diagnostics.visitTimeValueKind = describeValueKind(visitTime);
+  diagnostics.itemLastVisitTimeValueKind = describeValueKind(itemTime);
+}
+
+const VISIT_TIMESTAMP_KEYS = ['visitTime', 'visit_time'];
+const ITEM_TIMESTAMP_KEYS = ['lastVisitTime', 'last_visit_time'];
+
+function readHistoryTimestamp(record: unknown, keys: readonly string[]): number {
+  return parseHistoryTimestamp(readFirstField(record, keys));
+}
+
+function readFirstField(record: unknown, keys: readonly string[]): unknown {
+  if (!record || typeof record !== 'object') return undefined;
+  const values = record as Record<string, unknown>;
+  for (const key of keys) {
+    if (values[key] !== undefined && values[key] !== null) return values[key];
+  }
+  return undefined;
+}
+
+function describeValueKind(value: unknown): string {
+  if (value === undefined) return 'undefined';
+  if (value === null) return 'null';
+  if (value instanceof Date) return 'Date';
+  if (typeof value !== 'object') return typeof value;
+  const constructorName = (value as { constructor?: { name?: unknown } }).constructor?.name;
+  const keys = Reflect.ownKeys(value as object)
+    .filter((key): key is string => typeof key === 'string')
+    .slice(0, 8);
+  return `object:${String(constructorName || 'unknown')}:${keys.join(',')}`.slice(0, 160);
+}
+
+function parseHistoryTimestamp(value: unknown): number {
+  if (value instanceof Date) {
+    const timestamp = value.getTime();
+    return Number.isSafeInteger(timestamp) && timestamp > 0 ? timestamp : 0;
+  }
+  const raw = typeof value === 'string' ? value.trim() : value;
+  if (raw === '' || raw === null || raw === undefined) return 0;
+  let number = Number(raw);
+  if (!Number.isFinite(number)) {
+    const parsed = Date.parse(String(raw));
+    number = Number.isFinite(parsed) ? parsed : 0;
+  }
+  if (!Number.isFinite(number) || number <= 0) return 0;
+  if (number < 100_000_000_000) number *= 1_000;
+  else if (number > 100_000_000_000_000_000) number /= 1_000_000;
+  else if (number > 100_000_000_000_000) number /= 1_000;
+  const timestamp = Math.trunc(number);
+  return Number.isSafeInteger(timestamp) && timestamp > 0 ? timestamp : 0;
 }

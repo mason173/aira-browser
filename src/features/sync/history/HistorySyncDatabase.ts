@@ -402,11 +402,7 @@ export class HistorySyncDatabase {
   }
 
   async restartBootstrap(accountUid: string, clientId: string, now: number): Promise<void> {
-    const state = await this.getState(accountUid, clientId);
-    const database = await this.getDatabase();
-    const transaction = database.transaction(STATE_STORE, 'readwrite');
-    const done = transactionDone(transaction);
-    writeState(transaction.objectStore(STATE_STORE), {
+    await this.updateState(accountUid, clientId, (state) => ({
       ...state,
       initialized: false,
       cursor: 0,
@@ -414,8 +410,7 @@ export class HistorySyncDatabase {
       bootstrapAfterUpdatedSeq: 0,
       bootstrapAfterVisitId: '',
       updatedAt: now,
-    });
-    await done;
+    }));
   }
 
   async updateNativeReconcileTime(
@@ -424,17 +419,12 @@ export class HistorySyncDatabase {
     reconciledAt: number,
     full: boolean,
   ): Promise<void> {
-    const state = await this.getState(accountUid, clientId);
-    const database = await this.getDatabase();
-    const transaction = database.transaction(STATE_STORE, 'readwrite');
-    const done = transactionDone(transaction);
-    writeState(transaction.objectStore(STATE_STORE), {
+    await this.updateState(accountUid, clientId, (state) => ({
       ...state,
       lastNativeReconcileAt: reconciledAt,
       lastFullNativeReconcileAt: full ? reconciledAt : state.lastFullNativeReconcileAt,
       updatedAt: reconciledAt,
-    });
-    await done;
+    }));
   }
 
   async recordNativeDiagnostics(
@@ -442,29 +432,19 @@ export class HistorySyncDatabase {
     clientId: string,
     diagnostics: HistoryNativeCaptureDiagnostics,
   ): Promise<void> {
-    const state = await this.getState(accountUid, clientId);
-    const database = await this.getDatabase();
-    const transaction = database.transaction(STATE_STORE, 'readwrite');
-    const done = transactionDone(transaction);
-    writeState(transaction.objectStore(STATE_STORE), {
+    await this.updateState(accountUid, clientId, (state) => ({
       ...state,
       nativeDiagnostics: diagnostics,
       updatedAt: diagnostics.checkedAt,
-    });
-    await done;
+    }));
   }
 
   async markSyncError(accountUid: string, clientId: string, message: string): Promise<void> {
-    const state = await this.getState(accountUid, clientId);
-    const database = await this.getDatabase();
-    const transaction = database.transaction(STATE_STORE, 'readwrite');
-    const done = transactionDone(transaction);
-    writeState(transaction.objectStore(STATE_STORE), {
+    await this.updateState(accountUid, clientId, (state) => ({
       ...state,
       lastError: message.slice(0, 500),
       updatedAt: Date.now(),
-    });
-    await done;
+    }));
   }
 
   async deleteVisit(accountUid: string, clientId: string, visitId: string, now: number): Promise<boolean> {
@@ -544,6 +524,47 @@ export class HistorySyncDatabase {
       }
     });
     await done;
+  }
+
+  private async updateState(
+    accountUid: string,
+    clientId: string,
+    update: (state: HistorySyncLocalState) => HistorySyncLocalState,
+  ): Promise<void> {
+    const database = await this.getDatabase();
+    const transaction = database.transaction(STATE_STORE, 'readwrite');
+    const store = transaction.objectStore(STATE_STORE);
+    await new Promise<void>((resolve, reject) => {
+      let settled = false;
+      const fail = (error: unknown) => {
+        if (settled) return;
+        settled = true;
+        reject(error instanceof Error ? error : new Error(String(error || 'IndexedDB state update failed.')));
+      };
+      transaction.oncomplete = () => {
+        if (settled) return;
+        settled = true;
+        resolve();
+      };
+      transaction.onerror = () => fail(transaction.error || new Error('IndexedDB state update failed.'));
+      transaction.onabort = () => fail(transaction.error || new Error('IndexedDB state update was aborted.'));
+      const request = store.get(stateKey(accountUid, clientId));
+      request.onerror = () => fail(request.error || new Error('IndexedDB state read failed.'));
+      request.onsuccess = () => {
+        try {
+          const current = request.result
+            ? stripStoredState(request.result as StoredState)
+            : createDefaultState(accountUid, clientId);
+          writeState(store, update(current));
+        } catch (error) {
+          fail(error);
+          try {
+            transaction.abort();
+          } catch {
+          }
+        }
+      };
+    });
   }
 
   private async withAccountTransaction<T>(
@@ -687,6 +708,13 @@ function createEmptyNativeDiagnostics(): HistoryNativeCaptureDiagnostics {
     localVisitCount: 0,
     invalidTimeCount: 0,
     outOfRangeVisitCount: 0,
+    approximateTimeCount: 0,
+    visitShape: '',
+    itemShape: '',
+    visitTimeType: '',
+    itemLastVisitTimeType: '',
+    visitTimeValueKind: '',
+    itemLastVisitTimeValueKind: '',
     draftCount: 0,
     changedCount: 0,
     completeReconciliation: false,
@@ -711,6 +739,13 @@ function normalizeNativeDiagnostics(value: unknown): HistoryNativeCaptureDiagnos
     localVisitCount: finiteNonNegative(raw.localVisitCount, defaults.localVisitCount),
     invalidTimeCount: finiteNonNegative(raw.invalidTimeCount, defaults.invalidTimeCount),
     outOfRangeVisitCount: finiteNonNegative(raw.outOfRangeVisitCount, defaults.outOfRangeVisitCount),
+    approximateTimeCount: finiteNonNegative(raw.approximateTimeCount, defaults.approximateTimeCount),
+    visitShape: String(raw.visitShape || '').slice(0, 500),
+    itemShape: String(raw.itemShape || '').slice(0, 500),
+    visitTimeType: String(raw.visitTimeType || '').slice(0, 32),
+    itemLastVisitTimeType: String(raw.itemLastVisitTimeType || '').slice(0, 32),
+    visitTimeValueKind: String(raw.visitTimeValueKind || '').slice(0, 160),
+    itemLastVisitTimeValueKind: String(raw.itemLastVisitTimeValueKind || '').slice(0, 160),
     draftCount: finiteNonNegative(raw.draftCount, defaults.draftCount),
     changedCount: finiteNonNegative(raw.changedCount, defaults.changedCount),
     completeReconciliation: raw.completeReconciliation === true,

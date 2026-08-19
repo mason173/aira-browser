@@ -376,7 +376,14 @@ function NativeCaptureDiagnostics({
         <span>failed URL queries: {diagnostics.failedQueryCount}</span>
         <span>filtered remote visits: {diagnostics.localVisitCount}</span>
         <span>invalid visit times: {diagnostics.invalidTimeCount}</span>
+        <span>approximate times: {diagnostics.approximateTimeCount}</span>
         <span>filtered time range: {diagnostics.outOfRangeVisitCount}</span>
+        <span className="sm:col-span-2">visit fields: {diagnostics.visitShape || '(none)'}</span>
+        <span className="sm:col-span-2">history item fields: {diagnostics.itemShape || '(none)'}</span>
+        <span>visitTime type: {diagnostics.visitTimeType || '(missing)'}</span>
+        <span>lastVisitTime type: {diagnostics.itemLastVisitTimeType || '(missing)'}</span>
+        <span>visitTime value: {diagnostics.visitTimeValueKind || '(missing)'}</span>
+        <span>lastVisitTime value: {diagnostics.itemLastVisitTimeValueKind || '(missing)'}</span>
       </div>
     </details>
   );

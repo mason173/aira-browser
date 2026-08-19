@@ -117,6 +117,13 @@ export type HistoryNativeCaptureDiagnostics = {
   localVisitCount: number;
   invalidTimeCount: number;
   outOfRangeVisitCount: number;
+  approximateTimeCount: number;
+  visitShape: string;
+  itemShape: string;
+  visitTimeType: string;
+  itemLastVisitTimeType: string;
+  visitTimeValueKind: string;
+  itemLastVisitTimeValueKind: string;
   draftCount: number;
   changedCount: number;
   completeReconciliation: boolean;
