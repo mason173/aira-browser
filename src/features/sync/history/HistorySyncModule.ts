@@ -11,6 +11,7 @@ import {
   HISTORY_SYNC_RETENTION_MS,
   type HistorySyncRunResult,
   type HistoryTimelinePage,
+  type HistoryNativeCaptureDiagnostics,
   type NativeHistoryVisitDraft,
 } from './HistorySyncModels';
 
@@ -54,58 +55,86 @@ export class HistorySyncModule {
     forceFull = false,
   ): Promise<number> {
     const history = globalThis.chrome?.history;
-    if (!history?.search || !history.getVisits) return 0;
     const now = Date.now();
     const state = await this.database.getState(session.uid, session.deviceId);
     const full = forceFull
       || state.lastFullNativeReconcileAt <= 0
       || now - state.lastFullNativeReconcileAt >= FULL_RECONCILIATION_INTERVAL_MS;
+    const diagnostics = createNativeDiagnostics(now, full);
+    if (!history?.search || !history.getVisits) {
+      diagnostics.error = 'Chrome History API is unavailable in the background context.';
+      await this.database.recordNativeDiagnostics(session.uid, session.deviceId, diagnostics);
+      console.warn('[DEBUG-HISTORY-V1] history API unavailable');
+      return 0;
+    }
     const cutoff = now - HISTORY_SYNC_RETENTION_MS;
     const startTime = full
       ? cutoff
       : Math.max(cutoff, state.lastNativeReconcileAt - INCREMENTAL_RECONCILIATION_OVERLAP_MS);
-    const items = await history.search({
-      text: '',
-      startTime,
-      endTime: now,
-      maxResults: HISTORY_SEARCH_RESULT_LIMIT,
-    });
-    const drafts: NativeHistoryVisitDraft[] = [];
-    let failedQueries = 0;
-    for (let offset = 0; offset < items.length; offset += HISTORY_QUERY_CONCURRENCY) {
-      const page = items.slice(offset, offset + HISTORY_QUERY_CONCURRENCY);
-      const results = await Promise.allSettled(page.map(async (item) => {
-        const url = normalizeHistoryUrl(item.url);
-        if (!url) return [];
-        const visits = await history.getVisits({ url });
-        return toNativeDrafts(item, visits, cutoff, now);
-      }));
-      results.forEach((result) => {
-        if (result.status === 'fulfilled') {
-          drafts.push(...result.value);
-        } else {
-          failedQueries += 1;
-        }
+    try {
+      const items = await history.search({
+        text: '',
+        startTime,
+        endTime: now,
+        maxResults: HISTORY_SEARCH_RESULT_LIMIT,
       });
+      diagnostics.searchItemCount = items.length;
+      const drafts: NativeHistoryVisitDraft[] = [];
+      for (let offset = 0; offset < items.length; offset += HISTORY_QUERY_CONCURRENCY) {
+        const page = items.slice(offset, offset + HISTORY_QUERY_CONCURRENCY);
+        diagnostics.queriedItemCount += page.length;
+        const results = await Promise.allSettled(page.map(async (item) => {
+          const url = normalizeHistoryUrl(item.url);
+          if (!url) {
+            diagnostics.invalidUrlCount += 1;
+            return [];
+          }
+          const visits = await history.getVisits({ url });
+          diagnostics.successfulQueryCount += 1;
+          return toNativeDrafts(item, visits, cutoff, now, diagnostics);
+        }));
+        results.forEach((result) => {
+          if (result.status === 'fulfilled') {
+            drafts.push(...result.value);
+          } else {
+            diagnostics.failedQueryCount += 1;
+          }
+        });
+      }
+      const uniqueDrafts = Array.from(
+        new Map(drafts.map((draft) => [draft.nativeVisitId, draft])).values(),
+      ).sort((left, right) => right.visitedAt - left.visitedAt);
+      diagnostics.draftCount = uniqueDrafts.length;
+      const reconciliationSucceeded = diagnostics.failedQueryCount === 0
+        && items.length < HISTORY_SEARCH_RESULT_LIMIT
+        && uniqueDrafts.length <= HISTORY_SYNC_MAX_VISITS;
+      const complete = full && reconciliationSucceeded;
+      diagnostics.completeReconciliation = complete;
+      const changed = await this.database.captureNativeVisits(
+        session.uid,
+        session.deviceId,
+        session.deviceName || 'Aira Desktop',
+        uniqueDrafts.slice(0, HISTORY_SYNC_MAX_VISITS),
+        complete,
+        now,
+      );
+      diagnostics.changedCount = changed;
+      await this.database.recordNativeDiagnostics(session.uid, session.deviceId, diagnostics);
+      await this.database.updateNativeReconcileTime(
+        session.uid,
+        session.deviceId,
+        reconciliationSucceeded ? now : state.lastNativeReconcileAt,
+        complete,
+      );
+      await this.database.pruneProjection(session.uid, now);
+      console.info('[DEBUG-HISTORY-V1] native reconcile', summarizeDiagnostics(diagnostics));
+      return changed;
+    } catch (error) {
+      diagnostics.error = errorMessage(error);
+      await this.database.recordNativeDiagnostics(session.uid, session.deviceId, diagnostics).catch(() => undefined);
+      console.error('[DEBUG-HISTORY-V1] native reconcile failed', diagnostics.error);
+      throw error;
     }
-    const uniqueDrafts = Array.from(
-      new Map(drafts.map((draft) => [draft.nativeVisitId, draft])).values(),
-    ).sort((left, right) => right.visitedAt - left.visitedAt);
-    const complete = full
-      && failedQueries === 0
-      && items.length < HISTORY_SEARCH_RESULT_LIMIT
-      && uniqueDrafts.length <= HISTORY_SYNC_MAX_VISITS;
-    const changed = await this.database.captureNativeVisits(
-      session.uid,
-      session.deviceId,
-      session.deviceName || 'Aira Desktop',
-      uniqueDrafts.slice(0, HISTORY_SYNC_MAX_VISITS),
-      complete,
-      now,
-    );
-    await this.database.updateNativeReconcileTime(session.uid, session.deviceId, now, full);
-    await this.database.pruneProjection(session.uid, now);
-    return changed;
   }
 
   async captureVisitedItem(
@@ -250,13 +279,26 @@ function toNativeDrafts(
   visits: chrome.history.VisitItem[],
   cutoff: number,
   now: number,
+  diagnostics?: HistoryNativeCaptureDiagnostics,
 ): NativeHistoryVisitDraft[] {
   const url = normalizeHistoryUrl(item.url);
   if (!url) return [];
   return visits.flatMap((visit) => {
-    const visitedAt = Number(visit.visitTime || 0);
+    if (diagnostics) diagnostics.rawVisitCount += 1;
+    // Some Chromium-compatible History implementations omit VisitItem.visitTime even though
+    // HistoryItem.lastVisitTime is present. Keep the visit instead of dropping the whole URL.
+    const visitedAt = Number(visit.visitTime || item.lastVisitTime || 0);
     const isLocal = (visit as chrome.history.VisitItem & { isLocal?: boolean }).isLocal;
-    if (!Number.isSafeInteger(visitedAt) || visitedAt < cutoff || visitedAt > now || isLocal === false) {
+    if (!Number.isSafeInteger(visitedAt)) {
+      if (diagnostics) diagnostics.invalidTimeCount += 1;
+      return [];
+    }
+    if (isLocal === false) {
+      if (diagnostics) diagnostics.localVisitCount += 1;
+      return [];
+    }
+    if (visitedAt < cutoff || visitedAt > now) {
+      if (diagnostics) diagnostics.outOfRangeVisitCount += 1;
       return [];
     }
     const nativeVisitId = String(visit.visitId || '').trim()
@@ -283,4 +325,40 @@ function normalizeHistoryUrl(value: string | undefined): string {
 function requiresBootstrap(error: unknown): boolean {
   return error instanceof AiraCloudHistoryRemoteError
     && (error.code === 'history_cursor_expired' || error.code === 'history_cursor_ahead');
+}
+
+function createNativeDiagnostics(now: number, fullReconciliation: boolean): HistoryNativeCaptureDiagnostics {
+  return {
+    checkedAt: now,
+    fullReconciliation,
+    historyApiAvailable: true,
+    searchItemCount: 0,
+    queriedItemCount: 0,
+    rawVisitCount: 0,
+    successfulQueryCount: 0,
+    failedQueryCount: 0,
+    invalidUrlCount: 0,
+    localVisitCount: 0,
+    invalidTimeCount: 0,
+    outOfRangeVisitCount: 0,
+    draftCount: 0,
+    changedCount: 0,
+    completeReconciliation: false,
+    error: '',
+  };
+}
+
+function errorMessage(error: unknown): string {
+  return String((error as Error)?.message || error || 'Unknown history capture error.').slice(0, 500);
+}
+
+function summarizeDiagnostics(diagnostics: HistoryNativeCaptureDiagnostics): string {
+  return JSON.stringify({
+    search: diagnostics.searchItemCount,
+    rawVisits: diagnostics.rawVisitCount,
+    drafts: diagnostics.draftCount,
+    changed: diagnostics.changedCount,
+    failedQueries: diagnostics.failedQueryCount,
+    error: diagnostics.error,
+  });
 }

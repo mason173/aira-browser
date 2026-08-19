@@ -9,6 +9,7 @@ import {
   type HistorySyncMutation,
   type HistorySyncVisit,
   type HistoryTimelinePage,
+  type HistoryNativeCaptureDiagnostics,
   type NativeHistoryVisitDraft,
 } from './HistorySyncModels';
 
@@ -90,13 +91,31 @@ export class HistorySyncDatabase {
     now: number,
   ): Promise<number> {
     if (drafts.length <= 0 && !completeReconciliation) return 0;
-    return this.withAccountTransaction('readwrite', async (stores) => {
-      const [state, ledgerRows, rangeRows, outboxRows] = await Promise.all([
-        readStateFromStore(stores.state, accountUid, clientId),
-        readAccountRows<StoredNativeLedger>(stores.ledger, accountUid),
-        readAccountRows<StoredDeleteRange>(stores.ranges, accountUid),
-        readAccountRows<StoredMutation>(stores.outbox, accountUid),
-      ]);
+    const database = await this.getDatabase();
+    const readTransaction = database.transaction(
+      [OUTBOX_STORE, STATE_STORE, LEDGER_STORE, RANGES_STORE],
+      'readonly',
+    );
+    const readDone = transactionDone(readTransaction);
+    const [state, ledgerRows, rangeRows, outboxRows] = await Promise.all([
+      readStateFromStore(readTransaction.objectStore(STATE_STORE), accountUid, clientId),
+      readAccountRows<StoredNativeLedger>(readTransaction.objectStore(LEDGER_STORE), accountUid),
+      readAccountRows<StoredDeleteRange>(readTransaction.objectStore(RANGES_STORE), accountUid),
+      readAccountRows<StoredMutation>(readTransaction.objectStore(OUTBOX_STORE), accountUid),
+    ]);
+    await readDone;
+
+    const writeTransaction = database.transaction(
+      [VISITS_STORE, OUTBOX_STORE, LEDGER_STORE],
+      'readwrite',
+    );
+    const writeDone = transactionDone(writeTransaction);
+    try {
+      const stores = {
+        visits: writeTransaction.objectStore(VISITS_STORE),
+        outbox: writeTransaction.objectStore(OUTBOX_STORE),
+        ledger: writeTransaction.objectStore(LEDGER_STORE),
+      };
       const ledgerByNativeId = new Map(
         ledgerRows
           .filter((row) => row.clientId === clientId)
@@ -166,8 +185,19 @@ export class HistorySyncDatabase {
           changed += 1;
         }
       }
+      await writeDone;
       return changed;
-    });
+    } catch (error) {
+      try {
+        writeTransaction.abort();
+      } catch {
+      }
+      try {
+        await writeDone;
+      } catch {
+      }
+      throw error;
+    }
   }
 
   async recordNativeRemoval(
@@ -407,6 +437,23 @@ export class HistorySyncDatabase {
     await done;
   }
 
+  async recordNativeDiagnostics(
+    accountUid: string,
+    clientId: string,
+    diagnostics: HistoryNativeCaptureDiagnostics,
+  ): Promise<void> {
+    const state = await this.getState(accountUid, clientId);
+    const database = await this.getDatabase();
+    const transaction = database.transaction(STATE_STORE, 'readwrite');
+    const done = transactionDone(transaction);
+    writeState(transaction.objectStore(STATE_STORE), {
+      ...state,
+      nativeDiagnostics: diagnostics,
+      updatedAt: diagnostics.checkedAt,
+    });
+    await done;
+  }
+
   async markSyncError(accountUid: string, clientId: string, message: string): Promise<void> {
     const state = await this.getState(accountUid, clientId);
     const database = await this.getDatabase();
@@ -441,10 +488,13 @@ export class HistorySyncDatabase {
     options: { query?: string; deviceId?: string; offset?: number; limit?: number } = {},
   ): Promise<HistoryTimelinePage> {
     const database = await this.getDatabase();
-    const transaction = database.transaction([VISITS_STORE, STATE_STORE], 'readonly');
+    const transaction = database.transaction([VISITS_STORE, OUTBOX_STORE, STATE_STORE], 'readonly');
     const done = transactionDone(transaction);
-    const visits = await readAccountRows<StoredVisit>(transaction.objectStore(VISITS_STORE), accountUid);
-    const states = await requestResult<StoredState[]>(transaction.objectStore(STATE_STORE).getAll());
+    const [visits, outbox, states] = await Promise.all([
+      readAccountRows<StoredVisit>(transaction.objectStore(VISITS_STORE), accountUid),
+      readAccountRows<StoredMutation>(transaction.objectStore(OUTBOX_STORE), accountUid),
+      requestResult<StoredState[]>(transaction.objectStore(STATE_STORE).getAll()),
+    ]);
     await done;
 
     const query = String(options.query || '').trim().toLocaleLowerCase();
@@ -475,6 +525,8 @@ export class HistorySyncDatabase {
         .sort((left, right) => left.name.localeCompare(right.name)),
       lastSyncAt: state?.lastSyncAt || 0,
       lastError: state?.lastError || '',
+      pendingUploadCount: outbox.length,
+      nativeDiagnostics: state?.nativeDiagnostics,
     };
   }
 
@@ -608,13 +660,67 @@ function createDefaultState(accountUid: string, clientId: string): HistorySyncLo
     lastFullNativeReconcileAt: 0,
     lastSyncAt: 0,
     lastError: '',
+    nativeDiagnostics: createEmptyNativeDiagnostics(),
     updatedAt: 0,
   };
 }
 
 function stripStoredState(state: StoredState): HistorySyncLocalState {
   const { key: _key, ...plain } = state;
-  return plain;
+  return {
+    ...plain,
+    nativeDiagnostics: normalizeNativeDiagnostics(plain.nativeDiagnostics),
+  };
+}
+
+function createEmptyNativeDiagnostics(): HistoryNativeCaptureDiagnostics {
+  return {
+    checkedAt: 0,
+    fullReconciliation: false,
+    historyApiAvailable: false,
+    searchItemCount: 0,
+    queriedItemCount: 0,
+    rawVisitCount: 0,
+    successfulQueryCount: 0,
+    failedQueryCount: 0,
+    invalidUrlCount: 0,
+    localVisitCount: 0,
+    invalidTimeCount: 0,
+    outOfRangeVisitCount: 0,
+    draftCount: 0,
+    changedCount: 0,
+    completeReconciliation: false,
+    error: '',
+  };
+}
+
+function normalizeNativeDiagnostics(value: unknown): HistoryNativeCaptureDiagnostics {
+  const defaults = createEmptyNativeDiagnostics();
+  if (!value || typeof value !== 'object') return defaults;
+  const raw = value as Partial<HistoryNativeCaptureDiagnostics>;
+  return {
+    checkedAt: finiteNonNegative(raw.checkedAt, defaults.checkedAt),
+    fullReconciliation: raw.fullReconciliation === true,
+    historyApiAvailable: raw.historyApiAvailable === true,
+    searchItemCount: finiteNonNegative(raw.searchItemCount, defaults.searchItemCount),
+    queriedItemCount: finiteNonNegative(raw.queriedItemCount, defaults.queriedItemCount),
+    rawVisitCount: finiteNonNegative(raw.rawVisitCount, defaults.rawVisitCount),
+    successfulQueryCount: finiteNonNegative(raw.successfulQueryCount, defaults.successfulQueryCount),
+    failedQueryCount: finiteNonNegative(raw.failedQueryCount, defaults.failedQueryCount),
+    invalidUrlCount: finiteNonNegative(raw.invalidUrlCount, defaults.invalidUrlCount),
+    localVisitCount: finiteNonNegative(raw.localVisitCount, defaults.localVisitCount),
+    invalidTimeCount: finiteNonNegative(raw.invalidTimeCount, defaults.invalidTimeCount),
+    outOfRangeVisitCount: finiteNonNegative(raw.outOfRangeVisitCount, defaults.outOfRangeVisitCount),
+    draftCount: finiteNonNegative(raw.draftCount, defaults.draftCount),
+    changedCount: finiteNonNegative(raw.changedCount, defaults.changedCount),
+    completeReconciliation: raw.completeReconciliation === true,
+    error: String(raw.error || '').slice(0, 500),
+  };
+}
+
+function finiteNonNegative(value: unknown, fallback: number): number {
+  const number = Number(value);
+  return Number.isSafeInteger(number) && number >= 0 ? number : fallback;
 }
 
 function stripStoredVisit(visit: StoredVisit): HistorySyncVisit {

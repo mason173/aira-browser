@@ -100,7 +100,27 @@ export type HistorySyncLocalState = {
   lastFullNativeReconcileAt: number;
   lastSyncAt: number;
   lastError: string;
+  nativeDiagnostics: HistoryNativeCaptureDiagnostics;
   updatedAt: number;
+};
+
+export type HistoryNativeCaptureDiagnostics = {
+  checkedAt: number;
+  fullReconciliation: boolean;
+  historyApiAvailable: boolean;
+  searchItemCount: number;
+  queriedItemCount: number;
+  rawVisitCount: number;
+  successfulQueryCount: number;
+  failedQueryCount: number;
+  invalidUrlCount: number;
+  localVisitCount: number;
+  invalidTimeCount: number;
+  outOfRangeVisitCount: number;
+  draftCount: number;
+  changedCount: number;
+  completeReconciliation: boolean;
+  error: string;
 };
 
 export type NativeHistoryVisitDraft = {
@@ -127,4 +147,6 @@ export type HistoryTimelinePage = {
   devices: HistoryTimelineDevice[];
   lastSyncAt: number;
   lastError: string;
+  pendingUploadCount: number;
+  nativeDiagnostics?: HistoryNativeCaptureDiagnostics;
 };
