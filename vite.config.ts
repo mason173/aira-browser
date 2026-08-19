@@ -106,6 +106,7 @@ export default defineConfig(async () => {
         input: {
           'background-sw': path.resolve(__dirname, 'src/background.ts'),
           popup: path.resolve(__dirname, 'popup.html'),
+          history: path.resolve(__dirname, 'history.html'),
         },
         output: {
           entryFileNames: '[name].js',

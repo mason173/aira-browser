@@ -21,7 +21,7 @@ const finalLocaleMessages = {
       description: 'The title of the application',
     },
     appDescription: {
-      message: 'Connect Aira Browser on HarmonyOS to sync bookmarks on desktop and receive pages sent from your phone.',
+      message: 'Connect Aira Browser on HarmonyOS to sync bookmarks and browsing history on desktop, and receive pages sent from your phone.',
       description: 'The description of the application',
     },
   },
@@ -31,7 +31,7 @@ const finalLocaleMessages = {
       description: 'The title of the application',
     },
     appDescription: {
-      message: '连接鸿蒙手机上的 Aira 浏览器，在电脑浏览器同步书签，并接收手机推送的当前网页。',
+      message: '连接鸿蒙手机上的 Aira 浏览器，在电脑浏览器同步书签和历史记录，并接收手机推送的当前网页。',
       description: 'The description of the application',
     },
   },

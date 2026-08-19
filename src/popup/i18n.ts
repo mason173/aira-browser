@@ -71,6 +71,7 @@ export const popupI18nReady = popupI18n
               phonePushDesc: 'When enabled, this browser receives and opens pages sent from your phone.',
               phonePushEnabled: 'Receive phone page pushes',
               phonePushTitle: 'Phone link',
+              history: 'History',
               webdavData: 'WebDAV data',
               webdavEnabledStatus: 'WebDAV enabled',
               lastSync: 'Last sync',
@@ -124,6 +125,42 @@ export const popupI18nReady = popupI18n
             webdav: {
               hidePassword: 'Hide password',
               showPassword: 'Show password',
+            },
+          },
+          history: {
+            title: 'Aira History',
+            actions: {
+              clear: 'Clear history',
+              delete: 'Delete visit',
+              more: 'Load more',
+              sync: 'Sync now',
+            },
+            clear: {
+              confirm: 'Clear the synchronized history for all devices?',
+            },
+            devices: {
+              all: 'All devices',
+              label: 'Device',
+            },
+            errors: {
+              clear: 'Unable to clear history.',
+              delete: 'Unable to delete this visit.',
+            },
+            search: {
+              placeholder: 'Search history',
+            },
+            states: {
+              empty: 'No history found',
+              loading: 'Loading history',
+              login: 'Connect this desktop to Aira',
+              pro: 'Aira Pro is required for History Sync',
+            },
+            status: {
+              login: 'Not connected',
+              pending: 'Waiting for first sync',
+              pro: 'Pro required',
+              synced: 'Synced {{time}}',
+              unavailable: 'Temporarily unavailable',
             },
           },
           settings: {
@@ -188,6 +225,7 @@ export const popupI18nReady = popupI18n
               phonePushDesc: '开启后，这台电脑浏览器会自动接收并打开手机推送的当前网页。',
               phonePushEnabled: '接收手机网页推送',
               phonePushTitle: '手机联动',
+              history: '历史记录',
               webdavData: 'WebDAV 数据',
               webdavEnabledStatus: 'WebDAV 同步已开启',
               lastSync: '最近同步',
@@ -241,6 +279,42 @@ export const popupI18nReady = popupI18n
             webdav: {
               hidePassword: '隐藏密码',
               showPassword: '显示密码',
+            },
+          },
+          history: {
+            title: 'Aira 历史记录',
+            actions: {
+              clear: '清空历史记录',
+              delete: '删除这条访问记录',
+              more: '加载更多',
+              sync: '立即同步',
+            },
+            clear: {
+              confirm: '清空所有设备的同步历史记录？',
+            },
+            devices: {
+              all: '全部设备',
+              label: '设备',
+            },
+            errors: {
+              clear: '无法清空历史记录。',
+              delete: '无法删除这条访问记录。',
+            },
+            search: {
+              placeholder: '搜索历史记录',
+            },
+            states: {
+              empty: '没有找到历史记录',
+              loading: '正在读取历史记录',
+              login: '请先连接 Aira 桌面设备',
+              pro: '历史记录同步需要 Aira Pro',
+            },
+            status: {
+              login: '未连接',
+              pending: '等待首次同步',
+              pro: '需要 Pro',
+              synced: '已同步 {{time}}',
+              unavailable: '暂时不可用',
             },
           },
           settings: {

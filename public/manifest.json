@@ -17,6 +17,7 @@
     "alarms",
     "permissions",
     "bookmarks",
+    "history",
     "storage",
     "unlimitedStorage"
   ],

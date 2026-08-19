@@ -33,6 +33,17 @@ function readManifestFromZip(zipPath) {
   }
 }
 
+function readZipEntries(zipPath) {
+  try {
+    return new Set(execSync(`unzip -Z1 "${zipPath}"`, { encoding: 'utf-8' })
+      .split(/\r?\n/)
+      .map((entry) => entry.trim().replace(/^\.\//, ''))
+      .filter(Boolean));
+  } catch {
+    throw new Error(`Cannot list release zip: ${zipPath}`);
+  }
+}
+
 function detectPackageKind(zipPath, manifest) {
   const name = path.basename(zipPath).toLowerCase();
   if (name.includes('-firefox-') || manifest.browser_specific_settings?.gecko?.id === FIREFOX_EXTENSION_ID) {
@@ -57,6 +68,13 @@ function verifyZip({ zipPath, expectedEdition, expectedVersion, expectedVersionN
   const actualVersionName = String(manifest.version_name || '');
   const actualManifestKey = String(manifest.key || '');
   const actualExtensionId = actualManifestKey ? computeExtensionIdFromManifestKey(actualManifestKey) : '';
+  const zipEntries = readZipEntries(zipPath);
+
+  for (const requiredEntry of ['background-sw.js', 'popup.html', 'history.html', 'history.js']) {
+    if (!zipEntries.has(requiredEntry)) {
+      throw new Error(`Package is missing ${requiredEntry} in ${path.basename(zipPath)}.`);
+    }
+  }
 
   if ((packageKind === 'store' || packageKind === 'firefox') && Object.prototype.hasOwnProperty.call(manifest, 'key')) {
     throw new Error(
@@ -78,7 +96,7 @@ function verifyZip({ zipPath, expectedEdition, expectedVersion, expectedVersionN
       );
     }
     const requiredData = readStringArray(gecko?.data_collection_permissions?.required);
-    for (const item of ['authenticationInfo', 'bookmarksInfo']) {
+    for (const item of ['authenticationInfo', 'bookmarksInfo', 'browsingActivity']) {
       if (!requiredData.includes(item)) {
         throw new Error(
           `Firefox package must declare gecko.data_collection_permissions.required ${item} in ${path.basename(zipPath)}.`
@@ -93,6 +111,9 @@ function verifyZip({ zipPath, expectedEdition, expectedVersion, expectedVersionN
       throw new Error(`Firefox package must not include ignored background.service_worker in ${path.basename(zipPath)}.`);
     }
     const permissions = readStringArray(manifest.permissions);
+    if (!permissions.includes('history')) {
+      throw new Error(`Firefox package must include required "history" permission in ${path.basename(zipPath)}.`);
+    }
     if (permissions.includes('permissions')) {
       throw new Error(`Firefox package must not include unsupported "permissions" manifest permission in ${path.basename(zipPath)}.`);
     }
@@ -104,6 +125,9 @@ function verifyZip({ zipPath, expectedEdition, expectedVersion, expectedVersionN
         'The key fixes the extension ID so manual updates keep user data.',
       ].join(' ')
     );
+  }
+  if (!readStringArray(manifest.permissions).includes('history')) {
+    throw new Error(`Package must include required "history" permission in ${path.basename(zipPath)}.`);
   }
   if (packageKind === 'community' && expectedManifestKey && actualManifestKey !== expectedManifestKey) {
     throw new Error(
