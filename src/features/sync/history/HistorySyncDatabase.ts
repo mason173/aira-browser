@@ -66,6 +66,7 @@ type AccountStores = {
 
 export class HistorySyncDatabase {
   private databasePromise: Promise<IDBDatabase> | null = null;
+  private nativeCaptureQueue: Promise<void> = Promise.resolve();
 
   async initialize(): Promise<void> {
     await this.getDatabase();
@@ -90,23 +91,30 @@ export class HistorySyncDatabase {
     completeReconciliation: boolean,
     now: number,
   ): Promise<number> {
+    const run = this.nativeCaptureQueue.then(() => this.captureNativeVisitsInternal(
+      accountUid,
+      clientId,
+      deviceName,
+      drafts,
+      completeReconciliation,
+      now,
+    ));
+    this.nativeCaptureQueue = run.then(() => undefined, () => undefined);
+    return run;
+  }
+
+  private async captureNativeVisitsInternal(
+    accountUid: string,
+    clientId: string,
+    deviceName: string,
+    drafts: NativeHistoryVisitDraft[],
+    completeReconciliation: boolean,
+    now: number,
+  ): Promise<number> {
     if (drafts.length <= 0 && !completeReconciliation) return 0;
     const database = await this.getDatabase();
-    const readTransaction = database.transaction(
-      [OUTBOX_STORE, STATE_STORE, LEDGER_STORE, RANGES_STORE],
-      'readonly',
-    );
-    const readDone = transactionDone(readTransaction);
-    const [state, ledgerRows, rangeRows, outboxRows] = await Promise.all([
-      readStateFromStore(readTransaction.objectStore(STATE_STORE), accountUid, clientId),
-      readAccountRows<StoredNativeLedger>(readTransaction.objectStore(LEDGER_STORE), accountUid),
-      readAccountRows<StoredDeleteRange>(readTransaction.objectStore(RANGES_STORE), accountUid),
-      readAccountRows<StoredMutation>(readTransaction.objectStore(OUTBOX_STORE), accountUid),
-    ]);
-    await readDone;
-
     const writeTransaction = database.transaction(
-      [VISITS_STORE, OUTBOX_STORE, LEDGER_STORE],
+      [VISITS_STORE, OUTBOX_STORE, STATE_STORE, LEDGER_STORE, RANGES_STORE],
       'readwrite',
     );
     const writeDone = transactionDone(writeTransaction);
@@ -114,8 +122,17 @@ export class HistorySyncDatabase {
       const stores = {
         visits: writeTransaction.objectStore(VISITS_STORE),
         outbox: writeTransaction.objectStore(OUTBOX_STORE),
+        state: writeTransaction.objectStore(STATE_STORE),
         ledger: writeTransaction.objectStore(LEDGER_STORE),
+        ranges: writeTransaction.objectStore(RANGES_STORE),
       };
+      const [state, ledgerRows, rangeRows, outboxRows, visitRows] = await Promise.all([
+        readStateFromStore(stores.state, accountUid, clientId),
+        readAccountRows<StoredNativeLedger>(stores.ledger, accountUid),
+        readAccountRows<StoredDeleteRange>(stores.ranges, accountUid),
+        readAccountRows<StoredMutation>(stores.outbox, accountUid),
+        readAccountRows<StoredVisit>(stores.visits, accountUid),
+      ]);
       const ledgerByNativeId = new Map(
         ledgerRows
           .filter((row) => row.clientId === clientId)
@@ -126,6 +143,7 @@ export class HistorySyncDatabase {
           .filter((row) => row.mutation.kind === 'upsert_visit' && row.mutation.visit)
           .map((row) => row.mutation.visit?.visitId || ''),
       );
+      const visitById = new Map(visitRows.map((row) => [row.visitId, stripStoredVisit(row)]));
       const incomingNativeIds = new Set<string>();
       let changed = 0;
 
@@ -134,7 +152,7 @@ export class HistorySyncDatabase {
         const existing = ledgerByNativeId.get(draft.nativeVisitId);
         if (existing) {
           if (existing.syncState === 'pending' && !pendingVisitIds.has(existing.visitId)) {
-            const visit = toHistoryVisit(clientId, deviceName, draft);
+            const visit = visitById.get(existing.visitId) || toHistoryVisit(clientId, deviceName, draft);
             putMutation(stores.outbox, accountUid, createUpsertMutation(clientId, visit, now), now);
           }
           continue;
@@ -776,10 +794,13 @@ function toHistoryVisit(
   deviceName: string,
   draft: NativeHistoryVisitDraft,
 ): HistorySyncVisit {
-  const nativeVisitId = encodeURIComponent(draft.nativeVisitId);
   const prefix = `h1:${clientId}:`;
+  const nativeVisitId = canonicalNativeVisitId(
+    draft.nativeVisitId,
+    Math.max(1, 512 - prefix.length),
+  );
   return {
-    visitId: `${prefix}${nativeVisitId.slice(0, Math.max(1, 512 - prefix.length))}`,
+    visitId: `${prefix}${nativeVisitId}`,
     clientId,
     nativeVisitId,
     url: draft.url,
@@ -790,6 +811,25 @@ function toHistoryVisit(
     deviceName: deviceName.slice(0, 128),
     source: 'airatab_native',
   };
+}
+
+function canonicalNativeVisitId(value: string, maxLength: number): string {
+  const encoded = encodeURIComponent(value);
+  if (encoded.length <= maxLength) return encoded;
+  const first = hashNativeVisitId(encoded, 2_166_136_261, 16_777_619);
+  const second = hashNativeVisitId(encoded, 2_654_435_761, 2_246_822_519);
+  const marker = `~${first.toString(16).padStart(8, '0')}${second.toString(16).padStart(8, '0')}`;
+  const prefixLength = Math.max(0, maxLength - marker.length);
+  return `${encoded.slice(0, prefixLength)}${marker}`.slice(0, maxLength);
+}
+
+function hashNativeVisitId(value: string, seed: number, prime: number): number {
+  let hash = seed >>> 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, prime);
+  }
+  return hash >>> 0;
 }
 
 function createUpsertMutation(clientId: string, visit: HistorySyncVisit, now: number): HistorySyncMutation {

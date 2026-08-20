@@ -161,4 +161,99 @@ describe('HistorySyncModule native capture', () => {
       visitedAt: lastVisitTime,
     });
   });
+
+  test('does not enqueue two payloads for one native visit when capture and reconcile overlap', async () => {
+    const visitTime = Date.now() - 1_000;
+    const overlapSession = { ...SESSION, uid: 'history-test-account-overlap' };
+    let historyReadCount = 0;
+    vi.stubGlobal('chrome', {
+      history: {
+        search: vi.fn((_query, callback) => callback([{
+          id: 'native-item-overlap',
+          url: 'https://example.com/overlap',
+          title: 'Reconciled title',
+          lastVisitTime: visitTime,
+        }])),
+        getVisits: vi.fn((_details, callback) => {
+          historyReadCount += 1;
+          const title = historyReadCount === 1 ? 'Event title' : 'Reconciled title';
+          queueMicrotask(() => callback([{
+            id: 'native-item-overlap',
+            visitId: 'native-overlap-1',
+            referringVisitId: '0',
+            transition: 'link',
+            isLocal: true,
+            visitTime,
+            title,
+          }]));
+        }),
+      },
+    });
+
+    const module = new HistorySyncModule();
+    await module.initialize();
+    await Promise.all([
+      module.captureVisitedItem(overlapSession, {
+        id: 'native-item-overlap',
+        url: 'https://example.com/overlap',
+        title: 'Event title',
+        lastVisitTime: visitTime,
+      }),
+      module.reconcileNativeHistory(overlapSession, true),
+    ]);
+
+    const database = (module as unknown as {
+      database: { listOutbox(accountUid: string, limit: number): Promise<unknown[]> };
+    }).database;
+    const outbox = await database.listOutbox(overlapSession.uid, 20) as Array<{
+      kind?: string;
+      visit?: { visitId?: string; title?: string };
+    }>;
+    const upserts = outbox.filter((mutation) => mutation.kind === 'upsert_visit');
+    expect(upserts).toHaveLength(1);
+    expect(upserts[0]?.visit?.visitId).toBe(
+      `h1:${SESSION.deviceId}:${encodeURIComponent('native-overlap-1')}`,
+    );
+    expect(upserts[0]?.visit?.title).toBe('Event title');
+  });
+
+  test('keeps long native IDs canonical between visitId and nativeVisitId', async () => {
+    const visitTime = Date.now() - 1_000;
+    const longNativeVisitId = 'native-' + 'x'.repeat(700);
+    const longSession = { ...SESSION, uid: 'history-test-account-long-id' };
+    vi.stubGlobal('chrome', {
+      history: {
+        getVisits: vi.fn((_details, callback) => callback([{
+          id: 'native-item-long',
+          visitId: longNativeVisitId,
+          referringVisitId: '0',
+          transition: 'link',
+          isLocal: true,
+          visitTime,
+        }])),
+      },
+    });
+
+    const module = new HistorySyncModule();
+    await module.initialize();
+    await module.captureVisitedItem(longSession, {
+      id: 'native-item-long',
+      url: 'https://example.com/long-id',
+      title: 'Long ID',
+      lastVisitTime: visitTime,
+    });
+
+    const database = (module as unknown as {
+      database: { listOutbox(accountUid: string, limit: number): Promise<unknown[]> };
+    }).database;
+    const outbox = await database.listOutbox(longSession.uid, 20) as Array<{
+      visit?: { visitId?: string; nativeVisitId?: string };
+    }>;
+    expect(outbox[0]?.visit?.nativeVisitId).toBe(
+      outbox[0]?.visit?.visitId?.slice(`h1:${SESSION.deviceId}:`.length),
+    );
+    expect(outbox[0]?.visit?.nativeVisitId?.length).toBeLessThanOrEqual(
+      512 - `h1:${SESSION.deviceId}:`.length,
+    );
+  });
 });
