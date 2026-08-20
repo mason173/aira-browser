@@ -102,10 +102,6 @@ export function createHistoryBackgroundSyncRuntime(config: {
     if (activeRun) return activeRun;
     const run = (async () => {
       const resolved = await resolveSession(true);
-      console.info('[DEBUG-HISTORY-V1] background gate', JSON.stringify({
-        hasSession: Boolean(resolved.session),
-        capability: resolved.status,
-      }));
       if (!resolved.session) {
         if (resolved.status === 'login-required' || resolved.status === 'pro-required') {
           await clearSchedules();
@@ -117,10 +113,6 @@ export function createHistoryBackgroundSyncRuntime(config: {
       const keepAlive = config.startKeepAlive();
       try {
         await module.reconcileNativeHistory(resolved.session, forceFullReconciliation);
-        console.info('[DEBUG-HISTORY-V1] local capture complete', JSON.stringify({
-          capability: resolved.status,
-          cloudExchange: resolved.status === 'ready',
-        }));
         if (resolved.status !== 'ready') {
           const message = capabilityError(resolved.status);
           await module.markSyncError(resolved.session, new Error(message));
@@ -308,7 +300,6 @@ function emptyTimelinePage() {
     devices: [],
     lastSyncAt: 0,
     lastError: '',
-    pendingUploadCount: 0,
   };
 }
 

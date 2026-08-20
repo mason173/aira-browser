@@ -24,7 +24,6 @@ import {
   type HistoryCapabilityStatus,
 } from './historyMessages';
 import type {
-  HistoryNativeCaptureDiagnostics,
   HistorySyncVisit,
   HistoryTimelinePage,
 } from './HistorySyncModels';
@@ -42,7 +41,6 @@ const EMPTY_PAGE: HistoryTimelinePage = {
   devices: [],
   lastSyncAt: 0,
   lastError: '',
-  pendingUploadCount: 0,
 };
 
 export function HistoryApp() {
@@ -231,13 +229,6 @@ export function HistoryApp() {
           </div>
         ) : null}
 
-        {state.page.nativeDiagnostics?.checkedAt ? (
-          <NativeCaptureDiagnostics
-            diagnostics={state.page.nativeDiagnostics}
-            pendingUploadCount={state.page.pendingUploadCount}
-          />
-        ) : null}
-
         {state.status === 'login-required' ? (
           <EmptyState
             icon={<Monitor className="size-6" />}
@@ -346,46 +337,6 @@ function EmptyState({ icon, title }: { icon: React.ReactNode; title: string }) {
       <span className="flex h-12 w-12 items-center justify-center rounded-[8px] bg-muted">{icon}</span>
       <p className="text-sm font-medium leading-5">{title}</p>
     </div>
-  );
-}
-
-function NativeCaptureDiagnostics({
-  diagnostics,
-  pendingUploadCount,
-}: {
-  diagnostics: HistoryNativeCaptureDiagnostics;
-  pendingUploadCount: number;
-}) {
-  const status = diagnostics.error
-    ? `error: ${diagnostics.error}`
-    : diagnostics.historyApiAvailable
-      ? 'ok'
-      : 'History API unavailable';
-  return (
-    <details className="mt-4 rounded-[8px] border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-      <summary className="cursor-pointer select-none font-medium text-foreground">
-        Native capture diagnostics
-      </summary>
-      <div className="mt-2 grid gap-x-4 gap-y-1 sm:grid-cols-2">
-        <span>status: {status}</span>
-        <span>search items: {diagnostics.searchItemCount}</span>
-        <span>raw visits: {diagnostics.rawVisitCount}</span>
-        <span>drafts: {diagnostics.draftCount}</span>
-        <span>new local rows: {diagnostics.changedCount}</span>
-        <span>pending upload mutations: {pendingUploadCount}</span>
-        <span>failed URL queries: {diagnostics.failedQueryCount}</span>
-        <span>filtered remote visits: {diagnostics.localVisitCount}</span>
-        <span>invalid visit times: {diagnostics.invalidTimeCount}</span>
-        <span>approximate times: {diagnostics.approximateTimeCount}</span>
-        <span>filtered time range: {diagnostics.outOfRangeVisitCount}</span>
-        <span className="sm:col-span-2">visit fields: {diagnostics.visitShape || '(none)'}</span>
-        <span className="sm:col-span-2">history item fields: {diagnostics.itemShape || '(none)'}</span>
-        <span>visitTime type: {diagnostics.visitTimeType || '(missing)'}</span>
-        <span>lastVisitTime type: {diagnostics.itemLastVisitTimeType || '(missing)'}</span>
-        <span>visitTime value: {diagnostics.visitTimeValueKind || '(missing)'}</span>
-        <span>lastVisitTime value: {diagnostics.itemLastVisitTimeValueKind || '(missing)'}</span>
-      </div>
-    </details>
   );
 }
 

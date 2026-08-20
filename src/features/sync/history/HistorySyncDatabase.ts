@@ -9,7 +9,6 @@ import {
   type HistorySyncMutation,
   type HistorySyncVisit,
   type HistoryTimelinePage,
-  type HistoryNativeCaptureDiagnostics,
   type NativeHistoryVisitDraft,
 } from './HistorySyncModels';
 
@@ -445,18 +444,6 @@ export class HistorySyncDatabase {
     }));
   }
 
-  async recordNativeDiagnostics(
-    accountUid: string,
-    clientId: string,
-    diagnostics: HistoryNativeCaptureDiagnostics,
-  ): Promise<void> {
-    await this.updateState(accountUid, clientId, (state) => ({
-      ...state,
-      nativeDiagnostics: diagnostics,
-      updatedAt: diagnostics.checkedAt,
-    }));
-  }
-
   async markSyncError(accountUid: string, clientId: string, message: string): Promise<void> {
     await this.updateState(accountUid, clientId, (state) => ({
       ...state,
@@ -486,11 +473,10 @@ export class HistorySyncDatabase {
     options: { query?: string; deviceId?: string; offset?: number; limit?: number } = {},
   ): Promise<HistoryTimelinePage> {
     const database = await this.getDatabase();
-    const transaction = database.transaction([VISITS_STORE, OUTBOX_STORE, STATE_STORE], 'readonly');
+    const transaction = database.transaction([VISITS_STORE, STATE_STORE], 'readonly');
     const done = transactionDone(transaction);
-    const [visits, outbox, states] = await Promise.all([
+    const [visits, states] = await Promise.all([
       readAccountRows<StoredVisit>(transaction.objectStore(VISITS_STORE), accountUid),
-      readAccountRows<StoredMutation>(transaction.objectStore(OUTBOX_STORE), accountUid),
       requestResult<StoredState[]>(transaction.objectStore(STATE_STORE).getAll()),
     ]);
     await done;
@@ -523,8 +509,6 @@ export class HistorySyncDatabase {
         .sort((left, right) => left.name.localeCompare(right.name)),
       lastSyncAt: state?.lastSyncAt || 0,
       lastError: state?.lastError || '',
-      pendingUploadCount: outbox.length,
-      nativeDiagnostics: state?.nativeDiagnostics,
     };
   }
 
@@ -699,81 +683,15 @@ function createDefaultState(accountUid: string, clientId: string): HistorySyncLo
     lastFullNativeReconcileAt: 0,
     lastSyncAt: 0,
     lastError: '',
-    nativeDiagnostics: createEmptyNativeDiagnostics(),
     updatedAt: 0,
   };
 }
 
 function stripStoredState(state: StoredState): HistorySyncLocalState {
-  const { key: _key, ...plain } = state;
-  return {
-    ...plain,
-    nativeDiagnostics: normalizeNativeDiagnostics(plain.nativeDiagnostics),
+  const { key: _key, nativeDiagnostics: _nativeDiagnostics, ...plain } = state as StoredState & {
+    nativeDiagnostics?: unknown;
   };
-}
-
-function createEmptyNativeDiagnostics(): HistoryNativeCaptureDiagnostics {
-  return {
-    checkedAt: 0,
-    fullReconciliation: false,
-    historyApiAvailable: false,
-    searchItemCount: 0,
-    queriedItemCount: 0,
-    rawVisitCount: 0,
-    successfulQueryCount: 0,
-    failedQueryCount: 0,
-    invalidUrlCount: 0,
-    localVisitCount: 0,
-    invalidTimeCount: 0,
-    outOfRangeVisitCount: 0,
-    approximateTimeCount: 0,
-    visitShape: '',
-    itemShape: '',
-    visitTimeType: '',
-    itemLastVisitTimeType: '',
-    visitTimeValueKind: '',
-    itemLastVisitTimeValueKind: '',
-    draftCount: 0,
-    changedCount: 0,
-    completeReconciliation: false,
-    error: '',
-  };
-}
-
-function normalizeNativeDiagnostics(value: unknown): HistoryNativeCaptureDiagnostics {
-  const defaults = createEmptyNativeDiagnostics();
-  if (!value || typeof value !== 'object') return defaults;
-  const raw = value as Partial<HistoryNativeCaptureDiagnostics>;
-  return {
-    checkedAt: finiteNonNegative(raw.checkedAt, defaults.checkedAt),
-    fullReconciliation: raw.fullReconciliation === true,
-    historyApiAvailable: raw.historyApiAvailable === true,
-    searchItemCount: finiteNonNegative(raw.searchItemCount, defaults.searchItemCount),
-    queriedItemCount: finiteNonNegative(raw.queriedItemCount, defaults.queriedItemCount),
-    rawVisitCount: finiteNonNegative(raw.rawVisitCount, defaults.rawVisitCount),
-    successfulQueryCount: finiteNonNegative(raw.successfulQueryCount, defaults.successfulQueryCount),
-    failedQueryCount: finiteNonNegative(raw.failedQueryCount, defaults.failedQueryCount),
-    invalidUrlCount: finiteNonNegative(raw.invalidUrlCount, defaults.invalidUrlCount),
-    localVisitCount: finiteNonNegative(raw.localVisitCount, defaults.localVisitCount),
-    invalidTimeCount: finiteNonNegative(raw.invalidTimeCount, defaults.invalidTimeCount),
-    outOfRangeVisitCount: finiteNonNegative(raw.outOfRangeVisitCount, defaults.outOfRangeVisitCount),
-    approximateTimeCount: finiteNonNegative(raw.approximateTimeCount, defaults.approximateTimeCount),
-    visitShape: String(raw.visitShape || '').slice(0, 500),
-    itemShape: String(raw.itemShape || '').slice(0, 500),
-    visitTimeType: String(raw.visitTimeType || '').slice(0, 32),
-    itemLastVisitTimeType: String(raw.itemLastVisitTimeType || '').slice(0, 32),
-    visitTimeValueKind: String(raw.visitTimeValueKind || '').slice(0, 160),
-    itemLastVisitTimeValueKind: String(raw.itemLastVisitTimeValueKind || '').slice(0, 160),
-    draftCount: finiteNonNegative(raw.draftCount, defaults.draftCount),
-    changedCount: finiteNonNegative(raw.changedCount, defaults.changedCount),
-    completeReconciliation: raw.completeReconciliation === true,
-    error: String(raw.error || '').slice(0, 500),
-  };
-}
-
-function finiteNonNegative(value: unknown, fallback: number): number {
-  const number = Number(value);
-  return Number.isSafeInteger(number) && number >= 0 ? number : fallback;
+  return plain;
 }
 
 function stripStoredVisit(visit: StoredVisit): HistorySyncVisit {

@@ -67,15 +67,6 @@ describe('HistorySyncModule native capture', () => {
       clientId: SESSION.deviceId,
       source: 'airatab_native',
     });
-    expect(page.nativeDiagnostics).toMatchObject({
-      historyApiAvailable: true,
-      searchItemCount: 1,
-      rawVisitCount: 1,
-      draftCount: 1,
-      changedCount: 1,
-      invalidTimeCount: 0,
-      error: '',
-    });
   });
 
   test('does not copy one item timestamp across multiple visits without visit timestamps', async () => {
@@ -113,13 +104,6 @@ describe('HistorySyncModule native capture', () => {
 
     const page = await module.listTimeline(SESSION_MULTI.uid);
     expect(page.total).toBe(0);
-    expect(page.nativeDiagnostics).toMatchObject({
-      rawVisitCount: 2,
-      draftCount: 0,
-      invalidTimeCount: 2,
-      approximateTimeCount: 2,
-      completeReconciliation: false,
-    });
   });
 
   test('captures one real event timestamp when getVisits omits timestamps', async () => {
