@@ -33,6 +33,9 @@ export type AiraDesktopConnectionRecord = {
   membership: AiraDesktopConnectionMembership | null;
   credential: string;
   lastError: AiraDesktopConnectionErrorState;
+  /** Persisted so a sleeping/restarted extension worker cannot restart a retry storm. */
+  membershipRefreshFailureCount?: number;
+  membershipRefreshRetryAt?: number;
 };
 
 export type AiraDesktopConnectionSnapshot = Omit<AiraDesktopConnectionRecord, 'credential'> & {
@@ -109,6 +112,9 @@ export type AiraDesktopConnectionModuleParams = {
 };
 
 const MEMBERSHIP_REFRESH_MIN_INTERVAL_MS = 5 * 60 * 1000;
+const MEMBERSHIP_REFRESH_BACKOFF_BASE_MS = 10 * 1000;
+const MEMBERSHIP_REFRESH_BACKOFF_MAX_MS = 5 * 60 * 1000;
+const MEMBERSHIP_REFRESH_BACKOFF_MAX_FAILURES = 8;
 
 const REAUTH_REQUIRED_CODES = new Set([
   'invalid_desktop_push_token',
@@ -128,6 +134,8 @@ export class AiraDesktopConnectionModule {
   private readonly remote: AiraDesktopConnectionRemote;
   private readonly device: { deviceId: string; deviceName: string };
   private readonly now: () => number;
+  private membershipRefreshInFlight: Promise<AiraDesktopConnectionSnapshot> | null = null;
+  private membershipRefreshInFlightIdentity = '';
 
   constructor(params: AiraDesktopConnectionModuleParams) {
     this.storage = params.storage;
@@ -154,6 +162,8 @@ export class AiraDesktopConnectionModule {
       membership: result.membership,
       credential: session.deviceCredential,
       lastError: null,
+      membershipRefreshFailureCount: 0,
+      membershipRefreshRetryAt: 0,
     };
     await this.storage.write(nextRecord);
     return result;
@@ -208,11 +218,16 @@ export class AiraDesktopConnectionModule {
     }
     const normalized = normalizeRemoteError(error, this.now());
     const reauthRequired = isAiraDesktopCredentialRejection(normalized);
+    const retryState = reauthRequired
+      ? { failureCount: 0, retryAt: 0 }
+      : nextMembershipRefreshRetryState(record, this.now());
     const nextRecord: AiraDesktopConnectionRecord = {
       ...record,
       status: reauthRequired ? 'reauth-required' : 'degraded',
       credential: reauthRequired ? '' : record.credential,
       lastError: normalized,
+      membershipRefreshFailureCount: retryState.failureCount,
+      membershipRefreshRetryAt: retryState.retryAt,
     };
     await this.storage.write(nextRecord);
     return toSnapshot(nextRecord);
@@ -224,9 +239,31 @@ export class AiraDesktopConnectionModule {
     if (!record || !session) {
       return toSnapshot(record);
     }
-    if (!options.force && canUseCachedMembership(record, this.now())) {
+    const now = this.now();
+    if (isMembershipRefreshBackoffActive(record, now)) {
       return toSnapshot(record);
     }
+    if (!options.force && canUseCachedMembership(record, now)) {
+      return toSnapshot(record);
+    }
+    const identity = `${session.uid}:${session.deviceCredential}`;
+    if (this.membershipRefreshInFlight && this.membershipRefreshInFlightIdentity === identity) {
+      return this.membershipRefreshInFlight;
+    }
+    const refreshPromise = this.refreshMembershipFromRemote(record, session);
+    this.membershipRefreshInFlight = refreshPromise;
+    this.membershipRefreshInFlightIdentity = identity;
+    void refreshPromise.then(
+      () => this.clearMembershipRefreshInFlight(refreshPromise),
+      () => this.clearMembershipRefreshInFlight(refreshPromise),
+    );
+    return refreshPromise;
+  }
+
+  private async refreshMembershipFromRemote(
+    record: AiraDesktopConnectionRecord,
+    session: AiraDesktopAuthorizedSession,
+  ): Promise<AiraDesktopConnectionSnapshot> {
     try {
       const response = await this.remote.refreshMembership(session);
       const currentAccount = record.account as AiraDesktopConnectionAccount;
@@ -241,6 +278,8 @@ export class AiraDesktopConnectionModule {
         },
         membership: response.membership,
         lastError: null,
+        membershipRefreshFailureCount: 0,
+        membershipRefreshRetryAt: 0,
       };
       await this.storage.write(nextRecord);
       return toSnapshot(nextRecord);
@@ -250,6 +289,14 @@ export class AiraDesktopConnectionModule {
         deviceCredential: session.deviceCredential,
       });
     }
+  }
+
+  private clearMembershipRefreshInFlight(promise: Promise<AiraDesktopConnectionSnapshot>): void {
+    if (this.membershipRefreshInFlight !== promise) {
+      return;
+    }
+    this.membershipRefreshInFlight = null;
+    this.membershipRefreshInFlightIdentity = '';
   }
 }
 
@@ -265,7 +312,7 @@ function matchesExpectedIdentity(
 }
 
 function canUseCachedMembership(record: AiraDesktopConnectionRecord, now: number): boolean {
-  if (record.status !== 'connected' || !record.membership) {
+  if ((record.status !== 'connected' && record.status !== 'degraded') || !record.membership) {
     return false;
   }
   const checkedAt = Date.parse(record.membership.checkedAt || '');
@@ -274,6 +321,29 @@ function canUseCachedMembership(record: AiraDesktopConnectionRecord, now: number
   }
   const expiresAt = Number(record.membership.expiresAt || 0);
   return expiresAt === 0 || expiresAt > now;
+}
+
+function isMembershipRefreshBackoffActive(record: AiraDesktopConnectionRecord, now: number): boolean {
+  const retryAt = Number(record.membershipRefreshRetryAt || 0);
+  return Number.isFinite(retryAt) && retryAt > now;
+}
+
+function nextMembershipRefreshRetryState(
+  record: AiraDesktopConnectionRecord,
+  now: number,
+): { failureCount: number; retryAt: number } {
+  const previousFailures = Number(record.membershipRefreshFailureCount || 0);
+  const failureCount = Number.isFinite(previousFailures)
+    ? Math.min(MEMBERSHIP_REFRESH_BACKOFF_MAX_FAILURES, Math.max(0, Math.floor(previousFailures)) + 1)
+    : 1;
+  const delay = Math.min(
+    MEMBERSHIP_REFRESH_BACKOFF_MAX_MS,
+    MEMBERSHIP_REFRESH_BACKOFF_BASE_MS * (2 ** (failureCount - 1)),
+  );
+  return {
+    failureCount,
+    retryAt: now + delay,
+  };
 }
 
 function toAuthorizedSession(record: AiraDesktopConnectionRecord | null): AiraDesktopAuthorizedSession | null {
@@ -304,6 +374,8 @@ function toSnapshot(record: AiraDesktopConnectionRecord | null): AiraDesktopConn
     account: null,
     membership: null,
     lastError: null,
+    membershipRefreshFailureCount: 0,
+    membershipRefreshRetryAt: 0,
     hasCredential: false,
   };
 }
