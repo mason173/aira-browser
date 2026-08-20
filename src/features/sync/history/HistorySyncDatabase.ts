@@ -888,6 +888,12 @@ async function applyRemoteChange(
 ): Promise<{ clearBefore: number; applied: number }> {
   if (change.kind === 'upsert_visit' && change.visit) {
     if (!isVisitBlocked(change.visit, currentClearBefore, ranges)) {
+      const existing = await requestResult<StoredVisit | undefined>(
+        stores.visits.get(visitKey(accountUid, change.visit.visitId)),
+      );
+      if (existing) {
+        return { clearBefore: currentClearBefore, applied: 0 };
+      }
       stores.visits.put(toStoredVisit(accountUid, change.visit));
       return { clearBefore: currentClearBefore, applied: 1 };
     }

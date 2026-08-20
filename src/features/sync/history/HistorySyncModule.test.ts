@@ -256,4 +256,61 @@ describe('HistorySyncModule native capture', () => {
       512 - `h1:${SESSION.deviceId}:`.length,
     );
   });
+
+  test('keeps the first local visit when a remote retry has different metadata', async () => {
+    const visitTime = Date.now() - 1_000;
+    const projectionSession = { ...SESSION, uid: 'history-test-account-first-write' };
+    vi.stubGlobal('chrome', {
+      history: {
+        getVisits: vi.fn((_details, callback) => callback([{
+          id: 'native-item-first-write',
+          visitId: 'native-first-write',
+          referringVisitId: '0',
+          transition: 'link',
+          isLocal: true,
+          visitTime,
+        }])),
+      },
+    });
+
+    const module = new HistorySyncModule();
+    await module.initialize();
+    await module.captureVisitedItem(projectionSession, {
+      id: 'native-item-first-write',
+      url: 'https://example.com/first-write',
+      title: 'Local title',
+      lastVisitTime: visitTime,
+    });
+    const database = (module as unknown as {
+      database: {
+        applyExchange(accountUid: string, clientId: string, response: unknown, now: number): Promise<number>;
+      };
+    }).database;
+    await database.applyExchange(projectionSession.uid, projectionSession.deviceId, {
+      acknowledgements: [],
+      changes: [{
+        seq: 1,
+        kind: 'upsert_visit',
+        visitId: `h1:${projectionSession.deviceId}:${encodeURIComponent('native-first-write')}`,
+        visit: {
+          visitId: `h1:${projectionSession.deviceId}:${encodeURIComponent('native-first-write')}`,
+          clientId: projectionSession.deviceId,
+          nativeVisitId: encodeURIComponent('native-first-write'),
+          url: 'https://example.com/first-write',
+          title: 'Remote title',
+          visitedAt: visitTime + 1000,
+          transition: 'typed',
+          referrer: '',
+          deviceName: 'Other device',
+          source: 'airatab_native',
+        },
+      }],
+      nextCursor: 1,
+      headCursor: 1,
+      hasMore: false,
+    }, Date.now());
+
+    const page = await module.listTimeline(projectionSession.uid);
+    expect(page.visits[0]).toMatchObject({ title: 'Local title', visitedAt: visitTime });
+  });
 });
