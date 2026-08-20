@@ -154,4 +154,26 @@ describe('AiraDesktopConnectionModule membership refresh', () => {
     expect(secondSnapshot).toEqual(firstSnapshot);
     expect(secondSnapshot.status).toBe('connected');
   });
+
+  test('does not let a history or bookmark transport failure block membership refresh', async () => {
+    const refreshMembership = vi.fn(async (): Promise<MembershipRefreshResponse> => ({
+      account: { uid: 'account-1' },
+      membership: {
+        plan: 'pro',
+        status: 'active',
+        expiresAt: 0,
+        checkedAt: new Date(NOW).toISOString(),
+      },
+    }));
+    const { module, getRecord } = createHarness({ refreshMembership });
+
+    await module.recordRemoteFailure(
+      new AiraDesktopConnectionRemoteError('network_unavailable', 'sync offline'),
+    );
+    expect(getRecord()?.membershipRefreshRetryAt || 0).toBe(0);
+
+    const snapshot = await module.refreshMembership({ force: true });
+    expect(refreshMembership).toHaveBeenCalledTimes(1);
+    expect(snapshot.status).toBe('connected');
+  });
 });

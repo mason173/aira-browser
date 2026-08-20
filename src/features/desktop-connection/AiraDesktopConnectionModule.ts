@@ -208,6 +208,7 @@ export class AiraDesktopConnectionModule {
   async recordRemoteFailure(
     error: unknown,
     expectedIdentity?: AiraDesktopConnectionIdentityExpectation,
+    options: { membershipRefresh?: boolean } = {},
   ): Promise<AiraDesktopConnectionSnapshot> {
     const record = await this.storage.read();
     if (!record) {
@@ -221,7 +222,12 @@ export class AiraDesktopConnectionModule {
     const reauthRequired = isAiraDesktopCredentialRejection(normalized);
     const retryState = reauthRequired
       ? { failureCount: 0, retryAt: 0 }
-      : nextMembershipRefreshRetryState(record, now);
+      : options.membershipRefresh === true
+        ? nextMembershipRefreshRetryState(record, now)
+        : {
+          failureCount: Number(record.membershipRefreshFailureCount || 0),
+          retryAt: Number(record.membershipRefreshRetryAt || 0),
+        };
     const nextRecord: AiraDesktopConnectionRecord = {
       ...record,
       status: reauthRequired ? 'reauth-required' : 'degraded',
@@ -288,7 +294,7 @@ export class AiraDesktopConnectionModule {
       return this.recordRemoteFailure(error, {
         uid: session.uid,
         deviceCredential: session.deviceCredential,
-      });
+      }, { membershipRefresh: true });
     }
   }
 
