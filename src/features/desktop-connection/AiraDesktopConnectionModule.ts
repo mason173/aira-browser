@@ -216,11 +216,12 @@ export class AiraDesktopConnectionModule {
     if (!matchesExpectedIdentity(record, expectedIdentity)) {
       return toSnapshot(record);
     }
-    const normalized = normalizeRemoteError(error, this.now());
+    const now = this.now();
+    const normalized = normalizeRemoteError(error, now);
     const reauthRequired = isAiraDesktopCredentialRejection(normalized);
     const retryState = reauthRequired
       ? { failureCount: 0, retryAt: 0 }
-      : nextMembershipRefreshRetryState(record, this.now());
+      : nextMembershipRefreshRetryState(record, now);
     const nextRecord: AiraDesktopConnectionRecord = {
       ...record,
       status: reauthRequired ? 'reauth-required' : 'degraded',
