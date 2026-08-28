@@ -247,7 +247,7 @@ export class AiraDesktopConnectionModule {
       return toSnapshot(record);
     }
     const now = this.now();
-    if (!options.force && isMembershipRefreshBackoffActive(record, now)) {
+    if (isMembershipRefreshBackoffActive(record, now)) {
       return toSnapshot(record);
     }
     if (!options.force && canUseCachedMembership(record, now)) {
