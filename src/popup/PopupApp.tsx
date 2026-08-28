@@ -15,6 +15,7 @@ import { SyncToggleField } from '@/components/sync/SyncSettingsFields';
 import { useBookmarkSyncRuntimeController } from '@/features/sync/bookmarks/useBookmarkSyncRuntimeController';
 import type { LeafTabSyncFacade } from '@/features/sync/app/LeafTabSyncContracts';
 import QRCodeStyling from 'qr-code-styling';
+import { History as HistoryIcon } from 'lucide-react';
 import {
   RiArrowLeftSLine,
   RiArrowRightSLine,
@@ -797,6 +798,7 @@ function ConfiguredHome({
   onOpenWebdav,
   onOpenSyncMethod,
   onOpenAdvanced,
+  onOpenHistory,
 }: {
   profile: ConfiguredHomeState;
   syncRuntime: PopupSyncRuntime;
@@ -805,6 +807,7 @@ function ConfiguredHome({
   onOpenWebdav: () => void;
   onOpenSyncMethod: () => void;
   onOpenAdvanced: () => void;
+  onOpenHistory: () => void;
 }) {
   const { t } = useTranslation();
   return (
@@ -818,6 +821,16 @@ function ConfiguredHome({
           onOpenSyncMethod={onOpenSyncMethod}
           onOpenAdvanced={onOpenAdvanced}
         />
+
+        <div className="overflow-hidden rounded-[8px] border border-border bg-card">
+          <PanelRow
+            icon={<HistoryIcon className="size-4" />}
+            title={t('popup.dashboard.history', { defaultValue: 'History' })}
+            badge="PRO"
+            status=""
+            onClick={onOpenHistory}
+          />
+        </div>
 
         <div className="space-y-2">
           <SectionLabel>{t('popup.profile.accountInfo', { defaultValue: '账号信息' })}</SectionLabel>
@@ -900,6 +913,7 @@ function LoggedOutHome({
   onOpenWebdav,
   onOpenSyncMethod,
   onOpenAdvanced,
+  onOpenHistory,
 }: {
   syncRuntime: PopupSyncRuntime;
   onOpenLogin: () => void;
@@ -907,6 +921,7 @@ function LoggedOutHome({
   onOpenWebdav: () => void;
   onOpenSyncMethod: () => void;
   onOpenAdvanced: () => void;
+  onOpenHistory: () => void;
 }) {
   const { t } = useTranslation();
 
@@ -936,6 +951,15 @@ function LoggedOutHome({
           onOpenSyncMethod={onOpenSyncMethod}
           onOpenAdvanced={onOpenAdvanced}
         />
+        <div className="overflow-hidden rounded-[8px] border border-border bg-card">
+          <PanelRow
+            icon={<HistoryIcon className="size-4" />}
+            title={t('popup.dashboard.history', { defaultValue: 'History' })}
+            badge="PRO"
+            status=""
+            onClick={onOpenHistory}
+          />
+        </div>
       </div>
     </section>
   );
@@ -950,6 +974,7 @@ function PopupHome({
   onOpenWebdav,
   onOpenSyncMethod,
   onOpenAdvanced,
+  onOpenHistory,
 }: {
   profile: ConfiguredHomeState | null;
   syncRuntime: PopupSyncRuntime;
@@ -959,6 +984,7 @@ function PopupHome({
   onOpenWebdav: () => void;
   onOpenSyncMethod: () => void;
   onOpenAdvanced: () => void;
+  onOpenHistory: () => void;
 }) {
   if (profile) {
     return (
@@ -970,6 +996,7 @@ function PopupHome({
         onOpenWebdav={onOpenWebdav}
         onOpenSyncMethod={onOpenSyncMethod}
         onOpenAdvanced={onOpenAdvanced}
+        onOpenHistory={onOpenHistory}
       />
     );
   }
@@ -982,6 +1009,7 @@ function PopupHome({
       onOpenWebdav={onOpenWebdav}
       onOpenSyncMethod={onOpenSyncMethod}
       onOpenAdvanced={onOpenAdvanced}
+      onOpenHistory={onOpenHistory}
     />
   );
 }
@@ -1530,6 +1558,13 @@ export function PopupApp() {
           onOpenWebdav={() => setView('webdav')}
           onOpenSyncMethod={() => setView('sync-method')}
           onOpenAdvanced={() => setView('advanced')}
+          onOpenHistory={() => {
+            const historyUrl = globalThis.chrome?.runtime?.getURL?.('history.html');
+            if (historyUrl && globalThis.chrome?.tabs?.create) {
+              void globalThis.chrome.tabs.create({ url: historyUrl, active: true });
+              window.close();
+            }
+          }}
         />
       )}
       {view === 'webdav' && (

@@ -27,6 +27,9 @@ import {
   createBookmarkBackgroundSyncRuntime,
 } from '@/features/sync/bookmarks/BookmarkBackgroundSyncRuntime';
 import {
+  createHistoryBackgroundSyncRuntime,
+} from '@/features/sync/history/HistoryBackgroundSyncRuntime';
+import {
   readExtensionStorageRecord,
 } from '@/platform/extensionStorage';
 
@@ -451,6 +454,10 @@ async function pollPhonePagePushOnce(options: { waitMs?: number } = {}): Promise
 const bookmarkBackgroundSyncRuntime = createBookmarkBackgroundSyncRuntime({
   startKeepAlive: startBackgroundKeepAlive,
 });
+const historyBackgroundSyncRuntime = createHistoryBackgroundSyncRuntime({
+  connectionStorageKey: AIRA_DESKTOP_CONNECTION_STORAGE_KEY,
+  startKeepAlive: startBackgroundKeepAlive,
+});
 
 function bindAlarmListeners(): void {
   const alarms = getAlarmsApi();
@@ -459,6 +466,9 @@ function bindAlarmListeners(): void {
   }
   alarms.onAlarm.addListener((alarm) => {
     if (bookmarkBackgroundSyncRuntime.handleAlarm(alarm.name)) {
+      return;
+    }
+    if (historyBackgroundSyncRuntime.handleAlarm(alarm.name)) {
       return;
     }
     if (alarm.name === PHONE_PAGE_PUSH_POLL_ALARM_NAME) {
@@ -471,11 +481,13 @@ function bindLifecycleListeners(): void {
   const runtime = getRuntime();
   runtime?.onStartup?.addListener?.(() => {
     bookmarkBackgroundSyncRuntime.notifyStartup();
+    historyBackgroundSyncRuntime.notifyStartup();
     void reconcilePhonePagePushSchedule(true);
     void pollPhonePagePushOnce();
   });
   runtime?.onInstalled?.addListener?.(() => {
     bookmarkBackgroundSyncRuntime.notifyStartup();
+    historyBackgroundSyncRuntime.notifyStartup();
     void reconcilePhonePagePushSchedule(true);
     void pollPhonePagePushOnce();
   });
@@ -484,6 +496,7 @@ function bindLifecycleListeners(): void {
   });
   getStorageApi()?.onChanged?.addListener?.((changes, areaName) => {
     bookmarkBackgroundSyncRuntime.notifyStorageChanged(changes, areaName);
+    historyBackgroundSyncRuntime.notifyStorageChanged(changes, areaName);
     if (areaName !== 'local') {
       return;
     }
@@ -627,12 +640,23 @@ function bindPhonePagePushMessageListener(): void {
   });
 }
 
+function bindHistoryMessageListener(): void {
+  getRuntime()?.onMessage.addListener((message, _sender, sendResponse) => {
+    if (historyBackgroundSyncRuntime.handleMessage(message, sendResponse)) {
+      return true;
+    }
+    return undefined;
+  });
+}
+
 bindWebdavProxyMessageListener();
 bindLeafTabSyncDeviceIdMessageListener();
 bindPhonePagePushMessageListener();
+bindHistoryMessageListener();
 bindAlarmListeners();
 bindLifecycleListeners();
 bookmarkBackgroundSyncRuntime.initialize();
+historyBackgroundSyncRuntime.initialize();
 void readPhonePagePushEnabledFromExtensionStorage()
   .then((enabled) => {
     phonePagePushEnabled = enabled;

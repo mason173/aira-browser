@@ -127,9 +127,16 @@ function bumpReleaseVersion() {
 
 function assertBuild(dir, label) {
   const manifestPath = path.join(dir, 'manifest.json');
-  if (!fs.existsSync(dir) || !fs.existsSync(manifestPath)) {
+  const historyPagePath = path.join(dir, 'history.html');
+  const historyScriptPath = path.join(dir, 'history.js');
+  if (
+    !fs.existsSync(dir)
+    || !fs.existsSync(manifestPath)
+    || !fs.existsSync(historyPagePath)
+    || !fs.existsSync(historyScriptPath)
+  ) {
     console.error(`[pack] Missing ${label} build. Please run a build first.`);
-    console.error(`[pack] Expected: ${manifestPath}`);
+    console.error(`[pack] Expected: ${manifestPath}, ${historyPagePath}, ${historyScriptPath}`);
     process.exit(1);
   }
 }
@@ -180,6 +187,7 @@ function prepareFirefoxStoreManifest(dir) {
         required: [
           'authenticationInfo',
           'bookmarksInfo',
+          'browsingActivity',
         ],
       },
       strict_min_version: '142.0',

@@ -162,6 +162,8 @@ export class AiraDesktopConnectionModule {
       membership: result.membership,
       credential: session.deviceCredential,
       lastError: null,
+      membershipRefreshFailureCount: 0,
+      membershipRefreshRetryAt: 0,
     };
     await this.storage.write(nextRecord);
     return result;
@@ -379,6 +381,8 @@ function toSnapshot(record: AiraDesktopConnectionRecord | null): AiraDesktopConn
     account: null,
     membership: null,
     lastError: null,
+    membershipRefreshFailureCount: 0,
+    membershipRefreshRetryAt: 0,
     hasCredential: false,
   };
 }
