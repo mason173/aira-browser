@@ -1,6 +1,6 @@
 {
       "name": "airatab",
-      "version": "0.2.10",
+      "version": "0.2.11",
       "private": true,
       "dependencies": {
             "@radix-ui/react-dialog": "^1.1.6",
