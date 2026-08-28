@@ -43,13 +43,14 @@ const PHONE_PAGE_PUSH_SOURCE = 'airatab_desktop_extension';
 let activePhonePagePushPollPromise: Promise<boolean> | null = null;
 let phonePagePushPollTimer: ReturnType<typeof globalThis.setTimeout> | null = null;
 let phonePagePushEnabled = true;
+let phonePagePushPollGeneration = 0;
 
 async function refreshDesktopMembershipForProFeature(): Promise<AiraDesktopProCapabilityStatus> {
   try {
     const profile = await readAiraDesktopConnectionProfile();
     const currentCapability = resolveAiraDesktopProCapability(profile);
     if (currentCapability === 'login-required') return currentCapability;
-    const latestProfile = await refreshAiraDesktopConnectionProfileMembership({ force: true });
+    const latestProfile = await refreshAiraDesktopConnectionProfileMembership();
     return resolveAiraDesktopProCapability(latestProfile);
   } catch {
     return 'temporarily-unavailable';
@@ -67,6 +68,14 @@ type PhonePagePushTaskPayload = PhonePagePushUrlPayload & {
   title?: unknown;
 };
 
+type PhonePagePushConnectionRecord = {
+  status?: unknown;
+  deviceId?: unknown;
+  credential?: unknown;
+  account?: { uid?: unknown } | null;
+  membership?: { plan?: unknown; status?: unknown; expiresAt?: unknown } | null;
+};
+
 type PhonePagePushPollResponse = {
   ok?: boolean;
   code?: string;
@@ -81,6 +90,36 @@ type PhonePagePushAckResponse = {
   code?: string;
   message?: string;
 };
+
+function parsePhonePagePushConnectionRecord(value: unknown): PhonePagePushConnectionRecord | null {
+  try {
+    const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? parsed as PhonePagePushConnectionRecord
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function isPhonePagePushConnectionChangeRelevant(change: unknown): boolean {
+  if (!change || typeof change !== 'object') {
+    return true;
+  }
+  const storageChange = change as { oldValue?: unknown; newValue?: unknown };
+  const oldRecord = parsePhonePagePushConnectionRecord(storageChange.oldValue);
+  const newRecord = parsePhonePagePushConnectionRecord(storageChange.newValue);
+  if (!oldRecord || !newRecord) {
+    return true;
+  }
+  return oldRecord.status !== newRecord.status
+    || oldRecord.deviceId !== newRecord.deviceId
+    || oldRecord.credential !== newRecord.credential
+    || oldRecord.account?.uid !== newRecord.account?.uid
+    || oldRecord.membership?.plan !== newRecord.membership?.plan
+    || oldRecord.membership?.status !== newRecord.membership?.status
+    || oldRecord.membership?.expiresAt !== newRecord.membership?.expiresAt;
+}
 
 function getRuntime() {
   return globalThis.chrome?.runtime;
@@ -229,11 +268,9 @@ async function resolvePhonePagePushPollProfile() {
   }
 
   const isCachedPro = isAiraDesktopConnectionProfilePro(profile);
-  if (!isCachedPro || shouldRefreshAiraDesktopConnectionMembership(profile)) {
+  if (shouldRefreshAiraDesktopConnectionMembership(profile)) {
     try {
-      const latestProfile = await refreshAiraDesktopConnectionProfileMembership({
-        force: !isCachedPro,
-      });
+      const latestProfile = await refreshAiraDesktopConnectionProfileMembership();
       if (!isAiraDesktopConnectionProfilePro(latestProfile)) {
         return null;
       }
@@ -244,7 +281,7 @@ async function resolvePhonePagePushPollProfile() {
     }
   }
 
-  return profile;
+  return isCachedPro ? profile : null;
 }
 
 async function schedulePhonePagePushPollAlarm(delayMs: number = PHONE_PAGE_PUSH_ALARM_FALLBACK_MS): Promise<void> {
@@ -324,6 +361,7 @@ async function pollPhonePagePushOnce(options: { waitMs?: number } = {}): Promise
   }
 
   activePhonePagePushPollPromise = (async () => {
+    const pollGeneration = phonePagePushPollGeneration;
     const profile = await resolvePhonePagePushPollProfile();
     if (!profile?.deviceCredential) {
       clearPhonePagePushPollTimer();
@@ -391,9 +429,11 @@ async function pollPhonePagePushOnce(options: { waitMs?: number } = {}): Promise
       return false;
     } finally {
       keepAlive.stop();
-      if (continuePolling) {
+      if (continuePolling && pollGeneration === phonePagePushPollGeneration) {
         schedulePhonePagePushPollTimer(nextDelayMs);
         await schedulePhonePagePushPollAlarm(PHONE_PAGE_PUSH_ALARM_FALLBACK_MS);
+      } else if (continuePolling) {
+        await reconcilePhonePagePushSchedule();
       } else {
         clearPhonePagePushPollTimer();
         await clearPhonePagePushPollAlarm();
@@ -450,8 +490,10 @@ function bindLifecycleListeners(): void {
     const changedKeys = Object.keys(changes);
     const phonePagePushPreferenceChanged = changedKeys.some(isPhonePagePushPreferenceStorageKey);
     const phonePagePushRelevantChanged = phonePagePushPreferenceChanged
-      || changedKeys.includes(AIRA_DESKTOP_CONNECTION_STORAGE_KEY);
+      || (changedKeys.includes(AIRA_DESKTOP_CONNECTION_STORAGE_KEY)
+        && isPhonePagePushConnectionChangeRelevant(changes[AIRA_DESKTOP_CONNECTION_STORAGE_KEY]));
     if (phonePagePushRelevantChanged) {
+      phonePagePushPollGeneration += 1;
       void reconcilePhonePagePushSchedule();
       void pollPhonePagePushOnce();
       if (phonePagePushPreferenceChanged) {

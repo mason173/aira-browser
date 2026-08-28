@@ -108,7 +108,7 @@ async function refreshDesktopMembershipForProFeature(): Promise<AiraDesktopProCa
     const profile = await readAiraDesktopConnectionProfileWithinExecutionLock();
     const currentCapability = resolveAiraDesktopProCapability(profile);
     if (currentCapability === 'login-required') return currentCapability;
-    const latestProfile = await refreshAiraDesktopConnectionProfileMembershipWithinExecutionLock({ force: true });
+    const latestProfile = await refreshAiraDesktopConnectionProfileMembershipWithinExecutionLock();
     return resolveAiraDesktopProCapability(latestProfile);
   } catch {
     return 'temporarily-unavailable';
