@@ -15,7 +15,10 @@ import { SyncToggleField } from '@/components/sync/SyncSettingsFields';
 import { useBookmarkSyncRuntimeController } from '@/features/sync/bookmarks/useBookmarkSyncRuntimeController';
 import type { LeafTabSyncFacade } from '@/features/sync/app/LeafTabSyncContracts';
 import QRCodeStyling from 'qr-code-styling';
-import { History as HistoryIcon } from 'lucide-react';
+import {
+  History as HistoryIcon,
+  MonitorSmartphone,
+} from 'lucide-react';
 import {
   RiArrowLeftSLine,
   RiArrowRightSLine,
@@ -26,7 +29,6 @@ import {
   RiHardDrive3Fill,
   RiLoaderLine,
   RiLogoutBoxRLine,
-  RiMoreFill,
   RiSlidersFill,
   RiUserFill,
 } from '@/icons/ri-compat';
@@ -50,8 +52,21 @@ import {
   pollAiraDesktopPairing,
 } from '@/features/desktop-connection/desktopConnectionRuntime';
 import { useAiraDesktopConnectionProfile } from '@/features/desktop-connection/useAiraDesktopConnectionProfile';
+import { DeviceTabsPage } from '@/features/device-tabs/DeviceTabsPage';
+import { useDeviceTabsList } from '@/features/device-tabs/useDeviceTabsList';
+import {
+  readCrossDeviceTabsEnabledFromLocalStorage,
+  writeCrossDeviceTabsEnabled,
+} from '@/features/device-tabs/deviceTabsPreferences';
 
-type PopupView = 'home' | 'webdav' | 'sync-method' | 'advanced' | 'login';
+type PopupView =
+  | 'home'
+  | 'account'
+  | 'webdav'
+  | 'sync-method'
+  | 'advanced'
+  | 'login'
+  | 'device-tabs';
 
 type WebdavProviderOption = {
   id: string;
@@ -70,6 +85,7 @@ type ConfiguredHomeState = {
   membershipExpiresAt: number;
   isDesktopLoggedIn: boolean;
   phonePagePushEnabled: boolean;
+  crossDeviceTabsEnabled: boolean;
 };
 
 type PopupSyncRuntime = Pick<LeafTabSyncFacade, 'state' | 'actions'>;
@@ -150,6 +166,8 @@ function readConfiguredHomeState(
   const isPro = isAiraDesktopConnectionProfilePro(desktopConnectionProfile);
   const phonePagePushEnabled = isPro
     && readPhonePagePushEnabledFromLocalStorage(desktopConnectionProfile.uid);
+  const crossDeviceTabsEnabled = isPro
+    && readCrossDeviceTabsEnabledFromLocalStorage(desktopConnectionProfile.uid);
   return {
     nickname: desktopConnectionProfile.displayName,
     uid: desktopConnectionProfile.uidSuffix
@@ -162,6 +180,7 @@ function readConfiguredHomeState(
     membershipExpiresAt: desktopConnectionProfile.membershipExpiresAt,
     isDesktopLoggedIn: true,
     phonePagePushEnabled,
+    crossDeviceTabsEnabled,
   };
 }
 
@@ -486,7 +505,13 @@ function LoginQrPanel({ onLoggedIn }: { onLoggedIn: () => void }) {
   );
 }
 
-function ProfileAvatar({ profile }: { profile: ConfiguredHomeState }) {
+function ProfileAvatar({
+  profile,
+  compact = false,
+}: {
+  profile: ConfiguredHomeState;
+  compact?: boolean;
+}) {
   const [imageFailed, setImageFailed] = useState(false);
   const avatarUri = profile.avatarUri.trim();
   const canShowImage = avatarUri.length > 0 && !imageFailed && (
@@ -496,7 +521,7 @@ function ProfileAvatar({ profile }: { profile: ConfiguredHomeState }) {
   );
 
   return (
-    <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-secondary text-muted-foreground">
+    <span className={`flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-secondary text-muted-foreground ${compact ? 'h-8 w-8' : 'h-12 w-12'}`}>
       {canShowImage ? (
         <img
           src={avatarUri}
@@ -505,71 +530,52 @@ function ProfileAvatar({ profile }: { profile: ConfiguredHomeState }) {
           onError={() => setImageFailed(true)}
         />
       ) : (
-        <RiUserFill className="size-6" />
+        <RiUserFill className={compact ? 'size-4' : 'size-6'} />
       )}
-    </div>
+    </span>
   );
 }
 
-function ProfileHeader({
+function HomeHeader({
   profile,
-  onLogout,
+  onOpenAccount,
 }: {
-  profile: ConfiguredHomeState;
-  onLogout: () => void;
+  profile: ConfiguredHomeState | null;
+  onOpenAccount: () => void;
 }) {
   const { t } = useTranslation();
-  const [menuOpen, setMenuOpen] = useState(false);
 
   return (
-    <header className="relative px-4 pb-3 pt-4 text-center">
-      {profile.isDesktopLoggedIn && (
-        <div className="absolute right-3 top-3">
-          <button
-            type="button"
-            className="flex h-8 w-8 items-center justify-center rounded-[8px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-            onClick={() => setMenuOpen((value) => !value)}
-            aria-label={t('popup.profile.moreActions', { defaultValue: '更多操作' })}
-            title={t('popup.profile.moreActions', { defaultValue: '更多操作' })}
-          >
-            <RiMoreFill className="size-5" />
-          </button>
-          {menuOpen && (
-            <div className="absolute right-0 top-9 z-20 w-32 overflow-hidden rounded-[8px] border border-border bg-popover py-1 text-left shadow-lg">
-              <button
-                type="button"
-                className="flex h-9 w-full items-center gap-2 px-3 text-sm text-foreground transition-colors hover:bg-accent"
-                onClick={() => {
-                  setMenuOpen(false);
-                  onLogout();
-                }}
-              >
-                <RiLogoutBoxRLine className="size-4 text-muted-foreground" />
-                <span>{t('popup.profile.logout', { defaultValue: '退出登录' })}</span>
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-      <div className="mx-auto flex flex-col items-center px-8 py-1">
-        <ProfileAvatar profile={profile} />
-        <div className="mt-2 text-sm font-semibold leading-5 text-foreground">
-          {profile.nickname}
-        </div>
-        <div className="mt-1 flex items-center gap-1.5">
-          <StatusBadge>{resolveMembershipLabel(profile.membershipPlan, t)}</StatusBadge>
-          <span className="text-[10px] leading-4 text-muted-foreground">{profile.identityStatus}</span>
-        </div>
-        <div
-          className="mt-1 max-w-[280px] truncate text-xs leading-4 text-muted-foreground"
-          title={profile.userId}
-        >
-          {t('popup.profile.userIdInline', {
-            defaultValue: '用户ID：{{uid}}',
-            uid: profile.userId || profile.uid,
-          })}
+    <header className="flex h-13 items-center border-b border-border px-3">
+      <div className="flex min-w-0 flex-1 items-center gap-2.5">
+        <img src="/icons/icon32.png" alt="" className="h-7 w-7 shrink-0" />
+        <div className="min-w-0">
+          <div className="truncate text-sm font-semibold leading-5 text-foreground">AiraTab</div>
+          {profile ? (
+            <div className="truncate text-[10px] leading-4 text-muted-foreground">{profile.nickname}</div>
+          ) : null}
         </div>
       </div>
+      {profile ? <StatusBadge>{resolveMembershipLabel(profile.membershipPlan, t)}</StatusBadge> : null}
+      <button
+        type="button"
+        className="ml-2 flex h-9 w-9 items-center justify-center rounded-full transition-colors hover:bg-accent"
+        onClick={onOpenAccount}
+        aria-label={profile
+          ? t('popup.profile.accountInfo', { defaultValue: '账号信息' })
+          : t('popup.profile.loginNow', { defaultValue: '立即登录' })}
+        title={profile
+          ? t('popup.profile.accountInfo', { defaultValue: '账号信息' })
+          : t('popup.profile.loginNow', { defaultValue: '立即登录' })}
+      >
+        {profile ? (
+          <ProfileAvatar profile={profile} compact />
+        ) : (
+          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary text-muted-foreground">
+            <RiUserFill className="size-4" />
+          </span>
+        )}
+      </button>
     </header>
   );
 }
@@ -638,6 +644,42 @@ function SectionLabel({ children }: { children: ReactNode }) {
   );
 }
 
+function QuickActionButton({
+  icon,
+  title,
+  badge,
+  countBadge,
+  onClick,
+}: {
+  icon: ReactNode;
+  title: string;
+  badge?: string;
+  countBadge?: number;
+  onClick: () => void;
+}) {
+  const countBadgeLabel = countBadge && countBadge > 99 ? '99+' : String(countBadge || '');
+  return (
+    <button
+      type="button"
+      className="relative flex min-h-16 min-w-0 items-center gap-3 rounded-[8px] border border-border bg-card px-3 py-2.5 text-left transition-colors hover:bg-accent/70"
+      onClick={onClick}
+    >
+      {countBadge && countBadge > 0 ? (
+        <span className="absolute right-2 top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold leading-none text-destructive-foreground">
+          {countBadgeLabel}
+        </span>
+      ) : null}
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] bg-muted text-muted-foreground">
+        {icon}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-medium leading-5 text-foreground">{title}</span>
+        {badge ? <span className="mt-0.5 block text-[10px] font-semibold leading-4 text-muted-foreground">{badge}</span> : null}
+      </span>
+    </button>
+  );
+}
+
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex min-h-10 items-center justify-between gap-3 border-b border-border px-3 py-2.5 last:border-b-0">
@@ -656,20 +698,10 @@ function formatBookmarkDataSummary(
   return `${summary.bookmarkFolders} 个文件夹 · ${summary.bookmarkItems} 个书签`;
 }
 
-function BookmarkSyncControls({
-  syncRuntime,
-  onSelectCloud,
-  onOpenWebdav,
-  onOpenSyncMethod,
-  onOpenAdvanced,
-}: {
-  syncRuntime: PopupSyncRuntime;
-  onSelectCloud: () => void;
-  onOpenWebdav: () => void;
-  onOpenSyncMethod: () => void;
-  onOpenAdvanced: () => void;
-}) {
-  const { t } = useTranslation();
+function resolveBookmarkSyncPresentation(
+  syncRuntime: PopupSyncRuntime,
+  t: ReturnType<typeof useTranslation>['t'],
+) {
   const selectedSource = syncRuntime.state.leafTabSelectedSyncSource;
   const syncing = syncRuntime.state.topNavSyncStatus === 'syncing';
   const sourceLabel = selectedSource === 'aira-cloud' ? 'Aira 云同步' : 'WebDAV';
@@ -691,6 +723,33 @@ function BookmarkSyncControls({
   const lastSyncLabel = selectedSource === 'aira-cloud'
     ? syncRuntime.state.leafTabCloudLastSyncLabel
     : syncRuntime.state.leafTabWebdavLastSyncLabel;
+  return {
+    selectedSource,
+    syncing,
+    sourceLabel,
+    statusLabel,
+    lastSyncLabel,
+  };
+}
+
+function BookmarkSyncControls({
+  syncRuntime,
+  onSelectCloud,
+  onOpenWebdav,
+  onOpenAdvanced,
+}: {
+  syncRuntime: PopupSyncRuntime;
+  onSelectCloud: () => void;
+  onOpenWebdav: () => void;
+  onOpenAdvanced: () => void;
+}) {
+  const { t } = useTranslation();
+  const {
+    selectedSource,
+    syncing,
+    statusLabel,
+    lastSyncLabel,
+  } = resolveBookmarkSyncPresentation(syncRuntime, t);
 
   if (!selectedSource) {
     return (
@@ -715,18 +774,6 @@ function BookmarkSyncControls({
 
   return (
     <div className="space-y-3">
-      <div className="overflow-hidden rounded-[8px] border border-border bg-card">
-        <PanelRow
-          icon={selectedSource === 'aira-cloud'
-            ? <RiCloudFill className="size-4" />
-            : <RiHardDrive3Fill className="size-4" />}
-          title={t('popup.dashboard.currentSyncMethod', { defaultValue: '当前同步方式' })}
-          badge={selectedSource === 'aira-cloud' ? 'PRO' : undefined}
-          status={sourceLabel}
-          onClick={onOpenSyncMethod}
-        />
-      </div>
-
       <div className="space-y-2">
         <SectionLabel>{t('popup.dashboard.syncStatusTitle', { defaultValue: '同步状态' })}</SectionLabel>
         <div className="overflow-hidden rounded-[8px] border border-border bg-card">
@@ -765,16 +812,6 @@ function BookmarkSyncControls({
           : t('popup.dashboard.syncNow', { defaultValue: '立即同步' })}
       </Button>
 
-      <Button
-        type="button"
-        variant="outline"
-        className="h-10 w-full rounded-[8px] text-sm font-medium"
-        disabled={syncing}
-        onClick={onOpenSyncMethod}
-      >
-        {t('popup.dashboard.changeSyncMethod', { defaultValue: '更改同步方式' })}
-      </Button>
-
       <div className="space-y-2">
         <SectionLabel>{t('popup.dashboard.syncToolsTitle', { defaultValue: '同步工具' })}</SectionLabel>
         <MenuItem
@@ -793,50 +830,94 @@ function BookmarkSyncControls({
 function ConfiguredHome({
   profile,
   syncRuntime,
-  onLogout,
+  onOpenAccount,
   onSelectCloud,
   onOpenWebdav,
-  onOpenSyncMethod,
   onOpenAdvanced,
   onOpenHistory,
+  onOpenDeviceTabs,
+  phoneTabCount,
 }: {
   profile: ConfiguredHomeState;
   syncRuntime: PopupSyncRuntime;
-  onLogout: () => void;
+  onOpenAccount: () => void;
   onSelectCloud: () => void;
   onOpenWebdav: () => void;
-  onOpenSyncMethod: () => void;
   onOpenAdvanced: () => void;
   onOpenHistory: () => void;
+  onOpenDeviceTabs: () => void;
+  phoneTabCount: number;
 }) {
   const { t } = useTranslation();
   return (
     <section className="min-h-[480px] bg-background">
-      <ProfileHeader profile={profile} onLogout={onLogout} />
-      <div className="space-y-3 px-3 pb-3">
-        <BookmarkSyncControls
-          syncRuntime={syncRuntime}
-          onSelectCloud={onSelectCloud}
-          onOpenWebdav={onOpenWebdav}
-          onOpenSyncMethod={onOpenSyncMethod}
-          onOpenAdvanced={onOpenAdvanced}
-        />
+      <HomeHeader profile={profile} onOpenAccount={onOpenAccount} />
+      <div className="space-y-4 px-3 py-3">
+        <div className="space-y-2">
+          <SectionLabel>{t('popup.dashboard.commonFeatures', { defaultValue: '常用功能' })}</SectionLabel>
+          <div className="grid grid-cols-2 gap-2">
+            <QuickActionButton
+              icon={<MonitorSmartphone className="size-4" aria-hidden="true" />}
+              title={t('deviceTabs.title', { defaultValue: '手机标签页' })}
+              badge="PRO"
+              countBadge={phoneTabCount}
+              onClick={onOpenDeviceTabs}
+            />
+            <QuickActionButton
+              icon={<HistoryIcon className="size-4" aria-hidden="true" />}
+              title={t('popup.dashboard.history', { defaultValue: '历史记录' })}
+              badge="PRO"
+              onClick={onOpenHistory}
+            />
+          </div>
+        </div>
 
-        <div className="overflow-hidden rounded-[8px] border border-border bg-card">
-          <PanelRow
-            icon={<HistoryIcon className="size-4" />}
-            title={t('popup.dashboard.history', { defaultValue: 'History' })}
-            badge="PRO"
-            status=""
-            onClick={onOpenHistory}
+        <div className="space-y-2">
+          <SectionLabel>{t('popup.dashboard.bookmarkSync', { defaultValue: '书签同步' })}</SectionLabel>
+          <BookmarkSyncControls
+            syncRuntime={syncRuntime}
+            onSelectCloud={onSelectCloud}
+            onOpenWebdav={onOpenWebdav}
+            onOpenAdvanced={onOpenAdvanced}
           />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function AccountPage({
+  profile,
+  onBack,
+  onLogout,
+}: {
+  profile: ConfiguredHomeState;
+  onBack: () => void;
+  onLogout: () => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <section className="min-h-[480px] bg-background">
+      <PopupHeader
+        title={t('popup.profile.accountInfo', { defaultValue: '账号信息' })}
+        onBack={onBack}
+      />
+      <div className="space-y-4 px-3 py-3">
+        <div className="flex items-center gap-3 px-1 py-1">
+          <ProfileAvatar profile={profile} />
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-sm font-semibold leading-5 text-foreground">{profile.nickname}</div>
+            <div className="mt-1 flex items-center gap-2">
+              <StatusBadge>{resolveMembershipLabel(profile.membershipPlan, t)}</StatusBadge>
+              <span className="text-xs text-muted-foreground">{profile.identityStatus}</span>
+            </div>
+          </div>
         </div>
 
         <div className="space-y-2">
           <SectionLabel>{t('popup.profile.accountInfo', { defaultValue: '账号信息' })}</SectionLabel>
           <div className="overflow-hidden rounded-[8px] border border-border bg-card">
             <InfoRow label={t('popup.profile.userId', { defaultValue: '用户ID' })} value={profile.userId || profile.uid} />
-            <InfoRow label={t('popup.profile.identityStatus', { defaultValue: '身份状态' })} value={profile.identityStatus} />
             <InfoRow
               label={t('popup.profile.membershipType', { defaultValue: '会员类型' })}
               value={resolveMembershipLabel(profile.membershipPlan, t)}
@@ -844,31 +925,15 @@ function ConfiguredHome({
           </div>
         </div>
 
-        <div className="space-y-2">
-          <SectionLabel>{t('popup.dashboard.phonePushTitle', { defaultValue: '手机联动' })}</SectionLabel>
-          <div className="overflow-hidden rounded-[8px] border border-border bg-card px-3 py-2">
-            <SyncToggleField
-              label={t('popup.dashboard.phonePushEnabled', { defaultValue: '接收手机网页推送' })}
-              description={isConfiguredHomeStatePro(profile)
-                ? t('popup.dashboard.phonePushDesc', {
-                    defaultValue: '开启后，这台电脑浏览器会自动接收并打开手机推送的当前网页。',
-                  })
-                : t('popup.dashboard.phonePushProDesc', {
-                    defaultValue: '接收手机网页推送是 Aira Pro 功能，开通后可用。',
-                  })}
-              checked={profile.phonePagePushEnabled}
-              disabled={!isConfiguredHomeStatePro(profile)}
-              onCheckedChange={async (enabled) => {
-                if (enabled && !(await refreshAndRequirePro(t))) {
-                  window.dispatchEvent(new CustomEvent('phone-page-push-setting-changed'));
-                  return;
-                }
-                writePhonePagePushEnabled(profile.userId, enabled);
-                window.dispatchEvent(new CustomEvent('phone-page-push-setting-changed'));
-              }}
-            />
-          </div>
-        </div>
+        <Button
+          type="button"
+          variant="outline"
+          className="h-10 w-full rounded-[8px] text-destructive hover:text-destructive"
+          onClick={onLogout}
+        >
+          <RiLogoutBoxRLine className="size-4" aria-hidden="true" />
+          {t('popup.profile.logout', { defaultValue: '退出登录' })}
+        </Button>
       </div>
     </section>
   );
@@ -911,53 +976,53 @@ function LoggedOutHome({
   onOpenLogin,
   onSelectCloud,
   onOpenWebdav,
-  onOpenSyncMethod,
   onOpenAdvanced,
   onOpenHistory,
+  onOpenDeviceTabs,
 }: {
   syncRuntime: PopupSyncRuntime;
   onOpenLogin: () => void;
   onSelectCloud: () => void;
   onOpenWebdav: () => void;
-  onOpenSyncMethod: () => void;
   onOpenAdvanced: () => void;
   onOpenHistory: () => void;
+  onOpenDeviceTabs: () => void;
 }) {
   const { t } = useTranslation();
 
   return (
-    <section className="min-h-[360px] bg-background">
-      <header className="px-4 pb-3 pt-4 text-center">
-        <div className="mx-auto flex flex-col items-center py-1">
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-secondary text-muted-foreground">
-            <RiUserFill className="size-6" />
+    <section className="min-h-[480px] bg-background">
+      <HomeHeader profile={null} onOpenAccount={onOpenLogin} />
+      <div className="space-y-4 px-3 py-3">
+        <div className="space-y-2">
+          <SectionLabel>{t('popup.dashboard.commonFeatures', { defaultValue: '常用功能' })}</SectionLabel>
+          <div className="grid grid-cols-2 gap-2">
+            <QuickActionButton
+              icon={<MonitorSmartphone className="size-4" aria-hidden="true" />}
+              title={t('deviceTabs.title', { defaultValue: '手机标签页' })}
+              badge="PRO"
+              onClick={onOpenDeviceTabs}
+            />
+            <QuickActionButton
+              icon={<HistoryIcon className="size-4" aria-hidden="true" />}
+              title={t('popup.dashboard.history', { defaultValue: '历史记录' })}
+              badge="PRO"
+              onClick={onOpenHistory}
+            />
           </div>
-          <Button
-            type="button"
-            variant="ghost"
-            className="mt-2 h-8 rounded-[8px] px-2 text-sm font-medium text-primary hover:bg-transparent hover:text-primary/80"
-            onClick={onOpenLogin}
-          >
-            {t('popup.profile.loginNow', { defaultValue: '立即登录' })}
-          </Button>
         </div>
-      </header>
 
-      <div className="space-y-3 px-3 pb-3">
-        <BookmarkSyncControls
-          syncRuntime={syncRuntime}
-          onSelectCloud={onSelectCloud}
-          onOpenWebdav={onOpenWebdav}
-          onOpenSyncMethod={onOpenSyncMethod}
-          onOpenAdvanced={onOpenAdvanced}
-        />
-        <div className="overflow-hidden rounded-[8px] border border-border bg-card">
-          <PanelRow
-            icon={<HistoryIcon className="size-4" />}
-            title={t('popup.dashboard.history', { defaultValue: 'History' })}
-            badge="PRO"
-            status=""
-            onClick={onOpenHistory}
+        <Button type="button" className="h-10 w-full rounded-[8px]" onClick={onOpenLogin}>
+          {t('popup.profile.loginNow', { defaultValue: '立即登录' })}
+        </Button>
+
+        <div className="space-y-2">
+          <SectionLabel>{t('popup.dashboard.bookmarkSync', { defaultValue: '书签同步' })}</SectionLabel>
+          <BookmarkSyncControls
+            syncRuntime={syncRuntime}
+            onSelectCloud={onSelectCloud}
+            onOpenWebdav={onOpenWebdav}
+            onOpenAdvanced={onOpenAdvanced}
           />
         </div>
       </div>
@@ -968,35 +1033,38 @@ function LoggedOutHome({
 function PopupHome({
   profile,
   syncRuntime,
-  onLogout,
   onOpenLogin,
+  onOpenAccount,
   onSelectCloud,
   onOpenWebdav,
-  onOpenSyncMethod,
   onOpenAdvanced,
   onOpenHistory,
+  onOpenDeviceTabs,
+  phoneTabCount,
 }: {
   profile: ConfiguredHomeState | null;
   syncRuntime: PopupSyncRuntime;
-  onLogout: () => void;
   onOpenLogin: () => void;
+  onOpenAccount: () => void;
   onSelectCloud: () => void;
   onOpenWebdav: () => void;
-  onOpenSyncMethod: () => void;
   onOpenAdvanced: () => void;
   onOpenHistory: () => void;
+  onOpenDeviceTabs: () => void;
+  phoneTabCount: number;
 }) {
   if (profile) {
     return (
       <ConfiguredHome
         profile={profile}
         syncRuntime={syncRuntime}
-        onLogout={onLogout}
+        onOpenAccount={onOpenAccount}
         onSelectCloud={onSelectCloud}
         onOpenWebdav={onOpenWebdav}
-        onOpenSyncMethod={onOpenSyncMethod}
         onOpenAdvanced={onOpenAdvanced}
         onOpenHistory={onOpenHistory}
+        onOpenDeviceTabs={onOpenDeviceTabs}
+        phoneTabCount={phoneTabCount}
       />
     );
   }
@@ -1007,22 +1075,27 @@ function PopupHome({
       onOpenLogin={onOpenLogin}
       onSelectCloud={onSelectCloud}
       onOpenWebdav={onOpenWebdav}
-      onOpenSyncMethod={onOpenSyncMethod}
       onOpenAdvanced={onOpenAdvanced}
       onOpenHistory={onOpenHistory}
+      onOpenDeviceTabs={onOpenDeviceTabs}
     />
   );
 }
 
 function AdvancedSettingsPage({
+  profile,
   syncRuntime,
   onBack,
+  onOpenSyncMethod,
 }: {
+  profile: ConfiguredHomeState | null;
   syncRuntime: PopupSyncRuntime;
   onBack: () => void;
+  onOpenSyncMethod: () => void;
 }) {
   const { t } = useTranslation();
   const selectedSource = syncRuntime.state.leafTabSelectedSyncSource;
+  const { sourceLabel } = resolveBookmarkSyncPresentation(syncRuntime, t);
   const remoteDataLabel = selectedSource === 'aira-cloud'
     ? t('popup.dashboard.cloudData', { defaultValue: '云端数据' })
     : selectedSource === 'webdav'
@@ -1035,6 +1108,21 @@ function AdvancedSettingsPage({
         onBack={onBack}
       />
       <div className="space-y-2 px-3 py-3">
+        <SectionLabel>
+          {t('popup.dashboard.syncMethod', { defaultValue: '同步方式' })}
+        </SectionLabel>
+        <div className="overflow-hidden rounded-[8px] border border-border bg-card">
+          <PanelRow
+            icon={selectedSource === 'aira-cloud'
+              ? <RiCloudFill className="size-4" />
+              : <RiHardDrive3Fill className="size-4" />}
+            title={t('popup.dashboard.currentSyncMethod', { defaultValue: '当前同步方式' })}
+            badge={selectedSource === 'aira-cloud' ? 'PRO' : undefined}
+            status={sourceLabel}
+            onClick={onOpenSyncMethod}
+          />
+        </div>
+
         <SectionLabel>
           {t('popup.advanced.bookmarkData', { defaultValue: '书签数据' })}
         </SectionLabel>
@@ -1072,6 +1160,44 @@ function AdvancedSettingsPage({
             value={syncRuntime.state.leafTabAutoSyncError || '无'}
           />
         </div>
+
+        {profile ? (
+          <>
+            <SectionLabel>
+              {t('popup.dashboard.phonePushTitle', { defaultValue: '设备联动' })}
+            </SectionLabel>
+            <div className="overflow-hidden rounded-[8px] border border-border bg-card px-3 py-2.5">
+              <SyncToggleField
+                label={t('popup.dashboard.phonePushEnabled', { defaultValue: '接收手机网页推送' })}
+                checked={profile.phonePagePushEnabled}
+                disabled={!isConfiguredHomeStatePro(profile)}
+                onCheckedChange={async (enabled) => {
+                  if (enabled && !(await refreshAndRequirePro(t))) {
+                    window.dispatchEvent(new CustomEvent('phone-page-push-setting-changed'));
+                    return;
+                  }
+                  writePhonePagePushEnabled(profile.userId, enabled);
+                  window.dispatchEvent(new CustomEvent('phone-page-push-setting-changed'));
+                }}
+              />
+              <div className="mt-2 border-t border-border pt-2">
+                <SyncToggleField
+                  label={t('deviceTabs.toggle', { defaultValue: '跨设备标签页' })}
+                  checked={profile.crossDeviceTabsEnabled}
+                  disabled={!isConfiguredHomeStatePro(profile)}
+                  onCheckedChange={async (enabled) => {
+                    if (enabled && !(await refreshAndRequirePro(t))) {
+                      window.dispatchEvent(new CustomEvent('cross-device-tabs-setting-changed'));
+                      return;
+                    }
+                    writeCrossDeviceTabsEnabled(profile.userId, enabled);
+                    window.dispatchEvent(new CustomEvent('cross-device-tabs-setting-changed'));
+                  }}
+                />
+              </div>
+            </div>
+          </>
+        ) : null}
       </div>
     </section>
   );
@@ -1498,16 +1624,22 @@ export function PopupApp() {
     void localVersion;
     return readConfiguredHomeState(t, desktopConnectionProfile);
   }, [desktopConnectionProfile, localVersion, t]);
+  const deviceTabsList = useDeviceTabsList({
+    enabled: configuredHomeState?.crossDeviceTabsEnabled === true,
+    identityKey: configuredHomeState?.userId || '',
+  });
 
   useEffect(() => {
     const refresh = () => setLocalVersion((value) => value + 1);
     window.addEventListener('webdav-config-changed', refresh);
     window.addEventListener('webdav-sync-status-changed', refresh);
     window.addEventListener('phone-page-push-setting-changed', refresh);
+    window.addEventListener('cross-device-tabs-setting-changed', refresh);
     return () => {
       window.removeEventListener('webdav-config-changed', refresh);
       window.removeEventListener('webdav-sync-status-changed', refresh);
       window.removeEventListener('phone-page-push-setting-changed', refresh);
+      window.removeEventListener('cross-device-tabs-setting-changed', refresh);
     };
   }, []);
 
@@ -1539,32 +1671,45 @@ export function PopupApp() {
     void syncRuntime.actions.handleSelectSyncSource('aira-cloud');
   };
 
+  const logout = () => {
+    void disconnectAiraDesktopDevice().then(() => {
+      setLocalVersion((value) => value + 1);
+      setView('home');
+      toast.success(t('popup.profile.loggedOut', { defaultValue: '已退出登录' }));
+    }).catch(() => {
+      toast.error(t('popup.profile.logoutFailed', { defaultValue: '退出失败，请检查网络后重试' }));
+    });
+  };
+
+  const openHistory = () => {
+    const historyUrl = globalThis.chrome?.runtime?.getURL?.('history.html');
+    if (historyUrl && globalThis.chrome?.tabs?.create) {
+      void globalThis.chrome.tabs.create({ url: historyUrl, active: true });
+      window.close();
+    }
+  };
+
   return (
     <main className="w-[360px] max-w-full overflow-hidden bg-background text-foreground [font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe_UI',sans-serif]">
       {view === 'home' && (
         <PopupHome
           profile={configuredHomeState}
           syncRuntime={syncRuntime}
-          onLogout={() => {
-            void disconnectAiraDesktopDevice().then(() => {
-              setLocalVersion((value) => value + 1);
-              toast.success(t('popup.profile.loggedOut', { defaultValue: '已退出登录' }));
-            }).catch(() => {
-              toast.error(t('popup.profile.logoutFailed', { defaultValue: '退出失败，请检查网络后重试' }));
-            });
-          }}
           onOpenLogin={() => setView('login')}
+          onOpenAccount={() => setView('account')}
           onSelectCloud={selectCloudOrLogin}
           onOpenWebdav={() => setView('webdav')}
-          onOpenSyncMethod={() => setView('sync-method')}
           onOpenAdvanced={() => setView('advanced')}
-          onOpenHistory={() => {
-            const historyUrl = globalThis.chrome?.runtime?.getURL?.('history.html');
-            if (historyUrl && globalThis.chrome?.tabs?.create) {
-              void globalThis.chrome.tabs.create({ url: historyUrl, active: true });
-              window.close();
-            }
-          }}
+          onOpenHistory={openHistory}
+          onOpenDeviceTabs={() => setView(configuredHomeState ? 'device-tabs' : 'login')}
+          phoneTabCount={deviceTabsList.totalTabCount}
+        />
+      )}
+      {view === 'account' && configuredHomeState && (
+        <AccountPage
+          profile={configuredHomeState}
+          onBack={() => setView('home')}
+          onLogout={logout}
         />
       )}
       {view === 'webdav' && (
@@ -1581,19 +1726,21 @@ export function PopupApp() {
         <SyncMethodPage
           profile={configuredHomeState}
           syncRuntime={syncRuntime}
-          onBack={() => setView('home')}
+          onBack={() => setView('advanced')}
           onOpenLogin={() => {
             setPendingCloudSelectionAfterLogin(true);
             setView('login');
           }}
           onOpenWebdav={() => setView('webdav')}
-          onSelected={() => setView('home')}
+          onSelected={() => setView('advanced')}
         />
       )}
       {view === 'advanced' && (
         <AdvancedSettingsPage
+          profile={configuredHomeState}
           syncRuntime={syncRuntime}
           onBack={() => setView('home')}
+          onOpenSyncMethod={() => setView('sync-method')}
         />
       )}
       {view === 'login' && (
@@ -1604,8 +1751,18 @@ export function PopupApp() {
           }}
           onLoggedIn={() => {
             setLocalVersion((value) => value + 1);
-            setView(pendingCloudSelectionAfterLogin ? 'home' : 'sync-method');
+            setView('home');
           }}
+        />
+      )}
+      {view === 'device-tabs' && (
+        <DeviceTabsPage
+          enabled={configuredHomeState?.crossDeviceTabsEnabled === true}
+          devices={deviceTabsList.devices}
+          loading={deviceTabsList.loading}
+          error={deviceTabsList.error}
+          onRefresh={deviceTabsList.refresh}
+          onBack={() => setView('home')}
         />
       )}
       <SyncProgressDialog syncRuntime={syncRuntime} />

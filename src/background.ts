@@ -32,6 +32,7 @@ import {
 import {
   readExtensionStorageRecord,
 } from '@/platform/extensionStorage';
+import { DeviceTabsBackgroundRuntime } from '@/features/device-tabs/DeviceTabsBackgroundRuntime';
 
 const WEBDAV_PROXY_MESSAGE_TYPE = 'LEAFTAB_WEBDAV_PROXY';
 const PHONE_PAGE_PUSH_POLL_ALARM_NAME = 'aira.phone-page-push.poll';
@@ -458,6 +459,7 @@ const historyBackgroundSyncRuntime = createHistoryBackgroundSyncRuntime({
   connectionStorageKey: AIRA_DESKTOP_CONNECTION_STORAGE_KEY,
   startKeepAlive: startBackgroundKeepAlive,
 });
+const deviceTabsBackgroundRuntime = new DeviceTabsBackgroundRuntime();
 
 function bindAlarmListeners(): void {
   const alarms = getAlarmsApi();
@@ -471,6 +473,9 @@ function bindAlarmListeners(): void {
     if (historyBackgroundSyncRuntime.handleAlarm(alarm.name)) {
       return;
     }
+    if (deviceTabsBackgroundRuntime.handleAlarm(alarm.name)) {
+      return;
+    }
     if (alarm.name === PHONE_PAGE_PUSH_POLL_ALARM_NAME) {
       void pollPhonePagePushOnce();
     }
@@ -482,12 +487,14 @@ function bindLifecycleListeners(): void {
   runtime?.onStartup?.addListener?.(() => {
     bookmarkBackgroundSyncRuntime.notifyStartup();
     historyBackgroundSyncRuntime.notifyStartup();
+    deviceTabsBackgroundRuntime.notifyStartup();
     void reconcilePhonePagePushSchedule(true);
     void pollPhonePagePushOnce();
   });
   runtime?.onInstalled?.addListener?.(() => {
     bookmarkBackgroundSyncRuntime.notifyStartup();
     historyBackgroundSyncRuntime.notifyStartup();
+    deviceTabsBackgroundRuntime.notifyStartup();
     void reconcilePhonePagePushSchedule(true);
     void pollPhonePagePushOnce();
   });
@@ -497,6 +504,7 @@ function bindLifecycleListeners(): void {
   getStorageApi()?.onChanged?.addListener?.((changes, areaName) => {
     bookmarkBackgroundSyncRuntime.notifyStorageChanged(changes, areaName);
     historyBackgroundSyncRuntime.notifyStorageChanged(changes, areaName);
+    deviceTabsBackgroundRuntime.notifyStorageChanged(changes, areaName);
     if (areaName !== 'local') {
       return;
     }
@@ -657,6 +665,7 @@ bindAlarmListeners();
 bindLifecycleListeners();
 bookmarkBackgroundSyncRuntime.initialize();
 historyBackgroundSyncRuntime.initialize();
+deviceTabsBackgroundRuntime.initialize();
 void readPhonePagePushEnabledFromExtensionStorage()
   .then((enabled) => {
     phonePagePushEnabled = enabled;

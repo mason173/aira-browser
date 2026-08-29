@@ -15,8 +15,8 @@
   },
   "permissions": [
     "alarms",
-    "permissions",
     "bookmarks",
+    "favicon",
     "history",
     "storage",
     "unlimitedStorage"

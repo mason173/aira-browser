@@ -69,11 +69,15 @@ function verifyZip({ zipPath, expectedEdition, expectedVersion, expectedVersionN
   const actualManifestKey = String(manifest.key || '');
   const actualExtensionId = actualManifestKey ? computeExtensionIdFromManifestKey(actualManifestKey) : '';
   const zipEntries = readZipEntries(zipPath);
+  const permissions = readStringArray(manifest.permissions);
 
   for (const requiredEntry of ['background-sw.js', 'popup.html', 'history.html', 'history.js']) {
     if (!zipEntries.has(requiredEntry)) {
       throw new Error(`Package is missing ${requiredEntry} in ${path.basename(zipPath)}.`);
     }
+  }
+  if (permissions.includes('permissions')) {
+    throw new Error(`Package must not include unsupported "permissions" manifest permission in ${path.basename(zipPath)}.`);
   }
 
   if ((packageKind === 'store' || packageKind === 'firefox') && Object.prototype.hasOwnProperty.call(manifest, 'key')) {
@@ -110,12 +114,8 @@ function verifyZip({ zipPath, expectedEdition, expectedVersion, expectedVersionN
     if (Object.prototype.hasOwnProperty.call(background, 'service_worker')) {
       throw new Error(`Firefox package must not include ignored background.service_worker in ${path.basename(zipPath)}.`);
     }
-    const permissions = readStringArray(manifest.permissions);
     if (!permissions.includes('history')) {
       throw new Error(`Firefox package must include required "history" permission in ${path.basename(zipPath)}.`);
-    }
-    if (permissions.includes('permissions')) {
-      throw new Error(`Firefox package must not include unsupported "permissions" manifest permission in ${path.basename(zipPath)}.`);
     }
   }
   if (packageKind === 'community' && !actualManifestKey) {
@@ -126,7 +126,7 @@ function verifyZip({ zipPath, expectedEdition, expectedVersion, expectedVersionN
       ].join(' ')
     );
   }
-  if (!readStringArray(manifest.permissions).includes('history')) {
+  if (!permissions.includes('history')) {
     throw new Error(`Package must include required "history" permission in ${path.basename(zipPath)}.`);
   }
   if (packageKind === 'community' && expectedManifestKey && actualManifestKey !== expectedManifestKey) {
