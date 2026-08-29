@@ -4,6 +4,7 @@ server/node_modules/
 private-backend/
 
 .DS_Store
+.planning/.bindings/
 
 build/
 build-firefox/
