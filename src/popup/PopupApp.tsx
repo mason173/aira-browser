@@ -665,7 +665,7 @@ function QuickActionButton({
       onClick={onClick}
     >
       {countBadge && countBadge > 0 ? (
-        <span className="absolute right-2 top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold leading-none text-destructive-foreground">
+        <span className="absolute right-2 top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-foreground px-1 text-[10px] font-semibold leading-none text-background">
           {countBadgeLabel}
         </span>
       ) : null}
