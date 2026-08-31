@@ -1,0 +1,15 @@
+{
+  "name": "entry",
+  "version": "0.1.3",
+  "description": "Aira entry module.",
+  "main": "",
+  "author": "",
+  "license": "",
+  "dependencies": {
+    "libaira_adblock.so": "file:./src/main/cpp/types/libaira_adblock",
+    "libaira_download.so": "file:./src/main/cpp/types/libaira_download"
+  },
+  "devDependencies": {
+    "@ohos/hypium": "1.0.18"
+  }
+}

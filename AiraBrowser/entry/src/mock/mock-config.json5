@@ -1,0 +1,5 @@
+{
+  "@ohos.url": {
+    "source": "src/mock/UrlMock.ets"
+  }
+}

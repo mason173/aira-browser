@@ -1,0 +1,9 @@
+# URL-Backed Personalization Retains Exact Recoverable Artifacts
+
+Superseded by ADR 0038. User scripts and ad-block subscriptions are now local-only and no longer participate in personalization sync.
+
+Accepted, refining ADR 0029: URL-backed user scripts and ad-block subscriptions retain both a Portable Content Reference and the exact validated Materialized Sync Artifact through the selected sync source. Exact Reinstallation Recovery must restore the previously working content even when the original source URL is unavailable, and this guarantee applies equally to Aira Cloud, Huawei Space Sync, and WebDAV. A provider that cannot retain the complete snapshot must fail and report that backup attempt while keeping the previous known-good remote snapshot; it must never silently degrade the backup to reference-only redownload. Per-item backup status is intentionally not required. Only an exact hash match that passes validation may restore the previous enabled state; content fetched from the original URL with a different hash remains disabled pending user confirmation.
+
+Network or provider failure puts only the affected item into Pending Content Recovery: retain its reference and last known state, do not delete or overwrite it, continue restoring other items, retry on foreground or network recovery, and provide a manual retry without repeated popups. Remote absence is never deletion. Only an explicit user delete creates a durable deletion tombstone; that tombstone propagates across devices and prevents an older device or backup from resurrecting the item.
+
+The design intentionally favors preservation and simplicity over perfect cross-device convergence: each installed script or subscription keeps one atomic current-known-good package plus temporary staging during replacement. It does not retain multi-version history, infer deletion from absence, or allow an incomplete download to replace usable content.

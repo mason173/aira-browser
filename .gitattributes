@@ -1,0 +1,3 @@
+resources/icon-sources/aira/vendor/phosphor/2.1/LICENSE binary
+resources/icon-sources/aira/vendor/phosphor/2.1/*/selection.json binary
+AiraBrowser/entry/src/main/cpp/third_party/** -whitespace linguist-vendored

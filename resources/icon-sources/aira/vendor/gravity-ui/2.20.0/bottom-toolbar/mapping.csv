@@ -1,0 +1,50 @@
+airaIconId,gravityIcon,role
+browser.toolbar.addBookmark,bookmark,add bookmark
+browser.toolbar.scanQr,qr-code,scan QR code
+browser.toolbar.actionCopyLink,link,copy link
+browser.toolbar.sharePage,arrow-up-from-square,share webpage
+browser.toolbar.sendToDesktop,paper-plane,send to desktop
+browser.toolbar.printPage,printer,print webpage
+settings.siteSettings,globe,website version and user agent
+reader.increaseFont,magnifier-plus,increase text size and text zoom
+browser.toolbar.fullScreen,arrows-expand,full screen
+browser.toolbar.manualElementHide,eraser,hide page elements
+browser.toolbar.reader,book-open,reader mode
+browser.toolbar.actionTranslate,letter-group,translate webpage
+browser.shortcut.scripts,code,user scripts
+browser.toolbar.themeMode,palette,appearance mode
+browser.toolbar.userAgentPreset,passport,user agent preset
+browser.toolbar.screenOrientation,arrows-3-rotate-right,screen orientation
+browser.toolbar.addToDesktop,smartphone,install as app
+browser.toolbar.offline,floppy-disk,save offline webpage
+browser.shortcut.pageResources,layers,page resources
+browser.toolbar.connectionSecurity,shield-keyhole,site security and proxy
+browser.toolbar.reportSite,triangle-exclamation,report website
+browser.shortcut.bookmarks,bookmark-fill,open bookmarks
+browser.shortcut.history,clock-arrow-rotate-left,history
+browser.toolbar.savedPages,square-article,saved pages
+browser.shortcut.downloads,arrow-down-to-line,downloads
+browser.shortcut.settings,gear,settings
+browser.shortcut.home,house,home
+settings.search,magnifier,find in page
+offline.openOriginal,arrow-up-right-from-square,open original webpage
+browser.toolbar.siteInfo,circle-info,page or file details
+browser.toolbar.shareDocument,file-arrow-up,export document
+browser.tabs.delete,trash-bin,delete or clear tab data
+reader.decreaseFont,magnifier-minus,decrease text size
+reader.theme,palette,reader theme
+reader.readAloud,volume,read aloud
+reader.lineHeight,text-align-justify,line height
+reader.pageWidth,arrows-expand-horizontal,page width
+browser.tabs.add,plus,new tab
+browser.toolbar.privacyMode,eye-slash,private mode
+browser.toolbar.back,arrow-left,back
+browser.toolbar.tabs,layout-tabs,tabs overview
+browser.toolbar.search,magnifier,address search
+browser.toolbar.menu,bars,toolbar menu
+browser.address.expandedShare,arrow-up-from-square,compact share
+browser.toolbar.refresh,arrows-rotate-right,refresh
+browser.address.expandedCopy,copy,copy address
+browser.toolbar.clearInput,xmark,clear input
+browser.address.expandedEdit,pencil,edit address
+browser.tabs.overviewAdd,square-plus,new tab from tabs overview

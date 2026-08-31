@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Aira第三方SDK、第三方服务及外部数据交互清单</title>
+    <meta name="viewport" content="initial-scale=1.0,width=device-width" />
+    <link rel="icon" href="data:image/ico;base64,aWNv" />
+  </head>
+  <script>
+    document.documentElement.style.fontSize = 8 + 'px';
+  </script>
+  <body>
+    <div id="icon">
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        xmlns:xlink="http://www.w3.org/1999/xlink"
+        width="96.000000"
+        height="96.000000"
+        viewBox="0 0 96 96"
+        fill="none"
+      >
+        <defs>
+          <clipPath id="clip40_7009">
+            <rect width="96.000000" height="96.000000" fill="white" fill-opacity="0" />
+          </clipPath>
+        </defs>
+        <g clip-path="url(#clip40_7009)">
+          <path
+            class="icon-emphasize"
+            id="path"
+            d="M74.58 85L23.08 85C21.97 85 21.03 84.6 20.25 83.82C19.47 83.04 19.08 82.1 19.08 81L19.08 15C19.08 13.89 19.47 12.95 20.25 12.17C21.03 11.39 21.97 11 23.08 11L70.58 11C71.68 11 72.62 11.39 73.4 12.17C74.18 12.95 74.58 13.89 74.58 15L74.58 70.5"
+            stroke="currentColor"
+            stroke-opacity="1.000000"
+            stroke-width="6.000000"
+          />
+          <path
+            class="icon-emphasize"
+            id="path"
+            d="M74 74L74.25 74C75.35 74 76.29 74.39 77.07 75.17C77.85 75.95 78.25 76.89 78.25 78C78.25 79.1 77.85 80.04 77.07 80.82C76.29 81.6 75.35 82 74.25 82L37.41 82C38.56 79.33 38.56 76.66 37.41 74L74 74ZM74 68L28.43 68C27.62 67.98 26.9 68.24 26.29 68.78C25.68 69.32 25.33 70 25.26 70.81C25.2 71.68 25.47 72.42 26.07 73.05C26.66 73.68 27.39 74 28.26 74L28.68 74C29.85 74.06 30.77 74.56 31.47 75.5C32.46 76.83 32.59 78.24 31.85 79.73C31.11 81.22 29.91 81.98 28.25 82L27.16 82L27.16 84.84C27.17 85.72 27.5 86.47 28.13 87.08C28.76 87.7 29.52 88 30.41 88L74.25 88C74.33 88 74.41 88 74.5 88C75.82 88 77.1 87.74 78.32 87.23C79.55 86.73 80.63 86 81.57 85.07C82.5 84.13 83.23 83.05 83.73 81.82C84.24 80.6 84.5 79.32 84.5 78C84.5 76.67 84.24 75.39 83.73 74.17C83.23 72.94 82.5 71.86 81.57 70.92C80.63 69.99 79.55 69.26 78.32 68.76C77.1 68.25 75.82 68 74.5 68C74.41 67.99 74.33 67.99 74.25 68L74 68Z"
+            fill="currentColor"
+            fill-opacity="1.000000"
+            fill-rule="nonzero"
+          />
+          <path
+            class="icon-emphasize"
+            id="line"
+            d="M30.85 32.98L30.83 33C29.15 33 27.83 31.68 27.83 30C27.83 28.31 29.15 27 30.83 27L30.85 27.02L30.85 32.98ZM62.81 27.02L62.83 27C64.51 27 65.83 28.31 65.83 30C65.83 31.68 64.51 33 62.83 33L62.81 32.98L62.81 27.02Z"
+            fill="currentColor"
+            fill-opacity="0"
+            fill-rule="nonzero"
+          />
+          <path
+            class="icon-emphasize"
+            id="line"
+            d="M30.83 30L62.83 30"
+            stroke="currentColor"
+            stroke-opacity="1.000000"
+            stroke-width="6.000000"
+            stroke-linecap="round"
+          />
+          <path
+            class="icon-emphasize"
+            id="line"
+            d="M30.85 45.04L30.83 45.06C29.15 45.06 27.83 43.74 27.83 42.06C27.83 40.38 29.15 39.06 30.83 39.06L30.85 39.08L30.85 45.04ZM62.81 39.08L62.83 39.06C64.51 39.06 65.83 40.38 65.83 42.06C65.83 43.74 64.51 45.06 62.83 45.06L62.81 45.04L62.81 39.08Z"
+            fill="currentColor"
+            fill-opacity="0"
+            fill-rule="nonzero"
+          />
+          <path
+            class="icon-emphasize"
+            id="line"
+            d="M30.83 42.06L62.83 42.06"
+            stroke="currentColor"
+            stroke-opacity="1.000000"
+            stroke-width="6.000000"
+            stroke-linecap="round"
+          />
+          <path
+            class="icon-emphasize"
+            id="line"
+            d="M30.85 57.1L30.83 57.12C29.15 57.12 27.83 55.8 27.83 54.12C27.83 52.43 29.15 51.12 30.83 51.12L30.85 51.14L30.85 57.1ZM46.81 51.14L46.83 51.12C48.51 51.12 49.83 52.43 49.83 54.12C49.83 55.8 48.51 57.12 46.83 57.12L46.81 57.1L46.81 51.14Z"
+            fill="currentColor"
+            fill-opacity="0"
+            fill-rule="nonzero"
+          />
+          <path
+            class="icon-emphasize"
+            id="line"
+            d="M30.83 54.12L46.83 54.12"
+            stroke="currentColor"
+            stroke-opacity="1.000000"
+            stroke-width="6.000000"
+            stroke-linecap="round"
+          />
+        </g>
+      </svg>
+    </div>
+    <h2 id="privacyName">Aira第三方SDK、第三方服务及外部数据交互清单</h2>
+    <p id="update-time">
+      <span class="font-secondary">更新日期：2026年5月27日</span>
+    </p>
+
+    <h5>1. 说明</h5>
+    <p>
+      为保障您的知情权，我们依据 Aira 当前版本实际功能，列明应用中接入的第三方 SDK / Kit、预设第三方服务，以及您主动配置或访问外部服务时可能发生的数据交互。
+    </p>
+    <p>
+      本清单是 Aira 隐私声明的组成部分。具体个人信息处理规则、权限调用、数据保存和用户权利行使方式，请以 Aira 隐私声明为准。
+    </p>
+    <p>
+      Aira 是浏览器类应用。您主动访问的网站、安装的用户脚本、导入的规则源、配置的 WebDAV 或翻译接口，可能由对应服务方按照其自身隐私政策处理数据。请您在使用前自行确认对应服务来源可信。
+    </p>
+
+    <h5>2. 华为相关SDK / Kit</h5>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>类型</th>
+            <th>名称</th>
+            <th>提供方</th>
+            <th>使用目的</th>
+            <th>处理的信息</th>
+            <th>触发场景</th>
+            <th>是否用户主动触发</th>
+            <th>数据是否传出本应用</th>
+            <th>隐私政策或说明</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>SDK / Kit</td>
+            <td>华为账号服务 Account Kit（@kit.AccountKit）</td>
+            <td>华为软件技术有限公司及其关联公司</td>
+            <td>提供华为账号登录、授权和账号身份识别能力。</td>
+            <td>华为账号授权结果、OpenID / UnionID 或同类账号标识、昵称、头像等用户授权信息。</td>
+            <td>用户点击华为账号登录、开启书签云同步、进入账号相关页面时。</td>
+            <td>是</td>
+            <td>是</td>
+            <td>以华为账号服务、华为消费者业务隐私声明及对应服务页面公布的规则为准。</td>
+          </tr>
+          <tr>
+            <td>SDK</td>
+            <td>AGC 认证服务 Auth（@hw-agconnect/auth）</td>
+            <td>华为软件技术有限公司及其关联公司</td>
+            <td>用于 AGC 用户认证、云服务鉴权、登录状态管理和云数据库访问控制。</td>
+            <td>AGC 用户标识、登录状态、认证令牌、账号绑定状态及必要的鉴权信息。</td>
+            <td>用户登录华为账号、使用书签云同步、会员授权、邀请码或云侧能力时。</td>
+            <td>是</td>
+            <td>是</td>
+            <td>以 AppGallery Connect、AGC 认证服务和华为相关隐私规则为准。</td>
+          </tr>
+          <tr>
+            <td>Kit</td>
+            <td>Cloud Foundation Kit（@kit.CloudFoundationKit）</td>
+            <td>华为软件技术有限公司及其关联公司</td>
+            <td>用于华为 Cloud DB 云数据库能力，支持书签云同步、会员授权、邀请码等云端数据访问。</td>
+            <td>华为账号标识、书签和文件夹数据、同步元数据、会员授权记录、邀请码和邀请码额度等。</td>
+            <td>用户开启书签云同步、恢复同步、查询会员状态、兑换邀请码或使用相关云端能力时。</td>
+            <td>是</td>
+            <td>是</td>
+            <td>以华为 Cloud Foundation Kit、AppGallery Connect 和对应云服务说明为准。</td>
+          </tr>
+          <tr>
+            <td>Kit</td>
+            <td>华为应用内支付 IAP Kit（@kit.IAPKit）</td>
+            <td>华为软件技术有限公司及其关联公司</td>
+            <td>用于 Aira Pro 订阅购买、恢复购买、查询订阅和打开订阅管理页面。</td>
+            <td>商品 ID、订阅周期、订单信息、购买结果、支付状态、订阅状态等。</td>
+            <td>用户点击购买 Aira Pro、恢复购买或管理订阅时。</td>
+            <td>是</td>
+            <td>是</td>
+            <td>以华为应用内支付、华为订阅管理页面和平台规则为准。</td>
+          </tr>
+          <tr>
+            <td>SDK</td>
+            <td>AGC Core / API（@hw-agconnect/core-ohos、@hw-agconnect/api-ohos）</td>
+            <td>华为软件技术有限公司及其关联公司</td>
+            <td>用于初始化和调用 AGC 相关服务，为华为账号、应用基础服务等能力提供基础支持。</td>
+            <td>应用标识、项目配置、服务调用上下文、必要的设备和网络请求信息。</td>
+            <td>应用启动、初始化 AGC 服务或调用 AGC 能力时。</td>
+            <td>否</td>
+            <td>是</td>
+            <td>以 AppGallery Connect 和华为相关开发者服务说明为准。</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h5>3. 应用内置或预设的第三方服务</h5>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>类型</th>
+            <th>名称</th>
+            <th>提供方</th>
+            <th>使用目的</th>
+            <th>处理的信息</th>
+            <th>触发场景</th>
+            <th>是否用户主动触发</th>
+            <th>数据是否传出本应用</th>
+            <th>隐私政策或说明</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>外部服务</td>
+            <td>Bing 每日壁纸</td>
+            <td>Microsoft</td>
+            <td>获取每日壁纸图片和图片说明，用于首页壁纸展示。</td>
+            <td>网络请求信息、地区参数、壁纸元数据和图片文件。</td>
+            <td>用户开启每日壁纸或应用按设置刷新壁纸时。</td>
+            <td>是</td>
+            <td>是</td>
+            <td>以 Microsoft / Bing 公布的隐私声明和服务规则为准。</td>
+          </tr>
+          <tr>
+            <td>外部服务</td>
+            <td>内置搜索引擎：Bing、Google、DuckDuckGo、百度</td>
+            <td>Microsoft、Google、DuckDuckGo、百度等</td>
+            <td>按用户选择的搜索引擎发起搜索请求。</td>
+            <td>搜索关键词、访问时间、IP 地址、浏览器请求信息，以及搜索服务可能自行处理的 Cookie 或站点数据。</td>
+            <td>用户在地址栏或搜索框提交搜索时。</td>
+            <td>是</td>
+            <td>是</td>
+            <td>以用户选择的搜索引擎服务方隐私政策和 Cookie 政策为准。</td>
+          </tr>
+          <tr>
+            <td>外部服务</td>
+            <td>Aira 系统翻译</td>
+            <td>Aira 及其云服务提供方；可能使用腾讯云机器翻译或其他必要第三方机器翻译服务处理页面文字</td>
+            <td>为 Aira Pro 用户提供网页翻译能力。</td>
+            <td>待翻译文本、源语言、目标语言、翻译结果、必要的服务调用参数。</td>
+            <td>用户主动点击网页翻译或启用相关翻译操作时。</td>
+            <td>是</td>
+            <td>是</td>
+            <td>以 Aira 隐私声明、实际使用的机器翻译服务及相关云服务规则为准。</td>
+          </tr>
+          <tr>
+            <td>外部服务模板</td>
+            <td>第三方翻译服务模板：DeepL、Google Cloud Translation、腾讯云机器翻译、百度翻译、Microsoft Translator、阿里云机器翻译、火山引擎机器翻译、有道智云翻译</td>
+            <td>对应翻译服务提供方</td>
+            <td>用户自行配置 API Key、密钥或区域后，向对应翻译服务发起翻译请求。</td>
+            <td>待翻译文本、源语言、目标语言、API Key 或签名所需参数、翻译结果、请求日志等由对应服务方处理的信息。</td>
+            <td>用户选择并配置对应翻译服务后主动使用翻译功能时。</td>
+            <td>是</td>
+            <td>是</td>
+            <td>以用户选择的翻译服务提供方隐私政策、数据安全说明和开发者服务条款为准。</td>
+          </tr>
+          <tr>
+            <td>外部服务预设</td>
+            <td>WebDAV 预设服务商：坚果云、pCloud、GMX MediaCenter、kDrive、Koofr</td>
+            <td>对应 WebDAV 服务提供方</td>
+            <td>便于用户选择 WebDAV 服务地址，用于书签同步。</td>
+            <td>WebDAV 地址、用户名、密码或授权信息、书签和文件夹数据、同步文件、更新时间、同步状态等。</td>
+            <td>用户选择预设服务商、填写账号信息并开启 WebDAV 同步时。</td>
+            <td>是</td>
+            <td>是</td>
+            <td>以用户选择的 WebDAV 服务提供方隐私政策和服务规则为准。</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h5>4. 用户自定义第三方服务</h5>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>类型</th>
+            <th>名称</th>
+            <th>提供方</th>
+            <th>使用目的</th>
+            <th>处理的信息</th>
+            <th>触发场景</th>
+            <th>是否用户主动触发</th>
+            <th>数据是否传出本应用</th>
+            <th>隐私政策或说明</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>用户自定义服务</td>
+            <td>用户自定义 WebDAV 服务</td>
+            <td>用户自行选择的 WebDAV 服务提供方</td>
+            <td>同步书签数据。</td>
+            <td>WebDAV 地址、用户名、密码或授权信息、书签 URL、标题、文件夹、排序、删除记录、同步状态和同步文件。</td>
+            <td>用户填写 WebDAV 信息并开启同步、手动同步或自动同步时。</td>
+            <td>是</td>
+            <td>是</td>
+            <td>Aira 不控制用户自定义 WebDAV 服务的数据处理行为，请以对应服务方规则为准。</td>
+          </tr>
+          <tr>
+            <td>用户自定义服务</td>
+            <td>用户自定义 HTTP 翻译接口</td>
+            <td>用户自行配置的接口服务提供方</td>
+            <td>按用户配置请求翻译接口。</td>
+            <td>待翻译文本、源语言、目标语言、请求头、请求体、认证参数和接口返回结果。</td>
+            <td>用户配置自定义接口并主动使用翻译功能时。</td>
+            <td>是</td>
+            <td>是</td>
+            <td>Aira 不控制用户自定义接口的数据处理行为，请仅配置可信接口。</td>
+          </tr>
+          <tr>
+            <td>用户自定义服务</td>
+            <td>广告拦截规则订阅地址</td>
+            <td>用户自行选择的规则源提供方</td>
+            <td>下载并更新广告拦截规则。</td>
+            <td>规则订阅 URL、网络请求信息、规则文件内容、更新时间和更新结果。</td>
+            <td>用户添加远程规则源、手动更新或应用按设置更新规则时。</td>
+            <td>是</td>
+            <td>是</td>
+            <td>Aira 不控制第三方规则源内容及其数据处理行为，请使用可信规则源。</td>
+          </tr>
+          <tr>
+            <td>用户自定义服务</td>
+            <td>用户脚本及脚本发起的第三方请求</td>
+            <td>用户脚本作者、脚本依赖服务或脚本请求的第三方服务</td>
+            <td>按用户安装的脚本逻辑增强或修改网页。</td>
+            <td>脚本可读取或修改的网页内容、页面 URL、表单内容、脚本配置、脚本发起的网络请求数据等，具体取决于脚本行为。</td>
+            <td>用户安装并启用脚本，且脚本匹配当前网页运行时。</td>
+            <td>是</td>
+            <td>可能</td>
+            <td>用户脚本由用户自行选择和安装，请仅安装可信来源脚本。</td>
+          </tr>
+          <tr>
+            <td>用户自定义服务</td>
+            <td>自定义搜索引擎</td>
+            <td>用户自行配置的搜索服务提供方</td>
+            <td>按用户配置的搜索 URL 发起搜索请求。</td>
+            <td>搜索关键词、搜索 URL、网络请求信息，以及对应搜索服务自行处理的数据。</td>
+            <td>用户将自定义搜索引擎设为可用搜索方式并提交搜索时。</td>
+            <td>是</td>
+            <td>是</td>
+            <td>Aira 不控制自定义搜索服务的数据处理行为，请以对应服务方规则为准。</td>
+          </tr>
+          <tr>
+            <td>用户自定义服务</td>
+            <td>自定义主页 / 第三方 HTML 主页</td>
+            <td>用户自行选择或导入的主页内容提供方</td>
+            <td>显示用户自定义的浏览器主页。</td>
+            <td>主页内容、主页中自行发起的网络请求、主页脚本可处理的数据，具体取决于用户导入的主页内容。</td>
+            <td>用户启用自定义主页并打开主页时。</td>
+            <td>是</td>
+            <td>可能</td>
+            <td>自定义主页由用户自行选择，请仅使用可信来源内容。</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h5>5. 用户主动访问的网站或网页服务</h5>
+    <p>
+      Aira 作为浏览器类应用，用户可以主动访问任意网页、网站及其关联服务。用户访问网页时，目标网站可能根据其自身隐私政策、Cookie 政策或服务规则收集和处理 IP 地址、Cookie、设备信息、网页表单内容、登录状态、浏览行为、支付或交易信息等。
+    </p>
+    <p>
+      Aira 不代表目标网站处理数据，也不对第三方网页内容、商品服务、交易结果、信息真实性或安全性作出保证。请您在访问、登录、提交表单、下载文件或进行交易前，关注目标网站自身的隐私政策和服务规则。
+    </p>
+
+    <h5>6. 更新说明</h5>
+    <p>
+      随着 Aira 功能调整、SDK 升级、服务商变化或法律法规要求变化，本清单可能适时更新。更新后的清单将在相关网页或应用内页面展示。
+    </p>
+
+    <h5>7. 联系我们</h5>
+    <p>如您对本清单或相关数据交互有疑问、意见或建议，可以通过以下方式联系我们：</p>
+    <p>开发者：廖美盛</p>
+    <p>邮箱：mason.life@proton.me</p>
+  </body>
+</html>
+
+<style type="text/css">
+  * {
+    margin: 0;
+    box-sizing: border-box;
+    font-size: 16px;
+    color: rgba(0, 0, 0, 0.9);
+  }
+  body {
+    max-width: 900px;
+    margin: 0 auto;
+    padding:
+      calc(44px + env(safe-area-inset-top))
+      calc(24px + env(safe-area-inset-right))
+      calc(96px + env(safe-area-inset-bottom))
+      calc(24px + env(safe-area-inset-left));
+    -webkit-text-size-adjust: 100%;
+  }
+  ul {
+    padding: 0;
+    list-style: none;
+  }
+  a {
+    color: #0a59f7;
+    cursor: pointer;
+    text-decoration: none;
+  }
+  #icon {
+    font-size: 0;
+    text-align: center;
+  }
+  #icon svg {
+    width: 4rem;
+    height: 4rem;
+  }
+  #privacyName {
+    margin: 24px 0 8px;
+    text-align: center;
+    font-size: 20px;
+    line-height: 1.35;
+  }
+  #update-time {
+    text-align: center;
+    span {
+      font-size: 14px;
+    }
+  }
+  .font-secondary {
+    color: rgba(0, 0, 0, 0.6);
+  }
+  .icon-emphasize {
+    color: rgba(10, 89, 247, 1);
+  }
+  h5 {
+    word-break: normal;
+    overflow-wrap: anywhere;
+    margin-top: 36px;
+    margin-bottom: 12px;
+    line-height: 1.45;
+  }
+  p {
+    word-break: normal;
+    overflow-wrap: anywhere;
+    line-height: 1.65;
+  }
+  p + p {
+    margin-top: 10px;
+  }
+  .table-wrap {
+    width: calc(100% + 48px);
+    overflow-x: auto;
+    margin: 14px -24px 0;
+    padding: 0 24px 6px;
+    -webkit-overflow-scrolling: touch;
+  }
+  table {
+    width: 100%;
+    min-width: 980px;
+    border-collapse: collapse;
+    border-spacing: 0;
+  }
+  th,
+  td {
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    padding: 1rem;
+    text-align: left;
+    vertical-align: top;
+    line-height: 1.45;
+  }
+  th {
+    font-weight: 600;
+    background: rgba(10, 89, 247, 0.08);
+  }
+  td {
+    font-size: 14px;
+  }
+  @media (max-width: 480px) {
+    body {
+      padding:
+        calc(40px + env(safe-area-inset-top))
+        calc(24px + env(safe-area-inset-right))
+        calc(96px + env(safe-area-inset-bottom))
+        calc(24px + env(safe-area-inset-left));
+    }
+    #privacyName {
+      font-size: 19px;
+    }
+  }
+  @media (prefers-color-scheme: dark) {
+    body {
+      background-color: #000000;
+    }
+    .font-secondary {
+      color: rgba(255, 255, 255, 0.6);
+    }
+    .icon-emphasize {
+      color: rgba(82, 145, 255, 1);
+    }
+    * {
+      color: rgba(255, 255, 255, 0.9);
+    }
+    th,
+    td {
+      border-color: rgba(255, 255, 255, 0.16);
+    }
+    th {
+      background: rgba(82, 145, 255, 0.16);
+    }
+  }
+</style>
+<style id="style"></style>

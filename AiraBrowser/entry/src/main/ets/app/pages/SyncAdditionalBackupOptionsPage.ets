@@ -1,0 +1,15 @@
+import { SyncAdditionalBackupHost } from '../components/sync/SyncAdditionalBackupHost';
+
+@Entry
+@Component
+struct SyncAdditionalBackupOptionsPage {
+  build() {
+    Column() {
+      SyncAdditionalBackupHost({ mode: 'options' })
+        .width('100%')
+        .height('100%')
+    }
+    .width('100%')
+    .height('100%')
+  }
+}

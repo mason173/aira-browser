@@ -1,0 +1,112 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "Aira HarmonyOS module"
+    },
+    {
+      "name": "EntryAbility_desc",
+      "value": "Aira entry ability"
+    },
+    {
+      "name": "EntryAbility_label",
+      "value": "Aira Community"
+    },
+    {
+      "name": "desktop_web_page_shortcut",
+      "value": "网页"
+    },
+    {
+      "name": "app_shortcut_bookmarks",
+      "value": "书签"
+    },
+    {
+      "name": "app_shortcut_history",
+      "value": "历史记录"
+    },
+    {
+      "name": "app_shortcut_downloads",
+      "value": "下载管理"
+    },
+    {
+      "name": "app_shortcut_settings",
+      "value": "设置"
+    },
+    {
+      "name": "app_shortcut_search",
+      "value": "搜索"
+    },
+    {
+      "name": "aira_search_card_display_name",
+      "value": "Aira 搜索"
+    },
+    {
+      "name": "aira_search_card_description",
+      "value": "点击进入 Aira 搜索"
+    },
+    {
+      "name": "aira_search_card_placeholder",
+      "value": "搜索或输入网址"
+    },
+    {
+      "name": "aira_search_card_2x2_display_name",
+      "value": "Aira 搜索（2×2）"
+    },
+    {
+      "name": "aira_search_card_2x4_display_name",
+      "value": "Aira 快捷入口（2×4）"
+    },
+    {
+      "name": "aira_search_card_2x2_description",
+      "value": "点击卡片进入 Aira 搜索"
+    },
+    {
+      "name": "aira_search_card_2x4_description",
+      "value": "搜索并快速打开 Aira 常用功能"
+    },
+    {
+      "name": "internet_permission_reason",
+      "value": "Aira需要联网加载网页内容。"
+    },
+    {
+      "name": "camera_permission_reason",
+      "value": "网页请求拍照或视频通话时，Aira需要访问摄像头。"
+    },
+    {
+      "name": "microphone_permission_reason",
+      "value": "网页请求录音或语音通话时，Aira需要访问麦克风。"
+    },
+    {
+      "name": "location_permission_reason",
+      "value": "网页请求定位服务时，Aira需要访问位置信息。"
+    },
+    {
+      "name": "sensor_permission_reason",
+      "value": "网页请求设备运动或方向数据时，Aira需要访问传感器。"
+    },
+    {
+      "name": "clipboard_permission_reason",
+      "value": "用户允许网页粘贴时，Aira需要读取系统剪贴板内容。"
+    },
+    {
+      "name": "detect_gesture_permission_reason",
+      "value": "Aira需要识别握持手来优化标签管理页单手操作。"
+    },
+    {
+      "name": "privacy_window_permission_reason",
+      "value": "Aira在密码等敏感页面防止截屏和录屏。"
+    },
+    {
+      "name": "print_permission_reason",
+      "value": "Aira需要调用系统打印服务来打印当前网页。"
+    },
+    {
+      "name": "biometric_permission_reason",
+      "value": "Aira需要使用系统身份验证来保护隐私模式标签页。"
+    },
+    {
+      "name": "background_playback_permission_reason",
+      "value": "Aira需要在网页视频投屏时保持媒体会话，并在下载文件时保持后台传输。"
+    }
+  ]
+}

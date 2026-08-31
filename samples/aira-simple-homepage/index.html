@@ -1,0 +1,1858 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover"
+  >
+  <title>Aira 简洁主页</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --page-bg: var(--aira-page-background, #ffffff);
+      --text: var(--aira-text-primary, #101010);
+      --muted: var(--aira-text-secondary, #464646);
+      --line: var(--aira-accent, #202020);
+      --hairline: var(--aira-divider, #e9e9e9);
+      --menu-bg: var(--aira-surface-background, rgba(255, 255, 255, 0.96));
+      --menu-shadow: rgba(0, 0, 0, 0.14);
+      --content-width: min(100%, 390px);
+      --toast-bg: rgba(17, 17, 17, 0.88);
+      --toast-text: #ffffff;
+      --home-pull-offset: 0px;
+      --home-search-offset: 0px;
+      --home-fade-opacity: 1;
+    }
+
+    :root[data-theme="dark"] {
+      color-scheme: dark;
+      --page-bg: var(--aira-page-background, #101010);
+      --text: var(--aira-text-primary, #f5f5f5);
+      --muted: var(--aira-text-secondary, #c9c9c9);
+      --line: var(--aira-accent, #f2f2f2);
+      --hairline: var(--aira-divider, rgba(255, 255, 255, 0.2));
+      --menu-bg: var(--aira-surface-background, rgba(30, 30, 30, 0.96));
+      --menu-shadow: rgba(0, 0, 0, 0.42);
+      --toast-bg: rgba(245, 245, 245, 0.92);
+      --toast-text: #111111;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      overscroll-behavior: none;
+      background: var(--page-bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "HarmonyOS Sans", "PingFang SC", sans-serif;
+      letter-spacing: 0;
+      touch-action: manipulation;
+      -webkit-text-size-adjust: 100%;
+    }
+
+    body {
+      position: fixed;
+      inset: 0;
+      min-height: 100dvh;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    button,
+    input {
+      font: inherit;
+    }
+
+    button {
+      border: 0;
+      padding: 0;
+      color: inherit;
+      background: transparent;
+      cursor: pointer;
+    }
+
+    .page {
+      width: min(100%, 430px);
+      height: 100dvh;
+      margin: 0 auto;
+      padding:
+        max(18px, env(safe-area-inset-top))
+        max(20px, env(safe-area-inset-right))
+        calc(86px + env(safe-area-inset-bottom))
+        max(20px, env(safe-area-inset-left));
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .main-content {
+      flex: 1 1 auto;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding-bottom: clamp(58px, 8.5vh, 86px);
+    }
+
+    .brand {
+      width: var(--content-width);
+      height: clamp(58px, 15vw, 78px);
+      display: grid;
+      place-items: center;
+      margin-bottom: clamp(30px, 4.2vh, 42px);
+      opacity: var(--home-fade-opacity);
+      transform: translateY(var(--home-pull-offset));
+      transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 180ms ease;
+      will-change: transform, opacity;
+    }
+
+    .brand img {
+      width: min(178px, 48vw);
+      height: auto;
+      display: block;
+    }
+
+    :root[data-theme="dark"] .brand img,
+    :root[data-theme="dark"] .search-icon-button img,
+    :root[data-theme="dark"] .dock img {
+      filter: invert(1) brightness(1.08);
+    }
+
+    .search {
+      width: var(--content-width);
+      height: 42px;
+      border: 1.5px solid var(--line);
+      border-radius: 22px;
+      display: grid;
+      grid-template-columns: 1fr 44px;
+      align-items: center;
+      overflow: hidden;
+      background: var(--page-bg);
+      flex: 0 0 auto;
+      position: relative;
+      z-index: 3;
+      transform: translateY(var(--home-search-offset));
+      transition: transform 260ms cubic-bezier(0.18, 0.9, 0.2, 1);
+      will-change: transform;
+    }
+
+    .search input {
+      width: 100%;
+      min-width: 0;
+      height: 100%;
+      border: 0;
+      outline: none;
+      padding: 0 0 0 28px;
+      color: var(--text);
+      background: transparent;
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    .search input::placeholder {
+      color: var(--muted);
+      opacity: 1;
+    }
+
+    .search-icon-button {
+      width: 44px;
+      height: 42px;
+      display: grid;
+      place-items: center;
+    }
+
+    .search-icon-button img {
+      width: 24px;
+      height: 24px;
+      display: block;
+    }
+
+    .search-icon-button:disabled,
+    .shortcut-add:disabled {
+      cursor: default;
+      opacity: 0.45;
+    }
+
+    .shortcut-grid {
+      width: var(--content-width);
+      margin-top: clamp(22px, 3.8vh, 36px);
+      position: relative;
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      row-gap: clamp(22px, 3.8vh, 34px);
+      column-gap: clamp(8px, 3.6vw, 18px);
+      max-height: min(38vh, 320px);
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      scrollbar-width: none;
+      flex: 0 0 auto;
+      opacity: var(--home-fade-opacity);
+      transform: translateY(var(--home-pull-offset));
+      transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 180ms ease;
+      will-change: transform, opacity;
+    }
+
+    .shortcut-grid::-webkit-scrollbar {
+      display: none;
+    }
+
+    .shortcut {
+      min-width: 0;
+      position: relative;
+      display: grid;
+      justify-items: center;
+      gap: 8px;
+      touch-action: pan-y;
+      transform-origin: center;
+      transition: transform 180ms cubic-bezier(0.2, 0.85, 0.25, 1), opacity 140ms ease;
+      will-change: transform;
+    }
+
+    .shortcut-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      border: 1px solid var(--hairline);
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+      color: var(--text);
+      background: var(--page-bg);
+      font-size: 16px;
+      font-weight: 700;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+      transition: transform 120ms ease, opacity 120ms ease, border-color 120ms ease;
+    }
+
+    .shortcut.long-press-armed {
+      z-index: 3;
+      transform: translateY(-2px) scale(1.08);
+    }
+
+    .shortcut.long-press-armed .shortcut-icon {
+      border-color: var(--text);
+      transform: scale(1.03);
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.16);
+    }
+
+    .shortcut.drag-placeholder {
+      opacity: 0.16;
+      transform: scale(0.92);
+    }
+
+    .shortcut-grid.reordering .shortcut:not(.drag-placeholder) {
+      will-change: transform;
+    }
+
+    .shortcut-drag-avatar {
+      position: fixed;
+      left: 0;
+      top: 0;
+      z-index: 80;
+      margin: 0;
+      pointer-events: none;
+      opacity: 0.98;
+      transform-origin: center;
+      transition: none;
+      filter: drop-shadow(0 16px 18px rgba(0, 0, 0, 0.2));
+      will-change: transform;
+    }
+
+    .shortcut-drag-avatar .shortcut-icon {
+      border-color: rgba(0, 0, 0, 0.18);
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.18);
+    }
+
+    :root[data-theme="dark"] .shortcut-drag-avatar .shortcut-icon {
+      border-color: rgba(255, 255, 255, 0.32);
+      box-shadow: 0 14px 30px rgba(0, 0, 0, 0.48);
+    }
+
+    .shortcut.drop-settle {
+      animation: shortcut-drop-settle 340ms cubic-bezier(0.18, 0.9, 0.2, 1);
+    }
+
+    @keyframes shortcut-drop-settle {
+      0% {
+        transform: scale(0.9);
+      }
+      58% {
+        transform: scale(1.07);
+      }
+      82% {
+        transform: scale(0.985);
+      }
+      100% {
+        transform: scale(1);
+      }
+    }
+
+    .shortcut-icon img {
+      width: 27px;
+      height: 27px;
+      object-fit: contain;
+      display: block;
+    }
+
+    .shortcut-icon.aira-home-shortcut-icon-font {
+      color: var(--text);
+      font-size: 27px;
+    }
+
+    .shortcut-add-glyph {
+      width: 22px;
+      height: 22px;
+      position: relative;
+      display: block;
+    }
+
+    .shortcut-add-glyph::before,
+    .shortcut-add-glyph::after {
+      content: '';
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      border-radius: 999px;
+      background: currentColor;
+      transform: translate(-50%, -50%);
+    }
+
+    .shortcut-add-glyph::before {
+      width: 18px;
+      height: 2px;
+    }
+
+    .shortcut-add-glyph::after {
+      width: 2px;
+      height: 18px;
+    }
+
+    .shortcut-title {
+      width: 60px;
+      min-height: 16px;
+      color: var(--text);
+      font-size: 11px;
+      line-height: 16px;
+      font-weight: 500;
+      text-align: center;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+
+    .dock {
+      position: fixed;
+      left: 50%;
+      right: auto;
+      bottom: max(6px, env(safe-area-inset-bottom));
+      transform: translateX(-50%) translateY(var(--home-pull-offset));
+      height: 54px;
+      width: min(calc(100vw - 40px), 390px);
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--page-bg);
+      opacity: var(--home-fade-opacity);
+      transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 180ms ease;
+      will-change: transform, opacity;
+    }
+
+    .dock button {
+      height: 54px;
+      width: 56px;
+      display: grid;
+      place-items: center;
+    }
+
+    .dock img {
+      width: 25px;
+      height: 25px;
+      display: block;
+    }
+
+    .dock img.card-icon {
+      width: 26px;
+      height: 26px;
+    }
+
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: calc(84px + env(safe-area-inset-bottom));
+      transform: translateX(-50%);
+      max-width: min(320px, calc(100vw - 48px));
+      padding: 10px 14px;
+      border-radius: 999px;
+      color: var(--toast-text);
+      background: var(--toast-bg);
+      font-size: 14px;
+      line-height: 20px;
+      text-align: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 160ms ease;
+    }
+
+    .toast.visible {
+      opacity: 1;
+    }
+
+    .shortcut-menu-backdrop {
+      position: fixed;
+      inset: 0;
+      display: none;
+      z-index: 20;
+      background: transparent;
+    }
+
+    .shortcut-menu-backdrop.visible {
+      display: block;
+    }
+
+    .shortcut-menu {
+      position: fixed;
+      left: 50%;
+      top: 50%;
+      width: 176px;
+      padding: 6px;
+      border: 1px solid var(--hairline);
+      border-radius: 14px;
+      background: var(--menu-bg);
+      box-shadow: 0 14px 36px var(--menu-shadow);
+      transform: translate(-50%, -50%);
+      overflow: hidden;
+      -webkit-backdrop-filter: blur(18px);
+      backdrop-filter: blur(18px);
+    }
+
+    .shortcut-menu button {
+      width: 100%;
+      height: 38px;
+      padding: 0 12px;
+      border-radius: 9px;
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      color: var(--text);
+      font-size: 14px;
+      line-height: 18px;
+      text-align: left;
+    }
+
+    .shortcut-menu button:active {
+      background: var(--hairline);
+      transform: none;
+    }
+
+    .shortcut-menu button.danger {
+      color: #d92d20;
+    }
+
+    button:active .shortcut-icon,
+    .search-icon-button:active,
+    .dock button:active {
+      transform: scale(0.95);
+    }
+
+    body.home-dragging .brand,
+    body.home-dragging .search,
+    body.home-dragging .shortcut-grid,
+    body.home-dragging .dock,
+    body.home-springing .brand,
+    body.home-springing .search,
+    body.home-springing .shortcut-grid,
+    body.home-springing .dock {
+      transition: none;
+    }
+
+    body.home-search-docked .brand,
+    body.home-search-docked .shortcut-grid,
+    body.home-search-docked .dock {
+      pointer-events: none;
+    }
+
+    @media (max-height: 740px) {
+      .main-content {
+        padding-bottom: clamp(42px, 6.5vh, 62px);
+      }
+
+      .brand {
+        margin-bottom: 28px;
+      }
+
+      .shortcut-grid {
+        margin-top: 28px;
+        row-gap: 20px;
+      }
+
+      .shortcut-icon {
+        width: 44px;
+        height: 44px;
+      }
+
+      .shortcut-icon img {
+        width: 25px;
+        height: 25px;
+      }
+
+      .shortcut-title {
+        font-size: 11px;
+        line-height: 15px;
+      }
+    }
+
+    @media (max-width: 380px) {
+      .page {
+        padding-left: 16px;
+        padding-right: 16px;
+      }
+
+      :root {
+        --content-width: min(100%, 360px);
+      }
+
+      .brand img {
+        width: 156px;
+      }
+
+      .search {
+        height: 42px;
+        grid-template-columns: 1fr 42px 42px;
+      }
+
+      .search input {
+        padding-left: 22px;
+        font-size: 14px;
+      }
+
+      .search-icon-button {
+        width: 42px;
+        height: 42px;
+      }
+
+      .search-icon-button img {
+        width: 24px;
+        height: 24px;
+      }
+
+      .shortcut-title {
+        width: 56px;
+        font-size: 11px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="main-content" aria-label="Aira 主页">
+      <div class="brand" aria-label="Aira">
+        <img src="./assets/Aira.svg" alt="">
+      </div>
+
+      <form class="search" id="searchForm">
+        <input id="searchInput" autocomplete="off" inputmode="search" placeholder="搜索或输入网址">
+        <button class="search-icon-button" id="scanButton" type="button" aria-label="扫一扫">
+          <img src="./assets/scan.svg" alt="">
+        </button>
+      </form>
+
+      <section class="shortcut-grid" id="shortcutGrid" aria-label="主页快捷方式"></section>
+    </section>
+  </main>
+
+  <nav class="dock" aria-label="Aira 系统入口">
+    <button id="homeButton" type="button" aria-label="主页">
+      <img src="./assets/home.svg" alt="">
+    </button>
+    <button id="bookmarksButton" type="button" aria-label="书签">
+      <img src="./assets/bookmark.svg" alt="">
+    </button>
+    <button id="tabsButton" type="button" aria-label="标签页">
+      <img class="card-icon" src="./assets/card.svg" alt="">
+    </button>
+    <button id="settingsButton" type="button" aria-label="设置">
+      <img src="./assets/setting.svg" alt="">
+    </button>
+  </nav>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <div class="shortcut-menu-backdrop" id="shortcutMenuBackdrop">
+    <div class="shortcut-menu" id="shortcutMenu" role="menu" aria-label="快捷方式菜单"></div>
+  </div>
+
+  <script>
+    (function () {
+      var shortcutGrid = document.getElementById('shortcutGrid');
+      var searchForm = document.getElementById('searchForm');
+      var searchInput = document.getElementById('searchInput');
+      var scanButton = document.getElementById('scanButton');
+      var homeButton = document.getElementById('homeButton');
+      var tabsButton = document.getElementById('tabsButton');
+      var bookmarksButton = document.getElementById('bookmarksButton');
+      var settingsButton = document.getElementById('settingsButton');
+      var toast = document.getElementById('toast');
+      var shortcutMenuBackdrop = document.getElementById('shortcutMenuBackdrop');
+      var shortcutMenu = document.getElementById('shortcutMenu');
+      var pageRoot = document.querySelector('.page');
+      var shortcutItems = [];
+      var toastTimer = 0;
+      var longPressTimer = 0;
+      var longPressStartX = 0;
+      var longPressStartY = 0;
+      var longPressLastX = 0;
+      var longPressLastY = 0;
+      var shortcutGestureMode = 'idle';
+      var shortcutGesturePointerId = -1;
+      var shortcutGestureButton = null;
+      var shortcutGestureItem = null;
+      var shortcutGestureOrderChanged = false;
+      var shortcutPointerListenersInstalled = false;
+      var shortcutDragAvatar = null;
+      var shortcutDragFrame = 0;
+      var shortcutDragLastFrameTime = 0;
+      var shortcutDragX = 0;
+      var shortcutDragY = 0;
+      var shortcutDragVelocityX = 0;
+      var shortcutDragVelocityY = 0;
+      var shortcutDragPointerOffsetX = 0;
+      var shortcutDragPointerOffsetY = 0;
+      var shortcutDropTimer = 0;
+      var shortcutDropBounceTimer = 0;
+      var shortcutLongPressDelay = 460;
+      var shortcutPressCancelDistance = 14;
+      var shortcutDragStartDistance = 6;
+      var suppressNextClick = false;
+      var suppressNextClickTimer = 0;
+      var activeShortcut = null;
+      var homePullTracking = false;
+      var homePullActive = false;
+      var homePullStartX = 0;
+      var homePullStartY = 0;
+      var currentSearchOffset = 0;
+      var currentPullOffset = 0;
+      var currentFadeOpacity = 1;
+      var homePullThreshold = 82;
+      var homePullMaxOffset = 154;
+      var homePullResistance = 108;
+      var homeSpringFrame = 0;
+      var dockedSearchBaseTop = 0;
+      var homeBackHandlerActive = false;
+      var dockedSearchOpenedAt = 0;
+
+      function getApi() {
+        return window.AiraHome || null;
+      }
+
+      function showToast(message) {
+        toast.textContent = message;
+        toast.classList.add('visible');
+        if (toastTimer) {
+          clearTimeout(toastTimer);
+        }
+        toastTimer = setTimeout(function () {
+          toast.classList.remove('visible');
+        }, 1700);
+      }
+
+      function closeShortcutMenu() {
+        shortcutMenuBackdrop.classList.remove('visible');
+        shortcutMenu.innerHTML = '';
+        activeShortcut = null;
+      }
+
+      function normalizeInput(value) {
+        return String(value || '').trim();
+      }
+
+      function errorCode(error) {
+        return error && error.code ? String(error.code) : '';
+      }
+
+      function showApiError(prefix, error) {
+        var code = errorCode(error);
+        showToast(code ? prefix + '（' + code + '）' : prefix);
+      }
+
+      function applyPrivacyMode(state) {
+        var incoming = state || {};
+        var isPrivate = incoming.isPrivate === true || incoming.privacyMode === 'private';
+        document.documentElement.dataset.privacy = isPrivate ? 'private' : 'regular';
+        document.body.classList.toggle('private-home', isPrivate);
+      }
+
+      function loadPrivacyMode() {
+        var api = getApi();
+        if (!api || typeof api.getPrivacyMode !== 'function') {
+          return;
+        }
+        api.getPrivacyMode().then(applyPrivacyMode).catch(function () {});
+      }
+
+      function firstLetter(item) {
+        var value = String(item.title || item.url || 'A').trim();
+        return value.slice(0, 1).toUpperCase() || 'A';
+      }
+
+      function readableTitle(item) {
+        return String(item.title || item.url || '未命名').trim();
+      }
+
+      function getShortcutId(item) {
+        return String(item.id || '').trim();
+      }
+
+      function useImageIcon(item) {
+        var icon = String(item.icon || '').trim();
+        return icon.length > 0 && String(item.iconRendering || '').toLowerCase() === 'image';
+      }
+
+      function renderShortcutIcon(element, item) {
+        if (window.AiraHome && typeof window.AiraHome.renderShortcutIcon === 'function') {
+          window.AiraHome.renderShortcutIcon(element, item);
+          return;
+        }
+        if (useImageIcon(item)) {
+          var image = document.createElement('img');
+          image.alt = '';
+          image.src = String(item.icon || '');
+          element.appendChild(image);
+          return;
+        }
+        element.textContent = firstLetter(item);
+      }
+
+      function buildShortcutButton(item) {
+        var button = document.createElement('button');
+        var icon = document.createElement('span');
+        var title = document.createElement('span');
+
+        button.type = 'button';
+        button.className = 'shortcut';
+        button.setAttribute('aria-label', readableTitle(item));
+        button.dataset.shortcutId = getShortcutId(item);
+
+        icon.className = 'shortcut-icon';
+        renderShortcutIcon(icon, item);
+
+        title.className = 'shortcut-title';
+        title.textContent = readableTitle(item);
+
+        button.appendChild(icon);
+        button.appendChild(title);
+        button.addEventListener('click', function () {
+          if (suppressNextClick) {
+            suppressNextClick = false;
+            if (suppressNextClickTimer) {
+              clearTimeout(suppressNextClickTimer);
+              suppressNextClickTimer = 0;
+            }
+            return;
+          }
+          var api = getApi();
+          if (api && typeof api.openShortcut === 'function' && getShortcutId(item)) {
+            api.openShortcut(getShortcutId(item));
+          } else if (api && typeof api.openUrl === 'function' && item.kind !== 'system' && item.url) {
+            api.openUrl(String(item.url || ''));
+          } else {
+            showToast('导入 Aira 后会打开这个快捷方式');
+          }
+        });
+        attachShortcutLongPress(button, item);
+        return button;
+      }
+
+      function attachShortcutLongPress(button, item) {
+        button.addEventListener('pointerdown', function (event) {
+          beginShortcutLongPress(button, item, event);
+        });
+        button.addEventListener('dragstart', function (event) {
+          event.preventDefault();
+        });
+        button.addEventListener('contextmenu', function (event) {
+          event.preventDefault();
+          event.stopPropagation();
+          if (typeof event.stopImmediatePropagation === 'function') {
+            event.stopImmediatePropagation();
+          }
+          if (shortcutGestureMode !== 'idle') {
+            return;
+          }
+          openShortcutMenu(item, event.clientX, event.clientY);
+        });
+      }
+
+      function beginShortcutLongPress(button, item, event) {
+        if (event.button !== 0 || event.isPrimary === false) {
+          return;
+        }
+        resetShortcutGestureState();
+        closeShortcutMenu();
+        installShortcutPointerListeners();
+        shortcutGestureMode = 'pressed';
+        shortcutGesturePointerId = event.pointerId;
+        shortcutGestureButton = button;
+        shortcutGestureItem = item;
+        longPressStartX = event.clientX;
+        longPressStartY = event.clientY;
+        longPressLastX = event.clientX;
+        longPressLastY = event.clientY;
+        longPressTimer = setTimeout(function () {
+          if (shortcutGestureMode !== 'pressed' || shortcutGestureButton !== button) {
+            return;
+          }
+          longPressTimer = 0;
+          shortcutGestureMode = 'armed';
+          button.classList.add('long-press-armed');
+          try {
+            button.setPointerCapture(shortcutGesturePointerId);
+          } catch (_error) {}
+        }, shortcutLongPressDelay);
+      }
+
+      function updateShortcutLongPress(event) {
+        if (event.pointerId !== shortcutGesturePointerId || shortcutGestureMode === 'idle') {
+          return;
+        }
+        longPressLastX = event.clientX;
+        longPressLastY = event.clientY;
+        var distance = Math.hypot(longPressLastX - longPressStartX, longPressLastY - longPressStartY);
+        if (shortcutGestureMode === 'pressed') {
+          if (distance > shortcutPressCancelDistance) {
+            resetShortcutGestureState();
+          }
+          return;
+        }
+        if (shortcutGestureMode === 'armed' && distance >= shortcutDragStartDistance) {
+          beginShortcutDrag(event);
+        }
+        if (shortcutGestureMode === 'dragging') {
+          event.preventDefault();
+          resolveShortcutDragSlot(event.clientX, event.clientY);
+        }
+      }
+
+      function beginShortcutDrag(event) {
+        if (shortcutGestureMode !== 'armed' || !shortcutGestureButton) {
+          return;
+        }
+        shortcutGestureMode = 'dragging';
+        shortcutGestureButton.classList.remove('long-press-armed');
+        createShortcutDragAvatar(event);
+        suppressShortcutClickTemporarily();
+        resolveShortcutDragSlot(event.clientX, event.clientY);
+        event.preventDefault();
+      }
+
+      function installShortcutPointerListeners() {
+        if (shortcutPointerListenersInstalled) {
+          return;
+        }
+        shortcutPointerListenersInstalled = true;
+        window.addEventListener('pointermove', updateShortcutLongPress, { passive: false });
+        window.addEventListener('pointerup', finishShortcutLongPress);
+        window.addEventListener('pointercancel', cancelShortcutLongPress);
+        window.addEventListener('touchmove', blockShortcutNativePan, { passive: false });
+      }
+
+      function removeShortcutPointerListeners() {
+        if (!shortcutPointerListenersInstalled) {
+          return;
+        }
+        shortcutPointerListenersInstalled = false;
+        window.removeEventListener('pointermove', updateShortcutLongPress);
+        window.removeEventListener('pointerup', finishShortcutLongPress);
+        window.removeEventListener('pointercancel', cancelShortcutLongPress);
+        window.removeEventListener('touchmove', blockShortcutNativePan);
+      }
+
+      function blockShortcutNativePan(event) {
+        if (
+          shortcutGestureMode === 'armed' ||
+          shortcutGestureMode === 'dragging' ||
+          shortcutGestureMode === 'settling'
+        ) {
+          event.preventDefault();
+        }
+      }
+
+      function orderedShortcutButtons() {
+        return Array.prototype.slice.call(shortcutGrid.querySelectorAll('.shortcut[data-shortcut-id]'));
+      }
+
+      function captureShortcutPositions() {
+        return Array.prototype.slice.call(shortcutGrid.querySelectorAll('.shortcut')).map(function (button) {
+          return {
+            button: button,
+            rect: button.getBoundingClientRect()
+          };
+        });
+      }
+
+      function cancelShortcutReflowAnimation(button) {
+        if (button.__airaShortcutFlipAnimation) {
+          try {
+            button.__airaShortcutFlipAnimation.cancel();
+          } catch (_error) {}
+          button.__airaShortcutFlipAnimation = null;
+        }
+        if (button.__airaShortcutFlipTimer) {
+          clearTimeout(button.__airaShortcutFlipTimer);
+          button.__airaShortcutFlipTimer = 0;
+        }
+        button.style.removeProperty('transition');
+        button.style.removeProperty('transform');
+      }
+
+      function cancelShortcutReflowAnimations() {
+        Array.prototype.slice.call(shortcutGrid.querySelectorAll('.shortcut')).forEach(function (button) {
+          cancelShortcutReflowAnimation(button);
+        });
+      }
+
+      function animateShortcutReflow(previousPositions) {
+        previousPositions.forEach(function (entry) {
+          var button = entry.button;
+          if (
+            !document.documentElement.contains(button) ||
+            button === shortcutGestureButton ||
+            button.classList.contains('drag-placeholder')
+          ) {
+            return;
+          }
+          var nextRect = button.getBoundingClientRect();
+          var deltaX = entry.rect.left - nextRect.left;
+          var deltaY = entry.rect.top - nextRect.top;
+          if (Math.abs(deltaX) < 0.5 && Math.abs(deltaY) < 0.5) {
+            return;
+          }
+          if (typeof button.animate === 'function') {
+            try {
+              var animation = button.animate([
+                { transform: 'translate3d(' + deltaX + 'px, ' + deltaY + 'px, 0) scale(1)' },
+                {
+                  transform: 'translate3d(' + (-deltaX * 0.055) + 'px, ' + (-deltaY * 0.055) + 'px, 0) scale(1.015)',
+                  offset: 0.78
+                },
+                { transform: 'translate3d(0, 0, 0) scale(1)' }
+              ], {
+                duration: 330,
+                easing: 'cubic-bezier(0.2, 0.78, 0.2, 1)'
+              });
+              button.__airaShortcutFlipAnimation = animation;
+              animation.onfinish = function () {
+                if (button.__airaShortcutFlipAnimation === animation) {
+                  button.__airaShortcutFlipAnimation = null;
+                }
+              };
+              return;
+            } catch (_error) {}
+          }
+          button.style.transition = 'none';
+          button.style.transform = 'translate3d(' + deltaX + 'px, ' + deltaY + 'px, 0)';
+          button.getBoundingClientRect();
+          button.style.transition = 'transform 300ms cubic-bezier(0.2, 0.78, 0.2, 1)';
+          button.style.transform = 'translate3d(0, 0, 0)';
+          button.__airaShortcutFlipTimer = setTimeout(function () {
+            button.__airaShortcutFlipTimer = 0;
+            button.style.removeProperty('transition');
+            button.style.removeProperty('transform');
+          }, 320);
+        });
+      }
+
+      function resolveShortcutLayoutCenter(button, gridRect) {
+        var rect = resolveShortcutLayoutRect(button, gridRect);
+        return {
+          x: rect.left + rect.width / 2,
+          y: rect.top + rect.height / 2
+        };
+      }
+
+      function resolveShortcutLayoutRect(button, gridRect) {
+        var containerRect = gridRect || shortcutGrid.getBoundingClientRect();
+        return {
+          left: containerRect.left + button.offsetLeft - shortcutGrid.scrollLeft,
+          top: containerRect.top + button.offsetTop - shortcutGrid.scrollTop,
+          width: button.offsetWidth,
+          height: button.offsetHeight
+        };
+      }
+
+      function resolveNearestShortcutIndex(x, y) {
+        var buttons = orderedShortcutButtons();
+        var currentIndex = buttons.indexOf(shortcutGestureButton);
+        if (currentIndex < 0 || buttons.length < 2) {
+          return currentIndex;
+        }
+        var gridRect = shortcutGrid.getBoundingClientRect();
+        var nearestIndex = currentIndex;
+        var nearestDistance = Number.POSITIVE_INFINITY;
+        var currentDistance = Number.POSITIVE_INFINITY;
+        buttons.forEach(function (button, index) {
+          var center = resolveShortcutLayoutCenter(button, gridRect);
+          var deltaX = x - center.x;
+          var deltaY = y - center.y;
+          var distance = deltaX * deltaX + deltaY * deltaY;
+          if (index === currentIndex) {
+            currentDistance = distance;
+          }
+          if (distance < nearestDistance) {
+            nearestDistance = distance;
+            nearestIndex = index;
+          }
+        });
+        if (
+          nearestIndex !== currentIndex &&
+          Math.sqrt(nearestDistance) + 8 >= Math.sqrt(currentDistance)
+        ) {
+          return currentIndex;
+        }
+        return nearestIndex;
+      }
+
+      function resolveShortcutDragSlot(x, y) {
+        if (shortcutGestureMode !== 'dragging' || !shortcutGestureButton) {
+          return;
+        }
+        moveDraggedShortcutToIndex(resolveNearestShortcutIndex(x, y));
+      }
+
+      function moveDraggedShortcutToIndex(targetIndex) {
+        var buttons = orderedShortcutButtons();
+        var fromIndex = buttons.indexOf(shortcutGestureButton);
+        if (fromIndex < 0 || targetIndex < 0 || targetIndex >= buttons.length || fromIndex === targetIndex) {
+          return;
+        }
+        var targetButton = buttons[targetIndex];
+        var previousPositions = captureShortcutPositions();
+        previousPositions.forEach(function (entry) {
+          cancelShortcutReflowAnimation(entry.button);
+        });
+        var nextItems = shortcutItems.slice();
+        var movedItems = nextItems.splice(fromIndex, 1);
+        nextItems.splice(targetIndex, 0, movedItems[0]);
+        shortcutItems = nextItems;
+        if (fromIndex < targetIndex) {
+          shortcutGrid.insertBefore(shortcutGestureButton, targetButton.nextSibling);
+        } else {
+          shortcutGrid.insertBefore(shortcutGestureButton, targetButton);
+        }
+        shortcutGestureOrderChanged = true;
+        animateShortcutReflow(previousPositions);
+      }
+
+      function createShortcutDragAvatar(event) {
+        if (!shortcutGestureButton) {
+          return;
+        }
+        var rect = resolveShortcutLayoutRect(shortcutGestureButton);
+        var avatar = shortcutGestureButton.cloneNode(true);
+        avatar.classList.remove('long-press-armed', 'drag-placeholder', 'drop-settle');
+        avatar.classList.add('shortcut-drag-avatar');
+        avatar.removeAttribute('data-shortcut-id');
+        avatar.setAttribute('aria-hidden', 'true');
+        avatar.tabIndex = -1;
+        avatar.style.width = rect.width + 'px';
+        avatar.style.height = rect.height + 'px';
+        avatar.style.transform = 'translate3d(' + rect.left + 'px, ' + rect.top + 'px, 0) rotate(0deg) scale(1.1)';
+        document.body.appendChild(avatar);
+
+        shortcutDragAvatar = avatar;
+        shortcutGestureButton.classList.add('drag-placeholder');
+        shortcutGrid.classList.add('reordering');
+        shortcutDragX = rect.left;
+        shortcutDragY = rect.top;
+        shortcutDragVelocityX = 0;
+        shortcutDragVelocityY = 0;
+        shortcutDragPointerOffsetX = event.clientX - rect.left;
+        shortcutDragPointerOffsetY = event.clientY - rect.top;
+        shortcutDragLastFrameTime = 0;
+        shortcutDragFrame = requestAnimationFrame(updateShortcutDragMotion);
+      }
+
+      function resolveShortcutAutoScrollSpeed(pointerY) {
+        var rect = shortcutGrid.getBoundingClientRect();
+        var edgeSize = Math.min(68, rect.height * 0.28);
+        var maximumSpeed = 11;
+        if (pointerY < rect.top + edgeSize && shortcutGrid.scrollTop > 0) {
+          var topStrength = Math.min(1, Math.max(0, (rect.top + edgeSize - pointerY) / edgeSize));
+          return -maximumSpeed * topStrength * topStrength;
+        }
+        var maximumScrollTop = shortcutGrid.scrollHeight - shortcutGrid.clientHeight;
+        if (pointerY > rect.bottom - edgeSize && shortcutGrid.scrollTop < maximumScrollTop) {
+          var bottomStrength = Math.min(1, Math.max(0, (pointerY - (rect.bottom - edgeSize)) / edgeSize));
+          return maximumSpeed * bottomStrength * bottomStrength;
+        }
+        return 0;
+      }
+
+      function updateShortcutDragMotion(timestamp) {
+        if (shortcutGestureMode !== 'dragging' || !shortcutDragAvatar) {
+          shortcutDragFrame = 0;
+          return;
+        }
+        var frameScale = shortcutDragLastFrameTime
+          ? Math.min(2, Math.max(0.5, (timestamp - shortcutDragLastFrameTime) / 16.67))
+          : 1;
+        shortcutDragLastFrameTime = timestamp;
+        var targetX = longPressLastX - shortcutDragPointerOffsetX;
+        var targetY = longPressLastY - shortcutDragPointerOffsetY - 7;
+        var damping = Math.pow(0.64, frameScale);
+        shortcutDragVelocityX = (
+          shortcutDragVelocityX + (targetX - shortcutDragX) * 0.34 * frameScale
+        ) * damping;
+        shortcutDragVelocityY = (
+          shortcutDragVelocityY + (targetY - shortcutDragY) * 0.34 * frameScale
+        ) * damping;
+        shortcutDragX += shortcutDragVelocityX * frameScale;
+        shortcutDragY += shortcutDragVelocityY * frameScale;
+        var speed = Math.hypot(shortcutDragVelocityX, shortcutDragVelocityY);
+        var tilt = Math.min(6.5, Math.max(-6.5, shortcutDragVelocityX * 0.2));
+        var scale = 1.1 + Math.min(0.025, speed / 900);
+        shortcutDragAvatar.style.transform =
+          'translate3d(' + (Math.round(shortcutDragX * 100) / 100) + 'px, ' +
+          (Math.round(shortcutDragY * 100) / 100) + 'px, 0) rotate(' +
+          (Math.round(tilt * 100) / 100) + 'deg) scale(' + scale + ')';
+
+        var scrollSpeed = resolveShortcutAutoScrollSpeed(longPressLastY);
+        if (scrollSpeed !== 0) {
+          var previousScrollTop = shortcutGrid.scrollTop;
+          shortcutGrid.scrollTop += scrollSpeed * frameScale;
+          if (Math.abs(shortcutGrid.scrollTop - previousScrollTop) > 0.1) {
+            resolveShortcutDragSlot(longPressLastX, longPressLastY);
+          }
+        }
+        shortcutDragFrame = requestAnimationFrame(updateShortcutDragMotion);
+      }
+
+      function stopShortcutDragMotion() {
+        if (shortcutDragFrame) {
+          cancelAnimationFrame(shortcutDragFrame);
+          shortcutDragFrame = 0;
+        }
+        shortcutDragLastFrameTime = 0;
+      }
+
+      function finishShortcutLongPress(event) {
+        if (event.pointerId !== shortcutGesturePointerId || shortcutGestureMode === 'idle') {
+          return;
+        }
+        var mode = shortcutGestureMode;
+        var item = shortcutGestureItem;
+        var shouldCommit = shortcutGestureOrderChanged;
+        if (mode === 'armed' || mode === 'dragging') {
+          event.preventDefault();
+          suppressShortcutClickTemporarily();
+        }
+        if (mode === 'armed' && item) {
+          var menuX = longPressStartX;
+          var menuY = longPressStartY;
+          resetShortcutGestureState();
+          openShortcutMenu(item, menuX, menuY);
+        } else if (mode === 'dragging') {
+          settleShortcutDrag(shouldCommit);
+        } else {
+          resetShortcutGestureState();
+        }
+      }
+
+      function cancelShortcutLongPress(event) {
+        if (event.pointerId !== shortcutGesturePointerId || shortcutGestureMode === 'idle') {
+          return;
+        }
+        var shouldReload = shortcutGestureMode === 'dragging' && shortcutGestureOrderChanged;
+        if (shortcutGestureMode === 'armed' || shortcutGestureMode === 'dragging') {
+          suppressShortcutClickTemporarily();
+        }
+        resetShortcutGestureState();
+        if (shouldReload) {
+          loadShortcuts();
+        }
+      }
+
+      function settleShortcutDrag(shouldCommit) {
+        if (!shortcutGestureButton || !shortcutDragAvatar) {
+          resetShortcutGestureState();
+          if (shouldCommit) {
+            commitShortcutOrder();
+          }
+          return;
+        }
+        shortcutGestureMode = 'settling';
+        stopShortcutDragMotion();
+        removeShortcutPointerListeners();
+        releaseShortcutPointerCapture();
+        if (shouldCommit) {
+          commitShortcutOrder();
+        }
+        var settledButton = shortcutGestureButton;
+        var targetRect = resolveShortcutLayoutRect(settledButton);
+        shortcutDragAvatar.style.transition =
+          'transform 220ms cubic-bezier(0.18, 0.9, 0.2, 1), opacity 180ms ease, filter 220ms ease';
+        shortcutDragAvatar.style.opacity = '0.94';
+        shortcutDragAvatar.style.filter = 'drop-shadow(0 4px 7px rgba(0, 0, 0, 0.12))';
+        shortcutDragAvatar.getBoundingClientRect();
+        shortcutDragAvatar.style.transform =
+          'translate3d(' + targetRect.left + 'px, ' + targetRect.top + 'px, 0) rotate(0deg) scale(1)';
+        shortcutDropTimer = setTimeout(function () {
+          shortcutDropTimer = 0;
+          clearShortcutGestureState(false);
+          if (!document.documentElement.contains(settledButton)) {
+            return;
+          }
+          settledButton.classList.add('drop-settle');
+          shortcutDropBounceTimer = setTimeout(function () {
+            shortcutDropBounceTimer = 0;
+            settledButton.classList.remove('drop-settle');
+          }, 360);
+        }, 230);
+      }
+
+      function releaseShortcutPointerCapture() {
+        if (!shortcutGestureButton) {
+          return;
+        }
+        try {
+          if (shortcutGestureButton.hasPointerCapture(shortcutGesturePointerId)) {
+            shortcutGestureButton.releasePointerCapture(shortcutGesturePointerId);
+          }
+        } catch (_error) {}
+      }
+
+      function clearShortcutGestureState(cancelReflow) {
+        if (longPressTimer) {
+          clearTimeout(longPressTimer);
+          longPressTimer = 0;
+        }
+        if (shortcutDropTimer) {
+          clearTimeout(shortcutDropTimer);
+          shortcutDropTimer = 0;
+        }
+        if (shortcutDropBounceTimer) {
+          clearTimeout(shortcutDropBounceTimer);
+          shortcutDropBounceTimer = 0;
+        }
+        stopShortcutDragMotion();
+        removeShortcutPointerListeners();
+        releaseShortcutPointerCapture();
+        if (shortcutGestureButton) {
+          shortcutGestureButton.classList.remove('long-press-armed', 'drag-placeholder');
+        }
+        Array.prototype.slice.call(shortcutGrid.querySelectorAll('.shortcut.drop-settle')).forEach(function (button) {
+          button.classList.remove('drop-settle');
+        });
+        if (shortcutDragAvatar && shortcutDragAvatar.parentNode) {
+          shortcutDragAvatar.parentNode.removeChild(shortcutDragAvatar);
+        }
+        shortcutDragAvatar = null;
+        shortcutGrid.classList.remove('reordering');
+        if (cancelReflow !== false) {
+          cancelShortcutReflowAnimations();
+        }
+        shortcutGestureMode = 'idle';
+        shortcutGesturePointerId = -1;
+        shortcutGestureButton = null;
+        shortcutGestureItem = null;
+        shortcutGestureOrderChanged = false;
+        shortcutDragX = 0;
+        shortcutDragY = 0;
+        shortcutDragVelocityX = 0;
+        shortcutDragVelocityY = 0;
+        shortcutDragPointerOffsetX = 0;
+        shortcutDragPointerOffsetY = 0;
+      }
+
+      function resetShortcutGestureState() {
+        clearShortcutGestureState(true);
+      }
+
+      function suppressShortcutClickTemporarily() {
+        suppressNextClick = true;
+        if (suppressNextClickTimer) {
+          clearTimeout(suppressNextClickTimer);
+        }
+        suppressNextClickTimer = setTimeout(function () {
+          suppressNextClick = false;
+          suppressNextClickTimer = 0;
+        }, 480);
+      }
+
+      function commitShortcutOrder() {
+        var api = getApi();
+        if (!api || typeof api.reorderShortcuts !== 'function') {
+          showToast('快捷方式排序不可用');
+          loadShortcuts();
+          return;
+        }
+        api.reorderShortcuts(shortcutItems.map(function (item) {
+          return getShortcutId(item);
+        })).catch(function (error) {
+          showApiError('保存排序失败', error);
+          loadShortcuts();
+        });
+      }
+
+      function openShortcutMenu(item, x, y) {
+        var id = getShortcutId(item);
+        if (!id) {
+          showToast('这个快捷方式暂时不能编辑');
+          return;
+        }
+        activeShortcut = item;
+        shortcutMenu.innerHTML = '';
+        var entries = [
+          { title: '打开', action: openActiveShortcut },
+          { title: '删除', action: confirmDeleteActiveShortcut, danger: true }
+        ];
+        if (item.kind !== 'system') {
+          entries.splice(1, 0,
+            { title: '复制链接', action: copyActiveShortcut },
+            { title: '编辑', action: editActiveShortcut });
+        }
+        entries.forEach(function (entry) {
+          var itemButton = document.createElement('button');
+          itemButton.type = 'button';
+          itemButton.setAttribute('role', 'menuitem');
+          itemButton.textContent = entry.title;
+          if (entry.danger) {
+            itemButton.className = 'danger';
+          }
+          itemButton.addEventListener('click', function () {
+            entry.action();
+          });
+          shortcutMenu.appendChild(itemButton);
+        });
+        shortcutMenuBackdrop.classList.add('visible');
+        positionShortcutMenu(x, y);
+      }
+
+      function positionShortcutMenu(x, y) {
+        var width = 176;
+        var height = Math.max(48, shortcutMenu.offsetHeight || 200);
+        var margin = 14;
+        var nextX = Math.max(margin + width / 2, Math.min(window.innerWidth - margin - width / 2, x));
+        var nextY = Math.max(margin + height / 2, Math.min(window.innerHeight - margin - height / 2, y));
+        shortcutMenu.style.left = nextX + 'px';
+        shortcutMenu.style.top = nextY + 'px';
+      }
+
+      function activeShortcutId() {
+        return activeShortcut ? getShortcutId(activeShortcut) : '';
+      }
+
+      function runShortcutApi(method, fallbackMessage) {
+        var api = getApi();
+        var id = activeShortcutId();
+        closeShortcutMenu();
+        if (api && typeof api[method] === 'function' && id) {
+          try {
+            var result = api[method](id);
+            if (result && typeof result.catch === 'function') {
+              result.catch(function (error) {
+                showApiError(fallbackMessage, error);
+              });
+            }
+          } catch (error) {
+            showApiError(fallbackMessage, error);
+          }
+        } else {
+          showToast(fallbackMessage);
+        }
+      }
+
+      function copyActiveShortcut() {
+        runShortcutApi('copyShortcutUrl', '当前快捷方式不支持复制链接');
+      }
+
+      function openActiveShortcut() {
+        var api = getApi();
+        var item = activeShortcut;
+        var id = activeShortcutId();
+        closeShortcutMenu();
+        if (api && typeof api.openShortcut === 'function' && id) {
+          api.openShortcut(id);
+        } else if (api && typeof api.openUrl === 'function' && item && item.kind !== 'system') {
+          api.openUrl(String(item.url || ''));
+        } else {
+          showToast('导入 Aira 后会打开这个快捷方式');
+        }
+      }
+
+      function editActiveShortcut() {
+        runShortcutApi('editShortcut', '编辑快捷方式不可用');
+      }
+
+      function confirmDeleteActiveShortcut() {
+        var api = getApi();
+        var id = activeShortcutId();
+        closeShortcutMenu();
+        if (api && typeof api.confirmDeleteShortcut === 'function' && id) {
+          api.confirmDeleteShortcut(id);
+        } else if (api && typeof api.removeShortcut === 'function' && id) {
+          var result = api.removeShortcut(id);
+          if (result && typeof result.catch === 'function') {
+            result.catch(function (error) {
+              showApiError('删除快捷方式失败', error);
+            });
+          }
+        } else {
+          showToast('删除快捷方式不可用');
+        }
+      }
+
+      function renderShortcuts(items) {
+        resetShortcutGestureState();
+        var source = Array.isArray(items) ? items : [];
+        var list = source.filter(function (item) {
+          return item && String(item.title || item.url || '').trim().length > 0;
+        });
+
+        shortcutItems = list;
+        shortcutGrid.innerHTML = '';
+        list.forEach(function (item) {
+          shortcutGrid.appendChild(buildShortcutButton(item));
+        });
+        shortcutGrid.appendChild(buildAddShortcutButton());
+      }
+
+      function buildAddShortcutButton() {
+        var button = document.createElement('button');
+        var icon = document.createElement('span');
+        var glyph = document.createElement('span');
+        var title = document.createElement('span');
+        var api = getApi();
+
+        button.type = 'button';
+        button.className = 'shortcut shortcut-add';
+        button.setAttribute('aria-label', '添加快捷方式');
+        button.disabled = !(api && typeof api.openShortcutPicker === 'function');
+        button.addEventListener('click', openShortcutPicker);
+
+        icon.className = 'shortcut-icon';
+        glyph.className = 'shortcut-add-glyph';
+        glyph.setAttribute('aria-hidden', 'true');
+        icon.appendChild(glyph);
+
+        title.className = 'shortcut-title';
+        title.textContent = '添加';
+
+        button.appendChild(icon);
+        button.appendChild(title);
+        return button;
+      }
+
+      function openShortcutPicker() {
+        var api = getApi();
+        if (api && typeof api.openShortcutPicker === 'function') {
+          api.openShortcutPicker();
+        } else {
+          showToast('添加快捷方式不可用');
+        }
+      }
+
+      function loadShortcuts() {
+        var api = getApi();
+        if (!api || typeof api.getShortcuts !== 'function') {
+          renderShortcuts([]);
+          return;
+        }
+        api.getShortcuts().then(renderShortcuts).catch(function () {
+          renderShortcuts([]);
+        });
+      }
+
+      function applyThemeVariable(root, name, value) {
+        var normalized = String(value || '').trim();
+        if (normalized) {
+          root.style.setProperty(name, normalized);
+        } else {
+          root.style.removeProperty(name);
+        }
+      }
+
+      function applyTheme(theme) {
+        var state = theme || {};
+        var root = document.documentElement;
+        var palette = state.palette || {};
+        var colors = palette.colors || {};
+        root.dataset.theme = state.effectiveMode === 'dark' ? 'dark' : 'light';
+        root.dataset.themePalette = String(palette.id || '');
+        applyThemeVariable(root, '--aira-accent', colors.accent);
+        applyThemeVariable(root, '--aira-on-accent', colors.onAccent);
+        applyThemeVariable(root, '--aira-page-background', colors.pageBackground);
+        applyThemeVariable(root, '--aira-surface-background', colors.surfaceBackground);
+        applyThemeVariable(root, '--aira-control-background', colors.controlBackground);
+        applyThemeVariable(root, '--aira-text-primary', colors.textPrimary);
+        applyThemeVariable(root, '--aira-text-secondary', colors.textSecondary);
+        applyThemeVariable(root, '--aira-divider', colors.divider);
+        applyThemeVariable(root, '--aira-outline', colors.outline);
+      }
+
+      function loadTheme() {
+        var api = getApi();
+        if (!api || typeof api.getTheme !== 'function') {
+          return;
+        }
+        api.getTheme().then(applyTheme).catch(function () {});
+      }
+
+      function submitSearch() {
+        var value = normalizeInput(searchInput.value);
+        var api = getApi();
+        if (!value) {
+          return;
+        }
+        if (api && typeof api.search === 'function') {
+          api.search(value);
+        } else {
+          showToast('导入 Aira 后会搜索或打开地址');
+        }
+      }
+
+      function scanQr() {
+        var api = getApi();
+        if (api && typeof api.scanQr === 'function') {
+          api.scanQr();
+        } else {
+          showToast('扫一扫不可用');
+        }
+      }
+
+      function updateCapabilityControls() {
+        var api = getApi();
+        var addShortcutGridButton = shortcutGrid.querySelector('.shortcut-add');
+        scanButton.disabled = !(api && typeof api.scanQr === 'function');
+        if (addShortcutGridButton) {
+          addShortcutGridButton.disabled = !(api && typeof api.openShortcutPicker === 'function');
+        }
+      }
+
+      function openTabs() {
+        var api = getApi();
+        if (api && typeof api.openTabs === 'function') {
+          api.openTabs();
+        } else {
+          showToast('导入 Aira 后会打开标签页');
+        }
+      }
+
+      function openBookmarks() {
+        var api = getApi();
+        if (api && typeof api.openBookmarks === 'function') {
+          api.openBookmarks();
+        } else {
+          showToast('导入 Aira 后会打开书签');
+        }
+      }
+
+      function openSettings() {
+        var api = getApi();
+        if (api && typeof api.openSettings === 'function') {
+          api.openSettings();
+        } else {
+          showToast('导入 Aira 后会打开设置');
+        }
+      }
+
+      function roundMotionValue(value) {
+        return Math.round(value * 100) / 100;
+      }
+
+      function clampMotionValue(value, min, max) {
+        return Math.max(min, Math.min(max, value));
+      }
+
+      function setHomePullMotion(searchOffset, pullOffset, fadeOpacity) {
+        currentSearchOffset = searchOffset;
+        currentPullOffset = pullOffset;
+        currentFadeOpacity = fadeOpacity;
+        document.documentElement.style.setProperty('--home-search-offset', roundMotionValue(searchOffset) + 'px');
+        document.documentElement.style.setProperty('--home-pull-offset', roundMotionValue(pullOffset) + 'px');
+        document.documentElement.style.setProperty('--home-fade-opacity', String(roundMotionValue(fadeOpacity)));
+      }
+
+      function stopHomeSpring() {
+        if (homeSpringFrame) {
+          cancelAnimationFrame(homeSpringFrame);
+          homeSpringFrame = 0;
+        }
+        document.body.classList.remove('home-springing');
+      }
+
+      function resolveElasticPullOffset(rawOffset) {
+        var distance = Math.max(0, rawOffset);
+        return homePullMaxOffset * (1 - Math.exp(-distance / homePullResistance));
+      }
+
+      function animateHomeSpring(targetSearchOffset, targetPullOffset, targetFadeOpacity, onComplete, mode) {
+        stopHomeSpring();
+        document.body.classList.add('home-springing');
+        var search = currentSearchOffset;
+        var pull = currentPullOffset;
+        var fade = currentFadeOpacity;
+        var searchVelocity = 0;
+        var pullVelocity = 0;
+        var fadeVelocity = 0;
+        var lastTime = 0;
+        var dockedMode = mode === 'dock';
+        var stiffness = dockedMode ? 0.16 : 0.2;
+        var damping = dockedMode ? 0.58 : 0.68;
+
+        function step(timestamp) {
+          if (!lastTime) {
+            lastTime = timestamp;
+          }
+          var frameScale = clampMotionValue((timestamp - lastTime) / 16.67, 0.5, 2);
+          lastTime = timestamp;
+          searchVelocity = (searchVelocity + (targetSearchOffset - search) * stiffness * frameScale) * damping;
+          pullVelocity = (pullVelocity + (targetPullOffset - pull) * stiffness * frameScale) * damping;
+          fadeVelocity = (fadeVelocity + (targetFadeOpacity - fade) * stiffness * frameScale) * damping;
+          search += searchVelocity * frameScale;
+          pull += pullVelocity * frameScale;
+          fade += fadeVelocity * frameScale;
+          setHomePullMotion(search, pull, clampMotionValue(fade, 0, 1));
+
+          if (
+            Math.abs(targetSearchOffset - search) < 0.35 &&
+            Math.abs(searchVelocity) < 0.35 &&
+            Math.abs(targetPullOffset - pull) < 0.35 &&
+            Math.abs(pullVelocity) < 0.35 &&
+            Math.abs(targetFadeOpacity - fade) < 0.01 &&
+            Math.abs(fadeVelocity) < 0.01
+          ) {
+            homeSpringFrame = 0;
+            setHomePullMotion(targetSearchOffset, targetPullOffset, targetFadeOpacity);
+            document.body.classList.remove('home-springing');
+            if (onComplete) {
+              onComplete();
+            }
+            return;
+          }
+          homeSpringFrame = requestAnimationFrame(step);
+        }
+
+        homeSpringFrame = requestAnimationFrame(step);
+      }
+
+      function focusSearchInput() {
+        try {
+          searchInput.focus({ preventScroll: true });
+        } catch (_error) {
+          searchInput.focus();
+        }
+      }
+
+      function setHomeBackHandlerActive(active) {
+        var nextActive = active === true;
+        if (homeBackHandlerActive === nextActive) {
+          return;
+        }
+        homeBackHandlerActive = nextActive;
+        var api = getApi();
+        if (api && typeof api.setBackHandlerActive === 'function') {
+          api.setBackHandlerActive(nextActive);
+        }
+      }
+
+      function resolveDockedSearchTop() {
+        return 72;
+      }
+
+      function resolveDockedSearchOffset() {
+        if (!dockedSearchBaseTop) {
+          var searchRect = searchForm.getBoundingClientRect();
+          dockedSearchBaseTop = searchRect.top - currentSearchOffset;
+        }
+        return resolveDockedSearchTop() - dockedSearchBaseTop;
+      }
+
+      function shouldIgnoreHomePullTarget(target) {
+        if (!target || document.body.classList.contains('home-search-docked')) {
+          return true;
+        }
+        if (shortcutMenuBackdrop.classList.contains('visible')) {
+          return true;
+        }
+        return Boolean(target.closest('input, button, .shortcut-menu, .shortcut-menu-backdrop'));
+      }
+
+      function beginHomePull(event) {
+        if (!event.touches || event.touches.length !== 1 || shouldIgnoreHomePullTarget(event.target)) {
+          return;
+        }
+        stopHomeSpring();
+        homePullTracking = true;
+        homePullActive = false;
+        homePullStartX = event.touches[0].clientX;
+        homePullStartY = event.touches[0].clientY;
+        currentSearchOffset = 0;
+        currentPullOffset = 0;
+        currentFadeOpacity = 1;
+      }
+
+      function updateHomePull(event) {
+        if (!homePullTracking || !event.touches || event.touches.length !== 1) {
+          return;
+        }
+        var touch = event.touches[0];
+        var deltaX = touch.clientX - homePullStartX;
+        var deltaY = touch.clientY - homePullStartY;
+        if (!homePullActive) {
+          if (deltaY <= 8 || Math.abs(deltaY) < Math.abs(deltaX) * 1.15) {
+            return;
+          }
+          homePullActive = true;
+          closeShortcutMenu();
+          document.body.classList.remove('home-search-docking', 'home-search-docked');
+          document.body.classList.add('home-dragging');
+        }
+        event.preventDefault();
+        var elasticOffset = resolveElasticPullOffset(deltaY);
+        currentPullOffset = clampMotionValue(elasticOffset, 0, homePullMaxOffset);
+        var fadeOpacity = 1 - clampMotionValue(currentPullOffset / homePullThreshold, 0, 1);
+        setHomePullMotion(currentPullOffset, currentPullOffset, fadeOpacity);
+      }
+
+      function endHomePull() {
+        if (!homePullTracking) {
+          return;
+        }
+        homePullTracking = false;
+        if (!homePullActive) {
+          return;
+        }
+        homePullActive = false;
+        document.body.classList.remove('home-dragging');
+        if (currentPullOffset >= homePullThreshold) {
+          dockSearchToTop();
+        } else {
+          springBackHomePull();
+        }
+      }
+
+      function dockSearchToTop() {
+        var searchRect = searchForm.getBoundingClientRect();
+        dockedSearchBaseTop = searchRect.top - currentSearchOffset;
+        var dockedOffset = resolveDockedSearchOffset();
+        document.body.classList.add('home-search-docking', 'home-search-docked');
+        dockedSearchOpenedAt = Date.now();
+        focusSearchInput();
+        setHomeBackHandlerActive(true);
+        animateHomeSpring(dockedOffset, currentPullOffset, 0, function () {
+          document.body.classList.remove('home-search-docking');
+        }, 'dock');
+      }
+
+      function resetHomePullMotion() {
+        stopHomeSpring();
+        setHomeBackHandlerActive(false);
+        dockedSearchOpenedAt = 0;
+        dockedSearchBaseTop = 0;
+        document.body.classList.remove('home-search-docking', 'home-search-docked');
+        setHomePullMotion(0, 0, 1);
+      }
+
+      function dismissDockedSearch() {
+        if (!document.body.classList.contains('home-search-docked')) {
+          return false;
+        }
+        searchInput.blur();
+        resetHomePullMotion();
+        return true;
+      }
+
+      function handleDockedSearchOutsideClick(event) {
+        if (!document.body.classList.contains('home-search-docked') || searchForm.contains(event.target)) {
+          return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        if (typeof event.stopImmediatePropagation === 'function') {
+          event.stopImmediatePropagation();
+        }
+        if (Date.now() - dockedSearchOpenedAt < 360) {
+          return;
+        }
+        dismissDockedSearch();
+      }
+
+      function springBackHomePull() {
+        dockedSearchBaseTop = 0;
+        document.body.classList.remove('home-search-docking', 'home-search-docked');
+        animateHomeSpring(0, 0, 1);
+      }
+
+      searchForm.addEventListener('submit', function (event) {
+        event.preventDefault();
+        submitSearch();
+      });
+
+      scanButton.addEventListener('click', scanQr);
+      tabsButton.addEventListener('click', openTabs);
+      bookmarksButton.addEventListener('click', openBookmarks);
+      settingsButton.addEventListener('click', openSettings);
+      homeButton.addEventListener('click', function () {
+        searchInput.focus();
+      });
+      if (pageRoot) {
+        pageRoot.addEventListener('click', handleDockedSearchOutsideClick, true);
+        pageRoot.addEventListener('touchstart', beginHomePull, { passive: true });
+        pageRoot.addEventListener('touchmove', updateHomePull, { passive: false });
+        pageRoot.addEventListener('touchend', endHomePull);
+        pageRoot.addEventListener('touchcancel', endHomePull);
+      }
+      searchInput.addEventListener('blur', function () {
+        if (document.body.classList.contains('home-search-docked')) {
+          return;
+        }
+        if (!normalizeInput(searchInput.value)) {
+          resetHomePullMotion();
+        }
+      });
+      shortcutMenuBackdrop.addEventListener('click', function (event) {
+        if (event.target === shortcutMenuBackdrop) {
+          closeShortcutMenu();
+        }
+      });
+
+      window.addEventListener('aira-home-shortcuts-changed', function (event) {
+        renderShortcuts(event.detail || []);
+      });
+
+      window.addEventListener('aira-home-theme-changed', function (event) {
+        applyTheme(event.detail || {});
+      });
+
+      window.addEventListener('aira-home-privacy-mode-changed', function (event) {
+        applyPrivacyMode(event.detail || {});
+      });
+
+      window.addEventListener('aira-home-back-requested', function () {
+        if (!document.body.classList.contains('home-search-docked')) {
+          setHomeBackHandlerActive(false);
+          return;
+        }
+        dismissDockedSearch();
+      });
+
+      window.addEventListener('touchmove', function (event) {
+        if (event.touches && event.touches.length > 1) {
+          event.preventDefault();
+        }
+      }, { passive: false });
+      updateCapabilityControls();
+      loadTheme();
+      loadPrivacyMode();
+      loadShortcuts();
+    })();
+  </script>
+</body>
+</html>

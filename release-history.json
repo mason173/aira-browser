@@ -1,0 +1,492 @@
+{
+  "latestAppGalleryRelease": {
+    "versionName": "2.5.2",
+    "versionCode": 1000360,
+    "releasedAt": "2026-08-29",
+    "source": "formal-package-generated",
+    "notes": "Formal AppGallery package with the PC Settings redesign, embedded desktop Aira Pro destination, page-load and userscript scheduling improvements, nested-iframe video takeover fixes, and download progress feedback. Built from release preparation commit 8a6b40163 with DevEco Studio 6.1.1 and API 24 Release SDK 6.1.1.125. Repository guards and the release-signed APP build passed. This records a locally generated formal package and does not claim AppGallery review approval or on-shelf publication.",
+    "artifact": "AiraBrowser/build/outputs/default/Aira-v2.5.2-1000360-release-signed.app",
+    "sha256": "c11c51f69603331e6553d48f195cd923fd0c74f147f3a6e0dd616c2aecdee0e3"
+  },
+  "history": [
+    {
+      "versionName": "2.5.2",
+      "versionCode": 1000360,
+      "releasedAt": "2026-08-29",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery package with the PC Settings redesign, embedded desktop Aira Pro destination, page-load and userscript scheduling improvements, nested-iframe video takeover fixes, and download progress feedback. Built from release preparation commit 8a6b40163 with DevEco Studio 6.1.1 and API 24 Release SDK 6.1.1.125. Repository guards and the release-signed APP build passed. This records a locally generated formal package and does not claim AppGallery review approval or on-shelf publication.",
+      "artifact": "AiraBrowser/build/outputs/default/Aira-v2.5.2-1000360-release-signed.app",
+      "sha256": "c11c51f69603331e6553d48f195cd923fd0c74f147f3a6e0dd616c2aecdee0e3"
+    },
+    {
+      "versionName": "2.5.2",
+      "versionCode": 1000358,
+      "releasedAt": "2026-08-28",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery package adding selective local backup import/export; improving QuickSearch cold start, Home search motion, first-paint userscript scheduling, large-screen userscript installation, downloads, public-provider translation, foldable/browser lifecycle, and native Huawei review presentation. The package was built from committed HEAD 95389ddae plus the scoped release metadata with DevEco release signing. Production health and guarded membership, Bookmark v3, Huawei compatibility Bookmark, and Personalization v2 read/write boundaries passed; architecture, Sync activation/provider-switch, History Sync, Bookmark snapshot, icon, Window-open/BFCache, Novel Chapter Cache, and Home Chrome Scroll guardrails passed. APP/HAP archive integrity, pack.info identity, outer APP signature, AppGallery release Profile, and bundled release assets were verified. This records a locally generated formal package and does not claim AppGallery review approval or on-shelf publication.",
+      "artifact": "AiraBrowser/build/outputs/default/Aira-v2.5.2-1000358-release-signed.app",
+      "sha256": "419ed1a466ec9a3b58f9817f47bbac5d1a33c3cd01cb166b367d80ea7c0ae4b0"
+    },
+    {
+      "versionName": "2.5.1",
+      "versionCode": 1000352,
+      "releasedAt": "2026-08-27",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery package optimizing large-screen and foldable presentation, search submission and userscript runtime scheduling, media discovery, navigation safety, and bookmark root switching. The package was built from committed HEAD fbd752cce plus the scoped release metadata with DevEco release signing; architecture, Sync activation/provider-switch, History Sync, Bookmark snapshot, icon, Window-open/BFCache, Novel Chapter Cache, and Home Chrome Scroll guardrails passed. This records a locally generated formal package and does not claim AppGallery review approval or on-shelf publication.",
+      "artifact": "AiraBrowser/build/outputs/default/Aira-v2.5.1-1000352-release-signed.app",
+      "sha256": "e2388382c7515b1800d19f4f1cbd7cb9fb36aa8f47bb42e435dc55ba3386255e"
+    },
+    {
+      "versionName": "2.4.2",
+      "versionCode": 1000348,
+      "releasedAt": "2026-08-26",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery package fixing HTTPS-first and confirmed HTTP fallback lifecycle, reducing Huawei Cloud Space History storage and compute impact on foreground browsing, bounding no-change Sync work, and stabilizing Home favorites cold-start layout. The package was built from committed HEAD af1248995 plus the scoped release metadata and deterministic toolchain override with DevEco Studio 6.1.1 and the API 24 Release SDK 6.1.1.125; the installed API 26 Beta2 SDK was explicitly excluded. Production API health and an entitlement-only membership read passed, and History exchange/bootstrap enforced authentication before data access. Release signing and built-in architecture, Sync activation/provider-switch, History Sync, Bookmark snapshot, icon, Window-open/BFCache, Novel Chapter Cache, and Home Chrome Scroll guardrails passed. Archive integrity, pack.info and inner module identity, independent APP signature/Profile verification, and bundled release assets were verified. This records a locally generated formal package and does not claim AppGallery review approval or on-shelf publication.",
+      "artifact": "AiraBrowser/build/outputs/default/Aira-v2.4.2-1000348-release-signed.app",
+      "sha256": "eb92070693b092455c38b98e0f47ae87d011323cdd1c1160d04dd57c66c10244"
+    },
+    {
+      "versionName": "2.4.2",
+      "versionCode": 1000346,
+      "releasedAt": "2026-08-25",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery package adding bounded Huawei Space G8 Head/Blocks Bookmark storage, fixing ad-block master-switch consistency, accelerating ad-block cold-start authority reuse, stabilizing first-frame Home favorite icons, and improving App-side crash-report detail merging. The package was built from committed HEAD bab4ae04f plus the scoped release metadata with DevEco Studio 6.1.1 and the API 24 Release SDK 6.1.1.125; the separately installed API 26 Beta2 SDK was excluded. Production API health and an entitlement-only membership read passed; Bookmark v3 read/write enforced authentication before data access, and legacy Huawei Bookmark read/write rejected missing identity before data access. Production remains on a pre-crash-enrichment server revision, so the matching server-side crash repository merge is not claimed as deployed. Release signing and built-in architecture, Sync activation/provider-switch, History Sync, Bookmark snapshot, icon, Window-open/BFCache, Novel Chapter Cache, and Home Chrome Scroll guardrails passed. Archive integrity, pack.info and inner module identity, independent APP signature/Profile verification, and bundled release assets were verified. This records a locally generated formal package and does not claim AppGallery review approval or on-shelf publication.",
+      "artifact": "AiraBrowser/build/outputs/default/Aira-v2.4.2-1000346-release-signed.app",
+      "sha256": "9f6233b268eca445279e81a798ba3d429d4e960dc948483750911ac75274a5ca"
+    },
+    {
+      "versionName": "2.4.2",
+      "versionCode": 1000343,
+      "releasedAt": "2026-08-25",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery package fixing remembered per-site HTTP fallback, external URI/file-opening presentation and associations, erroneous membership checks on free manual ad-block rules, search/download/runtime diagnostics reliability, and Huawei Cloud Space History canonical conflicts. The package was built from committed HEAD 9aa769cc6 plus the scoped release metadata with DevEco Studio 6.1.1 and the API 24 Release SDK 6.1.1.125; the separately installed API 26 Beta2 SDK was excluded. Production API health and an entitlement-only membership read passed, and History exchange/bootstrap routes enforced authentication before data access. Release signing and built-in architecture, Sync activation/provider-switch, History Sync, Bookmark snapshot, icon, Window-open/BFCache, Novel Chapter Cache, and Home Chrome Scroll guardrails passed. Archive integrity, pack.info and inner module identity, independent APP signature/Profile verification, and bundled release assets were verified. This records a locally generated formal package and does not claim AppGallery review approval or on-shelf publication.",
+      "artifact": "AiraBrowser/build/outputs/default/Aira-v2.4.2-1000343-release-signed.app",
+      "sha256": "c4306e6ac0debe7818a6a7d70d655535261ddfc306b76fa621f8973e23ab0f39"
+    },
+    {
+      "versionName": "2.4.1",
+      "versionCode": 1000339,
+      "releasedAt": "2026-08-23",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery package adding incremental History Sync with Huawei Cloud Space support, diagnostics consent controls, browser background/runtime restore hardening, signed site User-Agent compatibility policy, and large-screen layout improvements including corrected History dividers. The package was built from committed HEAD aeb10d3dd plus the scoped release metadata. Production API health and membership reads passed; History exchange/bootstrap routes enforced authentication, and the live revision-7 User-Agent policy manifest passed RS256 verification with the App-pinned public key. Release signing and built-in architecture, Sync activation/provider-switch, History Sync, Bookmark snapshot, icon, Window-open/BFCache, Novel Chapter Cache, and Home Chrome Scroll guardrails passed. Archive integrity, pack.info and inner module identity, independent APP signature/Profile verification, and bundled release assets were verified. This records a locally generated formal package and does not claim AppGallery review approval or on-shelf publication.",
+      "artifact": "AiraBrowser/build/outputs/default/Aira-v2.4.1-1000339-release-signed.app",
+      "sha256": "8bc3e7614482639c7036a859fe8b7caaa8bfc1f8a6b777012308f306676907d1"
+    },
+    {
+      "versionName": "2.3.0",
+      "versionCode": 1000323,
+      "releasedAt": "2026-08-17",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery package improving novel pagination and reading anchors, large-screen reader dialogs, userscript compatibility, quick-search behavior with custom User-Agent settings, and browser runtime stability. The package was built from committed HEAD 541ab32f0 plus the scoped release metadata in an isolated worktree so unrelated in-progress main-worktree changes were not included. Production API health returned ready. Release signing and built-in architecture, Sync, Bookmark, icon, Window-open/BFCache, Novel Chapter Cache, and Home Chrome Scroll guardrails passed. Archive integrity, pack.info and inner module identity, independent APP signature/Profile verification, and bundled release assets were verified. This records a locally generated formal package and does not claim AppGallery review approval or on-shelf publication.",
+      "artifact": "AiraBrowser/build/outputs/default/Aira-v2.3.0-1000323-release-signed.app",
+      "sha256": "3ece116e61239e4e5fdf6b0fbf2b8629d167afc55ca46c0e6d2642c72531cd1c"
+    },
+    {
+      "versionName": "2.3.0",
+      "versionCode": 1000314,
+      "releasedAt": "2026-08-14",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery package upgrading the Rust ad-blocking authority, HTTPS-first navigation with HTTP fallback, site User-Agent lifecycle compatibility, and browser runtime stability. Release signing and built-in architecture, Sync, Bookmark, icon, Window-open/BFCache, Novel Chapter Cache, and Home Chrome Scroll guardrails passed. Archive integrity, pack.info identity, independent APP signature verification, and bundled release assets were verified. This records a locally generated formal package and does not claim AppGallery review approval or on-shelf publication.",
+      "artifact": "AiraBrowser/build/outputs/default/Aira-v2.3.0-1000314-release-signed.app",
+      "sha256": "78df92f2704afb95c312828373d3003c0cd80bd31f6f8b1e7c710c2b8fd38a2a"
+    },
+    {
+      "versionName": "2.2.0",
+      "versionCode": 1000306,
+      "releasedAt": "2026-08-13",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery package adding the Chrome-style large-screen tab list and improving active-tab/omnibox/search/modal coordination, video page behavior bridging, verified host UA compatibility, and custom-home toolbar presentation. Release signing and built-in architecture, Sync, Bookmark, icon, Window-open/BFCache, Novel Chapter Cache, and Home Chrome Scroll guardrails passed. Archive integrity, pack.info identity, and bundled release assets were verified. This records a locally generated formal package and does not claim AppGallery review approval or on-shelf publication.",
+      "artifact": "AiraBrowser/build/outputs/default/Aira-v2.2.0-1000306-release-signed.app",
+      "sha256": "9ada7bb92cc3714d3774e62ac94e81c6ca8cc6bb8a4b62338dafb5cc028cf518"
+    },
+    {
+      "versionName": "2.1.1",
+      "versionCode": 1000299,
+      "releasedAt": "2026-08-12",
+      "source": "formal-package-generated",
+      "notes": "Quick formal AppGallery package for third-party homepage visual improvements. Release signing and built-in repository guardrails passed; archive integrity and pack.info identity were checked. This records a locally generated formal package and does not claim AppGallery review approval or on-shelf publication.",
+      "artifact": "AiraBrowser/build/outputs/default/Aira-v2.1.1-1000299-release-signed.app",
+      "sha256": "f03a7a2d5a3983e658a4cb8841ca8569fe39a7a9c6332ef0a45800d9a24f27e9"
+    },
+    {
+      "versionName": "2.1.0",
+      "versionCode": 1000298,
+      "releasedAt": "2026-08-12",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery .app package generated for user: Aira-v2.1.0-1000298-release-signed.app. Package archive integrity, pack.info version metadata, release resource byte identity, release signing, architecture, Sync, Bookmark, icon, Window-open/BFCache, Novel Chapter Cache, and Home Chrome Scroll guardrails passed. This records a locally generated formal package and does not claim AppGallery review approval or on-shelf publication. Built with release ArkGuard obfuscation disabled per repository policy.",
+      "artifact": "AiraBrowser/build/outputs/default/Aira-v2.1.0-1000298-release-signed.app",
+      "sha256": "e51432276ebc8c039956bf983dbc1cda01e1fbe3bd8e93f071e2f13e5084a2c0"
+    },
+    {
+      "versionName": "2.0.0",
+      "versionCode": 1000283,
+      "releasedAt": "2026-08-10",
+      "source": "formal-package-generated",
+      "notes": "Direct formal AppGallery .app repackage generated for user after checkpoint commit cd07e2461: Aira-v2.0.0-1000283-release-signed.app. The release build completed AppGallery release signing plus architecture, Sync, Bookmark, icon, and source guardrails; archive integrity and package metadata were checked. This repackage retains the Aira 2.0 feature set and includes the latest tablet/large-screen User-Agent and Client Hints adaptation. Per the user's request for a direct package, the full Local Test and independent deep signature-verification loops were not repeated. This records a locally generated formal package and does not claim AppGallery review approval or on-shelf publication. Built with release ArkGuard obfuscation disabled per repository policy."
+    },
+    {
+      "versionName": "2.0.0",
+      "versionCode": 1000282,
+      "releasedAt": "2026-08-10",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery .app package generated for user: Aira-v2.0.0-1000282-release-signed.app. Package signature, AppGallery release profile, archive integrity, version metadata, non-debug release mode, architecture and Sync guardrails, full Local Test gate, and bundled release-note assets were verified. This release adds the Privacy Protection hub, exact-origin Site Controls, Desktop Bookmark Bar, configurable Forward action, Web App chrome control, and signed Video Compatibility Profiles, with additional protection-feedback, userscript, desktop-card, and large-screen fixes. Production API health and the live revision-2 Video Compatibility Profile manifest passed RS256 verification with the App-pinned public key. This records a locally generated formal package and does not claim AppGallery review approval or on-shelf publication. Built with release ArkGuard obfuscation disabled per repository policy."
+    },
+    {
+      "versionName": "1.1.3",
+      "versionCode": 1000261,
+      "releasedAt": "2026-08-07",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery .app package generated for user: Aira-v1.1.3-1000261-release-signed.app. Package signature, AppGallery release profile, archive integrity, version metadata, non-debug release mode, architecture guardrails, and bundled release-note assets were verified. This release adds custom-home toolbar, Novel Bookshelf, and privacy-mode actions with a bridge-ready handshake, precise file-type sharing, updated official homepage samples, and transparent outlined desktop search cards. Production API health and signed Novel Detection Policy manifest passed. This records a locally generated formal package and does not claim AppGallery review approval or on-shelf publication. Built with release ArkGuard obfuscation disabled per repository policy."
+    },
+    {
+      "versionName": "1.0.15",
+      "versionCode": 1000255,
+      "releasedAt": "2026-08-06",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery .app package generated for user: Aira-v1.0.15-1000255-release-signed.app. Package signature, AppGallery release profile, archive integrity, version metadata, non-debug release mode, architecture guardrails, and bundled release-note assets were verified. This release improves novel recognition and suppression, large-screen reading and bookshelf presentation, SPA navigation synchronization, video casting/takeover behavior, and large-screen Aira Pro presentation. Production API health passed; Novel Detection Policy remains unavailable while the App retains its safe packaged default policy. This records a locally generated formal package and does not claim AppGallery review approval or on-shelf publication. Built with release ArkGuard obfuscation disabled per repository policy."
+    },
+    {
+      "versionName": "1.0.15",
+      "versionCode": 1000249,
+      "releasedAt": "2026-08-05",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery .app package generated for user: Aira-v1.0.15-1000249-release-signed.app. Package signature, AppGallery release profile, archive integrity, version metadata, non-debug release mode, architecture guardrails, and bundled release-note assets were verified. This release improves tab-overview site identity and interaction, rejects failed speculative navigation callbacks from replacing the committed page, and fixes inline PDF viewer downloads. Production API health passed; Novel Detection Policy remains unavailable while the App retains its safe packaged default policy. This records a locally generated formal package and does not claim AppGallery review approval or on-shelf publication. Built with release ArkGuard obfuscation disabled per repository policy."
+    },
+    {
+      "versionName": "1.0.15",
+      "versionCode": 1000245,
+      "releasedAt": "2026-08-05",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery .app package generated for user: Aira-v1.0.15-1000245-release-signed.app. Package signature, AppGallery release profile, archive integrity, version metadata, non-debug release mode, architecture guardrails, and bundled release-note assets were verified. This release focuses on reliable Smart Grip state updates for imported custom homepages and updated bundled guidance. Production API health passed; Novel Detection Policy remains unavailable while the App retains its safe packaged default policy. This records a locally generated formal package and does not claim AppGallery review approval or on-shelf publication. Built with release ArkGuard obfuscation disabled per repository policy."
+    },
+    {
+      "versionName": "1.0.15",
+      "versionCode": 1000243,
+      "releasedAt": "2026-08-04",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery .app package generated for user: Aira-v1.0.15-1000243-release-signed.app. Package signature, AppGallery release profile, archive integrity, version metadata, non-debug release mode, and bundled release-note assets were verified. Production API health plus membership, referral, Admin, Huawei/Personalization Sync, and v3 Bookmark route lifecycle checks passed; focused local v3 canonical-tree validation passed 5/5. The public production version string does not prove the newest server canonical-tree gate is deployed, and Novel Detection Policy remains unavailable while the App retains its safe packaged default policy. This records a locally generated formal package and does not claim AppGallery review approval or on-shelf publication. Built with release ArkGuard obfuscation disabled per repository policy."
+    },
+    {
+      "versionName": "1.0.14",
+      "versionCode": 1000242,
+      "releasedAt": "2026-08-04",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery .app package generated for user: Aira-v1.0.14-1000242-release-signed.app. Package signature, AppGallery release profile, archive integrity, version metadata, non-debug release mode, and bundled release-note assets were verified. Production API health and Sync route guards passed; the Novel Detection Policy endpoint was deployed but returned unavailable, while the App retains its safe packaged default policy. This records a locally generated formal package and does not claim AppGallery review approval or on-shelf publication. Built with release ArkGuard obfuscation disabled per repository policy."
+    },
+    {
+      "versionName": "1.0.14",
+      "versionCode": 1000238,
+      "releasedAt": "2026-08-03",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery .app package generated for user: Aira-v1.0.14-1000238-release-signed.app. Package signature, AppGallery release profile, archive integrity, version metadata, non-debug release mode, and bundled release-note assets were verified. Bundled update copy cumulatively summarizes changes since the user-confirmed AppGallery on-shelf version 1.0.13 (1000216). This records a locally generated formal package and does not claim AppGallery review approval or on-shelf publication. Built with release ArkGuard obfuscation disabled per repository policy."
+    },
+    {
+      "versionName": "1.0.14",
+      "versionCode": 1000231,
+      "releasedAt": "2026-08-02",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery .app package generated for user: Aira-v1.0.14-1000231-release-signed.app. Package signature, profile, archive integrity, version metadata, and bundled release-note assets were verified. This records a locally generated formal package and does not claim AppGallery review approval or on-shelf publication. Built with release ArkGuard obfuscation disabled per repository policy."
+    },
+    {
+      "versionName": "1.0.13",
+      "versionCode": 1000216,
+      "releasedAt": "2026-07-31",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery .app package generated for user: Aira-v1.0.13-1000216-release-signed.app, with a separately verified release-signed installable HAP companion. Production Aira API was backed up, migrated with 022_novel_bookshelf_sync_v2.sql, deployed, restarted, and verified before packaging. Release notice popup enabled with focused notes for Novel Bookshelf and reading-progress sync, secure DNS and privacy, toolbar and desktop-mode settings, Reader Mode compatibility, and browser/ad-block stability. Built with release ArkGuard obfuscation disabled per repository policy."
+    },
+    {
+      "versionName": "1.0.13",
+      "versionCode": 1000211,
+      "releasedAt": "2026-07-30",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery .app package generated for user: Aira-v1.0.13-1000211-release-signed.app, with a separately verified release-signed installable HAP companion. Release notice popup enabled with focused notes for large-screen browsing, novel reading, ad blocking, media takeover, and daily browser stability. Built with release ArkGuard obfuscation disabled per repository policy."
+    },
+    {
+      "versionName": "1.0.12",
+      "versionCode": 1000203,
+      "releasedAt": "2026-07-26",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery .app package generated for user: Aira-v1.0.12-1000203-release-signed.app. Release notice popup enabled with focused notes for user-script installation/management, browser sheet and find-in-page presentation, element inspection and adaptive home readability, proxy keyboard avoidance, and Huawei Space switch status. Built with release ArkGuard obfuscation disabled per repository policy."
+    },
+    {
+      "versionName": "1.0.12",
+      "versionCode": 1000199,
+      "releasedAt": "2026-07-26",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery .app package generated for user: Aira-v1.0.12-1000199-release-signed.app. Release notice popup enabled with focused notes for Bottom Chrome expansion/reordering and dismissal polish, tabs-overview empty-state exit behavior, Youdao cross-app search routing, and Huawei Space Bookmark initialization/retry/large-snapshot reliability. Built with release ArkGuard obfuscation disabled per repository policy."
+    },
+    {
+      "versionName": "1.0.11",
+      "versionCode": 1000168,
+      "releasedAt": "2026-07-24",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery .app package generated for user: Aira-v1.0.11-1000168-release-signed.app. Release notice popup enabled with focused notes for cast-picker/player-control coordination, element inspection, user-script value persistence, Android-shaped UA and Huawei file handling, and toolbar drag stability. Built with release ArkGuard obfuscation disabled per repository policy."
+    },
+    {
+      "versionName": "1.0.10",
+      "versionCode": 1000162,
+      "releasedAt": "2026-07-24",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery .app package generated for user: Aira-v1.0.10-1000162-release-signed.app. Release notice popup enabled with focused notes for cross-frame video discovery/takeover, quick search switching, tabs and bottom-toolbar interactions, external custom-homepage package import, content controls, membership resilience, and refreshed operational icons. Built with release ArkGuard obfuscation disabled per repository policy."
+    },
+    {
+      "versionName": "1.0.10",
+      "versionCode": 1000156,
+      "releasedAt": "2026-07-23",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery .app package generated for user: Aira-v1.0.10-1000156-release-signed.app. Release notice popup enabled with focused notes for cross-frame video discovery/takeover, tabs overview and bottom chrome, homepage search/settings, element hiding, user-script compatibility, and offline membership entitlement resilience. Built with release ArkGuard obfuscation disabled per repository policy."
+    },
+    {
+      "versionName": "1.0.9",
+      "versionCode": 1000152,
+      "releasedAt": "2026-07-22",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery .app package generated for user: Aira-v1.0.9-1000152-release-signed.app. Release notice popup enabled with focused notes for Huawei Space structured bookmark sync, user-script persistence, search, tabs/privacy, and icon/download improvements. Built with release ArkGuard obfuscation disabled per repository policy."
+    },
+    {
+      "versionName": "1.0.7",
+      "versionCode": 1000139,
+      "releasedAt": "2026-07-18",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery .app package generated for user: Aira-v1.0.7-1000139-release-signed.app. Release notice popup enabled with focused notes for desktop one-tap search, configurable cross-app search, reader/transient-surface stability, navigation/display fixes, and sync/WebDAV reliability. Built with release ArkGuard obfuscation disabled per repository policy."
+    },
+    {
+      "versionName": "1.0.5",
+      "versionCode": 1000136,
+      "releasedAt": "2026-07-16",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery .app package generated for user: Aira-v1.0.5-1000136-release-signed.app. Release notice popup enabled with focused notes for native/custom homepage settings, custom-homepage developer APIs, shortcut layout/reordering, top immersion/home scroll behavior, and first-sync topology reliability. Built with release ArkGuard obfuscation disabled per repository policy."
+    },
+    {
+      "versionName": "1.0.4",
+      "versionCode": 1000135,
+      "releasedAt": "2026-07-15",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery .app package generated for user: Aira-v1.0.4-1000135-release-signed.app. Release notice popup enabled with focused notes for per-homepage system search, focus and return behavior, search-engine fallback, and history suggestion refresh. Built with release ArkGuard obfuscation disabled per repository policy."
+    },
+    {
+      "versionName": "1.0.3",
+      "versionCode": 1000134,
+      "releasedAt": "2026-07-15",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery .app package generated for user: Aira-v1.0.3-1000134-release-signed.app. Release notice popup enabled with user-facing notes for personalization sync, activity heatmap, custom search engines, sync source switching, bookmark rename refresh, and feedback access. Built with release ArkGuard obfuscation disabled per repository policy."
+    },
+    {
+      "versionName": "1.0.2",
+      "versionCode": 1000133,
+      "releasedAt": "2026-07-14",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery .app package generated for user: Aira-v1.0.2-1000133-release-signed.app. Release notice popup enabled with user-facing notes for bookmark search, cross-system sync guidance, site icons, sync, membership, and purchase information. Built with release ArkGuard obfuscation disabled per repository policy."
+    },
+    {
+      "versionName": "1.0.1",
+      "versionCode": 1000132,
+      "releasedAt": "2026-07-14",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery .app package generated for user: Aira-v1.0.1-1000132-release-signed.app. Version name intentionally remained 1.0.1 while versionCode advanced from the previous 1000131 package. Release notice popup enabled with concise user-facing notes. Built with release ArkGuard obfuscation disabled per repository policy."
+    },
+    {
+      "versionName": "1.0.0",
+      "versionCode": 1000130,
+      "releasedAt": "2026-07-13",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery .app package generated for user: Aira-v1.0.0-1000130-release-signed.app. User designated 1.0.0 (1000130) as the new baseline for future version increments. Release notice popup enabled. Built with release ArkGuard obfuscation disabled per repository policy."
+    },
+    {
+      "versionName": "0.2.13",
+      "versionCode": 1000122,
+      "releasedAt": "2026-07-11",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery .app package generated for user: Aira-v0.2.13-1000122-release-signed.app. Release notice popup enabled with concise high-level notes. Built with release ArkGuard obfuscation disabled per repository policy."
+    },
+    {
+      "versionName": "0.2.12",
+      "versionCode": 1000121,
+      "releasedAt": "2026-07-11",
+      "source": "user-confirmed-current-formal",
+      "notes": "User confirmed Aira-v0.2.12-1000121-release-signed.app is the current latest formal package; the next formal release must use 0.2.13 and versionCode 1000122 or higher."
+    },
+    {
+      "versionName": "0.2.11",
+      "versionCode": 1000120,
+      "releasedAt": "2026-07-09",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery .app package generated for user: Aira-v0.2.11-1000120-release-signed.app. Release notice popup enabled for this user-visible update. Built with release ArkGuard obfuscation disabled per user instruction."
+    },
+    {
+      "versionName": "0.2.10",
+      "versionCode": 1000119,
+      "releasedAt": "2026-07-09",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery .app package generated for user: Aira-v0.2.10-1000119-release-signed.app. Release notice popup enabled for this user-visible update. Built with release ArkGuard obfuscation disabled per user instruction."
+    },
+    {
+      "versionName": "0.2.9",
+      "versionCode": 1000118,
+      "releasedAt": "2026-07-09",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery .app package generated for user: Aira-v0.2.9-1000118-release-signed.app. Version baseline intentionally jumped to 0.2.9 (1000118); future formal packages should start from this baseline. Built with release ArkGuard obfuscation disabled per user instruction."
+    },
+    {
+      "versionName": "0.2.6",
+      "versionCode": 1000114,
+      "releasedAt": "2026-07-09",
+      "source": "user-confirmed-test-environment-current",
+      "notes": "User confirmed the test environment already has Aira-v0.2.6-1000114-release-signed.app, so the next package must use a higher version."
+    },
+    {
+      "versionName": "0.2.5",
+      "versionCode": 1000113,
+      "releasedAt": "2026-07-08",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery .app package generated for user: Aira-v0.2.5-1000113-release-signed.app."
+    },
+    {
+      "versionName": "0.2.4",
+      "versionCode": 1000112,
+      "releasedAt": "2026-07-06",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery .app package generated for user: Aira-v0.2.4-1000112-release-signed.app."
+    },
+    {
+      "versionName": "0.2.3",
+      "versionCode": 1000111,
+      "releasedAt": "2026-07-05",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery .app package generated for user: Aira-v0.2.3-1000111-release-signed.app."
+    },
+    {
+      "versionName": "0.2.2",
+      "versionCode": 1000110,
+      "releasedAt": "2026-07-05",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery .app package generated for user: Aira-v0.2.2-1000110-release-signed.app."
+    },
+    {
+      "versionName": "0.2.1",
+      "versionCode": 1000109,
+      "releasedAt": "2026-07-04",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery .app package generated for user: Aira-v0.2.1-1000109-release-signed.app."
+    },
+    {
+      "versionName": "0.2.0",
+      "versionCode": 1000108,
+      "releasedAt": "2026-07-04",
+      "source": "user-confirmed-appgallery-current",
+      "notes": "Current formal release baseline confirmed by user before rebuilding the next formal package."
+    },
+    {
+      "versionName": "0.1.17",
+      "versionCode": 1000050,
+      "releasedAt": "2026-07-04",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery .app package generated for user: Aira-v0.1.17-1000050-release-signed.app."
+    },
+    {
+      "versionName": "0.1.16",
+      "versionCode": 1000049,
+      "releasedAt": "2026-06-30",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery .app package generated for user: Aira-v0.1.16-1000049-release-signed.app."
+    },
+    {
+      "versionName": "0.1.15",
+      "versionCode": 1000048,
+      "releasedAt": "2026-06-29",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery .app package generated for user: Aira-v0.1.15-1000048-release-signed.app."
+    },
+    {
+      "versionName": "0.1.14",
+      "versionCode": 1000047,
+      "releasedAt": "2026-06-28",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery .app package generated for user: Aira-v0.1.14-1000047-release-signed.app."
+    },
+    {
+      "versionName": "0.1.13",
+      "versionCode": 1000046,
+      "releasedAt": "2026-06-28",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery .app package generated for user: Aira-v0.1.13-1000046-release-signed.app."
+    },
+    {
+      "versionName": "0.1.13",
+      "versionCode": 1000044,
+      "releasedAt": "2026-06-26",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery .app package generated for user: Aira-v0.1.13-1000044-release-signed.app."
+    },
+    {
+      "versionName": "0.1.12",
+      "versionCode": 1000043,
+      "releasedAt": "2026-06-26",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery .app package generated for user: Aira-v0.1.12-1000043-release-signed.app."
+    },
+    {
+      "versionName": "0.1.11",
+      "versionCode": 1000042,
+      "releasedAt": "2026-06-25",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery .app package generated for user: Aira-v0.1.11-1000042-release-signed.app."
+    },
+    {
+      "versionName": "0.1.10",
+      "versionCode": 1000041,
+      "releasedAt": "2026-06-24",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery .app package generated for user: Aira-v0.1.10-1000041-release-signed.app."
+    },
+    {
+      "versionName": "0.1.9",
+      "versionCode": 1000040,
+      "releasedAt": "2026-06-23",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery .app package generated for user: Aira-v0.1.9-1000040-release-signed.app."
+    },
+    {
+      "versionName": "0.1.8",
+      "versionCode": 1000039,
+      "releasedAt": "2026-06-21",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery .app package generated for user: Aira-v0.1.8-1000039-release-signed.app."
+    },
+    {
+      "versionName": "0.1.7",
+      "versionCode": 1000038,
+      "releasedAt": "2026-06-21",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery .app package generated for user: Aira-v0.1.7-1000038-release-signed.app."
+    },
+    {
+      "versionName": "0.1.6",
+      "versionCode": 1000037,
+      "releasedAt": "2026-06-20",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery .app package generated for user: Aira-v0.1.6-1000037-release-signed.app."
+    },
+    {
+      "versionName": "0.1.5",
+      "versionCode": 1000036,
+      "releasedAt": "2026-06-20",
+      "source": "user-confirmed-current-formal",
+      "notes": "Current formal release baseline recorded before building the next formal package."
+    },
+    {
+      "versionName": "0.1.4",
+      "versionCode": 1000035,
+      "releasedAt": "2026-06-19",
+      "source": "user-confirmed-appgallery-current",
+      "notes": "Current AppGallery release baseline confirmed before building the next formal package."
+    },
+    {
+      "versionName": "0.1.3",
+      "versionCode": 1000034,
+      "releasedAt": "2026-06-18",
+      "source": "user-confirmed-appgallery-current",
+      "notes": "Current AppGallery release baseline recorded before adding automated release version planning."
+    }
+  ]
+}

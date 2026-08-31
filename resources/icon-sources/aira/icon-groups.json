@@ -1,0 +1,843 @@
+{
+  "schemaVersion": 1,
+  "groups": [
+    {
+      "id": "desktop-search-card-accessories",
+      "title": "Desktop search card accessories",
+      "description": "Widget-only decorative and navigation resources for desktop search cards.",
+      "entryKind": "resource",
+      "entries": [
+        {
+          "title": "1×2 向右箭头",
+          "resourceFamily": "app_widget_navigation_arrow"
+        }
+      ]
+    },
+    {
+      "id": "desktop-search-card-shortcuts",
+      "title": "Desktop search card shortcuts",
+      "description": "Widget-only shortcut icons for the 2x4 desktop search card. These resources must not be reused as general app shortcut icons.",
+      "entryKind": "resource",
+      "entries": [
+        {
+          "title": "书签",
+          "resourceFamily": "app_widget_shortcut_bookmarks"
+        },
+        {
+          "title": "历史记录",
+          "resourceFamily": "app_widget_shortcut_history"
+        },
+        {
+          "title": "下载管理",
+          "resourceFamily": "app_widget_shortcut_downloads"
+        },
+        {
+          "title": "设置",
+          "resourceFamily": "app_widget_shortcut_settings"
+        }
+      ]
+    },
+    {
+      "id": "bottom-toolbar-customizable",
+      "title": "Bottom toolbar customizable actions",
+      "description": "The 30 draggable actions shown in Settings > Bottom toolbar. These entries must stay one-to-one with BrowserBottomPanelActionCatalog.customizableActionIds().",
+      "entryKind": "action",
+      "entries": [
+        {
+          "actionId": "history",
+          "title": "历史记录",
+          "resourceFamily": "app_shortcut_history"
+        },
+        {
+          "actionId": "openBookmarks",
+          "title": "书签",
+          "resourceFamily": "app_shortcut_bookmarks"
+        },
+        {
+          "actionId": "novel",
+          "title": "我的书架",
+          "resourceFamily": "app_toolbar_bookshelf"
+        },
+        {
+          "actionId": "sendToDesktop",
+          "title": "推送到电脑",
+          "resourceFamily": "app_toolbar_send_to_desktop"
+        },
+        {
+          "actionId": "settings",
+          "title": "设置",
+          "resourceFamily": "app_shortcut_settings"
+        },
+        {
+          "actionId": "appProxySettings",
+          "title": "代理设置",
+          "resourceFamily": "app_toolbar_connection_security"
+        },
+        {
+          "actionId": "home",
+          "title": "主页",
+          "resourceFamily": "app_shortcut_home"
+        },
+        {
+          "actionId": "newPrivateTab",
+          "title": "隐私模式",
+          "resourceFamily": "app_toolbar_privacy_mode"
+        },
+        {
+          "actionId": "scanQr",
+          "title": "扫一扫",
+          "resourceFamily": "app_toolbar_scan_qr"
+        },
+        {
+          "actionId": "scripts",
+          "title": "用户脚本",
+          "resourceFamily": "app_shortcut_scripts"
+        },
+        {
+          "actionId": "video",
+          "title": "资源嗅探",
+          "resourceFamily": "app_shortcut_page_resources"
+        },
+        {
+          "actionId": "downloads",
+          "title": "下载管理",
+          "resourceFamily": "app_shortcut_downloads"
+        },
+        {
+          "actionId": "bookmark",
+          "title": "添加书签",
+          "resourceFamily": "app_toolbar_add_bookmark"
+        },
+        {
+          "actionId": "copyLink",
+          "title": "复制链接",
+          "resourceFamily": "app_toolbar_action_copy_link"
+        },
+        {
+          "actionId": "share",
+          "title": "分享网页",
+          "resourceFamily": "app_toolbar_share_page"
+        },
+        {
+          "actionId": "print",
+          "title": "打印网页",
+          "resourceFamily": "app_toolbar_print_page"
+        },
+        {
+          "actionId": "userAgent",
+          "title": "网站版本",
+          "resourceFamily": "app_settings_site_settings"
+        },
+        {
+          "actionId": "textZoom",
+          "title": "网页文字大小",
+          "resourceFamily": "app_reader_increase_font"
+        },
+        {
+          "actionId": "find",
+          "title": "查找网页",
+          "resourceFamily": "app_toolbar_search"
+        },
+        {
+          "actionId": "fullScreenMode",
+          "title": "全屏模式",
+          "resourceFamily": "app_toolbar_full_screen"
+        },
+        {
+          "actionId": "manualElementHide",
+          "title": "标记广告",
+          "resourceFamily": "app_toolbar_manual_element_hide"
+        },
+        {
+          "actionId": "elementInspection",
+          "title": "审查元素",
+          "resourceFamily": "app_toolbar_action_element_inspection"
+        },
+        {
+          "actionId": "reader",
+          "title": "阅读模式",
+          "resourceFamily": "app_toolbar_reader"
+        },
+        {
+          "actionId": "translate",
+          "title": "翻译网页",
+          "resourceFamily": "app_toolbar_action_translate"
+        },
+        {
+          "actionId": "themeMode",
+          "title": "外观模式",
+          "resourceFamily": "app_toolbar_theme_mode"
+        },
+        {
+          "actionId": "screenOrientation",
+          "title": "屏幕方向",
+          "resourceFamily": "app_toolbar_screen_orientation"
+        },
+        {
+          "actionId": "addToDesktop",
+          "title": "作为应用安装",
+          "resourceFamily": "app_toolbar_add_to_desktop"
+        },
+        {
+          "actionId": "offline",
+          "title": "保存离线网页",
+          "resourceFamily": "app_toolbar_offline"
+        },
+        {
+          "actionId": "siteInfo",
+          "title": "站点信息",
+          "resourceFamily": "app_settings_about"
+        },
+        {
+          "actionId": "reportSite",
+          "title": "举报网站",
+          "resourceFamily": "app_toolbar_report_site"
+        },
+        {
+          "actionId": "savedPages",
+          "title": "已保存页面",
+          "resourceFamily": "app_toolbar_saved_pages"
+        }
+      ]
+    },
+    {
+      "id": "browser-chrome",
+      "title": "Browser chrome and bottom address controls",
+      "description": "Static browser chrome icons outside the configurable action grid.",
+      "entryKind": "resource",
+      "entries": [
+        {
+          "title": "返回",
+          "resourceFamily": "app_toolbar_back"
+        },
+        {
+          "title": "前进",
+          "resourceFamily": "app_toolbar_forward"
+        },
+        {
+          "title": "标签页",
+          "resourceFamily": "app_toolbar_tabs"
+        },
+        {
+          "title": "搜索",
+          "resourceFamily": "app_toolbar_search"
+        },
+        {
+          "title": "继续展开工具栏",
+          "resourceFamily": "app_toolbar_expand_hint"
+        },
+        {
+          "title": "刷新",
+          "resourceFamily": "app_toolbar_refresh"
+        },
+        {
+          "title": "连接安全",
+          "resourceFamily": "app_toolbar_connection_security"
+        },
+        {
+          "title": "主页",
+          "resourceFamily": "app_shortcut_home"
+        },
+        {
+          "title": "复制链接",
+          "resourceFamily": "app_toolbar_copy_link"
+        },
+        {
+          "title": "编辑",
+          "resourceFamily": "app_toolbar_edit"
+        },
+        {
+          "title": "输入地址",
+          "resourceFamily": "app_toolbar_fill_address"
+        },
+        {
+          "title": "全选",
+          "resourceFamily": "app_toolbar_select_all"
+        },
+        {
+          "title": "更多",
+          "resourceFamily": "app_toolbar_more"
+        },
+        {
+          "title": "关闭/清空",
+          "resourceFamily": "app_toolbar_clear_input"
+        },
+        {
+          "title": "分享文档",
+          "resourceFamily": "app_toolbar_share_document"
+        },
+        {
+          "title": "站点信息",
+          "resourceFamily": "app_toolbar_site_info"
+        },
+        {
+          "title": "新建标签",
+          "resourceFamily": "app_tabs_overview_add"
+        },
+        {
+          "title": "删除/关闭标签",
+          "resourceFamily": "app_tabs_overview_close"
+        },
+        {
+          "title": "隐私模式",
+          "resourceFamily": "app_tabs_privacy_mode"
+        }
+      ]
+    },
+    {
+      "id": "external-app-search",
+      "title": "Third-party app search shortcuts",
+      "description": "User-provided app raster icons shown in cross-app search and its settings.",
+      "entryKind": "resource",
+      "entries": [
+        {
+          "resourceFamily": "app_external_search_zhihu",
+          "title": "知乎"
+        },
+        {
+          "resourceFamily": "app_external_search_bilibili",
+          "title": "哔哩哔哩"
+        },
+        {
+          "resourceFamily": "app_external_search_douyin",
+          "title": "抖音"
+        },
+        {
+          "resourceFamily": "app_external_search_xiaohongshu",
+          "title": "小红书"
+        },
+        {
+          "resourceFamily": "app_external_search_douban",
+          "title": "豆瓣"
+        },
+        {
+          "resourceFamily": "app_external_search_quark",
+          "title": "夸克"
+        },
+        {
+          "resourceFamily": "app_external_search_appgallery",
+          "title": "华为应用市场"
+        },
+        {
+          "resourceFamily": "app_external_search_jd",
+          "title": "京东"
+        },
+        {
+          "resourceFamily": "app_external_search_taobao",
+          "title": "淘宝"
+        },
+        {
+          "resourceFamily": "app_external_search_pinduoduo",
+          "title": "拼多多"
+        },
+        {
+          "resourceFamily": "app_external_search_xianyu",
+          "title": "闲鱼"
+        },
+        {
+          "resourceFamily": "app_external_search_meituan",
+          "title": "美团"
+        },
+        {
+          "resourceFamily": "app_external_search_baidu_map",
+          "title": "百度地图"
+        },
+        {
+          "resourceFamily": "app_external_search_qqmusic",
+          "title": "QQ音乐"
+        },
+        {
+          "resourceFamily": "app_external_search_alipay",
+          "title": "支付宝"
+        },
+        {
+          "resourceFamily": "app_external_search_youdao",
+          "title": "网易有道词典"
+        }
+      ]
+    },
+    {
+      "id": "reader-controls",
+      "title": "Reader mode controls",
+      "description": "Reader-mode-only controls. The reader entry in the bottom toolbar remains in bottom-toolbar-customizable.",
+      "entryKind": "resource",
+      "entries": [
+        {
+          "title": "减小字号",
+          "resourceFamily": "app_reader_decrease_font"
+        },
+        {
+          "title": "增大字号",
+          "resourceFamily": "app_reader_increase_font"
+        },
+        {
+          "title": "主题",
+          "resourceFamily": "app_reader_theme"
+        },
+        {
+          "title": "朗读",
+          "resourceFamily": "app_reader_read_aloud"
+        },
+        {
+          "title": "切换行距",
+          "resourceFamily": "app_reader_line_height"
+        },
+        {
+          "title": "阅读区域宽度",
+          "resourceFamily": "app_reader_page_width"
+        },
+        {
+          "title": "查找正文",
+          "resourceFamily": "app_reader_find"
+        },
+        {
+          "title": "分享",
+          "resourceFamily": "app_reader_share"
+        },
+        {
+          "title": "进入书签",
+          "resourceFamily": "app_reader_bookmarks"
+        },
+        {
+          "title": "添加书签",
+          "resourceFamily": "app_reader_add_bookmark"
+        },
+        {
+          "title": "重置图片预览",
+          "resourceFamily": "app_reader_refresh"
+        }
+      ]
+    },
+    {
+      "id": "offline-viewer-controls",
+      "title": "离线网页查看器",
+      "description": "Offline-viewer-only outline controls derived independently from generic filled browser toolbar assets.",
+      "entryKind": "resource",
+      "entries": [
+        {
+          "title": "打开原网页",
+          "resourceFamily": "app_offline_open_original"
+        }
+      ]
+    },
+    {
+      "id": "video-assistant-controls",
+      "title": "Video Assistant player controls",
+      "description": "Fixed-white SVG controls rendered over the dark native Video Assistant playback surface.",
+      "entryKind": "resource",
+      "entries": [
+        {
+          "title": "播放",
+          "resourceFamily": "app_video_assistant_play"
+        },
+        {
+          "title": "暂停",
+          "resourceFamily": "app_video_assistant_pause"
+        },
+        {
+          "title": "后退 10 秒",
+          "resourceFamily": "app_video_assistant_seek_backward_10"
+        },
+        {
+          "title": "前进 10 秒",
+          "resourceFamily": "app_video_assistant_seek_forward_10"
+        },
+        {
+          "title": "画面比例",
+          "resourceFamily": "app_video_assistant_control_aspect_ratio"
+        },
+        {
+          "title": "弹出播放",
+          "resourceFamily": "app_video_assistant_popup"
+        },
+        {
+          "title": "播放速度",
+          "resourceFamily": "app_video_assistant_control_playback_speed"
+        },
+        {
+          "title": "旋转",
+          "resourceFamily": "app_video_assistant_control_rotate"
+        },
+        {
+          "title": "锁定",
+          "resourceFamily": "app_video_assistant_lock"
+        },
+        {
+          "title": "解锁",
+          "resourceFamily": "app_video_assistant_unlock"
+        }
+      ]
+    },
+    {
+      "id": "settings",
+      "title": "Settings center and settings detail icons",
+      "entryKind": "resource",
+      "entries": [
+        {
+          "title": "关于 Aira",
+          "resourceFamily": "app_settings_about"
+        },
+        {
+          "title": "广告拦截",
+          "resourceFamily": "app_settings_ad_blocker"
+        },
+        {
+          "title": "应用服务模式",
+          "resourceFamily": "app_settings_app_service_mode"
+        },
+        {
+          "title": "外观模式",
+          "resourceFamily": "app_settings_appearance"
+        },
+        {
+          "title": "自定义主页",
+          "resourceFamily": "app_settings_custom_homepage"
+        },
+        {
+          "title": "下载",
+          "resourceFamily": "app_settings_downloads"
+        },
+        {
+          "title": "实验室",
+          "resourceFamily": "app_settings_experiments"
+        },
+        {
+          "title": "通用",
+          "resourceFamily": "app_settings_general"
+        },
+        {
+          "title": "会员",
+          "resourceFamily": "app_settings_membership"
+        },
+        {
+          "title": "邀请",
+          "resourceFamily": "app_settings_membership_invite"
+        },
+        {
+          "title": "密码",
+          "resourceFamily": "app_settings_passwords"
+        },
+        {
+          "title": "隐私与安全",
+          "resourceFamily": "app_settings_privacy_security"
+        },
+        {
+          "title": "恢复购买",
+          "resourceFamily": "app_settings_restore_purchase"
+        },
+        {
+          "title": "搜索",
+          "resourceFamily": "app_settings_search"
+        },
+        {
+          "title": "站点设置",
+          "resourceFamily": "app_settings_site_settings"
+        },
+        {
+          "title": "同步",
+          "resourceFamily": "app_settings_sync"
+        },
+        {
+          "title": "网页标识",
+          "resourceFamily": "app_settings_user_agent"
+        },
+        {
+          "title": "用户脚本",
+          "resourceFamily": "app_settings_user_scripts"
+        },
+        {
+          "title": "网页功能",
+          "resourceFamily": "app_settings_web_features"
+        },
+        {
+          "title": "网页应用",
+          "resourceFamily": "app_settings_web_apps"
+        },
+        {
+          "title": "WebDAV",
+          "resourceFamily": "app_settings_webdav"
+        },
+        {
+          "title": "网页翻译",
+          "resourceFamily": "app_settings_webpage_translation"
+        }
+      ]
+    },
+    {
+      "id": "settings-colored-tile-foreground",
+      "title": "Settings colored-tile white foreground icons",
+      "description": "Operational Icons rendered as white glyphs inside colored 30vp settings tiles. Six frozen Resource consumers receive generated compatibility SVGs from the same Icons8 source pack.",
+      "entryKind": "resource",
+      "renderContext": "SettingsNavigationRow, SettingsToggleRow, and frozen Resource compatibility consumers",
+      "foregroundColor": "#FFFFFF",
+      "backgroundOwner": "AiraBrowser/entry/src/main/ets/app/components/settings/SettingsRows.ets iconBackgroundColor",
+      "entries": [
+        {
+          "title": "关于 Aira",
+          "resourceFamily": "app_settings_about"
+        },
+        {
+          "title": "广告拦截",
+          "resourceFamily": "app_settings_ad_blocker"
+        },
+        {
+          "title": "应用服务模式",
+          "resourceFamily": "app_settings_app_service_mode"
+        },
+        {
+          "title": "外观模式",
+          "resourceFamily": "app_settings_appearance"
+        },
+        {
+          "title": "自定义主页",
+          "resourceFamily": "app_settings_custom_homepage"
+        },
+        {
+          "title": "下载",
+          "resourceFamily": "app_settings_downloads"
+        },
+        {
+          "title": "实验室",
+          "resourceFamily": "app_settings_experiments"
+        },
+        {
+          "title": "通用",
+          "resourceFamily": "app_settings_general"
+        },
+        {
+          "title": "会员",
+          "resourceFamily": "app_settings_membership"
+        },
+        {
+          "title": "邀请",
+          "resourceFamily": "app_settings_membership_invite"
+        },
+        {
+          "title": "密码",
+          "resourceFamily": "app_settings_passwords"
+        },
+        {
+          "title": "隐私与安全",
+          "resourceFamily": "app_settings_privacy_security"
+        },
+        {
+          "title": "恢复购买",
+          "resourceFamily": "app_settings_restore_purchase"
+        },
+        {
+          "title": "搜索",
+          "resourceFamily": "app_settings_search"
+        },
+        {
+          "title": "站点设置",
+          "resourceFamily": "app_settings_site_settings"
+        },
+        {
+          "title": "同步",
+          "resourceFamily": "app_settings_sync"
+        },
+        {
+          "title": "网页标识",
+          "resourceFamily": "app_settings_user_agent"
+        },
+        {
+          "title": "用户脚本",
+          "resourceFamily": "app_settings_user_scripts"
+        },
+        {
+          "title": "网页功能",
+          "resourceFamily": "app_settings_web_features"
+        },
+        {
+          "title": "网页应用",
+          "resourceFamily": "app_settings_web_apps"
+        },
+        {
+          "title": "WebDAV",
+          "resourceFamily": "app_settings_webdav"
+        },
+        {
+          "title": "网页翻译",
+          "resourceFamily": "app_settings_webpage_translation"
+        }
+      ]
+    },
+    {
+      "id": "membership",
+      "title": "Membership and benefit icons",
+      "entryKind": "resource",
+      "entries": [
+        {
+          "title": "会员礼物",
+          "resourceFamily": "app_membership_gift"
+        },
+        {
+          "title": "邀请记录时间",
+          "resourceFamily": "app_membership_invite_record_clock"
+        },
+        {
+          "title": "恢复购买",
+          "resourceFamily": "app_membership_restore_purchase"
+        },
+        {
+          "title": "广告拦截权益",
+          "resourceFamily": "app_membership_benefit_ad_blocker"
+        },
+        {
+          "title": "外观权益",
+          "resourceFamily": "app_membership_benefit_appearance"
+        },
+        {
+          "title": "下载权益",
+          "resourceFamily": "app_membership_benefit_downloads"
+        },
+        {
+          "title": "实验室权益",
+          "resourceFamily": "app_membership_benefit_experiments"
+        },
+        {
+          "title": "邀请权益",
+          "resourceFamily": "app_membership_benefit_invite"
+        },
+        {
+          "title": "会员权益",
+          "resourceFamily": "app_membership_benefit_membership"
+        },
+        {
+          "title": "隐私安全权益",
+          "resourceFamily": "app_membership_benefit_privacy_security"
+        },
+        {
+          "title": "刷新权益",
+          "resourceFamily": "app_membership_benefit_refresh"
+        },
+        {
+          "title": "同步权益",
+          "resourceFamily": "app_membership_benefit_sync"
+        },
+        {
+          "title": "脚本权益",
+          "resourceFamily": "app_membership_benefit_user_scripts"
+        },
+        {
+          "title": "WebDAV 权益",
+          "resourceFamily": "app_membership_benefit_webdav"
+        },
+        {
+          "title": "翻译权益",
+          "resourceFamily": "app_membership_benefit_webpage_translation"
+        }
+      ]
+    },
+    {
+      "id": "site-controls",
+      "title": "Site permissions and site customization",
+      "entryKind": "resource",
+      "entries": [
+        {
+          "title": "摄像头",
+          "resourceFamily": "app_site_permission_camera"
+        },
+        {
+          "title": "剪贴板",
+          "resourceFamily": "app_site_permission_clipboard"
+        },
+        {
+          "title": "位置信息",
+          "resourceFamily": "app_site_permission_location"
+        },
+        {
+          "title": "麦克风",
+          "resourceFamily": "app_site_permission_microphone"
+        },
+        {
+          "title": "传感器",
+          "resourceFamily": "app_site_permission_sensor"
+        },
+        {
+          "title": "关闭后清除",
+          "resourceFamily": "app_site_setting_clear_on_close"
+        },
+        {
+          "title": "外部动作",
+          "resourceFamily": "app_site_setting_external_actions"
+        },
+        {
+          "title": "打开应用",
+          "resourceFamily": "app_site_setting_open_app"
+        }
+      ]
+    },
+    {
+      "id": "theme-mode",
+      "title": "Theme mode selector icons",
+      "entryKind": "resource",
+      "entries": [
+        {
+          "title": "深色模式",
+          "resourceFamily": "app_theme_mode_dark"
+        },
+        {
+          "title": "浅色模式",
+          "resourceFamily": "app_theme_mode_light"
+        },
+        {
+          "title": "跟随系统",
+          "resourceFamily": "app_theme_mode_system"
+        }
+      ]
+    },
+    {
+      "id": "bookmarks",
+      "title": "Bookmark management icons",
+      "entryKind": "resource",
+      "entries": [
+        {
+          "title": "书签文件夹",
+          "resourceFamily": "app_bookmark_folder"
+        },
+        {
+          "title": "编辑模式拖动抓手",
+          "resourceFamily": "app_bookmark_edit_drag_handle"
+        },
+        {
+          "title": "编辑模式移动",
+          "resourceFamily": "app_bookmark_edit_move"
+        },
+        {
+          "title": "编辑模式全选",
+          "resourceFamily": "app_bookmark_edit_select_all"
+        }
+      ]
+    },
+    {
+      "id": "sync-first-activation-content",
+      "title": "Sync first-activation content icons",
+      "description": "Operational Icons shown in the first-activation 选择同步内容 sheet. The sheet reuses existing semantic IDs except for its dedicated activity heatmap glyph.",
+      "entryKind": "resource",
+      "renderContext": "SyncFirstActivationItemsSheet leading colored icon tiles",
+      "entries": [
+        {
+          "title": "书签",
+          "resourceFamily": "app_shortcut_bookmarks"
+        },
+        {
+          "title": "主页收藏",
+          "resourceFamily": "app_shortcut_home"
+        },
+        {
+          "title": "核心偏好",
+          "resourceFamily": "app_settings_general"
+        },
+        {
+          "title": "活动热力图",
+          "resourceFamily": "app_sync_first_activation_activity_heatmap"
+        },
+        {
+          "title": "搜索",
+          "resourceFamily": "app_settings_search"
+        }
+      ]
+    }
+  ]
+}

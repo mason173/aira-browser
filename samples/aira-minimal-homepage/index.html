@@ -1,0 +1,1971 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="aira-home-version" content="1.0.4">
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover"
+  >
+  <title>Aira 极简主页</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --page-bg: var(--aira-page-background, #ffffff);
+      --text: var(--aira-text-primary, #101010);
+      --muted: var(--aira-text-secondary, #464646);
+      --line: var(--aira-accent, #202020);
+      --hairline: var(--aira-divider, #e9e9e9);
+      --menu-bg: var(--aira-surface-background, rgba(255, 255, 255, 0.96));
+      --menu-shadow: rgba(0, 0, 0, 0.14);
+      --content-width: min(100%, 390px);
+      --toast-bg: rgba(17, 17, 17, 0.88);
+      --toast-text: #ffffff;
+      --control-bg: var(--aira-control-background, rgba(0, 0, 0, 0.04));
+      --control-line: var(--aira-outline, rgba(0, 0, 0, 0.12));
+      --home-pull-offset: 0px;
+      --home-search-offset: 0px;
+      --home-fade-opacity: 1;
+    }
+
+    :root[data-theme="dark"] {
+      color-scheme: dark;
+      --page-bg: var(--aira-page-background, #101010);
+      --text: var(--aira-text-primary, #f5f5f5);
+      --muted: var(--aira-text-secondary, #c9c9c9);
+      --line: var(--aira-accent, #f2f2f2);
+      --hairline: var(--aira-divider, rgba(255, 255, 255, 0.2));
+      --menu-bg: var(--aira-surface-background, rgba(30, 30, 30, 0.96));
+      --menu-shadow: rgba(0, 0, 0, 0.42);
+      --toast-bg: rgba(245, 245, 245, 0.92);
+      --toast-text: #111111;
+      --control-bg: var(--aira-control-background, rgba(255, 255, 255, 0.08));
+      --control-line: var(--aira-outline, rgba(255, 255, 255, 0.18));
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      overscroll-behavior: none;
+      background: var(--page-bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "HarmonyOS Sans", "PingFang SC", sans-serif;
+      letter-spacing: 0;
+      touch-action: manipulation;
+      -webkit-text-size-adjust: 100%;
+    }
+
+    body {
+      position: fixed;
+      inset: 0;
+      min-height: 100dvh;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    button,
+    input {
+      font: inherit;
+    }
+
+    button {
+      border: 0;
+      padding: 0;
+      color: inherit;
+      background: transparent;
+      cursor: pointer;
+    }
+
+    .page {
+      width: min(100%, 430px);
+      height: 100dvh;
+      margin: 0 auto;
+      padding:
+        max(18px, env(safe-area-inset-top))
+        max(20px, env(safe-area-inset-right))
+        calc(86px + env(safe-area-inset-bottom))
+        max(20px, env(safe-area-inset-left));
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .main-content {
+      flex: 1 1 auto;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding-bottom: clamp(58px, 8.5vh, 86px);
+    }
+
+    .brand {
+      width: var(--content-width);
+      height: clamp(58px, 15vw, 78px);
+      display: grid;
+      place-items: center;
+      margin-bottom: clamp(30px, 4.2vh, 42px);
+      opacity: var(--home-fade-opacity);
+      transform: translateY(var(--home-pull-offset));
+      transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 180ms ease;
+      will-change: transform, opacity;
+    }
+
+    .brand img {
+      width: min(178px, 48vw);
+      height: auto;
+      display: block;
+    }
+
+    :root[data-theme="dark"] .brand img,
+    :root[data-theme="dark"] .search-icon-button img,
+    :root[data-theme="dark"] .dock img {
+      filter: invert(1) brightness(1.08);
+    }
+
+    .search {
+      width: var(--content-width);
+      height: 42px;
+      border: 1.5px solid var(--line);
+      border-radius: 22px;
+      display: grid;
+      grid-template-columns: 1fr 44px 44px;
+      align-items: center;
+      overflow: hidden;
+      background: var(--page-bg);
+      flex: 0 0 auto;
+      position: relative;
+      z-index: 3;
+      transform: translateY(var(--home-search-offset));
+      transition: transform 260ms cubic-bezier(0.18, 0.9, 0.2, 1);
+      will-change: transform;
+    }
+
+    .search input {
+      width: 100%;
+      min-width: 0;
+      height: 100%;
+      border: 0;
+      outline: none;
+      padding: 0 0 0 28px;
+      color: var(--text);
+      background: transparent;
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    .search input::placeholder {
+      color: var(--muted);
+      opacity: 1;
+    }
+
+    .search-icon-button,
+    .native-search-button {
+      width: 44px;
+      height: 42px;
+      display: grid;
+      place-items: center;
+    }
+
+    .search-icon-button img {
+      width: 24px;
+      height: 24px;
+      display: block;
+    }
+
+    .native-search-glyph {
+      width: 24px;
+      height: 24px;
+      border: 1.5px solid currentColor;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    .search-engine-bar {
+      width: var(--content-width);
+      min-height: 34px;
+      margin-top: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .search-engine-bar[hidden] {
+      display: none;
+    }
+
+    .search-engine-icon {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      object-fit: contain;
+      flex: 0 0 auto;
+      display: none;
+    }
+
+    .search-engine-icon.visible {
+      display: block;
+    }
+
+    .search-engine-select {
+      min-width: 0;
+      max-width: 170px;
+      height: 30px;
+      padding: 0 26px 0 10px;
+      border: 1px solid var(--control-line);
+      border-radius: 15px;
+      color: var(--text);
+      background: var(--control-bg);
+      outline: none;
+      font-size: 12px;
+    }
+
+    .search-engine-select:disabled,
+    .shortcut-toolbar button:disabled,
+    .native-search-button:disabled {
+      cursor: default;
+      opacity: 0.45;
+    }
+
+    .search-engine-status {
+      min-width: 0;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+
+    .motion-status {
+      width: var(--content-width);
+      min-height: 42px;
+      margin-top: 14px;
+      padding: 8px 12px;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      border: 1px solid var(--control-line);
+      border-radius: 12px;
+      color: var(--muted);
+      background: var(--control-bg);
+      font-size: 12px;
+      line-height: 16px;
+    }
+
+    .motion-status-dot {
+      width: 8px;
+      height: 8px;
+      flex: 0 0 auto;
+      border-radius: 50%;
+      background: var(--muted);
+    }
+
+    .motion-status[data-motion-state="waiting"],
+    .motion-status[data-motion-state="active"] {
+      color: var(--text);
+    }
+
+    .motion-status[data-motion-state="waiting"] .motion-status-dot {
+      background: var(--line);
+    }
+
+    .motion-status[data-motion-state="active"] .motion-status-dot {
+      background: #2f9e44;
+    }
+
+    .motion-status-title {
+      display: block;
+      color: inherit;
+      font-weight: 600;
+    }
+
+    .motion-status-detail {
+      display: block;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .shortcut-toolbar {
+      width: var(--content-width);
+      margin-top: 18px;
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    .shortcut-toolbar button {
+      min-width: 74px;
+      height: 30px;
+      padding: 0 12px;
+      border: 1px solid var(--control-line);
+      border-radius: 15px;
+      color: var(--text);
+      background: var(--control-bg);
+      font-size: 12px;
+    }
+
+    .shortcut-toolbar button.active {
+      color: var(--page-bg);
+      background: var(--text);
+      border-color: var(--text);
+    }
+
+    .shortcut-grid {
+      width: var(--content-width);
+      margin-top: clamp(22px, 3.8vh, 36px);
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      row-gap: clamp(22px, 3.8vh, 34px);
+      column-gap: clamp(8px, 3.6vw, 18px);
+      max-height: min(38vh, 320px);
+      overflow-y: auto;
+      scrollbar-width: none;
+      flex: 0 0 auto;
+      opacity: var(--home-fade-opacity);
+      transform: translateY(var(--home-pull-offset));
+      transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 180ms ease;
+      will-change: transform, opacity;
+    }
+
+    .shortcut-grid::-webkit-scrollbar {
+      display: none;
+    }
+
+    .shortcut {
+      min-width: 0;
+      display: grid;
+      justify-items: center;
+      gap: 8px;
+    }
+
+    .shortcut-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      border: 1px solid var(--hairline);
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+      color: var(--text);
+      background: var(--page-bg);
+      font-size: 16px;
+      font-weight: 700;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+      transition: transform 120ms ease, opacity 120ms ease, border-color 120ms ease;
+    }
+
+    .shortcut.reorderable {
+      cursor: grab;
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    .shortcut.dragging {
+      position: relative;
+      z-index: 2;
+      opacity: 0.72;
+      cursor: grabbing;
+      transform: scale(1.04);
+    }
+
+    .shortcut.drop-target .shortcut-icon {
+      border-color: var(--text);
+      transform: scale(1.06);
+    }
+
+    .shortcut-icon img {
+      width: 27px;
+      height: 27px;
+      object-fit: contain;
+      display: block;
+    }
+
+    .shortcut-icon.aira-home-shortcut-icon-font {
+      color: var(--text);
+      font-size: 27px;
+    }
+
+    .shortcut-title {
+      width: 60px;
+      min-height: 16px;
+      color: var(--text);
+      font-size: 11px;
+      line-height: 16px;
+      font-weight: 500;
+      text-align: center;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+
+    :root[data-shortcut-labels="hidden"] .shortcut-title {
+      visibility: hidden;
+    }
+
+    .empty {
+      margin-top: 24px;
+      min-height: 54px;
+      display: none;
+      place-items: center;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 20px;
+      text-align: center;
+      opacity: var(--home-fade-opacity);
+      transform: translateY(var(--home-pull-offset));
+      transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 180ms ease;
+      will-change: transform, opacity;
+    }
+
+    .dock {
+      position: fixed;
+      left: 50%;
+      right: auto;
+      bottom: max(6px, env(safe-area-inset-bottom));
+      transform: translateX(-50%) translateY(var(--home-pull-offset));
+      height: 54px;
+      width: min(calc(100vw - 40px), 390px);
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--page-bg);
+      opacity: var(--home-fade-opacity);
+      transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 180ms ease;
+      will-change: transform, opacity;
+    }
+
+    .dock button {
+      height: 54px;
+      width: 56px;
+      display: grid;
+      place-items: center;
+    }
+
+    .dock img {
+      width: 25px;
+      height: 25px;
+      display: block;
+    }
+
+    .dock img.card-icon {
+      width: 26px;
+      height: 26px;
+    }
+
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: calc(84px + env(safe-area-inset-bottom));
+      transform: translateX(-50%);
+      max-width: min(320px, calc(100vw - 48px));
+      padding: 10px 14px;
+      border-radius: 999px;
+      color: var(--toast-text);
+      background: var(--toast-bg);
+      font-size: 14px;
+      line-height: 20px;
+      text-align: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 160ms ease;
+    }
+
+    .toast.visible {
+      opacity: 1;
+    }
+
+    .shortcut-menu-backdrop {
+      position: fixed;
+      inset: 0;
+      display: none;
+      z-index: 20;
+      background: transparent;
+    }
+
+    .shortcut-menu-backdrop.visible {
+      display: block;
+    }
+
+    .shortcut-menu {
+      position: fixed;
+      left: 50%;
+      top: 50%;
+      width: 176px;
+      padding: 6px;
+      border: 1px solid var(--hairline);
+      border-radius: 14px;
+      background: var(--menu-bg);
+      box-shadow: 0 14px 36px var(--menu-shadow);
+      transform: translate(-50%, -50%);
+      overflow: hidden;
+      -webkit-backdrop-filter: blur(18px);
+      backdrop-filter: blur(18px);
+    }
+
+    .shortcut-menu button {
+      width: 100%;
+      height: 38px;
+      padding: 0 12px;
+      border-radius: 9px;
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      color: var(--text);
+      font-size: 14px;
+      line-height: 18px;
+      text-align: left;
+    }
+
+    .shortcut-menu button:active {
+      background: var(--hairline);
+      transform: none;
+    }
+
+    .shortcut-menu button.danger {
+      color: #d92d20;
+    }
+
+    button:active .shortcut-icon,
+    .search-icon-button:active,
+    .dock button:active {
+      transform: scale(0.95);
+    }
+
+    body.home-dragging .brand,
+    body.home-dragging .search,
+    body.home-dragging .shortcut-grid,
+    body.home-dragging .empty,
+    body.home-dragging .dock,
+    body.home-springing .brand,
+    body.home-springing .search,
+    body.home-springing .shortcut-grid,
+    body.home-springing .empty,
+    body.home-springing .dock {
+      transition: none;
+    }
+
+    body.home-search-docked .brand,
+    body.home-search-docked .shortcut-grid,
+    body.home-search-docked .empty,
+    body.home-search-docked .dock {
+      pointer-events: none;
+    }
+
+    @media (max-height: 740px) {
+      .main-content {
+        padding-bottom: clamp(42px, 6.5vh, 62px);
+      }
+
+      .brand {
+        margin-bottom: 28px;
+      }
+
+      .shortcut-grid {
+        margin-top: 28px;
+        row-gap: 20px;
+      }
+
+      .shortcut-icon {
+        width: 44px;
+        height: 44px;
+      }
+
+      .shortcut-icon img {
+        width: 25px;
+        height: 25px;
+      }
+
+      .shortcut-title {
+        font-size: 11px;
+        line-height: 15px;
+      }
+    }
+
+    @media (max-width: 380px) {
+      .page {
+        padding-left: 16px;
+        padding-right: 16px;
+      }
+
+      :root {
+        --content-width: min(100%, 360px);
+      }
+
+      .brand img {
+        width: 156px;
+      }
+
+      .search {
+        height: 42px;
+        grid-template-columns: 1fr 42px 42px;
+      }
+
+      .search input {
+        padding-left: 22px;
+        font-size: 14px;
+      }
+
+      .search-icon-button,
+      .native-search-button {
+        width: 42px;
+        height: 42px;
+      }
+
+      .search-icon-button img {
+        width: 24px;
+        height: 24px;
+      }
+
+      .shortcut-title {
+        width: 56px;
+        font-size: 11px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="main-content" aria-label="Aira 主页">
+      <div class="brand" aria-label="Aira">
+        <img src="./assets/Aira.svg" alt="">
+      </div>
+
+      <form class="search" id="searchForm">
+        <input id="searchInput" autocomplete="off" inputmode="search" placeholder="搜索或输入网址">
+        <button class="native-search-button" id="nativeSearchButton" type="button" aria-label="打开 Aira 系统搜索">
+          <span class="native-search-glyph" aria-hidden="true">A</span>
+        </button>
+        <button class="search-icon-button" id="scanButton" type="button" aria-label="扫一扫">
+          <img src="./assets/scan.svg" alt="">
+        </button>
+      </form>
+
+      <div class="search-engine-bar" id="searchEngineBar" hidden>
+        <img class="search-engine-icon" id="searchEngineIcon" alt="">
+        <select class="search-engine-select" id="searchEngineSelect" aria-label="搜索引擎"></select>
+        <span class="search-engine-status" id="searchEngineStatus"></span>
+      </div>
+
+      <div class="motion-status" id="motionStatus" data-motion-state="checking" role="status" aria-live="polite">
+        <span class="motion-status-dot" aria-hidden="true"></span>
+        <span>
+          <strong class="motion-status-title" id="motionStatusTitle">智感握姿：检查中</strong>
+          <span class="motion-status-detail" id="motionStatusDetail">正在检查 AiraHome.motion</span>
+        </span>
+      </div>
+
+      <div class="shortcut-toolbar" aria-label="快捷方式工具">
+        <button id="toolbarButton" type="button">展开工具栏</button>
+        <button id="labelPreferenceButton" type="button">隐藏名称</button>
+        <button id="addShortcutButton" type="button">添加快捷方式</button>
+        <button id="reorderButton" type="button">排序</button>
+      </div>
+
+      <section class="shortcut-grid" id="shortcutGrid" aria-label="主页快捷方式"></section>
+      <p class="empty" id="emptyState">暂无主页快捷方式，可从 Aira 的书签或历史记录添加。</p>
+    </section>
+  </main>
+
+  <nav class="dock" aria-label="Aira 系统入口">
+    <button id="homeButton" type="button" aria-label="主页">
+      <img src="./assets/home.svg" alt="">
+    </button>
+    <button id="bookmarksButton" type="button" aria-label="书签">
+      <img src="./assets/bookmark.svg" alt="">
+    </button>
+    <button id="tabsButton" type="button" aria-label="标签页">
+      <img class="card-icon" src="./assets/card.svg" alt="">
+    </button>
+    <button id="settingsButton" type="button" aria-label="设置">
+      <img src="./assets/setting.svg" alt="">
+    </button>
+  </nav>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <div class="shortcut-menu-backdrop" id="shortcutMenuBackdrop">
+    <div class="shortcut-menu" id="shortcutMenu" role="menu" aria-label="快捷方式菜单"></div>
+  </div>
+
+  <script>
+    (function () {
+      var shortcutGrid = document.getElementById('shortcutGrid');
+      var emptyState = document.getElementById('emptyState');
+      var searchForm = document.getElementById('searchForm');
+      var searchInput = document.getElementById('searchInput');
+      var nativeSearchButton = document.getElementById('nativeSearchButton');
+      var scanButton = document.getElementById('scanButton');
+      var searchEngineBar = document.getElementById('searchEngineBar');
+      var searchEngineIcon = document.getElementById('searchEngineIcon');
+      var searchEngineSelect = document.getElementById('searchEngineSelect');
+      var searchEngineStatus = document.getElementById('searchEngineStatus');
+      var motionStatus = document.getElementById('motionStatus');
+      var motionStatusTitle = document.getElementById('motionStatusTitle');
+      var motionStatusDetail = document.getElementById('motionStatusDetail');
+      var toolbarButton = document.getElementById('toolbarButton');
+      var labelPreferenceButton = document.getElementById('labelPreferenceButton');
+      var addShortcutButton = document.getElementById('addShortcutButton');
+      var reorderButton = document.getElementById('reorderButton');
+      var homeButton = document.getElementById('homeButton');
+      var tabsButton = document.getElementById('tabsButton');
+      var bookmarksButton = document.getElementById('bookmarksButton');
+      var settingsButton = document.getElementById('settingsButton');
+      var toast = document.getElementById('toast');
+      var shortcutMenuBackdrop = document.getElementById('shortcutMenuBackdrop');
+      var shortcutMenu = document.getElementById('shortcutMenu');
+      var pageRoot = document.querySelector('.page');
+      var shortcutItems = [];
+      var searchEngineState = null;
+      var shortcutReorderMode = false;
+      var draggedShortcutId = '';
+      var shortcutDragPointerId = -1;
+      var shortcutDragButton = null;
+      var shortcutDragOrderChanged = false;
+      var shortcutDragLastTargetId = '';
+      var toastTimer = 0;
+      var longPressTimer = 0;
+      var longPressStartX = 0;
+      var longPressStartY = 0;
+      var longPressTriggered = false;
+      var suppressNextClick = false;
+      var activeShortcut = null;
+      var homePullTracking = false;
+      var homePullActive = false;
+      var homePullStartX = 0;
+      var homePullStartY = 0;
+      var currentSearchOffset = 0;
+      var currentPullOffset = 0;
+      var currentFadeOpacity = 1;
+      var homePullThreshold = 82;
+      var homePullMaxOffset = 154;
+      var homePullResistance = 108;
+      var homeSpringFrame = 0;
+      var dockedSearchBaseTop = 0;
+      var homeBackHandlerActive = false;
+      var dockedSearchOpenedAt = 0;
+      var homepagePreferences = {
+        showShortcutLabels: true
+      };
+      var holdingHandMotion = null;
+      var holdingHandCallback = null;
+      var holdingHandRetryTimer = 0;
+      var holdingHandRetryCount = 0;
+
+      function getApi() {
+        return window.AiraHome || null;
+      }
+
+      function showToast(message) {
+        toast.textContent = message;
+        toast.classList.add('visible');
+        if (toastTimer) {
+          clearTimeout(toastTimer);
+        }
+        toastTimer = setTimeout(function () {
+          toast.classList.remove('visible');
+        }, 1700);
+      }
+
+      function closeShortcutMenu() {
+        shortcutMenuBackdrop.classList.remove('visible');
+        shortcutMenu.innerHTML = '';
+        activeShortcut = null;
+      }
+
+      function normalizeInput(value) {
+        return String(value || '').trim();
+      }
+
+      function errorCode(error) {
+        return error && error.code ? String(error.code) : '';
+      }
+
+      function showApiError(prefix, error) {
+        var code = errorCode(error);
+        showToast(code ? prefix + '（' + code + '）' : prefix);
+      }
+
+      function setMotionStatus(state, title, detail) {
+        motionStatus.dataset.motionState = state;
+        motionStatusTitle.textContent = title;
+        motionStatusDetail.textContent = detail;
+      }
+
+      function describeHoldingHandStatus(status) {
+        var code = Number(status);
+        if (code === 0) {
+          return { state: 'active', title: '智感握姿：未握持', detail: '收到 holdingHandChanged，status=0' };
+        }
+        if (code === 1) {
+          return { state: 'active', title: '智感握姿：左手握持', detail: '收到 holdingHandChanged，status=1' };
+        }
+        if (code === 2) {
+          return { state: 'active', title: '智感握姿：右手握持', detail: '收到 holdingHandChanged，status=2' };
+        }
+        if (code === 3) {
+          return { state: 'active', title: '智感握姿：双手握持', detail: '收到 holdingHandChanged，status=3' };
+        }
+        return { state: 'active', title: '智感握姿：未知状态', detail: '收到 holdingHandChanged，status=' + code };
+      }
+
+      function describeMotionBridge(api, motion) {
+        var state = window.__airaHomeMotionState || {};
+        var versionMeta = document.querySelector('meta[name="aira-home-version"]');
+        var version = versionMeta ? versionMeta.getAttribute('content') : '';
+        return 'AiraHome=' + (api ? '存在' : '缺失') +
+          '，motion=' + (motion ? '存在' : '缺失') +
+          '，allowed=' + (state.allowed === true ? 'true' : String(state.allowed)) +
+          '，页面版本=' + (version || '未知');
+      }
+
+      function readInitialHoldingHandStatus() {
+        var state = window.__airaHomeMotionState || {};
+        var status = Number(state.holdingHandStatus);
+        return status === 0 || status === 1 || status === 2 || status === 3 || status === 16 ? status : null;
+      }
+
+      function startHoldingHandListener() {
+        if (holdingHandMotion) {
+          return;
+        }
+        var api = getApi();
+        var motion = api && api.motion;
+        if (!motion || typeof motion.on !== 'function' || typeof motion.off !== 'function') {
+          setMotionStatus('unavailable', '智感握姿：API 不可用', describeMotionBridge(api, motion));
+          if (holdingHandRetryCount < 4) {
+            holdingHandRetryCount += 1;
+            holdingHandRetryTimer = setTimeout(function () {
+              holdingHandRetryTimer = 0;
+              startHoldingHandListener();
+            }, 120);
+          }
+          return;
+        }
+        holdingHandRetryCount = 0;
+        holdingHandMotion = motion;
+        holdingHandCallback = function (status) {
+          var presentation = describeHoldingHandStatus(status);
+          setMotionStatus(presentation.state, presentation.title, presentation.detail);
+        };
+        try {
+          holdingHandMotion.on('holdingHandChanged', holdingHandCallback);
+          var initialStatus = readInitialHoldingHandStatus();
+          if (initialStatus !== null && initialStatus !== 16) {
+            var initialPresentation = describeHoldingHandStatus(initialStatus);
+            setMotionStatus(
+              'waiting',
+              '智感握姿：已订阅（当前：' + initialPresentation.title.replace('智感握姿：', '') + '）',
+              '当前状态 status=' + initialStatus + '；等待 holdingHandChanged 变化回调'
+            );
+          } else {
+            setMotionStatus('waiting', '智感握姿：已订阅', '等待系统回调 holdingHandChanged');
+          }
+        } catch (error) {
+          holdingHandMotion = null;
+          holdingHandCallback = null;
+          setMotionStatus('unavailable', '智感握姿：订阅失败', 'AiraHome.motion.on 调用失败' + (errorCode(error) ? '（' + errorCode(error) + '）' : ''));
+        }
+      }
+
+      function stopHoldingHandListener() {
+        if (!holdingHandMotion || !holdingHandCallback) {
+          return;
+        }
+        try {
+          holdingHandMotion.off('holdingHandChanged', holdingHandCallback);
+        } catch (_error) {}
+        holdingHandMotion = null;
+        holdingHandCallback = null;
+      }
+
+      function normalizeHomepagePreferences(value) {
+        var incoming = value || {};
+        return {
+          showShortcutLabels: incoming.showShortcutLabels !== false
+        };
+      }
+
+      function applyHomepagePreferences() {
+        document.documentElement.dataset.shortcutLabels =
+          homepagePreferences.showShortcutLabels ? 'visible' : 'hidden';
+        labelPreferenceButton.textContent =
+          homepagePreferences.showShortcutLabels ? '隐藏名称' : '显示名称';
+      }
+
+      function loadHomepagePreferences() {
+        var api = getApi();
+        var storage = api && api.storage;
+        if (!storage || typeof storage.get !== 'function') {
+          applyHomepagePreferences();
+          return;
+        }
+        storage.get('preferences', {
+          showShortcutLabels: true
+        }).then(function (value) {
+          homepagePreferences = normalizeHomepagePreferences(value);
+          applyHomepagePreferences();
+        }).catch(function (error) {
+          applyHomepagePreferences();
+          showApiError('读取主页配置失败', error);
+        });
+      }
+
+      function toggleShortcutLabels() {
+        var api = getApi();
+        var storage = api && api.storage;
+        if (!storage || typeof storage.set !== 'function') {
+          showToast('主页配置存储不可用');
+          return;
+        }
+        var previous = normalizeHomepagePreferences(homepagePreferences);
+        homepagePreferences = {
+          showShortcutLabels: !previous.showShortcutLabels
+        };
+        applyHomepagePreferences();
+        labelPreferenceButton.disabled = true;
+        storage.set('preferences', homepagePreferences).then(function () {
+          showToast('主页配置已保存');
+        }, function (error) {
+          homepagePreferences = previous;
+          applyHomepagePreferences();
+          showApiError('保存主页配置失败', error);
+        }).then(function () {
+          updateCapabilityControls();
+        });
+      }
+
+      function resolveHomepageEngineIcon(engine) {
+        var homepageIcons = {
+          // 需要自定义展示图标时，在这里按稳定 ID 配置主页自己的资源。
+        };
+        return homepageIcons[engine.id] || String(engine.icon || '').trim();
+      }
+
+      function normalizeSearchEngineState(state) {
+        var incoming = state || {};
+        var engines = Array.isArray(incoming.engines) ? incoming.engines : [];
+        return {
+          selectedEngineId: String(incoming.selectedEngineId || '').trim(),
+          selectionScope: incoming.selectionScope === 'session' ? 'session' : 'persistent',
+          engines: engines
+        };
+      }
+
+      function renderSearchEngineState(state) {
+        var api = getApi();
+        if (!api || typeof api.setSearchEngine !== 'function') {
+          searchEngineBar.hidden = true;
+          return;
+        }
+        searchEngineState = normalizeSearchEngineState(state);
+        var engines = searchEngineState.engines;
+        if (!engines.length) {
+          searchEngineBar.hidden = true;
+          searchEngineSelect.innerHTML = '';
+          searchEngineIcon.removeAttribute('src');
+          searchEngineIcon.classList.remove('visible');
+          searchEngineStatus.textContent = '';
+          return;
+        }
+        searchEngineBar.hidden = false;
+        searchEngineSelect.innerHTML = '';
+        engines.forEach(function (engine) {
+          var option = document.createElement('option');
+          option.value = String(engine.id || '');
+          option.textContent = String(engine.name || engine.id || '搜索引擎');
+          option.selected = option.value === searchEngineState.selectedEngineId;
+          searchEngineSelect.appendChild(option);
+        });
+        var selected = engines.find(function (engine) {
+          return String(engine.id || '') === searchEngineState.selectedEngineId;
+        }) || engines[0];
+        if (selected) {
+          searchEngineSelect.value = String(selected.id || '');
+          var icon = resolveHomepageEngineIcon(selected);
+          searchEngineIcon.alt = String(selected.name || selected.id || '搜索引擎');
+          searchEngineIcon.onerror = function () {
+            searchEngineIcon.classList.remove('visible');
+          };
+          if (icon) {
+            searchEngineIcon.src = icon;
+            searchEngineIcon.classList.add('visible');
+          } else {
+            searchEngineIcon.removeAttribute('src');
+            searchEngineIcon.classList.remove('visible');
+          }
+        }
+        searchEngineStatus.textContent = searchEngineState.selectionScope === 'session' ? '仅当前私密会话' : '';
+      }
+
+      function loadSearchEngines() {
+        var api = getApi();
+        if (
+          !api ||
+          typeof api.getSearchEngineState !== 'function' ||
+          typeof api.setSearchEngine !== 'function'
+        ) {
+          searchEngineBar.hidden = true;
+          return;
+        }
+        api.getSearchEngineState().then(renderSearchEngineState).catch(function (error) {
+          searchEngineBar.hidden = true;
+          showApiError('读取搜索引擎失败', error);
+        });
+      }
+
+      function selectSearchEngine() {
+        var api = getApi();
+        var engineId = normalizeInput(searchEngineSelect.value);
+        if (!api || typeof api.setSearchEngine !== 'function' || !engineId) {
+          showToast('搜索引擎切换不可用');
+          return;
+        }
+        searchEngineSelect.disabled = true;
+        api.setSearchEngine(engineId)
+          .then(renderSearchEngineState)
+          .catch(function (error) {
+            showApiError('切换搜索引擎失败', error);
+            loadSearchEngines();
+          })
+          .then(function () {
+            searchEngineSelect.disabled = false;
+          });
+      }
+
+      function applyPrivacyMode(state) {
+        var incoming = state || {};
+        var isPrivate = incoming.isPrivate === true || incoming.privacyMode === 'private';
+        document.documentElement.dataset.privacy = isPrivate ? 'private' : 'regular';
+        document.body.classList.toggle('private-home', isPrivate);
+      }
+
+      function loadPrivacyMode() {
+        var api = getApi();
+        if (!api || typeof api.getPrivacyMode !== 'function') {
+          return;
+        }
+        api.getPrivacyMode().then(applyPrivacyMode).catch(function () {});
+      }
+
+      function firstLetter(item) {
+        var value = String(item.title || item.url || 'A').trim();
+        return value.slice(0, 1).toUpperCase() || 'A';
+      }
+
+      function readableTitle(item) {
+        return String(item.title || item.url || '未命名').trim();
+      }
+
+      function getShortcutId(item) {
+        return String(item.id || '').trim();
+      }
+
+      function useImageIcon(item) {
+        var icon = String(item.icon || '').trim();
+        return icon.length > 0 && String(item.iconRendering || '').toLowerCase() === 'image';
+      }
+
+      var homepageSystemShortcutIcons = {
+        // 'browser.shortcut.bookmarks': './assets/system-bookmarks.svg',
+        // 'browser.shortcut.settings': './assets/system-settings.svg'
+      };
+
+      function resolveHomepageSystemShortcutIcon(item) {
+        if (String(item && item.kind || '').toLowerCase() !== 'system') {
+          return '';
+        }
+        var iconId = String(item && item.iconId || '').trim();
+        return String(homepageSystemShortcutIcons[iconId] || '').trim();
+      }
+
+      function renderDefaultShortcutIcon(element, item) {
+        var api = getApi();
+        if (api && typeof api.renderShortcutIcon === 'function') {
+          api.renderShortcutIcon(element, item);
+          return;
+        }
+        if (useImageIcon(item)) {
+          var image = document.createElement('img');
+          image.alt = '';
+          image.src = String(item.icon || '');
+          element.appendChild(image);
+          return;
+        }
+        element.textContent = firstLetter(item);
+      }
+
+      function renderShortcutIcon(element, item) {
+        var customSystemIcon = resolveHomepageSystemShortcutIcon(item);
+        if (!customSystemIcon) {
+          renderDefaultShortcutIcon(element, item);
+          return;
+        }
+        var image = document.createElement('img');
+        image.alt = '';
+        image.src = customSystemIcon;
+        image.addEventListener('error', function () {
+          element.textContent = '';
+          renderDefaultShortcutIcon(element, item);
+        });
+        element.appendChild(image);
+      }
+
+      function buildShortcutButton(item) {
+        var button = document.createElement('button');
+        var icon = document.createElement('span');
+        var title = document.createElement('span');
+
+        button.type = 'button';
+        button.className = 'shortcut';
+        button.setAttribute('aria-label', readableTitle(item));
+        button.dataset.shortcutId = getShortcutId(item);
+        if (shortcutReorderMode) {
+          button.classList.add('reorderable');
+          button.addEventListener('pointerdown', function (event) {
+            beginShortcutPointerDrag(button, item, event);
+          });
+        }
+
+        icon.className = 'shortcut-icon';
+        renderShortcutIcon(icon, item);
+
+        title.className = 'shortcut-title';
+        title.textContent = readableTitle(item);
+
+        button.appendChild(icon);
+        button.appendChild(title);
+        button.addEventListener('click', function () {
+          if (shortcutReorderMode) {
+            return;
+          }
+          if (suppressNextClick) {
+            suppressNextClick = false;
+            return;
+          }
+          var api = getApi();
+          if (api && typeof api.openShortcut === 'function' && getShortcutId(item)) {
+            api.openShortcut(getShortcutId(item));
+          } else if (api && typeof api.openUrl === 'function' && item.kind !== 'system' && item.url) {
+            api.openUrl(String(item.url || ''));
+          } else {
+            showToast('导入 Aira 后会打开这个快捷方式');
+          }
+        });
+        attachShortcutLongPress(button, item);
+        return button;
+      }
+
+      function beginShortcutPointerDrag(button, item, event) {
+        if (
+          !shortcutReorderMode ||
+          draggedShortcutId ||
+          event.button !== 0 ||
+          event.isPrimary === false
+        ) {
+          return;
+        }
+        var shortcutId = getShortcutId(item);
+        if (!shortcutId) {
+          return;
+        }
+        event.preventDefault();
+        draggedShortcutId = shortcutId;
+        shortcutDragPointerId = event.pointerId;
+        shortcutDragButton = button;
+        shortcutDragOrderChanged = false;
+        shortcutDragLastTargetId = '';
+        button.classList.add('dragging');
+        try {
+          button.setPointerCapture(event.pointerId);
+        } catch (_error) {}
+      }
+
+      function shortcutButtonAtPoint(x, y) {
+        var target = document.elementFromPoint(x, y);
+        if (!target || typeof target.closest !== 'function') {
+          return null;
+        }
+        return target.closest('.shortcut');
+      }
+
+      function moveDraggedShortcutTo(targetButton) {
+        if (!shortcutDragButton || !targetButton || targetButton === shortcutDragButton) {
+          return;
+        }
+        var targetId = String(targetButton.dataset.shortcutId || '').trim();
+        if (!targetId || targetId === shortcutDragLastTargetId) {
+          return;
+        }
+        var fromIndex = shortcutItems.findIndex(function (item) {
+          return getShortcutId(item) === draggedShortcutId;
+        });
+        var targetIndex = shortcutItems.findIndex(function (item) {
+          return getShortcutId(item) === targetId;
+        });
+        if (fromIndex < 0 || targetIndex < 0 || fromIndex === targetIndex) {
+          return;
+        }
+        var nextItems = shortcutItems.slice();
+        var movedItems = nextItems.splice(fromIndex, 1);
+        nextItems.splice(targetIndex, 0, movedItems[0]);
+        shortcutItems = nextItems;
+
+        document.querySelectorAll('.shortcut.drop-target').forEach(function (target) {
+          target.classList.remove('drop-target');
+        });
+        targetButton.classList.add('drop-target');
+        if (fromIndex < targetIndex) {
+          shortcutGrid.insertBefore(shortcutDragButton, targetButton.nextSibling);
+        } else {
+          shortcutGrid.insertBefore(shortcutDragButton, targetButton);
+        }
+        shortcutDragOrderChanged = true;
+        shortcutDragLastTargetId = targetId;
+      }
+
+      function updateShortcutPointerDrag(event) {
+        if (!draggedShortcutId || event.pointerId !== shortcutDragPointerId) {
+          return;
+        }
+        event.preventDefault();
+        moveDraggedShortcutTo(shortcutButtonAtPoint(event.clientX, event.clientY));
+      }
+
+      function clearShortcutPointerDragState() {
+        if (shortcutDragButton) {
+          shortcutDragButton.classList.remove('dragging');
+          try {
+            if (shortcutDragButton.hasPointerCapture(shortcutDragPointerId)) {
+              shortcutDragButton.releasePointerCapture(shortcutDragPointerId);
+            }
+          } catch (_error) {}
+        }
+        document.querySelectorAll('.shortcut.drop-target').forEach(function (target) {
+          target.classList.remove('drop-target');
+        });
+        draggedShortcutId = '';
+        shortcutDragPointerId = -1;
+        shortcutDragButton = null;
+        shortcutDragOrderChanged = false;
+        shortcutDragLastTargetId = '';
+      }
+
+      function commitShortcutOrder() {
+
+        var api = getApi();
+        if (!api || typeof api.reorderShortcuts !== 'function') {
+          showToast('快捷方式排序不可用');
+          loadShortcuts();
+          return;
+        }
+        api.reorderShortcuts(shortcutItems.map(function (item) {
+          return getShortcutId(item);
+        })).catch(function (error) {
+          showApiError('保存排序失败', error);
+          loadShortcuts();
+        });
+      }
+
+      function finishShortcutPointerDrag(event) {
+        if (!draggedShortcutId || event.pointerId !== shortcutDragPointerId) {
+          return;
+        }
+        event.preventDefault();
+        var shouldCommit = shortcutDragOrderChanged;
+        clearShortcutPointerDragState();
+        if (shouldCommit) {
+          commitShortcutOrder();
+        }
+      }
+
+      function cancelShortcutPointerDrag(event) {
+        if (!draggedShortcutId || event.pointerId !== shortcutDragPointerId) {
+          return;
+        }
+        clearShortcutPointerDragState();
+        loadShortcuts();
+      }
+
+      function attachShortcutLongPress(button, item) {
+        if (shortcutReorderMode) {
+          return;
+        }
+        button.addEventListener('pointerdown', function (event) {
+          beginShortcutLongPress(item, event.clientX, event.clientY);
+        });
+        button.addEventListener('pointermove', function (event) {
+          updateShortcutLongPress(event.clientX, event.clientY);
+        });
+        button.addEventListener('pointerup', endShortcutLongPress);
+        button.addEventListener('pointercancel', endShortcutLongPress);
+        button.addEventListener('contextmenu', function (event) {
+          event.preventDefault();
+          openShortcutMenu(item, event.clientX, event.clientY);
+        });
+      }
+
+      function beginShortcutLongPress(item, x, y) {
+        endShortcutLongPress();
+        longPressStartX = x;
+        longPressStartY = y;
+        longPressTriggered = false;
+        longPressTimer = setTimeout(function () {
+          longPressTriggered = true;
+          suppressNextClick = true;
+          openShortcutMenu(item, x, y);
+        }, 520);
+      }
+
+      function updateShortcutLongPress(x, y) {
+        if (!longPressTimer) {
+          return;
+        }
+        if (Math.abs(x - longPressStartX) > 10 || Math.abs(y - longPressStartY) > 10) {
+          endShortcutLongPress();
+        }
+      }
+
+      function endShortcutLongPress() {
+        if (longPressTimer) {
+          clearTimeout(longPressTimer);
+          longPressTimer = 0;
+        }
+        if (!longPressTriggered) {
+          return;
+        }
+        longPressTriggered = false;
+        setTimeout(function () {
+          suppressNextClick = false;
+        }, 420);
+      }
+
+      function openShortcutMenu(item, x, y) {
+        var id = getShortcutId(item);
+        if (!id) {
+          showToast('这个快捷方式暂时不能编辑');
+          return;
+        }
+        activeShortcut = item;
+        shortcutMenu.innerHTML = '';
+        var entries = [
+          { title: '打开', action: openActiveShortcut },
+          { title: '上移', action: moveActiveShortcutUp },
+          { title: '下移', action: moveActiveShortcutDown },
+          { title: '删除', action: confirmDeleteActiveShortcut, danger: true }
+        ];
+        if (item.kind !== 'system') {
+          entries.splice(1, 0,
+            { title: '复制链接', action: copyActiveShortcut },
+            { title: '编辑', action: editActiveShortcut });
+        }
+        entries.forEach(function (entry) {
+          var itemButton = document.createElement('button');
+          itemButton.type = 'button';
+          itemButton.setAttribute('role', 'menuitem');
+          itemButton.textContent = entry.title;
+          if (entry.danger) {
+            itemButton.className = 'danger';
+          }
+          itemButton.addEventListener('click', function () {
+            entry.action();
+          });
+          shortcutMenu.appendChild(itemButton);
+        });
+        shortcutMenuBackdrop.classList.add('visible');
+        positionShortcutMenu(x, y);
+      }
+
+      function positionShortcutMenu(x, y) {
+        var width = 176;
+        var height = Math.max(48, shortcutMenu.offsetHeight || 200);
+        var margin = 14;
+        var nextX = Math.max(margin + width / 2, Math.min(window.innerWidth - margin - width / 2, x));
+        var nextY = Math.max(margin + height / 2, Math.min(window.innerHeight - margin - height / 2, y));
+        shortcutMenu.style.left = nextX + 'px';
+        shortcutMenu.style.top = nextY + 'px';
+      }
+
+      function activeShortcutId() {
+        return activeShortcut ? getShortcutId(activeShortcut) : '';
+      }
+
+      function runShortcutApi(method, fallbackMessage) {
+        var api = getApi();
+        var id = activeShortcutId();
+        closeShortcutMenu();
+        if (api && typeof api[method] === 'function' && id) {
+          try {
+            var result = api[method](id);
+            if (result && typeof result.catch === 'function') {
+              result.catch(function (error) {
+                showApiError(fallbackMessage, error);
+              });
+            }
+          } catch (error) {
+            showApiError(fallbackMessage, error);
+          }
+        } else {
+          showToast(fallbackMessage);
+        }
+      }
+
+      function copyActiveShortcut() {
+        runShortcutApi('copyShortcutUrl', '当前快捷方式不支持复制链接');
+      }
+
+      function openActiveShortcut() {
+        var api = getApi();
+        var item = activeShortcut;
+        var id = activeShortcutId();
+        closeShortcutMenu();
+        if (api && typeof api.openShortcut === 'function' && id) {
+          api.openShortcut(id);
+        } else if (api && typeof api.openUrl === 'function' && item && item.kind !== 'system') {
+          api.openUrl(String(item.url || ''));
+        } else {
+          showToast('导入 Aira 后会打开这个快捷方式');
+        }
+      }
+
+      function editActiveShortcut() {
+        runShortcutApi('editShortcut', '编辑快捷方式不可用');
+      }
+
+      function moveActiveShortcutUp() {
+        runShortcutApi('moveShortcutUp', '移动快捷方式不可用');
+      }
+
+      function moveActiveShortcutDown() {
+        runShortcutApi('moveShortcutDown', '移动快捷方式不可用');
+      }
+
+      function confirmDeleteActiveShortcut() {
+        var api = getApi();
+        var id = activeShortcutId();
+        closeShortcutMenu();
+        if (api && typeof api.confirmDeleteShortcut === 'function' && id) {
+          api.confirmDeleteShortcut(id);
+        } else if (api && typeof api.removeShortcut === 'function' && id) {
+          var result = api.removeShortcut(id);
+          if (result && typeof result.catch === 'function') {
+            result.catch(function (error) {
+              showApiError('删除快捷方式失败', error);
+            });
+          }
+        } else {
+          showToast('删除快捷方式不可用');
+        }
+      }
+
+      function renderShortcuts(items) {
+        if (draggedShortcutId) {
+          clearShortcutPointerDragState();
+        }
+        var source = Array.isArray(items) ? items : [];
+        var list = source.filter(function (item) {
+          return item && String(item.title || item.url || '').trim().length > 0;
+        });
+
+        shortcutItems = list;
+
+        shortcutGrid.innerHTML = '';
+        emptyState.style.display = list.length > 0 ? 'none' : 'grid';
+
+        list.forEach(function (item) {
+          shortcutGrid.appendChild(buildShortcutButton(item));
+        });
+      }
+
+      function openShortcutPicker() {
+        var api = getApi();
+        if (api && typeof api.openShortcutPicker === 'function') {
+          api.openShortcutPicker();
+        } else {
+          showToast('添加快捷方式不可用');
+        }
+      }
+
+      function toggleReorderMode() {
+        var api = getApi();
+        if (!api || typeof api.reorderShortcuts !== 'function') {
+          showToast('快捷方式排序不可用');
+          return;
+        }
+        if (draggedShortcutId) {
+          clearShortcutPointerDragState();
+          loadShortcuts();
+        }
+        shortcutReorderMode = !shortcutReorderMode;
+        reorderButton.classList.toggle('active', shortcutReorderMode);
+        reorderButton.textContent = shortcutReorderMode ? '完成排序' : '排序';
+        closeShortcutMenu();
+        renderShortcuts(shortcutItems);
+      }
+
+      function loadShortcuts() {
+        var api = getApi();
+        if (!api || typeof api.getShortcuts !== 'function') {
+          renderShortcuts([]);
+          return;
+        }
+        api.getShortcuts().then(renderShortcuts).catch(function () {
+          renderShortcuts([]);
+        });
+      }
+
+      function applyThemeVariable(root, name, value) {
+        var normalized = String(value || '').trim();
+        if (normalized) {
+          root.style.setProperty(name, normalized);
+        } else {
+          root.style.removeProperty(name);
+        }
+      }
+
+      function applyTheme(theme) {
+        var state = theme || {};
+        var root = document.documentElement;
+        var palette = state.palette || {};
+        var colors = palette.colors || {};
+        root.dataset.theme = state.effectiveMode === 'dark' ? 'dark' : 'light';
+        root.dataset.themePalette = String(palette.id || '');
+        applyThemeVariable(root, '--aira-accent', colors.accent);
+        applyThemeVariable(root, '--aira-on-accent', colors.onAccent);
+        applyThemeVariable(root, '--aira-page-background', colors.pageBackground);
+        applyThemeVariable(root, '--aira-surface-background', colors.surfaceBackground);
+        applyThemeVariable(root, '--aira-control-background', colors.controlBackground);
+        applyThemeVariable(root, '--aira-text-primary', colors.textPrimary);
+        applyThemeVariable(root, '--aira-text-secondary', colors.textSecondary);
+        applyThemeVariable(root, '--aira-divider', colors.divider);
+        applyThemeVariable(root, '--aira-outline', colors.outline);
+      }
+
+      function loadTheme() {
+        var api = getApi();
+        if (!api || typeof api.getTheme !== 'function') {
+          return;
+        }
+        api.getTheme().then(applyTheme).catch(function () {});
+      }
+
+      function submitSearch() {
+        var value = normalizeInput(searchInput.value);
+        var api = getApi();
+        if (!value) {
+          return;
+        }
+        if (api && typeof api.search === 'function') {
+          api.search(value);
+        } else {
+          showToast('导入 Aira 后会搜索或打开地址');
+        }
+      }
+
+      function openNativeSearch() {
+        var api = getApi();
+        if (api && typeof api.openSearch === 'function') {
+          api.openSearch();
+        } else {
+          showToast('系统搜索不可用');
+        }
+      }
+
+      function openToolbar() {
+        var api = getApi();
+        if (api && typeof api.openToolbar === 'function') {
+          api.openToolbar();
+        } else {
+          showToast('浏览器工具栏不可用');
+        }
+      }
+
+      function scanQr() {
+        var api = getApi();
+        if (api && typeof api.scanQr === 'function') {
+          api.scanQr();
+        } else {
+          showToast('扫一扫不可用');
+        }
+      }
+
+      function updateCapabilityControls() {
+        var api = getApi();
+        var storage = api && api.storage;
+        nativeSearchButton.disabled = !(api && typeof api.openSearch === 'function');
+        toolbarButton.disabled = !(api && typeof api.openToolbar === 'function');
+        labelPreferenceButton.disabled = !(
+          storage &&
+          typeof storage.get === 'function' &&
+          typeof storage.set === 'function'
+        );
+        addShortcutButton.disabled = !(api && typeof api.openShortcutPicker === 'function');
+        reorderButton.disabled = !(api && typeof api.reorderShortcuts === 'function');
+      }
+
+      function openTabs() {
+        var api = getApi();
+        if (api && typeof api.openTabs === 'function') {
+          api.openTabs();
+        } else {
+          showToast('导入 Aira 后会打开标签页');
+        }
+      }
+
+      function openBookmarks() {
+        var api = getApi();
+        if (api && typeof api.openBookmarks === 'function') {
+          api.openBookmarks();
+        } else {
+          showToast('导入 Aira 后会打开书签');
+        }
+      }
+
+      function openSettings() {
+        var api = getApi();
+        if (api && typeof api.openSettings === 'function') {
+          api.openSettings();
+        } else {
+          showToast('导入 Aira 后会打开设置');
+        }
+      }
+
+      function roundMotionValue(value) {
+        return Math.round(value * 100) / 100;
+      }
+
+      function clampMotionValue(value, min, max) {
+        return Math.max(min, Math.min(max, value));
+      }
+
+      function setHomePullMotion(searchOffset, pullOffset, fadeOpacity) {
+        currentSearchOffset = searchOffset;
+        currentPullOffset = pullOffset;
+        currentFadeOpacity = fadeOpacity;
+        document.documentElement.style.setProperty('--home-search-offset', roundMotionValue(searchOffset) + 'px');
+        document.documentElement.style.setProperty('--home-pull-offset', roundMotionValue(pullOffset) + 'px');
+        document.documentElement.style.setProperty('--home-fade-opacity', String(roundMotionValue(fadeOpacity)));
+      }
+
+      function stopHomeSpring() {
+        if (homeSpringFrame) {
+          cancelAnimationFrame(homeSpringFrame);
+          homeSpringFrame = 0;
+        }
+        document.body.classList.remove('home-springing');
+      }
+
+      function resolveElasticPullOffset(rawOffset) {
+        var distance = Math.max(0, rawOffset);
+        return homePullMaxOffset * (1 - Math.exp(-distance / homePullResistance));
+      }
+
+      function animateHomeSpring(targetSearchOffset, targetPullOffset, targetFadeOpacity, onComplete, mode) {
+        stopHomeSpring();
+        document.body.classList.add('home-springing');
+        var search = currentSearchOffset;
+        var pull = currentPullOffset;
+        var fade = currentFadeOpacity;
+        var searchVelocity = 0;
+        var pullVelocity = 0;
+        var fadeVelocity = 0;
+        var lastTime = 0;
+        var dockedMode = mode === 'dock';
+        var stiffness = dockedMode ? 0.16 : 0.2;
+        var damping = dockedMode ? 0.58 : 0.68;
+
+        function step(timestamp) {
+          if (!lastTime) {
+            lastTime = timestamp;
+          }
+          var frameScale = clampMotionValue((timestamp - lastTime) / 16.67, 0.5, 2);
+          lastTime = timestamp;
+          searchVelocity = (searchVelocity + (targetSearchOffset - search) * stiffness * frameScale) * damping;
+          pullVelocity = (pullVelocity + (targetPullOffset - pull) * stiffness * frameScale) * damping;
+          fadeVelocity = (fadeVelocity + (targetFadeOpacity - fade) * stiffness * frameScale) * damping;
+          search += searchVelocity * frameScale;
+          pull += pullVelocity * frameScale;
+          fade += fadeVelocity * frameScale;
+          setHomePullMotion(search, pull, clampMotionValue(fade, 0, 1));
+
+          if (
+            Math.abs(targetSearchOffset - search) < 0.35 &&
+            Math.abs(searchVelocity) < 0.35 &&
+            Math.abs(targetPullOffset - pull) < 0.35 &&
+            Math.abs(pullVelocity) < 0.35 &&
+            Math.abs(targetFadeOpacity - fade) < 0.01 &&
+            Math.abs(fadeVelocity) < 0.01
+          ) {
+            homeSpringFrame = 0;
+            setHomePullMotion(targetSearchOffset, targetPullOffset, targetFadeOpacity);
+            document.body.classList.remove('home-springing');
+            if (onComplete) {
+              onComplete();
+            }
+            return;
+          }
+          homeSpringFrame = requestAnimationFrame(step);
+        }
+
+        homeSpringFrame = requestAnimationFrame(step);
+      }
+
+      function focusSearchInput() {
+        try {
+          searchInput.focus({ preventScroll: true });
+        } catch (_error) {
+          searchInput.focus();
+        }
+      }
+
+      function setHomeBackHandlerActive(active) {
+        var nextActive = active === true;
+        if (homeBackHandlerActive === nextActive) {
+          return;
+        }
+        homeBackHandlerActive = nextActive;
+        var api = getApi();
+        if (api && typeof api.setBackHandlerActive === 'function') {
+          api.setBackHandlerActive(nextActive);
+        }
+      }
+
+      function resolveDockedSearchTop() {
+        return 72;
+      }
+
+      function resolveDockedSearchOffset() {
+        if (!dockedSearchBaseTop) {
+          var searchRect = searchForm.getBoundingClientRect();
+          dockedSearchBaseTop = searchRect.top - currentSearchOffset;
+        }
+        return resolveDockedSearchTop() - dockedSearchBaseTop;
+      }
+
+      function shouldIgnoreHomePullTarget(target) {
+        if (!target || document.body.classList.contains('home-search-docked')) {
+          return true;
+        }
+        if (shortcutMenuBackdrop.classList.contains('visible')) {
+          return true;
+        }
+        return Boolean(target.closest('input, button, .shortcut-menu, .shortcut-menu-backdrop'));
+      }
+
+      function beginHomePull(event) {
+        if (!event.touches || event.touches.length !== 1 || shouldIgnoreHomePullTarget(event.target)) {
+          return;
+        }
+        stopHomeSpring();
+        homePullTracking = true;
+        homePullActive = false;
+        homePullStartX = event.touches[0].clientX;
+        homePullStartY = event.touches[0].clientY;
+        currentSearchOffset = 0;
+        currentPullOffset = 0;
+        currentFadeOpacity = 1;
+      }
+
+      function updateHomePull(event) {
+        if (!homePullTracking || !event.touches || event.touches.length !== 1) {
+          return;
+        }
+        var touch = event.touches[0];
+        var deltaX = touch.clientX - homePullStartX;
+        var deltaY = touch.clientY - homePullStartY;
+        if (!homePullActive) {
+          if (deltaY <= 8 || Math.abs(deltaY) < Math.abs(deltaX) * 1.15) {
+            return;
+          }
+          homePullActive = true;
+          closeShortcutMenu();
+          document.body.classList.remove('home-search-docking', 'home-search-docked');
+          document.body.classList.add('home-dragging');
+        }
+        event.preventDefault();
+        var elasticOffset = resolveElasticPullOffset(deltaY);
+        currentPullOffset = clampMotionValue(elasticOffset, 0, homePullMaxOffset);
+        var fadeOpacity = 1 - clampMotionValue(currentPullOffset / homePullThreshold, 0, 1);
+        setHomePullMotion(currentPullOffset, currentPullOffset, fadeOpacity);
+      }
+
+      function endHomePull() {
+        if (!homePullTracking) {
+          return;
+        }
+        homePullTracking = false;
+        if (!homePullActive) {
+          return;
+        }
+        homePullActive = false;
+        document.body.classList.remove('home-dragging');
+        if (currentPullOffset >= homePullThreshold) {
+          dockSearchToTop();
+        } else {
+          springBackHomePull();
+        }
+      }
+
+      function dockSearchToTop() {
+        var searchRect = searchForm.getBoundingClientRect();
+        dockedSearchBaseTop = searchRect.top - currentSearchOffset;
+        var dockedOffset = resolveDockedSearchOffset();
+        document.body.classList.add('home-search-docking', 'home-search-docked');
+        dockedSearchOpenedAt = Date.now();
+        focusSearchInput();
+        setHomeBackHandlerActive(true);
+        animateHomeSpring(dockedOffset, currentPullOffset, 0, function () {
+          document.body.classList.remove('home-search-docking');
+        }, 'dock');
+      }
+
+      function resetHomePullMotion() {
+        stopHomeSpring();
+        setHomeBackHandlerActive(false);
+        dockedSearchOpenedAt = 0;
+        dockedSearchBaseTop = 0;
+        document.body.classList.remove('home-search-docking', 'home-search-docked');
+        setHomePullMotion(0, 0, 1);
+      }
+
+      function dismissDockedSearch() {
+        if (!document.body.classList.contains('home-search-docked')) {
+          return false;
+        }
+        searchInput.blur();
+        resetHomePullMotion();
+        return true;
+      }
+
+      function handleDockedSearchOutsideClick(event) {
+        if (!document.body.classList.contains('home-search-docked') || searchForm.contains(event.target)) {
+          return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        if (typeof event.stopImmediatePropagation === 'function') {
+          event.stopImmediatePropagation();
+        }
+        if (Date.now() - dockedSearchOpenedAt < 360) {
+          return;
+        }
+        dismissDockedSearch();
+      }
+
+      function springBackHomePull() {
+        dockedSearchBaseTop = 0;
+        document.body.classList.remove('home-search-docking', 'home-search-docked');
+        animateHomeSpring(0, 0, 1);
+      }
+
+      searchForm.addEventListener('submit', function (event) {
+        event.preventDefault();
+        submitSearch();
+      });
+
+      nativeSearchButton.addEventListener('click', openNativeSearch);
+      toolbarButton.addEventListener('click', openToolbar);
+      scanButton.addEventListener('click', scanQr);
+      searchEngineSelect.addEventListener('change', selectSearchEngine);
+      labelPreferenceButton.addEventListener('click', toggleShortcutLabels);
+      addShortcutButton.addEventListener('click', openShortcutPicker);
+      reorderButton.addEventListener('click', toggleReorderMode);
+      tabsButton.addEventListener('click', openTabs);
+      bookmarksButton.addEventListener('click', openBookmarks);
+      settingsButton.addEventListener('click', openSettings);
+      homeButton.addEventListener('click', function () {
+        searchInput.focus();
+      });
+      if (pageRoot) {
+        pageRoot.addEventListener('click', handleDockedSearchOutsideClick, true);
+        pageRoot.addEventListener('touchstart', beginHomePull, { passive: true });
+        pageRoot.addEventListener('touchmove', updateHomePull, { passive: false });
+        pageRoot.addEventListener('touchend', endHomePull);
+        pageRoot.addEventListener('touchcancel', endHomePull);
+      }
+      searchInput.addEventListener('blur', function () {
+        if (document.body.classList.contains('home-search-docked')) {
+          return;
+        }
+        if (!normalizeInput(searchInput.value)) {
+          resetHomePullMotion();
+        }
+      });
+      shortcutMenuBackdrop.addEventListener('click', function (event) {
+        if (event.target === shortcutMenuBackdrop) {
+          closeShortcutMenu();
+        }
+      });
+
+      window.addEventListener('aira-home-shortcuts-changed', function (event) {
+        renderShortcuts(event.detail || []);
+      });
+
+      window.addEventListener('aira-home-theme-changed', function (event) {
+        applyTheme(event.detail || {});
+      });
+
+      window.addEventListener('aira-home-search-engines-changed', function (event) {
+        renderSearchEngineState(event.detail || {});
+      });
+
+      window.addEventListener('aira-home-privacy-mode-changed', function (event) {
+        applyPrivacyMode(event.detail || {});
+      });
+
+      window.addEventListener('aira-home-ready', function () {
+        updateCapabilityControls();
+        loadTheme();
+        loadPrivacyMode();
+        loadSearchEngines();
+        loadShortcuts();
+      });
+
+      window.addEventListener('pagehide', function () {
+        if (holdingHandRetryTimer) {
+          clearTimeout(holdingHandRetryTimer);
+          holdingHandRetryTimer = 0;
+        }
+        stopHoldingHandListener();
+      });
+
+      window.addEventListener('aira-home-back-requested', function () {
+        if (!document.body.classList.contains('home-search-docked')) {
+          setHomeBackHandlerActive(false);
+          return;
+        }
+        dismissDockedSearch();
+      });
+
+      window.addEventListener('pointermove', updateShortcutPointerDrag, { passive: false });
+      window.addEventListener('pointerup', finishShortcutPointerDrag);
+      window.addEventListener('pointercancel', cancelShortcutPointerDrag);
+
+      window.addEventListener('touchmove', function (event) {
+        if (event.touches && event.touches.length > 1) {
+          event.preventDefault();
+        }
+      }, { passive: false });
+      updateCapabilityControls();
+      applyHomepagePreferences();
+      loadHomepagePreferences();
+      loadTheme();
+      loadPrivacyMode();
+      loadSearchEngines();
+      loadShortcuts();
+      startHoldingHandListener();
+    })();
+  </script>
+</body>
+</html>

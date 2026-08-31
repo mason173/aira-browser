@@ -1,0 +1,5 @@
+{
+  "startWindowType": "REQUIRED_SHOW",
+  "startWindowAppIcon": "$media:start_window_brand_lockup",
+  "startWindowBackgroundColor": "$color:start_window_background"
+}

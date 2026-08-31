@@ -1,0 +1,12 @@
+{
+  "string": [
+    {
+      "name": "userscript_value_file_test_desc",
+      "value": "User Script Value file adapter conformance tests"
+    },
+    {
+      "name": "userscript_value_file_test_label",
+      "value": "Aira Value State Tests"
+    }
+  ]
+}

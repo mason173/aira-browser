@@ -1,0 +1,23 @@
+Aira ad-block Rust core third-party licenses
+
+This file is generated from Cargo.lock with cargo-about 0.9.1. The component list and license texts below cover the
+Rust crates linked into the arm64-v8a native authority backend. Aira's private wrapper code is not included in this list.
+
+Components
+==========
+{{#each crates}}
+{{package.name}} {{package.version}} - {{license}}
+{{/each}}
+
+License texts
+=============
+{{#each licenses}}
+
+{{name}}
+Used by:
+{{#each used_by}}
+- {{crate.name}} {{crate.version}}
+{{/each}}
+
+{{{text}}}
+{{~/each~}}

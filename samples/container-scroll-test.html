@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>内部滚动测试</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding: 16px;
+      color: #202124;
+      background: #f2f3f5;
+      font-family: sans-serif;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 22px;
+    }
+
+    p {
+      margin: 0;
+      font-size: 15px;
+      line-height: 1.5;
+    }
+
+    .scroll-box {
+      min-height: 0;
+      flex: 1;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      border: 2px solid #202124;
+      background: #ffffff;
+    }
+
+    .item {
+      padding: 24px 16px;
+      border-bottom: 1px solid #d8dadd;
+      font-size: 18px;
+    }
+
+    .item:last-child {
+      border-bottom: 0;
+    }
+  </style>
+</head>
+<body>
+  <h1>内部滚动测试</h1>
+  <p>只在下面的白色列表里上下滑动，页面本身不会滚动。</p>
+
+  <div class="scroll-box">
+    <div class="item">第 1 项</div>
+    <div class="item">第 2 项</div>
+    <div class="item">第 3 项</div>
+    <div class="item">第 4 项</div>
+    <div class="item">第 5 项</div>
+    <div class="item">第 6 项</div>
+    <div class="item">第 7 项</div>
+    <div class="item">第 8 项</div>
+    <div class="item">第 9 项</div>
+    <div class="item">第 10 项</div>
+    <div class="item">第 11 项</div>
+    <div class="item">第 12 项</div>
+    <div class="item">第 13 项</div>
+    <div class="item">第 14 项</div>
+    <div class="item">第 15 项</div>
+    <div class="item">第 16 项</div>
+    <div class="item">第 17 项</div>
+    <div class="item">第 18 项</div>
+    <div class="item">第 19 项</div>
+    <div class="item">第 20 项</div>
+  </div>
+</body>
+</html>

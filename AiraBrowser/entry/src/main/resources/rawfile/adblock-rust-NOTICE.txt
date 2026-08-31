@@ -1,0 +1,10 @@
+adblock-rust 0.13.2
+Copyright Brave Software and adblock-rust contributors.
+
+Source: https://github.com/brave/adblock-rust/tree/00b19a06508ddd4f3453779f8618983421ddf32b
+Crate source: https://crates.io/crates/adblock/0.13.2
+License: Mozilla Public License 2.0
+Rust dependency licenses: adblock-rust-THIRD-PARTY-LICENSES.txt
+
+This component runs locally as Aira's authoritative network request-matching backend, redirect resource selector, and
+CSP rule selector. It does not create an external service or transmit browsing data.

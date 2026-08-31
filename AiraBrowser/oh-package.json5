@@ -1,0 +1,13 @@
+{
+  "modelVersion": "5.0.0",
+  "description": "Aira HarmonyOS workspace.",
+  "dependencies": {
+    "@hw-agconnect/auth": "1.0.5",
+    "@hw-agconnect/api-ohos": "^1.1.2",
+    "@hw-agconnect/core-ohos": "^1.1.3"
+  },
+  "devDependencies": {
+    "@ohos/hypium": "1.0.18"
+  },
+  "dynamicDependencies": {}
+}

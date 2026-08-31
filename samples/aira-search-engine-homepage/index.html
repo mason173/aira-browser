@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+  >
+  <meta name="color-scheme" content="light dark">
+  <title>Aira Search API Lab</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="ambient ambient-one" aria-hidden="true"></div>
+  <div class="ambient ambient-two" aria-hidden="true"></div>
+
+  <main class="page-shell">
+    <header class="topbar">
+      <div class="brand-lockup">
+        <div class="brand-mark" aria-hidden="true">
+          <span></span>
+          <span></span>
+        </div>
+        <div>
+          <div class="brand-name">Aira Search</div>
+          <div class="brand-subtitle">Homepage API Lab</div>
+        </div>
+      </div>
+
+      <button class="icon-button" id="settingsButton" type="button" aria-label="打开 Aira 搜索设置">
+        <span class="settings-glyph" aria-hidden="true"></span>
+      </button>
+    </header>
+
+    <section class="hero" aria-labelledby="pageTitle">
+      <div class="eyebrow">HOMEPAGE API BRIDGE</div>
+      <h1 id="pageTitle">切换引擎，调用原生能力</h1>
+      <p class="hero-copy">搜索引擎与主页快捷方式都直接来自 Aira；搜索框调用原生搜索，“添加”按钮调用原生快捷方式选择器。</p>
+
+      <div class="runtime-badges" aria-live="polite">
+        <span class="status-badge" id="apiBadge">
+          <span class="status-dot"></span>
+          <span id="apiStatus">正在连接 Aira API</span>
+        </span>
+        <span class="scope-badge" id="scopeBadge">读取中</span>
+      </div>
+    </section>
+
+    <button class="search-card" id="nativeSearchButton" type="button" aria-label="打开 Aira 原生搜索">
+      <span class="current-engine-icon" id="currentEngineIcon" aria-hidden="true"></span>
+      <span class="search-placeholder">搜索或输入网址</span>
+      <span class="search-button" aria-hidden="true">打开</span>
+    </button>
+
+    <div class="current-line">
+      <span>当前引擎</span>
+      <strong id="currentEngineName">读取中…</strong>
+      <code id="currentEngineId">-</code>
+    </div>
+
+    <section class="engine-panel" aria-labelledby="enginePanelTitle">
+      <div class="section-heading">
+        <div>
+          <div class="section-kicker">AVAILABLE ENGINES</div>
+          <h2 id="enginePanelTitle">选择搜索引擎</h2>
+        </div>
+        <button class="text-button" id="refreshButton" type="button">刷新状态</button>
+      </div>
+
+      <div class="engine-grid" id="engineGrid" role="listbox" aria-label="可用搜索引擎"></div>
+    </section>
+
+    <section class="shortcut-panel" aria-labelledby="shortcutPanelTitle">
+      <div class="section-heading">
+        <div>
+          <div class="section-kicker">AIRA SHORTCUTS</div>
+          <h2 id="shortcutPanelTitle">主页快捷方式</h2>
+        </div>
+        <button class="text-button shortcut-add-button" id="addShortcutButton" type="button">添加</button>
+      </div>
+
+      <div class="shortcut-summary" id="shortcutStatus" aria-live="polite">正在读取 Aira 快捷方式</div>
+      <div class="shortcut-grid" id="shortcutGrid" aria-label="主页快捷方式"></div>
+    </section>
+
+    <section class="diagnostic-card" aria-labelledby="diagnosticTitle">
+      <div class="diagnostic-title-row">
+        <div>
+          <div class="section-kicker">LIVE STATE</div>
+          <h2 id="diagnosticTitle">API 实时状态</h2>
+        </div>
+        <span class="event-counter" id="eventCounter">0 events</span>
+      </div>
+
+      <dl class="diagnostic-list">
+        <div>
+          <dt>选择范围</dt>
+          <dd id="scopeValue">-</dd>
+        </div>
+        <div>
+          <dt>最后更新</dt>
+          <dd id="lastUpdateValue">等待初始化</dd>
+        </div>
+        <div>
+          <dt>图标策略</dt>
+          <dd>只使用 Aira 返回图标</dd>
+        </div>
+        <div>
+          <dt>搜索入口</dt>
+          <dd>AiraHome.openSearch()</dd>
+        </div>
+        <div>
+          <dt>添加入口</dt>
+          <dd>AiraHome.openShortcutPicker()</dd>
+        </div>
+      </dl>
+    </section>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+    <footer>
+      <span>搜索框通过 AiraHome.openSearch()</span>
+      <span class="footer-separator">·</span>
+      <span>快捷方式通过 AiraHome.openShortcutPicker()</span>
+    </footer>
+  </main>
+
+  <script src="./app.js"></script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "id": "cool.aira.homepage.simple",
+  "name": "Aira 简洁主页",
+  "entry": "index.html",
+  "author": "Aira",
+  "description": "面向日常使用的简洁主页，提供搜索、扫一扫、快捷方式和常用系统入口。",
+  "previewLight": "preview-light.jpg",
+  "previewDark": "preview-dark.jpg"
+}

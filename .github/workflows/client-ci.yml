@@ -1,0 +1,98 @@
+name: Client CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: client-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  public-guards:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+      - name: Check committed patch
+        shell: bash
+        run: |
+          if git rev-parse --verify HEAD^ >/dev/null 2>&1; then
+            git diff --check HEAD^ HEAD
+          else
+            git diff --check
+          fi
+      - name: Check architecture guards
+        run: bash scripts/check-architecture-guardrails.sh
+      - name: Check icon catalog
+        run: node scripts/check-aira-icon-catalog.js
+      - name: Check generated icons
+        run: bash scripts/check-aira-icons-generated.sh
+
+  community:
+    if: ${{ vars.AIRA_ENABLE_HARMONYOS_CLIENT_CI == 'true' }}
+    runs-on: [self-hosted, macOS, harmonyos]
+    env:
+      AIRA_ALLOW_UNSIGNED_BUILD: "1"
+      AIRA_DISTRIBUTION: community
+      SKIP_INSTALL: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - name: Install Harmony dependencies
+        working-directory: AiraBrowser
+        run: ohpm install
+      - name: Build Community HAP
+        run: ./scripts/build-aira-browser.sh
+      - name: Audit Community package boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          hap="AiraBrowser/entry/build/default/outputs/default/entry-default-unsigned.hap"
+          audit_dir="$(mktemp -d)"
+          trap 'rm -rf "${audit_dir}"' EXIT
+          unzip -q "${hap}" -d "${audit_dir}"
+          rg -a -q -F "org.aira.browser.community" "${audit_dir}"
+          rg -a -q -F "https://community.invalid" "${audit_dir}"
+          if rg -a -q -F "api.aira.cool" "${audit_dir}" ||
+             rg -a -q -F "com.aira.browser" "${audit_dir}"; then
+            echo "Community HAP contains an Official identity or endpoint." >&2
+            exit 1
+          fi
+          test "$(jq -r '.app.bundleName' "${audit_dir}/module.json")" = "org.aira.browser.community"
+          test "$(jq '.module.metadata | length' "${audit_dir}/module.json")" -eq 0
+          test ! -e "${audit_dir}/resources/rawfile/agconnect-services.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aira-community-${{ github.sha }}
+          path: AiraBrowser/entry/build/default/outputs/default/entry-default-unsigned.hap
+
+  official:
+    if: ${{ vars.AIRA_ENABLE_HARMONYOS_CLIENT_CI == 'true' && vars.AIRA_ENABLE_SIGNED_CLIENT_CI == 'true' && github.event_name != 'pull_request' }}
+    runs-on: [self-hosted, macOS, harmonyos]
+    env:
+      AIRA_AGCONNECT_CONFIG: ${{ secrets.AIRA_OFFICIAL_AGCONNECT_CONFIG_PATH }}
+      AIRA_BUILD_PROFILE: ${{ secrets.AIRA_OFFICIAL_BUILD_PROFILE_PATH }}
+      AIRA_DISTRIBUTION: official
+      SKIP_INSTALL: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - name: Install Harmony dependencies
+        working-directory: AiraBrowser
+        run: ohpm install
+      - name: Build Official HAP
+        run: ./scripts/build-aira-browser.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aira-official-${{ github.sha }}
+          path: AiraBrowser/entry/build/default/outputs/default/entry-default-signed.hap

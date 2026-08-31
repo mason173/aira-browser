@@ -1,0 +1,2337 @@
+{
+  "schemaVersion": 1,
+  "authority": "canonical-aira-icon-catalog",
+  "font": {
+    "familyName": "AiraOperationalIcons",
+    "fontFile": "vendor/icons8/ios-27-glyph/AiraOperationalIcons.ttf",
+    "packagedRawfile": "fonts/aira/aira-operational-icons.ttf",
+    "fontSha256": "c15d7232d85a517302d7c6d7e8c9782900ef486dff7d086a2059cdd348dfb7d5",
+    "selectionFile": "vendor/icons8/ios-27-glyph/selection.json",
+    "selectionSha256": "85f1537e43383a27affe5d49bb5d64c884120300d4f81700ab2ac8942172ea9a",
+    "sourceManifestFile": "vendor/icons8/ios-27-glyph/source-manifest.json",
+    "sourceManifestSha256": "19bea3dfdea5ce57b5cb5a9139c88aaa1fe3881f62885594c02f2ec574cdded2",
+    "fontQuarantinedIconIds": [
+      "desktopCard.shortcut.history",
+      "desktopCard.shortcut.bookmarks",
+      "desktopCard.shortcut.downloads",
+      "desktopCard.shortcut.settings",
+      "desktopCard.navigationArrow"
+    ],
+    "legacyCompatibilityIconIds": [
+      "membership.inviteRecordClock",
+      "settings.customHomepage",
+      "settings.general",
+      "settings.search",
+      "settings.sync",
+      "settings.webdav"
+    ]
+  },
+  "legacyOutputProfiles": [
+    {
+      "id": "base-and-dark",
+      "pathTemplates": [
+        "base/media/{family}.svg",
+        "dark/media/{family}.svg"
+      ],
+      "iconIds": [
+        "desktopCard.shortcut.history",
+        "desktopCard.shortcut.bookmarks",
+        "desktopCard.shortcut.downloads",
+        "desktopCard.shortcut.settings",
+        "desktopCard.navigationArrow",
+        "settings.customHomepage",
+        "settings.general",
+        "settings.search",
+        "settings.sync",
+        "settings.webdav"
+      ]
+    },
+    {
+      "id": "white-only",
+      "pathTemplates": [
+        "base/media/{family}_white.svg"
+      ],
+      "iconIds": [
+        "membership.inviteRecordClock"
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "id": "source.desktopCard.shortcut.history",
+      "exportedFile": "icons/app_widget_shortcut_history__user-provided.svg",
+      "originalSource": "user-provided/历史记录.svg",
+      "note": "user-provided desktop-card-only source"
+    },
+    {
+      "id": "source.desktopCard.shortcut.bookmarks",
+      "exportedFile": "icons/app_widget_shortcut_bookmarks__user-provided.svg",
+      "originalSource": "user-provided/书签.svg",
+      "note": "user-provided desktop-card-only source"
+    },
+    {
+      "id": "source.desktopCard.shortcut.downloads",
+      "exportedFile": "icons/app_widget_shortcut_downloads__user-provided.svg",
+      "originalSource": "user-provided/下载.svg",
+      "note": "user-provided desktop-card-only source"
+    },
+    {
+      "id": "source.desktopCard.shortcut.settings",
+      "exportedFile": "icons/app_widget_shortcut_settings__user-provided.svg",
+      "originalSource": "user-provided/设置.svg",
+      "note": "user-provided desktop-card-only source"
+    },
+    {
+      "id": "source.desktopCard.navigationArrow",
+      "exportedFile": "icons/app_widget_navigation_arrow__Interface_Essential_Arrow.svg",
+      "originalSource": "Interface, Essential/Arrow.svg",
+      "note": "desktop-card-only navigation accessory; rotated by the 1x2 Form"
+    }
+  ],
+  "icons": [
+    {
+      "id": "bookmarks.folder",
+      "legacyResourceFamily": "app_bookmark_folder",
+      "representation": {
+        "kind": "font",
+        "glyph": "folder-simple",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "bookmarks.edit.dragHandle",
+      "legacyResourceFamily": "app_bookmark_edit_drag_handle",
+      "representation": {
+        "kind": "font",
+        "glyph": "bookmark-edit-drag-handle",
+        "reason": "user-provided-commercial-license"
+      }
+    },
+    {
+      "id": "bookmarks.edit.move",
+      "legacyResourceFamily": "app_bookmark_edit_move",
+      "representation": {
+        "kind": "font",
+        "glyph": "bookmark-edit-move",
+        "reason": "user-provided-commercial-license"
+      }
+    },
+    {
+      "id": "bookmarks.edit.selectAll",
+      "legacyResourceFamily": "app_bookmark_edit_select_all",
+      "representation": {
+        "kind": "font",
+        "glyph": "bookmark-edit-select-all",
+        "reason": "user-provided-commercial-license"
+      }
+    },
+    {
+      "id": "browser.shortcut.history",
+      "legacyResourceFamily": "app_shortcut_history",
+      "representation": {
+        "kind": "font",
+        "glyph": "clock-counter-clockwise",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "browser.shortcut.bookmarks",
+      "legacyResourceFamily": "app_shortcut_bookmarks",
+      "representation": {
+        "kind": "font",
+        "glyph": "bookmarks",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "desktopCard.shortcut.history",
+      "sourceId": "source.desktopCard.shortcut.history",
+      "legacyResourceFamily": "app_widget_shortcut_history",
+      "representation": {
+        "kind": "legacy-svg",
+        "reason": "form-font-support-unverified"
+      }
+    },
+    {
+      "id": "desktopCard.shortcut.bookmarks",
+      "sourceId": "source.desktopCard.shortcut.bookmarks",
+      "legacyResourceFamily": "app_widget_shortcut_bookmarks",
+      "representation": {
+        "kind": "legacy-svg",
+        "reason": "form-font-support-unverified"
+      }
+    },
+    {
+      "id": "desktopCard.shortcut.downloads",
+      "sourceId": "source.desktopCard.shortcut.downloads",
+      "legacyResourceFamily": "app_widget_shortcut_downloads",
+      "representation": {
+        "kind": "legacy-svg",
+        "reason": "form-font-support-unverified"
+      }
+    },
+    {
+      "id": "desktopCard.shortcut.settings",
+      "sourceId": "source.desktopCard.shortcut.settings",
+      "legacyResourceFamily": "app_widget_shortcut_settings",
+      "representation": {
+        "kind": "legacy-svg",
+        "reason": "form-font-support-unverified"
+      }
+    },
+    {
+      "id": "desktopCard.navigationArrow",
+      "sourceId": "source.desktopCard.navigationArrow",
+      "legacyResourceFamily": "app_widget_navigation_arrow",
+      "representation": {
+        "kind": "legacy-svg",
+        "reason": "form-font-support-unverified"
+      }
+    },
+    {
+      "id": "settings.downloads",
+      "legacyResourceFamily": "app_settings_downloads",
+      "representation": {
+        "kind": "font",
+        "glyph": "download-simple",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "browser.shortcut.downloads",
+      "legacyResourceFamily": "app_shortcut_downloads",
+      "representation": {
+        "kind": "font",
+        "glyph": "download-simple",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "browser.toolbar.activeDownload",
+      "legacyResourceFamily": "app_toolbar_active_download",
+      "representation": {
+        "kind": "font",
+        "glyph": "active-download",
+        "reason": "user-provided-commercial-license"
+      }
+    },
+    {
+      "id": "membership.benefit.downloads",
+      "legacyResourceFamily": "app_membership_benefit_downloads",
+      "representation": {
+        "kind": "font",
+        "glyph": "download-simple",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "browser.tabs.add",
+      "legacyResourceFamily": "app_tabs_add",
+      "representation": {
+        "kind": "font",
+        "glyph": "plus",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "browser.tabs.overviewAdd",
+      "legacyResourceFamily": "app_tabs_overview_add",
+      "representation": {
+        "kind": "font",
+        "glyph": "tabs-overview-new",
+        "reason": "user-provided-commercial-license"
+      }
+    },
+    {
+      "id": "settings.general",
+      "legacyResourceFamily": "app_settings_general",
+      "representation": {
+        "kind": "font",
+        "glyph": "gear-six",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "browser.shortcut.settings",
+      "legacyResourceFamily": "app_shortcut_settings",
+      "representation": {
+        "kind": "font",
+        "glyph": "gear-six",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "browser.shortcut.pageResources",
+      "legacyResourceFamily": "app_shortcut_page_resources",
+      "representation": {
+        "kind": "font",
+        "glyph": "stack",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "settings.sync",
+      "legacyResourceFamily": "app_settings_sync",
+      "representation": {
+        "kind": "font",
+        "glyph": "settings-sync",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "membership.benefit.sync",
+      "legacyResourceFamily": "app_membership_benefit_sync",
+      "representation": {
+        "kind": "font",
+        "glyph": "settings-sync",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "settings.userScripts",
+      "legacyResourceFamily": "app_settings_user_scripts",
+      "representation": {
+        "kind": "font",
+        "glyph": "code",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "browser.shortcut.scripts",
+      "legacyResourceFamily": "app_shortcut_scripts",
+      "representation": {
+        "kind": "font",
+        "glyph": "code",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "membership.benefit.userScripts",
+      "legacyResourceFamily": "app_membership_benefit_user_scripts",
+      "representation": {
+        "kind": "font",
+        "glyph": "code",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "browser.shortcut.scanQr",
+      "legacyResourceFamily": "app_shortcut_scan_qr",
+      "representation": {
+        "kind": "font",
+        "glyph": "qr-code",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "browser.toolbar.scanQr",
+      "legacyResourceFamily": "app_toolbar_scan_qr",
+      "representation": {
+        "kind": "font",
+        "glyph": "toolbar-scan",
+        "reason": "user-provided-commercial-license"
+      }
+    },
+    {
+      "id": "settings.customHomepage",
+      "legacyResourceFamily": "app_settings_custom_homepage",
+      "representation": {
+        "kind": "font",
+        "glyph": "house",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "browser.shortcut.home",
+      "legacyResourceFamily": "app_shortcut_home",
+      "representation": {
+        "kind": "font",
+        "glyph": "house",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "membership.inviteRecordClock",
+      "legacyResourceFamily": "app_membership_invite_record_clock",
+      "representation": {
+        "kind": "font",
+        "glyph": "clock",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "settings.themeMode.dark",
+      "legacyResourceFamily": "app_theme_mode_dark",
+      "representation": {
+        "kind": "font",
+        "glyph": "moon",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "membership.gift",
+      "legacyResourceFamily": "app_membership_gift",
+      "representation": {
+        "kind": "font",
+        "glyph": "gift",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "settings.membershipInvite",
+      "legacyResourceFamily": "app_settings_membership_invite",
+      "representation": {
+        "kind": "font",
+        "glyph": "gift",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "membership.benefit.invite",
+      "legacyResourceFamily": "app_membership_benefit_invite",
+      "representation": {
+        "kind": "font",
+        "glyph": "gift",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "settings.themeMode.light",
+      "legacyResourceFamily": "app_theme_mode_light",
+      "representation": {
+        "kind": "font",
+        "glyph": "sun",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "settings.themeMode.system",
+      "legacyResourceFamily": "app_theme_mode_system",
+      "representation": {
+        "kind": "font",
+        "glyph": "desktop",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "settings.webApps",
+      "legacyResourceFamily": "app_settings_web_apps",
+      "representation": {
+        "kind": "font",
+        "glyph": "app-window",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "settings.webFeatures",
+      "legacyResourceFamily": "app_settings_web_features",
+      "representation": {
+        "kind": "font",
+        "glyph": "settings-web-features",
+        "reason": "user-provided-commercial-license"
+      }
+    },
+    {
+      "id": "settings.webdav",
+      "legacyResourceFamily": "app_settings_webdav",
+      "representation": {
+        "kind": "font",
+        "glyph": "cloud",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "membership.benefit.webdav",
+      "legacyResourceFamily": "app_membership_benefit_webdav",
+      "representation": {
+        "kind": "font",
+        "glyph": "cloud",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "reader.theme",
+      "legacyResourceFamily": "app_reader_theme",
+      "representation": {
+        "kind": "font",
+        "glyph": "palette",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "novelReader.catalog",
+      "legacyResourceFamily": "app_novel_reader_catalog",
+      "representation": {
+        "kind": "font",
+        "glyph": "novel-reader-catalog",
+        "reason": "user-provided-icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "novelReader.text",
+      "legacyResourceFamily": "app_novel_reader_text",
+      "representation": {
+        "kind": "font",
+        "glyph": "novel-reader-text",
+        "reason": "user-provided-icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "novelReader.theme",
+      "legacyResourceFamily": "app_novel_reader_theme",
+      "representation": {
+        "kind": "font",
+        "glyph": "novel-reader-theme",
+        "reason": "user-provided-icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "novelReader.settings",
+      "legacyResourceFamily": "app_novel_reader_settings",
+      "representation": {
+        "kind": "font",
+        "glyph": "novel-reader-settings",
+        "reason": "user-provided-icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "novelReader.brightnessLow",
+      "legacyResourceFamily": "app_novel_reader_brightness_low",
+      "representation": {
+        "kind": "font",
+        "glyph": "novel-reader-brightness-low",
+        "reason": "user-provided-icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "novelReader.brightnessHigh",
+      "legacyResourceFamily": "app_novel_reader_brightness_high",
+      "representation": {
+        "kind": "font",
+        "glyph": "novel-reader-brightness-high",
+        "reason": "user-provided-icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "novelReader.autoSlow",
+      "legacyResourceFamily": "app_novel_reader_auto_slow",
+      "representation": {
+        "kind": "font",
+        "glyph": "novel-reader-auto-slow",
+        "reason": "user-provided-icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "novelReader.autoFast",
+      "legacyResourceFamily": "app_novel_reader_auto_fast",
+      "representation": {
+        "kind": "font",
+        "glyph": "novel-reader-auto-fast",
+        "reason": "user-provided-icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "reader.find",
+      "legacyResourceFamily": "app_reader_find",
+      "representation": {
+        "kind": "font",
+        "glyph": "magnifying-glass",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "reader.share",
+      "legacyResourceFamily": "app_reader_share",
+      "representation": {
+        "kind": "font",
+        "glyph": "share-network",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "reader.bookmarks",
+      "legacyResourceFamily": "app_reader_bookmarks",
+      "representation": {
+        "kind": "font",
+        "glyph": "bookmarks",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "reader.addBookmark",
+      "legacyResourceFamily": "app_reader_add_bookmark",
+      "representation": {
+        "kind": "font",
+        "glyph": "bookmark-simple",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "reader.refresh",
+      "legacyResourceFamily": "app_reader_refresh",
+      "representation": {
+        "kind": "font",
+        "glyph": "arrow-counter-clockwise",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "browser.toolbar.reportSite",
+      "legacyResourceFamily": "app_toolbar_report_site",
+      "representation": {
+        "kind": "font",
+        "glyph": "warning-octagon",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "settings.membership",
+      "legacyResourceFamily": "app_settings_membership",
+      "representation": {
+        "kind": "font",
+        "glyph": "crown",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "membership.benefit.membership",
+      "legacyResourceFamily": "app_membership_benefit_membership",
+      "representation": {
+        "kind": "font",
+        "glyph": "crown",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "site.permission.sensor",
+      "legacyResourceFamily": "app_site_permission_sensor",
+      "representation": {
+        "kind": "font",
+        "glyph": "waveform",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "site.permission.location",
+      "legacyResourceFamily": "app_site_permission_location",
+      "representation": {
+        "kind": "font",
+        "glyph": "map-pin",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "browser.toolbar.addToDesktop",
+      "legacyResourceFamily": "app_toolbar_add_to_desktop",
+      "representation": {
+        "kind": "font",
+        "glyph": "device-mobile",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "browser.toolbar.offline",
+      "legacyResourceFamily": "app_toolbar_offline",
+      "representation": {
+        "kind": "font",
+        "glyph": "floppy-disk",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "browser.toolbar.fullScreen",
+      "legacyResourceFamily": "app_toolbar_full_screen",
+      "representation": {
+        "kind": "font",
+        "glyph": "corners-out",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "browser.toolbar.selectAll",
+      "legacyResourceFamily": "app_toolbar_select_all",
+      "representation": {
+        "kind": "font",
+        "glyph": "selection-all",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "settings.about",
+      "legacyResourceFamily": "app_settings_about",
+      "representation": {
+        "kind": "font",
+        "glyph": "info",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "browser.toolbar.clearInput",
+      "legacyResourceFamily": "app_toolbar_clear_input",
+      "representation": {
+        "kind": "font",
+        "glyph": "x",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "site.setting.clearOnClose",
+      "legacyResourceFamily": "app_site_setting_clear_on_close",
+      "representation": {
+        "kind": "font",
+        "glyph": "trash",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "reader.decreaseFont",
+      "legacyResourceFamily": "app_reader_decrease_font",
+      "representation": {
+        "kind": "font",
+        "glyph": "text-t-slash",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "browser.toolbar.shareDocument",
+      "legacyResourceFamily": "app_toolbar_share_document",
+      "representation": {
+        "kind": "font",
+        "glyph": "share-network",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "browser.address.expandedShare",
+      "legacyResourceFamily": "app_browser_address_expanded_share",
+      "representation": {
+        "kind": "font",
+        "glyph": "browser-address-expanded-share",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "browser.address.expandedEdit",
+      "legacyResourceFamily": "app_browser_address_expanded_edit",
+      "representation": {
+        "kind": "font",
+        "glyph": "browser-address-expanded-edit",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "browser.address.expandedCopy",
+      "legacyResourceFamily": "app_browser_address_expanded_copy",
+      "representation": {
+        "kind": "font",
+        "glyph": "browser-address-expanded-copy",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "browser.toolbar.sharePage",
+      "legacyResourceFamily": "app_toolbar_share_page",
+      "representation": {
+        "kind": "font",
+        "glyph": "share-network",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "reader.lineHeight",
+      "legacyResourceFamily": "app_reader_line_height",
+      "representation": {
+        "kind": "font",
+        "glyph": "text-align-justify",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "browser.tabs.delete",
+      "legacyResourceFamily": "app_tabs_delete",
+      "representation": {
+        "kind": "font",
+        "glyph": "x",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "browser.tabs.overviewClose",
+      "legacyResourceFamily": "app_tabs_overview_close",
+      "representation": {
+        "kind": "font",
+        "glyph": "tabs-overview-close-all",
+        "reason": "user-provided-commercial-license"
+      }
+    },
+    {
+      "id": "browser.toolbar.refresh",
+      "legacyResourceFamily": "app_toolbar_refresh",
+      "representation": {
+        "kind": "font",
+        "glyph": "arrows-clockwise",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "membership.benefit.refresh",
+      "legacyResourceFamily": "app_membership_benefit_refresh",
+      "representation": {
+        "kind": "font",
+        "glyph": "arrows-clockwise",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "site.permission.clipboard",
+      "legacyResourceFamily": "app_site_permission_clipboard",
+      "representation": {
+        "kind": "font",
+        "glyph": "clipboard",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "browser.address.copy",
+      "legacyResourceFamily": "app_browser_address_copy",
+      "representation": {
+        "kind": "font",
+        "glyph": "copy",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "browser.toolbar.sendToDesktop",
+      "legacyResourceFamily": "app_toolbar_send_to_desktop",
+      "representation": {
+        "kind": "font",
+        "glyph": "paper-plane-tilt",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "reader.increaseFont",
+      "legacyResourceFamily": "app_reader_increase_font",
+      "representation": {
+        "kind": "font",
+        "glyph": "text-t",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "browser.toolbar.edit",
+      "legacyResourceFamily": "app_toolbar_edit",
+      "representation": {
+        "kind": "font",
+        "glyph": "pencil-simple",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "browser.toolbar.copyLink",
+      "legacyResourceFamily": "app_toolbar_copy_link",
+      "representation": {
+        "kind": "font",
+        "glyph": "link-simple",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "browser.toolbar.actionCopyLink",
+      "legacyResourceFamily": "app_toolbar_action_copy_link",
+      "representation": {
+        "kind": "font",
+        "glyph": "toolbar-copy-link",
+        "reason": "user-provided-commercial-license"
+      }
+    },
+    {
+      "id": "settings.appearance",
+      "legacyResourceFamily": "app_settings_appearance",
+      "representation": {
+        "kind": "font",
+        "glyph": "circles-three",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "browser.toolbar.themeMode",
+      "legacyResourceFamily": "app_toolbar_theme_mode",
+      "representation": {
+        "kind": "font",
+        "glyph": "circles-three",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "membership.benefit.appearance",
+      "legacyResourceFamily": "app_membership_benefit_appearance",
+      "representation": {
+        "kind": "font",
+        "glyph": "circles-three",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "site.setting.externalActions",
+      "legacyResourceFamily": "app_site_setting_external_actions",
+      "representation": {
+        "kind": "font",
+        "glyph": "arrow-square-out",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "settings.experiments",
+      "legacyResourceFamily": "app_settings_experiments",
+      "representation": {
+        "kind": "font",
+        "glyph": "flask",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "membership.benefit.experiments",
+      "legacyResourceFamily": "app_membership_benefit_experiments",
+      "representation": {
+        "kind": "font",
+        "glyph": "flask",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "settings.passwords",
+      "legacyResourceFamily": "app_settings_passwords",
+      "representation": {
+        "kind": "font",
+        "glyph": "password",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "browser.toolbar.screenOrientation",
+      "legacyResourceFamily": "app_toolbar_screen_orientation",
+      "representation": {
+        "kind": "font",
+        "glyph": "device-rotate",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "browser.toolbar.savedPages",
+      "legacyResourceFamily": "app_toolbar_saved_pages",
+      "representation": {
+        "kind": "font",
+        "glyph": "article",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "settings.adBlocker",
+      "legacyResourceFamily": "app_settings_ad_blocker",
+      "representation": {
+        "kind": "font",
+        "glyph": "ad-blocker",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "settings.notice.userShield",
+      "legacyResourceFamily": "app_settings_notice_user_shield",
+      "representation": {
+        "kind": "font",
+        "glyph": "user-shield",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "membership.benefit.adBlocker",
+      "legacyResourceFamily": "app_membership_benefit_ad_blocker",
+      "representation": {
+        "kind": "font",
+        "glyph": "shield-check",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "settings.appServiceMode",
+      "legacyResourceFamily": "app_settings_app_service_mode",
+      "representation": {
+        "kind": "font",
+        "glyph": "app-window",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "settings.restorePurchase",
+      "legacyResourceFamily": "app_settings_restore_purchase",
+      "representation": {
+        "kind": "font",
+        "glyph": "receipt",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "membership.restorePurchase",
+      "legacyResourceFamily": "app_membership_restore_purchase",
+      "representation": {
+        "kind": "font",
+        "glyph": "receipt",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "browser.toolbar.printPage",
+      "legacyResourceFamily": "app_toolbar_print_page",
+      "representation": {
+        "kind": "font",
+        "glyph": "printer",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "site.setting.openApp",
+      "legacyResourceFamily": "app_site_setting_open_app",
+      "representation": {
+        "kind": "font",
+        "glyph": "arrow-square-out",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "offline.openOriginal",
+      "legacyResourceFamily": "app_offline_open_original",
+      "representation": {
+        "kind": "font",
+        "glyph": "arrow-square-out",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "settings.search",
+      "legacyResourceFamily": "app_settings_search",
+      "representation": {
+        "kind": "font",
+        "glyph": "magnifying-glass",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "browser.toolbar.search",
+      "legacyResourceFamily": "app_toolbar_search",
+      "representation": {
+        "kind": "font",
+        "glyph": "magnifying-glass",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "site.permission.camera",
+      "legacyResourceFamily": "app_site_permission_camera",
+      "representation": {
+        "kind": "font",
+        "glyph": "camera",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "browser.toolbar.more",
+      "legacyResourceFamily": "app_toolbar_more",
+      "representation": {
+        "kind": "font",
+        "glyph": "dots-three",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "browser.toolbar.userScripts",
+      "legacyResourceFamily": "app_toolbar_user_scripts",
+      "representation": {
+        "kind": "font",
+        "glyph": "toolbar-user-script",
+        "reason": "user-provided-commercial-license"
+      }
+    },
+    {
+      "id": "browser.toolbar.menu",
+      "legacyResourceFamily": "app_toolbar_menu",
+      "representation": {
+        "kind": "font",
+        "glyph": "menu",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "browser.toolbar.emptySlot",
+      "legacyResourceFamily": "app_toolbar_empty_slot",
+      "representation": {
+        "kind": "font",
+        "glyph": "toolbar-slot-empty",
+        "reason": "user-provided-commercial-license"
+      }
+    },
+    {
+      "id": "reader.readAloud",
+      "legacyResourceFamily": "app_reader_read_aloud",
+      "representation": {
+        "kind": "font",
+        "glyph": "speaker-high",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "browser.toolbar.tabs",
+      "legacyResourceFamily": "app_toolbar_tabs",
+      "representation": {
+        "kind": "font",
+        "glyph": "tabs",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "settings.userAgent",
+      "legacyResourceFamily": "app_settings_user_agent",
+      "representation": {
+        "kind": "font",
+        "glyph": "identification-card",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "browser.toolbar.userAgentPreset",
+      "legacyResourceFamily": "app_toolbar_user_agent_preset",
+      "representation": {
+        "kind": "font",
+        "glyph": "identification-card",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "browser.toolbar.addBookmark",
+      "legacyResourceFamily": "app_toolbar_add_bookmark",
+      "representation": {
+        "kind": "font",
+        "glyph": "bookmark-simple",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "browser.omnibox.addBookmark",
+      "legacyResourceFamily": "app_omnibox_add_bookmark",
+      "representation": {
+        "kind": "font",
+        "glyph": "toolbar-bookmark-add",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "browser.omnibox.bookmarked",
+      "legacyResourceFamily": "app_omnibox_bookmarked",
+      "representation": {
+        "kind": "font",
+        "glyph": "toolbar-bookmark-selected",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "browser.toolbar.manualElementHide",
+      "legacyResourceFamily": "app_toolbar_manual_element_hide",
+      "representation": {
+        "kind": "font",
+        "glyph": "eraser",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "browser.toolbar.elementInspection",
+      "legacyResourceFamily": "app_toolbar_element_inspection",
+      "representation": {
+        "kind": "font",
+        "glyph": "code",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "browser.toolbar.actionElementInspection",
+      "legacyResourceFamily": "app_toolbar_action_element_inspection",
+      "representation": {
+        "kind": "font",
+        "glyph": "toolbar-element-inspection",
+        "reason": "user-provided-commercial-license"
+      }
+    },
+    {
+      "id": "browser.elementInspection.reselect",
+      "legacyResourceFamily": "app_element_inspection_reselect",
+      "representation": {
+        "kind": "font",
+        "glyph": "element-inspection-reselect",
+        "reason": "user-provided-commercial-license"
+      }
+    },
+    {
+      "id": "browser.elementInspection.fullscreen",
+      "legacyResourceFamily": "app_element_inspection_fullscreen",
+      "representation": {
+        "kind": "font",
+        "glyph": "element-inspection-fullscreen",
+        "reason": "user-provided-commercial-license"
+      }
+    },
+    {
+      "id": "browser.elementInspection.exitFullscreen",
+      "legacyResourceFamily": "app_element_inspection_exit_fullscreen",
+      "representation": {
+        "kind": "font",
+        "glyph": "element-inspection-exit-fullscreen",
+        "reason": "user-provided-commercial-license"
+      }
+    },
+    {
+      "id": "settings.siteSettings",
+      "legacyResourceFamily": "app_settings_site_settings",
+      "representation": {
+        "kind": "font",
+        "glyph": "globe",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "userscripts.defaultIcon",
+      "legacyResourceFamily": "app_userscripts_default_icon",
+      "representation": {
+        "kind": "font",
+        "glyph": "globe-earth",
+        "reason": "user-provided-commercial-license"
+      }
+    },
+    {
+      "id": "browser.toolbar.siteInfo",
+      "legacyResourceFamily": "app_toolbar_site_info",
+      "representation": {
+        "kind": "font",
+        "glyph": "globe",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "browser.toolbar.userAgent",
+      "legacyResourceFamily": "app_toolbar_user_agent",
+      "representation": {
+        "kind": "font",
+        "glyph": "browser",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "settings.webpageTranslation",
+      "legacyResourceFamily": "app_settings_webpage_translation",
+      "representation": {
+        "kind": "font",
+        "glyph": "translate",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "browser.toolbar.translate",
+      "legacyResourceFamily": "app_toolbar_translate",
+      "representation": {
+        "kind": "font",
+        "glyph": "translate",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "browser.toolbar.actionTranslate",
+      "legacyResourceFamily": "app_toolbar_action_translate",
+      "representation": {
+        "kind": "font",
+        "glyph": "toolbar-translate",
+        "reason": "user-provided-commercial-license"
+      }
+    },
+    {
+      "id": "membership.benefit.webpageTranslation",
+      "legacyResourceFamily": "app_membership_benefit_webpage_translation",
+      "representation": {
+        "kind": "font",
+        "glyph": "translate",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "browser.toolbar.fillAddress",
+      "legacyResourceFamily": "app_toolbar_fill_address",
+      "representation": {
+        "kind": "font",
+        "glyph": "cursor-text",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "browser.toolbar.back",
+      "legacyResourceFamily": "app_toolbar_back",
+      "representation": {
+        "kind": "font",
+        "glyph": "arrow-left",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "browser.toolbar.forward",
+      "legacyResourceFamily": "app_toolbar_forward",
+      "representation": {
+        "kind": "font",
+        "glyph": "arrow-right",
+        "reason": "user-provided-commercial-license"
+      }
+    },
+    {
+      "id": "browser.toolbar.connectionSecurity",
+      "legacyResourceFamily": "app_toolbar_connection_security",
+      "representation": {
+        "kind": "font",
+        "glyph": "lock-key",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "reader.pageWidth",
+      "legacyResourceFamily": "app_reader_page_width",
+      "representation": {
+        "kind": "font",
+        "glyph": "arrows-out-line-horizontal",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "browser.toolbar.reader",
+      "legacyResourceFamily": "app_toolbar_reader",
+      "representation": {
+        "kind": "font",
+        "glyph": "book-open-text",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "browser.toolbar.bookshelf",
+      "legacyResourceFamily": "app_toolbar_bookshelf",
+      "representation": {
+        "kind": "font",
+        "glyph": "bookshelf",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "settings.privacySecurity",
+      "legacyResourceFamily": "app_settings_privacy_security",
+      "representation": {
+        "kind": "font",
+        "glyph": "shield",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "membership.benefit.privacySecurity",
+      "legacyResourceFamily": "app_membership_benefit_privacy_security",
+      "representation": {
+        "kind": "font",
+        "glyph": "shield",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "browser.tabs.privacyMode",
+      "legacyResourceFamily": "app_tabs_privacy_mode",
+      "representation": {
+        "kind": "font",
+        "glyph": "mask-happy",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "browser.toolbar.privacyMode",
+      "legacyResourceFamily": "app_toolbar_privacy_mode",
+      "representation": {
+        "kind": "font",
+        "glyph": "toolbar-private-mode",
+        "reason": "user-provided-commercial-license"
+      }
+    },
+    {
+      "id": "site.permission.microphone",
+      "legacyResourceFamily": "app_site_permission_microphone",
+      "representation": {
+        "kind": "font",
+        "glyph": "microphone",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "videoAssistant.aspectRatio",
+      "legacyResourceFamily": "app_video_assistant_aspect_ratio",
+      "representation": {
+        "kind": "font",
+        "glyph": "resize",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "videoAssistant.pause",
+      "legacyResourceFamily": "app_video_assistant_pause",
+      "representation": {
+        "kind": "font",
+        "glyph": "pause",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "videoAssistant.play",
+      "legacyResourceFamily": "app_video_assistant_play",
+      "representation": {
+        "kind": "font",
+        "glyph": "play",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "videoAssistant.seekForward10",
+      "legacyResourceFamily": "app_video_assistant_seek_forward_10",
+      "representation": {
+        "kind": "font",
+        "glyph": "fast-forward",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "videoAssistant.seekBackward10",
+      "legacyResourceFamily": "app_video_assistant_seek_backward_10",
+      "representation": {
+        "kind": "font",
+        "glyph": "rewind",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "videoAssistant.playbackSpeed",
+      "legacyResourceFamily": "app_video_assistant_playback_speed",
+      "representation": {
+        "kind": "font",
+        "glyph": "gauge",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "videoAssistant.lock",
+      "legacyResourceFamily": "app_video_assistant_lock",
+      "representation": {
+        "kind": "font",
+        "glyph": "lock",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "videoAssistant.unlock",
+      "legacyResourceFamily": "app_video_assistant_unlock",
+      "representation": {
+        "kind": "font",
+        "glyph": "lock-open",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "videoAssistant.popup",
+      "legacyResourceFamily": "app_video_assistant_popup",
+      "representation": {
+        "kind": "font",
+        "glyph": "picture-in-picture",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "videoAssistant.rotate",
+      "legacyResourceFamily": "app_video_assistant_rotate",
+      "representation": {
+        "kind": "font",
+        "glyph": "arrows-clockwise",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "videoAssistant.control.aspectRatio",
+      "legacyResourceFamily": "app_video_assistant_control_aspect_ratio",
+      "representation": {
+        "kind": "font",
+        "glyph": "video-assistant-fill-screen",
+        "reason": "user-provided-commercial-license"
+      }
+    },
+    {
+      "id": "videoAssistant.control.playbackSpeed",
+      "legacyResourceFamily": "app_video_assistant_control_playback_speed",
+      "representation": {
+        "kind": "font",
+        "glyph": "video-assistant-playback-speed",
+        "reason": "user-provided-commercial-license"
+      }
+    },
+    {
+      "id": "videoAssistant.control.rotate",
+      "legacyResourceFamily": "app_video_assistant_control_rotate",
+      "representation": {
+        "kind": "font",
+        "glyph": "video-assistant-rotate",
+        "reason": "user-provided-commercial-license"
+      }
+    },
+    {
+      "id": "videoAssistant.cast",
+      "legacyResourceFamily": "app_video_assistant_cast",
+      "representation": {
+        "kind": "font",
+        "glyph": "video-assistant-cast",
+        "reason": "user-provided-commercial-license"
+      }
+    },
+    {
+      "id": "videoAssistant.gesture.brightness",
+      "legacyResourceFamily": "app_video_assistant_gesture_brightness",
+      "representation": {
+        "kind": "font",
+        "glyph": "sun",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "videoAssistant.gesture.volumeMuted",
+      "legacyResourceFamily": "app_video_assistant_gesture_volume_muted",
+      "representation": {
+        "kind": "font",
+        "glyph": "speaker-slash",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "videoAssistant.gesture.volumeLow",
+      "legacyResourceFamily": "app_video_assistant_gesture_volume_low",
+      "representation": {
+        "kind": "font",
+        "glyph": "speaker-low",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "videoAssistant.gesture.volumeMedium",
+      "legacyResourceFamily": "app_video_assistant_gesture_volume_medium",
+      "representation": {
+        "kind": "font",
+        "glyph": "speaker-simple-high",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "videoAssistant.gesture.volumeHigh",
+      "legacyResourceFamily": "app_video_assistant_gesture_volume_high",
+      "representation": {
+        "kind": "font",
+        "glyph": "speaker-high",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "search.suggestion.fillArrow",
+      "legacyResourceFamily": "app_search_suggestion_fill_arrow",
+      "representation": {
+        "kind": "font",
+        "glyph": "arrow-up-left",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "sync.firstActivation.activityHeatmap",
+      "legacyResourceFamily": "app_sync_first_activation_activity_heatmap",
+      "representation": {
+        "kind": "font",
+        "glyph": "activity-heatmap",
+        "reason": "icons8-ios-27-glyph"
+      }
+    },
+    {
+      "id": "browser.toolbar.expandHint",
+      "legacyResourceFamily": "app_toolbar_expand_hint",
+      "representation": {
+        "kind": "font",
+        "glyph": "toolbar-expand-hint",
+        "reason": "user-provided-commercial-license"
+      }
+    }
+  ],
+  "groups": [
+    {
+      "id": "desktop-search-card-accessories",
+      "title": "Desktop search card accessories",
+      "description": "Widget-only decorative and navigation resources for desktop search cards.",
+      "entryKind": "resource",
+      "entries": [
+        {
+          "title": "1×2 向右箭头",
+          "iconId": "desktopCard.navigationArrow"
+        }
+      ]
+    },
+    {
+      "id": "desktop-search-card-shortcuts",
+      "title": "Desktop search card shortcuts",
+      "description": "Widget-only shortcut icons for the 2x4 desktop search card. These resources must not be reused as general app shortcut icons.",
+      "entryKind": "resource",
+      "entries": [
+        {
+          "title": "书签",
+          "iconId": "desktopCard.shortcut.bookmarks"
+        },
+        {
+          "title": "历史记录",
+          "iconId": "desktopCard.shortcut.history"
+        },
+        {
+          "title": "下载管理",
+          "iconId": "desktopCard.shortcut.downloads"
+        },
+        {
+          "title": "设置",
+          "iconId": "desktopCard.shortcut.settings"
+        }
+      ]
+    },
+    {
+      "id": "bottom-toolbar-customizable",
+      "title": "Bottom toolbar customizable actions",
+      "description": "The 30 draggable actions shown in Settings > Bottom toolbar. These entries must stay one-to-one with BrowserBottomPanelActionCatalog.customizableActionIds().",
+      "entryKind": "action",
+      "entries": [
+        {
+          "actionId": "history",
+          "title": "历史记录",
+          "iconId": "browser.shortcut.history"
+        },
+        {
+          "actionId": "openBookmarks",
+          "title": "书签",
+          "iconId": "browser.shortcut.bookmarks"
+        },
+        {
+          "actionId": "novel",
+          "title": "我的书架",
+          "iconId": "browser.toolbar.bookshelf"
+        },
+        {
+          "actionId": "sendToDesktop",
+          "title": "推送到电脑",
+          "iconId": "browser.toolbar.sendToDesktop"
+        },
+        {
+          "actionId": "settings",
+          "title": "设置",
+          "iconId": "browser.shortcut.settings"
+        },
+        {
+          "actionId": "appProxySettings",
+          "title": "代理设置",
+          "iconId": "browser.toolbar.connectionSecurity"
+        },
+        {
+          "actionId": "home",
+          "title": "主页",
+          "iconId": "browser.shortcut.home"
+        },
+        {
+          "actionId": "newPrivateTab",
+          "title": "隐私模式",
+          "iconId": "browser.toolbar.privacyMode"
+        },
+        {
+          "actionId": "scanQr",
+          "title": "扫一扫",
+          "iconId": "browser.toolbar.scanQr"
+        },
+        {
+          "actionId": "scripts",
+          "title": "用户脚本",
+          "iconId": "browser.shortcut.scripts"
+        },
+        {
+          "actionId": "video",
+          "title": "资源嗅探",
+          "iconId": "browser.shortcut.pageResources"
+        },
+        {
+          "actionId": "downloads",
+          "title": "下载管理",
+          "iconId": "browser.shortcut.downloads"
+        },
+        {
+          "actionId": "bookmark",
+          "title": "添加书签",
+          "iconId": "browser.toolbar.addBookmark"
+        },
+        {
+          "actionId": "copyLink",
+          "title": "复制链接",
+          "iconId": "browser.toolbar.actionCopyLink"
+        },
+        {
+          "actionId": "share",
+          "title": "分享网页",
+          "iconId": "browser.toolbar.sharePage"
+        },
+        {
+          "actionId": "print",
+          "title": "打印网页",
+          "iconId": "browser.toolbar.printPage"
+        },
+        {
+          "actionId": "userAgent",
+          "title": "网站版本",
+          "iconId": "settings.siteSettings"
+        },
+        {
+          "actionId": "textZoom",
+          "title": "网页文字大小",
+          "iconId": "reader.increaseFont"
+        },
+        {
+          "actionId": "find",
+          "title": "查找网页",
+          "iconId": "browser.toolbar.search"
+        },
+        {
+          "actionId": "fullScreenMode",
+          "title": "全屏模式",
+          "iconId": "browser.toolbar.fullScreen"
+        },
+        {
+          "actionId": "manualElementHide",
+          "title": "标记广告",
+          "iconId": "browser.toolbar.manualElementHide"
+        },
+        {
+          "actionId": "elementInspection",
+          "title": "审查元素",
+          "iconId": "browser.toolbar.actionElementInspection"
+        },
+        {
+          "actionId": "reader",
+          "title": "阅读模式",
+          "iconId": "browser.toolbar.reader"
+        },
+        {
+          "actionId": "translate",
+          "title": "翻译网页",
+          "iconId": "browser.toolbar.actionTranslate"
+        },
+        {
+          "actionId": "themeMode",
+          "title": "外观模式",
+          "iconId": "browser.toolbar.themeMode"
+        },
+        {
+          "actionId": "screenOrientation",
+          "title": "屏幕方向",
+          "iconId": "browser.toolbar.screenOrientation"
+        },
+        {
+          "actionId": "addToDesktop",
+          "title": "作为应用安装",
+          "iconId": "browser.toolbar.addToDesktop"
+        },
+        {
+          "actionId": "offline",
+          "title": "保存离线网页",
+          "iconId": "browser.toolbar.offline"
+        },
+        {
+          "actionId": "siteInfo",
+          "title": "站点信息",
+          "iconId": "settings.about"
+        },
+        {
+          "actionId": "reportSite",
+          "title": "举报网站",
+          "iconId": "browser.toolbar.reportSite"
+        },
+        {
+          "actionId": "savedPages",
+          "title": "已保存页面",
+          "iconId": "browser.toolbar.savedPages"
+        }
+      ]
+    },
+    {
+      "id": "browser-chrome",
+      "title": "Browser chrome and bottom address controls",
+      "description": "Static browser chrome icons outside the configurable action grid.",
+      "entryKind": "resource",
+      "entries": [
+        {
+          "title": "返回",
+          "iconId": "browser.toolbar.back"
+        },
+        {
+          "title": "前进",
+          "iconId": "browser.toolbar.forward"
+        },
+        {
+          "title": "标签页",
+          "iconId": "browser.toolbar.tabs"
+        },
+        {
+          "title": "搜索",
+          "iconId": "browser.toolbar.search"
+        },
+        {
+          "title": "继续展开工具栏",
+          "iconId": "browser.toolbar.expandHint"
+        },
+        {
+          "title": "刷新",
+          "iconId": "browser.toolbar.refresh"
+        },
+        {
+          "title": "连接安全",
+          "iconId": "browser.toolbar.connectionSecurity"
+        },
+        {
+          "title": "主页",
+          "iconId": "browser.shortcut.home"
+        },
+        {
+          "title": "复制链接",
+          "iconId": "browser.toolbar.copyLink"
+        },
+        {
+          "title": "编辑",
+          "iconId": "browser.toolbar.edit"
+        },
+        {
+          "title": "输入地址",
+          "iconId": "browser.toolbar.fillAddress"
+        },
+        {
+          "title": "全选",
+          "iconId": "browser.toolbar.selectAll"
+        },
+        {
+          "title": "更多",
+          "iconId": "browser.toolbar.more"
+        },
+        {
+          "title": "关闭/清空",
+          "iconId": "browser.toolbar.clearInput"
+        },
+        {
+          "title": "分享文档",
+          "iconId": "browser.toolbar.shareDocument"
+        },
+        {
+          "title": "站点信息",
+          "iconId": "browser.toolbar.siteInfo"
+        },
+        {
+          "title": "新建标签",
+          "iconId": "browser.tabs.overviewAdd"
+        },
+        {
+          "title": "删除/关闭标签",
+          "iconId": "browser.tabs.overviewClose"
+        },
+        {
+          "title": "隐私模式",
+          "iconId": "browser.tabs.privacyMode"
+        }
+      ]
+    },
+    {
+      "id": "reader-controls",
+      "title": "Reader mode controls",
+      "description": "Reader-mode-only controls. The reader entry in the bottom toolbar remains in bottom-toolbar-customizable.",
+      "entryKind": "resource",
+      "entries": [
+        {
+          "title": "减小字号",
+          "iconId": "reader.decreaseFont"
+        },
+        {
+          "title": "增大字号",
+          "iconId": "reader.increaseFont"
+        },
+        {
+          "title": "主题",
+          "iconId": "reader.theme"
+        },
+        {
+          "title": "朗读",
+          "iconId": "reader.readAloud"
+        },
+        {
+          "title": "切换行距",
+          "iconId": "reader.lineHeight"
+        },
+        {
+          "title": "阅读区域宽度",
+          "iconId": "reader.pageWidth"
+        },
+        {
+          "title": "查找正文",
+          "iconId": "reader.find"
+        },
+        {
+          "title": "分享",
+          "iconId": "reader.share"
+        },
+        {
+          "title": "进入书签",
+          "iconId": "reader.bookmarks"
+        },
+        {
+          "title": "添加书签",
+          "iconId": "reader.addBookmark"
+        },
+        {
+          "title": "重置图片预览",
+          "iconId": "reader.refresh"
+        }
+      ]
+    },
+    {
+      "id": "offline-viewer-controls",
+      "title": "离线网页查看器",
+      "description": "Offline-viewer-only outline controls derived independently from generic filled browser toolbar assets.",
+      "entryKind": "resource",
+      "entries": [
+        {
+          "title": "打开原网页",
+          "iconId": "offline.openOriginal"
+        }
+      ]
+    },
+    {
+      "id": "video-assistant-controls",
+      "title": "Video Assistant player controls",
+      "description": "Fixed-white SVG controls rendered over the dark native Video Assistant playback surface.",
+      "entryKind": "resource",
+      "entries": [
+        {
+          "title": "播放",
+          "iconId": "videoAssistant.play"
+        },
+        {
+          "title": "暂停",
+          "iconId": "videoAssistant.pause"
+        },
+        {
+          "title": "后退 10 秒",
+          "iconId": "videoAssistant.seekBackward10"
+        },
+        {
+          "title": "前进 10 秒",
+          "iconId": "videoAssistant.seekForward10"
+        },
+        {
+          "title": "画面比例",
+          "iconId": "videoAssistant.control.aspectRatio"
+        },
+        {
+          "title": "弹出播放",
+          "iconId": "videoAssistant.popup"
+        },
+        {
+          "title": "播放速度",
+          "iconId": "videoAssistant.control.playbackSpeed"
+        },
+        {
+          "title": "旋转",
+          "iconId": "videoAssistant.control.rotate"
+        },
+        {
+          "title": "锁定",
+          "iconId": "videoAssistant.lock"
+        },
+        {
+          "title": "解锁",
+          "iconId": "videoAssistant.unlock"
+        }
+      ]
+    },
+    {
+      "id": "settings",
+      "title": "Settings center and settings detail icons",
+      "entryKind": "resource",
+      "entries": [
+        {
+          "title": "关于 Aira",
+          "iconId": "settings.about"
+        },
+        {
+          "title": "广告拦截",
+          "iconId": "settings.adBlocker"
+        },
+        {
+          "title": "应用服务模式",
+          "iconId": "settings.appServiceMode"
+        },
+        {
+          "title": "外观模式",
+          "iconId": "settings.appearance"
+        },
+        {
+          "title": "自定义主页",
+          "iconId": "settings.customHomepage"
+        },
+        {
+          "title": "下载",
+          "iconId": "settings.downloads"
+        },
+        {
+          "title": "实验室",
+          "iconId": "settings.experiments"
+        },
+        {
+          "title": "通用",
+          "iconId": "settings.general"
+        },
+        {
+          "title": "会员",
+          "iconId": "settings.membership"
+        },
+        {
+          "title": "邀请",
+          "iconId": "settings.membershipInvite"
+        },
+        {
+          "title": "密码",
+          "iconId": "settings.passwords"
+        },
+        {
+          "title": "隐私与安全",
+          "iconId": "settings.privacySecurity"
+        },
+        {
+          "title": "恢复购买",
+          "iconId": "settings.restorePurchase"
+        },
+        {
+          "title": "搜索",
+          "iconId": "settings.search"
+        },
+        {
+          "title": "站点设置",
+          "iconId": "settings.siteSettings"
+        },
+        {
+          "title": "同步",
+          "iconId": "settings.sync"
+        },
+        {
+          "title": "网页标识",
+          "iconId": "settings.userAgent"
+        },
+        {
+          "title": "用户脚本",
+          "iconId": "settings.userScripts"
+        },
+        {
+          "title": "网页功能",
+          "iconId": "settings.webFeatures"
+        },
+        {
+          "title": "网页应用",
+          "iconId": "settings.webApps"
+        },
+        {
+          "title": "WebDAV",
+          "iconId": "settings.webdav"
+        },
+        {
+          "title": "网页翻译",
+          "iconId": "settings.webpageTranslation"
+        }
+      ]
+    },
+    {
+      "id": "settings-colored-tile-foreground",
+      "title": "Settings colored-tile white foreground icons",
+      "description": "Operational Icons rendered as white glyphs inside colored 30vp settings tiles. Six frozen Resource consumers receive generated compatibility SVGs from the same Icons8 source pack.",
+      "entryKind": "resource",
+      "renderContext": "SettingsNavigationRow, SettingsToggleRow, and frozen Resource compatibility consumers",
+      "foregroundColor": "#FFFFFF",
+      "backgroundOwner": "AiraBrowser/entry/src/main/ets/app/components/settings/SettingsRows.ets iconBackgroundColor",
+      "entries": [
+        {
+          "title": "关于 Aira",
+          "iconId": "settings.about"
+        },
+        {
+          "title": "广告拦截",
+          "iconId": "settings.adBlocker"
+        },
+        {
+          "title": "应用服务模式",
+          "iconId": "settings.appServiceMode"
+        },
+        {
+          "title": "外观模式",
+          "iconId": "settings.appearance"
+        },
+        {
+          "title": "自定义主页",
+          "iconId": "settings.customHomepage"
+        },
+        {
+          "title": "下载",
+          "iconId": "settings.downloads"
+        },
+        {
+          "title": "实验室",
+          "iconId": "settings.experiments"
+        },
+        {
+          "title": "通用",
+          "iconId": "settings.general"
+        },
+        {
+          "title": "会员",
+          "iconId": "settings.membership"
+        },
+        {
+          "title": "邀请",
+          "iconId": "settings.membershipInvite"
+        },
+        {
+          "title": "密码",
+          "iconId": "settings.passwords"
+        },
+        {
+          "title": "隐私与安全",
+          "iconId": "settings.privacySecurity"
+        },
+        {
+          "title": "恢复购买",
+          "iconId": "settings.restorePurchase"
+        },
+        {
+          "title": "搜索",
+          "iconId": "settings.search"
+        },
+        {
+          "title": "站点设置",
+          "iconId": "settings.siteSettings"
+        },
+        {
+          "title": "同步",
+          "iconId": "settings.sync"
+        },
+        {
+          "title": "网页标识",
+          "iconId": "settings.userAgent"
+        },
+        {
+          "title": "用户脚本",
+          "iconId": "settings.userScripts"
+        },
+        {
+          "title": "网页功能",
+          "iconId": "settings.webFeatures"
+        },
+        {
+          "title": "网页应用",
+          "iconId": "settings.webApps"
+        },
+        {
+          "title": "WebDAV",
+          "iconId": "settings.webdav"
+        },
+        {
+          "title": "网页翻译",
+          "iconId": "settings.webpageTranslation"
+        }
+      ]
+    },
+    {
+      "id": "membership",
+      "title": "Membership and benefit icons",
+      "entryKind": "resource",
+      "entries": [
+        {
+          "title": "会员礼物",
+          "iconId": "membership.gift"
+        },
+        {
+          "title": "邀请记录时间",
+          "iconId": "membership.inviteRecordClock"
+        },
+        {
+          "title": "恢复购买",
+          "iconId": "membership.restorePurchase"
+        },
+        {
+          "title": "广告拦截权益",
+          "iconId": "membership.benefit.adBlocker"
+        },
+        {
+          "title": "外观权益",
+          "iconId": "membership.benefit.appearance"
+        },
+        {
+          "title": "下载权益",
+          "iconId": "membership.benefit.downloads"
+        },
+        {
+          "title": "实验室权益",
+          "iconId": "membership.benefit.experiments"
+        },
+        {
+          "title": "邀请权益",
+          "iconId": "membership.benefit.invite"
+        },
+        {
+          "title": "会员权益",
+          "iconId": "membership.benefit.membership"
+        },
+        {
+          "title": "隐私安全权益",
+          "iconId": "membership.benefit.privacySecurity"
+        },
+        {
+          "title": "刷新权益",
+          "iconId": "membership.benefit.refresh"
+        },
+        {
+          "title": "同步权益",
+          "iconId": "membership.benefit.sync"
+        },
+        {
+          "title": "脚本权益",
+          "iconId": "membership.benefit.userScripts"
+        },
+        {
+          "title": "WebDAV 权益",
+          "iconId": "membership.benefit.webdav"
+        },
+        {
+          "title": "翻译权益",
+          "iconId": "membership.benefit.webpageTranslation"
+        }
+      ]
+    },
+    {
+      "id": "site-controls",
+      "title": "Site permissions and site customization",
+      "entryKind": "resource",
+      "entries": [
+        {
+          "title": "摄像头",
+          "iconId": "site.permission.camera"
+        },
+        {
+          "title": "剪贴板",
+          "iconId": "site.permission.clipboard"
+        },
+        {
+          "title": "位置信息",
+          "iconId": "site.permission.location"
+        },
+        {
+          "title": "麦克风",
+          "iconId": "site.permission.microphone"
+        },
+        {
+          "title": "传感器",
+          "iconId": "site.permission.sensor"
+        },
+        {
+          "title": "关闭后清除",
+          "iconId": "site.setting.clearOnClose"
+        },
+        {
+          "title": "外部动作",
+          "iconId": "site.setting.externalActions"
+        },
+        {
+          "title": "打开应用",
+          "iconId": "site.setting.openApp"
+        }
+      ]
+    },
+    {
+      "id": "theme-mode",
+      "title": "Theme mode selector icons",
+      "entryKind": "resource",
+      "entries": [
+        {
+          "title": "深色模式",
+          "iconId": "settings.themeMode.dark"
+        },
+        {
+          "title": "浅色模式",
+          "iconId": "settings.themeMode.light"
+        },
+        {
+          "title": "跟随系统",
+          "iconId": "settings.themeMode.system"
+        }
+      ]
+    },
+    {
+      "id": "bookmarks",
+      "title": "Bookmark management icons",
+      "entryKind": "resource",
+      "entries": [
+        {
+          "title": "书签文件夹",
+          "iconId": "bookmarks.folder"
+        },
+        {
+          "title": "编辑模式拖动抓手",
+          "iconId": "bookmarks.edit.dragHandle"
+        },
+        {
+          "title": "编辑模式移动",
+          "iconId": "bookmarks.edit.move"
+        },
+        {
+          "title": "编辑模式全选",
+          "iconId": "bookmarks.edit.selectAll"
+        }
+      ]
+    },
+    {
+      "id": "sync-first-activation-content",
+      "title": "Sync first-activation content icons",
+      "description": "Operational Icons shown in the first-activation 选择同步内容 sheet. The sheet reuses existing semantic IDs except for its dedicated activity heatmap glyph.",
+      "entryKind": "resource",
+      "renderContext": "SyncFirstActivationItemsSheet leading colored icon tiles",
+      "entries": [
+        {
+          "title": "书签",
+          "iconId": "browser.shortcut.bookmarks"
+        },
+        {
+          "title": "主页收藏",
+          "iconId": "browser.shortcut.home"
+        },
+        {
+          "title": "核心偏好",
+          "iconId": "settings.general"
+        },
+        {
+          "title": "活动热力图",
+          "iconId": "sync.firstActivation.activityHeatmap"
+        },
+        {
+          "title": "搜索",
+          "iconId": "settings.search"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "name": "libaira_adblock.so",
+  "version": "1.0.0",
+  "description": "Aira ad-block native authority bridge.",
+  "types": "./index.d.ts"
+}

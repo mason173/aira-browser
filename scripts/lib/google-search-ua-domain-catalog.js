@@ -1,0 +1,178 @@
+const MAX_HOSTS_PER_RULE = 32;
+const MIN_SUPPORTED_DOMAIN_COUNT = 180;
+const POLICY_VALIDITY_MS = 30 * 24 * 60 * 60 * 1000;
+const GOOGLE_VERIFICATION_URL = 'https://www.google.com/supported_domains';
+
+const PROFILE_CONFIGS = [
+  {
+    idSegment: 'mobile',
+    profileId: 'aira_android_compat',
+    applicationFamilies: ['mobile'],
+    reason: "Google Search pages require Aira's stable Android-shaped Chrome compatibility identity."
+  },
+  {
+    idSegment: 'desktop',
+    profileId: 'aira_desktop_compat',
+    applicationFamilies: ['tablet', 'desktop'],
+    reason: "Google Search large-screen pages require Aira's verified Windows Chrome compatibility identity."
+  }
+];
+
+function parseGoogleSupportedDomains(sourceText) {
+  if (typeof sourceText !== 'string' || sourceText.length <= 0) {
+    throw new Error('Google supported-domain source must be non-empty text.');
+  }
+  const normalizedText = sourceText.endsWith('\n') ? sourceText.slice(0, -1) : sourceText;
+  const lines = normalizedText.split('\n');
+  const domains = [];
+  const seen = new Set();
+  lines.forEach((rawLine, index) => {
+    const line = rawLine.endsWith('\r') ? rawLine.slice(0, -1) : rawLine;
+    const match = /^\.(.+)$/.exec(line);
+    if (!match || !isValidGoogleSearchDomain(match[1])) {
+      throw new Error(`Google supported-domain source line ${index + 1} is invalid.`);
+    }
+    const domain = match[1];
+    if (seen.has(domain)) {
+      throw new Error(`Google supported-domain source contains duplicate domain ${domain}.`);
+    }
+    seen.add(domain);
+    domains.push(domain);
+  });
+  return domains;
+}
+
+function assertGoogleSupportedDomainCatalogScale(domains) {
+  if (!Array.isArray(domains) || domains.length < MIN_SUPPORTED_DOMAIN_COUNT) {
+    throw new Error(
+      `Google supported-domain source unexpectedly contains fewer than ${MIN_SUPPORTED_DOMAIN_COUNT} domains.`
+    );
+  }
+}
+
+function buildGoogleSearchCompatibilityHosts(domains) {
+  if (!Array.isArray(domains) || domains.length <= 0) {
+    throw new Error('Google Search domains must be a non-empty array.');
+  }
+  const hosts = [];
+  const seen = new Set();
+  domains.forEach((domain, index) => {
+    if (!isValidGoogleSearchDomain(domain)) {
+      throw new Error(`Google Search domain ${index + 1} is invalid.`);
+    }
+    [domain, `www.${domain}`].forEach((host) => {
+      if (seen.has(host)) {
+        throw new Error(`Google Search Host ${host} is duplicated.`);
+      }
+      seen.add(host);
+      hosts.push(host);
+    });
+  });
+  return hosts.sort();
+}
+
+function buildGoogleSearchHostPolicyRules(domains, verifiedAt) {
+  if (typeof verifiedAt !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(verifiedAt)) {
+    throw new Error('Google Search Host-policy verification date is invalid.');
+  }
+  const chunks = chunkValues(buildGoogleSearchCompatibilityHosts(domains), MAX_HOSTS_PER_RULE);
+  return PROFILE_CONFIGS.flatMap((profile) => chunks.map((hosts, index) => ({
+    id: `google-search-${profile.idSegment}-compat-${String(index + 1).padStart(2, '0')}`,
+    profileId: profile.profileId,
+    applicationFamilies: [...profile.applicationFamilies],
+    hosts: [...hosts],
+    reason: profile.reason,
+    verificationUrl: GOOGLE_VERIFICATION_URL,
+    addedAt: verifiedAt,
+    lastVerifiedAt: verifiedAt
+  })));
+}
+
+function mergeGoogleSearchHostPolicyRules(currentRules, generatedRules) {
+  if (!Array.isArray(currentRules) || !Array.isArray(generatedRules)) {
+    throw new Error('Host-policy rule collections must be arrays.');
+  }
+  const retainedRules = currentRules.filter((rule) => {
+    const id = typeof rule?.id === 'string' ? rule.id : '';
+    return id !== 'google-www-mobile-compat' && id !== 'google-www-desktop-compat' &&
+      !id.startsWith('google-search-');
+  });
+  return generatedRules.map((rule) => cloneRule(rule)).concat(retainedRules.map((rule) => cloneRule(rule)));
+}
+
+function buildNextGoogleSearchHostPolicyManifest(currentManifest, generatedRules, now) {
+  if (!currentManifest || typeof currentManifest !== 'object' || Array.isArray(currentManifest) ||
+    !Number.isSafeInteger(currentManifest.revision) || currentManifest.revision <= 0 ||
+    !Number.isSafeInteger(now) || now <= 0) {
+    throw new Error('Current Host-policy manifest identity is invalid.');
+  }
+  const rules = mergeGoogleSearchHostPolicyRules(currentManifest.rules, generatedRules);
+  if (JSON.stringify(rules) === JSON.stringify(currentManifest.rules)) {
+    return { ...currentManifest, rules };
+  }
+  return {
+    ...currentManifest,
+    revision: currentManifest.revision + 1,
+    issuedAt: now,
+    expiresAt: now + POLICY_VALIDITY_MS,
+    rules
+  };
+}
+
+function renderGoogleSearchHostChunksArkTs(domains) {
+  const chunks = chunkValues(buildGoogleSearchCompatibilityHosts(domains), MAX_HOSTS_PER_RULE);
+  const renderedChunks = chunks.map((hosts) => {
+    const renderedHosts = hosts.map((host) => `    '${host}'`).join(',\n');
+    return `  [\n${renderedHosts}\n  ]`;
+  }).join(',\n');
+  return '// Generated by scripts/generate-google-search-ua-domain-catalog.js.\n' +
+    '// Source: https://www.google.com/supported_domains\n' +
+    'export const GOOGLE_SEARCH_COMPATIBILITY_HOST_CHUNKS: string[][] = [\n' +
+    `${renderedChunks}\n` +
+    '];\n';
+}
+
+function cloneRule(rule) {
+  return {
+    ...rule,
+    applicationFamilies: Array.isArray(rule.applicationFamilies) ? [...rule.applicationFamilies] : rule.applicationFamilies,
+    hosts: Array.isArray(rule.hosts) ? [...rule.hosts] : rule.hosts
+  };
+}
+
+function isValidGoogleSearchDomain(value) {
+  return typeof value === 'string' && value.startsWith('google.') &&
+    isValidDnsHost(value) && isValidDnsHost(`www.${value}`);
+}
+
+function isValidDnsHost(value) {
+  if (typeof value !== 'string' || value.length <= 0 || value.length > 253) {
+    return false;
+  }
+  return value.split('.').every((label) => label.length > 0 && label.length <= 63 &&
+    /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(label));
+}
+
+function chunkValues(values, chunkSize) {
+  if (!Array.isArray(values) || !Number.isSafeInteger(chunkSize) || chunkSize <= 0) {
+    throw new Error('Catalog chunk input is invalid.');
+  }
+  const chunks = [];
+  for (let index = 0; index < values.length; index += chunkSize) {
+    chunks.push(values.slice(index, index + chunkSize));
+  }
+  return chunks;
+}
+
+module.exports = {
+  GOOGLE_VERIFICATION_URL,
+  MAX_HOSTS_PER_RULE,
+  MIN_SUPPORTED_DOMAIN_COUNT,
+  assertGoogleSupportedDomainCatalogScale,
+  buildGoogleSearchCompatibilityHosts,
+  buildGoogleSearchHostPolicyRules,
+  buildNextGoogleSearchHostPolicyManifest,
+  mergeGoogleSearchHostPolicyRules,
+  renderGoogleSearchHostChunksArkTs,
+  parseGoogleSupportedDomains
+};

@@ -1,0 +1,549 @@
+{
+  "schemaVersion": 2,
+  "status": "candidate-only",
+  "downloadedAt": "2026-07-23",
+  "collection": {
+    "prefix": "gravity-ui",
+    "name": "Gravity UI Icons",
+    "version": "2.20.0",
+    "author": "YANDEX LLC",
+    "upstreamUrl": "https://github.com/gravity-ui/icons",
+    "catalogUrl": "https://icon-sets.iconify.design/gravity-ui/",
+    "license": "MIT",
+    "licenseFile": "../LICENSE"
+  },
+  "scope": {
+    "compactRenderer": "AiraBrowser/entry/src/main/ets/app/components/browser/BrowserBottomChromeRenderer.ets",
+    "actionCatalog": "AiraBrowser/entry/src/main/ets/core/browser/BrowserBottomPanelActionCatalog.ets",
+    "actionViewModel": "AiraBrowser/entry/src/main/ets/core/browser/BrowserBottomAddressPanelViewModel.ets",
+    "tabsOverviewChrome": "AiraBrowser/entry/src/main/ets/app/components/browser/BrowserTabsOverviewBottomChrome.ets",
+    "airaIconCount": 49,
+    "gravityAssetCount": 46,
+    "description": "Compact chrome plus expanded/customizable and reader/offline/viewer/tabs bottom-toolbar actions."
+  },
+  "mappings": [
+    {
+      "airaIconId": "browser.toolbar.addBookmark",
+      "gravityIcon": "bookmark",
+      "role": "add bookmark"
+    },
+    {
+      "airaIconId": "browser.toolbar.scanQr",
+      "gravityIcon": "qr-code",
+      "role": "scan QR code"
+    },
+    {
+      "airaIconId": "browser.toolbar.actionCopyLink",
+      "gravityIcon": "link",
+      "role": "copy link"
+    },
+    {
+      "airaIconId": "browser.toolbar.sharePage",
+      "gravityIcon": "arrow-up-from-square",
+      "role": "share webpage"
+    },
+    {
+      "airaIconId": "browser.toolbar.sendToDesktop",
+      "gravityIcon": "paper-plane",
+      "role": "send to desktop"
+    },
+    {
+      "airaIconId": "browser.toolbar.printPage",
+      "gravityIcon": "printer",
+      "role": "print webpage"
+    },
+    {
+      "airaIconId": "settings.siteSettings",
+      "gravityIcon": "globe",
+      "role": "website version and user agent"
+    },
+    {
+      "airaIconId": "reader.increaseFont",
+      "gravityIcon": "magnifier-plus",
+      "role": "increase text size and text zoom"
+    },
+    {
+      "airaIconId": "browser.toolbar.fullScreen",
+      "gravityIcon": "arrows-expand",
+      "role": "full screen"
+    },
+    {
+      "airaIconId": "browser.toolbar.manualElementHide",
+      "gravityIcon": "eraser",
+      "role": "hide page elements"
+    },
+    {
+      "airaIconId": "browser.toolbar.reader",
+      "gravityIcon": "book-open",
+      "role": "reader mode"
+    },
+    {
+      "airaIconId": "browser.toolbar.actionTranslate",
+      "gravityIcon": "letter-group",
+      "role": "translate webpage"
+    },
+    {
+      "airaIconId": "browser.shortcut.scripts",
+      "gravityIcon": "code",
+      "role": "user scripts"
+    },
+    {
+      "airaIconId": "browser.toolbar.themeMode",
+      "gravityIcon": "palette",
+      "role": "appearance mode"
+    },
+    {
+      "airaIconId": "browser.toolbar.userAgentPreset",
+      "gravityIcon": "passport",
+      "role": "user agent preset"
+    },
+    {
+      "airaIconId": "browser.toolbar.screenOrientation",
+      "gravityIcon": "arrows-3-rotate-right",
+      "role": "screen orientation"
+    },
+    {
+      "airaIconId": "browser.toolbar.addToDesktop",
+      "gravityIcon": "smartphone",
+      "role": "install as app"
+    },
+    {
+      "airaIconId": "browser.toolbar.offline",
+      "gravityIcon": "floppy-disk",
+      "role": "save offline webpage"
+    },
+    {
+      "airaIconId": "browser.shortcut.pageResources",
+      "gravityIcon": "layers",
+      "role": "page resources"
+    },
+    {
+      "airaIconId": "browser.toolbar.connectionSecurity",
+      "gravityIcon": "shield-keyhole",
+      "role": "site security and proxy"
+    },
+    {
+      "airaIconId": "browser.toolbar.reportSite",
+      "gravityIcon": "triangle-exclamation",
+      "role": "report website"
+    },
+    {
+      "airaIconId": "browser.shortcut.bookmarks",
+      "gravityIcon": "bookmark-fill",
+      "role": "open bookmarks"
+    },
+    {
+      "airaIconId": "browser.shortcut.history",
+      "gravityIcon": "clock-arrow-rotate-left",
+      "role": "history"
+    },
+    {
+      "airaIconId": "browser.toolbar.savedPages",
+      "gravityIcon": "square-article",
+      "role": "saved pages"
+    },
+    {
+      "airaIconId": "browser.shortcut.downloads",
+      "gravityIcon": "arrow-down-to-line",
+      "role": "downloads"
+    },
+    {
+      "airaIconId": "browser.shortcut.settings",
+      "gravityIcon": "gear",
+      "role": "settings"
+    },
+    {
+      "airaIconId": "browser.shortcut.home",
+      "gravityIcon": "house",
+      "role": "home"
+    },
+    {
+      "airaIconId": "settings.search",
+      "gravityIcon": "magnifier",
+      "role": "find in page"
+    },
+    {
+      "airaIconId": "offline.openOriginal",
+      "gravityIcon": "arrow-up-right-from-square",
+      "role": "open original webpage"
+    },
+    {
+      "airaIconId": "browser.toolbar.siteInfo",
+      "gravityIcon": "circle-info",
+      "role": "page or file details"
+    },
+    {
+      "airaIconId": "browser.toolbar.shareDocument",
+      "gravityIcon": "file-arrow-up",
+      "role": "export document"
+    },
+    {
+      "airaIconId": "browser.tabs.delete",
+      "gravityIcon": "trash-bin",
+      "role": "delete or clear tab data"
+    },
+    {
+      "airaIconId": "reader.decreaseFont",
+      "gravityIcon": "magnifier-minus",
+      "role": "decrease text size"
+    },
+    {
+      "airaIconId": "reader.theme",
+      "gravityIcon": "palette",
+      "role": "reader theme"
+    },
+    {
+      "airaIconId": "reader.readAloud",
+      "gravityIcon": "volume",
+      "role": "read aloud"
+    },
+    {
+      "airaIconId": "reader.lineHeight",
+      "gravityIcon": "text-align-justify",
+      "role": "line height"
+    },
+    {
+      "airaIconId": "reader.pageWidth",
+      "gravityIcon": "arrows-expand-horizontal",
+      "role": "page width"
+    },
+    {
+      "airaIconId": "browser.tabs.add",
+      "gravityIcon": "plus",
+      "role": "new tab"
+    },
+    {
+      "airaIconId": "browser.toolbar.privacyMode",
+      "gravityIcon": "eye-slash",
+      "role": "private mode"
+    },
+    {
+      "airaIconId": "browser.toolbar.back",
+      "gravityIcon": "arrow-left",
+      "role": "back"
+    },
+    {
+      "airaIconId": "browser.toolbar.tabs",
+      "gravityIcon": "layout-tabs",
+      "role": "tabs overview"
+    },
+    {
+      "airaIconId": "browser.toolbar.search",
+      "gravityIcon": "magnifier",
+      "role": "address search"
+    },
+    {
+      "airaIconId": "browser.toolbar.menu",
+      "gravityIcon": "bars",
+      "role": "toolbar menu"
+    },
+    {
+      "airaIconId": "browser.address.expandedShare",
+      "gravityIcon": "arrow-up-from-square",
+      "role": "compact share"
+    },
+    {
+      "airaIconId": "browser.toolbar.refresh",
+      "gravityIcon": "arrows-rotate-right",
+      "role": "refresh"
+    },
+    {
+      "airaIconId": "browser.address.expandedCopy",
+      "gravityIcon": "copy",
+      "role": "copy address"
+    },
+    {
+      "airaIconId": "browser.toolbar.clearInput",
+      "gravityIcon": "xmark",
+      "role": "clear input"
+    },
+    {
+      "airaIconId": "browser.address.expandedEdit",
+      "gravityIcon": "pencil",
+      "role": "edit address"
+    },
+    {
+      "airaIconId": "browser.tabs.overviewAdd",
+      "gravityIcon": "square-plus",
+      "role": "new tab from tabs overview"
+    }
+  ],
+  "assets": [
+    {
+      "gravityIcon": "arrow-down-to-line",
+      "file": "arrow-down-to-line.svg",
+      "sourceUrl": "https://api.iconify.design/gravity-ui/arrow-down-to-line.svg",
+      "sha256": "7df4392302a7fdc3a5317e4ef28e8b45ad8a87a5d5d7f356bc94afdbcc5ee3b9"
+    },
+    {
+      "gravityIcon": "arrow-left",
+      "file": "arrow-left.svg",
+      "sourceUrl": "https://api.iconify.design/gravity-ui/arrow-left.svg",
+      "sha256": "0d78ce1acbdfe920178cfba9ee1cf73e97d1db643b0b7cc767ce48097e783672"
+    },
+    {
+      "gravityIcon": "arrow-up-from-square",
+      "file": "arrow-up-from-square.svg",
+      "sourceUrl": "https://api.iconify.design/gravity-ui/arrow-up-from-square.svg",
+      "sha256": "71dbec1f8a0ff52f3c57ca58e676c38773b2c553a8dde7927c3b449247f12ae5"
+    },
+    {
+      "gravityIcon": "arrow-up-right-from-square",
+      "file": "arrow-up-right-from-square.svg",
+      "sourceUrl": "https://api.iconify.design/gravity-ui/arrow-up-right-from-square.svg",
+      "sha256": "6f41d9c23296ee3747b138951ebc5b12e12b390434e5d3fa5cb9155e379516d2"
+    },
+    {
+      "gravityIcon": "arrows-3-rotate-right",
+      "file": "arrows-3-rotate-right.svg",
+      "sourceUrl": "https://api.iconify.design/gravity-ui/arrows-3-rotate-right.svg",
+      "sha256": "c01582198ad3903f1e3d7b904100f021a539c1a6cf2e97bbec11af34f4a626e1"
+    },
+    {
+      "gravityIcon": "arrows-expand",
+      "file": "arrows-expand.svg",
+      "sourceUrl": "https://api.iconify.design/gravity-ui/arrows-expand.svg",
+      "sha256": "0fa486c368c650a76db0c364bad0d947f8490d81c2d0400bf77f5f98ce83a5fb"
+    },
+    {
+      "gravityIcon": "arrows-expand-horizontal",
+      "file": "arrows-expand-horizontal.svg",
+      "sourceUrl": "https://api.iconify.design/gravity-ui/arrows-expand-horizontal.svg",
+      "sha256": "93bb6357d25c12168bfbd4c32aebfd9d8b67f0680f166005ada28d1b1d11da57"
+    },
+    {
+      "gravityIcon": "arrows-rotate-right",
+      "file": "arrows-rotate-right.svg",
+      "sourceUrl": "https://api.iconify.design/gravity-ui/arrows-rotate-right.svg",
+      "sha256": "de22bdf619da0869b621c9f63f5ec890db9ab0f094e7190efb4085cd2966d3c7"
+    },
+    {
+      "gravityIcon": "bars",
+      "file": "bars.svg",
+      "sourceUrl": "https://api.iconify.design/gravity-ui/bars.svg",
+      "sha256": "5e8a178f4f60d5366229b040529db6b5712be91f719f0fda7d5addb9e4136233"
+    },
+    {
+      "gravityIcon": "book-open",
+      "file": "book-open.svg",
+      "sourceUrl": "https://api.iconify.design/gravity-ui/book-open.svg",
+      "sha256": "6177e616edd2c6933b6f421eb72902577ea729def532f27c106009885b05b955"
+    },
+    {
+      "gravityIcon": "bookmark",
+      "file": "bookmark.svg",
+      "sourceUrl": "https://api.iconify.design/gravity-ui/bookmark.svg",
+      "sha256": "6cb46e1141e43cd3348e3a3952d2a38c2d0b1dbc5800426dadefce768bf354e3"
+    },
+    {
+      "gravityIcon": "bookmark-fill",
+      "file": "bookmark-fill.svg",
+      "sourceUrl": "https://api.iconify.design/gravity-ui/bookmark-fill.svg",
+      "sha256": "d38449332024fe1ad95c679172876e6101dc66bd4421131e29f0227500fb2ca3"
+    },
+    {
+      "gravityIcon": "circle-info",
+      "file": "circle-info.svg",
+      "sourceUrl": "https://api.iconify.design/gravity-ui/circle-info.svg",
+      "sha256": "1353d1d7f5e0759437931666af78ec28121906a202f08f00b35f7cc4afc0424c"
+    },
+    {
+      "gravityIcon": "clock-arrow-rotate-left",
+      "file": "clock-arrow-rotate-left.svg",
+      "sourceUrl": "https://api.iconify.design/gravity-ui/clock-arrow-rotate-left.svg",
+      "sha256": "6aef31349cc19eee6e9f1e7942f13de5a430b20daa69b9608ad0be07090ca3a8"
+    },
+    {
+      "gravityIcon": "code",
+      "file": "code.svg",
+      "sourceUrl": "https://api.iconify.design/gravity-ui/code.svg",
+      "sha256": "4341d24b8a3c7729ba729c60e9ba59b0aad2efb86fcabd6a34b7512d8f077a05"
+    },
+    {
+      "gravityIcon": "copy",
+      "file": "copy.svg",
+      "sourceUrl": "https://api.iconify.design/gravity-ui/copy.svg",
+      "sha256": "53907d4d3a5293be157aa593bbdc05af64e75c80084c4fae0defff6c6dcdce24"
+    },
+    {
+      "gravityIcon": "eraser",
+      "file": "eraser.svg",
+      "sourceUrl": "https://api.iconify.design/gravity-ui/eraser.svg",
+      "sha256": "504d2256ecae82e355864574936659a66b9d203f0c580439c2ad071f913f23cd"
+    },
+    {
+      "gravityIcon": "eye-slash",
+      "file": "eye-slash.svg",
+      "sourceUrl": "https://api.iconify.design/gravity-ui/eye-slash.svg",
+      "sha256": "5fbd6a237d50b05dbbbdb96b0e67b4046fea8f98d3dd329b3ec00755d928d7d9"
+    },
+    {
+      "gravityIcon": "file-arrow-up",
+      "file": "file-arrow-up.svg",
+      "sourceUrl": "https://api.iconify.design/gravity-ui/file-arrow-up.svg",
+      "sha256": "3218c2df7db49ad9c5df19dd6d1d54f805479b7f88a25e3a823874a489f6a49d"
+    },
+    {
+      "gravityIcon": "floppy-disk",
+      "file": "floppy-disk.svg",
+      "sourceUrl": "https://api.iconify.design/gravity-ui/floppy-disk.svg",
+      "sha256": "0d64b72a38d1750b264fee681141854ba6e6fb93e635898fdc48ff22a7b641f8"
+    },
+    {
+      "gravityIcon": "gear",
+      "file": "gear.svg",
+      "sourceUrl": "https://api.iconify.design/gravity-ui/gear.svg",
+      "sha256": "b39712d0ad76276332483a3e418412125a6df7f4093bf3e66ef7d84ae99cafe5"
+    },
+    {
+      "gravityIcon": "globe",
+      "file": "globe.svg",
+      "sourceUrl": "https://api.iconify.design/gravity-ui/globe.svg",
+      "sha256": "0432a7bb1674646ba7338ac6979474e4b04d808fa7c39bb81756d2a8c31ce106"
+    },
+    {
+      "gravityIcon": "house",
+      "file": "house.svg",
+      "sourceUrl": "https://api.iconify.design/gravity-ui/house.svg",
+      "sha256": "d8c979277b9fb34612b29b480b3fc9bdfb02231568e03e8def624dc4352fd162"
+    },
+    {
+      "gravityIcon": "layers",
+      "file": "layers.svg",
+      "sourceUrl": "https://api.iconify.design/gravity-ui/layers.svg",
+      "sha256": "02115cae119ed86d5db229208188fa3bc91718fff76097c8570a6f48460e535f"
+    },
+    {
+      "gravityIcon": "layout-tabs",
+      "file": "layout-tabs.svg",
+      "sourceUrl": "https://api.iconify.design/gravity-ui/layout-tabs.svg",
+      "sha256": "cdab40c3288cf755cfbce34e59e0f87b713a77dacd668fce1358a8415add07be"
+    },
+    {
+      "gravityIcon": "letter-group",
+      "file": "letter-group.svg",
+      "sourceUrl": "https://api.iconify.design/gravity-ui/letter-group.svg",
+      "sha256": "9552e429666230ab81fbd967e5bb788e0d641a3c3b088524e37f2380604f15d6"
+    },
+    {
+      "gravityIcon": "link",
+      "file": "link.svg",
+      "sourceUrl": "https://api.iconify.design/gravity-ui/link.svg",
+      "sha256": "40c1d966165eef66bb68aa153fe2c7d24634d52dfe54e39c124dcdf39d41726b"
+    },
+    {
+      "gravityIcon": "magnifier",
+      "file": "magnifier.svg",
+      "sourceUrl": "https://api.iconify.design/gravity-ui/magnifier.svg",
+      "sha256": "e4e6b0627e6fb85a8e0dc386c48ee9b3891d5693fdbf5ebe95505bf7a4e1b001"
+    },
+    {
+      "gravityIcon": "magnifier-minus",
+      "file": "magnifier-minus.svg",
+      "sourceUrl": "https://api.iconify.design/gravity-ui/magnifier-minus.svg",
+      "sha256": "890965d8bd4d9618c4d950ff9ce70f77f409bc290f88b32471636c18750440a7"
+    },
+    {
+      "gravityIcon": "magnifier-plus",
+      "file": "magnifier-plus.svg",
+      "sourceUrl": "https://api.iconify.design/gravity-ui/magnifier-plus.svg",
+      "sha256": "ad79303f7f0905e763b7869002aa98632c3d0ad068251c12d8a5d3c675a90f99"
+    },
+    {
+      "gravityIcon": "palette",
+      "file": "palette.svg",
+      "sourceUrl": "https://api.iconify.design/gravity-ui/palette.svg",
+      "sha256": "6dd91e6042d89b627a16e779ea4bd54443d202500efb8a3056c95e76baa45727"
+    },
+    {
+      "gravityIcon": "paper-plane",
+      "file": "paper-plane.svg",
+      "sourceUrl": "https://api.iconify.design/gravity-ui/paper-plane.svg",
+      "sha256": "53f76924e88a04de97c213d9324f6093123efe0dbee3ad8a1a262ac030fa24ca"
+    },
+    {
+      "gravityIcon": "passport",
+      "file": "passport.svg",
+      "sourceUrl": "https://api.iconify.design/gravity-ui/passport.svg",
+      "sha256": "1a152655a5e48f943b12e44462dccf4e66d54af61eae69e53d561ef2fa706758"
+    },
+    {
+      "gravityIcon": "pencil",
+      "file": "pencil.svg",
+      "sourceUrl": "https://api.iconify.design/gravity-ui/pencil.svg",
+      "sha256": "067b3b4f8ab0a88dfce5b2e17e6c3920a46b33b37c82e22ec1fbdd1d6938002f"
+    },
+    {
+      "gravityIcon": "plus",
+      "file": "plus.svg",
+      "sourceUrl": "https://api.iconify.design/gravity-ui/plus.svg",
+      "sha256": "670e5850b591299793be92b94f4f13e9a7bbcd345832e5be32f9206b3e637915"
+    },
+    {
+      "gravityIcon": "printer",
+      "file": "printer.svg",
+      "sourceUrl": "https://api.iconify.design/gravity-ui/printer.svg",
+      "sha256": "2e095767224aafee318a3481ec8c3f25661daa96587474a2fd8f8013013006cf"
+    },
+    {
+      "gravityIcon": "qr-code",
+      "file": "qr-code.svg",
+      "sourceUrl": "https://api.iconify.design/gravity-ui/qr-code.svg",
+      "sha256": "a6c05042cc49543843bf42a20bb2c02ad96708732b7d9f44cd995a6a9e397d26"
+    },
+    {
+      "gravityIcon": "shield-keyhole",
+      "file": "shield-keyhole.svg",
+      "sourceUrl": "https://api.iconify.design/gravity-ui/shield-keyhole.svg",
+      "sha256": "4ed669debbedc7046384e7cbcf77ba866551c053c3c5ae54afaa03ea2ffee462"
+    },
+    {
+      "gravityIcon": "smartphone",
+      "file": "smartphone.svg",
+      "sourceUrl": "https://api.iconify.design/gravity-ui/smartphone.svg",
+      "sha256": "5cbef41b90d4b825fc7388bf1862c1f89be5e74bf92d304bfbc75cc7e6ddf57c"
+    },
+    {
+      "gravityIcon": "square-article",
+      "file": "square-article.svg",
+      "sourceUrl": "https://api.iconify.design/gravity-ui/square-article.svg",
+      "sha256": "9c19c8d802ce2ef017572787a2ef696087b10cd4ac1cd0c44ed267ac59546c0a"
+    },
+    {
+      "gravityIcon": "square-plus",
+      "file": "square-plus.svg",
+      "sourceUrl": "https://api.iconify.design/gravity-ui/square-plus.svg",
+      "sha256": "3fa28196aa21da79695ede54f43ab054ab095251ecc56cdd9283f7760c4b8f0a"
+    },
+    {
+      "gravityIcon": "text-align-justify",
+      "file": "text-align-justify.svg",
+      "sourceUrl": "https://api.iconify.design/gravity-ui/text-align-justify.svg",
+      "sha256": "5f12f408c0ab26b302c91f671b3170d14ad04aa3627248c12c027d0200105f4f"
+    },
+    {
+      "gravityIcon": "trash-bin",
+      "file": "trash-bin.svg",
+      "sourceUrl": "https://api.iconify.design/gravity-ui/trash-bin.svg",
+      "sha256": "9fa379f435533ad0f7027b81171fdc793323d9aaf9bd0e1ac08dda65bef0ccb0"
+    },
+    {
+      "gravityIcon": "triangle-exclamation",
+      "file": "triangle-exclamation.svg",
+      "sourceUrl": "https://api.iconify.design/gravity-ui/triangle-exclamation.svg",
+      "sha256": "5b473bdf667ad5b573de4365644b3651d6c3b3b04df3ff54dfe1629363ea7956"
+    },
+    {
+      "gravityIcon": "volume",
+      "file": "volume.svg",
+      "sourceUrl": "https://api.iconify.design/gravity-ui/volume.svg",
+      "sha256": "224ee7f47f97629017c340a941695fc806d4a22d737394f0d876c30200296d5a"
+    },
+    {
+      "gravityIcon": "xmark",
+      "file": "xmark.svg",
+      "sourceUrl": "https://api.iconify.design/gravity-ui/xmark.svg",
+      "sha256": "87158dbe9d0382dc5e6c5d5ae9682aef5a923053dad2476070374f0d4a7a43d9"
+    }
+  ]
+}

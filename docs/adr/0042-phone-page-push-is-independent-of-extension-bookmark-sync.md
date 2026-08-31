@@ -1,0 +1,3 @@
+# Phone Page Push Is Independent Of Extension Bookmark Sync
+
+Accepted: Phone Page Push and browser-extension bookmark sync are separate product flows. Phone Page Push requires an Aira Account Session and Pro access, while WebDAV bookmark sync remains available without an Aira login or membership; signing in for Phone Page Push never selects or changes the Extension Bookmark Sync Source. A valid pushed webpage immediately opens in a new active desktop tab and is acknowledged through the existing lease flow, without an inbox or deferred-delivery UI. Bookmark conflicts and bookmark-provider interruptions do not suspend Phone Page Push unless the shared Aira session itself is invalid.

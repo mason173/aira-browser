@@ -1,0 +1,18 @@
+{
+  "name": "aira-reader-extraction-spike",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Compares Aira's production Reader extractor with Mozilla Readability in local Chrome.",
+  "scripts": {
+    "generate-runtime": "node generate-runtime.mjs",
+    "run": "node run.mjs",
+    "fixtures": "node run.mjs --fixtures-only",
+    "live": "node run.mjs --live-only"
+  },
+  "devDependencies": {
+    "@mozilla/readability": "0.6.0",
+    "esbuild": "0.25.9",
+    "playwright-core": "1.62.1"
+  }
+}

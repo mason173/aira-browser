@@ -1,0 +1,9 @@
+Mozilla Readability 0.6.0
+https://github.com/mozilla/readability
+
+Copyright (c) 2010 Arc90 Inc
+Licensed under the Apache License, Version 2.0.
+
+Aira distributes a bundled and minified browser build. The upstream extraction algorithm is unmodified. Aira-owned DOM
+pre-cleaning, site-adapter precedence, output validation, typed-block conversion, diagnostics, and fallback behavior are
+implemented outside the generated upstream bundle.

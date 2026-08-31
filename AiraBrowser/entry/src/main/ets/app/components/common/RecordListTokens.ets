@@ -1,0 +1,23 @@
+export const RECORD_LIST_GROUP_SPACE: number = 12;
+export const RECORD_LIST_CARD_RADIUS: number = 22;
+export const RECORD_LIST_GROUP_TITLE_SIZE: number = 13;
+export const RECORD_LIST_GROUP_TITLE_LEFT_INSET: number = 16;
+export const RECORD_LIST_GROUP_TITLE_RIGHT_INSET: number = 16;
+export const RECORD_LIST_GROUP_TITLE_TOP_PADDING: number = 12;
+export const RECORD_LIST_GROUP_TITLE_BOTTOM_PADDING: number = 4;
+
+export const RECORD_LIST_ROW_HEIGHT: number = 64;
+export const RECORD_LIST_ROW_RADIUS: number = 18;
+export const RECORD_LIST_ROW_TITLE_SIZE: number = 16;
+export const RECORD_LIST_ROW_SUBTITLE_SIZE: number = 12;
+export const RECORD_LIST_ROW_CONTENT_SPACE: number = 12;
+export const RECORD_LIST_ROW_HORIZONTAL_INSET: number = 16;
+export const RECORD_LIST_ROW_ICON_SIZE: number = 30;
+export const RECORD_LIST_ROW_FAVICON_SLOT_SIZE: number = 40;
+export const RECORD_LIST_ROW_FAVICON_SIZE: number = 28;
+export const RECORD_LIST_ROW_FAVICON_CONTENT_RATIO: number = 1;
+export const RECORD_LIST_ROW_ICON_RADIUS: number = 8;
+export const RECORD_LIST_ROW_FALLBACK_FONT_SIZE: number = 14;
+export const RECORD_LIST_ROW_MENU_WIDTH: number = 216;
+export const RECORD_LIST_ROW_PRESSED_HORIZONTAL_INSET: number = 8;
+export const RECORD_LIST_ROW_PRESSED_VERTICAL_INSET: number = 4;

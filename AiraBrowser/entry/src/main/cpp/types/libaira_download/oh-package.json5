@@ -1,0 +1,6 @@
+{
+  "name": "libaira_download.so",
+  "version": "1.0.0",
+  "description": "Aira browser download native core.",
+  "types": "./index.d.ts"
+}

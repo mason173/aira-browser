@@ -1,0 +1,42 @@
+{
+  "apiType": "stageMode",
+  "buildOption": {
+    "externalNativeOptions": {
+      "path": "./src/main/cpp/CMakeLists.txt",
+      "arguments": "",
+      "cppFlags": ""
+    },
+    "arkOptions": {
+      "runtimeOnly": {
+        "packages": [
+          "libaira_adblock.so",
+          "libaira_download.so"
+        ]
+      }
+    }
+  },
+  "buildOptionSet": [
+    {
+      "name": "release",
+      "arkOptions": {
+        "obfuscation": {
+          "ruleOptions": {
+            "enable": false,
+            "files": [
+              "./obfuscation-rules.txt"
+            ]
+          }
+        }
+      }
+    },
+  ],
+  "targets": [
+    {
+      "name": "default"
+    },
+    {
+      // Device-side adapter conformance only; the default/release target does not package this test HAP.
+      "name": "ohosTest"
+    }
+  ]
+}

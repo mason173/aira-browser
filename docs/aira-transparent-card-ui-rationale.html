@@ -1,0 +1,1052 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Aira 透明卡片 UI 设计释义</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #17211f;
+      --ink-secondary: #596461;
+      --paper: #ffffff;
+      --canvas: #e8ecea;
+      --line: #d8dfdc;
+      --line-strong: #aebbb6;
+      --green: #176b5c;
+      --green-soft: #e4f0ec;
+      --coral: #c95d49;
+      --coral-soft: #f6e9e5;
+      --blue: #356b88;
+      --blue-soft: #e7eff4;
+      --gold: #a8782f;
+      --gold-soft: #f4eddf;
+      --white: #ffffff;
+      --white-muted: rgba(255, 255, 255, 0.82);
+      --white-line: rgba(255, 255, 255, 0.96);
+    }
+
+    * {
+      box-sizing: border-box;
+      letter-spacing: 0;
+    }
+
+    html {
+      background: var(--canvas);
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--canvas);
+      font-family: "HarmonyOS Sans SC", "Noto Sans CJK SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    svg {
+      display: block;
+    }
+
+    .symbol-defs {
+      position: absolute;
+      width: 0;
+      height: 0;
+      overflow: hidden;
+    }
+
+    .document {
+      display: grid;
+      gap: 28px;
+      justify-content: center;
+      padding: 28px 0 64px;
+    }
+
+    .sheet {
+      position: relative;
+      width: 210mm;
+      min-height: 297mm;
+      overflow: hidden;
+      background: var(--paper);
+      box-shadow: 0 18px 50px rgba(22, 34, 30, 0.14);
+      break-after: page;
+      page-break-after: always;
+    }
+
+    .sheet:last-child {
+      break-after: auto;
+      page-break-after: auto;
+    }
+
+    .sheet-inner {
+      min-height: 297mm;
+      padding: 18mm 18mm 16mm;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .page-rule {
+      height: 5px;
+      background: linear-gradient(90deg, var(--green) 0 45%, var(--coral) 45% 66%, var(--blue) 66% 86%, var(--gold) 86% 100%);
+    }
+
+    .brand-row,
+    .page-header,
+    .page-footer,
+    .widget-row,
+    .search-field,
+    .shortcut-row,
+    .legend,
+    .spec-strip,
+    .compliance-row {
+      display: flex;
+      align-items: center;
+    }
+
+    .brand-row {
+      gap: 11px;
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    .brand-mark {
+      width: 28px;
+      height: 28px;
+      color: var(--ink);
+    }
+
+    .eyebrow {
+      margin: 0 0 10px;
+      color: var(--green);
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+      margin-top: 0;
+    }
+
+    h1 {
+      max-width: 560px;
+      margin-bottom: 16px;
+      font-size: 46px;
+      line-height: 1.16;
+      font-weight: 760;
+    }
+
+    h2 {
+      margin-bottom: 8px;
+      font-size: 30px;
+      line-height: 1.25;
+      font-weight: 740;
+    }
+
+    h3 {
+      margin-bottom: 10px;
+      font-size: 17px;
+      line-height: 1.35;
+      font-weight: 720;
+    }
+
+    .lede {
+      max-width: 650px;
+      margin-bottom: 0;
+      color: var(--ink-secondary);
+      font-size: 17px;
+    }
+
+    .cover-head {
+      margin-top: 27mm;
+      margin-bottom: 18mm;
+    }
+
+    .identity-band {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0;
+      margin-top: 16mm;
+      border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .identity-item {
+      min-height: 68px;
+      padding: 15px 16px 13px 0;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .identity-item:nth-child(odd) {
+      border-right: 1px solid var(--line);
+    }
+
+    .identity-item:nth-child(even) {
+      padding-left: 18px;
+    }
+
+    .identity-item:nth-last-child(-n + 2) {
+      border-bottom: 0;
+    }
+
+    .identity-label,
+    .spec-label,
+    .metric-label {
+      display: block;
+      margin-bottom: 4px;
+      color: var(--ink-secondary);
+      font-size: 11px;
+      font-weight: 650;
+    }
+
+    .identity-value {
+      font-size: 15px;
+      font-weight: 680;
+    }
+
+    .family-stage,
+    .preview-stage {
+      position: relative;
+      overflow: hidden;
+      isolation: isolate;
+      background-color: #263b38;
+      background-image:
+        linear-gradient(132deg, rgba(67, 117, 105, 0.9) 0 31%, transparent 31% 100%),
+        linear-gradient(42deg, transparent 0 54%, rgba(196, 91, 71, 0.66) 54% 70%, transparent 70% 100%),
+        linear-gradient(150deg, transparent 0 58%, rgba(48, 103, 131, 0.72) 58% 82%, rgba(29, 55, 51, 0.96) 82% 100%);
+    }
+
+    .family-stage::after,
+    .preview-stage::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: -1;
+      background-image:
+        repeating-linear-gradient(115deg, transparent 0 52px, rgba(255, 255, 255, 0.045) 52px 53px),
+        repeating-linear-gradient(25deg, transparent 0 76px, rgba(255, 255, 255, 0.035) 76px 77px);
+    }
+
+    .family-stage {
+      min-height: 350px;
+      margin-top: 18mm;
+      padding: 34px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 22px;
+      align-items: center;
+    }
+
+    .family-stage .widget-2x4 {
+      grid-column: 1 / -1;
+      justify-self: center;
+    }
+
+    .family-stage .widget-1x2 {
+      justify-self: end;
+    }
+
+    .family-stage .widget-2x2 {
+      justify-self: start;
+    }
+
+    .widget {
+      position: relative;
+      color: var(--white);
+      background: transparent;
+      border: 3px solid var(--white-line);
+      font-weight: 560;
+    }
+
+    .widget svg {
+      color: currentColor;
+    }
+
+    .widget-1x2 {
+      width: 280px;
+      height: 108px;
+      padding: 0 30px;
+      border-radius: 27px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .widget-2x2 {
+      width: 218px;
+      height: 218px;
+      padding: 28px 24px;
+      border-radius: 30px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      text-align: center;
+    }
+
+    .widget-2x4 {
+      width: 438px;
+      height: 218px;
+      padding: 28px 30px;
+      border-radius: 30px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .widget-logo-lg {
+      width: 40px;
+      height: 40px;
+    }
+
+    .widget-logo-sm {
+      width: 28px;
+      height: 28px;
+      flex: 0 0 auto;
+    }
+
+    .widget-arrow {
+      width: 28px;
+      height: 28px;
+      transform: rotate(-90deg);
+    }
+
+    .widget-title {
+      font-size: 17px;
+      font-weight: 650;
+    }
+
+    .search-field {
+      width: 100%;
+      min-height: 56px;
+      gap: 13px;
+      padding: 0 18px;
+      border: 2px solid var(--white-line);
+      border-radius: 20px;
+      color: var(--white);
+      background: transparent;
+      text-align: left;
+    }
+
+    .search-field.compact {
+      justify-content: space-between;
+      padding: 0 15px;
+    }
+
+    .search-text {
+      flex: 1;
+      min-width: 0;
+      font-size: 15px;
+      white-space: nowrap;
+    }
+
+    .shortcut-row {
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .shortcut {
+      width: 78px;
+      display: grid;
+      justify-items: center;
+      gap: 7px;
+      color: var(--white);
+      font-size: 12px;
+    }
+
+    .shortcut svg {
+      width: 29px;
+      height: 29px;
+    }
+
+    .cover-summary {
+      display: grid;
+      grid-template-columns: 1.05fr 0.95fr;
+      gap: 26px;
+      margin-top: 14mm;
+    }
+
+    .principle-list,
+    .detail-list,
+    .compliance-list {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .principle-list li,
+    .detail-list li,
+    .compliance-list li {
+      position: relative;
+      padding: 9px 0 9px 24px;
+      border-bottom: 1px solid var(--line);
+      font-size: 14px;
+    }
+
+    .principle-list li:last-child,
+    .detail-list li:last-child,
+    .compliance-list li:last-child {
+      border-bottom: 0;
+    }
+
+    .principle-list li::before,
+    .detail-list li::before,
+    .compliance-list li::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 17px;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+    }
+
+    .compliance-list li::before {
+      width: 11px;
+      height: 6px;
+      border: solid var(--green);
+      border-width: 0 0 2px 2px;
+      border-radius: 0;
+      background: transparent;
+      transform: rotate(-45deg);
+    }
+
+    .legend {
+      flex-wrap: wrap;
+      gap: 14px 22px;
+      margin-top: 14px;
+      color: var(--ink-secondary);
+      font-size: 12px;
+    }
+
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .legend-swatch {
+      width: 26px;
+      height: 16px;
+      border: 1px solid var(--line-strong);
+    }
+
+    .legend-swatch.transparent {
+      background-color: #eef1ef;
+      background-image:
+        linear-gradient(45deg, #cfd6d3 25%, transparent 25%),
+        linear-gradient(-45deg, #cfd6d3 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #cfd6d3 75%),
+        linear-gradient(-45deg, transparent 75%, #cfd6d3 75%);
+      background-size: 8px 8px;
+      background-position: 0 0, 0 4px, 4px -4px, -4px 0;
+    }
+
+    .legend-swatch.opaque {
+      background: #ffffff;
+      border-color: #83908b;
+    }
+
+    .page-header {
+      justify-content: space-between;
+      gap: 24px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .page-kicker {
+      color: var(--green);
+      font-size: 12px;
+      font-weight: 720;
+    }
+
+    .page-index {
+      min-width: 56px;
+      color: var(--ink-secondary);
+      font-size: 13px;
+      text-align: right;
+    }
+
+    .variant-intro {
+      margin-top: 17mm;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 28px;
+      align-items: end;
+    }
+
+    .variant-intro p {
+      max-width: 560px;
+      margin-bottom: 0;
+      color: var(--ink-secondary);
+      font-size: 15px;
+    }
+
+    .dimension-badge {
+      min-width: 86px;
+      padding: 8px 14px;
+      color: var(--green);
+      background: var(--green-soft);
+      border-radius: 4px;
+      font-size: 17px;
+      font-weight: 760;
+      text-align: center;
+    }
+
+    .preview-stage {
+      min-height: 400px;
+      margin-top: 14mm;
+      padding: 45px;
+      display: grid;
+      place-items: center;
+    }
+
+    .preview-stage .widget {
+      transform: scale(1.16);
+    }
+
+    .preview-caption {
+      position: absolute;
+      left: 18px;
+      bottom: 15px;
+      color: var(--white-muted);
+      font-size: 11px;
+    }
+
+    .spec-strip {
+      margin-top: 14mm;
+      border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .spec-item {
+      flex: 1;
+      min-height: 72px;
+      padding: 13px 16px;
+      border-right: 1px solid var(--line);
+    }
+
+    .spec-item:first-child {
+      padding-left: 0;
+    }
+
+    .spec-item:last-child {
+      border-right: 0;
+      padding-right: 0;
+    }
+
+    .spec-value {
+      font-size: 14px;
+      font-weight: 680;
+    }
+
+    .rationale-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 30px;
+      margin-top: 14mm;
+    }
+
+    .rationale-block {
+      min-width: 0;
+    }
+
+    .interaction-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    .interaction-table th,
+    .interaction-table td {
+      padding: 10px 8px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    .interaction-table th {
+      color: var(--ink-secondary);
+      font-size: 11px;
+      font-weight: 680;
+    }
+
+    .compliance-band {
+      margin-top: auto;
+      padding: 17px 18px;
+      background: var(--green-soft);
+      border-left: 4px solid var(--green);
+    }
+
+    .compliance-row {
+      justify-content: space-between;
+      gap: 24px;
+    }
+
+    .compliance-copy {
+      margin: 0;
+      color: #28443e;
+      font-size: 13px;
+    }
+
+    .compliance-mark {
+      flex: 0 0 auto;
+      color: var(--green);
+      font-size: 13px;
+      font-weight: 760;
+    }
+
+    .page-footer {
+      justify-content: space-between;
+      margin-top: 11mm;
+      padding-top: 11px;
+      border-top: 1px solid var(--line);
+      color: var(--ink-secondary);
+      font-size: 10px;
+    }
+
+    .tone-coral::before {
+      background: var(--coral) !important;
+    }
+
+    .tone-blue::before {
+      background: var(--blue) !important;
+    }
+
+    .tone-gold::before {
+      background: var(--gold) !important;
+    }
+
+    @media (max-width: 900px) {
+      .document {
+        display: block;
+        padding: 0;
+      }
+
+      .sheet {
+        width: 100%;
+        min-height: 0;
+        margin: 0 0 20px;
+        box-shadow: none;
+      }
+
+      .sheet-inner {
+        min-height: 0;
+        padding: 38px 24px;
+      }
+
+      .identity-band,
+      .cover-summary,
+      .rationale-grid,
+      .variant-intro {
+        grid-template-columns: 1fr;
+      }
+
+      .identity-item,
+      .identity-item:nth-child(odd),
+      .identity-item:nth-child(even) {
+        padding-left: 0;
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .family-stage {
+        grid-template-columns: 1fr;
+        overflow-x: auto;
+      }
+
+      .family-stage .widget,
+      .family-stage .widget-1x2,
+      .family-stage .widget-2x2,
+      .family-stage .widget-2x4 {
+        grid-column: auto;
+        justify-self: center;
+      }
+
+      .preview-stage {
+        overflow-x: auto;
+      }
+
+      .spec-strip {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .spec-item,
+      .spec-item:first-child,
+      .spec-item:last-child {
+        padding: 12px 0;
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .spec-item:last-child {
+        border-bottom: 0;
+      }
+    }
+
+    @media print {
+      @page {
+        size: A4;
+        margin: 0;
+      }
+
+      html,
+      body {
+        background: #ffffff;
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
+      }
+
+      .document {
+        display: block;
+        padding: 0;
+      }
+
+      .sheet {
+        width: 210mm;
+        min-height: 297mm;
+        margin: 0;
+        box-shadow: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <svg class="symbol-defs" aria-hidden="true" focusable="false">
+    <symbol id="icon-aira" viewBox="0 0 674 674">
+      <path fill="currentColor" d="M336.592 0C382.446 0 426.158 9.16956 465.996 25.7742C452.231 75.9776 430.359 142.807 333.844 148.922C237.328 155.038 148.903 233.852 148.903 336.592C148.903 440.25 232.934 524.281 336.592 524.282C440.25 524.282 524.282 440.25 524.282 336.592C524.282 321.926 522.599 307.653 519.417 293.956C515.199 275.803 506.724 258.519 493.658 245.23C422.284 180.335 331.891 255.444 336.58 304.245C327.652 237.861 389.851 184.926 411.433 164.429C411.462 164.436 411.49 164.444 411.519 164.451C433.613 140.081 478.627 87.1848 466.294 25.8996C587.801 76.6833 673.185 196.666 673.185 336.592C673.185 522.487 522.487 673.184 336.592 673.184C150.697 673.184 0 522.487 0 336.592C0 150.697 150.697 0.000115351 336.592 0Z"/>
+    </symbol>
+    <symbol id="icon-arrow" viewBox="0 0 24 24">
+      <path d="M8 10L12 14L16 10" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="icon-bookmark" viewBox="0 0 24 24">
+      <path fill="currentColor" d="M17.1494 5C17.1494 4.53013 16.7687 4.15039 16.2988 4.15039H7.69922C7.22935 4.15039 6.84961 4.53013 6.84961 5V19.1074L11.4775 16.7061C11.81 16.5336 12.2058 16.5342 12.5381 16.707L17.1494 19.1045V5ZM19.4492 21C19.4492 21.4018 19.239 21.7749 18.8955 21.9834C18.5521 22.1916 18.1249 22.2058 17.7686 22.0205L12.0068 19.0225L6.22852 22.0205C5.87205 22.2054 5.44473 22.191 5.10156 21.9824C4.75861 21.7738 4.54883 21.4015 4.54883 21V5C4.54883 3.25987 5.95909 1.84961 7.69922 1.84961H16.2988C18.039 1.84961 19.4492 3.25987 19.4492 5V21Z"/>
+    </symbol>
+    <symbol id="icon-history" viewBox="0 0 24 24">
+      <path fill="currentColor" d="M11.7188 6.83432C12.3538 6.83432 12.869 7.34971 12.8692 7.98471V11.9896L15.9737 13.8831C16.5156 14.2138 16.6869 14.9211 16.3565 15.4632C16.0259 16.0054 15.3186 16.1773 14.7764 15.847L11.1201 13.6175C10.778 13.4088 10.5685 13.0369 10.5684 12.6361V7.98471C10.5685 7.34976 11.0838 6.8344 11.7188 6.83432Z"/>
+      <path fill="currentColor" fill-rule="evenodd" d="M8.11721 2.62436C13.295 0.479536 19.2299 2.93954 21.375 8.11655C23.5201 13.2946 21.0602 19.2303 15.8828 21.3753C10.7049 23.5203 4.76906 21.0604 2.62404 15.8831C0.480386 10.7055 2.93964 4.76937 8.11721 2.62436ZM19.25 8.99643C17.5907 4.99257 13.0007 3.09076 8.99709 4.74936C4.99316 6.40819 3.09169 10.9983 4.74904 15.0023C6.40813 19.0067 10.999 20.9091 15.003 19.2503C19.0072 17.5912 20.9087 13.0003 19.25 8.99643Z"/>
+    </symbol>
+    <symbol id="icon-download" viewBox="0 0 24 24">
+      <path fill="currentColor" d="M20 19.8496C20.6351 19.8496 21.1504 20.3649 21.1504 21C21.1504 21.6351 20.6351 22.1504 20 22.1504H4C3.36487 22.1504 2.84961 21.6351 2.84961 21C2.84961 20.3649 3.36487 19.8496 4 19.8496H20Z"/>
+      <path fill="currentColor" d="M12 1.84961C12.6351 1.84961 13.1504 2.36487 13.1504 3V14.2207L16.1855 11.1865C16.6347 10.7374 17.3634 10.7374 17.8125 11.1865C18.2616 11.6356 18.2616 12.3644 17.8125 12.8135L12.8223 17.8027C12.7155 17.9121 12.5874 17.9995 12.4443 18.0596C12.4192 18.0701 12.394 18.0801 12.3682 18.0889C12.3584 18.0922 12.3487 18.0956 12.3389 18.0986C12.2294 18.1326 12.1147 18.1514 11.998 18.1514C11.6931 18.1514 11.4002 18.0301 11.1846 17.8145L6.18457 12.8135C5.73554 12.3644 5.73551 11.6356 6.18457 11.1865C6.63369 10.7375 7.36246 10.7375 7.81152 11.1865L10.8496 14.2246V3C10.8496 2.36487 11.3649 1.84961 12 1.84961Z"/>
+    </symbol>
+    <symbol id="icon-settings" viewBox="0 0 24 24">
+      <path fill="currentColor" fill-rule="evenodd" d="M5 1.85A1.15 1.15 0 0 1 6.15 3v2.37a3.15 3.15 0 0 1 0 5.27V21a1.15 1.15 0 0 1-2.3 0V10.64a3.15 3.15 0 0 1 0-5.27V3A1.15 1.15 0 0 1 5 1.85Zm.8 5.35a1.13 1.13 0 1 0-1.6 1.6 1.13 1.13 0 0 0 1.6-1.6ZM12 1.85A1.15 1.15 0 0 1 13.15 3v10.37a3.15 3.15 0 0 1 0 5.26V21a1.15 1.15 0 0 1-2.3 0v-2.37a3.15 3.15 0 0 1 0-5.26V3A1.15 1.15 0 0 1 12 1.85Zm.8 13.35a1.13 1.13 0 1 0-1.6 1.6 1.13 1.13 0 0 0 1.6-1.6ZM19 1.85A1.15 1.15 0 0 1 20.15 3v2.37a3.15 3.15 0 0 1 0 5.26V21a1.15 1.15 0 0 1-2.3 0V10.63a3.15 3.15 0 0 1 0-5.26V3A1.15 1.15 0 0 1 19 1.85Zm.8 5.35a1.13 1.13 0 1 0-1.6 1.6 1.13 1.13 0 0 0 1.6-1.6Z"/>
+    </symbol>
+  </svg>
+
+  <main class="document">
+    <section class="sheet">
+      <div class="page-rule"></div>
+      <div class="sheet-inner">
+        <div class="brand-row">
+          <svg class="brand-mark" aria-hidden="true"><use href="#icon-aira"></use></svg>
+          <span>Aira</span>
+        </div>
+
+        <header class="cover-head">
+          <p class="eyebrow">AppGallery Connect 开放能力申请材料</p>
+          <h1>透明卡片<br>UI 设计释义</h1>
+          <p class="lede">Aira 桌面卡片采用透明背板与白色轮廓体系，在保留壁纸视觉的同时，持续呈现清晰的卡片边界、品牌身份和可识别操作入口。</p>
+        </header>
+
+        <div class="identity-band" aria-label="申请信息">
+          <div class="identity-item">
+            <span class="identity-label">应用名称</span>
+            <span class="identity-value">Aira</span>
+          </div>
+          <div class="identity-item">
+            <span class="identity-label">Bundle Name</span>
+            <span class="identity-value">com.aira.browser</span>
+          </div>
+          <div class="identity-item">
+            <span class="identity-label">申请能力</span>
+            <span class="identity-value">背板透明卡片</span>
+          </div>
+          <div class="identity-item">
+            <span class="identity-label">适配尺寸</span>
+            <span class="identity-value">1×2 / 2×2 / 2×4</span>
+          </div>
+        </div>
+
+        <div class="family-stage" aria-label="三种透明卡片设计总览">
+          <div class="widget widget-1x2" aria-label="1乘2 Aira 搜索卡片">
+            <svg class="widget-logo-lg" aria-hidden="true"><use href="#icon-aira"></use></svg>
+            <svg class="widget-arrow" aria-hidden="true"><use href="#icon-arrow"></use></svg>
+          </div>
+
+          <div class="widget widget-2x2" aria-label="2乘2 Aira 搜索卡片">
+            <div class="widget-title">搜索或输入网址</div>
+            <div class="search-field compact">
+              <svg class="widget-logo-sm" aria-hidden="true"><use href="#icon-aira"></use></svg>
+              <svg class="widget-arrow" aria-hidden="true"><use href="#icon-arrow"></use></svg>
+            </div>
+          </div>
+
+          <div class="widget widget-2x4" aria-label="2乘4 Aira 快捷入口卡片">
+            <div class="search-field">
+              <svg class="widget-logo-sm" aria-hidden="true"><use href="#icon-aira"></use></svg>
+              <span class="search-text">搜索或输入网址</span>
+            </div>
+            <div class="shortcut-row">
+              <div class="shortcut"><svg aria-hidden="true"><use href="#icon-bookmark"></use></svg><span>书签</span></div>
+              <div class="shortcut"><svg aria-hidden="true"><use href="#icon-history"></use></svg><span>历史</span></div>
+              <div class="shortcut"><svg aria-hidden="true"><use href="#icon-download"></use></svg><span>下载</span></div>
+              <div class="shortcut"><svg aria-hidden="true"><use href="#icon-settings"></use></svg><span>设置</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="legend" aria-label="视觉图例">
+          <span class="legend-item"><span class="legend-swatch transparent"></span>透明背板：桌面壁纸完整透出</span>
+          <span class="legend-item"><span class="legend-swatch opaque"></span>不透明内容：白色描边、图标与文字</span>
+        </div>
+
+        <div class="cover-summary">
+          <div>
+            <h3>统一设计原则</h3>
+            <ul class="principle-list">
+              <li>透明区域不承载隐藏按钮或不可见功能。</li>
+              <li class="tone-coral">2vp 白色外框持续标识卡片边界。</li>
+              <li class="tone-blue">白色品牌、图标与文字保证功能可识别。</li>
+              <li class="tone-gold">全部不透明视觉元素合计不低于卡片面积的 10%。</li>
+            </ul>
+          </div>
+          <div>
+            <h3>申请理由</h3>
+            <p class="lede" style="font-size:14px">Aira 是浏览器应用，1×2、2×2、2×4 桌面卡片分别提供搜索入口，以及书签、历史、下载和设置等常用功能入口。为减少大面积实色背板对用户桌面壁纸的遮挡，并使卡片更自然地融入 HarmonyOS 桌面视觉体系，现申请“背板透明卡片”能力。</p>
+            <p class="lede" style="margin-top:10px;font-size:14px">透明能力仅用于背板视觉呈现，不新增或改变任何交互。所有可点击功能均通过持续可见的白色描边、图标或文字明确标识，不透明内容占比不低于 10%；透明区域不承载隐藏操作，不模拟系统组件，也不展示、读取或上传用户的书签、历史记录、下载内容等个人数据。</p>
+          </div>
+        </div>
+
+        <footer class="page-footer">
+          <span>Aira 透明卡片 UI 设计释义 · 2026-08-05</span>
+          <span>01 / 04</span>
+        </footer>
+      </div>
+    </section>
+
+    <section class="sheet">
+      <div class="page-rule"></div>
+      <div class="sheet-inner">
+        <header class="page-header">
+          <div>
+            <div class="page-kicker">样式一 · 快速搜索入口</div>
+          </div>
+          <div class="page-index">02 / 04</div>
+        </header>
+
+        <div class="variant-intro">
+          <div>
+            <h2>1×2 Aira 搜索</h2>
+            <p>最轻量的桌面搜索入口。白色外框明确标出完整点击范围，品牌标识与导航箭头说明入口身份和前往方向。</p>
+          </div>
+          <div class="dimension-badge">1×2</div>
+        </div>
+
+        <div class="preview-stage">
+          <div class="widget widget-1x2" aria-label="1乘2 Aira 搜索透明卡片">
+            <svg class="widget-logo-lg" aria-hidden="true"><use href="#icon-aira"></use></svg>
+            <svg class="widget-arrow" aria-hidden="true"><use href="#icon-arrow"></use></svg>
+          </div>
+          <span class="preview-caption">桌面壁纸示意 · 卡片背板为完全透明</span>
+        </div>
+
+        <div class="spec-strip">
+          <div class="spec-item"><span class="spec-label">背板</span><span class="spec-value">完全透明</span></div>
+          <div class="spec-item"><span class="spec-label">外框</span><span class="spec-value">白色 · 2vp</span></div>
+          <div class="spec-item"><span class="spec-label">圆角</span><span class="spec-value">24vp</span></div>
+          <div class="spec-item"><span class="spec-label">主操作</span><span class="spec-value">进入 Aira 搜索</span></div>
+        </div>
+
+        <div class="rationale-grid">
+          <div class="rationale-block">
+            <h3>视觉释义</h3>
+            <ul class="detail-list">
+              <li>白色连续外框保证卡片在任何壁纸上仍有明确边界。</li>
+              <li class="tone-coral">Aira 标识固定在左侧，承担品牌与入口身份识别。</li>
+              <li class="tone-blue">右侧箭头表明点击后进入下一操作界面。</li>
+              <li class="tone-gold">外框、Logo 与箭头共同构成持续可见的不透明区域。</li>
+            </ul>
+          </div>
+          <div class="rationale-block">
+            <h3>交互与安全</h3>
+            <table class="interaction-table">
+              <thead><tr><th>可见区域</th><th>点击结果</th></tr></thead>
+              <tbody>
+                <tr><td>完整白色描边范围</td><td>打开 Aira 并进入搜索</td></tr>
+                <tr><td>透明背板</td><td>不设置独立隐藏操作</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="compliance-band">
+          <div class="compliance-row">
+            <p class="compliance-copy">不展示用户内容或隐私数据；透明区域不隐藏功能；白色外框、品牌标识和箭头合计满足不透明内容占比要求。</p>
+            <span class="compliance-mark">合规设计</span>
+          </div>
+        </div>
+
+        <footer class="page-footer">
+          <span>Aira · com.aira.browser · 背板透明卡片</span>
+          <span>1×2</span>
+        </footer>
+      </div>
+    </section>
+
+    <section class="sheet">
+      <div class="page-rule"></div>
+      <div class="sheet-inner">
+        <header class="page-header">
+          <div>
+            <div class="page-kicker">样式二 · 强化搜索识别</div>
+          </div>
+          <div class="page-index">03 / 04</div>
+        </header>
+
+        <div class="variant-intro">
+          <div>
+            <h2>2×2 Aira 搜索</h2>
+            <p>在方形空间中增加搜索文案和独立白色搜索框，使用户无需理解图标即可识别主要用途，同时保持背板透明。</p>
+          </div>
+          <div class="dimension-badge">2×2</div>
+        </div>
+
+        <div class="preview-stage">
+          <div class="widget widget-2x2" aria-label="2乘2 Aira 搜索透明卡片">
+            <div class="widget-title">搜索或输入网址</div>
+            <div class="search-field compact">
+              <svg class="widget-logo-sm" aria-hidden="true"><use href="#icon-aira"></use></svg>
+              <svg class="widget-arrow" aria-hidden="true"><use href="#icon-arrow"></use></svg>
+            </div>
+          </div>
+          <span class="preview-caption">桌面壁纸示意 · 外框与搜索框均为白色不透明线条</span>
+        </div>
+
+        <div class="spec-strip">
+          <div class="spec-item"><span class="spec-label">背板</span><span class="spec-value">完全透明</span></div>
+          <div class="spec-item"><span class="spec-label">外框</span><span class="spec-value">白色 · 2vp</span></div>
+          <div class="spec-item"><span class="spec-label">搜索框</span><span class="spec-value">白色 · 1.5vp</span></div>
+          <div class="spec-item"><span class="spec-label">主操作</span><span class="spec-value">进入 Aira 搜索</span></div>
+        </div>
+
+        <div class="rationale-grid">
+          <div class="rationale-block">
+            <h3>视觉释义</h3>
+            <ul class="detail-list">
+              <li>顶部“搜索或输入网址”直接描述卡片用途。</li>
+              <li class="tone-coral">外框定义卡片边界，内框定义搜索操作。</li>
+              <li class="tone-blue">Logo 与箭头延续 1×2 的品牌和导航语义。</li>
+              <li class="tone-gold">双层描边、文字和图标形成充足的不透明内容。</li>
+            </ul>
+          </div>
+          <div class="rationale-block">
+            <h3>交互与安全</h3>
+            <table class="interaction-table">
+              <thead><tr><th>可见区域</th><th>点击结果</th></tr></thead>
+              <tbody>
+                <tr><td>完整 2×2 卡片</td><td>打开 Aira 并进入搜索</td></tr>
+                <tr><td>搜索框、文字、图标</td><td>与整卡操作一致，无隐藏分支</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="compliance-band">
+          <div class="compliance-row">
+            <p class="compliance-copy">主操作通过文案和描边双重表达；不存在不可见点击区或误导性透明按钮；卡片不读取、展示或上传用户数据。</p>
+            <span class="compliance-mark">合规设计</span>
+          </div>
+        </div>
+
+        <footer class="page-footer">
+          <span>Aira · com.aira.browser · 背板透明卡片</span>
+          <span>2×2</span>
+        </footer>
+      </div>
+    </section>
+
+    <section class="sheet">
+      <div class="page-rule"></div>
+      <div class="sheet-inner">
+        <header class="page-header">
+          <div>
+            <div class="page-kicker">样式三 · 搜索与常用功能</div>
+          </div>
+          <div class="page-index">04 / 04</div>
+        </header>
+
+        <div class="variant-intro">
+          <div>
+            <h2>2×4 Aira 快捷入口</h2>
+            <p>横向大卡片将搜索入口与四项常用功能并列呈现。每项功能都有白色图标和文字标签，透明背板不承担任何隐藏交互。</p>
+          </div>
+          <div class="dimension-badge">2×4</div>
+        </div>
+
+        <div class="preview-stage">
+          <div class="widget widget-2x4" aria-label="2乘4 Aira 快捷入口透明卡片">
+            <div class="search-field">
+              <svg class="widget-logo-sm" aria-hidden="true"><use href="#icon-aira"></use></svg>
+              <span class="search-text">搜索或输入网址</span>
+            </div>
+            <div class="shortcut-row">
+              <div class="shortcut"><svg aria-hidden="true"><use href="#icon-bookmark"></use></svg><span>书签</span></div>
+              <div class="shortcut"><svg aria-hidden="true"><use href="#icon-history"></use></svg><span>历史</span></div>
+              <div class="shortcut"><svg aria-hidden="true"><use href="#icon-download"></use></svg><span>下载</span></div>
+              <div class="shortcut"><svg aria-hidden="true"><use href="#icon-settings"></use></svg><span>设置</span></div>
+            </div>
+          </div>
+          <span class="preview-caption">桌面壁纸示意 · 每个操作均由图标与文字共同标识</span>
+        </div>
+
+        <div class="spec-strip">
+          <div class="spec-item"><span class="spec-label">背板</span><span class="spec-value">完全透明</span></div>
+          <div class="spec-item"><span class="spec-label">外框</span><span class="spec-value">白色 · 2vp</span></div>
+          <div class="spec-item"><span class="spec-label">搜索框</span><span class="spec-value">白色 · 1.5vp</span></div>
+          <div class="spec-item"><span class="spec-label">快捷操作</span><span class="spec-value">4 项明确入口</span></div>
+        </div>
+
+        <div class="rationale-grid">
+          <div class="rationale-block">
+            <h3>视觉释义</h3>
+            <ul class="detail-list">
+              <li>搜索框位于上方，作为视觉优先级最高的主操作。</li>
+              <li class="tone-coral">四个快捷入口保持等宽、等距和独立标签。</li>
+              <li class="tone-blue">全白图标与文字在透明背板上形成统一前景。</li>
+              <li class="tone-gold">外框、搜索框和五组内容显著超过最低不透明占比。</li>
+            </ul>
+          </div>
+          <div class="rationale-block">
+            <h3>交互映射</h3>
+            <table class="interaction-table">
+              <thead><tr><th>可见入口</th><th>点击结果</th></tr></thead>
+              <tbody>
+                <tr><td>搜索框</td><td>进入 Aira 搜索</td></tr>
+                <tr><td>书签 / 历史</td><td>打开对应管理界面</td></tr>
+                <tr><td>下载 / 设置</td><td>打开对应功能界面</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="compliance-band">
+          <div class="compliance-row">
+            <p class="compliance-copy">所有快捷操作都具有可见图标与文字，不依赖透明区域识别；卡片仅提供应用内导航，不在桌面展示个人书签、历史或下载内容。</p>
+            <span class="compliance-mark">合规设计</span>
+          </div>
+        </div>
+
+        <footer class="page-footer">
+          <span>Aira · com.aira.browser · 背板透明卡片</span>
+          <span>2×4</span>
+        </footer>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

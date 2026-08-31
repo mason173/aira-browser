@@ -1,0 +1,64 @@
+{
+  "shortcuts": [
+    {
+      "shortcutId": "id_bookmarks",
+      "label": "$string:app_shortcut_bookmarks",
+      "icon": "$media:app_shortcut_bookmarks",
+      "wants": [
+        {
+          "bundleName": "org.aira.browser.community",
+          "moduleName": "entry",
+          "abilityName": "EntryAbility",
+          "parameters": {
+            "aira.appShortcut": "bookmarks"
+          }
+        }
+      ]
+    },
+    {
+      "shortcutId": "id_history",
+      "label": "$string:app_shortcut_history",
+      "icon": "$media:app_shortcut_history",
+      "wants": [
+        {
+          "bundleName": "org.aira.browser.community",
+          "moduleName": "entry",
+          "abilityName": "EntryAbility",
+          "parameters": {
+            "aira.appShortcut": "history"
+          }
+        }
+      ]
+    },
+    {
+      "shortcutId": "id_downloads",
+      "label": "$string:app_shortcut_downloads",
+      "icon": "$media:app_shortcut_downloads",
+      "wants": [
+        {
+          "bundleName": "org.aira.browser.community",
+          "moduleName": "entry",
+          "abilityName": "EntryAbility",
+          "parameters": {
+            "aira.appShortcut": "downloads"
+          }
+        }
+      ]
+    },
+    {
+      "shortcutId": "id_search",
+      "label": "$string:app_shortcut_search",
+      "icon": "$media:app_shortcut_search",
+      "wants": [
+        {
+          "bundleName": "org.aira.browser.community",
+          "moduleName": "entry",
+          "abilityName": "EntryAbility",
+          "parameters": {
+            "aira.appShortcut": "search"
+          }
+        }
+      ]
+    }
+  ]
+}

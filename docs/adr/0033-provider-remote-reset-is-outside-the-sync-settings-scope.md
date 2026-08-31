@@ -1,0 +1,3 @@
+# Provider Remote Reset Is Outside The Sync Settings Scope
+
+Accepted: the revised sync details and advanced settings do not expose remote deletion or Provider Remote Reset for Aira Cloud, Huawei Space, or WebDAV. Domain suspension, backup suspension, and topology switching preserve remote data. Aira Cloud user-data deletion remains available only through the account privacy/closure flow; provider-specific resets require a later recovery design with explicit provider/domain scope, offline-device handling, and strong destructive confirmation. This generalizes ADR 0011 and avoids stale devices resurrecting data after an ordinary-looking settings action.

@@ -1,0 +1,71 @@
+.DS_Store
+
+# macOS
+*/.DS_Store
+
+# Editor
+.idea/
+.vscode/
+
+# Logs
+*.log
+download_log.txt
+
+# Python
+__pycache__/
+*.pyc
+
+# Node
+node_modules/
+oh_modules/
+
+# Local scratch / exported data
+.tmp/
+.tmp-*/
+.tmp-navigation-capture/
+.tmp-sync-lab/
+.planning/
+.codex-transfer/
+aira/
+!AiraBrowser/entry/src/main/resources/rawfile/fonts/aira/
+!AiraBrowser/entry/src/main/resources/rawfile/fonts/aira/*.ttf
+!resources/icon-sources/aira/
+!resources/icon-sources/aira/**
+**/.DS_Store
+leaftab/
+*.leaftab
+gemini-code-*.html
+
+# Local reference projects / unpacked artifacts
+.reference-repos/
+references/legacy-browser/
+references/linysbrowser-next/
+
+# Build output
+dist/
+build/
+*.tsbuildinfo
+server/public/admin/
+.cache/
+.hvigor/
+AiraBrowser/entry/.test/
+AiraBrowser/entry/.cxx/
+AiraBrowser/build-profile.local.json5
+AiraBrowser/agconnect-services.local.json
+AiraBrowser/AppScope/resources/rawfile/agconnect-services.json
+AiraBrowser/build-profiles.local/
+AiraBrowser/cloud-backend.local.json
+AiraBrowser/AiraBookmarkZone*.json
+AiraBrowser/worktree-identity.local.json
+AiraBrowser/signing.local/
+aira.csr
+aira.p12
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.cer
+*.p7b
+*.p7c
+material/
+private-backend/

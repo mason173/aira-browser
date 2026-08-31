@@ -1,0 +1,3 @@
+# Unavailable Primary Sources Never Auto-Failover
+
+Accepted: when any Primary Sync Source becomes unavailable, Aira informs the user and leaves the selected authority unchanged. Local data remains usable and changes may remain pending, but Aira does not automatically promote a Backup Sync Source, silently enter another sync mode, or make a recovery decision for the user. The user may wait for the provider to recover or explicitly promote/switch to another source. This generalizes ADR 0006 from Huawei Space Sync to every provider and prevents temporary failures from creating hidden authority changes or split histories.

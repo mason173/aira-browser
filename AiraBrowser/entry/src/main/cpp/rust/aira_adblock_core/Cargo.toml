@@ -1,0 +1,14 @@
+[package]
+name = "aira_adblock_core"
+version = "0.1.0"
+edition = "2024"
+license = "LicenseRef-Proprietary"
+publish = false
+
+[lib]
+crate-type = ["staticlib"]
+
+[dependencies]
+adblock = { version = "=0.13.2", default-features = false, features = ["embedded-domain-resolver", "full-regex-handling"] }
+base64 = "0.22"
+serde_json = "1"

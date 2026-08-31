@@ -1,0 +1,67 @@
+{
+  "forms": [
+    {
+      "name": "aira_search",
+      "displayName": "$string:aira_search_card_display_name",
+      "description": "$string:aira_search_card_description",
+      "src": "./ets/desktopcard/pages/AiraSearchCard.ets",
+      "uiSyntax": "arkts",
+      "renderingMode": "fullColor",
+      "isDynamic": false,
+      "transparencyEnabled": true,
+      "isDefault": false,
+      "updateEnabled": false,
+      "updateDuration": 0,
+      "defaultDimension": "1*2",
+      "supportDimensions": [
+        "1*2"
+      ],
+      "supportDeviceTypes": [
+        "phone",
+        "tablet"
+      ]
+    },
+    {
+      "name": "aira_search_2x2",
+      "displayName": "$string:aira_search_card_2x2_display_name",
+      "description": "$string:aira_search_card_2x2_description",
+      "src": "./ets/desktopcard/pages/AiraSearchCard2x2.ets",
+      "uiSyntax": "arkts",
+      "renderingMode": "fullColor",
+      "isDynamic": false,
+      "transparencyEnabled": true,
+      "isDefault": true,
+      "updateEnabled": false,
+      "updateDuration": 0,
+      "defaultDimension": "2*2",
+      "supportDimensions": [
+        "2*2"
+      ],
+      "supportDeviceTypes": [
+        "phone",
+        "tablet"
+      ]
+    },
+    {
+      "name": "aira_search_2x4",
+      "displayName": "$string:aira_search_card_2x4_display_name",
+      "description": "$string:aira_search_card_2x4_description",
+      "src": "./ets/desktopcard/pages/AiraSearchCard2x4.ets",
+      "uiSyntax": "arkts",
+      "renderingMode": "fullColor",
+      "isDynamic": false,
+      "transparencyEnabled": true,
+      "isDefault": false,
+      "updateEnabled": false,
+      "updateDuration": 0,
+      "defaultDimension": "2*4",
+      "supportDimensions": [
+        "2*4"
+      ],
+      "supportDeviceTypes": [
+        "phone",
+        "tablet"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "cool.aira.samples.search-engine-homepage",
+  "name": "Aira Search API Lab",
+  "version": "0.1.4",
+  "entry": "index.html",
+  "author": "Aira Developer Sample",
+  "description": "A developer-style homepage for testing Aira search engines, native search, the native shortcut picker, and Web/System shortcut projection.",
+  "previewLight": "preview-light.png",
+  "previewDark": "preview-dark.png"
+}

@@ -1,0 +1,652 @@
+{
+  "permissions": [
+    {
+      "permissions": [
+        {
+          "role": "World",
+          "rights": []
+        },
+        {
+          "role": "Authenticated",
+          "rights": []
+        },
+        {
+          "role": "Creator",
+          "rights": [
+            "Read",
+            "Upsert",
+            "Delete"
+          ]
+        },
+        {
+          "role": "Administrator",
+          "rights": [
+            "Read",
+            "Upsert",
+            "Delete"
+          ]
+        }
+      ],
+      "objectTypeName": "Bookmark"
+    },
+    {
+      "permissions": [
+        {
+          "role": "World",
+          "rights": []
+        },
+        {
+          "role": "Authenticated",
+          "rights": []
+        },
+        {
+          "role": "Creator",
+          "rights": [
+            "Read",
+            "Upsert",
+            "Delete"
+          ]
+        },
+        {
+          "role": "Administrator",
+          "rights": [
+            "Read",
+            "Upsert",
+            "Delete"
+          ]
+        }
+      ],
+      "objectTypeName": "BookmarkFolder"
+    },
+    {
+      "permissions": [
+        {
+          "role": "World",
+          "rights": []
+        },
+        {
+          "role": "Authenticated",
+          "rights": [
+            "Read",
+            "Upsert"
+          ]
+        },
+        {
+          "role": "Creator",
+          "rights": [
+            "Read",
+            "Upsert"
+          ]
+        },
+        {
+          "role": "Administrator",
+          "rights": [
+            "Read",
+            "Upsert",
+            "Delete"
+          ]
+        }
+      ],
+      "objectTypeName": "InviteCode"
+    },
+    {
+      "permissions": [
+        {
+          "role": "World",
+          "rights": []
+        },
+        {
+          "role": "Authenticated",
+          "rights": []
+        },
+        {
+          "role": "Creator",
+          "rights": [
+            "Read",
+            "Upsert"
+          ]
+        },
+        {
+          "role": "Administrator",
+          "rights": [
+            "Read",
+            "Upsert",
+            "Delete"
+          ]
+        }
+      ],
+      "objectTypeName": "InviteQuota"
+    },
+    {
+      "permissions": [
+        {
+          "role": "World",
+          "rights": []
+        },
+        {
+          "role": "Authenticated",
+          "rights": [
+            "Read"
+          ]
+        },
+        {
+          "role": "Creator",
+          "rights": [
+            "Read"
+          ]
+        },
+        {
+          "role": "Administrator",
+          "rights": [
+            "Read",
+            "Upsert",
+            "Delete"
+          ]
+        }
+      ],
+      "objectTypeName": "MembershipGrant"
+    },
+    {
+      "objectTypeName": "IapSubscriptionBinding",
+      "permissions": [
+        {
+          "role": "World",
+          "rights": []
+        },
+        {
+          "role": "Authenticated",
+          "rights": []
+        },
+        {
+          "role": "Creator",
+          "rights": []
+        },
+        {
+          "role": "Administrator",
+          "rights": [
+            "Read",
+            "Upsert",
+            "Delete"
+          ]
+        }
+      ]
+    }
+  ],
+  "objectTypes": [
+    {
+      "indexes": [
+        {
+          "indexName": "idx_bookmark_folderId",
+          "indexList": [
+            "folderId"
+          ]
+        },
+        {
+          "indexName": "idx_bookmark_updatedAt",
+          "indexList": [
+            "updatedAt"
+          ]
+        },
+        {
+          "indexName": "idx_bookmark_uid",
+          "indexList": [
+            "uid"
+          ]
+        }
+      ],
+      "objectTypeName": "Bookmark",
+      "fields": [
+        {
+          "fieldName": "id",
+          "notNull": true,
+          "isNeedEncrypt": false,
+          "belongPrimaryKey": true,
+          "fieldType": "String"
+        },
+        {
+          "fieldName": "uid",
+          "notNull": true,
+          "isNeedEncrypt": false,
+          "belongPrimaryKey": false,
+          "fieldType": "String",
+          "defaultValue": ""
+        },
+        {
+          "fieldName": "title",
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "belongPrimaryKey": false,
+          "fieldType": "String"
+        },
+        {
+          "fieldName": "url",
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "belongPrimaryKey": false,
+          "fieldType": "String"
+        },
+        {
+          "fieldName": "folderId",
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "belongPrimaryKey": false,
+          "fieldType": "String"
+        },
+        {
+          "fieldName": "sortIndex",
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "belongPrimaryKey": false,
+          "fieldType": "Long"
+        },
+        {
+          "fieldName": "createdAt",
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "belongPrimaryKey": false,
+          "fieldType": "Long"
+        },
+        {
+          "fieldName": "updatedAt",
+          "notNull": true,
+          "isNeedEncrypt": false,
+          "belongPrimaryKey": false,
+          "fieldType": "Long",
+          "defaultValue": "0"
+        },
+        {
+          "fieldName": "deleted",
+          "notNull": true,
+          "isNeedEncrypt": false,
+          "belongPrimaryKey": false,
+          "fieldType": "Boolean",
+          "defaultValue": "false"
+        },
+        {
+          "fieldName": "deviceId",
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "belongPrimaryKey": false,
+          "fieldType": "String"
+        },
+        {
+          "fieldName": "version",
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "belongPrimaryKey": false,
+          "fieldType": "Long"
+        }
+      ]
+    },
+    {
+      "indexes": [
+        {
+          "indexName": "idx_bookmark_folder_uid",
+          "indexList": [
+            "uid"
+          ]
+        },
+        {
+          "indexName": "idx_bookmark_folder_updatedAt",
+          "indexList": [
+            "updatedAt"
+          ]
+        },
+        {
+          "indexName": "idx_bookmark_folder_parentId",
+          "indexList": [
+            "parentId"
+          ]
+        }
+      ],
+      "objectTypeName": "BookmarkFolder",
+      "fields": [
+        {
+          "fieldName": "id",
+          "notNull": true,
+          "isNeedEncrypt": false,
+          "belongPrimaryKey": true,
+          "fieldType": "String"
+        },
+        {
+          "fieldName": "uid",
+          "notNull": true,
+          "isNeedEncrypt": false,
+          "belongPrimaryKey": false,
+          "fieldType": "String",
+          "defaultValue": ""
+        },
+        {
+          "fieldName": "name",
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "belongPrimaryKey": false,
+          "fieldType": "String"
+        },
+        {
+          "fieldName": "parentId",
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "belongPrimaryKey": false,
+          "fieldType": "String"
+        },
+        {
+          "fieldName": "sortIndex",
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "belongPrimaryKey": false,
+          "fieldType": "Long"
+        },
+        {
+          "fieldName": "createdAt",
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "belongPrimaryKey": false,
+          "fieldType": "Long"
+        },
+        {
+          "fieldName": "updatedAt",
+          "notNull": true,
+          "isNeedEncrypt": false,
+          "belongPrimaryKey": false,
+          "fieldType": "Long",
+          "defaultValue": "0"
+        },
+        {
+          "fieldName": "deleted",
+          "notNull": true,
+          "isNeedEncrypt": false,
+          "belongPrimaryKey": false,
+          "fieldType": "Boolean",
+          "defaultValue": "false"
+        },
+        {
+          "fieldName": "deviceId",
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "belongPrimaryKey": false,
+          "fieldType": "String"
+        },
+        {
+          "fieldName": "version",
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "belongPrimaryKey": false,
+          "fieldType": "Long"
+        }
+      ]
+    },
+    {
+      "indexes": [
+        {
+          "indexName": "idx_invite_code_status",
+          "indexList": [
+            "status"
+          ]
+        },
+        {
+          "indexName": "idx_invite_code_ownerUid",
+          "indexList": [
+            "ownerUid"
+          ]
+        }
+      ],
+      "objectTypeName": "InviteCode",
+      "fields": [
+        {
+          "fieldName": "code",
+          "notNull": true,
+          "isNeedEncrypt": false,
+          "belongPrimaryKey": true,
+          "fieldType": "String"
+        },
+        {
+          "fieldName": "ownerUid",
+          "notNull": true,
+          "isNeedEncrypt": false,
+          "belongPrimaryKey": false,
+          "fieldType": "String",
+          "defaultValue": ""
+        },
+        {
+          "fieldName": "status",
+          "notNull": true,
+          "isNeedEncrypt": false,
+          "belongPrimaryKey": false,
+          "fieldType": "String",
+          "defaultValue": "available"
+        },
+        {
+          "fieldName": "redeemedByUid",
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "belongPrimaryKey": false,
+          "fieldType": "String"
+        },
+        {
+          "fieldName": "createdAt",
+          "notNull": true,
+          "isNeedEncrypt": false,
+          "belongPrimaryKey": false,
+          "fieldType": "Long",
+          "defaultValue": "0"
+        },
+        {
+          "fieldName": "redeemedAt",
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "belongPrimaryKey": false,
+          "fieldType": "Long"
+        },
+        {
+          "fieldName": "updatedAt",
+          "notNull": true,
+          "isNeedEncrypt": false,
+          "belongPrimaryKey": false,
+          "fieldType": "Long",
+          "defaultValue": "0"
+        }
+      ]
+    },
+    {
+      "indexes": [
+        {
+          "indexName": "idx_invite_quota_uid",
+          "indexList": [
+            "uid"
+          ]
+        }
+      ],
+      "objectTypeName": "InviteQuota",
+      "fields": [
+        {
+          "fieldName": "uid",
+          "notNull": true,
+          "isNeedEncrypt": false,
+          "belongPrimaryKey": true,
+          "fieldType": "String"
+        },
+        {
+          "fieldName": "totalCount",
+          "notNull": true,
+          "isNeedEncrypt": false,
+          "belongPrimaryKey": false,
+          "fieldType": "Long",
+          "defaultValue": "3"
+        },
+        {
+          "fieldName": "createdCount",
+          "notNull": true,
+          "isNeedEncrypt": false,
+          "belongPrimaryKey": false,
+          "fieldType": "Long",
+          "defaultValue": "0"
+        },
+        {
+          "fieldName": "createdAt",
+          "notNull": true,
+          "isNeedEncrypt": false,
+          "belongPrimaryKey": false,
+          "fieldType": "Long",
+          "defaultValue": "0"
+        },
+        {
+          "fieldName": "updatedAt",
+          "notNull": true,
+          "isNeedEncrypt": false,
+          "belongPrimaryKey": false,
+          "fieldType": "Long",
+          "defaultValue": "0"
+        }
+      ]
+    },
+    {
+      "indexes": [
+        {
+          "indexName": "idx_membership_grant_uid",
+          "indexList": [
+            "uid"
+          ]
+        },
+        {
+          "indexName": "idx_membership_grant_plan",
+          "indexList": [
+            "plan"
+          ]
+        }
+      ],
+      "objectTypeName": "MembershipGrant",
+      "fields": [
+        {
+          "fieldName": "uid",
+          "notNull": true,
+          "isNeedEncrypt": false,
+          "belongPrimaryKey": true,
+          "fieldType": "String"
+        },
+        {
+          "fieldName": "plan",
+          "notNull": true,
+          "isNeedEncrypt": false,
+          "belongPrimaryKey": false,
+          "fieldType": "String",
+          "defaultValue": "club"
+        },
+        {
+          "fieldName": "source",
+          "notNull": true,
+          "isNeedEncrypt": false,
+          "belongPrimaryKey": false,
+          "fieldType": "String",
+          "defaultValue": "admin"
+        },
+        {
+          "fieldName": "expiresAt",
+          "notNull": true,
+          "isNeedEncrypt": false,
+          "belongPrimaryKey": false,
+          "fieldType": "Long",
+          "defaultValue": "0"
+        },
+        {
+          "fieldName": "updatedAt",
+          "notNull": true,
+          "isNeedEncrypt": false,
+          "belongPrimaryKey": false,
+          "fieldType": "Long",
+          "defaultValue": "0"
+        }
+      ]
+    },
+    {
+      "indexes": [
+        {
+          "indexName": "idx_iap_binding_uid",
+          "indexList": [
+            "uid"
+          ]
+        },
+        {
+          "indexName": "idx_iap_binding_subscription",
+          "indexList": [
+            "subscriptionId"
+          ]
+        }
+      ],
+      "objectTypeName": "IapSubscriptionBinding",
+      "fields": [
+        {
+          "fieldName": "purchaseTokenHash",
+          "fieldType": "String",
+          "belongPrimaryKey": true,
+          "notNull": true,
+          "isNeedEncrypt": false
+        },
+        {
+          "fieldName": "uid",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": true,
+          "isNeedEncrypt": false,
+          "defaultValue": ""
+        },
+        {
+          "fieldName": "productId",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": true,
+          "isNeedEncrypt": false,
+          "defaultValue": ""
+        },
+        {
+          "fieldName": "subscriptionId",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": true,
+          "isNeedEncrypt": false,
+          "defaultValue": ""
+        },
+        {
+          "fieldName": "expiresAt",
+          "fieldType": "Long",
+          "belongPrimaryKey": false,
+          "notNull": true,
+          "isNeedEncrypt": false,
+          "defaultValue": "0"
+        },
+        {
+          "fieldName": "status",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": true,
+          "isNeedEncrypt": false,
+          "defaultValue": "active"
+        },
+        {
+          "fieldName": "createdAt",
+          "fieldType": "Long",
+          "belongPrimaryKey": false,
+          "notNull": true,
+          "isNeedEncrypt": false,
+          "defaultValue": "0"
+        },
+        {
+          "fieldName": "updatedAt",
+          "fieldType": "Long",
+          "belongPrimaryKey": false,
+          "notNull": true,
+          "isNeedEncrypt": false,
+          "defaultValue": "0"
+        },
+        {
+          "fieldName": "lastNotificationId",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "defaultValue": ""
+        }
+      ]
+    }
+  ]
+}

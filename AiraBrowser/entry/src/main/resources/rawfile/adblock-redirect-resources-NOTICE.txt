@@ -1,0 +1,11 @@
+Brave redirect resources for adblock-rust 0.13.2
+
+Source: https://github.com/brave/adblock-rust/blob/00b19a06508ddd4f3453779f8618983421ddf32b/data/brave/brave-resources.json
+Snapshot SHA-256: de6eb441a4ba2823d2cc67beabae0a3e0b6862cc56ca8586af6bac654c45f3fd
+
+The resource bundle is loaded by adblock-rust through Engine::use_resources(). Rust selects redirect-rule priority,
+exceptions, aliases, MIME, and payload. Aira only decodes the selected data URL at the ArkWeb response boundary.
+
+The Brave resource repository and snapshot are distributed under MPL-2.0; see adblock-rust-LICENSE.txt. Embedded uBlock
+Origin-derived resource bodies retain their GPL-3.0 source notices; see adblock-redirect-resources-GPL-3.0.txt. The exact
+corresponding source form is available at the source URL above and in Aira's public source repository.

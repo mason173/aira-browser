@@ -1,0 +1,1378 @@
+[
+  {
+    "exportedFile": "icons/aira_logo_brand__user-provided.svg",
+    "originalSource": "Aira logo.svg",
+    "primaryResourceFamily": "aira_logo_brand",
+    "resourceFamilies": [
+      "aira_logo_brand"
+    ],
+    "note": "user-provided canonical brand source"
+  },
+  {
+    "exportedFile": "icons/start_window_brand_lockup__user-provided.png",
+    "originalSource": "user-provided/开屏2 (1).png",
+    "primaryResourceFamily": "start_window_brand_lockup",
+    "resourceFamilies": [
+      "start_window_brand_lockup"
+    ],
+    "note": "user-provided canonical start-window artwork; identical bytes for light and dark"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Browser Window.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Browser Window",
+    "primaryResourceFamily": "app_settings_web_apps",
+    "resourceFamilies": [
+      "app_settings_web_apps",
+      "app_settings_app_service_mode"
+    ],
+    "note": "one font glyph serves multiple app resource families"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/undo.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Undo",
+    "primaryResourceFamily": "app_reader_refresh",
+    "resourceFamilies": [
+      "app_reader_refresh"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-back 1.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Back",
+    "primaryResourceFamily": "app_toolbar_back",
+    "resourceFamilies": [
+      "app_toolbar_back"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/External Link.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / External Link",
+    "primaryResourceFamily": "app_site_setting_external_actions",
+    "resourceFamilies": [
+      "app_site_setting_external_actions",
+      "app_site_setting_open_app",
+      "app_offline_open_original"
+    ],
+    "note": "one font glyph serves multiple app resource families"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Up Left Arrow.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Up Left Arrow",
+    "primaryResourceFamily": "app_search_suggestion_fill_arrow",
+    "resourceFamilies": [
+      "app_search_suggestion_fill_arrow"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Refresh.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Refresh",
+    "primaryResourceFamily": "app_toolbar_refresh",
+    "resourceFamilies": [
+      "app_toolbar_refresh",
+      "app_membership_benefit_refresh",
+      "app_video_assistant_rotate"
+    ],
+    "note": "one font glyph serves multiple app resource families"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Resize Horizontal.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Resize Horizontal",
+    "primaryResourceFamily": "app_reader_page_width",
+    "resourceFamilies": [
+      "app_reader_page_width"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/News.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / News",
+    "primaryResourceFamily": "app_toolbar_saved_pages",
+    "resourceFamilies": [
+      "app_toolbar_saved_pages"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Reading.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Reading",
+    "primaryResourceFamily": "app_toolbar_reader",
+    "resourceFamilies": [
+      "app_toolbar_reader"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Bookmark Ribbon.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Bookmark Ribbon",
+    "primaryResourceFamily": "app_reader_add_bookmark",
+    "resourceFamilies": [
+      "app_reader_add_bookmark",
+      "app_toolbar_add_bookmark"
+    ],
+    "note": "one font glyph serves multiple app resource families"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Bookmark.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Bookmark",
+    "primaryResourceFamily": "app_shortcut_bookmarks",
+    "resourceFamilies": [
+      "app_shortcut_bookmarks",
+      "app_reader_bookmarks"
+    ],
+    "note": "one font glyph serves multiple app resource families"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Web.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Web",
+    "primaryResourceFamily": "app_toolbar_user_agent",
+    "resourceFamilies": [
+      "app_toolbar_user_agent"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Camera.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Camera",
+    "primaryResourceFamily": "app_site_permission_camera",
+    "resourceFamilies": [
+      "app_site_permission_camera"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Color Palette.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Color Palette",
+    "primaryResourceFamily": "app_settings_appearance",
+    "resourceFamilies": [
+      "app_settings_appearance",
+      "app_toolbar_theme_mode",
+      "app_membership_benefit_appearance"
+    ],
+    "note": "one font glyph serves multiple app resource families"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/clipboard.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Clipboard",
+    "primaryResourceFamily": "app_site_permission_clipboard",
+    "resourceFamilies": [
+      "app_site_permission_clipboard"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Clock.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Clock",
+    "primaryResourceFamily": "app_membership_invite_record_clock",
+    "resourceFamilies": [
+      "app_membership_invite_record_clock"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/历史记录.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / History",
+    "primaryResourceFamily": "app_shortcut_history",
+    "resourceFamilies": [
+      "app_shortcut_history"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Cloud.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Cloud",
+    "primaryResourceFamily": "app_settings_webdav",
+    "resourceFamilies": [
+      "app_settings_webdav",
+      "app_membership_benefit_webdav"
+    ],
+    "note": "one font glyph serves multiple app resource families"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/脚本.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Code",
+    "primaryResourceFamily": "app_settings_user_scripts",
+    "resourceFamilies": [
+      "app_settings_user_scripts",
+      "app_shortcut_scripts",
+      "app_membership_benefit_user_scripts",
+      "app_toolbar_element_inspection"
+    ],
+    "note": "one font glyph serves multiple app resource families"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/全屏模式.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Full Screen Mode",
+    "primaryResourceFamily": "app_toolbar_full_screen",
+    "resourceFamilies": [
+      "app_toolbar_full_screen"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Crown.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Crown",
+    "primaryResourceFamily": "app_settings_membership",
+    "resourceFamilies": [
+      "app_settings_membership",
+      "app_membership_benefit_membership"
+    ],
+    "note": "one font glyph serves multiple app resource families"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Text Cursor.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Text Cursor",
+    "primaryResourceFamily": "app_toolbar_fill_address",
+    "resourceFamilies": [
+      "app_toolbar_fill_address"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Monitor.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Monitor",
+    "primaryResourceFamily": "app_theme_mode_system",
+    "resourceFamilies": [
+      "app_theme_mode_system"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Smartphone.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Smartphone",
+    "primaryResourceFamily": "app_toolbar_add_to_desktop",
+    "resourceFamilies": [
+      "app_toolbar_add_to_desktop"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Rotate Screen.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Rotate Screen",
+    "primaryResourceFamily": "app_toolbar_screen_orientation",
+    "resourceFamilies": [
+      "app_toolbar_screen_orientation"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/More.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / More",
+    "primaryResourceFamily": "app_toolbar_more",
+    "resourceFamilies": [
+      "app_toolbar_more"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Download.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Download",
+    "primaryResourceFamily": "app_settings_downloads",
+    "resourceFamilies": [
+      "app_settings_downloads",
+      "app_shortcut_downloads",
+      "app_membership_benefit_downloads"
+    ],
+    "note": "one font glyph serves multiple app resource families"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Eraser.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Eraser",
+    "primaryResourceFamily": "app_toolbar_manual_element_hide",
+    "resourceFamilies": [
+      "app_toolbar_manual_element_hide"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Fast Forward.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Fast Forward",
+    "primaryResourceFamily": "app_video_assistant_seek_forward_10",
+    "resourceFamilies": [
+      "app_video_assistant_seek_forward_10"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Test Tube.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Test Tube",
+    "primaryResourceFamily": "app_settings_experiments",
+    "resourceFamilies": [
+      "app_settings_experiments",
+      "app_membership_benefit_experiments"
+    ],
+    "note": "one font glyph serves multiple app resource families"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Save.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Save",
+    "primaryResourceFamily": "app_toolbar_offline",
+    "resourceFamilies": [
+      "app_toolbar_offline"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Folder Invoices.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Folder Invoices",
+    "primaryResourceFamily": "app_bookmark_folder",
+    "resourceFamilies": [
+      "app_bookmark_folder"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Speed.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Speed",
+    "primaryResourceFamily": "app_video_assistant_playback_speed",
+    "resourceFamilies": [
+      "app_video_assistant_playback_speed"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-settings 1.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Settings",
+    "primaryResourceFamily": "app_settings_general",
+    "resourceFamilies": [
+      "app_settings_general",
+      "app_shortcut_settings"
+    ],
+    "note": "one font glyph serves multiple app resource families"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-gift 1.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Gift",
+    "primaryResourceFamily": "app_membership_gift",
+    "resourceFamilies": [
+      "app_membership_gift",
+      "app_settings_membership_invite",
+      "app_membership_benefit_invite"
+    ],
+    "note": "one font glyph serves multiple app resource families"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Globe.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Globe",
+    "primaryResourceFamily": "app_settings_site_settings",
+    "resourceFamilies": [
+      "app_settings_site_settings",
+      "app_toolbar_site_info"
+    ],
+    "note": "one font glyph serves multiple app resource families"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-globe_earth 1.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Globe Earth",
+    "primaryResourceFamily": "app_userscripts_default_icon",
+    "resourceFamilies": [
+      "app_userscripts_default_icon"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-home 1.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Home",
+    "primaryResourceFamily": "app_settings_custom_homepage",
+    "resourceFamilies": [
+      "app_settings_custom_homepage",
+      "app_shortcut_home"
+    ],
+    "note": "one font glyph serves multiple app resource families"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-contact 1.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Contact Card",
+    "primaryResourceFamily": "app_settings_user_agent",
+    "resourceFamilies": [
+      "app_settings_user_agent",
+      "app_toolbar_user_agent_preset"
+    ],
+    "note": "one font glyph serves multiple app resource families"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/关于aira.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Info",
+    "primaryResourceFamily": "app_settings_about",
+    "resourceFamilies": [
+      "app_settings_about"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-link 1.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Link",
+    "primaryResourceFamily": "app_toolbar_copy_link",
+    "resourceFamilies": [
+      "app_toolbar_copy_link"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-lock 1.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Lock",
+    "primaryResourceFamily": "app_video_assistant_lock",
+    "resourceFamilies": [
+      "app_video_assistant_lock"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-key 1.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Key Security",
+    "primaryResourceFamily": "app_toolbar_connection_security",
+    "resourceFamilies": [
+      "app_toolbar_connection_security"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-padlock 1.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Unlock",
+    "primaryResourceFamily": "app_video_assistant_unlock",
+    "resourceFamilies": [
+      "app_video_assistant_unlock"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-search 1.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Search",
+    "primaryResourceFamily": "app_reader_find",
+    "resourceFamilies": [
+      "app_reader_find",
+      "app_settings_search",
+      "app_toolbar_search"
+    ],
+    "note": "one font glyph serves multiple app resource families"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-marker 1.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Marker",
+    "primaryResourceFamily": "app_site_permission_location",
+    "resourceFamilies": [
+      "app_site_permission_location"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Anonymous Mask.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Anonymous Mask",
+    "primaryResourceFamily": "app_tabs_privacy_mode",
+    "resourceFamilies": [
+      "app_tabs_privacy_mode"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-microphone 1.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Microphone",
+    "primaryResourceFamily": "app_site_permission_microphone",
+    "resourceFamilies": [
+      "app_site_permission_microphone"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-moon_symbol 1.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Moon Symbol",
+    "primaryResourceFamily": "app_theme_mode_dark",
+    "resourceFamilies": [
+      "app_theme_mode_dark"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-color_palette 1.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Color Palette",
+    "primaryResourceFamily": "app_reader_theme",
+    "resourceFamilies": [
+      "app_reader_theme"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-paper_plane 1.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Paper Plane",
+    "primaryResourceFamily": "app_toolbar_send_to_desktop",
+    "resourceFamilies": [
+      "app_toolbar_send_to_desktop"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-password 1.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Password",
+    "primaryResourceFamily": "app_settings_passwords",
+    "resourceFamilies": [
+      "app_settings_passwords"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-pause 1.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Pause",
+    "primaryResourceFamily": "app_video_assistant_pause",
+    "resourceFamilies": [
+      "app_video_assistant_pause"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-edit 1.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Edit",
+    "primaryResourceFamily": "app_toolbar_edit",
+    "resourceFamilies": [
+      "app_toolbar_edit"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-picture_in_picture 1.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Picture in Picture",
+    "primaryResourceFamily": "app_video_assistant_popup",
+    "resourceFamilies": [
+      "app_video_assistant_popup"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-play 1.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Play",
+    "primaryResourceFamily": "app_video_assistant_play",
+    "resourceFamilies": [
+      "app_video_assistant_play"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Plus.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Plus",
+    "primaryResourceFamily": "app_tabs_add",
+    "resourceFamilies": [
+      "app_tabs_add"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-print 1.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Print",
+    "primaryResourceFamily": "app_toolbar_print_page",
+    "resourceFamilies": [
+      "app_toolbar_print_page"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-qr_code 1.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / QR Code",
+    "primaryResourceFamily": "app_shortcut_scan_qr",
+    "resourceFamilies": [
+      "app_shortcut_scan_qr"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Receipt.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Receipt",
+    "primaryResourceFamily": "app_settings_restore_purchase",
+    "resourceFamilies": [
+      "app_settings_restore_purchase",
+      "app_membership_restore_purchase"
+    ],
+    "note": "one font glyph serves multiple app resource families"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-resize 1.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Resize",
+    "primaryResourceFamily": "app_video_assistant_aspect_ratio",
+    "resourceFamilies": [
+      "app_video_assistant_aspect_ratio"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-rewind 1.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Rewind",
+    "primaryResourceFamily": "app_video_assistant_seek_backward_10",
+    "resourceFamilies": [
+      "app_video_assistant_seek_backward_10"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-select_all 1.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Select All",
+    "primaryResourceFamily": "app_toolbar_select_all",
+    "resourceFamilies": [
+      "app_toolbar_select_all"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-share 1.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Share",
+    "primaryResourceFamily": "app_reader_share",
+    "resourceFamilies": [
+      "app_reader_share",
+      "app_toolbar_share_document",
+      "app_toolbar_share_page"
+    ],
+    "note": "one font glyph serves multiple app resource families"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Shield.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Shield",
+    "primaryResourceFamily": "app_settings_privacy_security",
+    "resourceFamilies": [
+      "app_settings_privacy_security",
+      "app_membership_benefit_privacy_security"
+    ],
+    "note": "one font glyph serves multiple app resource families"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Security Checked.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Security Checked",
+    "primaryResourceFamily": "app_membership_benefit_ad_blocker",
+    "resourceFamilies": [
+      "app_membership_benefit_ad_blocker"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/High Volume.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / High Volume",
+    "primaryResourceFamily": "app_reader_read_aloud",
+    "resourceFamilies": [
+      "app_reader_read_aloud",
+      "app_video_assistant_gesture_volume_high"
+    ],
+    "note": "one font glyph serves multiple app resource families"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Low Volume.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Low Volume",
+    "primaryResourceFamily": "app_video_assistant_gesture_volume_low",
+    "resourceFamilies": [
+      "app_video_assistant_gesture_volume_low"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Medium Volume.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Medium Volume",
+    "primaryResourceFamily": "app_video_assistant_gesture_volume_medium",
+    "resourceFamilies": [
+      "app_video_assistant_gesture_volume_medium"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Mute.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Mute",
+    "primaryResourceFamily": "app_video_assistant_gesture_volume_muted",
+    "resourceFamilies": [
+      "app_video_assistant_gesture_volume_muted"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-stack 1.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Stack",
+    "primaryResourceFamily": "app_shortcut_page_resources",
+    "resourceFamilies": [
+      "app_shortcut_page_resources"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-sun 1.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Sun",
+    "primaryResourceFamily": "app_theme_mode_light",
+    "resourceFamilies": [
+      "app_theme_mode_light",
+      "app_video_assistant_gesture_brightness"
+    ],
+    "note": "one font glyph serves multiple app resource families"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/标签页.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Windows",
+    "primaryResourceFamily": "app_toolbar_tabs",
+    "resourceFamilies": [
+      "app_toolbar_tabs"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-align_justify 1.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Align Justify",
+    "primaryResourceFamily": "app_reader_line_height",
+    "resourceFamilies": [
+      "app_reader_line_height"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-increase_font 1.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Increase Font",
+    "primaryResourceFamily": "app_reader_increase_font",
+    "resourceFamilies": [
+      "app_reader_increase_font"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-decrease_font 1.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Decrease Font",
+    "primaryResourceFamily": "app_reader_decrease_font",
+    "resourceFamilies": [
+      "app_reader_decrease_font"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-translation 1.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Translation",
+    "primaryResourceFamily": "app_settings_webpage_translation",
+    "resourceFamilies": [
+      "app_settings_webpage_translation",
+      "app_toolbar_translate",
+      "app_membership_benefit_webpage_translation"
+    ],
+    "note": "one font glyph serves multiple app resource families"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-trash 1.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Trash",
+    "primaryResourceFamily": "app_site_setting_clear_on_close",
+    "resourceFamilies": [
+      "app_site_setting_clear_on_close"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-error 1.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Error",
+    "primaryResourceFamily": "app_toolbar_report_site",
+    "resourceFamilies": [
+      "app_toolbar_report_site"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/传感器权限.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Activity",
+    "primaryResourceFamily": "app_site_permission_sensor",
+    "resourceFamilies": [
+      "app_site_permission_sensor"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-delete 1.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Delete Sign",
+    "primaryResourceFamily": "app_toolbar_clear_input",
+    "resourceFamilies": [
+      "app_toolbar_clear_input",
+      "app_tabs_delete"
+    ],
+    "note": "one font glyph serves multiple app resource families"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/选择同步内容弹窗的活动热力图.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Activity Heatmap",
+    "primaryResourceFamily": "app_sync_first_activation_activity_heatmap",
+    "resourceFamilies": [
+      "app_sync_first_activation_activity_heatmap"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/设置-同步.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Cloud Sync",
+    "primaryResourceFamily": "app_settings_sync",
+    "resourceFamilies": [
+      "app_settings_sync",
+      "app_membership_benefit_sync"
+    ],
+    "note": "one font glyph serves multiple app resource families"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/copy.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Copy",
+    "primaryResourceFamily": "app_browser_address_copy",
+    "resourceFamilies": [
+      "app_browser_address_copy"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/ad_blocker.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Ad Blocker",
+    "primaryResourceFamily": "app_settings_ad_blocker",
+    "resourceFamilies": [
+      "app_settings_ad_blocker"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/user_shield.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / User Shield",
+    "primaryResourceFamily": "app_settings_notice_user_shield",
+    "resourceFamilies": [
+      "app_settings_notice_user_shield"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/菜单.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Menu",
+    "primaryResourceFamily": "app_toolbar_menu",
+    "resourceFamilies": [
+      "app_toolbar_menu"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/分享.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Share",
+    "primaryResourceFamily": "app_browser_address_expanded_share",
+    "resourceFamilies": [
+      "app_browser_address_expanded_share"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/编辑.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Edit",
+    "primaryResourceFamily": "app_browser_address_expanded_edit",
+    "resourceFamilies": [
+      "app_browser_address_expanded_edit"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/复制.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Copy",
+    "primaryResourceFamily": "app_browser_address_expanded_copy",
+    "resourceFamilies": [
+      "app_browser_address_expanded_copy"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/新建标签页.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / New Tab",
+    "primaryResourceFamily": "app_tabs_overview_add",
+    "resourceFamilies": [
+      "app_tabs_overview_add"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/111关闭.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Close",
+    "primaryResourceFamily": "app_tabs_overview_close",
+    "resourceFamilies": [
+      "app_tabs_overview_close"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/扫一扫.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Scan QR",
+    "primaryResourceFamily": "app_toolbar_scan_qr",
+    "resourceFamilies": [
+      "app_toolbar_scan_qr"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/隐私模式.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Private Mode",
+    "primaryResourceFamily": "app_toolbar_privacy_mode",
+    "resourceFamilies": [
+      "app_toolbar_privacy_mode"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/复制链接.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Copy Link",
+    "primaryResourceFamily": "app_toolbar_action_copy_link",
+    "resourceFamilies": [
+      "app_toolbar_action_copy_link"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/翻译.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Translate",
+    "primaryResourceFamily": "app_toolbar_action_translate",
+    "resourceFamilies": [
+      "app_toolbar_action_translate"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/撑满屏幕.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Fill Screen",
+    "primaryResourceFamily": "app_video_assistant_control_aspect_ratio",
+    "resourceFamilies": [
+      "app_video_assistant_control_aspect_ratio"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/倍速.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Playback Speed",
+    "primaryResourceFamily": "app_video_assistant_control_playback_speed",
+    "resourceFamilies": [
+      "app_video_assistant_control_playback_speed"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/旋转.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Rotate Video",
+    "primaryResourceFamily": "app_video_assistant_control_rotate",
+    "resourceFamilies": [
+      "app_video_assistant_control_rotate"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/审查元素.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Inspect Element",
+    "primaryResourceFamily": "app_toolbar_action_element_inspection",
+    "resourceFamilies": [
+      "app_toolbar_action_element_inspection"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/网页功能.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Web Features",
+    "primaryResourceFamily": "app_settings_web_features",
+    "resourceFamilies": [
+      "app_settings_web_features"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/投屏.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Cast",
+    "primaryResourceFamily": "app_video_assistant_cast",
+    "resourceFamilies": [
+      "app_video_assistant_cast"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/重新选择.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Reselect Element",
+    "primaryResourceFamily": "app_element_inspection_reselect",
+    "resourceFamilies": [
+      "app_element_inspection_reselect"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/元素审查全屏.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Element Inspection Fullscreen",
+    "primaryResourceFamily": "app_element_inspection_fullscreen",
+    "resourceFamilies": [
+      "app_element_inspection_fullscreen"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/元素审查收起全屏.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Element Inspection Exit Fullscreen",
+    "primaryResourceFamily": "app_element_inspection_exit_fullscreen",
+    "resourceFamilies": [
+      "app_element_inspection_exit_fullscreen"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/up.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Expand Up",
+    "primaryResourceFamily": "app_toolbar_expand_hint",
+    "resourceFamilies": [
+      "app_toolbar_expand_hint"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/添加书签.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Add Bookmark",
+    "primaryResourceFamily": "app_omnibox_add_bookmark",
+    "resourceFamilies": [
+      "app_omnibox_add_bookmark"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/已经添加书签了，已经是书签了。.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Bookmarked",
+    "primaryResourceFamily": "app_omnibox_bookmarked",
+    "resourceFamilies": [
+      "app_omnibox_bookmarked"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/用户脚本工具栏.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / User Script",
+    "primaryResourceFamily": "app_toolbar_user_scripts",
+    "resourceFamilies": [
+      "app_toolbar_user_scripts"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/目录.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Novel Reader Catalog",
+    "primaryResourceFamily": "app_novel_reader_catalog",
+    "resourceFamilies": [
+      "app_novel_reader_catalog"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/文字.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Novel Reader Text",
+    "primaryResourceFamily": "app_novel_reader_text",
+    "resourceFamilies": [
+      "app_novel_reader_text"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/颜色浅色.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Novel Reader Light Color",
+    "primaryResourceFamily": "app_novel_reader_theme",
+    "resourceFamilies": [
+      "app_novel_reader_theme"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/设置.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Novel Reader Settings",
+    "primaryResourceFamily": "app_novel_reader_settings",
+    "resourceFamilies": [
+      "app_novel_reader_settings"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/左边亮度.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Novel Reader Brightness Low",
+    "primaryResourceFamily": "app_novel_reader_brightness_low",
+    "resourceFamilies": [
+      "app_novel_reader_brightness_low"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/右边亮度.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Novel Reader Brightness High",
+    "primaryResourceFamily": "app_novel_reader_brightness_high",
+    "resourceFamilies": [
+      "app_novel_reader_brightness_high"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/乌龟代表慢.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Novel Reader Auto Slow",
+    "primaryResourceFamily": "app_novel_reader_auto_slow",
+    "resourceFamilies": [
+      "app_novel_reader_auto_slow"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/兔子代表快.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Novel Reader Auto Fast",
+    "primaryResourceFamily": "app_novel_reader_auto_fast",
+    "resourceFamilies": [
+      "app_novel_reader_auto_fast"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/我的书架.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Bookshelf",
+    "primaryResourceFamily": "app_toolbar_bookshelf",
+    "resourceFamilies": [
+      "app_toolbar_bookshelf"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/下载中.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Active Download",
+    "primaryResourceFamily": "app_toolbar_active_download",
+    "resourceFamilies": [
+      "app_toolbar_active_download"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Empty.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Empty",
+    "primaryResourceFamily": "app_toolbar_empty_slot",
+    "resourceFamilies": [
+      "app_toolbar_empty_slot"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/拖动抓手.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Bookmark Edit Drag Handle",
+    "primaryResourceFamily": "app_bookmark_edit_drag_handle",
+    "resourceFamilies": [
+      "app_bookmark_edit_drag_handle"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/移动.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Bookmark Edit Move",
+    "primaryResourceFamily": "app_bookmark_edit_move",
+    "resourceFamilies": [
+      "app_bookmark_edit_move"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/全选.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Bookmark Edit Select All",
+    "primaryResourceFamily": "app_bookmark_edit_select_all",
+    "resourceFamilies": [
+      "app_bookmark_edit_select_all"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "vendor/icons8/ios-27-glyph/svg/前进.svg",
+    "originalSource": "Icons8 iOS 27 Glyph / Forward",
+    "primaryResourceFamily": "app_toolbar_forward",
+    "resourceFamilies": [
+      "app_toolbar_forward"
+    ],
+    "note": "licensed Icons8 Operational font source"
+  },
+  {
+    "exportedFile": "icons/app_widget_shortcut_history__user-provided.svg",
+    "originalSource": "user-provided/历史记录.svg",
+    "primaryResourceFamily": "app_widget_shortcut_history",
+    "resourceFamilies": [
+      "app_widget_shortcut_history"
+    ],
+    "note": "user-provided desktop-card-only source"
+  },
+  {
+    "exportedFile": "icons/app_widget_shortcut_bookmarks__user-provided.svg",
+    "originalSource": "user-provided/书签.svg",
+    "primaryResourceFamily": "app_widget_shortcut_bookmarks",
+    "resourceFamilies": [
+      "app_widget_shortcut_bookmarks"
+    ],
+    "note": "user-provided desktop-card-only source"
+  },
+  {
+    "exportedFile": "icons/app_widget_shortcut_downloads__user-provided.svg",
+    "originalSource": "user-provided/下载.svg",
+    "primaryResourceFamily": "app_widget_shortcut_downloads",
+    "resourceFamilies": [
+      "app_widget_shortcut_downloads"
+    ],
+    "note": "user-provided desktop-card-only source"
+  },
+  {
+    "exportedFile": "icons/app_widget_shortcut_settings__user-provided.svg",
+    "originalSource": "user-provided/设置.svg",
+    "primaryResourceFamily": "app_widget_shortcut_settings",
+    "resourceFamilies": [
+      "app_widget_shortcut_settings"
+    ],
+    "note": "user-provided desktop-card-only source"
+  },
+  {
+    "exportedFile": "icons/app_widget_navigation_arrow__Interface_Essential_Arrow.svg",
+    "originalSource": "Interface, Essential/Arrow.svg",
+    "primaryResourceFamily": "app_widget_navigation_arrow",
+    "resourceFamilies": [
+      "app_widget_navigation_arrow"
+    ],
+    "note": "desktop-card-only navigation accessory; rotated by the 1x2 Form"
+  },
+  {
+    "exportedFile": "icons/app_settings_theme_mode_desktop_preview_light__user-provided.png",
+    "originalSource": "user-provided/theme_light.png",
+    "primaryResourceFamily": "app_settings_theme_mode_desktop_preview_light",
+    "resourceFamilies": [
+      "app_settings_theme_mode_desktop_preview_light"
+    ],
+    "note": "user-provided 886x580 PNG for the desktop light-theme settings preview"
+  },
+  {
+    "exportedFile": "icons/app_settings_theme_mode_desktop_preview_dark__user-provided.png",
+    "originalSource": "user-provided/theme_ldark.png",
+    "primaryResourceFamily": "app_settings_theme_mode_desktop_preview_dark",
+    "resourceFamilies": [
+      "app_settings_theme_mode_desktop_preview_dark"
+    ],
+    "note": "user-provided 886x580 PNG for the desktop dark-theme settings preview"
+  },
+  {
+    "exportedFile": "icons/app_external_search_zhihu__user-provided-app-icon.png",
+    "originalSource": "user-provided/zhihu.png",
+    "primaryResourceFamily": "app_external_search_zhihu",
+    "resourceFamilies": [
+      "app_external_search_zhihu"
+    ],
+    "note": "user-provided 512x512 PNG; pixels and colors preserved"
+  },
+  {
+    "exportedFile": "icons/app_external_search_bilibili__user-provided-app-icon.png",
+    "originalSource": "user-provided/bilibili.png",
+    "primaryResourceFamily": "app_external_search_bilibili",
+    "resourceFamilies": [
+      "app_external_search_bilibili"
+    ],
+    "note": "user-provided 512x512 PNG; pixels and colors preserved"
+  },
+  {
+    "exportedFile": "icons/app_external_search_douyin__user-provided-app-icon.png",
+    "originalSource": "user-provided/抖音.png",
+    "primaryResourceFamily": "app_external_search_douyin",
+    "resourceFamilies": [
+      "app_external_search_douyin"
+    ],
+    "note": "user-provided 512x512 PNG; pixels and colors preserved"
+  },
+  {
+    "exportedFile": "icons/app_external_search_xiaohongshu__user-provided-app-icon.png",
+    "originalSource": "user-provided/小红书.png",
+    "primaryResourceFamily": "app_external_search_xiaohongshu",
+    "resourceFamilies": [
+      "app_external_search_xiaohongshu"
+    ],
+    "note": "user-provided 512x512 PNG; pixels and colors preserved"
+  },
+  {
+    "exportedFile": "icons/app_external_search_douban__user-provided-app-icon.png",
+    "originalSource": "user-provided/豆瓣.png",
+    "primaryResourceFamily": "app_external_search_douban",
+    "resourceFamilies": [
+      "app_external_search_douban"
+    ],
+    "note": "user-provided 512x512 PNG; pixels and colors preserved"
+  },
+  {
+    "exportedFile": "icons/app_external_search_quark__user-provided-app-icon.png",
+    "originalSource": "user-provided/夸克.png",
+    "primaryResourceFamily": "app_external_search_quark",
+    "resourceFamilies": [
+      "app_external_search_quark"
+    ],
+    "note": "user-provided 512x512 PNG; pixels and colors preserved"
+  },
+  {
+    "exportedFile": "icons/app_external_search_appgallery__user-provided-app-icon.png",
+    "originalSource": "user-provided/应用市场.png",
+    "primaryResourceFamily": "app_external_search_appgallery",
+    "resourceFamilies": [
+      "app_external_search_appgallery"
+    ],
+    "note": "user-provided 512x512 PNG; pixels and colors preserved"
+  },
+  {
+    "exportedFile": "icons/app_external_search_jd__user-provided-app-icon.png",
+    "originalSource": "user-provided/京东.png",
+    "primaryResourceFamily": "app_external_search_jd",
+    "resourceFamilies": [
+      "app_external_search_jd"
+    ],
+    "note": "user-provided 512x512 PNG; pixels and colors preserved"
+  },
+  {
+    "exportedFile": "icons/app_external_search_taobao__user-provided-app-icon.png",
+    "originalSource": "user-provided/淘宝.png",
+    "primaryResourceFamily": "app_external_search_taobao",
+    "resourceFamilies": [
+      "app_external_search_taobao"
+    ],
+    "note": "user-provided 512x512 PNG; pixels and colors preserved"
+  },
+  {
+    "exportedFile": "icons/app_external_search_pinduoduo__user-provided-app-icon.png",
+    "originalSource": "user-provided/拼多多.png",
+    "primaryResourceFamily": "app_external_search_pinduoduo",
+    "resourceFamilies": [
+      "app_external_search_pinduoduo"
+    ],
+    "note": "user-provided 512x512 PNG; pixels and colors preserved"
+  },
+  {
+    "exportedFile": "icons/app_external_search_xianyu__user-provided-app-icon.png",
+    "originalSource": "user-provided/闲鱼.png",
+    "primaryResourceFamily": "app_external_search_xianyu",
+    "resourceFamilies": [
+      "app_external_search_xianyu"
+    ],
+    "note": "user-provided 512x512 PNG; pixels and colors preserved"
+  },
+  {
+    "exportedFile": "icons/app_external_search_meituan__user-provided-app-icon.png",
+    "originalSource": "user-provided/美团.png",
+    "primaryResourceFamily": "app_external_search_meituan",
+    "resourceFamilies": [
+      "app_external_search_meituan"
+    ],
+    "note": "user-provided 512x512 PNG; pixels and colors preserved"
+  },
+  {
+    "exportedFile": "icons/app_external_search_baidu_map__user-provided-app-icon.png",
+    "originalSource": "user-provided/百度地图.png",
+    "primaryResourceFamily": "app_external_search_baidu_map",
+    "resourceFamilies": [
+      "app_external_search_baidu_map"
+    ],
+    "note": "user-provided 512x512 PNG; pixels and colors preserved"
+  },
+  {
+    "exportedFile": "icons/app_external_search_qqmusic__user-provided-app-icon.png",
+    "originalSource": "user-provided/QQ音乐.png",
+    "primaryResourceFamily": "app_external_search_qqmusic",
+    "resourceFamilies": [
+      "app_external_search_qqmusic"
+    ],
+    "note": "user-provided 512x512 PNG; pixels and colors preserved"
+  },
+  {
+    "exportedFile": "icons/app_external_search_alipay__user-provided-app-icon.png",
+    "originalSource": "user-provided/支付宝.png",
+    "primaryResourceFamily": "app_external_search_alipay",
+    "resourceFamilies": [
+      "app_external_search_alipay"
+    ],
+    "note": "user-provided 512x512 PNG; pixels and colors preserved"
+  },
+  {
+    "exportedFile": "icons/app_external_search_youdao__user-provided-app-icon.png",
+    "originalSource": "user-provided/有道词典.png",
+    "primaryResourceFamily": "app_external_search_youdao",
+    "resourceFamilies": [
+      "app_external_search_youdao"
+    ],
+    "note": "user-provided 512x512 PNG; pixels and colors preserved"
+  }
+]

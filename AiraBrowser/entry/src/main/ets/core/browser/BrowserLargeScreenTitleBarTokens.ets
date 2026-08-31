@@ -1,0 +1,20 @@
+export const BROWSER_LARGE_SCREEN_TITLE_BAR_BASE_HEIGHT_VP: number = 40;
+export const BROWSER_LARGE_SCREEN_TITLE_BAR_TAB_LIST_WIDTH_VP: number = 40;
+export const BROWSER_LARGE_SCREEN_TITLE_BAR_MIN_DRAG_WIDTH_VP: number = 48;
+export const BROWSER_LARGE_SCREEN_TITLE_BAR_LEADING_PADDING_VP: number = 6;
+export const BROWSER_LARGE_SCREEN_TITLE_BAR_ACTION_SIZE_VP: number = 32;
+export const BROWSER_LARGE_SCREEN_TITLE_BAR_ACTION_GAP_VP: number = 4;
+export const BROWSER_LARGE_SCREEN_TITLE_BAR_TRAILING_PADDING_VP: number = 10;
+
+/**
+ * Width outside the flexible tab list. Keep this resource budget identical to
+ * the renderer so every projected tab remains clear of the system three-button
+ * area while a stable native window-move region is always available.
+ */
+export const BROWSER_LARGE_SCREEN_TITLE_BAR_FIXED_CHROME_WIDTH_VP: number =
+  BROWSER_LARGE_SCREEN_TITLE_BAR_LEADING_PADDING_VP +
+  BROWSER_LARGE_SCREEN_TITLE_BAR_TAB_LIST_WIDTH_VP +
+  BROWSER_LARGE_SCREEN_TITLE_BAR_ACTION_GAP_VP +
+  BROWSER_LARGE_SCREEN_TITLE_BAR_ACTION_SIZE_VP +
+  BROWSER_LARGE_SCREEN_TITLE_BAR_MIN_DRAG_WIDTH_VP +
+  BROWSER_LARGE_SCREEN_TITLE_BAR_TRAILING_PADDING_VP;

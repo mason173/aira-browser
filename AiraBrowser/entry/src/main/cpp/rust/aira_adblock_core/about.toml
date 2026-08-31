@@ -1,0 +1,14 @@
+accepted = [
+  "Apache-2.0",
+  "MIT",
+  "MPL-2.0",
+  "Unicode-3.0",
+  "Unlicense",
+]
+targets = ["aarch64-unknown-linux-ohos"]
+ignore-build-dependencies = true
+ignore-dev-dependencies = true
+ignore-transitive-dependencies = false
+
+[private]
+ignore = true

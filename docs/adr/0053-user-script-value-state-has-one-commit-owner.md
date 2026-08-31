@@ -1,0 +1,17 @@
+# User Script Value State Has One Commit Owner
+
+Accepted, 2026-07-21; amended 2026-08-07: `UserScriptValueStateStore` is the single owner of device-local GM value readiness, schema, monotonic revision, global mutation ordering, batching, committed state, and Incident lifecycle. Its production persistence seam has committed-byte read, optional previous-copy read, and whole-file replacement operations, implemented by one HarmonyOS file adapter. Before replacing an established current file, the adapter writes and synchronizes its last committed bytes to `values.json.previous`; it then writes and synchronizes `values.json`, and Native Bridge acknowledges success only after that current write finishes. A current document may maintain a provisional synchronous view, but native reads, new documents, listeners, and runtime snapshots observe committed revisions only.
+
+Only confirmed absence of both current and previous files is first-run state and creates an empty current-schema snapshot. On startup, the Store owns decoding and schema validation for both candidates. A valid previous copy restores an interrupted or invalid current write; if neither candidate is valid, the adapter preserves both and only user-script execution is blocked. The rest of browser startup continues and User Script management exposes the redacted failure stage/code. Runtime commit failure keeps the previous synchronized snapshot available, rejects the affected batch, and opens one redacted Incident until a later successful replacement proves recovery. Store-level failures and recoveries are retained as a bounded diagnostic history without script identity, URLs, keys, or values. There is no user-facing Reset workflow.
+
+## Considered Options
+
+- Preferences fallback was rejected because multiple production writers would create multiple meanings of persistence ACK.
+- Per-script writers or queues were rejected because cross-script ordering and snapshot revision would no longer have one owner.
+- Old-schema migration and partial salvage were rejected. An unreadable or unsupported snapshot fails closed instead of being rewritten, preserving the only data copy for a later explicit recovery decision.
+- A manual temporary-file overwrite rename was rejected because Huawei's checked SDK documents the API but does not guarantee crash-atomic replacement of an existing file. The previous copy makes process-termination recovery independent of that undocumented behavior.
+- Script-specific reload interception was rejected because it compensates for failed persistence outside the owning module and cannot provide durable ordering.
+
+## Consequences
+
+The current schema is intentionally strict and has no legacy compatibility path. Capacity rejection is distinct from a persistence Incident. Whole-file replacement uses the device-proven direct file API because `AtomicFile.startWrite()` was rejected by the target device. Direct writes call `fsyncSync` before close; the previous copy doubles worst-case Value State disk usage and write volume but remains untouched while the current file is replaced. A current file interrupted by process termination can therefore fall back to the last complete revision without relying on undocumented rename atomicity. Future sharding or cross-document listener broadcast may replace internals behind the same owner, but must preserve one committed revision authority and one production persistence meaning.

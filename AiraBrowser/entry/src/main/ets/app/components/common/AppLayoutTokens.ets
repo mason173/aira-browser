@@ -1,0 +1,1 @@
+export const APP_STANDARD_HORIZONTAL_PADDING: number = 16;

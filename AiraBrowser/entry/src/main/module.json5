@@ -1,0 +1,332 @@
+{
+  "module": {
+    "name": "entry",
+    "type": "entry",
+    "metadata": [],
+    "requestPermissions": [
+      {
+        "name": "ohos.permission.INTERNET",
+        "reason": "$string:internet_permission_reason",
+        "usedScene": {
+          "when": "always"
+        }
+      },
+      {
+        "name": "ohos.permission.GET_NETWORK_INFO"
+      },
+      // PC/2in1 browser ACL only. Keep this disabled for the phone/tablet release package.
+      // {
+      //   "name": "ohos.permission.GET_ABILITY_INFO"
+      // },
+      {
+        "name": "ohos.permission.CAMERA",
+        "reason": "$string:camera_permission_reason",
+        "usedScene": {
+          "when": "inuse"
+        }
+      },
+      {
+        "name": "ohos.permission.MICROPHONE",
+        "reason": "$string:microphone_permission_reason",
+        "usedScene": {
+          "when": "inuse"
+        }
+      },
+      {
+        "name": "ohos.permission.LOCATION",
+        "reason": "$string:location_permission_reason",
+        "usedScene": {
+          "when": "inuse"
+        }
+      },
+      {
+        "name": "ohos.permission.APPROXIMATELY_LOCATION",
+        "reason": "$string:location_permission_reason",
+        "usedScene": {
+          "when": "inuse"
+        }
+      },
+      {
+        "name": "ohos.permission.ACCELEROMETER",
+        "reason": "$string:sensor_permission_reason",
+        "usedScene": {
+          "when": "inuse"
+        }
+      },
+      {
+        "name": "ohos.permission.DETECT_GESTURE",
+        "reason": "$string:detect_gesture_permission_reason",
+        "usedScene": {
+          "abilities": [
+            "EntryAbility"
+          ],
+          "when": "inuse"
+        }
+      },
+      {
+        "name": "ohos.permission.VIBRATE"
+      },
+      {
+        "name": "ohos.permission.PRIVACY_WINDOW",
+        "reason": "$string:privacy_window_permission_reason",
+        "usedScene": {
+          "when": "inuse"
+        }
+      },
+      {
+        "name": "ohos.permission.PRINT",
+        "reason": "$string:print_permission_reason",
+        "usedScene": {
+          "abilities": [
+            "EntryAbility"
+          ],
+          "when": "inuse"
+        }
+      },
+      {
+        "name": "ohos.permission.ACCESS_BIOMETRIC",
+        "reason": "$string:biometric_permission_reason",
+        "usedScene": {
+          "abilities": [
+            "EntryAbility"
+          ],
+          "when": "inuse"
+        }
+      },
+      {
+        "name": "ohos.permission.KEEP_BACKGROUND_RUNNING",
+        "reason": "$string:background_playback_permission_reason",
+        "usedScene": {
+          "abilities": [
+            "EntryAbility"
+          ],
+          "when": "always"
+        }
+      },
+      {
+        "name": "ohos.permission.STORE_PERSISTENT_DATA"
+      }
+    ],
+    "description": "$string:module_desc",
+    "mainElement": "EntryAbility",
+    "deviceTypes": [
+      "phone",
+      "tablet",
+      "2in1"
+    ],
+    "deliveryWithInstall": true,
+    "installationFree": false,
+    "srcEntry": "./ets/app/abilitystage/AiraAbilityStage.ets",
+    "pages": "$profile:main_pages",
+    "abilities": [
+      {
+        "name": "EntryAbility",
+        "srcEntry": "./ets/app/abilities/EntryAbility.ets",
+        "description": "$string:EntryAbility_desc",
+        "icon": "$media:layered_image",
+        "launchType": "specified",
+        "removeMissionAfterTerminate": true,
+        "label": "$string:EntryAbility_label",
+        "orientation": "auto_rotation_unspecified",
+        "backgroundModes": [
+          "audioPlayback",
+          "dataTransfer"
+        ],
+        "startWindow": "$profile:start_window",
+        "startWindowIcon": "$media:transparent_start_window_icon",
+        "startWindowBackground": "$color:start_window_background",
+        "continuable": true,
+        "exported": true,
+        "metadata": [
+          {
+            "name": "ohos.ability.shortcuts",
+            "resource": "$profile:shortcuts_config"
+          }
+        ],
+        "supportWindowMode": [
+          "fullscreen",
+          "split",
+          "floating"
+        ],
+        "skills": [
+          {
+            "entities": [
+              "entity.system.home"
+            ],
+            "actions": [
+              "action.system.home"
+            ],
+            "uris": [
+              {
+                "type": "general.hyperlink"
+              }
+            ]
+          },
+          {
+            "entities": [
+              "entity.system.browsable"
+            ],
+            "actions": [
+              "ohos.want.action.viewData"
+            ],
+            "uris": [
+              {
+                "scheme": "https"
+              },
+              {
+                "scheme": "http"
+              },
+              {
+                "scheme": "file",
+                "type": "text/html",
+                "linkFeature": "FileOpen"
+              },
+              {
+                "scheme": "file",
+                "type": "application/xhtml+xml",
+                "linkFeature": "FileOpen"
+              },
+              {
+                "scheme": "file",
+                "type": "application/json",
+                "linkFeature": "FileOpen"
+              },
+              {
+                "scheme": "file",
+                "type": "text/json",
+                "linkFeature": "FileOpen"
+              },
+              {
+                "scheme": "file",
+                "type": "text/plain",
+                "linkFeature": "FileOpen"
+              },
+              {
+                "scheme": "file",
+                "type": "text/markdown",
+                "linkFeature": "FileOpen"
+              },
+              {
+                "scheme": "file",
+                "type": "text/x-markdown",
+                "linkFeature": "FileOpen"
+              },
+              {
+                "scheme": "file",
+                "type": "application/markdown",
+                "linkFeature": "FileOpen"
+              },
+              {
+                "scheme": "file",
+                "pathRegex": ".*[.]user[.]js$",
+                "utd": "general.java-script",
+                "linkFeature": "FileOpen"
+              },
+              {
+                "scheme": "file",
+                "pathRegex": ".*[.]user[.]js$",
+                "type": "application/javascript",
+                "linkFeature": "FileOpen"
+              },
+              {
+                "scheme": "file",
+                "pathRegex": ".*[.]user[.]js$",
+                "type": "text/javascript",
+                "linkFeature": "FileOpen"
+              },
+              {
+                "scheme": "file",
+                "pathRegex": ".*[.]zip$",
+                "utd": "general.zip-archive",
+                "linkFeature": "FileOpen"
+              }
+            ]
+          },
+          {
+            "entities": [],
+            "actions": [
+              "ohos.want.action.sendData"
+            ],
+            "uris": [
+              {
+                "scheme": "file",
+                "utd": "general.hyperlink",
+                "maxFileSupported": 1
+              },
+              {
+                "scheme": "file",
+                "utd": "general.plain-text",
+                "type": "text/plain",
+                "maxFileSupported": 1
+              },
+              {
+                "scheme": "file",
+                "type": "text/plain",
+                "maxFileSupported": 1
+              },
+              {
+                "scheme": "file",
+                "utd": "general.html",
+                "type": "text/html",
+                "maxFileSupported": 1
+              },
+              {
+                "scheme": "file",
+                "type": "text/html",
+                "maxFileSupported": 1
+              },
+              {
+                "scheme": "file",
+                "utd": "general.xhtml",
+                "type": "application/xhtml+xml",
+                "maxFileSupported": 1
+              },
+              {
+                "scheme": "file",
+                "type": "application/xhtml+xml",
+                "maxFileSupported": 1
+              },
+              {
+                "scheme": "file",
+                "utd": "general.zip-archive",
+                "maxFileSupported": 1
+              },
+              {
+                "scheme": "file",
+                "type": "application/zip",
+                "maxFileSupported": 1
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "extensionAbilities": [
+      {
+        "name": "EntryBackupAbility",
+        "srcEntry": "./ets/entrybackupability/EntryBackupAbility.ets",
+        "type": "backup",
+        "exported": false,
+        "metadata": [
+          {
+            "name": "ohos.extension.backup",
+            "resource": "$profile:backup_config"
+          }
+        ],
+      },
+      {
+        "name": "AiraSearchFormAbility",
+        "srcEntry": "./ets/entryformability/AiraSearchFormAbility.ets",
+        "label": "$string:aira_search_card_display_name",
+        "description": "$string:aira_search_card_description",
+        "type": "form",
+        "metadata": [
+          {
+            "name": "ohos.extension.form",
+            "resource": "$profile:form_config"
+          }
+        ]
+      }
+    ]
+  }
+}

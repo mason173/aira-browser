@@ -1,0 +1,150 @@
+exportedFile,originalSource,primaryResourceFamily,resourceFamilies,note
+icons/aira_logo_brand__user-provided.svg,Aira logo.svg,aira_logo_brand,aira_logo_brand,user-provided canonical brand source
+icons/start_window_brand_lockup__user-provided.png,user-provided/开屏2 (1).png,start_window_brand_lockup,start_window_brand_lockup,user-provided canonical start-window artwork; identical bytes for light and dark
+vendor/icons8/ios-27-glyph/svg/Browser Window.svg,Icons8 iOS 27 Glyph / Browser Window,app_settings_web_apps,app_settings_web_apps;app_settings_app_service_mode,one font glyph serves multiple app resource families
+vendor/icons8/ios-27-glyph/svg/undo.svg,Icons8 iOS 27 Glyph / Undo,app_reader_refresh,app_reader_refresh,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/icons8-back 1.svg,Icons8 iOS 27 Glyph / Back,app_toolbar_back,app_toolbar_back,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/External Link.svg,Icons8 iOS 27 Glyph / External Link,app_site_setting_external_actions,app_site_setting_external_actions;app_site_setting_open_app;app_offline_open_original,one font glyph serves multiple app resource families
+vendor/icons8/ios-27-glyph/svg/Up Left Arrow.svg,Icons8 iOS 27 Glyph / Up Left Arrow,app_search_suggestion_fill_arrow,app_search_suggestion_fill_arrow,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/Refresh.svg,Icons8 iOS 27 Glyph / Refresh,app_toolbar_refresh,app_toolbar_refresh;app_membership_benefit_refresh;app_video_assistant_rotate,one font glyph serves multiple app resource families
+vendor/icons8/ios-27-glyph/svg/Resize Horizontal.svg,Icons8 iOS 27 Glyph / Resize Horizontal,app_reader_page_width,app_reader_page_width,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/News.svg,Icons8 iOS 27 Glyph / News,app_toolbar_saved_pages,app_toolbar_saved_pages,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/Reading.svg,Icons8 iOS 27 Glyph / Reading,app_toolbar_reader,app_toolbar_reader,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/Bookmark Ribbon.svg,Icons8 iOS 27 Glyph / Bookmark Ribbon,app_reader_add_bookmark,app_reader_add_bookmark;app_toolbar_add_bookmark,one font glyph serves multiple app resource families
+vendor/icons8/ios-27-glyph/svg/Bookmark.svg,Icons8 iOS 27 Glyph / Bookmark,app_shortcut_bookmarks,app_shortcut_bookmarks;app_reader_bookmarks,one font glyph serves multiple app resource families
+vendor/icons8/ios-27-glyph/svg/Web.svg,Icons8 iOS 27 Glyph / Web,app_toolbar_user_agent,app_toolbar_user_agent,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/Camera.svg,Icons8 iOS 27 Glyph / Camera,app_site_permission_camera,app_site_permission_camera,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/Color Palette.svg,Icons8 iOS 27 Glyph / Color Palette,app_settings_appearance,app_settings_appearance;app_toolbar_theme_mode;app_membership_benefit_appearance,one font glyph serves multiple app resource families
+vendor/icons8/ios-27-glyph/svg/clipboard.svg,Icons8 iOS 27 Glyph / Clipboard,app_site_permission_clipboard,app_site_permission_clipboard,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/Clock.svg,Icons8 iOS 27 Glyph / Clock,app_membership_invite_record_clock,app_membership_invite_record_clock,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/历史记录.svg,Icons8 iOS 27 Glyph / History,app_shortcut_history,app_shortcut_history,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/Cloud.svg,Icons8 iOS 27 Glyph / Cloud,app_settings_webdav,app_settings_webdav;app_membership_benefit_webdav,one font glyph serves multiple app resource families
+vendor/icons8/ios-27-glyph/svg/脚本.svg,Icons8 iOS 27 Glyph / Code,app_settings_user_scripts,app_settings_user_scripts;app_shortcut_scripts;app_membership_benefit_user_scripts;app_toolbar_element_inspection,one font glyph serves multiple app resource families
+vendor/icons8/ios-27-glyph/svg/全屏模式.svg,Icons8 iOS 27 Glyph / Full Screen Mode,app_toolbar_full_screen,app_toolbar_full_screen,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/Crown.svg,Icons8 iOS 27 Glyph / Crown,app_settings_membership,app_settings_membership;app_membership_benefit_membership,one font glyph serves multiple app resource families
+vendor/icons8/ios-27-glyph/svg/Text Cursor.svg,Icons8 iOS 27 Glyph / Text Cursor,app_toolbar_fill_address,app_toolbar_fill_address,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/Monitor.svg,Icons8 iOS 27 Glyph / Monitor,app_theme_mode_system,app_theme_mode_system,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/Smartphone.svg,Icons8 iOS 27 Glyph / Smartphone,app_toolbar_add_to_desktop,app_toolbar_add_to_desktop,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/Rotate Screen.svg,Icons8 iOS 27 Glyph / Rotate Screen,app_toolbar_screen_orientation,app_toolbar_screen_orientation,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/More.svg,Icons8 iOS 27 Glyph / More,app_toolbar_more,app_toolbar_more,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/Download.svg,Icons8 iOS 27 Glyph / Download,app_settings_downloads,app_settings_downloads;app_shortcut_downloads;app_membership_benefit_downloads,one font glyph serves multiple app resource families
+vendor/icons8/ios-27-glyph/svg/Eraser.svg,Icons8 iOS 27 Glyph / Eraser,app_toolbar_manual_element_hide,app_toolbar_manual_element_hide,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/Fast Forward.svg,Icons8 iOS 27 Glyph / Fast Forward,app_video_assistant_seek_forward_10,app_video_assistant_seek_forward_10,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/Test Tube.svg,Icons8 iOS 27 Glyph / Test Tube,app_settings_experiments,app_settings_experiments;app_membership_benefit_experiments,one font glyph serves multiple app resource families
+vendor/icons8/ios-27-glyph/svg/Save.svg,Icons8 iOS 27 Glyph / Save,app_toolbar_offline,app_toolbar_offline,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/Folder Invoices.svg,Icons8 iOS 27 Glyph / Folder Invoices,app_bookmark_folder,app_bookmark_folder,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/Speed.svg,Icons8 iOS 27 Glyph / Speed,app_video_assistant_playback_speed,app_video_assistant_playback_speed,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/icons8-settings 1.svg,Icons8 iOS 27 Glyph / Settings,app_settings_general,app_settings_general;app_shortcut_settings,one font glyph serves multiple app resource families
+vendor/icons8/ios-27-glyph/svg/icons8-gift 1.svg,Icons8 iOS 27 Glyph / Gift,app_membership_gift,app_membership_gift;app_settings_membership_invite;app_membership_benefit_invite,one font glyph serves multiple app resource families
+vendor/icons8/ios-27-glyph/svg/Globe.svg,Icons8 iOS 27 Glyph / Globe,app_settings_site_settings,app_settings_site_settings;app_toolbar_site_info,one font glyph serves multiple app resource families
+vendor/icons8/ios-27-glyph/svg/icons8-globe_earth 1.svg,Icons8 iOS 27 Glyph / Globe Earth,app_userscripts_default_icon,app_userscripts_default_icon,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/icons8-home 1.svg,Icons8 iOS 27 Glyph / Home,app_settings_custom_homepage,app_settings_custom_homepage;app_shortcut_home,one font glyph serves multiple app resource families
+vendor/icons8/ios-27-glyph/svg/icons8-contact 1.svg,Icons8 iOS 27 Glyph / Contact Card,app_settings_user_agent,app_settings_user_agent;app_toolbar_user_agent_preset,one font glyph serves multiple app resource families
+vendor/icons8/ios-27-glyph/svg/关于aira.svg,Icons8 iOS 27 Glyph / Info,app_settings_about,app_settings_about,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/icons8-link 1.svg,Icons8 iOS 27 Glyph / Link,app_toolbar_copy_link,app_toolbar_copy_link,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/icons8-lock 1.svg,Icons8 iOS 27 Glyph / Lock,app_video_assistant_lock,app_video_assistant_lock,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/icons8-key 1.svg,Icons8 iOS 27 Glyph / Key Security,app_toolbar_connection_security,app_toolbar_connection_security,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/icons8-padlock 1.svg,Icons8 iOS 27 Glyph / Unlock,app_video_assistant_unlock,app_video_assistant_unlock,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/icons8-search 1.svg,Icons8 iOS 27 Glyph / Search,app_reader_find,app_reader_find;app_settings_search;app_toolbar_search,one font glyph serves multiple app resource families
+vendor/icons8/ios-27-glyph/svg/icons8-marker 1.svg,Icons8 iOS 27 Glyph / Marker,app_site_permission_location,app_site_permission_location,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/Anonymous Mask.svg,Icons8 iOS 27 Glyph / Anonymous Mask,app_tabs_privacy_mode,app_tabs_privacy_mode,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/icons8-microphone 1.svg,Icons8 iOS 27 Glyph / Microphone,app_site_permission_microphone,app_site_permission_microphone,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/icons8-moon_symbol 1.svg,Icons8 iOS 27 Glyph / Moon Symbol,app_theme_mode_dark,app_theme_mode_dark,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/icons8-color_palette 1.svg,Icons8 iOS 27 Glyph / Color Palette,app_reader_theme,app_reader_theme,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/icons8-paper_plane 1.svg,Icons8 iOS 27 Glyph / Paper Plane,app_toolbar_send_to_desktop,app_toolbar_send_to_desktop,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/icons8-password 1.svg,Icons8 iOS 27 Glyph / Password,app_settings_passwords,app_settings_passwords,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/icons8-pause 1.svg,Icons8 iOS 27 Glyph / Pause,app_video_assistant_pause,app_video_assistant_pause,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/icons8-edit 1.svg,Icons8 iOS 27 Glyph / Edit,app_toolbar_edit,app_toolbar_edit,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/icons8-picture_in_picture 1.svg,Icons8 iOS 27 Glyph / Picture in Picture,app_video_assistant_popup,app_video_assistant_popup,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/icons8-play 1.svg,Icons8 iOS 27 Glyph / Play,app_video_assistant_play,app_video_assistant_play,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/Plus.svg,Icons8 iOS 27 Glyph / Plus,app_tabs_add,app_tabs_add,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/icons8-print 1.svg,Icons8 iOS 27 Glyph / Print,app_toolbar_print_page,app_toolbar_print_page,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/icons8-qr_code 1.svg,Icons8 iOS 27 Glyph / QR Code,app_shortcut_scan_qr,app_shortcut_scan_qr,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/Receipt.svg,Icons8 iOS 27 Glyph / Receipt,app_settings_restore_purchase,app_settings_restore_purchase;app_membership_restore_purchase,one font glyph serves multiple app resource families
+vendor/icons8/ios-27-glyph/svg/icons8-resize 1.svg,Icons8 iOS 27 Glyph / Resize,app_video_assistant_aspect_ratio,app_video_assistant_aspect_ratio,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/icons8-rewind 1.svg,Icons8 iOS 27 Glyph / Rewind,app_video_assistant_seek_backward_10,app_video_assistant_seek_backward_10,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/icons8-select_all 1.svg,Icons8 iOS 27 Glyph / Select All,app_toolbar_select_all,app_toolbar_select_all,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/icons8-share 1.svg,Icons8 iOS 27 Glyph / Share,app_reader_share,app_reader_share;app_toolbar_share_document;app_toolbar_share_page,one font glyph serves multiple app resource families
+vendor/icons8/ios-27-glyph/svg/Shield.svg,Icons8 iOS 27 Glyph / Shield,app_settings_privacy_security,app_settings_privacy_security;app_membership_benefit_privacy_security,one font glyph serves multiple app resource families
+vendor/icons8/ios-27-glyph/svg/Security Checked.svg,Icons8 iOS 27 Glyph / Security Checked,app_membership_benefit_ad_blocker,app_membership_benefit_ad_blocker,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/High Volume.svg,Icons8 iOS 27 Glyph / High Volume,app_reader_read_aloud,app_reader_read_aloud;app_video_assistant_gesture_volume_high,one font glyph serves multiple app resource families
+vendor/icons8/ios-27-glyph/svg/Low Volume.svg,Icons8 iOS 27 Glyph / Low Volume,app_video_assistant_gesture_volume_low,app_video_assistant_gesture_volume_low,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/Medium Volume.svg,Icons8 iOS 27 Glyph / Medium Volume,app_video_assistant_gesture_volume_medium,app_video_assistant_gesture_volume_medium,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/Mute.svg,Icons8 iOS 27 Glyph / Mute,app_video_assistant_gesture_volume_muted,app_video_assistant_gesture_volume_muted,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/icons8-stack 1.svg,Icons8 iOS 27 Glyph / Stack,app_shortcut_page_resources,app_shortcut_page_resources,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/icons8-sun 1.svg,Icons8 iOS 27 Glyph / Sun,app_theme_mode_light,app_theme_mode_light;app_video_assistant_gesture_brightness,one font glyph serves multiple app resource families
+vendor/icons8/ios-27-glyph/svg/标签页.svg,Icons8 iOS 27 Glyph / Windows,app_toolbar_tabs,app_toolbar_tabs,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/icons8-align_justify 1.svg,Icons8 iOS 27 Glyph / Align Justify,app_reader_line_height,app_reader_line_height,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/icons8-increase_font 1.svg,Icons8 iOS 27 Glyph / Increase Font,app_reader_increase_font,app_reader_increase_font,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/icons8-decrease_font 1.svg,Icons8 iOS 27 Glyph / Decrease Font,app_reader_decrease_font,app_reader_decrease_font,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/icons8-translation 1.svg,Icons8 iOS 27 Glyph / Translation,app_settings_webpage_translation,app_settings_webpage_translation;app_toolbar_translate;app_membership_benefit_webpage_translation,one font glyph serves multiple app resource families
+vendor/icons8/ios-27-glyph/svg/icons8-trash 1.svg,Icons8 iOS 27 Glyph / Trash,app_site_setting_clear_on_close,app_site_setting_clear_on_close,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/icons8-error 1.svg,Icons8 iOS 27 Glyph / Error,app_toolbar_report_site,app_toolbar_report_site,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/传感器权限.svg,Icons8 iOS 27 Glyph / Activity,app_site_permission_sensor,app_site_permission_sensor,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/icons8-delete 1.svg,Icons8 iOS 27 Glyph / Delete Sign,app_toolbar_clear_input,app_toolbar_clear_input;app_tabs_delete,one font glyph serves multiple app resource families
+vendor/icons8/ios-27-glyph/svg/选择同步内容弹窗的活动热力图.svg,Icons8 iOS 27 Glyph / Activity Heatmap,app_sync_first_activation_activity_heatmap,app_sync_first_activation_activity_heatmap,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/设置-同步.svg,Icons8 iOS 27 Glyph / Cloud Sync,app_settings_sync,app_settings_sync;app_membership_benefit_sync,one font glyph serves multiple app resource families
+vendor/icons8/ios-27-glyph/svg/copy.svg,Icons8 iOS 27 Glyph / Copy,app_browser_address_copy,app_browser_address_copy,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/ad_blocker.svg,Icons8 iOS 27 Glyph / Ad Blocker,app_settings_ad_blocker,app_settings_ad_blocker,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/user_shield.svg,Icons8 iOS 27 Glyph / User Shield,app_settings_notice_user_shield,app_settings_notice_user_shield,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/菜单.svg,Icons8 iOS 27 Glyph / Menu,app_toolbar_menu,app_toolbar_menu,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/分享.svg,Icons8 iOS 27 Glyph / Share,app_browser_address_expanded_share,app_browser_address_expanded_share,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/编辑.svg,Icons8 iOS 27 Glyph / Edit,app_browser_address_expanded_edit,app_browser_address_expanded_edit,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/复制.svg,Icons8 iOS 27 Glyph / Copy,app_browser_address_expanded_copy,app_browser_address_expanded_copy,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/新建标签页.svg,Icons8 iOS 27 Glyph / New Tab,app_tabs_overview_add,app_tabs_overview_add,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/111关闭.svg,Icons8 iOS 27 Glyph / Close,app_tabs_overview_close,app_tabs_overview_close,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/扫一扫.svg,Icons8 iOS 27 Glyph / Scan QR,app_toolbar_scan_qr,app_toolbar_scan_qr,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/隐私模式.svg,Icons8 iOS 27 Glyph / Private Mode,app_toolbar_privacy_mode,app_toolbar_privacy_mode,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/复制链接.svg,Icons8 iOS 27 Glyph / Copy Link,app_toolbar_action_copy_link,app_toolbar_action_copy_link,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/翻译.svg,Icons8 iOS 27 Glyph / Translate,app_toolbar_action_translate,app_toolbar_action_translate,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/撑满屏幕.svg,Icons8 iOS 27 Glyph / Fill Screen,app_video_assistant_control_aspect_ratio,app_video_assistant_control_aspect_ratio,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/倍速.svg,Icons8 iOS 27 Glyph / Playback Speed,app_video_assistant_control_playback_speed,app_video_assistant_control_playback_speed,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/旋转.svg,Icons8 iOS 27 Glyph / Rotate Video,app_video_assistant_control_rotate,app_video_assistant_control_rotate,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/审查元素.svg,Icons8 iOS 27 Glyph / Inspect Element,app_toolbar_action_element_inspection,app_toolbar_action_element_inspection,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/网页功能.svg,Icons8 iOS 27 Glyph / Web Features,app_settings_web_features,app_settings_web_features,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/投屏.svg,Icons8 iOS 27 Glyph / Cast,app_video_assistant_cast,app_video_assistant_cast,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/重新选择.svg,Icons8 iOS 27 Glyph / Reselect Element,app_element_inspection_reselect,app_element_inspection_reselect,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/元素审查全屏.svg,Icons8 iOS 27 Glyph / Element Inspection Fullscreen,app_element_inspection_fullscreen,app_element_inspection_fullscreen,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/元素审查收起全屏.svg,Icons8 iOS 27 Glyph / Element Inspection Exit Fullscreen,app_element_inspection_exit_fullscreen,app_element_inspection_exit_fullscreen,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/up.svg,Icons8 iOS 27 Glyph / Expand Up,app_toolbar_expand_hint,app_toolbar_expand_hint,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/添加书签.svg,Icons8 iOS 27 Glyph / Add Bookmark,app_omnibox_add_bookmark,app_omnibox_add_bookmark,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/已经添加书签了，已经是书签了。.svg,Icons8 iOS 27 Glyph / Bookmarked,app_omnibox_bookmarked,app_omnibox_bookmarked,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/用户脚本工具栏.svg,Icons8 iOS 27 Glyph / User Script,app_toolbar_user_scripts,app_toolbar_user_scripts,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/目录.svg,Icons8 iOS 27 Glyph / Novel Reader Catalog,app_novel_reader_catalog,app_novel_reader_catalog,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/文字.svg,Icons8 iOS 27 Glyph / Novel Reader Text,app_novel_reader_text,app_novel_reader_text,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/颜色浅色.svg,Icons8 iOS 27 Glyph / Novel Reader Light Color,app_novel_reader_theme,app_novel_reader_theme,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/设置.svg,Icons8 iOS 27 Glyph / Novel Reader Settings,app_novel_reader_settings,app_novel_reader_settings,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/左边亮度.svg,Icons8 iOS 27 Glyph / Novel Reader Brightness Low,app_novel_reader_brightness_low,app_novel_reader_brightness_low,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/右边亮度.svg,Icons8 iOS 27 Glyph / Novel Reader Brightness High,app_novel_reader_brightness_high,app_novel_reader_brightness_high,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/乌龟代表慢.svg,Icons8 iOS 27 Glyph / Novel Reader Auto Slow,app_novel_reader_auto_slow,app_novel_reader_auto_slow,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/兔子代表快.svg,Icons8 iOS 27 Glyph / Novel Reader Auto Fast,app_novel_reader_auto_fast,app_novel_reader_auto_fast,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/我的书架.svg,Icons8 iOS 27 Glyph / Bookshelf,app_toolbar_bookshelf,app_toolbar_bookshelf,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/下载中.svg,Icons8 iOS 27 Glyph / Active Download,app_toolbar_active_download,app_toolbar_active_download,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/Empty.svg,Icons8 iOS 27 Glyph / Empty,app_toolbar_empty_slot,app_toolbar_empty_slot,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/拖动抓手.svg,Icons8 iOS 27 Glyph / Bookmark Edit Drag Handle,app_bookmark_edit_drag_handle,app_bookmark_edit_drag_handle,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/移动.svg,Icons8 iOS 27 Glyph / Bookmark Edit Move,app_bookmark_edit_move,app_bookmark_edit_move,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/全选.svg,Icons8 iOS 27 Glyph / Bookmark Edit Select All,app_bookmark_edit_select_all,app_bookmark_edit_select_all,licensed Icons8 Operational font source
+vendor/icons8/ios-27-glyph/svg/前进.svg,Icons8 iOS 27 Glyph / Forward,app_toolbar_forward,app_toolbar_forward,licensed Icons8 Operational font source
+icons/app_widget_shortcut_history__user-provided.svg,user-provided/历史记录.svg,app_widget_shortcut_history,app_widget_shortcut_history,user-provided desktop-card-only source
+icons/app_widget_shortcut_bookmarks__user-provided.svg,user-provided/书签.svg,app_widget_shortcut_bookmarks,app_widget_shortcut_bookmarks,user-provided desktop-card-only source
+icons/app_widget_shortcut_downloads__user-provided.svg,user-provided/下载.svg,app_widget_shortcut_downloads,app_widget_shortcut_downloads,user-provided desktop-card-only source
+icons/app_widget_shortcut_settings__user-provided.svg,user-provided/设置.svg,app_widget_shortcut_settings,app_widget_shortcut_settings,user-provided desktop-card-only source
+icons/app_widget_navigation_arrow__Interface_Essential_Arrow.svg,"Interface, Essential/Arrow.svg",app_widget_navigation_arrow,app_widget_navigation_arrow,desktop-card-only navigation accessory; rotated by the 1x2 Form
+icons/app_settings_theme_mode_desktop_preview_light__user-provided.png,user-provided/theme_light.png,app_settings_theme_mode_desktop_preview_light,app_settings_theme_mode_desktop_preview_light,user-provided 886x580 PNG for the desktop light-theme settings preview
+icons/app_settings_theme_mode_desktop_preview_dark__user-provided.png,user-provided/theme_ldark.png,app_settings_theme_mode_desktop_preview_dark,app_settings_theme_mode_desktop_preview_dark,user-provided 886x580 PNG for the desktop dark-theme settings preview
+icons/app_external_search_zhihu__user-provided-app-icon.png,user-provided/zhihu.png,app_external_search_zhihu,app_external_search_zhihu,user-provided 512x512 PNG; pixels and colors preserved
+icons/app_external_search_bilibili__user-provided-app-icon.png,user-provided/bilibili.png,app_external_search_bilibili,app_external_search_bilibili,user-provided 512x512 PNG; pixels and colors preserved
+icons/app_external_search_douyin__user-provided-app-icon.png,user-provided/抖音.png,app_external_search_douyin,app_external_search_douyin,user-provided 512x512 PNG; pixels and colors preserved
+icons/app_external_search_xiaohongshu__user-provided-app-icon.png,user-provided/小红书.png,app_external_search_xiaohongshu,app_external_search_xiaohongshu,user-provided 512x512 PNG; pixels and colors preserved
+icons/app_external_search_douban__user-provided-app-icon.png,user-provided/豆瓣.png,app_external_search_douban,app_external_search_douban,user-provided 512x512 PNG; pixels and colors preserved
+icons/app_external_search_quark__user-provided-app-icon.png,user-provided/夸克.png,app_external_search_quark,app_external_search_quark,user-provided 512x512 PNG; pixels and colors preserved
+icons/app_external_search_appgallery__user-provided-app-icon.png,user-provided/应用市场.png,app_external_search_appgallery,app_external_search_appgallery,user-provided 512x512 PNG; pixels and colors preserved
+icons/app_external_search_jd__user-provided-app-icon.png,user-provided/京东.png,app_external_search_jd,app_external_search_jd,user-provided 512x512 PNG; pixels and colors preserved
+icons/app_external_search_taobao__user-provided-app-icon.png,user-provided/淘宝.png,app_external_search_taobao,app_external_search_taobao,user-provided 512x512 PNG; pixels and colors preserved
+icons/app_external_search_pinduoduo__user-provided-app-icon.png,user-provided/拼多多.png,app_external_search_pinduoduo,app_external_search_pinduoduo,user-provided 512x512 PNG; pixels and colors preserved
+icons/app_external_search_xianyu__user-provided-app-icon.png,user-provided/闲鱼.png,app_external_search_xianyu,app_external_search_xianyu,user-provided 512x512 PNG; pixels and colors preserved
+icons/app_external_search_meituan__user-provided-app-icon.png,user-provided/美团.png,app_external_search_meituan,app_external_search_meituan,user-provided 512x512 PNG; pixels and colors preserved
+icons/app_external_search_baidu_map__user-provided-app-icon.png,user-provided/百度地图.png,app_external_search_baidu_map,app_external_search_baidu_map,user-provided 512x512 PNG; pixels and colors preserved
+icons/app_external_search_qqmusic__user-provided-app-icon.png,user-provided/QQ音乐.png,app_external_search_qqmusic,app_external_search_qqmusic,user-provided 512x512 PNG; pixels and colors preserved
+icons/app_external_search_alipay__user-provided-app-icon.png,user-provided/支付宝.png,app_external_search_alipay,app_external_search_alipay,user-provided 512x512 PNG; pixels and colors preserved
+icons/app_external_search_youdao__user-provided-app-icon.png,user-provided/有道词典.png,app_external_search_youdao,app_external_search_youdao,user-provided 512x512 PNG; pixels and colors preserved

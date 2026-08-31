@@ -1,0 +1,335 @@
+{
+  "schemaVersion": 1,
+  "authority": "aira-image-asset-manifest",
+  "assets": [
+    {
+      "id": "brand.aira.logo",
+      "kind": "themed-svg",
+      "exportedFile": "icons/aira_logo_brand__user-provided.svg",
+      "originalSource": "Aira logo.svg",
+      "resourceFile": "aira_logo_brand.svg",
+      "resourceFamily": "aira_logo_brand",
+      "resourcePaths": [
+        "base/media/aira_logo_brand.svg",
+        "dark/media/aira_logo_brand.svg"
+      ],
+      "note": "user-provided canonical brand source"
+    },
+    {
+      "id": "brand.aira.startWindow",
+      "kind": "themed-raster",
+      "exportedFile": "icons/start_window_brand_lockup__user-provided.png",
+      "originalSource": "user-provided/开屏2 (1).png",
+      "resourceFile": "start_window_brand_lockup.png",
+      "resourceFamily": "start_window_brand_lockup",
+      "resourcePaths": [
+        "base/media/start_window_brand_lockup.png",
+        "dark/media/start_window_brand_lockup.png"
+      ],
+      "note": "user-provided canonical start-window artwork; identical bytes for light and dark"
+    },
+    {
+      "id": "settings.themeMode.desktopPreview.light",
+      "kind": "raster-copy",
+      "exportedFile": "icons/app_settings_theme_mode_desktop_preview_light__user-provided.png",
+      "originalSource": "user-provided/theme_light.png",
+      "resourceFile": "app_settings_theme_mode_desktop_preview_light.png",
+      "resourceFamily": "app_settings_theme_mode_desktop_preview_light",
+      "note": "user-provided 886x580 PNG for the desktop light-theme settings preview"
+    },
+    {
+      "id": "settings.themeMode.desktopPreview.dark",
+      "kind": "raster-copy",
+      "exportedFile": "icons/app_settings_theme_mode_desktop_preview_dark__user-provided.png",
+      "originalSource": "user-provided/theme_ldark.png",
+      "resourceFile": "app_settings_theme_mode_desktop_preview_dark.png",
+      "resourceFamily": "app_settings_theme_mode_desktop_preview_dark",
+      "note": "user-provided 886x580 PNG for the desktop dark-theme settings preview"
+    },
+    {
+      "id": "thirdPartyApp.zhihu",
+      "kind": "raster-copy",
+      "exportedFile": "icons/app_external_search_zhihu__user-provided-app-icon.png",
+      "originalSource": "user-provided/zhihu.png",
+      "resourceFile": "app_external_search_zhihu.png",
+      "resourceFamily": "app_external_search_zhihu",
+      "note": "user-provided 512x512 PNG; pixels and colors preserved"
+    },
+    {
+      "id": "thirdPartyApp.bilibili",
+      "kind": "raster-copy",
+      "exportedFile": "icons/app_external_search_bilibili__user-provided-app-icon.png",
+      "originalSource": "user-provided/bilibili.png",
+      "resourceFile": "app_external_search_bilibili.png",
+      "resourceFamily": "app_external_search_bilibili",
+      "note": "user-provided 512x512 PNG; pixels and colors preserved"
+    },
+    {
+      "id": "thirdPartyApp.douyin",
+      "kind": "raster-copy",
+      "exportedFile": "icons/app_external_search_douyin__user-provided-app-icon.png",
+      "originalSource": "user-provided/抖音.png",
+      "resourceFile": "app_external_search_douyin.png",
+      "resourceFamily": "app_external_search_douyin",
+      "note": "user-provided 512x512 PNG; pixels and colors preserved"
+    },
+    {
+      "id": "thirdPartyApp.xiaohongshu",
+      "kind": "raster-copy",
+      "exportedFile": "icons/app_external_search_xiaohongshu__user-provided-app-icon.png",
+      "originalSource": "user-provided/小红书.png",
+      "resourceFile": "app_external_search_xiaohongshu.png",
+      "resourceFamily": "app_external_search_xiaohongshu",
+      "note": "user-provided 512x512 PNG; pixels and colors preserved"
+    },
+    {
+      "id": "thirdPartyApp.douban",
+      "kind": "raster-copy",
+      "exportedFile": "icons/app_external_search_douban__user-provided-app-icon.png",
+      "originalSource": "user-provided/豆瓣.png",
+      "resourceFile": "app_external_search_douban.png",
+      "resourceFamily": "app_external_search_douban",
+      "note": "user-provided 512x512 PNG; pixels and colors preserved"
+    },
+    {
+      "id": "thirdPartyApp.quark",
+      "kind": "raster-copy",
+      "exportedFile": "icons/app_external_search_quark__user-provided-app-icon.png",
+      "originalSource": "user-provided/夸克.png",
+      "resourceFile": "app_external_search_quark.png",
+      "resourceFamily": "app_external_search_quark",
+      "note": "user-provided 512x512 PNG; pixels and colors preserved"
+    },
+    {
+      "id": "thirdPartyApp.appgallery",
+      "kind": "raster-copy",
+      "exportedFile": "icons/app_external_search_appgallery__user-provided-app-icon.png",
+      "originalSource": "user-provided/应用市场.png",
+      "resourceFile": "app_external_search_appgallery.png",
+      "resourceFamily": "app_external_search_appgallery",
+      "note": "user-provided 512x512 PNG; pixels and colors preserved"
+    },
+    {
+      "id": "thirdPartyApp.jd",
+      "kind": "raster-copy",
+      "exportedFile": "icons/app_external_search_jd__user-provided-app-icon.png",
+      "originalSource": "user-provided/京东.png",
+      "resourceFile": "app_external_search_jd.png",
+      "resourceFamily": "app_external_search_jd",
+      "note": "user-provided 512x512 PNG; pixels and colors preserved"
+    },
+    {
+      "id": "thirdPartyApp.taobao",
+      "kind": "raster-copy",
+      "exportedFile": "icons/app_external_search_taobao__user-provided-app-icon.png",
+      "originalSource": "user-provided/淘宝.png",
+      "resourceFile": "app_external_search_taobao.png",
+      "resourceFamily": "app_external_search_taobao",
+      "note": "user-provided 512x512 PNG; pixels and colors preserved"
+    },
+    {
+      "id": "thirdPartyApp.pinduoduo",
+      "kind": "raster-copy",
+      "exportedFile": "icons/app_external_search_pinduoduo__user-provided-app-icon.png",
+      "originalSource": "user-provided/拼多多.png",
+      "resourceFile": "app_external_search_pinduoduo.png",
+      "resourceFamily": "app_external_search_pinduoduo",
+      "note": "user-provided 512x512 PNG; pixels and colors preserved"
+    },
+    {
+      "id": "thirdPartyApp.xianyu",
+      "kind": "raster-copy",
+      "exportedFile": "icons/app_external_search_xianyu__user-provided-app-icon.png",
+      "originalSource": "user-provided/闲鱼.png",
+      "resourceFile": "app_external_search_xianyu.png",
+      "resourceFamily": "app_external_search_xianyu",
+      "note": "user-provided 512x512 PNG; pixels and colors preserved"
+    },
+    {
+      "id": "thirdPartyApp.meituan",
+      "kind": "raster-copy",
+      "exportedFile": "icons/app_external_search_meituan__user-provided-app-icon.png",
+      "originalSource": "user-provided/美团.png",
+      "resourceFile": "app_external_search_meituan.png",
+      "resourceFamily": "app_external_search_meituan",
+      "note": "user-provided 512x512 PNG; pixels and colors preserved"
+    },
+    {
+      "id": "thirdPartyApp.baiduMap",
+      "kind": "raster-copy",
+      "exportedFile": "icons/app_external_search_baidu_map__user-provided-app-icon.png",
+      "originalSource": "user-provided/百度地图.png",
+      "resourceFile": "app_external_search_baidu_map.png",
+      "resourceFamily": "app_external_search_baidu_map",
+      "note": "user-provided 512x512 PNG; pixels and colors preserved"
+    },
+    {
+      "id": "thirdPartyApp.qqMusic",
+      "kind": "raster-copy",
+      "exportedFile": "icons/app_external_search_qqmusic__user-provided-app-icon.png",
+      "originalSource": "user-provided/QQ音乐.png",
+      "resourceFile": "app_external_search_qqmusic.png",
+      "resourceFamily": "app_external_search_qqmusic",
+      "note": "user-provided 512x512 PNG; pixels and colors preserved"
+    },
+    {
+      "id": "thirdPartyApp.alipay",
+      "kind": "raster-copy",
+      "exportedFile": "icons/app_external_search_alipay__user-provided-app-icon.png",
+      "originalSource": "user-provided/支付宝.png",
+      "resourceFile": "app_external_search_alipay.png",
+      "resourceFamily": "app_external_search_alipay",
+      "note": "user-provided 512x512 PNG; pixels and colors preserved"
+    },
+    {
+      "id": "thirdPartyApp.youdao",
+      "kind": "raster-copy",
+      "exportedFile": "icons/app_external_search_youdao__user-provided-app-icon.png",
+      "originalSource": "user-provided/有道词典.png",
+      "resourceFile": "app_external_search_youdao.png",
+      "resourceFamily": "app_external_search_youdao",
+      "note": "user-provided 512x512 PNG; pixels and colors preserved"
+    }
+  ],
+  "groups": [
+    {
+      "id": "external-app-search",
+      "afterGroupId": "browser-chrome",
+      "title": "Third-party app search shortcuts",
+      "description": "User-provided app raster icons shown in cross-app search and its settings.",
+      "entryKind": "resource",
+      "entries": [
+        { "resourceFamily": "app_external_search_zhihu", "title": "知乎" },
+        { "resourceFamily": "app_external_search_bilibili", "title": "哔哩哔哩" },
+        { "resourceFamily": "app_external_search_douyin", "title": "抖音" },
+        { "resourceFamily": "app_external_search_xiaohongshu", "title": "小红书" },
+        { "resourceFamily": "app_external_search_douban", "title": "豆瓣" },
+        { "resourceFamily": "app_external_search_quark", "title": "夸克" },
+        { "resourceFamily": "app_external_search_appgallery", "title": "华为应用市场" },
+        { "resourceFamily": "app_external_search_jd", "title": "京东" },
+        { "resourceFamily": "app_external_search_taobao", "title": "淘宝" },
+        { "resourceFamily": "app_external_search_pinduoduo", "title": "拼多多" },
+        { "resourceFamily": "app_external_search_xianyu", "title": "闲鱼" },
+        { "resourceFamily": "app_external_search_meituan", "title": "美团" },
+        { "resourceFamily": "app_external_search_baidu_map", "title": "百度地图" },
+        { "resourceFamily": "app_external_search_qqmusic", "title": "QQ音乐" },
+        { "resourceFamily": "app_external_search_alipay", "title": "支付宝" },
+        { "resourceFamily": "app_external_search_youdao", "title": "网易有道词典" }
+      ]
+    }
+  ],
+  "packagedSvgExceptionGroups": [
+    {
+      "owner": "membership-brand-artwork",
+      "reason": "Aira Pro identity artwork is not an Operational Icon.",
+      "resourcePaths": [
+        "base/media/app_membership_pro_logo.svg",
+        "base/media/app_membership_pro_logo_shine.svg"
+      ]
+    },
+    {
+      "owner": "legacy-unused-artwork",
+      "reason": "Preserved zero-change legacy artwork with no current app caller; cleanup is outside Candidate 1.",
+      "resourcePaths": [
+        "base/media/private_mode.svg"
+      ]
+    },
+    {
+      "owner": "download-file-type-artwork",
+      "reason": "User-provided multi-color file-type artwork is image-owned and must preserve its original geometry and colors.",
+      "resourcePaths": [
+        "base/media/app_download_file_type_archive.svg",
+        "base/media/app_download_file_type_video.svg",
+        "base/media/app_download_file_type_audio.svg",
+        "base/media/app_download_file_type_image.svg",
+        "base/media/app_download_file_type_pdf.svg",
+        "base/media/app_download_file_type_text.svg",
+        "base/media/app_download_file_type_web.svg",
+        "base/media/app_download_file_type_json.svg",
+        "base/media/app_download_file_type_word.svg",
+        "base/media/app_download_file_type_excel.svg",
+        "base/media/app_download_file_type_ppt.svg",
+        "base/media/app_download_file_type_apk.svg",
+        "base/media/app_download_file_type_hap.svg",
+        "base/media/app_download_file_type_unknown.svg"
+      ]
+    },
+    {
+      "owner": "search-engine-brand-artwork",
+      "reason": "Search-engine identity artwork must preserve third-party brand geometry and colors.",
+      "resourcePaths": [
+        "base/media/search_engine_baidu.svg",
+        "base/media/search_engine_bing.svg",
+        "base/media/search_engine_brave.svg",
+        "base/media/search_engine_duckduckgo.svg",
+        "base/media/search_engine_ecosia.svg",
+        "base/media/search_engine_google.svg",
+        "base/media/search_engine_qihoo.svg",
+        "base/media/search_engine_search_baidu_chrome_dark.svg",
+        "base/media/search_engine_search_baidu_chrome_light.svg",
+        "base/media/search_engine_search_bing_chrome_dark.svg",
+        "base/media/search_engine_search_bing_chrome_light.svg",
+        "base/media/search_engine_search_brave_chrome_dark.svg",
+        "base/media/search_engine_search_brave_chrome_light.svg",
+        "base/media/search_engine_search_duckduckgo_chrome_dark.svg",
+        "base/media/search_engine_search_duckduckgo_chrome_light.svg",
+        "base/media/search_engine_search_ecosia_chrome_dark.svg",
+        "base/media/search_engine_search_ecosia_chrome_light.svg",
+        "base/media/search_engine_search_google_chrome_dark.svg",
+        "base/media/search_engine_search_google_chrome_light.svg",
+        "base/media/search_engine_search_qihoo_chrome_dark.svg",
+        "base/media/search_engine_search_qihoo_chrome_light.svg",
+        "base/media/search_engine_search_shenma_chrome_dark.svg",
+        "base/media/search_engine_search_shenma_chrome_light.svg",
+        "base/media/search_engine_search_sogou_chrome_dark.svg",
+        "base/media/search_engine_search_sogou_chrome_light.svg",
+        "base/media/search_engine_search_startpage_chrome_dark.svg",
+        "base/media/search_engine_search_startpage_chrome_light.svg",
+        "base/media/search_engine_search_yandex_chrome_dark.svg",
+        "base/media/search_engine_search_yandex_chrome_light.svg",
+        "base/media/search_engine_shenma.svg",
+        "base/media/search_engine_sogou.svg",
+        "base/media/search_engine_startpage.svg",
+        "base/media/search_engine_yandex.svg"
+      ]
+    },
+    {
+      "owner": "settings-layout-preview-artwork",
+      "reason": "Multi-color tab-layout previews are presentation artwork rather than colorable semantic glyphs.",
+      "resourcePaths": [
+        "base/media/tab_overview_grid_dark.svg",
+        "base/media/tab_overview_grid_light.svg",
+        "base/media/tab_overview_large_cards_dark.svg",
+        "base/media/tab_overview_large_cards_light.svg"
+      ]
+    },
+    {
+      "owner": "translation-provider-identity-artwork",
+      "reason": "Translation-provider identity artwork remains with the Translation Provider owner.",
+      "resourcePaths": [
+        "base/media/translation_provider_aira_system.svg",
+        "base/media/translation_provider_alibaba_cloud.svg",
+        "base/media/translation_provider_baidu.svg",
+        "base/media/translation_provider_custom_http.svg",
+        "base/media/translation_provider_deepl.svg",
+        "base/media/translation_provider_google_cloud.svg",
+        "base/media/translation_provider_microsoft.svg",
+        "base/media/translation_provider_tencent_cloud.svg",
+        "base/media/translation_provider_volcano.svg",
+        "base/media/translation_provider_youdao.svg"
+      ]
+    },
+    {
+      "owner": "webdav-provider-identity-artwork",
+      "reason": "WebDAV-provider identity artwork remains with the Provider catalog owner.",
+      "resourcePaths": [
+        "base/media/webdav_provider_gmx_mediacenter.svg",
+        "base/media/webdav_provider_jianguoyun.svg",
+        "base/media/webdav_provider_kdrive.svg",
+        "base/media/webdav_provider_koofr.svg",
+        "base/media/webdav_provider_pcloud_eu.svg",
+        "base/media/webdav_provider_pcloud_us.svg"
+      ]
+    }
+  ]
+}

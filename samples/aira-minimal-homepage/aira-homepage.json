@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "cool.aira.homepage.minimal",
+  "name": "Aira Minimal Home",
+  "version": "1.0.4",
+  "entry": "index.html",
+  "author": "Aira",
+  "description": "Aira homepage starter with durable preferences, system search, browser toolbar, search engines, shortcuts, theme, privacy, and system entries.",
+  "previewLight": "preview-light.jpg",
+  "previewDark": "preview-dark.jpg"
+}
