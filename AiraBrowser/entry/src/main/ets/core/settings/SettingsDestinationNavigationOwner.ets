@@ -507,7 +507,9 @@ export class SettingsDestinationNavigationOwner {
         title: '',
         rows: rows
       }],
-      appProxyNotice: state.appProxyNotice
+      appProxyNotice: state.appProxyNotice,
+      showAccountCard: state.showAccountCard,
+      showScanLoginAction: state.showScanLoginAction
     };
   }
 

@@ -54,6 +54,36 @@ const SYNC_EXPERIENCE_GOALS: SyncExperienceGoalDescriptor[] = [
   }
 ];
 
+function resolveDistributionSyncExperienceGoals(): SyncExperienceGoalDescriptor[] {
+  if (AIRA_DISTRIBUTION_CAPABILITY_OWNER.isOfficial()) {
+    return SYNC_EXPERIENCE_GOALS;
+  }
+  const goals: SyncExperienceGoalDescriptor[] = [];
+  SYNC_EXPERIENCE_GOALS.forEach((goal: SyncExperienceGoalDescriptor): void => {
+    if (goal.id === 'self_hosted') {
+      goals.push(goal);
+    }
+  });
+  SYNC_EXPERIENCE_GOALS.forEach((goal: SyncExperienceGoalDescriptor): void => {
+    if (goal.id === 'webdav') {
+      goals.push(goal);
+    }
+  });
+  return goals;
+}
+
+function resolveDistributionGoalTitle(goal: SyncExperienceGoalDescriptor): string {
+  if (AIRA_DISTRIBUTION_CAPABILITY_OWNER.isCommunity()) {
+    if (goal.id === 'self_hosted') {
+      return '使用自己的服务器';
+    }
+    if (goal.id === 'webdav') {
+      return 'WebDAV';
+    }
+  }
+  return goal.title;
+}
+
 export interface SyncExperienceGoalOption {
   id: AiraSyncProviderKind;
   title: string;
@@ -132,12 +162,12 @@ export function createDefaultSyncExperienceViewState(): SyncExperienceViewState 
     airaCloudActive: false,
     huaweiSpaceActive: false,
     huaweiBookmarkInitializing: false,
-    goalOptions: SYNC_EXPERIENCE_GOALS.filter((goal: SyncExperienceGoalDescriptor): boolean => {
+    goalOptions: resolveDistributionSyncExperienceGoals().filter((goal: SyncExperienceGoalDescriptor): boolean => {
       return goal.id !== 'aira_cloud' || AIRA_DISTRIBUTION_CAPABILITY_OWNER.isAvailable('aira_cloud');
     }).map((goal: SyncExperienceGoalDescriptor): SyncExperienceGoalOption => {
       return {
         id: goal.id,
-        title: goal.title,
+        title: resolveDistributionGoalTitle(goal),
         description: goal.description,
         isSelected: false,
         requiresPro: goal.requiresPro
@@ -219,7 +249,7 @@ export class SyncExperienceViewModel {
       return this.resolveWebdavProviderLabel(settings);
     }
     if (remoteKind === 'self_hosted') {
-      return '个人服务器';
+      return AIRA_DISTRIBUTION_CAPABILITY_OWNER.isCommunity() ? '使用自己的服务器' : '个人服务器';
     }
     return '尚未选择';
   }
@@ -407,12 +437,12 @@ export class SyncExperienceViewModel {
     activeProvider: AiraSyncRemoteKind,
     settings: AiraSyncSettings
   ): SyncExperienceGoalOption[] {
-    return SYNC_EXPERIENCE_GOALS.filter((goal: SyncExperienceGoalDescriptor): boolean => {
+    return resolveDistributionSyncExperienceGoals().filter((goal: SyncExperienceGoalDescriptor): boolean => {
       return this.isProviderAvailable(goal.id);
     }).map((goal: SyncExperienceGoalDescriptor): SyncExperienceGoalOption => {
       return {
         id: goal.id,
-        title: goal.id === 'webdav' ? this.resolveWebdavProviderLabel(settings) : goal.title,
+        title: this.resolveGoalOptionTitle(goal, settings),
         description: goal.description,
         isSelected: activeProvider === goal.id,
         requiresPro: goal.requiresPro
@@ -423,9 +453,19 @@ export class SyncExperienceViewModel {
   private resolveWebdavProviderLabel(settings?: AiraSyncSettings): string {
     const endpoint = settings?.webdav.endpoint.trim() ?? '';
     if (endpoint.length <= 0) {
-      return '使用自己的服务器';
+      return AIRA_DISTRIBUTION_CAPABILITY_OWNER.isCommunity() ? 'WebDAV' : '使用自己的服务器';
     }
     return this.webdavProviderCatalog.resolveProviderForEndpoint(endpoint).name;
+  }
+
+  private resolveGoalOptionTitle(
+    goal: SyncExperienceGoalDescriptor,
+    settings: AiraSyncSettings
+  ): string {
+    if (goal.id === 'webdav' && AIRA_DISTRIBUTION_CAPABILITY_OWNER.isOfficial()) {
+      return this.resolveWebdavProviderLabel(settings);
+    }
+    return resolveDistributionGoalTitle(goal);
   }
 
   private resolveAdditionalBackupSummary(settings: AiraSyncSettings): string {

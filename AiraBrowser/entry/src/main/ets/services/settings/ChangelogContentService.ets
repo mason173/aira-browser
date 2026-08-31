@@ -5,8 +5,10 @@ import {
   APP_PREVIEW_VERSION_CODE,
   APP_PREVIEW_VERSION_NAME
 } from '../../common/constants/AppVersionInfo';
+import { AIRA_DISTRIBUTION_CAPABILITY_OWNER } from '../../common/config/AiraDistributionCapabilityOwner';
 
 const CHANGELOG_RAW_FILE_NAME: string = 'changelog.md';
+const COMMUNITY_CHANGELOG_RAW_FILE_NAME: string = 'community-changelog.md';
 
 export interface AppVersionIdentity {
   versionName: string;
@@ -52,7 +54,7 @@ export class ChangelogContentService {
 
   private readMarkdown(context: common.Context): string {
     try {
-      const rawFile = context.resourceManager.getRawFileContentSync(CHANGELOG_RAW_FILE_NAME);
+      const rawFile = context.resourceManager.getRawFileContentSync(this.resolveRawFileName());
       return this.applyRuntimePlaceholders(buffer.from(rawFile.buffer).toString('utf8'));
     } catch (error) {
       return [
@@ -61,6 +63,12 @@ export class ChangelogContentService {
         `更新日志加载失败：${this.stringifyError(error)}`
       ].join('\n');
     }
+  }
+
+  private resolveRawFileName(): string {
+    return AIRA_DISTRIBUTION_CAPABILITY_OWNER.isCommunity()
+      ? COMMUNITY_CHANGELOG_RAW_FILE_NAME
+      : CHANGELOG_RAW_FILE_NAME;
   }
 
   private applyRuntimePlaceholders(markdown: string): string {

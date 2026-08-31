@@ -181,7 +181,7 @@ export struct SettingsNavigationScreen {
         scroller: this.directoryScroller
       }) {
         this.buildSearchHeader()
-        if (!this.searchState.isActive) {
+        if (!this.searchState.isActive && this.state.showAccountCard) {
           this.buildAccountCard()
         }
         if (this.searchState.isActive && this.searchState.resultCount <= 0) {
@@ -341,6 +341,7 @@ export struct SettingsNavigationScreen {
       secondaryTextColor: this.resolveSecondaryTextColor(),
       accentColor: this.resolveHeaderIconColor(),
       statusColor: this.settingsIconBackgrounds.passwords,
+      showScanAction: this.state.showScanLoginAction,
       onOpenAppProxyQuickSheet: () => {
         this.onOpenAppProxyQuickSheet?.();
       },

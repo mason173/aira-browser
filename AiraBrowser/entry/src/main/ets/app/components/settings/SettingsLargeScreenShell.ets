@@ -297,7 +297,7 @@ export struct SettingsLargeScreenShell {
         SettingsCenterSearchHeader({
           showAppProxyNotice: false,
           showSearchField: true,
-          showScanAction: true,
+          showScanAction: this.snapshot.state.showScanLoginAction,
           useToolbarSearchStyle: true,
           searchState: this.snapshot.searchState,
           resolvedThemeMode: this.snapshot.theme.resolvedThemeMode,

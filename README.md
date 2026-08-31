@@ -27,7 +27,7 @@ See [AiraBrowser/README.md](AiraBrowser/README.md) for SDK, signing, release, an
 
 ## Personal Server
 
-[Aira Personal Server](https://github.com/mason173/aira-server) is a separate MPL-2.0 project for one owner and multiple
+[Aira Personal Server](https://github.com/mason173/aira-server) is a separate GPL-3.0-only project for one owner and multiple
 paired devices. It supports Bookmark, History, Personalization, and Novel Bookshelf sync with revocable device
 credentials, Docker/Compose deployment, and validated backup/restore. See [docs/self-hosting.md](docs/self-hosting.md).
 
@@ -36,7 +36,7 @@ part of this repository or Personal Server.
 
 ## Project Policy
 
-Aira-authored source is offered under [MPL-2.0](LICENSE). Review [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) before
+Aira-authored source is offered under [GPL-3.0-only](LICENSE). Review [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) before
 redistribution: the current Icons8 asset set is commercially licensed and remains a publication gate until its public
 source/binary distribution rights are confirmed or the assets are replaced.
 

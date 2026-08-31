@@ -25,6 +25,7 @@ import {
   WEBPAGE_TRANSLATION_SETTINGS_ROUTE
 } from './AppRoutes';
 import { BrowserPrivateBoundaryRouteParams } from '../../core/browser/BrowserPrivateBoundaryNavigationService';
+import { AIRA_DISTRIBUTION_CAPABILITY_OWNER } from '../../common/config/AiraDistributionCapabilityOwner';
 
 export type AiraAppShortcutTarget =
   'bookmarks' |
@@ -124,7 +125,7 @@ export class AppShortcutNavigationCoordinator {
       return SYNC_SETTINGS_ROUTE;
     }
     if (target === 'aira_pro') {
-      return AIRA_PRO_ROUTE;
+      return AIRA_DISTRIBUTION_CAPABILITY_OWNER.isOfficial() ? AIRA_PRO_ROUTE : '';
     }
     if (target === 'search_settings') {
       return SEARCH_SETTINGS_ROUTE;

@@ -1,6 +1,6 @@
 # Trademark Policy
 
-The Mozilla Public License 2.0 applies to covered source code and does not grant trademark rights.
+The GNU General Public License Version 3 applies to covered source code and does not grant trademark rights.
 
 You may use the Aira name to accurately describe compatibility, for example "compatible with Aira Browser" or "based on
 Aira Browser." Do not use Aira names or logos in a way that implies an unofficial build, hosted service, organization,

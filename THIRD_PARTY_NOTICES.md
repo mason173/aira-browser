@@ -22,7 +22,7 @@ components retain their own licenses and notices.
 ## Commercial Icon Assets
 
 The Icons8 iOS 27 Glyph source snapshot and generated Aira Operational Icon font are supplied by the project owner under
-a commercial Icons8 license. They are not licensed under MPL-2.0, and access to this repository does not independently
+a commercial Icons8 license. They are not licensed under GPL-3.0-only, and access to this repository does not independently
 grant reuse or redistribution rights. Their provenance is documented in
 `resources/icon-sources/aira/vendor/icons8/ios-27-glyph/README.md`.
 

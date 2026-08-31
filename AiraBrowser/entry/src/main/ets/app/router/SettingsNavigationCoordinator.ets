@@ -75,6 +75,7 @@ import { sharedPreferencesRepository } from '../bootstrap/BrowserAppRuntime';
 import { AppServiceModeGateService } from '../../services/settings/AppServiceModeGateService';
 import { SiteCustomizationFocusCapability } from '../../core/sitecontrols/SiteControlsNavigationDecision';
 import { requestOpenBrowserUrlWithRouteParams } from '../../core/navigation/BrowserNativeNavigationRequestCenter';
+import { AIRA_DISTRIBUTION_CAPABILITY_OWNER } from '../../common/config/AiraDistributionCapabilityOwner';
 
 export interface SettingsRouteParams extends BrowserBoundaryRouteState {
   sectionId?: string;
@@ -249,6 +250,9 @@ export class SettingsNavigationCoordinator {
       return this.pushUrlCommitted(SYNC_SETTINGS_ROUTE, params);
     }
     if (destination === 'aira_pro') {
+      if (!AIRA_DISTRIBUTION_CAPABILITY_OWNER.isOfficial()) {
+        return Promise.resolve(false);
+      }
       return this.pushUrlCommitted(AIRA_PRO_ROUTE, params);
     }
     if (destination === 'custom_homepage') {
@@ -262,6 +266,9 @@ export class SettingsNavigationCoordinator {
   }
 
   openAiraPro(boundary: BrowserBoundaryRouteState): void {
+    if (!AIRA_DISTRIBUTION_CAPABILITY_OWNER.isOfficial()) {
+      return;
+    }
     this.pushUrl(AIRA_PRO_ROUTE, this.buildParams(boundary));
   }
 

@@ -2,6 +2,7 @@ import {
   AiraSyncSettings,
   resolveAiraHuaweiAccountIdentity
 } from '../../common/models/AiraSyncModels';
+import { AIRA_DISTRIBUTION_CAPABILITY_OWNER } from '../../common/config/AiraDistributionCapabilityOwner';
 import { BrowserDataBoundaryInput } from '../../common/models/BrowserModels';
 import { AiraMembershipState } from '../../common/models/MembershipModels';
 import { LocalUserAvatarService } from '../../services/settings/LocalUserAvatarService';
@@ -87,6 +88,9 @@ export class SettingsCenterAccountRefreshCoordinator {
 
   scheduleDeferredRefresh(dataScope: string, privacyMode: string): void {
     this.cancelDeferredRefresh();
+    if (!AIRA_DISTRIBUTION_CAPABILITY_OWNER.isOfficial()) {
+      return;
+    }
     this.refreshSequence += 1;
     const requestId = this.refreshSequence;
     this.deferredRefreshTimer = this.clock.setTimeout(() => {

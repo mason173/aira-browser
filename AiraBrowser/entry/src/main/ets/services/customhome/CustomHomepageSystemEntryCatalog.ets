@@ -1,3 +1,5 @@
+import { AIRA_DISTRIBUTION_CAPABILITY_OWNER } from '../../common/config/AiraDistributionCapabilityOwner';
+
 export type CustomHomepageSystemEntryTarget =
   'bookmarks' |
   'history' |
@@ -93,7 +95,7 @@ export function resolveCustomHomepageSystemEntry(
   const definition = CUSTOM_HOMEPAGE_SYSTEM_ENTRY_DEFINITIONS.find(
     (item: CustomHomepageSystemEntryDefinition): boolean => item.aliases.includes(key)
   );
-  return definition?.target;
+  return resolveAvailableSystemEntryTarget(definition);
 }
 
 export function resolveCustomHomepageDirectSystemAction(
@@ -103,6 +105,15 @@ export function resolveCustomHomepageDirectSystemAction(
   const definition = CUSTOM_HOMEPAGE_SYSTEM_ENTRY_DEFINITIONS.find(
     (item: CustomHomepageSystemEntryDefinition): boolean => item.directAction === action
   );
+  return resolveAvailableSystemEntryTarget(definition);
+}
+
+function resolveAvailableSystemEntryTarget(
+  definition: CustomHomepageSystemEntryDefinition | undefined
+): CustomHomepageSystemEntryTarget | undefined {
+  if (definition?.target === 'aira_pro' && !AIRA_DISTRIBUTION_CAPABILITY_OWNER.isOfficial()) {
+    return undefined;
+  }
   return definition?.target;
 }
 

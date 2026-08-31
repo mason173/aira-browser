@@ -1,5 +1,11 @@
 import { common } from '@kit.AbilityKit';
 import { APP_ICP_FILING_QUERY_URL } from '../../common/constants/AppVersionInfo';
+import {
+  AIRA_COMMUNITY_LICENSE_URL,
+  AIRA_COMMUNITY_REPOSITORY_URL,
+  AIRA_COMMUNITY_SECURITY_POLICY_URL,
+  AIRA_COMMUNITY_THIRD_PARTY_NOTICES_URL
+} from '../../common/constants/AiraCommunityProjectLinks';
 import { BrowserBoundaryRouteState } from '../../common/utils/RouteParamUtils';
 import { SettingsDetailActionResolver } from '../../core/settings/SettingsDetailActionResolver';
 import { SettingsDetailRowAction } from '../../core/settings/SettingsDetailViewModel';
@@ -113,6 +119,22 @@ export class SettingsDetailNavigationActionCoordinator {
     }
     if (action === 'open_personal_info_and_permissions') {
       this.navigationCoordinator.openLegalWebDocument('personal_info_and_permissions', boundary);
+      return true;
+    }
+    if (action === 'open_community_source_repository') {
+      this.navigationCoordinator.openBrowserUrlFromGuide(AIRA_COMMUNITY_REPOSITORY_URL, boundary);
+      return true;
+    }
+    if (action === 'open_community_license') {
+      this.navigationCoordinator.openBrowserUrlFromGuide(AIRA_COMMUNITY_LICENSE_URL, boundary);
+      return true;
+    }
+    if (action === 'open_community_third_party_notices') {
+      this.navigationCoordinator.openBrowserUrlFromGuide(AIRA_COMMUNITY_THIRD_PARTY_NOTICES_URL, boundary);
+      return true;
+    }
+    if (action === 'open_community_security_policy') {
+      this.navigationCoordinator.openBrowserUrlFromGuide(AIRA_COMMUNITY_SECURITY_POLICY_URL, boundary);
       return true;
     }
     if (action === 'copy_support_qq_group') {

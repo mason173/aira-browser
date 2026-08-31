@@ -154,20 +154,19 @@ const ACCOUNT_TARGETS: SettingsDestinationCatalogTarget[] = [
     'aira_pro',
     'aira_pro',
     'aira_pro',
-    AIRA_DISTRIBUTION_CAPABILITY_OWNER.isCommunity() ? '本地能力' : 'Aira Pro',
+    'Aira Pro',
     '账号与同步',
     'root',
     '',
     '',
-    AIRA_DISTRIBUTION_CAPABILITY_OWNER.isCommunity() ? ['社区版'] : ['Pro', '会员'],
-    AIRA_DISTRIBUTION_CAPABILITY_OWNER.isCommunity()
-      ? ['本地浏览', '免费功能', '社区版']
-      : ['支持 Aira', '会员权益', '增强能力'],
+    ['Pro', '会员'],
+    ['支持 Aira', '会员权益', '增强能力'],
     true,
     true,
     'desktop_embedded'
   ),
-  target('sync', 'sync', 'sync', '同步', '账号与同步', 'root', '', '',
+  target('sync', 'sync', 'sync', '同步',
+    AIRA_DISTRIBUTION_CAPABILITY_OWNER.isCommunity() ? '同步与备份' : '账号与同步', 'root', '', '',
     ['WebDAV', '华为云'], ['书签同步', '同步方式', '远端', '恢复同步'])
 ];
 
@@ -488,7 +487,34 @@ const ADVANCED_TARGETS: SettingsDestinationCatalogTarget[] = [
     '高级 / 关于Aira / 协议与合规', 'subpage', 'personal_info_and_permissions', 'about_details',
     ['权限使用清单']),
   target('icp_filing', 'about', 'about', '备案号', '高级 / 关于Aira / 协议与合规', 'subpage',
-    'icp_filing', 'about_details', ['ICP备案'])
+    'icp_filing', 'about_details', ['ICP备案']),
+  target('source_repository', 'about', 'about', '源代码仓库', '高级 / 关于Aira / 开源项目', 'subpage',
+    'source_repository', 'about_details', ['GitHub', '源码', '开源仓库']),
+  target('open_source_license', 'about', 'about', '开源许可', '高级 / 关于Aira / 开源项目', 'subpage',
+    'open_source_license', 'about_details', ['GPL', 'GPLv3', 'GPL-3.0-only']),
+  target('third_party_notices', 'about', 'about', '第三方声明', '高级 / 关于Aira / 开源项目', 'subpage',
+    'third_party_notices', 'about_details', ['第三方许可', '依赖许可']),
+  target('security_policy', 'about', 'about', '安全问题反馈', '高级 / 关于Aira / 开源项目', 'subpage',
+    'security_policy', 'about_details', ['安全报告', '漏洞报告', 'SECURITY'])
+];
+
+const OFFICIAL_ONLY_SETTINGS_TARGET_IDS: string[] = [
+  'aira_pro',
+  'app_review',
+  'user_agreement',
+  'privacy_statement',
+  'pro_membership_service_agreement',
+  'pro_auto_renewal_service_agreement',
+  'third_party_sdk_and_services',
+  'personal_info_and_permissions',
+  'icp_filing'
+];
+
+const COMMUNITY_ONLY_SETTINGS_TARGET_IDS: string[] = [
+  'source_repository',
+  'open_source_license',
+  'third_party_notices',
+  'security_policy'
 ];
 
 const SETTINGS_DESTINATION_CATALOG_TARGETS: SettingsDestinationCatalogTarget[] = ACCOUNT_TARGETS
@@ -497,8 +523,10 @@ const SETTINGS_DESTINATION_CATALOG_TARGETS: SettingsDestinationCatalogTarget[] =
   .concat(WEB_FEATURE_TARGETS)
   .concat(ADVANCED_TARGETS)
   .filter((item: SettingsDestinationCatalogTarget): boolean => {
-    return AIRA_DISTRIBUTION_CAPABILITY_OWNER.isOfficial() ||
-      (item.id !== 'pro_membership_service_agreement' && item.id !== 'pro_auto_renewal_service_agreement');
+    if (AIRA_DISTRIBUTION_CAPABILITY_OWNER.isOfficial()) {
+      return COMMUNITY_ONLY_SETTINGS_TARGET_IDS.indexOf(item.id) < 0;
+    }
+    return OFFICIAL_ONLY_SETTINGS_TARGET_IDS.indexOf(item.id) < 0;
   });
 
 const SETTINGS_DESTINATION_SUBPAGE_DESCRIPTORS: SettingsDestinationSubpageDescriptor[] = [

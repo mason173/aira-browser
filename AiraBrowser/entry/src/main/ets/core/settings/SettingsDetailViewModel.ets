@@ -47,6 +47,10 @@ export type SettingsDetailRowAction =
   'open_third_party_sdk_and_services' |
   'open_personal_info_and_permissions' |
   'open_icp_filing_query' |
+  'open_community_source_repository' |
+  'open_community_license' |
+  'open_community_third_party_notices' |
+  'open_community_security_policy' |
   'copy_support_qq_group' |
   'open_app_review_page' |
   'open_search_settings' |
@@ -1021,93 +1025,133 @@ export class SettingsDetailViewModel {
   }
 
   private buildAboutState(about: SettingsAboutDisplayState): SettingsDetailState {
-    const legalRows: SettingsDetailRowState[] = [
-      this.navigationRow(
-        'user_agreement',
-        '用户服务协议',
-        '',
-        'Aira 基础服务使用规则',
-        'open_user_service_agreement_web'
-      ),
-      this.navigationRow(
-        'privacy_statement',
-        '隐私声明',
-        '',
-        '个人信息处理和用户权利说明',
-        'open_privacy_statement'
-      )
+    const supportRows: SettingsDetailRowState[] = [
+      this.navigationRow('changelog', '更新日志', '', '', 'open_changelog')
     ];
     if (AIRA_DISTRIBUTION_CAPABILITY_OWNER.isOfficial()) {
-      legalRows.push(
+      supportRows.push(
+        this.navigationRow('app_review', '好评鼓励', '', '', 'open_app_review_page')
+      );
+    }
+    supportRows.push(
+      this.navigationRow('qq_group', '交流QQ群', '1049806927', '', 'copy_support_qq_group')
+    );
+    const groups: SettingsDetailGroupState[] = [
+      {
+        id: 'identity',
+        title: '应用',
+        rows: [
+          this.staticRow('name', '应用名称', about.appName, ''),
+          this.staticRow('version', '版本', `${about.versionName} (${about.versionCode})`, ''),
+          this.staticRow('bundle', '包名', about.bundleName, '')
+        ]
+      },
+      {
+        id: 'support',
+        title: '应用支持',
+        rows: supportRows
+      }
+    ];
+    if (AIRA_DISTRIBUTION_CAPABILITY_OWNER.isCommunity()) {
+      groups.push({
+        id: 'open_source',
+        title: '开源项目',
+        rows: [
+          this.navigationRow(
+            'source_repository',
+            '源代码仓库',
+            'GitHub',
+            '',
+            'open_community_source_repository'
+          ),
+          this.navigationRow(
+            'open_source_license',
+            '开源许可',
+            'GPL-3.0-only',
+            '',
+            'open_community_license'
+          ),
+          this.navigationRow(
+            'third_party_notices',
+            '第三方声明',
+            '',
+            '',
+            'open_community_third_party_notices'
+          ),
+          this.navigationRow(
+            'security_policy',
+            '安全问题反馈',
+            '',
+            '',
+            'open_community_security_policy'
+          )
+        ],
+        footerText: 'Aira Community 源代码按 GPL-3.0-only 发布；第三方组件和品牌资产按各自许可使用。'
+      });
+    } else {
+      const legalRows: SettingsDetailRowState[] = [
+        this.navigationRow(
+          'user_agreement',
+          '用户服务协议',
+          '',
+          '',
+          'open_user_service_agreement_web'
+        ),
+        this.navigationRow(
+          'privacy_statement',
+          '隐私声明',
+          '',
+          '',
+          'open_privacy_statement'
+        ),
         this.navigationRow(
           'pro_membership_service_agreement',
           'Aira Pro会员服务协议',
           '',
-          '会员权益、开通和使用规则',
+          '',
           'open_pro_membership_service_agreement'
         ),
         this.navigationRow(
           'pro_auto_renewal_service_agreement',
           'Aira Pro自动续费服务协议',
           '',
-          '连续订阅、扣费和取消规则',
+          '',
           'open_pro_auto_renewal_service_agreement'
+        ),
+        this.navigationRow(
+          'third_party_sdk_and_services',
+          '第三方SDK及第三方服务清单',
+          '',
+          '',
+          'open_third_party_sdk_and_services'
+        ),
+        this.navigationRow(
+          'personal_info_and_permissions',
+          '个人信息收集与权限使用清单',
+          '',
+          '',
+          'open_personal_info_and_permissions'
+        ),
+        this.navigationRow(
+          'icp_filing',
+          '备案号',
+          APP_ICP_FILING_NUMBER,
+          '',
+          'open_icp_filing_query'
         )
-      );
+      ];
+      groups.push({
+        id: 'legal_compliance',
+        title: '协议与合规',
+        rows: legalRows,
+        footerText: '相关协议和清单由 Aira 官方公开网页提供。'
+      });
     }
-    legalRows.push(
-      this.navigationRow(
-        'third_party_sdk_and_services',
-        '第三方SDK及第三方服务清单',
-        '',
-        '华为 Kit、外部服务和用户自定义服务',
-        'open_third_party_sdk_and_services'
-      ),
-      this.navigationRow(
-        'personal_info_and_permissions',
-        '个人信息收集与权限使用清单',
-        '',
-        '功能场景、处理信息和系统权限',
-        'open_personal_info_and_permissions'
-      ),
-      this.navigationRow(
-        'icp_filing',
-        '备案号',
-        APP_ICP_FILING_NUMBER,
-        '工业和信息化部备案系统',
-        'open_icp_filing_query'
-      )
-    );
     return {
       id: 'about',
       title: '关于Aira',
       actionButtons: [],
-      groups: [
-        {
-          id: 'identity',
-          title: '应用',
-          rows: [
-            this.staticRow('name', '应用名称', about.appName, ''),
-            this.staticRow('version', '版本', `${about.versionName} (${about.versionCode})`, ''),
-            this.staticRow('bundle', '包名', about.bundleName, '')
-          ]
-        },
-        {
-          id: 'support',
-          title: '应用支持',
-          rows: [
-            this.navigationRow('changelog', '更新日志', '', '版本变化和新增内容', 'open_changelog'),
-            this.navigationRow('app_review', '好评鼓励', '', '前往华为应用市场写评论', 'open_app_review_page'),
-            this.navigationRow('qq_group', '交流QQ群', '1049806927', '', 'copy_support_qq_group')
-          ]
-        },
-        {
-          id: 'legal_compliance',
-          title: '协议与合规',
-          rows: legalRows,
-          footerText: '相关协议和清单由 Aira 官方公开网页提供。'
-        }
-      ]
+      groups: groups
     };
   }
 

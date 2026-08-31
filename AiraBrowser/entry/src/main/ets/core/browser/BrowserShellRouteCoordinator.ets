@@ -54,6 +54,7 @@ import { BrowserShellPresentationSurface } from './BrowserShellPresentationCoord
 import { BrowserTabState } from '../tabs/TabManager';
 import { BrowserTabCloseCoordinator } from './BrowserTabCloseCoordinator';
 import { sharedBrowserTabletInterfaceModeTransitionOwner } from '../settings/BrowserTabletInterfaceModeTransitionOwner';
+import { AIRA_DISTRIBUTION_CAPABILITY_OWNER } from '../../common/config/AiraDistributionCapabilityOwner';
 
 export interface BrowserShellSettingsDetailRouteParams {
   sectionId: string;
@@ -319,6 +320,9 @@ export class BrowserShellRouteCoordinator {
   }
 
   openAiraProPage(): void {
+    if (!AIRA_DISTRIBUTION_CAPABILITY_OWNER.isOfficial()) {
+      return;
+    }
     if (this.host.isLargeScreenShellActive()) {
       this.host.openLargeScreenNativeRoute({ scene: 'settings', settingsDestination: 'aira_pro' });
       return;

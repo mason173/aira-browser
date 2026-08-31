@@ -50,6 +50,8 @@ export interface SettingsCenterGroupState {
 export interface SettingsCenterState {
   groups: SettingsCenterGroupState[];
   appProxyNotice: SettingsCenterAppProxyNoticeState;
+  showAccountCard: boolean;
+  showScanLoginAction: boolean;
 }
 
 export interface SettingsCenterAppProxyNoticeState {
@@ -73,19 +75,25 @@ export class SettingsCenterViewModel {
       dataScope,
       privacyMode
     );
+    const accountRows: SettingsCenterRowState[] = [];
+    if (AIRA_DISTRIBUTION_CAPABILITY_OWNER.isOfficial()) {
+      accountRows.push(this.buildRow('aira_pro', 'Aira Pro'));
+    }
+    accountRows.push(this.buildRow(
+      'sync',
+      '同步',
+      this.getFullModeRequiredValue(isFullServiceMode),
+      isFullServiceMode
+    ));
     return {
       appProxyNotice: this.buildAppProxyNotice(appProxyEnabled),
+      showAccountCard: AIRA_DISTRIBUTION_CAPABILITY_OWNER.isOfficial(),
+      showScanLoginAction: AIRA_DISTRIBUTION_CAPABILITY_OWNER.isOfficial(),
       groups: [
         {
           id: 'account',
-          title: '账号与同步',
-          rows: [
-            this.buildRow(
-              'aira_pro',
-              AIRA_DISTRIBUTION_CAPABILITY_OWNER.isCommunity() ? '本地能力' : 'Aira Pro'
-            ),
-            this.buildRow('sync', '同步', this.getFullModeRequiredValue(isFullServiceMode), isFullServiceMode)
-          ]
+          title: AIRA_DISTRIBUTION_CAPABILITY_OWNER.isCommunity() ? '同步与备份' : '账号与同步',
+          rows: accountRows
         },
         {
           id: 'basic',

@@ -356,6 +356,9 @@ export struct SettingsCenterScreen {
     if (intent.kind === 'close') {
       this.dispatchSettingsNavigation(SettingsNavigationIntent.close());
     } else if (intent.kind === 'account_action') {
+      if (!this.state.showAccountCard) {
+        return;
+      }
       this.handleAccountCardAction();
     } else if (intent.kind === 'open_app_proxy_quick') {
       this.appProxyQuickSheetCoordinator.open(this.buildDataBoundaryInput());
@@ -368,6 +371,9 @@ export struct SettingsCenterScreen {
     } else if (intent.kind === 'open_user_script_gallery_source') {
       this.openBrowserUrlFromSettings(intent.url, 'userscript_install');
     } else if (intent.kind === 'scan_login') {
+      if (!this.state.showScanLoginAction) {
+        return;
+      }
       this.scanQrCode();
     } else if (intent.kind === 'change_search_query') {
       this.updateSearchQuery(intent.query);
