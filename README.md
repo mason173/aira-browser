@@ -85,4 +85,4 @@ Read [SECURITY.md](SECURITY.md) before exposing the server. Report vulnerabiliti
 
 ## License And Marks
 
-Source code is licensed under the Mozilla Public License 2.0. See [LICENSE](LICENSE). The license does not grant rights to Aira names, logos, or other marks; see [TRADEMARKS.md](TRADEMARKS.md).
+Source code is licensed under GPL-3.0-only. See [LICENSE](LICENSE). The license does not grant rights to Aira names, logos, or other marks; see [TRADEMARKS.md](TRADEMARKS.md).

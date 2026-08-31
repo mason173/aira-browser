@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": false,
   "description": "Single-owner, self-hosted sync server for Aira Browser",
-  "license": "MPL-2.0",
+  "license": "GPL-3.0-only",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
