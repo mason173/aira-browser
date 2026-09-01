@@ -400,6 +400,7 @@ export const sharedOfflinePageRepository: RdbOfflinePageRepository =
   new RdbOfflinePageRepository(sharedBrowserDatabase);
 export const sharedAiraSyncConfigStore: AiraSyncConfigStore =
   new AiraSyncConfigStore(new ArkAiraSyncConfigStorageAdapter());
+sharedCrossDeviceTabPresenceCoordinator.configureSyncConfigStore(sharedAiraSyncConfigStore);
 const sharedHistorySyncService: HistorySyncService = new HistorySyncService(
   sharedBrowserDatabase,
   sharedAiraSyncConfigStore,

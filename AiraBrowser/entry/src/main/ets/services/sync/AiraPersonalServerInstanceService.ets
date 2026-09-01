@@ -40,6 +40,8 @@ interface PersonalServerCapabilities {
   personalization?: PersonalServerCapabilityDescriptor;
   novelBookshelf?: PersonalServerCapabilityDescriptor;
   deviceManagement?: PersonalServerCapabilityDescriptor;
+  pagePush?: PersonalServerCapabilityDescriptor;
+  crossDeviceTabs?: PersonalServerCapabilityDescriptor;
 }
 
 interface PersonalServerDiscoveryResponse {
@@ -68,6 +70,7 @@ interface PersonalServerPairingRequest {
   code: string;
   deviceId: string;
   deviceName: string;
+  deviceKind: 'phone';
 }
 
 export interface AiraPersonalServerDiscovery {
@@ -122,7 +125,8 @@ export class AiraPersonalServerInstanceService {
       protocolVersion > PERSONAL_SERVER_MAX_PROTOCOL_VERSION ||
       minimumClientProtocolVersion > PERSONAL_SERVER_MAX_PROTOCOL_VERSION || capabilities === undefined ||
       capabilities.bookmarks?.version !== 3 || capabilities.history?.version !== 1 ||
-      capabilities.personalization?.version !== 2 || capabilities.novelBookshelf?.version !== 2) {
+      capabilities.personalization?.version !== 2 || capabilities.novelBookshelf?.version !== 2 ||
+      capabilities.pagePush?.version !== 1 || capabilities.crossDeviceTabs?.version !== 1) {
       throw new Error('该地址不是兼容的 Aira 个人服务器，或协议版本暂不受支持。');
     }
     return {
@@ -142,7 +146,8 @@ export class AiraPersonalServerInstanceService {
     const request: PersonalServerPairingRequest = {
       code: pairingCode.trim(),
       deviceId: deviceId.trim(),
-      deviceName: deviceName.trim().length > 0 ? deviceName.trim() : 'Aira HarmonyOS'
+      deviceName: deviceName.trim().length > 0 ? deviceName.trim() : 'Aira HarmonyOS',
+      deviceKind: 'phone'
     };
     if (request.code.length <= 0 || request.deviceId.length <= 0) {
       throw new Error('请输入配对码，并确认当前设备标识可用。');

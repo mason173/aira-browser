@@ -69,7 +69,7 @@ export class HuaweiAccountInfoViewModel {
       title: uid.length > 0 ? title : '未登录',
       subtitle: uid.length > 0
         ? (recognitionSubtitle.length > 0 ? recognitionSubtitle : '华为账号已登录')
-        : '基础浏览权益已开启，登录后可同步账号数据',
+        : '本地浏览功能已全部开启，登录后可使用账号与云服务',
       recognitionInfoText: uid.length > 0 ? recognitionInfoText : '',
       avatarUri: identity.photoUrl,
       recognitionBadge: uid.length > 0 ? recognitionBadge : 'none',

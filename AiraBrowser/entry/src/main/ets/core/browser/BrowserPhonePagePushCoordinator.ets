@@ -1,11 +1,14 @@
 import { webview } from '@kit.ArkWeb';
 import { AIRA_DISTRIBUTION_CAPABILITY_OWNER } from '../../common/config/AiraDistributionCapabilityOwner';
 import { AIRA_FEATURE_PHONE_PAGE_PUSH } from '../../common/constants/MembershipFeatureKeys';
+import { AiraPersonalServerConfig } from '../../common/models/AiraSyncModels';
 import { EntitlementContext } from '../../services/membership/EntitlementService';
 import {
   AiraPhonePagePushFunctionService,
   AiraPhonePagePushResponseBody
 } from '../../services/push/AiraPhonePagePushFunctionService';
+import { AiraSyncConfigStore } from '../../services/sync/AiraSyncConfigStore';
+import { AIRA_PERSONAL_SERVER_INSTANCE_SERVICE } from '../../services/sync/AiraPersonalServerInstanceService';
 import { FeatureGateCoordinator } from '../membership/FeatureGateCoordinator';
 
 interface BrowserPhonePageCanonicalProbePayload {
@@ -35,17 +38,42 @@ export interface BrowserPhonePagePushHost {
 
 export class BrowserPhonePagePushCoordinator {
   private readonly featureGateCoordinator: FeatureGateCoordinator;
+  private readonly syncConfigStore: AiraSyncConfigStore;
   private service: AiraPhonePagePushFunctionService;
 
   constructor(
     featureGateCoordinator: FeatureGateCoordinator,
+    syncConfigStore: AiraSyncConfigStore,
     service: AiraPhonePagePushFunctionService = new AiraPhonePagePushFunctionService()
   ) {
     this.featureGateCoordinator = featureGateCoordinator;
+    this.syncConfigStore = syncConfigStore;
     this.service = service;
   }
 
   async sendCurrentPageFromHost(host: BrowserPhonePagePushHost): Promise<void> {
+    const settings = await this.syncConfigStore.initialize();
+    if (settings.remoteKind === 'self_hosted') {
+      try {
+        const config = AIRA_PERSONAL_SERVER_INSTANCE_SERVICE.requireConfigured(settings);
+        const snapshot = host.resolveSnapshot();
+        const url = snapshot.url.trim();
+        const desktopUrl = await this.resolveDesktopUrl(snapshot.controller, url);
+        await this.enqueueCurrentPage({
+          uid: '',
+          url: url,
+          desktopUrl: desktopUrl,
+          title: this.resolveTitle(snapshot.title, url)
+        }, host, config);
+      } catch (error) {
+        host.showToast(this.resolveErrorMessage(error as Error, '请先连接个人服务器。'));
+      }
+      return;
+    }
+    if (settings.remoteKind !== 'aira_cloud') {
+      host.showToast('当前同步服务不支持网页推送，请选择个人服务器或 Aira 云同步。');
+      return;
+    }
     if (!AIRA_DISTRIBUTION_CAPABILITY_OWNER.isAvailable('aira_cloud')) {
       host.showToast(AIRA_DISTRIBUTION_CAPABILITY_OWNER.resolveUnavailableReason('aira_cloud'));
       return;
@@ -69,7 +97,11 @@ export class BrowserPhonePagePushCoordinator {
     await this.enqueueCurrentPage(request, host);
   }
 
-  private async enqueueCurrentPage(request: BrowserPhonePagePushRequest, host: BrowserPhonePagePushHost): Promise<void> {
+  private async enqueueCurrentPage(
+    request: BrowserPhonePagePushRequest,
+    host: BrowserPhonePagePushHost,
+    personalServerConfig?: AiraPersonalServerConfig
+  ): Promise<void> {
     const url = request.url.trim();
     if (url.length <= 0) {
       host.showToast('当前没有可推送的网址。');
@@ -77,17 +109,25 @@ export class BrowserPhonePagePushCoordinator {
     }
     host.showToast('正在推送到电脑...');
     try {
-      const result = await this.service.enqueue(
-        request.uid.trim(),
-        url,
-        request.title.trim(),
-        request.desktopUrl.trim()
-      );
+      const result = personalServerConfig === undefined
+        ? await this.service.enqueue(
+          request.uid.trim(),
+          url,
+          request.title.trim(),
+          request.desktopUrl.trim()
+        )
+        : await this.service.enqueuePersonalServer(
+          personalServerConfig.baseUrl,
+          personalServerConfig.deviceToken,
+          url,
+          request.title.trim(),
+          request.desktopUrl.trim()
+        );
       if (result.ok === true) {
         host.showToast(this.resolveSuccessMessage(result));
         return;
       }
-      host.showToast(this.resolveFailureMessage(result));
+      host.showToast(this.resolveFailureMessage(result, personalServerConfig !== undefined));
     } catch (_error) {
       host.showToast('推送失败，请稍后重试。');
     }
@@ -227,24 +267,39 @@ export class BrowserPhonePagePushCoordinator {
     }
   }
 
-  private resolveFailureMessage(result: AiraPhonePagePushResponseBody): string {
+  private resolveFailureMessage(result: AiraPhonePagePushResponseBody, personalServer: boolean): string {
     switch (result.code) {
       case 'pro_required':
-        return '网页推送仅 Aira Pro 可用。';
+        return '通过 Aira 云推送网页需要 Pro；连接个人服务器后可免费使用。';
       case 'phone_page_push_rate_limited':
+      case 'page_push_rate_limited':
         return '推送太频繁了，请稍后再试。';
       case 'phone_page_push_queue_full':
+      case 'page_push_queue_full':
         return '电脑待打开的网页太多了，请先处理一部分。';
+      case 'no_online_desktop_device':
+        return '当前没有在线的已配对电脑。';
+      case 'page_push_phone_required':
+      case 'personal_server_auth_required':
+      case 'invalid_device_credential':
+      case 'device_revoked':
+        return '请重新连接个人服务器后再推送网页。';
       case 'missing_uid':
       case 'auth_token_required':
       case 'auth_token_expired':
-        return '请重新登录华为账号后再推送。';
+        return personalServer ? '请重新连接个人服务器后再推送网页。' : '请重新登录华为账号后再推送。';
       case 'invalid_url':
+      case 'invalid_page_url':
         return '当前页面不能推送到电脑。';
       case 'distribution_unavailable':
         return result.message?.trim() || AIRA_DISTRIBUTION_CAPABILITY_OWNER.resolveUnavailableReason('aira_cloud');
       default:
         return result.message?.trim() || '推送失败，请稍后重试。';
     }
+  }
+
+  private resolveErrorMessage(error: Error, fallback: string): string {
+    const message = error.message?.trim() ?? '';
+    return message.length > 0 ? message : fallback;
   }
 }

@@ -28,8 +28,9 @@ See [AiraBrowser/README.md](AiraBrowser/README.md) for SDK, signing, release, an
 ## Personal Server
 
 [Aira Personal Server](https://github.com/mason173/aira-server) is a separate GPL-3.0-only project for one owner and multiple
-paired devices. It supports Bookmark, History, Personalization, and Novel Bookshelf sync with revocable device
-credentials, Docker/Compose deployment, and validated backup/restore. See [docs/self-hosting.md](docs/self-hosting.md).
+paired devices. It supports Bookmark, History, Personalization, Novel Bookshelf, Page Push, and Cross-device Tabs with
+revocable device credentials, Docker/Compose deployment, and validated backup/restore. HarmonyOS Aira and Aira-sync pair
+with the same server without Aira Account or Pro. See [docs/self-hosting.md](docs/self-hosting.md).
 
 The Aira production backend, Admin console, billing, analytics, policy operations, and deployment configuration are not
 part of this repository or Personal Server.

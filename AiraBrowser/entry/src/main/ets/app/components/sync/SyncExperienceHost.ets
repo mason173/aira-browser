@@ -579,8 +579,8 @@ export struct SyncExperienceHost {
       decision.primaryAction === 'open_pro';
     if (isCrossSystemBookmarkUpgrade) {
       showCenteredAlertDialog({
-        title: '跨系统同步书签需要 Aira Pro',
-        message: '手机与电脑之间同步书签是 Aira Pro 功能。你也可以选择华为云空间或 WebDAV。',
+        title: 'Aira 云书签同步需要 Pro',
+        message: 'Aira 官方托管的跨系统书签同步需要 Pro。你也可以免费使用个人服务器、华为云空间或 WebDAV。',
         autoCancel: true,
         buttonDirection: DialogButtonDirection.VERTICAL,
         buttons: [

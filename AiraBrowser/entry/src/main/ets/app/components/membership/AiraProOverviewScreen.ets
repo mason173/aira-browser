@@ -123,7 +123,7 @@ export struct AiraProOverviewScreen {
   @Builder
   private buildBenefitSection() {
     SettingsSection({
-      title: this.state.title === 'Aira Community' ? '本地能力' : 'Pro 云服务',
+      title: this.state.title === 'Aira Community' ? '本地能力' : '官方托管云服务',
       secondaryTextColor: this.secondaryTextColor
     }) {
       SettingsGroupCard({ surfaceColor: this.surfaceBackground }) {

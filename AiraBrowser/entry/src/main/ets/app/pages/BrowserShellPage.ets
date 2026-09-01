@@ -3056,7 +3056,7 @@ struct BrowserShellPage {
     );
   private webPageShareService: WebPageShareService = new WebPageShareService();
   private phonePagePushCoordinator: BrowserPhonePagePushCoordinator =
-    new BrowserPhonePagePushCoordinator(this.featureGateCoordinator);
+    new BrowserPhonePagePushCoordinator(this.featureGateCoordinator, sharedAiraSyncConfigStore);
   private systemSettingsLaunchService: SystemSettingsLaunchService = new SystemSettingsLaunchService();
   private appReviewPromptShell: AppReviewPromptShell = {
     resolveFacts: (): AppReviewPromptShellFacts => {

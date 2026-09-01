@@ -93,7 +93,7 @@ export struct SettingsNavigationScreen {
   @Prop settingsIconBackgrounds: BrowserSettingsIconBackgroundTokenSet = DEFAULT_BROWSER_SETTINGS_ICON_BACKGROUND_TOKENS;
   @Prop accountCard: SettingsAccountCardState = {
     title: '未登录',
-    subtitle: '基础浏览权益已开启，登录后可同步账号数据',
+    subtitle: '本地浏览功能已全部开启，登录后可使用账号与云服务',
     isLoggedIn: false,
     avatarUri: '',
     membershipBadge: 'none',

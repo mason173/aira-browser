@@ -60,7 +60,8 @@ capability inputs:
 
 Select the distribution independently from the debug/release build variant with `AIRA_DISTRIBUTION=community|official`.
 Community is the public-safe choice and does not include Aira's AGConnect project, Huawei Account/Space approvals, IAP,
-or hosted Aira Cloud access. WebDAV and the single-owner Personal Server Provider remain available. A Community Huawei
+or hosted Aira Cloud access. WebDAV and the single-owner Personal Server Provider remain available; Personal Server can
+also connect Aira-sync for Page Push and Cross-device Tabs without Aira Account or Pro. A Community Huawei
 build may provide the builder's own Huawei project only through separate configuration and approval; it never inherits
 Aira's production identity.
 

@@ -28,7 +28,7 @@ restart, foreground recovery, network recovery, periodic retry, and manual retry
 successful confirmation clears both facts; pausing Bookmark Sync preserves both so re-enablement resumes the same
 incomplete transition, while starting a fresh Huawei initialization replaces the source with `none`. This is not an
 outbox, journal, second merge path, dual write, or Provider promotion, and it does not change Additional Backup,
-Personalization, WebDAV transport/CAS, Provider identities or baselines, Huawei G7 storage/confirmation, or Airatab
+Personalization, WebDAV transport/CAS, Provider identities or baselines, Huawei G7 storage/confirmation, or Aira-sync
 behavior.
 
 Amended 2026-08-03 after a same-account Aira Cloud -> Huawei Space mass-deletion reproduction: transition preservation

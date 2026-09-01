@@ -5,12 +5,12 @@ date: 2026-08-19
 
 # History Sync Is an Independent Incremental Domain
 
-Browsing History Sync is an independent Domain shared by the HarmonyOS App and, when Aira Cloud is selected, Airatab.
+Browsing History Sync is an independent Domain shared by the HarmonyOS App and, when Aira Cloud is selected, Aira-sync.
 The App uses the active Primary Provider for History: Aira Cloud and Huawei Cloud Space support the Domain, while
 WebDAV disables and ignores it. Huawei Cloud Space synchronizes History only between HarmonyOS Aira clients using the
-same Huawei account; Airatab remains an Aira Cloud client. History does not become
+same Huawei account; Aira-sync remains an Aira Cloud client. History does not become
 part of the Bookmark snapshot, the four G2 Personalization sections, Novel Bookshelf, the locally selected Bookmark
-payload, or Additional Backup. It requires Huawei-account identity in the App and a Desktop Device Session in Airatab.
+payload, or Additional Backup. It requires Huawei-account identity in the App and a Desktop Device Session in Aira-sync.
 Aira Cloud transport requires active Pro access; Huawei Cloud Space follows the user-owned Provider entitlement and does
 not add a separate Pro gate. The ordinary server-readable JSON trust model is accepted; end-to-end encryption and key
 distribution are outside this personal-use scope.
@@ -20,7 +20,7 @@ visits to the same URL remain distinct. All clients always merge the account tim
 form a set union, exact tombstones and deletion ranges win over matching visits, `clearBefore` wins over every older
 visit, and deterministic retention then keeps at most 90 days and 10,000 live visits. A later visit receives a new ID
 and is not suppressed by deletion of an older visit. Private/ephemeral activity and non-HTTP(S) URLs never enter the
-Domain. App, Airatab, and server canonicalize every protocol URL with their standards-compatible URL parser before
+Domain. App, Aira-sync, and server canonicalize every protocol URL with their standards-compatible URL parser before
 identity comparison or upload, so equivalent root URLs cannot create false visit-ID collisions.
 
 The first accepted payload owns the immutable visit content. Any later upload with the same visit ID is an idempotent
@@ -84,9 +84,9 @@ infrastructure errors remain distinct from malformed-row failures. This executio
 merge result, write/confirmation order, or data-loss boundary. HAP compilation validates the concurrency boundary;
 true-device frame-time improvement remains a separate non-visual acceptance gate.
 
-The App materializes synchronized visits into its existing History Manager. Airatab declares the browser `history`
+The App materializes synchronized visits into its existing History Manager. Aira-sync declares the browser `history`
 permission as required, captures locally originated native visits into an IndexedDB ledger/outbox, and presents the same
-account projection in its own full History page. Airatab never injects remote visits into browser-native history because
+account projection in its own full History page. Aira-sync never injects remote visits into browser-native history because
 the common History API cannot restore visit time, referrer, and transition losslessly. Browser-native removal events
 produce exact tombstones for captured local visits; native delete-all and the Aira History clear action advance the
 account `clearBefore` frontier. Retention pruning does not masquerade as a user deletion.
@@ -95,15 +95,15 @@ Both client projections enforce the same fixed 90-day/10,000-visit boundary befo
 local retention-origin removal, deletes any matching pending upsert, and never creates a deletion mutation. This keeps a
 client with a looser device-local History preference from retaining records already retired by the server.
 
-App foreground/network/account/local-change/periodic signals and Airatab startup/online/history-event/alarm/page signals
+App foreground/network/account/local-change/periodic signals and Aira-sync startup/online/history-event/alarm/page signals
 only schedule their single History owner. Remote apply never creates an outgoing mutation, a cursor advances only with
 the same local transaction that applies its returned changes, and account identity scopes every local state row. Each
 run is bound to one account/client identity. Account changes invalidate and drain the old App run before detached remote
 projection cleanup, while a new identity never reuses another identity's in-flight promise. A
-successful run converges App and Airatab to the same canonical records and ordering; presentation may group the same UTC
+successful run converges App and Aira-sync to the same canonical records and ordering; presentation may group the same UTC
 timestamps differently when device time zones differ.
 
-This ADR supersedes only earlier statements that Airatab is globally Bookmark-only. Airatab Bookmark Sync remains
+This ADR supersedes only earlier statements that Aira-sync is globally Bookmark-only. Aira-sync Bookmark Sync remains
 unchanged: it still has one locally selected Bookmark source and its complete-snapshot merge/CAS contract. History is
 independent in data model and execution, but it follows the same Primary Provider selection as the other Sync content.
 The App exposes only the ordinary History content switch and persists no separate History Provider. History is selected

@@ -14,16 +14,16 @@ export interface AiraProEntryConfirmationViewState {
 export class AiraProEntryConfirmationViewModel {
   buildState(): AiraProEntryConfirmationViewState {
     return {
-      title: 'Pro 是自愿的',
-      message: '基础浏览会继续免费。看到这个入口，不代表你必须付费；不接受付费增强能力，可以直接返回继续用免费版。',
-      freeTitle: '我知道：不买 Pro 也能继续用 Aira',
-      freeMessage: '基础浏览、常规设置、已有免费能力不会因为 Pro 出现就被拿走。',
-      optionalTitle: '我知道：Pro 完全自愿，不订阅也能用',
-      optionalMessage: '想支持长期维护就订阅；不想付费就继续用免费版，或者选择不用。',
-      developerTitle: '我认可：增强能力收费是正常的',
-      developerMessage: 'Aira Pro 用于支持官方云同步、网页接力和跨设备服务的开发与服务器成本。',
-      confirmActionTitle: '查看Pro能力',
-      cancelActionTitle: '不接受，返回免费版'
+      title: 'Aira Pro 只用于官方云服务',
+      message: '本地功能和使用自有服务的功能保持免费。只有使用 Aira 官方托管云服务时才需要 Pro。',
+      freeTitle: '本地功能全部免费',
+      freeMessage: '本地浏览、常规设置和设备内功能无需登录，也不需要会员。',
+      optionalTitle: '自有服务不需要 Pro',
+      optionalMessage: 'WebDAV 和个人服务器由你自行提供，相关客户端功能免费使用。',
+      developerTitle: 'Pro 支付官方托管成本',
+      developerMessage: 'Aira Pro 用于承担 Aira 云同步、网页接力和跨设备服务的服务器与维护成本。',
+      confirmActionTitle: '查看 Pro 云服务',
+      cancelActionTitle: '返回免费功能'
     };
   }
 }

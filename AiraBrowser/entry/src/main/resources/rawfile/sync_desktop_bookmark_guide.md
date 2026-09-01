@@ -1,12 +1,12 @@
 # Aira 跨设备使用指南
 
-Aira 浏览器可配合 Windows、macOS 浏览器中的 Aira 同步助手，在手机与电脑之间同步书签、接力当前网页，并双向查看在线设备当前打开的标签页。
+Aira 浏览器可配合 Windows、macOS 浏览器中的 Aira-sync，在手机与电脑之间同步书签、接力当前网页，并双向查看在线设备当前打开的标签页。
 
 Aira 云同步、网页接力和跨设备标签页需要手机与电脑登录同一个 Aira 账号，并拥有 Aira Pro。只需要同步书签时，也可以选择自己的 WebDAV 服务。
 
 ## 开始前准备
 
-- 在 Windows 或 Mac 的 Chrome、Edge 或 Firefox 中安装 Aira 同步助手扩展。
+- 在 Windows 或 Mac 的 Chrome、Edge 或 Firefox 中安装 Aira-sync 扩展。
 - 使用 Aira 云同步、网页接力或跨设备标签页时，需要在手机端登录华为账号，当前账号已开通 Aira Pro，并使用手机端 Aira 扫描电脑端二维码。
 - 如果选择 WebDAV，再准备一个支持 WebDAV 的网盘或 NAS 账号，并让手机和电脑两边填写同一个 WebDAV 地址、用户名和密码。
 - 浏览器弹出书签权限、WebDAV 站点访问权限或登录确认时，请按你的同步方式允许。
@@ -15,9 +15,9 @@ Aira 云同步、网页接力和跨设备标签页需要手机与电脑登录同
 
 1. 在手机上打开 Aira 浏览器，进入「设置」-「同步」。
 2. 开启「书签云同步」。这是 Aira Pro 功能；如果尚未登录，请先按提示使用华为账号登录，并确认当前账号已开通 Pro。
-3. 在电脑浏览器中点击工具栏上的 Aira 同步助手图标，打开 Aira 同步助手弹出页。
+3. 在电脑浏览器中点击工具栏上的 Aira-sync 图标，打开 Aira-sync 弹出页。
 4. 点击「立即登录」或「使用账号登录并开启」，电脑端会显示登录二维码。
-5. 回到手机 Aira，使用「扫一扫」扫描电脑端二维码，并确认使用当前账号登录电脑上的 Aira 同步助手。
+5. 回到手机 Aira，使用「扫一扫」扫描电脑端二维码，并确认使用当前账号登录电脑上的 Aira-sync。
 6. 电脑端登录成功后，打开「书签云同步」，点击「开启书签云同步」或「重新同步」。
 7. 首次同步时，如果需要选择同步方式，通常选择「合并」；如果你明确只保留一端的数据，再选择本机覆盖云端或云端覆盖本机。
 
@@ -35,7 +35,7 @@ Aira 云同步、网页接力和跨设备标签页需要手机与电脑登录同
 
 ![Aira 浏览器 WebDAV 地址、用户名、密码与启用按钮]({{SYNC_DESKTOP_BOOKMARK_GUIDE_02_IMAGE}})
 
-5. 在电脑浏览器中点击工具栏上的 Aira 同步助手图标，打开 Aira 同步助手弹出页。
+5. 在电脑浏览器中点击工具栏上的 Aira-sync 图标，打开 Aira-sync 弹出页。
 6. 如果尚未登录，点击「仅使用 WebDAV 同步」；如果已经登录或已配置过同步，进入「WebDAV 同步」或「高级同步选项」。
 7. 选择 WebDAV 服务商，填写和手机端相同的 WebDAV 地址、用户名和密码，然后点「启用 WebDAV 同步」。
 8. 浏览器可能会弹出 WebDAV 站点访问权限请求；首次同步书签时也可能请求书签权限，请允许。
@@ -51,7 +51,7 @@ Aira 云同步、网页接力和跨设备标签页需要手机与电脑登录同
 网页接力用于把手机上正在浏览的网页直接推送到电脑打开。
 
 1. 确认手机与电脑登录的是同一个 Aira Pro 账号。
-2. 电脑端 Aira 同步助手默认开启「接收手机网页推送」。如曾关闭，可进入插件的「高级设置」重新开启。
+2. 电脑端 Aira-sync 默认开启「接收手机网页推送」。如曾关闭，可进入插件的「高级设置」重新开启。
 3. 在手机 Aira 中打开要接力的网页，然后从浏览器菜单选择「推送到电脑」。
 4. 当前在线的电脑收到推送后，会在浏览器中打开该网页。
 
@@ -67,7 +67,7 @@ Aira 云同步、网页接力和跨设备标签页需要手机与电脑登录同
 
 ### 在电脑上查看手机标签页
 
-1. 点击浏览器工具栏中的 Aira 同步助手图标。
+1. 点击浏览器工具栏中的 Aira-sync 图标。
 2. 在首页点击「手机标签页」卡片；右上角角标会显示当前可查看的标签页数量。
 3. 列表会按手机设备分组；点击任意一行，即可在电脑浏览器中打开。
 
@@ -85,15 +85,15 @@ Aira 云同步、网页接力和跨设备标签页需要手机与电脑登录同
 - 同步不是备份。开启前建议先在手机或电脑端导出一份书签备份。
 - 如果功能不可用，优先检查手机与电脑是否登录同一个账号、Aira Pro 是否有效、设备是否在线，以及浏览器书签权限、WebDAV 地址和站点访问权限。
 
-## 安装 Aira 同步助手
+## 安装 Aira-sync
 
 复制对应浏览器的插件链接，发送到电脑后在电脑浏览器中打开。
+以下商店入口属于 Official 发行版；Community 发行版不上架插件商店。
 
 - [Chrome 插件链接](https://chromewebstore.google.com/detail/aira-focused-webdav-new-t/hgifgplkfbfmkogjdpcjkgbgkikcjpni?authuser=0&hl=zh-CN)
 - [Edge 插件链接](https://microsoftedge.microsoft.com/addons/detail/afliopnmelmcajnmldmiklifmbchgfni)
 - [Firefox 插件链接](https://addons.mozilla.org/zh-CN/firefox/addon/aira-focused-webdav-new-tab)
 
-如果无法通过浏览器插件商店安装，也可以自行下载 Aira 同步助手本地插件安装包：
+如果使用 Community 发行版，或无法通过浏览器插件商店安装，可以下载 Aira-sync 本地安装包：
 
-- [下载本地插件安装包](https://wwbgv.lanzoul.com/b00oe0qfcd)
-- 下载密码：`5ym6`
+- [从 GitHub Releases 下载 Community 安装包](https://github.com/mason173/aira-sync/releases)

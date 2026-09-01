@@ -9,7 +9,7 @@ const AIRA_PHONE_PAGE_PUSH_ENDPOINT: string = AIRA_HOSTED_API_BASE_URL + '/phone
 const AIRA_PHONE_PAGE_PUSH_TIMEOUT_MS: number = 30000;
 
 export interface AiraPhonePagePushRequestBody {
-  uid: string;
+  uid?: string;
   url: string;
   originalUrl: string;
   desktopUrl?: string;
@@ -42,31 +42,50 @@ export interface AiraPhonePagePushResponseBody {
   uidSuffix?: string;
   membershipPlan?: string;
   duplicate?: boolean;
+  deliveryCount?: number;
   task?: AiraPhonePagePushTaskResponse;
 }
 
 export interface AiraPhonePagePushHttpAdapter {
-  post(url: string, body: Object, timeoutMs: number): Promise<Object | string | null | undefined>;
+  post(
+    url: string,
+    body: Object,
+    timeoutMs: number,
+    authorizationHeader?: string
+  ): Promise<Object | string | null | undefined>;
 }
 
 class NetworkAiraPhonePagePushHttpAdapter implements AiraPhonePagePushHttpAdapter {
-  async post(url: string, body: Object, timeoutMs: number): Promise<Object | string | null | undefined> {
+  async post(
+    url: string,
+    body: Object,
+    timeoutMs: number,
+    authorizationHeader?: string
+  ): Promise<Object | string | null | undefined> {
     const request = http.createHttp();
     try {
+      const headers: Record<string, string> = {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json; charset=utf-8',
+        'User-Agent': 'AiraBrowser/1.0'
+      };
+      const normalizedAuthorizationHeader = authorizationHeader?.trim() ?? '';
+      if (normalizedAuthorizationHeader.length > 0) {
+        headers.Authorization = normalizedAuthorizationHeader;
+      }
       const response = await request.request(url, {
         method: http.RequestMethod.POST,
         expectDataType: http.HttpDataType.STRING,
         connectTimeout: timeoutMs,
         readTimeout: timeoutMs,
         usingCache: false,
-        header: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json; charset=utf-8',
-          'User-Agent': 'AiraBrowser/1.0'
-        },
+        header: headers,
         extraData: JSON.stringify(body)
       });
       if (response.responseCode < 200 || response.responseCode >= 300) {
+        if (typeof response.result === 'string' || typeof response.result === 'object') {
+          return response.result as string | Object | null | undefined;
+        }
         const errorResponse: AiraPhonePagePushResponseBody = {
           ok: false,
           code: 'http_error',
@@ -140,6 +159,51 @@ export class AiraPhonePagePushFunctionService {
       };
     }
     const value = await this.adapter.post(AIRA_PHONE_PAGE_PUSH_ENDPOINT, body, AIRA_PHONE_PAGE_PUSH_TIMEOUT_MS);
+    return this.parseFunctionValue(value);
+  }
+
+  async enqueuePersonalServer(
+    baseUrl: string,
+    deviceToken: string,
+    url: string,
+    title: string,
+    desktopUrl: string = ''
+  ): Promise<AiraPhonePagePushResponseBody> {
+    const normalizedBaseUrl = baseUrl.trim().replace(/\/+$/, '');
+    const normalizedToken = deviceToken.trim();
+    const normalizedUrl = url.trim();
+    if (normalizedBaseUrl.length === 0 || normalizedToken.length === 0) {
+      return {
+        ok: false,
+        code: 'personal_server_auth_required',
+        message: '请重新连接个人服务器后再推送网页。'
+      };
+    }
+    if (!this.isHttpUrl(normalizedUrl)) {
+      return {
+        ok: false,
+        code: 'invalid_url',
+        message: '当前页面不能推送到电脑。'
+      };
+    }
+    const normalizedDesktopUrl = this.isHttpUrl(desktopUrl) && desktopUrl.trim() !== normalizedUrl
+      ? desktopUrl.trim()
+      : '';
+    const body: AiraPhonePagePushRequestBody = {
+      url: normalizedDesktopUrl.length > 0 ? normalizedDesktopUrl : normalizedUrl,
+      originalUrl: normalizedUrl,
+      title: title.trim(),
+      source: 'harmonyos_app'
+    };
+    if (normalizedDesktopUrl.length > 0) {
+      body.desktopUrl = normalizedDesktopUrl;
+    }
+    const value = await this.adapter.post(
+      `${normalizedBaseUrl}/v1/page-push/enqueue`,
+      body,
+      AIRA_PHONE_PAGE_PUSH_TIMEOUT_MS,
+      `Bearer ${normalizedToken}`
+    );
     return this.parseFunctionValue(value);
   }
 

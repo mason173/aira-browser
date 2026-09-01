@@ -103,26 +103,26 @@ export class AiraProOverviewViewModel {
       benefits: [
         {
           id: 'cross_system_bookmark_sync',
-          title: 'Aira 云跨系统书签同步',
-          description: '配合浏览器插件，在不同系统间同步书签',
+          title: 'Aira 云书签同步',
+          description: '使用 Aira 官方托管服务，在手机与电脑之间同步书签',
           tutorialText: ''
         },
         {
           id: 'page_handoff',
-          title: '网页接力',
-          description: '推送当前网页至其他设备',
+          title: 'Aira 云网页接力',
+          description: '通过 Aira 官方托管服务，将当前网页推送至其他设备',
           tutorialText: '查看教程'
         },
         {
           id: 'cross_device_tabs',
-          title: '跨设备标签页',
-          description: '在手机和电脑之间查看并打开在线设备的标签页',
+          title: 'Aira 云跨设备标签页',
+          description: '通过 Aira 官方托管服务查看并打开其他在线设备的标签页',
           tutorialText: '查看教程'
         },
         {
           id: 'aira_cloud_history',
           title: 'Aira 云历史同步',
-          description: '在手机和电脑之间同步浏览历史',
+          description: '使用 Aira 官方托管服务，在手机与电脑之间同步浏览历史',
           tutorialText: ''
         }
       ],
@@ -191,12 +191,12 @@ export class AiraProOverviewViewModel {
 
   private resolveHeroSubtitle(state: AiraMembershipState): string {
     if (!this.membershipPresentationService.isLongTermMember(state)) {
-      return 'Aira 的本地浏览功能保持免费。Pro 用于官方 Aira 云同步与跨设备服务。';
+      return '本地功能、WebDAV 和个人服务器功能免费。Pro 仅用于 Aira 官方托管云服务。';
     }
     if (this.membershipPresentationService.hasInsiderRecognition(state)) {
       return 'INSIDER 长期会员权益已生效。感谢你帮助测试和改进 Aira。';
     }
-    return '长期会员权益已生效，你可以永久使用全部 Aira Pro 云服务。感谢你对 Aira 的支持。';
+    return '长期会员权益已生效，你可以永久使用全部 Aira 官方托管云服务。感谢你对 Aira 的支持。';
   }
 
   private buildOneTimePlanState(

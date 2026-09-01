@@ -97,7 +97,7 @@ export struct AiraProEntryConfirmationSheet {
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY) private storedPrimaryTextColor: string = '#111318';
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY) private storedSecondaryTextColor: string = '#5F6875';
   @Prop state: AiraProEntryConfirmationViewState = {
-    title: 'Pro 是自愿的',
+    title: 'Aira Pro 只用于官方云服务',
     message: '',
     freeTitle: '',
     freeMessage: '',
@@ -105,8 +105,8 @@ export struct AiraProEntryConfirmationSheet {
     optionalMessage: '',
     developerTitle: '',
     developerMessage: '',
-    confirmActionTitle: '查看Pro能力',
-    cancelActionTitle: '不接受，返回免费版'
+    confirmActionTitle: '查看 Pro 云服务',
+    cancelActionTitle: '返回免费功能'
   };
   @Prop confirming: boolean = false;
   @Link freeBrowsingAccepted: boolean;

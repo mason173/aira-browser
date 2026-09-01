@@ -65,7 +65,7 @@ export class SettingsAccountCardViewModel {
 
   private resolveSubtitle(settings: AiraSyncSettings, signedIn: boolean): string {
     if (!signedIn) {
-      return '基础浏览权益已开启，登录后可同步账号数据';
+      return '本地浏览功能已全部开启，登录后可使用账号与云服务';
     }
     if (settings.remoteKind === 'huawei_space') {
       return '华为账号已登录，当前使用华为云空间同步';
@@ -93,7 +93,7 @@ export class SettingsAccountCardViewModel {
     if (membership.plan === 'pro') {
       return this.membershipPresentationService.resolveAccountSubtitle(membership);
     }
-    return '基础浏览权益已开启，登录后可同步账号数据';
+    return '本地浏览功能已全部开启，登录后可使用账号与云服务';
   }
 
   private isHuaweiAccountSignedIn(settings?: AiraSyncSettings): boolean {

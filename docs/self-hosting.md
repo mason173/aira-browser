@@ -14,11 +14,15 @@ The v1 server supports:
 - incremental History Sync v1
 - Personalization Sync v2
 - Novel Bookshelf Sync v2
+- Page Push v1 with short-lived per-desktop delivery and acknowledgement
+- Cross-device Tabs v1 with short-lived phone/desktop presence snapshots
 - Docker/Compose deployment and health checks
 - SQLite migrations, online backup, validated restore, credential rotation, and revocation
 
 Follow the Personal Server repository's README for deployment, reverse proxy/TLS, pairing, upgrade, backup, and recovery.
 In Aira Browser, open Sync, choose Personal Server, enter the HTTPS server URL, and complete the one-time pairing flow.
+Create another one-time pairing code for each Aira-sync installation and connect it to the same server. The paired phone
+and desktops can then use the same server for sync, Page Push, and Cross-device Tabs without an Aira account.
 
 Disconnecting a Personal Server removes its device credential and instance configuration from the client. It does not
 delete local browser data.

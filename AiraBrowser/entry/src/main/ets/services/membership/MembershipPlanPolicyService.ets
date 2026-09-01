@@ -92,7 +92,7 @@ export class MembershipPlanPolicyService {
       requiresLogin: true,
       requiresClub: false,
       requiresPro: true,
-      title: '网页推送到电脑'
+      title: 'Aira 云网页推送'
     },
     {
       featureKey: 'cross_device_tabs',
@@ -102,7 +102,7 @@ export class MembershipPlanPolicyService {
       requiresLogin: true,
       requiresClub: false,
       requiresPro: true,
-      title: '跨设备标签页'
+      title: 'Aira 云跨设备标签页'
     },
     {
       featureKey: 'labs_feature',

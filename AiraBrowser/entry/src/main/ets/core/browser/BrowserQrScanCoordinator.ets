@@ -268,7 +268,7 @@ export class BrowserQrScanCoordinator {
 
   private presentDesktopLoginConfirmationResult(result: AiraDesktopLoginConfirmResponseBody): void {
     if (result.ok === true && result.status === 'confirmed') {
-      this.shell.showToast('可以回到电脑继续使用 Aira 同步助手。');
+      this.shell.showToast('可以回到电脑继续使用 Aira-sync。');
       return;
     }
     const message = result.message?.trim() ?? '桌面插件登录确认失败，请刷新二维码后重试。';

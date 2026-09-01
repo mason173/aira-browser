@@ -30,6 +30,14 @@ interface CrossDeviceTabPresenceAccessBody {
   authToken: string;
 }
 
+interface CrossDeviceTabPresencePersonalServerPublishBody {
+  device: CrossDeviceTabPresenceLocalDevice;
+  tabs: CrossDeviceTabPresenceTab[];
+}
+
+class CrossDeviceTabPresenceEmptyBody {
+}
+
 interface CrossDeviceTabPresenceApiResponse {
   ok?: boolean;
   code?: string;
@@ -40,7 +48,12 @@ interface CrossDeviceTabPresenceApiResponse {
 }
 
 export interface CrossDeviceTabPresenceHttpAdapter {
-  post(url: string, body: Object, timeoutMs: number): Promise<Object | string | null | undefined>;
+  post(
+    url: string,
+    body: Object,
+    timeoutMs: number,
+    authorizationHeader?: string
+  ): Promise<Object | string | null | undefined>;
 }
 
 export class CrossDeviceTabPresenceApiError extends Error {
@@ -53,20 +66,30 @@ export class CrossDeviceTabPresenceApiError extends Error {
 }
 
 class NetworkCrossDeviceTabPresenceHttpAdapter implements CrossDeviceTabPresenceHttpAdapter {
-  async post(url: string, body: Object, timeoutMs: number): Promise<Object | string | null | undefined> {
+  async post(
+    url: string,
+    body: Object,
+    timeoutMs: number,
+    authorizationHeader?: string
+  ): Promise<Object | string | null | undefined> {
     const request = http.createHttp();
     try {
+      const headers: Record<string, string> = {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json; charset=utf-8',
+        'User-Agent': 'AiraBrowser/1.0'
+      };
+      const normalizedAuthorizationHeader = authorizationHeader?.trim() ?? '';
+      if (normalizedAuthorizationHeader.length > 0) {
+        headers.Authorization = normalizedAuthorizationHeader;
+      }
       const response = await request.request(url, {
         method: http.RequestMethod.POST,
         expectDataType: http.HttpDataType.STRING,
         connectTimeout: timeoutMs,
         readTimeout: timeoutMs,
         usingCache: false,
-        header: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json; charset=utf-8',
-          'User-Agent': 'AiraBrowser/1.0'
-        },
+        header: headers,
         extraData: JSON.stringify(body)
       });
       if (typeof response.result === 'string' || typeof response.result === 'object') {
@@ -142,6 +165,44 @@ export class CrossDeviceTabPresenceApiService {
     this.requireSuccess(response, '暂时无法清除这台手机的标签页状态。');
   }
 
+  async publishPersonalServer(
+    baseUrl: string,
+    deviceToken: string,
+    device: CrossDeviceTabPresenceLocalDevice,
+    tabs: CrossDeviceTabPresenceTab[]
+  ): Promise<void> {
+    const body: CrossDeviceTabPresencePersonalServerPublishBody = {
+      device: device,
+      tabs: tabs
+    };
+    const response = await this.postPersonalServer(baseUrl, deviceToken, '/publish', body);
+    this.requireSuccess(response, '暂时无法向个人服务器发布这台手机的标签页。');
+  }
+
+  async listPersonalServer(
+    baseUrl: string,
+    deviceToken: string
+  ): Promise<CrossDeviceTabPresenceListResult> {
+    const response = await this.postPersonalServer(
+      baseUrl,
+      deviceToken,
+      '/list',
+      new CrossDeviceTabPresenceEmptyBody()
+    );
+    this.requireSuccess(response, '暂时无法从个人服务器读取电脑标签页。');
+    return this.parseListResult(response);
+  }
+
+  async clearPersonalServer(baseUrl: string, deviceToken: string): Promise<void> {
+    const response = await this.postPersonalServer(
+      baseUrl,
+      deviceToken,
+      '/clear',
+      new CrossDeviceTabPresenceEmptyBody()
+    );
+    this.requireSuccess(response, '暂时无法清除个人服务器上的手机标签页状态。');
+  }
+
   private async buildAccessBody(
     uid: string,
     deviceId: string,
@@ -178,10 +239,44 @@ export class CrossDeviceTabPresenceApiService {
   }
 
   private async post(path: string, body: Object): Promise<CrossDeviceTabPresenceApiResponse> {
-    const value = await this.adapter.post(
+    return await this.postUrl(
       `${AIRA_DEVICE_TABS_API_BASE_URL}${path}`,
       body,
-      AIRA_DEVICE_TABS_TIMEOUT_MS
+      undefined
+    );
+  }
+
+  private async postPersonalServer(
+    baseUrl: string,
+    deviceToken: string,
+    path: string,
+    body: Object
+  ): Promise<CrossDeviceTabPresenceApiResponse> {
+    const normalizedBaseUrl = baseUrl.trim().replace(/\/+$/, '');
+    const normalizedToken = deviceToken.trim();
+    if (normalizedBaseUrl.length === 0 || normalizedToken.length === 0) {
+      throw new CrossDeviceTabPresenceApiError(
+        'personal_server_auth_required',
+        '请重新连接个人服务器后再继续。'
+      );
+    }
+    return await this.postUrl(
+      `${normalizedBaseUrl}/v1/device-tabs${path}`,
+      body,
+      `Bearer ${normalizedToken}`
+    );
+  }
+
+  private async postUrl(
+    url: string,
+    body: Object,
+    authorizationHeader?: string
+  ): Promise<CrossDeviceTabPresenceApiResponse> {
+    const value = await this.adapter.post(
+      url,
+      body,
+      AIRA_DEVICE_TABS_TIMEOUT_MS,
+      authorizationHeader
     );
     if (value === undefined || value === null) {
       throw new Error('跨设备标签页服务没有返回结果。');
@@ -194,6 +289,22 @@ export class CrossDeviceTabPresenceApiService {
       }
     }
     return value as CrossDeviceTabPresenceApiResponse;
+  }
+
+  private parseListResult(response: CrossDeviceTabPresenceApiResponse): CrossDeviceTabPresenceListResult {
+    const devices: CrossDeviceTabPresenceDevice[] = [];
+    const rawDevices = response.devices ?? [];
+    rawDevices.forEach((raw: Object): void => {
+      const device = this.parseDesktopDevice(raw);
+      if (device !== undefined) {
+        devices.push(device);
+      }
+    });
+    return {
+      serverTime: this.normalizeNumber(response.serverTime, Date.now()),
+      onlineWindowMs: this.normalizeNumber(response.onlineWindowMs, 120000),
+      devices: devices
+    };
   }
 
   private requireSuccess(response: CrossDeviceTabPresenceApiResponse, fallback: string): void {

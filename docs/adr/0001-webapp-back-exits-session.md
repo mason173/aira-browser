@@ -6,7 +6,7 @@ Accepted: desktop Web entry has one Aira product behavior. "As app install" is t
 
 Accepted: relaunching a desktop WebApp should restore the last recorded `currentUrl` when available. The install/start URL is only the fallback target. This keeps the simulated PWA container aligned with the user's app-like expectation: leaving and later reopening returns to the state they were using.
 
-Accepted: WebApp new-window intent remains in the WebApp session. Ordinary `_blank` / new-tab intent loads in the current WebApp surface. Popup flows that require Web return channels such as opener or postMessage must still be owned inside the WebApp session, not exposed as user-visible Aira tabs and not handed to the normal browser.
+Accepted: WebApp new-window intent remains in the WebApp session. Ordinary `_blank` / new-tab intent loads in the current WebApp surface. Popup flows that require Web return channels such as opener or postMessage must still be owned inside the WebApp session, not exposed as user-visible Aira-syncs and not handed to the normal browser.
 
 Accepted: WebApp terminal Back has a dedicated owner. `BrowserMainBackCoordinator` should route unavailable Web Back for an active WebApp session to `WebAppExitCoordinator`. That owner consumes Back synchronously, deduplicates an in-flight exit per window, performs a short best-effort flush of the committed/restorable current URL, terminates the current WebApp UIAbility/window, and clears WebApp session/presentation state only after platform termination succeeds. A termination failure must leave the running WebApp session intact so Back can be attempted again. `BrowserShellPage.ets` only supplies shell facts, presentation side effects, platform execution, and diagnostics hooks.
 

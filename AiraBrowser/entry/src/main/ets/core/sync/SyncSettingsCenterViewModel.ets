@@ -209,7 +209,7 @@ export class SyncSettingsCenterViewModel {
         ? '可配合浏览器插件跨系统同步书签'
         : (role === 'additional_backup'
           ? '普通同步成功后写入 Aira 云端'
-          : (hasCloudConfig ? '已登录华为账号，可作为同步来源' : 'Pro 用户可跨系统同步书签')),
+          : (hasCloudConfig ? '已登录华为账号，可作为同步来源' : 'Aira Pro 提供官方托管的跨系统书签同步')),
       status: role === 'active' ? '当前同步方式' : (role === 'additional_backup' ? '附加备份已开启' : '未开启'),
       icon: $r('sys.symbol.icloud_fill'),
       imageIcon: SettingsColoredTileIconResources.foregroundIcon('sync'),

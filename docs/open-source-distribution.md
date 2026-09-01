@@ -13,7 +13,7 @@ distributions of the same source tree and commit. They are not long-lived forks.
 | Huawei Account sign-in | Unavailable | Available | Official App/Client identity, approval, and signing are private inputs. |
 | Huawei Cloud Space sync | Unavailable | Available | The official Huawei project and cloud container are not bundled in Community. |
 | Huawei IAP and purchase verification | Unavailable | Available | IAP receipts are sent only to the Official Aira control plane. |
-| Personal Server | Available | Available | Single-owner, paired-device server; no Huawei identity, membership, or billing. |
+| Personal Server sync, Page Push, and Cross-device Tabs | Available | Available | Single-owner, paired-device server shared by HarmonyOS Aira and Aira-sync; no Huawei identity, membership, or billing. |
 | Automatic crash upload and telemetry | Disabled | Disabled | The client does not upload crash reports to Aira infrastructure. |
 
 Community code may retain shared Huawei integration implementation where licensing permits, but the Community build does
@@ -67,6 +67,8 @@ distributions; only the capability owner, package identity, private configuratio
 - Huawei Account authentication is an Official Aira identity and is not a Personal Server login.
 - Personal Server uses one instance owner and paired device credentials. It does not contain registration,
   password login, users, organizations, roles, invitations, membership, billing, or Huawei-token authentication.
+- Personal Server is the Community transport for Bookmark, History, Personalization, Novel Bookshelf, Page Push, and
+  Cross-device Tabs. Page Push and tab presence are short-lived services, not Bookmark or History payloads.
 - A user-selected WebDAV endpoint is separate from Aira Cloud and remains a free client capability.
 - Aira's production backend and Admin remain in a separate private repository. They are not the public Personal Server.
 - Referral and invite growth flows are retired. Existing grants remain valid until their recorded expiration or permanent
