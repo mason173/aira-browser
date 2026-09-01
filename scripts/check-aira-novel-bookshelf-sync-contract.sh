@@ -112,14 +112,23 @@ if [ "${failures}" -eq 0 ]; then
     "HUAWEI_SPACE_NOVEL_BOOKSHELF_COMMIT_TABLE: string = 'AiraG2NovelBookshelfCommits'" \
     "Huawei Novel Bookshelf must retain its dedicated commit table"
   require_pattern "${AIRA_BOOKMARK_STORE_REL}" \
-    "https://api\\.aira\\.cool/sync/v3/bookmarks'" \
-    "Aira Bookmark must retain its independent v3 endpoint"
+    "AIRA_HOSTED_API_BASE_URL" \
+    "Aira Bookmark must resolve through the distribution-owned hosted API base URL"
+  require_pattern "${AIRA_BOOKMARK_STORE_REL}" \
+    "'/sync/v3/bookmarks'" \
+    "Aira Bookmark must retain its independent v3 endpoint path"
   require_pattern "${AIRA_PERSONALIZATION_STORE_REL}" \
-    "https://api\\.aira\\.cool/sync/v2/personalization'" \
-    "Aira Personalization must retain its independent endpoint"
+    "AIRA_HOSTED_API_BASE_URL" \
+    "Aira Personalization must resolve through the distribution-owned hosted API base URL"
+  require_pattern "${AIRA_PERSONALIZATION_STORE_REL}" \
+    "'/sync/v2/personalization'" \
+    "Aira Personalization must retain its independent endpoint path"
   require_pattern "${AIRA_NOVEL_STORE_REL}" \
-    "https://api\\.aira\\.cool/sync/v2/personalization/novel-bookshelf'" \
-    "Aira Novel Bookshelf must retain its independent endpoint"
+    "AIRA_HOSTED_API_BASE_URL" \
+    "Aira Novel Bookshelf must resolve through the distribution-owned hosted API base URL"
+  require_pattern "${AIRA_NOVEL_STORE_REL}" \
+    "'/sync/v2/personalization/novel-bookshelf'" \
+    "Aira Novel Bookshelf must retain its independent endpoint path"
   require_pattern "${SYNC_MODEL_REL}" \
     "AIRA_SYNC_DEFAULT_ROOT: string = 'aira/g3/bookmarks'" \
     "WebDAV Bookmark must retain its independent g3 root"
