@@ -32,7 +32,7 @@ npm ci
 npm run check
 ```
 
-The installable HarmonyOS Community build needs a local signing profile for `org.aira.browser.community`. Signing files,
+The installable HarmonyOS Community build needs a local signing profile for `org.aira.browser`. Signing files,
 AGConnect data, production routes, device credentials, databases, and browser profiles must never be committed.
 
 ## Pull Requests

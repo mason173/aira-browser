@@ -55,7 +55,7 @@ For a one-off build with another DevEco-generated profile, set `AIRA_BUILD_PROFI
 The source tree supports two distributions. They use the same commit and differ only in build-time identity and
 capability inputs:
 
-- Community (default source identity): `org.aira.browser.community` / `Aira Community`
+- Community (default source identity): `org.aira.browser` / `Aira Community`
 - Official (private production identity): `com.aira.browser` / `Aira`
 
 Select the distribution independently from the debug/release build variant with `AIRA_DISTRIBUTION=community|official`.
@@ -96,7 +96,7 @@ SKIP_INSTALL=1 \
 ```
 
 Because HarmonyOS signing profiles are tied to the bundle name, use a profile matching the selected distribution. Official
-profiles must match `com.aira.browser`; Community profiles must match `org.aira.browser.community`.
+profiles must match `com.aira.browser`; Community profiles must match `org.aira.browser`.
 
 Official builds also require private Huawei inputs. Keep them outside Git and provide either `AIRA_AGCONNECT_CONFIG`
 pointing to the private `agconnect-services.json`, or place that file at `AiraBrowser/agconnect-services.local.json`.

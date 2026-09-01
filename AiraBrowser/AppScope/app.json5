@@ -1,6 +1,6 @@
 {
   "app": {
-    "bundleName": "org.aira.browser.community",
+    "bundleName": "org.aira.browser",
     "vendor": "airabrowser",
     "versionCode": 1000366,
     "versionName": "2.5.3",

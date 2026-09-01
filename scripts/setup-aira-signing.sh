@@ -7,7 +7,7 @@ PROJECT_DIR="${REPO_ROOT}/AiraBrowser"
 BUILD_PROFILE_LOCAL="${PROJECT_DIR}/build-profile.local.json5"
 BUILD_PROFILE_TEMPLATE="${PROJECT_DIR}/build-profile.json5"
 PRODUCTION_BUNDLE_NAME="com.aira.browser"
-COMMUNITY_BUNDLE_NAME="org.aira.browser.community"
+COMMUNITY_BUNDLE_NAME="org.aira.browser"
 
 DISTRIBUTION="${AIRA_DISTRIBUTION:-official}"
 case "${DISTRIBUTION}" in

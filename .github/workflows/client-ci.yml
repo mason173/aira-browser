@@ -66,14 +66,15 @@ jobs:
           audit_dir="$(mktemp -d)"
           trap 'rm -rf "${audit_dir}"' EXIT
           unzip -q "${hap}" -d "${audit_dir}"
-          rg -a -q -F "org.aira.browser.community" "${audit_dir}"
+          rg -a -q -F "org.aira.browser" "${audit_dir}"
           rg -a -q -F "https://community.invalid" "${audit_dir}"
-          if rg -a -q -F "api.aira.cool" "${audit_dir}" ||
+          if rg -a -q -F "org.aira.browser.community" "${audit_dir}" ||
+             rg -a -q -F "api.aira.cool" "${audit_dir}" ||
              rg -a -q -F "com.aira.browser" "${audit_dir}"; then
-            echo "Community HAP contains an Official identity or endpoint." >&2
+            echo "Community HAP contains an old or Official identity/endpoint." >&2
             exit 1
           fi
-          test "$(jq -r '.app.bundleName' "${audit_dir}/module.json")" = "org.aira.browser.community"
+          test "$(jq -r '.app.bundleName' "${audit_dir}/module.json")" = "org.aira.browser"
           test "$(jq '.module.metadata | length' "${audit_dir}/module.json")" -eq 0
           test ! -e "${audit_dir}/resources/rawfile/agconnect-services.json"
       - uses: actions/upload-artifact@v4

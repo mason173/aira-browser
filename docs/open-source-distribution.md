@@ -33,7 +33,7 @@ injected only while an Official artifact is being built.
 ## Building
 
 The source tree defaults to Community identity. A Community build requires a HarmonyOS signing profile for
-`org.aira.browser.community`:
+`org.aira.browser`:
 
 ```bash
 AIRA_DISTRIBUTION=community SKIP_INSTALL=1 ./scripts/build-aira-browser.sh
