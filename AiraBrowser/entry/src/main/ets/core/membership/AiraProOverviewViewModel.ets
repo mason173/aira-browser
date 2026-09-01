@@ -140,7 +140,7 @@ export class AiraProOverviewViewModel {
 
   private buildCommunityState(): AiraProOverviewViewState {
     return {
-      title: 'Aira Community',
+      title: 'Aira',
       subtitle: '本地浏览能力全部免费，无需会员或登录。',
       benefits: [
         {

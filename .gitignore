@@ -25,7 +25,11 @@ oh_modules/
 .tmp-navigation-capture/
 .tmp-sync-lab/
 .planning/
+.codex/
 .codex-transfer/
+scripts/setup-codex-workflow.sh
+scripts/install-codex-workflow-package.sh
+scripts/generate-aira-stroke-icons.js
 aira/
 !AiraBrowser/entry/src/main/resources/rawfile/fonts/aira/
 !AiraBrowser/entry/src/main/resources/rawfile/fonts/aira/*.ttf
@@ -40,10 +44,18 @@ gemini-code-*.html
 .reference-repos/
 references/legacy-browser/
 references/linysbrowser-next/
+server/
 
 # Build output
 dist/
 build/
+*.hap
+*.apk
+*.aab
+*.ipa
+*.zip
+*.tgz
+*.tar.gz
 *.tsbuildinfo
 server/public/admin/
 .cache/
@@ -69,3 +81,15 @@ aira.p12
 *.p7c
 material/
 private-backend/
+
+# Local release packages and one-off visual review artifacts
+extensions/aira-sync/Aira-Sync-Official-v*/
+extensions/aira-sync/.tmp-local-official-pack/
+resources/icon-sources/aira/vendor/lucide/review-*/
+AiraBrowser/icon-preview-original/
+
+# Local environment files (checked-in examples remain allowed)
+.env
+.env.*
+!.env.example
+!**/.env.example

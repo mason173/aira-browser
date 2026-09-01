@@ -53,3 +53,5 @@ jobs:
         run: npm run build:official
       - name: Audit Official extension identity
         run: test "$(node -p "'key' in require('./build/official/manifest.json')")" = "false"
+      - name: Package Official local-install identity
+        run: npm run pack:local-official

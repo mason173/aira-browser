@@ -55,7 +55,7 @@ For a one-off build with another DevEco-generated profile, set `AIRA_BUILD_PROFI
 The source tree supports two distributions. They use the same commit and differ only in build-time identity and
 capability inputs:
 
-- Community (default source identity): `org.aira.browser` / `Aira Community`
+- Community (default source identity): `org.aira.browser` / `Aira`
 - Official (private production identity): `com.aira.browser` / `Aira`
 
 Select the distribution independently from the debug/release build variant with `AIRA_DISTRIBUTION=community|official`.

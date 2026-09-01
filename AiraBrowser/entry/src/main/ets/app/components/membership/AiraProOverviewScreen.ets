@@ -90,7 +90,7 @@ export struct AiraProOverviewScreen {
   @Builder
   private buildHero() {
     Column({ space: 12 }) {
-      Image(this.state.title === 'Aira Community'
+      Image(this.state.title === 'Aira'
         ? $r('app.media.aira_logo_brand')
         : $r('app.media.app_membership_pro_logo'))
         .width(AIRA_PRO_LOGO_SIZE)
@@ -123,7 +123,7 @@ export struct AiraProOverviewScreen {
   @Builder
   private buildBenefitSection() {
     SettingsSection({
-      title: this.state.title === 'Aira Community' ? '本地能力' : '官方托管云服务',
+      title: this.state.title === 'Aira' ? '本地能力' : '官方托管云服务',
       secondaryTextColor: this.secondaryTextColor
     }) {
       SettingsGroupCard({ surfaceColor: this.surfaceBackground }) {

@@ -53,6 +53,7 @@ export interface CrossDeviceTabPresencePanelAccessDecision {
   title: string;
   message: string;
   openPro: boolean;
+  openSyncSettings?: boolean;
 }
 
 export interface CrossDeviceTabPresenceListResult {

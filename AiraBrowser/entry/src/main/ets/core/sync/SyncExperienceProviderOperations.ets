@@ -6,6 +6,7 @@ import { SYNC_ADDITIONAL_BACKUP_MERGE_REQUIRED } from '../../common/constants/Sy
 import { EntitlementDecision } from '../../common/models/MembershipModels';
 import {
   AiraBookmarkMergeSyncResult,
+  AiraBookmarkSyncFailure,
   AiraSyncProviderKind,
   AiraSyncRemoteKind,
   AiraSyncSettings,
@@ -46,6 +47,7 @@ export interface SyncExperienceProviderOutcome {
   message: string;
   membershipDecision?: EntitlementDecision;
   bookmarkResult?: AiraBookmarkMergeSyncResult;
+  bookmarkFailure?: AiraBookmarkSyncFailure;
 }
 
 export interface SyncExperienceProviderDomains {
@@ -190,6 +192,8 @@ export class SyncExperienceProviderOperations {
     remoteKind: AiraSyncProviderKind,
     domains?: SyncExperienceProviderDomains
   ): Promise<SyncExperienceProviderOutcome> {
+    let bookmarkSyncStarted = false;
+    let bookmarkSyncCompleted = false;
     try {
       const distributionOutcome = this.checkDistributionAccess(remoteKind, '选择同步方式');
       if (distributionOutcome !== undefined) {
@@ -226,6 +230,7 @@ export class SyncExperienceProviderOperations {
         personalizationMessage = result.message;
       }
       if (shouldSyncBookmarks && !defersHuaweiBookmarkUpload) {
+        bookmarkSyncStarted = true;
         bookmarkResult = await this.syncService.syncBookmarksToProvider(
           remoteKind,
           this.resolveBookmarkTargetMergeIntent(settings.remoteKind, remoteKind)
@@ -233,6 +238,7 @@ export class SyncExperienceProviderOperations {
         if (bookmarkResult.blocked || bookmarkResult.conflictCount > 0) {
           return this.outcome('provider-selection-blocked', remoteKind, bookmarkResult.summary, bookmarkResult);
         }
+        bookmarkSyncCompleted = true;
       }
       if (shouldSyncHistory && settings.remoteKind !== remoteKind) {
         const historyResult = await this.automaticRuntime.runHistoryProviderTransitionWithinCurrentOperation(
@@ -272,7 +278,15 @@ export class SyncExperienceProviderOperations {
       messages.push(`当前设备已改用${this.resolveProviderLabel(remoteKind)}。`);
       return this.outcome('provider-selected', remoteKind, messages.join('\n'), bookmarkResult);
     } catch (error) {
-      return this.failure(remoteKind, '选择同步方式', error as Error);
+      const normalizedError = error as Error;
+      return this.failure(
+        remoteKind,
+        '选择同步方式',
+        normalizedError,
+        bookmarkSyncStarted && !bookmarkSyncCompleted
+          ? this.syncService.resolveBookmarkSyncFailure(normalizedError)
+          : undefined
+      );
     }
   }
 
@@ -396,7 +410,13 @@ export class SyncExperienceProviderOperations {
       this.automaticRuntime.scheduleBookmarkPeriodicSync();
       return this.outcome('bookmark-domain-enabled', activeProvider, result.summary, result);
     } catch (error) {
-      return this.failure(activeProvider, enabled ? '开启书签同步' : '暂停书签同步', error as Error);
+      const normalizedError = error as Error;
+      return this.failure(
+        activeProvider,
+        enabled ? '开启书签同步' : '暂停书签同步',
+        normalizedError,
+        this.syncService.resolveBookmarkSyncFailure(normalizedError)
+      );
     }
   }
 
@@ -803,14 +823,16 @@ export class SyncExperienceProviderOperations {
   private failure(
     remoteKind: AiraSyncProviderKind,
     title: string,
-    error: Error
+    error: Error,
+    bookmarkFailure?: AiraBookmarkSyncFailure
   ): SyncExperienceProviderOutcome {
     return {
       type: 'failed',
       remoteKind: remoteKind,
       providerLabel: this.resolveProviderLabel(remoteKind),
       title: title,
-      message: this.stringifyError(error)
+      message: this.stringifyError(error),
+      bookmarkFailure: bookmarkFailure
     };
   }
 

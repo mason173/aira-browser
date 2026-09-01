@@ -21,18 +21,18 @@ identities, legacy resource aliases, groups, representation state, and exact gly
 `icon-map.csv`, `icon-groups.json`, packaged compatibility SVGs, the generated ArkTS catalog, and the packaged TTF are
 derived artifacts rather than peer authorities.
 
-Aira permanently uses the commercially licensed Icons8 iOS 27 Glyph source pack for ordinary Operational Icons. The
-checksum-pinned `vendor/icons8/ios-27-glyph/source-manifest.json` owns each glyph name, original SVG, Icons8 name, and
-stable BMP private-use codepoint. Existing codepoints are immutable. A future glyph is appended with a new unused
-codepoint, added to the semantic Catalog, and regenerated into the same font; glyphs may not be silently renamed,
-reassigned, guessed, or substituted.
+Aira permanently uses the vendored Lucide 1.38.0 source pack for ordinary Operational Icons. The checksum-pinned
+`vendor/lucide/aira-operational-icons/source-manifest.json` owns each glyph name, Lucide slug, source SVG, and stable BMP
+private-use codepoint. Existing codepoints are immutable. A future glyph is appended with a new unused codepoint, added
+to the semantic Catalog, and regenerated into the same font; glyphs may not be silently renamed, reassigned, guessed, or
+substituted.
 
-The current catalog has 120 font-backed semantic icons sharing 86 glyphs and five Form-quarantined SVG icons. Old custom
+The current catalog has 159 font-backed semantic icons sharing 124 glyphs and five Form-quarantined SVG icons. Old custom
 Operational SVG sources and the former Phosphor Regular/Medium/Bold/Fill font family are not retained as fallbacks.
 `legacyResourceFamily` remains compatibility metadata for action catalogs and exports, not a second source of artwork.
 
 While `Resource` callers remain, the catalog owns a compact set of exact legacy-output profiles. Five frozen
-settings/Sync colored-tile identities receive base/dark SVGs generated from their Icons8 source glyphs, one activity
+settings/Sync colored-tile identities receive base/dark SVGs generated from their Lucide source glyphs, one activity
 identity receives a white SVG, and the five Form icons retain base/dark SVG output. The generator fails on extra,
 unclassified, overlapping, or stale packaged SVG paths.
 
@@ -53,12 +53,12 @@ Shortcuts, brand assets, and site icons remain image-rendered. No third-party-ho
 
 ## Considered Options
 
-- Keeping the old custom SVG set beside Icons8 was rejected because it preserves dual authority and unused assets.
-- Keeping Phosphor as a runtime fallback was rejected after the user permanently accepted Icons8.
+- Keeping the old custom SVG set beside Lucide was rejected because it preserves dual authority and unused assets.
+- Keeping Phosphor as a runtime fallback was rejected after the user permanently accepted Lucide.
 - Converting brands, third-party applications, providers, or favicons into font glyphs was rejected because identity and
   dynamic imagery remain image-owned.
 - Editing frozen Sync surfaces merely to remove six `Resource` reads was rejected; generating those compatibility SVGs
-  from the Icons8 source pack preserves the frozen contract without preserving old artwork.
+  from the Lucide source pack preserves the frozen contract without preserving old artwork.
 - Automatic filename-to-glyph matching was rejected because it hides semantic review and codepoint mistakes.
 
 ## Consequences

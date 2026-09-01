@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Generate Aira's Icons8 iOS 27 Glyph font from licensed SVG sources.
+"""Generate Aira's Operational Icon font from Lucide SVG sources.
 
 Run through FontForge's Python runtime:
 
-  fontforge -lang=py -script scripts/generate-aira-icons8-font.py
+  fontforge -lang=py -script scripts/generate-aira-icons-font.py
 
 The source manifest owns stable Aira codepoints. Existing codepoints never move;
 future licensed SVGs are appended with a new unused BMP private-use codepoint.
@@ -22,7 +22,7 @@ import fontforge
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 VENDOR_ROOT = (
-    REPO_ROOT / "resources/icon-sources/aira/vendor/icons8/ios-27-glyph"
+    REPO_ROOT / "resources/icon-sources/aira/vendor/lucide/aira-operational-icons"
 )
 SOURCE_MANIFEST_PATH = VENDOR_ROOT / "source-manifest.json"
 FONT_OUTPUT_PATH = VENDOR_ROOT / "AiraOperationalIcons.ttf"
@@ -140,7 +140,7 @@ def load_glyph_entries():
     source_manifest = json.loads(SOURCE_MANIFEST_PATH.read_text(encoding="utf-8"))
     source_entries = source_manifest.get("glyphs")
     if not isinstance(source_entries, list) or not source_entries:
-        raise RuntimeError("Icons8 source manifest must declare at least one glyph")
+        raise RuntimeError("Lucide source manifest must declare at least one glyph")
     seen_names = set()
     seen_code_points = set()
     entries = []
@@ -148,13 +148,13 @@ def load_glyph_entries():
         name = source.get("glyph")
         code_point = source.get("codePoint")
         if not isinstance(name, str) or not name:
-            raise RuntimeError("Icons8 source manifest contains an invalid glyph name")
+            raise RuntimeError("Lucide source manifest contains an invalid glyph name")
         if name in seen_names:
-            raise RuntimeError(f"Duplicate Icons8 glyph name: {name}")
+            raise RuntimeError(f"Duplicate Lucide glyph name: {name}")
         if not isinstance(code_point, int) or code_point < 0 or code_point > 0xFFFF:
-            raise RuntimeError(f"Icons8 glyph has an invalid BMP codepoint: {name}")
+            raise RuntimeError(f"Lucide glyph has an invalid BMP codepoint: {name}")
         if code_point in seen_code_points:
-            raise RuntimeError(f"Duplicate Icons8 codepoint: {code_point}")
+            raise RuntimeError(f"Duplicate Lucide codepoint: {code_point}")
         seen_names.add(name)
         seen_code_points.add(code_point)
         source_path = VENDOR_ROOT / source["sourceFile"]
@@ -173,7 +173,7 @@ def load_glyph_entries():
 
 def build_font(entries):
     VENDOR_ROOT.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix="aira-icons8-ios27-") as temp_name:
+    with tempfile.TemporaryDirectory(prefix="aira-lucide-operational-icons-") as temp_name:
         temp_root = Path(temp_name)
         temporary_font_path = temp_root / FONT_OUTPUT_PATH.name
         font = fontforge.font()
@@ -187,7 +187,7 @@ def build_font(entries):
         font.weight = "Regular"
         font.os2_weight = 400
         font.version = "1.0"
-        font.copyright = "Icons8 iOS 27 Glyph; commercially licensed by the Aira project owner"
+        font.copyright = "Lucide 1.38.0; ISC licensed"
         font.comment = (
             "Aira Operational Icon subset generated from user-provided licensed SVG sources."
         )

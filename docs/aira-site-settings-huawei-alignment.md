@@ -637,7 +637,7 @@ Aira 当前的问题是运行时收口不够。不要继续在 `BrowserShellPage
 - `main` 分支已提交 P0 与可移植交接文档；换电脑后先 `git pull --ff-only origin main`。
 - 2026-07-03 本轮继续完成 P1 runtime refresh、P1 allow-once 清理收口、P2 site identity 干净切换。
 - 本轮没有加入旧数据迁移、旧格式修复、fallback transform 或兼容保留路径；缺少 `siteKey/displayHost/primaryOrigin` 的旧规则会被读取层丢弃。
-- 已运行 `./scripts/build-aira-browser.sh`，构建通过并安装到连接设备 `5MT0226114030639`。
+- 已运行 `./scripts/build-aira-browser.sh`，构建通过并安装到连接设备。
 - 构建输出：`AiraBrowser/entry/build/default/outputs/default/entry-default-signed.hap`
 
 ### 12.1 已完成
@@ -712,7 +712,7 @@ P2：exact-Origin Saved Site Setting 与 Host Rule 已分层：
 ```text
 继续 Aira-browser 仓库里的 Aira HarmonyOS NEXT 浏览器单站点设置/网站权限管理工作。
 
-先进入已经 clone 好的 Aira-browser 仓库根目录；下面用 <repo> 表示这个仓库根目录。不要依赖旧电脑的 /Users/matpool/... 绝对路径。先执行：
+先进入已经 clone 好的 Aira-browser 仓库根目录；下面用 <repo> 表示这个仓库根目录。不要依赖旧电脑的本地绝对路径。先执行：
 
 git pull --ff-only origin main
 
@@ -725,7 +725,7 @@ git pull --ff-only origin main
 - 已提交进度：6cc81da90 fix: align site settings lifecycle。
 - 已提交交接文档：2c917936a docs: make site settings handoff portable。
 - 这个提交已经完成 P0：新增 SiteClearOnCloseCoordinator，把关闭后清除的显式关闭、启动补偿、tab session 过滤、pending 记录、历史删除、最近关闭删除收口；BrowserShellPage 只剩 host/wiring；SiteDataControlService 有关闭后清除专用 plan，不再用 WebCookieManager.clearAllCookiesSync(false) 冒充单站点 Cookie 删除。
-- 2026-07-03 本轮继续完成 P1 runtime refresh、P1 allow-once 清理收口、P2 site identity 干净切换；已运行 ./scripts/build-aira-browser.sh，构建通过并安装到连接设备 5MT0226114030639。
+- 2026-07-03 本轮继续完成 P1 runtime refresh、P1 allow-once 清理收口、P2 site identity 干净切换；已运行 ./scripts/build-aira-browser.sh，构建通过并安装到连接设备。
 - 不要做旧格式兼容、迁移、修补、fallback transform；缺少 siteKey/displayHost/primaryOrigin 的旧记录应直接丢弃。
 
 继续前先执行：

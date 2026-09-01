@@ -39,7 +39,9 @@ npm run build:community
 The Community output is written to `build/community/`. Load that directory as an unpacked extension in Chrome or Edge
 developer mode. Every Community build uses the public manifest key checked by the build and therefore keeps the stable
 Chromium extension ID `efehgppkhnkjamcpbipclfmmofdildji`. The repository contains no extension signing private key.
-Official builds omit `manifest.key`; a future Chrome or Edge store listing owns its store-assigned ID.
+Official build output is written to `build/official/` and intentionally omits `manifest.key`; store packages use
+store-assigned identities. The separate Official local-install package retains the legacy fixed Chromium ID
+`plnjjlkaaonbccmjpfljbbbbaahfklem`.
 
 An Official build requires every hosted-service route to be supplied as one JSON object:
 
@@ -61,6 +63,17 @@ AIRA_SYNC_OFFICIAL_API_ROUTES='{
 
 Official output is written to `build/official/`. The build fails if any route is absent, non-HTTPS, or contains embedded
 credentials. Do not commit a production environment file.
+
+After building Official, create the local-install package with:
+
+```bash
+npm run pack:local-official
+```
+
+This command stages `build/official/`, adds the legacy public manifest key only to the package copy, verifies the fixed
+ID, and writes `Aira-Sync-Official-v<version>.zip`. The explicit `-Official` name keeps it separate from the
+case-insensitive Community filename on macOS. It never changes source manifests, `build/official/`, or the Community and
+store packages. `npm run pack:release:all` includes this Official local package after the three standard release zips.
 
 ## Personal Server
 

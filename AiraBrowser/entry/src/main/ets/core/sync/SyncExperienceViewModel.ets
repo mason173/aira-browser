@@ -1,5 +1,6 @@
 import {
   AiraSyncProviderKind,
+  AiraBookmarkSyncFailure,
   AiraSyncDomainRuntimeState,
   AiraSyncProviderRuntimeState,
   AiraSyncRemoteKind,
@@ -362,11 +363,13 @@ export class SyncExperienceViewModel {
         activeProvider
       );
       if (bookmarkNeedsAttention && personalizationNeedsAttention) {
-        const message = '书签、主页收藏、小说书架和常用设置暂时没有完成同步，可重试后继续。';
+        const bookmarkMessage = this.resolveBookmarkFailureMessage(input, activeProvider);
+        const message = `${bookmarkMessage} 主页收藏、小说书架或常用设置也暂时没有完成同步。`;
         return systemUpdateGuidance.length > 0 ? `${message}${systemUpdateGuidance}` : message;
       }
       if (bookmarkNeedsAttention) {
-        return '书签暂时没有完成同步，主页收藏、小说书架和常用设置不受影响。';
+        return `${this.resolveBookmarkFailureMessage(input, activeProvider)} ` +
+          '主页收藏、小说书架和常用设置不受影响。';
       }
       if (personalizationNeedsAttention) {
         const message = '主页收藏、小说书架或常用设置暂时没有完成同步，书签不受影响。';
@@ -501,6 +504,29 @@ export class SyncExperienceViewModel {
     }
     const state = this.findRuntimeState(input.settings, activeProvider);
     return state !== undefined && this.isRuntimeUnhealthy(state.bookmark);
+  }
+
+  private resolveBookmarkFailureMessage(
+    input: SyncExperienceViewModelInput,
+    activeProvider: AiraSyncRemoteKind
+  ): string {
+    const state = this.findRuntimeState(input.settings, activeProvider);
+    return this.syncFailurePresentationService.buildBookmarkFailureMessage({
+      remoteKind: activeProvider,
+      operationName: '书签同步',
+      failure: state === undefined ? undefined : this.resolveRuntimeBookmarkFailure(state.bookmark)
+    });
+  }
+
+  private resolveRuntimeBookmarkFailure(state: AiraSyncDomainRuntimeState): AiraBookmarkSyncFailure | undefined {
+    if (state.failureCode.length <= 0 || state.failureStage === '' || state.failureDetail.length <= 0) {
+      return undefined;
+    }
+    return {
+      code: state.failureCode,
+      stage: state.failureStage,
+      safeDetail: state.failureDetail
+    };
   }
 
   private personalizationNeedsAttention(

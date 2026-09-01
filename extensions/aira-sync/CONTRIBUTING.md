@@ -13,8 +13,10 @@ npm test
 npm run build:community
 ```
 
-Official builds require private route inputs as documented in [README.md](README.md). Never commit production routes,
-tokens, browser profiles, Personal Server data, WebDAV credentials, or generated build output.
+Official builds require private route inputs as documented in [README.md](README.md). The Official local-install package
+must be created with `npm run pack:local-official`; that command is the single source of truth for restoring its legacy
+fixed Chromium identity. Never commit production routes, tokens, browser profiles, Personal Server data, WebDAV
+credentials, or generated build output.
 
 ## Pull Requests
 

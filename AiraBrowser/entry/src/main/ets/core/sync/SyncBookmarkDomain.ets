@@ -1,6 +1,7 @@
 import { AIRA_FEATURE_CLOUD_SYNC } from '../../common/constants/MembershipFeatureKeys';
 import {
   AiraBookmarkMergeSyncResult,
+  AiraBookmarkSyncFailure,
   AiraSyncProviderKind,
   AiraSyncRemoteKind,
   AiraSyncSettings,
@@ -19,6 +20,7 @@ export interface SyncBookmarkDomainRunOutcome {
   type: SyncBookmarkDomainRunOutcomeType;
   title: string;
   message: string;
+  failure?: AiraBookmarkSyncFailure;
   result?: AiraBookmarkMergeSyncResult;
 }
 
@@ -60,6 +62,11 @@ export class SyncBookmarkDomain {
           type: 'blocked',
           title: '同步需要处理',
           message: result.summary,
+          failure: {
+            code: 'BKM-CONFLICT-001',
+            stage: 'merge',
+            safeDetail: '检测到需要确认的书签冲突，已保留本机和云端内容。请按页面提示处理。'
+          },
           result: result
         };
       }
@@ -74,10 +81,12 @@ export class SyncBookmarkDomain {
         result: result
       };
     } catch (error) {
+      const failure = this.syncService.resolveBookmarkSyncFailure(error as Error);
       return {
         type: 'failed',
         title: '立即同步失败',
-        message: this.stringifyError(error as Error)
+        message: this.stringifyError(error as Error),
+        failure: failure
       };
     }
   }

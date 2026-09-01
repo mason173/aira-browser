@@ -5,7 +5,7 @@ const path = require('path');
 const CATALOG_SCHEMA_VERSION = 1;
 const CATALOG_AUTHORITY = 'canonical-aira-icon-catalog';
 const IMAGE_MANIFEST_AUTHORITY = 'aira-image-asset-manifest';
-const FONT_SOURCE_MANIFEST_AUTHORITY = 'aira-icons8-ios-27-glyph-source-pack';
+const FONT_SOURCE_MANIFEST_AUTHORITY = 'aira-lucide-operational-source-pack';
 const SEMANTIC_ICON_ID_PATTERN = /^[a-z][A-Za-z0-9]*(\.[a-z][A-Za-z0-9]*)+$/;
 const SOURCE_ID_PATTERN = /^source\.[a-z][A-Za-z0-9]*(\.[a-z][A-Za-z0-9]*)+$/;
 const ALLOWED_REPRESENTATION_KINDS = new Set(['legacy-svg', 'font']);
@@ -172,7 +172,7 @@ function validateOperationalFont(catalogRoot, font) {
     requireString(entry.glyph, `Operational font source glyph ${index}`);
     requireCondition(Number.isInteger(entry.codePoint) && entry.codePoint >= 0 && entry.codePoint <= 0xFFFF,
       `Operational font source ${entry.glyph} has an invalid BMP codepoint.`);
-    requireString(entry.icons8Name, `Operational font Icons8 name ${index}`);
+    requireString(entry.lucideSlug, `Operational font Lucide slug ${index}`);
     requireString(entry.sourceFile, `Operational font source file ${index}`);
     requireString(entry.sourceSha256, `Operational font source checksum ${index}`);
     requireCondition(entry.sourceFile.startsWith('svg/') && !entry.sourceFile.includes('..'),
@@ -369,11 +369,11 @@ function deriveOperationalIconMap(font, fontValidation, sources, icons) {
       const resourceFamilies = sourceIcons.map((icon) => icon.legacyResourceFamily);
       return {
         exportedFile: path.join(sourceManifestDir, entry.sourceFile),
-        originalSource: `Icons8 iOS 27 Glyph / ${entry.icons8Name}`,
+        originalSource: `Lucide 1.38.0 / ${entry.lucideSlug}`,
         primaryResourceFamily: resourceFamilies[0],
         resourceFamilies,
         note: resourceFamilies.length > 1 ? 'one font glyph serves multiple app resource families' :
-          'licensed Icons8 Operational font source'
+          'Lucide Operational font source'
       };
     });
 

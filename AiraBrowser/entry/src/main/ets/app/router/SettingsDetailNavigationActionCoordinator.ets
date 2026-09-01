@@ -3,8 +3,7 @@ import { APP_ICP_FILING_QUERY_URL } from '../../common/constants/AppVersionInfo'
 import {
   AIRA_COMMUNITY_LICENSE_URL,
   AIRA_COMMUNITY_REPOSITORY_URL,
-  AIRA_COMMUNITY_SECURITY_POLICY_URL,
-  AIRA_COMMUNITY_THIRD_PARTY_NOTICES_URL
+  AIRA_COMMUNITY_SECURITY_POLICY_URL
 } from '../../common/constants/AiraCommunityProjectLinks';
 import { BrowserBoundaryRouteState } from '../../common/utils/RouteParamUtils';
 import { SettingsDetailActionResolver } from '../../core/settings/SettingsDetailActionResolver';
@@ -129,8 +128,8 @@ export class SettingsDetailNavigationActionCoordinator {
       this.navigationCoordinator.openBrowserUrlFromGuide(AIRA_COMMUNITY_LICENSE_URL, boundary);
       return true;
     }
-    if (action === 'open_community_third_party_notices') {
-      this.navigationCoordinator.openBrowserUrlFromGuide(AIRA_COMMUNITY_THIRD_PARTY_NOTICES_URL, boundary);
+    if (action === 'open_third_party_notices') {
+      this.navigationCoordinator.openThirdPartyNotices(boundary);
       return true;
     }
     if (action === 'open_community_security_policy') {

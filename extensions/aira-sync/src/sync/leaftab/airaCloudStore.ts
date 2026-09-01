@@ -15,6 +15,7 @@ import type {
 } from './remoteStore';
 import { LeafTabSyncTombstoneLifecycle } from './historyLifecycle';
 import { requireAiratabOfficialApiRoute } from '@/config/AiratabDistribution';
+import { getExtensionManifest } from '@/platform/runtime';
 
 const AIRA_CLOUD_REQUEST_TIMEOUT_MS = 60_000;
 const AIRA_CLOUD_LARGE_REQUEST_TIMEOUT_MS = 600_000;
@@ -67,12 +68,19 @@ export class LeafTabSyncAiraCloudStore implements LeafTabSyncRemoteStore {
   private readonly uid: string;
   private readonly deviceCredential: string;
   private readonly endpoint: string;
+  private readonly clientVersion: string;
   private readonly historyLifecycle = new LeafTabSyncTombstoneLifecycle();
 
-  constructor(uid: string, deviceCredential: string, endpoint = '') {
+  constructor(
+    uid: string,
+    deviceCredential: string,
+    endpoint = '',
+    clientVersion = getExtensionManifest()?.version ?? '',
+  ) {
     this.uid = uid.trim();
     this.deviceCredential = deviceCredential.trim();
     this.endpoint = (endpoint.trim() || requireAiratabOfficialApiRoute('bookmarkSync')).replace(/\/+$/, '');
+    this.clientVersion = clientVersion.trim();
   }
 
   async readHead(): Promise<LeafTabSyncRemoteHead> {
@@ -81,6 +89,7 @@ export class LeafTabSyncAiraCloudStore implements LeafTabSyncRemoteStore {
       uid: this.uid,
       desktopPushToken: this.deviceCredential,
       source: 'airatab',
+      clientVersion: this.clientVersion,
     });
     const commitId = typeof response.commitId === 'string' && response.commitId.trim()
       ? response.commitId.trim()
@@ -102,6 +111,7 @@ export class LeafTabSyncAiraCloudStore implements LeafTabSyncRemoteStore {
       uid: this.uid,
       desktopPushToken: this.deviceCredential,
       source: 'airatab',
+      clientVersion: this.clientVersion,
     }, AIRA_CLOUD_LARGE_REQUEST_TIMEOUT_MS);
     const snapshot = fromCloudSnapshot(response.snapshot);
     const history = response.history === null || response.history === undefined
@@ -132,6 +142,7 @@ export class LeafTabSyncAiraCloudStore implements LeafTabSyncRemoteStore {
       uid: this.uid,
       desktopPushToken: this.deviceCredential,
       source: 'airatab',
+      clientVersion: this.clientVersion,
       deviceId: params.deviceId,
       parentCommitId: params.parentCommitId ?? null,
       createdAt: params.createdAt ?? snapshot.meta.generatedAt,

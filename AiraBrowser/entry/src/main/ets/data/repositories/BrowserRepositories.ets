@@ -40,6 +40,7 @@ import {
   buildBookmarkUrlIdentityKey,
   buildSeedBookmarkNodes,
   buildLocalBookmarkNode,
+  BOOKMARK_OTHER_ROOT_ID,
   collectBookmarkSubtreeIds,
   collectBookmarkSubtreeIdsForRoots,
   createLocalBookmarkId,
@@ -83,6 +84,7 @@ interface BookmarkTreeIndexCaches {
 const BOOKMARK_INDEX_REBUILD_BATCH_SIZE: number = 200;
 const BOOKMARK_CACHE_BULK_PATCH_THRESHOLD: number = 128;
 const BOOKMARK_TREE_PATCH_PARENT_REBUILD_THRESHOLD: number = 32;
+const LEGACY_MOBILE_BOOKMARK_ROOT_ID: string = 'bookmark-root-mobile';
 
 function pauseBookmarkIndexWork(): Promise<void> {
   return new Promise<void>((resolve: () => void) => {
@@ -876,6 +878,7 @@ export class RdbBookmarkRepository implements BookmarkRepository {
         await this.database.upsertBookmarkNode(node);
       }
     }
+    await this.database.deleteBookmarkRootPermanently(LEGACY_MOBILE_BOOKMARK_ROOT_ID, BOOKMARK_OTHER_ROOT_ID);
   }
 
   async createNode(command: BookmarkCreateNodeCommand): Promise<BookmarkNode> {

@@ -10,6 +10,13 @@ stay open. Community operation has no account or membership dependency.
 一份 Aira 官方账号与某个桌面设备之间的长期配对关系，仅用于 Official 发行版的 Aira Cloud。同一账号可以同时拥有多个互不替换的桌面设备会话；会话可以暂时离线，但只有在未配对或凭证被撤销时才需要用户重新操作。
 _Avoid_: 登录状态、桌面登录
 
+## Release Identity
+
+The Official local-install Chrome/Edge package is separate from the Community/open-source package and must retain the
+legacy Chromium extension ID `plnjjlkaaonbccmjpfljbbbbaahfklem`. Run `npm run pack:local-official` to inject its fixed
+public manifest key into a staging copy and produce `Aira-Sync-Official-v<version>.zip`; never add that key to the
+source manifests or store packages. Community remains `Aira-sync-v<version>.zip` with its own fixed identity.
+
 **桌面设备 (Desktop Device)**:
 一个独立的桌面浏览器插件安装实例。它在同一 Aira 账号下拥有稳定身份，以支持多设备并存和后续精确推送。
 _Avoid_: 电脑登录、当前电脑

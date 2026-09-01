@@ -16,21 +16,20 @@ components retain their own licenses and notices.
   `AiraBrowser/entry/src/main/cpp/rust/aira_adblock_core/NOTICE.md`.
 - **Gravity UI 2.20.0 icons** are distributed under MIT. The license is at
   `resources/icon-sources/aira/vendor/gravity-ui/2.20.0/LICENSE`.
+- **Lucide 1.38.0 SVGs and the Aira Operational Icon font** are distributed under ISC. The generated font keeps Aira's
+  existing semantic IDs and code points for runtime compatibility while its source manifest and SVGs are vendored under
+  the Lucide source tree. The license is at
+  `resources/icon-sources/aira/vendor/lucide/review-2026-09/LICENSE`.
 - HarmonyOS and AGConnect packages are declared in `AiraBrowser/oh-package.json5` and remain subject to their publishers'
   terms.
 - Aira-sync JavaScript dependencies and WebDAV provider-branding notes are documented in
   `extensions/aira-sync/THIRD_PARTY_NOTICES.md`.
 - Personal Server runtime dependencies are documented in `services/personal-server/THIRD_PARTY_NOTICES.md`.
 
-## Commercial Icon Assets
+## Icon Compatibility Metadata
 
-The Icons8 iOS 27 Glyph source snapshot and generated Aira Operational Icon font are supplied by the project owner under
-a commercial Icons8 license. They are not licensed under GPL-3.0-only, and access to this repository does not independently
-grant reuse or redistribution rights. Their provenance is documented in
-`resources/icon-sources/aira/vendor/icons8/ios-27-glyph/README.md`.
-
-The repository must remain private until the project owner confirms that the applicable Icons8 license permits the
-intended public source and binary distribution, or replaces/removes those assets. This is a publication gate, not an
-open-source license grant.
+The Aira icon catalog preserves its historical app resource family names, semantic IDs, and code-point mapping so
+existing ArkTS consumers and packaged font loading remain stable. The source SVGs and generated font are the Lucide-based
+set described above and are distributed under the applicable Lucide/Feather notices.
 
 This notice is informational and does not replace any third-party license text.

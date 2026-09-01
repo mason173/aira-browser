@@ -1,6 +1,6 @@
 {
       "name": "aira-sync",
-      "version": "0.2.13",
+      "version": "0.2.14",
       "private": true,
       "dependencies": {
             "@radix-ui/react-dialog": "^1.1.6",
@@ -46,7 +46,8 @@
             "pack:zip:no-icons": "node scripts/package-release-zips.js",
             "pack:zip:optimized": "npm run pack:zip",
             "pack:release": "npm run pack:zip",
-            "pack:release:all": "npm run pack:zip:optimized",
+            "pack:local-official": "node scripts/package-local-official.js",
+            "pack:release:all": "npm run pack:zip:optimized && npm run pack:local-official",
             "release:bump": "node scripts/package-release-zips.js --bump",
             "verify:release": "node scripts/verify-release.js"
       },

@@ -6,6 +6,7 @@ import {
 } from '@/platform/extensionStorage';
 import { ensureExtensionPermission } from '@/utils/extensionPermissions';
 import { LEAFTAB_BOOKMARK_MAPPING_KEY } from '@/features/sync/app/leafTabSyncStorageKeys';
+import type { LeafTabSyncSnapshot } from './schema';
 
 export interface LeafTabBookmarkFolderDraft {
   entityId: string;
@@ -45,6 +46,7 @@ interface LeafTabBookmarkMappingState {
 interface LeafTabBookmarkDraftCacheEntry {
   draft?: LeafTabBookmarkTreeDraft;
   savedAt: number;
+  cacheKey: string;
   pending?: Promise<LeafTabBookmarkTreeDraft>;
 }
 
@@ -78,26 +80,9 @@ const ROOT_ORDER_KEY = '__root__';
 const BOOKMARK_DRAFT_CACHE_TTL_MS = 5 * 60 * 1000;
 let bookmarkDraftCache: LeafTabBookmarkDraftCacheEntry | null = null;
 let bookmarkDraftCacheListenersBound = false;
+let bookmarkDraftCacheApi: BookmarkApi | null = null;
+let bookmarkDraftCaptureTail: Promise<void> = Promise.resolve();
 const SYNC_ROOT_ROLES: LeafTabBookmarkRootRole[] = ['toolbar', 'other'];
-
-const shortHash = (value: string) => {
-  let hash = 2166136261;
-  for (let index = 0; index < value.length; index += 1) {
-    hash ^= value.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
-  }
-  return (hash >>> 0).toString(36);
-};
-
-const slugify = (value: string) => {
-  return (value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 32) || 'bookmark';
-};
 
 const getOrderKey = (parentId: string | null) => parentId || ROOT_ORDER_KEY;
 const getRoleEntityId = (role: LeafTabBookmarkRootRole) => `browser_root_${role}`;
@@ -210,9 +195,14 @@ const invalidateLeafTabBookmarkDraftCache = () => {
 };
 
 const ensureLeafTabBookmarkDraftCacheListeners = () => {
-  if (bookmarkDraftCacheListenersBound) return;
   const api = getBookmarksApi();
   if (!api) return;
+  if (bookmarkDraftCacheApi !== api) {
+    bookmarkDraftCache = null;
+    bookmarkDraftCacheListenersBound = false;
+    bookmarkDraftCacheApi = api;
+  }
+  if (bookmarkDraftCacheListenersBound) return;
 
   const invalidate = () => invalidateLeafTabBookmarkDraftCache();
   api.onCreated?.addListener?.(invalidate);
@@ -224,9 +214,34 @@ const ensureLeafTabBookmarkDraftCacheListeners = () => {
   bookmarkDraftCacheListenersBound = true;
 };
 
-const readCachedLeafTabBookmarkTreeDraft = () => {
+const createBookmarkDraftCacheKey = (options?: {
+  previousSnapshot?: LeafTabSyncSnapshot | null;
+  deviceId?: string;
+}) => {
+  const previousSnapshot = options?.previousSnapshot;
+  const baselineKey = previousSnapshot == null
+    ? 'no-baseline'
+    : `baseline:${JSON.stringify({
+        generatedAt: previousSnapshot.meta?.generatedAt || '',
+        folders: Object.values(previousSnapshot.bookmarkFolders || {})
+          .map((folder) => ({ id: folder.id, parentId: folder.parentId, title: folder.title }))
+          .sort((left, right) => left.id.localeCompare(right.id)),
+        items: Object.values(previousSnapshot.bookmarkItems || {})
+          .map((item) => ({
+            id: item.id,
+            parentId: item.parentId,
+            title: item.title,
+            url: item.url,
+          }))
+          .sort((left, right) => left.id.localeCompare(right.id)),
+      })}`;
+  return `${options?.deviceId || 'unknown-device'}|${baselineKey}`;
+};
+
+const readCachedLeafTabBookmarkTreeDraft = (cacheKey: string) => {
   const entry = bookmarkDraftCache;
   if (!entry?.draft) return null;
+  if (entry.cacheKey !== cacheKey) return null;
   if (Date.now() - entry.savedAt > BOOKMARK_DRAFT_CACHE_TTL_MS) {
     bookmarkDraftCache = null;
     return null;
@@ -234,10 +249,14 @@ const readCachedLeafTabBookmarkTreeDraft = () => {
   return cloneBookmarkTreeDraft(entry.draft);
 };
 
-const writeCachedLeafTabBookmarkTreeDraft = (draft: LeafTabBookmarkTreeDraft) => {
+const writeCachedLeafTabBookmarkTreeDraft = (
+  draft: LeafTabBookmarkTreeDraft,
+  cacheKey: string,
+) => {
   bookmarkDraftCache = {
     draft: cloneBookmarkTreeDraft(draft),
     savedAt: Date.now(),
+    cacheKey,
   };
 };
 
@@ -323,17 +342,147 @@ const writeBookmarkMapping = async (
   } catch {}
 };
 
-const createFolderEntityId = (parentId: string | null, title: string, occurrence: number) => {
-  return `bkf_${slugify(title || 'folder')}_${shortHash(`${parentId || ROOT_ORDER_KEY}|${title}|${occurrence}`)}`;
+const createStableLocalEntityId = (
+  type: 'folder' | 'item',
+  deviceId: string,
+  localNodeId: string,
+) => {
+  // Browser node IDs survive moves but are only unique within one installation.
+  return `${type === 'folder' ? 'bkf' : 'bkm'}_local_` +
+    `${encodeURIComponent(deviceId)}_${encodeURIComponent(localNodeId)}`;
 };
 
-const createItemEntityId = (
+const shortHash = (value: string) => {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
+};
+
+const slugify = (value: string) => {
+  return (value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 32) || 'bookmark';
+};
+
+const createLegacyEntityId = (
+  type: 'folder' | 'item',
   parentId: string | null,
   title: string,
   url: string,
   occurrence: number,
 ) => {
-  return `bkm_${slugify(title || url || 'item')}_${shortHash(`${parentId || ROOT_ORDER_KEY}|${title}|${url}|${occurrence}`)}`;
+  const parentKey = parentId || ROOT_ORDER_KEY;
+  const key = type === 'folder'
+    ? `${parentKey}|${title}|${occurrence}`
+    : `${parentKey}|${title}|${url}|${occurrence}`;
+  const label = type === 'folder' ? title || 'folder' : title || url || 'item';
+  return `${type === 'folder' ? 'bkf' : 'bkm'}_${slugify(label)}_${shortHash(key)}`;
+};
+
+const resolveLegacyEntityId = (params: {
+  type: 'folder' | 'item';
+  parentId: string | null;
+  title: string;
+  url?: string;
+  occurrence: number;
+  previousSnapshot?: LeafTabSyncSnapshot | null;
+  usedEntityIds: Set<string>;
+}) => {
+  // Compatibility-only probe for snapshots produced by the pre-0.2.14 fallback.
+  // New nodes still use the installation-scoped stable ID below.
+  const entityId = createLegacyEntityId(
+    params.type,
+    params.parentId,
+    params.title,
+    params.url || '',
+    params.occurrence,
+  );
+  if (params.usedEntityIds.has(entityId)) return undefined;
+  const entity = params.type === 'folder'
+    ? params.previousSnapshot?.bookmarkFolders?.[entityId]
+    : params.previousSnapshot?.bookmarkItems?.[entityId];
+  if (!entity || entity.title !== params.title || entity.parentId !== params.parentId) {
+    return undefined;
+  }
+  if (params.type === 'item' && (!('url' in entity) || entity.url !== (params.url || ''))) {
+    return undefined;
+  }
+  return entityId;
+};
+
+const resolveUnusedPreviousEntityId = (params: {
+  type: 'folder' | 'item';
+  parentId: string | null;
+  title: string;
+  url?: string;
+  previousSnapshot?: LeafTabSyncSnapshot | null;
+  usedEntityIds: Set<string>;
+}) => {
+  const candidates = params.type === 'folder'
+    ? Object.values(params.previousSnapshot?.bookmarkFolders || {})
+      .filter((folder) => (
+        folder.parentId === params.parentId
+        && folder.title === params.title
+        && !params.usedEntityIds.has(folder.id)
+      ))
+    : Object.values(params.previousSnapshot?.bookmarkItems || {})
+      .filter((item) => (
+        item.parentId === params.parentId
+        && item.title === params.title
+        && item.url === (params.url || '')
+        && !params.usedEntityIds.has(item.id)
+      ));
+  return candidates.length === 1 ? candidates[0].id : undefined;
+};
+
+const resolveUniquePreviousEntityId = (params: {
+  type: 'folder' | 'item';
+  title: string;
+  url?: string;
+  previousSnapshot?: LeafTabSyncSnapshot | null;
+  usedEntityIds: Set<string>;
+}) => {
+  const candidates = params.type === 'folder'
+    ? Object.values(params.previousSnapshot?.bookmarkFolders || {})
+      .filter((folder) => folder.title === params.title)
+      .map((folder) => folder.id)
+    : Object.values(params.previousSnapshot?.bookmarkItems || {})
+      .filter((item) => item.title === params.title && item.url === (params.url || ''))
+      .map((item) => item.id);
+  if (candidates.length !== 1 || params.usedEntityIds.has(candidates[0])) {
+    return undefined;
+  }
+  return candidates[0];
+};
+
+const resolveMappedEntityId = (params: {
+  type: 'folder' | 'item';
+  mapping: LeafTabBookmarkMappingState;
+  localNodeId: string;
+  usedEntityIds: Set<string>;
+  previousSnapshot?: LeafTabSyncSnapshot | null;
+}) => {
+  const mappedEntityId = params.mapping.nodeIdToEntityId[params.localNodeId];
+  const isStableLocalId = params.type === 'folder'
+    ? mappedEntityId?.startsWith('bkf_local_')
+    : mappedEntityId?.startsWith('bkm_local_');
+  const existsInBaseline = params.type === 'folder'
+    ? Boolean(params.previousSnapshot?.bookmarkFolders?.[mappedEntityId || ''])
+    : Boolean(params.previousSnapshot?.bookmarkItems?.[mappedEntityId || '']);
+  // A local fallback ID produced before the remote baseline was available is
+  // provisional until it is present in that baseline. Let migration recover
+  // the pre-0.2.14 ID instead of allowing the provisional ID to duplicate it.
+  if (isStableLocalId && params.previousSnapshot && !existsInBaseline) return undefined;
+  return mappedEntityId && !params.usedEntityIds.has(mappedEntityId)
+    ? mappedEntityId
+    : undefined;
 };
 
 const resolveSyncRoleRoots = async () => {
@@ -368,6 +517,9 @@ const walkBookmarkChildren = (
   parentEntityId: string | null,
   mapping: LeafTabBookmarkMappingState,
   draft: LeafTabBookmarkTreeDraft,
+  previousSnapshot: LeafTabSyncSnapshot | null | undefined,
+  usedEntityIds: Set<string>,
+  deviceId: string,
 ) => {
   const folderCounts = new Map<string, number>();
   const itemCounts = new Map<string, number>();
@@ -378,9 +530,40 @@ const walkBookmarkChildren = (
       const key = `${child.title || ''}|${child.url || ''}`;
       const occurrence = (itemCounts.get(key) || 0) + 1;
       itemCounts.set(key, occurrence);
-      const entityId =
-        mapping.nodeIdToEntityId[child.id] ||
-        createItemEntityId(parentEntityId, child.title || '', child.url || '', occurrence);
+      const mappedEntityId = resolveMappedEntityId({
+        type: 'item',
+        mapping,
+        localNodeId: child.id,
+        usedEntityIds,
+        previousSnapshot,
+      });
+      const entityId = mappedEntityId
+        || resolveLegacyEntityId({
+          type: 'item',
+          parentId: parentEntityId,
+          title: child.title || '',
+          url: child.url || '',
+          occurrence,
+          previousSnapshot,
+          usedEntityIds,
+        })
+        || resolveUnusedPreviousEntityId({
+          type: 'item',
+          parentId: parentEntityId,
+          title: child.title || '',
+          url: child.url || '',
+          previousSnapshot,
+          usedEntityIds,
+        })
+        || resolveUniquePreviousEntityId({
+          type: 'item',
+          title: child.title || '',
+          url: child.url || '',
+          previousSnapshot,
+          usedEntityIds,
+        })
+        || createStableLocalEntityId('item', deviceId, child.id);
+      usedEntityIds.add(entityId);
       draft.items.push({
         entityId,
         localNodeId: child.id,
@@ -396,9 +579,37 @@ const walkBookmarkChildren = (
     const key = child.title || '';
     const occurrence = (folderCounts.get(key) || 0) + 1;
     folderCounts.set(key, occurrence);
-    const entityId =
-      mapping.nodeIdToEntityId[child.id] ||
-      createFolderEntityId(parentEntityId, child.title || '', occurrence);
+    const mappedEntityId = resolveMappedEntityId({
+      type: 'folder',
+      mapping,
+      localNodeId: child.id,
+      usedEntityIds,
+      previousSnapshot,
+    });
+    const entityId = mappedEntityId
+      || resolveLegacyEntityId({
+        type: 'folder',
+        parentId: parentEntityId,
+        title: child.title || '',
+        occurrence,
+        previousSnapshot,
+        usedEntityIds,
+      })
+      || resolveUnusedPreviousEntityId({
+        type: 'folder',
+        parentId: parentEntityId,
+        title: child.title || '',
+        previousSnapshot,
+        usedEntityIds,
+      })
+      || resolveUniquePreviousEntityId({
+        type: 'folder',
+        title: child.title || '',
+        previousSnapshot,
+        usedEntityIds,
+      })
+      || createStableLocalEntityId('folder', deviceId, child.id);
+    usedEntityIds.add(entityId);
 
     draft.folders.push({
       entityId,
@@ -408,7 +619,7 @@ const walkBookmarkChildren = (
     });
     draft.nodeIdToEntityId[child.id] = entityId;
     orderedIds.push(entityId);
-    walkBookmarkChildren(child, entityId, mapping, draft);
+    walkBookmarkChildren(child, entityId, mapping, draft, previousSnapshot, usedEntityIds, deviceId);
   }
 
   draft.orderIdsByParent[getOrderKey(parentEntityId)] = orderedIds;
@@ -417,8 +628,11 @@ const walkBookmarkChildren = (
 export const captureLeafTabBookmarkTreeDraft = async (options?: {
   requestPermission?: boolean;
   throwOnPermissionDenied?: boolean;
+  previousSnapshot?: LeafTabSyncSnapshot | null;
+  deviceId: string;
 }): Promise<LeafTabBookmarkTreeDraft> => {
   ensureLeafTabBookmarkDraftCacheListeners();
+  const cacheKey = createBookmarkDraftCacheKey(options);
   const granted = await ensureExtensionPermission('bookmarks', {
     requestIfNeeded: options?.requestPermission === true,
   });
@@ -430,69 +644,96 @@ export const captureLeafTabBookmarkTreeDraft = async (options?: {
     return createEmptyBookmarkTreeDraft();
   }
 
-  const cached = readCachedLeafTabBookmarkTreeDraft();
-  if (cached) {
-    return cached;
-  }
+  const previousCapture = bookmarkDraftCaptureTail;
+  let releaseCapture: (() => void) | undefined;
+  bookmarkDraftCaptureTail = new Promise<void>((resolve) => {
+    releaseCapture = resolve;
+  });
 
-  const pending = bookmarkDraftCache?.pending;
-  if (pending) {
-    return cloneBookmarkTreeDraft(await pending);
-  }
-
-  const nextPending = (async () => {
-    const roleRoots = await resolveSyncRoleRoots();
-
-    const draft: LeafTabBookmarkTreeDraft = {
-      folders: [],
-      items: [],
-      orderIdsByParent: {},
-      nodeIdToEntityId: {},
-    };
-    const mapping = await readBookmarkMapping();
-    const rootIds: string[] = [];
-
-    for (const role of SYNC_ROOT_ROLES) {
-      const roleRoot = roleRoots.get(role);
-      if (!roleRoot) continue;
-      const entityId = getRoleEntityId(role);
-      draft.folders.push({
-        entityId,
-        localNodeId: roleRoot.id,
-        parentId: null,
-        title: getScopeRoleLabel(role),
-      });
-      draft.nodeIdToEntityId[roleRoot.id] = entityId;
-      rootIds.push(entityId);
-      walkBookmarkChildren(roleRoot, entityId, mapping, draft);
+  await previousCapture;
+  try {
+    const cached = readCachedLeafTabBookmarkTreeDraft(cacheKey);
+    if (cached) {
+      return cached;
     }
 
-    draft.orderIdsByParent[ROOT_ORDER_KEY] = rootIds;
-    await writeBookmarkMapping(draft.nodeIdToEntityId);
-    writeCachedLeafTabBookmarkTreeDraft(draft);
-    return draft;
-  })();
+    const pending = bookmarkDraftCache?.cacheKey === cacheKey
+      ? bookmarkDraftCache.pending
+      : undefined;
+    if (pending) {
+      return cloneBookmarkTreeDraft(await pending);
+    }
 
-  bookmarkDraftCache = {
-    ...bookmarkDraftCache,
-    savedAt: 0,
-    pending: nextPending,
-  };
+    const nextPending = (async () => {
+      const roleRoots = await resolveSyncRoleRoots();
 
-  try {
-    return cloneBookmarkTreeDraft(await nextPending);
-  } finally {
-    const current = bookmarkDraftCache;
-    if (current?.pending === nextPending) {
-      if (current.draft) {
-        bookmarkDraftCache = {
-          draft: current.draft,
-          savedAt: current.savedAt,
-        };
-      } else {
-        bookmarkDraftCache = null;
+      const draft: LeafTabBookmarkTreeDraft = {
+        folders: [],
+        items: [],
+        orderIdsByParent: {},
+        nodeIdToEntityId: {},
+      };
+      const mapping = await readBookmarkMapping();
+      // Mapping entries for nodes no longer in the browser tree are historical data,
+      // not reservations. Only IDs assigned during this capture may block a match.
+      const usedEntityIds = new Set<string>();
+      const rootIds: string[] = [];
+
+      for (const role of SYNC_ROOT_ROLES) {
+        const roleRoot = roleRoots.get(role);
+        if (!roleRoot) continue;
+        const entityId = getRoleEntityId(role);
+        draft.folders.push({
+          entityId,
+          localNodeId: roleRoot.id,
+          parentId: null,
+          title: getScopeRoleLabel(role),
+        });
+        draft.nodeIdToEntityId[roleRoot.id] = entityId;
+        rootIds.push(entityId);
+        usedEntityIds.add(entityId);
+        walkBookmarkChildren(
+          roleRoot,
+          entityId,
+          mapping,
+          draft,
+          options?.previousSnapshot,
+          usedEntityIds,
+          options?.deviceId || 'unknown-device',
+        );
+      }
+
+      draft.orderIdsByParent[ROOT_ORDER_KEY] = rootIds;
+      await writeBookmarkMapping(draft.nodeIdToEntityId);
+      writeCachedLeafTabBookmarkTreeDraft(draft, cacheKey);
+      return draft;
+    })();
+
+    bookmarkDraftCache = {
+      ...bookmarkDraftCache,
+      savedAt: 0,
+      cacheKey,
+      pending: nextPending,
+    };
+
+    try {
+      return cloneBookmarkTreeDraft(await nextPending);
+    } finally {
+      const current = bookmarkDraftCache;
+      if (current?.pending === nextPending) {
+        if (current.draft) {
+          bookmarkDraftCache = {
+            draft: current.draft,
+            savedAt: current.savedAt,
+            cacheKey: current.cacheKey,
+          };
+        } else {
+          bookmarkDraftCache = null;
+        }
       }
     }
+  } finally {
+    releaseCapture?.();
   }
 };
 
@@ -680,6 +921,7 @@ export const replaceLeafTabBookmarkTree = async (params: {
   orderIdsByParent: Record<string, string[]>;
   tombstoneIds?: string[];
   requestPermission?: boolean;
+  deviceId: string;
 }) => {
   invalidateLeafTabBookmarkDraftCache();
   const granted = await ensureExtensionPermission('bookmarks', {
@@ -694,6 +936,7 @@ export const replaceLeafTabBookmarkTree = async (params: {
   const currentDraft = await captureLeafTabBookmarkTreeDraft({
     requestPermission: false,
     throwOnPermissionDenied: true,
+    deviceId: params.deviceId,
   });
   const entityNodeLookup = buildEntityNodeLookup(currentDraft);
   const nodeIdToEntityId: Record<string, string> = { ...currentDraft.nodeIdToEntityId };

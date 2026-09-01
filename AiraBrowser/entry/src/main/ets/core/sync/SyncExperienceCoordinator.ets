@@ -7,6 +7,7 @@ import {
   AiraAdditionalBackupIntervalDays,
   AiraBookmarkConflictResolution,
   AiraBookmarkMergeSyncResult,
+  AiraBookmarkSyncFailure,
   AiraSyncDomainRuntimeState,
   AiraSyncProviderKind,
   AiraSyncRemoteKind,
@@ -96,6 +97,7 @@ export interface SyncExperienceActionOutcome {
   membershipDecision?: EntitlementDecision;
   enableDefaultContent?: boolean;
   requiresBookmarkResolution?: boolean;
+  bookmarkFailure?: AiraBookmarkSyncFailure;
   personalizationConfig?: PersonalizationSyncConfig;
 }
 
@@ -153,6 +155,7 @@ interface SyncExperienceDomainIssue {
   domain: 'bookmark' | 'personalization' | 'history';
   type: 'blocked' | 'failed';
   message?: string;
+  failure?: AiraBookmarkSyncFailure;
 }
 
 interface SyncExperienceContext {
@@ -646,7 +649,11 @@ export class SyncExperienceCoordinator {
       throw new Error('书签同步尚未开启。');
     }
     if (bookmarkOutcome.result === undefined) {
-      throw new Error(bookmarkOutcome.message);
+      throw new Error(this.syncFailurePresentationService.buildBookmarkFailureMessage({
+        remoteKind: remoteKind,
+        operationName: '书签同步',
+        failure: bookmarkOutcome.failure
+      }));
     }
     return this.advancedOperations.presentActiveBookmarkMerge(remoteKind, bookmarkOutcome.result);
   }
@@ -704,11 +711,16 @@ export class SyncExperienceCoordinator {
         };
       }
       return this.mapProviderSelectionFailure(outcome);
-    } catch (_error) {
+    } catch (error) {
+      const activeProvider = this.syncService.getAiraSyncSettings().remoteKind;
       return {
         type: 'failed',
         title: selected ? '书签同步未开启' : '书签同步未关闭',
-        message: '书签同步暂时没有更改，本机和云端已有数据都已保留。请稍后再试。'
+        message: this.syncFailurePresentationService.buildBookmarkFailureMessage({
+          remoteKind: activeProvider,
+          operationName: selected ? '开启书签同步' : '暂停书签同步',
+          failure: this.syncService.resolveBookmarkSyncFailure(error as Error)
+        })
       };
     }
   }
@@ -1011,7 +1023,12 @@ export class SyncExperienceCoordinator {
       if (context.settings.bookmarkSyncEnabled === true && runResult.bookmark !== undefined) {
         const bookmarkOutcome = runResult.bookmark;
         if (bookmarkOutcome.type === 'failed' || bookmarkOutcome.type === 'blocked') {
-          issues.push({ domain: 'bookmark', type: bookmarkOutcome.type });
+          issues.push({
+            domain: 'bookmark',
+            type: bookmarkOutcome.type,
+            message: bookmarkOutcome.message,
+            failure: bookmarkOutcome.failure
+          });
         } else {
           messages.push(isBackup ? '书签已备份。' : '书签已完成。');
         }
@@ -1086,7 +1103,11 @@ export class SyncExperienceCoordinator {
     activeProvider: AiraSyncRemoteKind
   ): string {
     if (issue.domain === 'bookmark') {
-      return isBackup ? '书签备份未完成。' : '书签暂时没有完成同步。';
+      return this.syncFailurePresentationService.buildBookmarkFailureMessage({
+        remoteKind: activeProvider,
+        operationName: isBackup ? '书签备份' : '书签同步',
+        failure: issue.failure
+      });
     }
     if (issue.domain === 'history') {
       return issue.message !== undefined && issue.message.length > 0
@@ -1169,7 +1190,17 @@ export class SyncExperienceCoordinator {
         remoteKind: remoteKind
       };
     } catch (error) {
-      return this.failure('书签冲突处理失败', error as Error, remoteKind);
+      const bookmarkFailure = this.syncService.resolveBookmarkSyncFailure(error as Error);
+      return this.failure(
+        '书签冲突处理失败',
+        new Error(this.syncFailurePresentationService.buildBookmarkFailureMessage({
+          remoteKind: remoteKind,
+          operationName: '处理书签冲突',
+          failure: bookmarkFailure
+        })),
+        remoteKind,
+        bookmarkFailure
+      );
     }
   }
 
@@ -1197,7 +1228,7 @@ export class SyncExperienceCoordinator {
         } else if (bookmarkOutcome.type === 'bookmark-domain-blocked') {
           bookmarkBlockedOutcome = bookmarkOutcome;
         } else {
-          failures.push(`书签：${bookmarkOutcome.message}`);
+          failures.push(this.buildProviderBookmarkFailureMessage(bookmarkOutcome, '开启书签同步'));
         }
       }
       if (selection.personalizationSelected) {
@@ -1524,12 +1555,16 @@ export class SyncExperienceCoordinator {
         try {
           const outcome = await this.providerOperations.setBookmarkDomainEnabled(true);
           if (outcome.type !== 'bookmark-domain-enabled') {
-            failures.push(`书签恢复失败：${outcome.message}`);
+            failures.push(this.buildProviderBookmarkFailureMessage(outcome, '恢复书签同步'));
           } else {
             resumedDomainCount += 1;
           }
         } catch (error) {
-          failures.push(`书签恢复失败：${this.normalizeError(error as Error).message}`);
+          failures.push(this.syncFailurePresentationService.buildBookmarkFailureMessage({
+            remoteKind: current.remoteKind,
+            operationName: '恢复书签同步',
+            failure: this.syncService.resolveBookmarkSyncFailure(error as Error)
+          }));
         }
       }
     }
@@ -1610,6 +1645,14 @@ export class SyncExperienceCoordinator {
       };
     }
     if (outcome.type === 'failed') {
+      if (outcome.bookmarkFailure !== undefined) {
+        return {
+          type: 'failed',
+          title: outcome.title,
+          message: this.buildProviderBookmarkFailureMessage(outcome, '书签同步'),
+          remoteKind: outcome.remoteKind
+        };
+      }
       return this.failure(outcome.title, new Error(outcome.message), outcome.remoteKind);
     }
     return undefined;
@@ -1641,7 +1684,29 @@ export class SyncExperienceCoordinator {
         requiresBookmarkResolution: this.requiresBookmarkResolution(outcome)
       };
     }
+    if (outcome.bookmarkFailure !== undefined) {
+      return {
+        type: 'failed',
+        title: outcome.title,
+        message: this.buildProviderBookmarkFailureMessage(outcome, '书签同步'),
+        remoteKind: outcome.remoteKind
+      };
+    }
     return this.failure(outcome.title, new Error(outcome.message), outcome.remoteKind);
+  }
+
+  private buildProviderBookmarkFailureMessage(
+    outcome: SyncExperienceProviderOutcome,
+    operationName: string
+  ): string {
+    if (outcome.bookmarkFailure === undefined) {
+      return outcome.message;
+    }
+    return this.syncFailurePresentationService.buildBookmarkFailureMessage({
+      remoteKind: outcome.remoteKind,
+      operationName: operationName,
+      failure: outcome.bookmarkFailure
+    });
   }
 
   private hasEnabledPersonalizationContent(
@@ -1808,7 +1873,12 @@ export class SyncExperienceCoordinator {
       if (settings.bookmarkSyncEnabled === true && this.isAdditionalBackupDomainUnhealthy(
         resolveAiraSyncDomainRuntimeState(settings, remoteKind, 'bookmark_backup')
       )) {
-        messages.push(`${providerLabel}的书签备份未完成。`);
+        const runtime = resolveAiraSyncDomainRuntimeState(settings, remoteKind, 'bookmark_backup');
+        messages.push(this.syncFailurePresentationService.buildBookmarkFailureMessage({
+          remoteKind: remoteKind,
+          operationName: '书签备份',
+          failure: this.resolveRuntimeBookmarkFailure(runtime)
+        }));
       }
       if (settings.personalizationSyncEnabled === true && this.isAdditionalBackupDomainUnhealthy(
         resolveAiraSyncDomainRuntimeState(settings, remoteKind, 'personalization_backup')
@@ -1821,6 +1891,17 @@ export class SyncExperienceCoordinator {
 
   private isAdditionalBackupDomainUnhealthy(state: AiraSyncDomainRuntimeState): boolean {
     return state.health === 'degraded' || state.health === 'unavailable';
+  }
+
+  private resolveRuntimeBookmarkFailure(state: AiraSyncDomainRuntimeState): AiraBookmarkSyncFailure | undefined {
+    if (state.failureCode.length <= 0 || state.failureStage === '' || state.failureDetail.length <= 0) {
+      return undefined;
+    }
+    return {
+      code: state.failureCode,
+      stage: state.failureStage,
+      safeDetail: state.failureDetail
+    };
   }
 
   private additionalBackupFailure(title: string, error: Error): SyncAdditionalBackupActionOutcome {
@@ -1836,13 +1917,15 @@ export class SyncExperienceCoordinator {
   private failure(
     title: string,
     error: Error,
-    remoteKind?: AiraSyncProviderKind
+    remoteKind?: AiraSyncProviderKind,
+    bookmarkFailure?: AiraBookmarkSyncFailure
   ): SyncExperienceActionOutcome {
     return {
       type: 'failed',
       title: title,
       message: error.message.length > 0 ? error.message : JSON.stringify(error),
-      remoteKind: remoteKind
+      remoteKind: remoteKind,
+      bookmarkFailure: bookmarkFailure
     };
   }
 

@@ -54,6 +54,11 @@ import {
 } from '@/platform/extensionStorage';
 import { LeafTabSyncAiraCloudError } from '@/sync/leaftab/airaCloudStore';
 import {
+  clearAiraCloudClientUpdateBlock,
+  persistAiraCloudClientUpdateBlock,
+  readAiraCloudClientUpdateBlock,
+} from './airaCloudClientUpdateBlock';
+import {
   clearPendingLeafTabLocalBookmarkChangesInExtensionStorage,
   markLeafTabLocalBookmarkChangedInExtensionStorage,
   readPendingLeafTabLocalBookmarkChangedAtFromExtensionStorage,
@@ -82,6 +87,7 @@ type BackgroundSyncConfig = {
   cloudUid: string;
   cloudDeviceCredential: string;
   cloudSyncEnabled: boolean;
+  cloudClientUpdateBlocked: boolean;
   webdavSyncEnabled: boolean;
   personalServerConnection: PersonalServerConnection | null;
   selectedSource: LeafTabSyncRemoteKind | null;
@@ -179,9 +185,10 @@ export function createBookmarkBackgroundSyncRuntime(
     const cloudUid = loginProfile?.uid?.trim() || '';
     const cloudDeviceCredential = loginProfile?.deviceCredential?.trim() || '';
     const cloudSyncEnabled = await readAiraCloudSyncEnabledFromExtensionStorage(cloudUid);
-    const [sharedRecord, pendingConflict] = await Promise.all([
+    const [sharedRecord, pendingConflict, cloudClientUpdateBlock] = await Promise.all([
       readExtensionStorageRecord([LEAFTAB_SELECTED_SYNC_SOURCE_KEY]),
       readPendingBookmarkConflictWithinExecutionLock(),
+      readAiraCloudClientUpdateBlock(),
     ]);
     const selectedSource = parseLeafTabSyncRemoteKind(
       sharedRecord[LEAFTAB_SELECTED_SYNC_SOURCE_KEY],
@@ -216,6 +223,7 @@ export function createBookmarkBackgroundSyncRuntime(
       cloudUid,
       cloudDeviceCredential,
       cloudSyncEnabled,
+      cloudClientUpdateBlocked: cloudClientUpdateBlock.blocked,
       webdavSyncEnabled: webdavState.syncEnabled,
       personalServerConnection,
       selectedSource,
@@ -241,6 +249,9 @@ export function createBookmarkBackgroundSyncRuntime(
 
   function canRunBackgroundAutoSync(config: BackgroundSyncConfig): boolean {
     if (config.hasPendingConflict) {
+      return false;
+    }
+    if (config.selectedSource === 'aira-cloud' && config.cloudClientUpdateBlocked) {
       return false;
     }
     return canRunLeafTabSelectedAutoSync({
@@ -326,6 +337,7 @@ export function createBookmarkBackgroundSyncRuntime(
         AIRA_CLOUD_LAST_ERROR_AT_KEY,
         AIRA_CLOUD_LAST_ERROR_MESSAGE_KEY,
       ]);
+      await clearAiraCloudClientUpdateBlock();
       return;
     }
     if (remoteKind === 'personal-server') {
@@ -384,6 +396,7 @@ export function createBookmarkBackgroundSyncRuntime(
         'invalid_desktop_push_token',
         'desktop_session_expired',
         'pro_required',
+        'client_update_required',
       ].includes(error.code);
     }
     if (error instanceof PersonalServerRemoteError) {
@@ -454,6 +467,11 @@ export function createBookmarkBackgroundSyncRuntime(
         return true;
       } catch (error) {
         await markSyncError(remoteKind, error);
+        if (remoteKind === 'aira-cloud' && error instanceof LeafTabSyncAiraCloudError &&
+          error.code === 'client_update_required') {
+          await persistAiraCloudClientUpdateBlock(error.message);
+          await clearBackgroundAlarms();
+        }
         if (error instanceof LeafTabSyncAiraCloudError && isAiraDesktopCredentialRejection(error)) {
           await recordAiraDesktopConnectionFailureWithinExecutionLock(error, {
             uid: config.cloudUid,
@@ -703,6 +721,7 @@ export function createBookmarkBackgroundSyncRuntime(
       const relevantKeys = [
         LEAFTAB_SELECTED_SYNC_SOURCE_KEY,
         LEAFTAB_PENDING_BOOKMARK_CONFLICT_KEY,
+        LEAFTAB_BACKGROUND_STORAGE_KEYS.airaCloudClientUpdateRequired,
         WEBDAV_STORAGE_KEYS.syncEnabled,
         WEBDAV_STORAGE_KEYS.url,
         WEBDAV_STORAGE_KEYS.username,

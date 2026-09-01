@@ -38,6 +38,7 @@
     "app/pages/SettingsCenterPage",
     "app/pages/SettingsDetailPage",
     "app/pages/SettingsChangelogPage",
+    "app/pages/SettingsThirdPartyNoticesPage",
     "app/pages/SettingsLegalWebDocumentPage",
     "app/pages/SettingsPrivacyStatementPage",
     "app/pages/SettingsAutoRenewalNoticePage",

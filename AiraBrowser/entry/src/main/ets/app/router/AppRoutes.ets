@@ -38,6 +38,7 @@ export const AIRA_PRO_ROUTE: string = 'app/pages/AiraProPage';
 export const SETTINGS_CENTER_ROUTE: string = 'app/pages/SettingsCenterPage';
 export const SETTINGS_DETAIL_ROUTE: string = 'app/pages/SettingsDetailPage';
 export const SETTINGS_CHANGELOG_ROUTE: string = 'app/pages/SettingsChangelogPage';
+export const SETTINGS_THIRD_PARTY_NOTICES_ROUTE: string = 'app/pages/SettingsThirdPartyNoticesPage';
 export const SETTINGS_LEGAL_WEB_DOCUMENT_ROUTE: string = 'app/pages/SettingsLegalWebDocumentPage';
 export const SETTINGS_PRIVACY_STATEMENT_ROUTE: string = 'app/pages/SettingsPrivacyStatementPage';
 export const SETTINGS_AUTO_RENEWAL_NOTICE_ROUTE: string = 'app/pages/SettingsAutoRenewalNoticePage';

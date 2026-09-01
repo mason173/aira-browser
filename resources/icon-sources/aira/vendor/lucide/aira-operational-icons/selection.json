@@ -1,0 +1,758 @@
+{
+  "IcoMoonType": "selection",
+  "icons": [
+    {
+      "properties": {
+        "name": "active-download",
+        "code": 60948
+      }
+    },
+    {
+      "properties": {
+        "name": "activity-heatmap",
+        "code": 57344
+      }
+    },
+    {
+      "properties": {
+        "name": "ad-blocker",
+        "code": 57347
+      }
+    },
+    {
+      "properties": {
+        "name": "app-window",
+        "code": 58842
+      }
+    },
+    {
+      "properties": {
+        "name": "arrow-counter-clockwise",
+        "code": 57400
+      }
+    },
+    {
+      "properties": {
+        "name": "arrow-left",
+        "code": 57432
+      }
+    },
+    {
+      "properties": {
+        "name": "arrow-right",
+        "code": 60953
+      }
+    },
+    {
+      "properties": {
+        "name": "arrow-square-out",
+        "code": 58846
+      }
+    },
+    {
+      "properties": {
+        "name": "arrow-up-left",
+        "code": 57488
+      }
+    },
+    {
+      "properties": {
+        "name": "arrows-clockwise",
+        "code": 57492
+      }
+    },
+    {
+      "properties": {
+        "name": "arrows-out-line-horizontal",
+        "code": 58676
+      }
+    },
+    {
+      "properties": {
+        "name": "article",
+        "code": 57512
+      }
+    },
+    {
+      "properties": {
+        "name": "book-open-text",
+        "code": 59634
+      }
+    },
+    {
+      "properties": {
+        "name": "bookmark-edit-drag-handle",
+        "code": 60950
+      }
+    },
+    {
+      "properties": {
+        "name": "bookmark-edit-move",
+        "code": 60951
+      }
+    },
+    {
+      "properties": {
+        "name": "bookmark-edit-select-all",
+        "code": 60952
+      }
+    },
+    {
+      "properties": {
+        "name": "bookmark-simple",
+        "code": 57578
+      }
+    },
+    {
+      "properties": {
+        "name": "bookmarks",
+        "code": 57580
+      }
+    },
+    {
+      "properties": {
+        "name": "bookshelf",
+        "code": 60947
+      }
+    },
+    {
+      "properties": {
+        "name": "browser",
+        "code": 57588
+      }
+    },
+    {
+      "properties": {
+        "name": "browser-address-expanded-copy",
+        "code": 60918
+      }
+    },
+    {
+      "properties": {
+        "name": "browser-address-expanded-edit",
+        "code": 60917
+      }
+    },
+    {
+      "properties": {
+        "name": "browser-address-expanded-share",
+        "code": 60916
+      }
+    },
+    {
+      "properties": {
+        "name": "camera",
+        "code": 57614
+      }
+    },
+    {
+      "properties": {
+        "name": "circles-three",
+        "code": 57746
+      }
+    },
+    {
+      "properties": {
+        "name": "clipboard",
+        "code": 57750
+      }
+    },
+    {
+      "properties": {
+        "name": "clock",
+        "code": 57754
+      }
+    },
+    {
+      "properties": {
+        "name": "clock-counter-clockwise",
+        "code": 57760
+      }
+    },
+    {
+      "properties": {
+        "name": "cloud",
+        "code": 57770
+      }
+    },
+    {
+      "properties": {
+        "name": "code",
+        "code": 57788
+      }
+    },
+    {
+      "properties": {
+        "name": "copy",
+        "code": 57346
+      }
+    },
+    {
+      "properties": {
+        "name": "corners-out",
+        "code": 57808
+      }
+    },
+    {
+      "properties": {
+        "name": "crown",
+        "code": 58900
+      }
+    },
+    {
+      "properties": {
+        "name": "cursor-text",
+        "code": 59352
+      }
+    },
+    {
+      "properties": {
+        "name": "desktop",
+        "code": 58720
+      }
+    },
+    {
+      "properties": {
+        "name": "device-mobile",
+        "code": 57824
+      }
+    },
+    {
+      "properties": {
+        "name": "device-rotate",
+        "code": 60914
+      }
+    },
+    {
+      "properties": {
+        "name": "dots-three",
+        "code": 57854
+      }
+    },
+    {
+      "properties": {
+        "name": "download-simple",
+        "code": 57868
+      }
+    },
+    {
+      "properties": {
+        "name": "element-inspection-exit-fullscreen",
+        "code": 60933
+      }
+    },
+    {
+      "properties": {
+        "name": "element-inspection-fullscreen",
+        "code": 60932
+      }
+    },
+    {
+      "properties": {
+        "name": "element-inspection-reselect",
+        "code": 60931
+      }
+    },
+    {
+      "properties": {
+        "name": "eraser",
+        "code": 57886
+      }
+    },
+    {
+      "properties": {
+        "name": "fast-forward",
+        "code": 59046
+      }
+    },
+    {
+      "properties": {
+        "name": "flask",
+        "code": 59294
+      }
+    },
+    {
+      "properties": {
+        "name": "floppy-disk",
+        "code": 57928
+      }
+    },
+    {
+      "properties": {
+        "name": "folder-simple",
+        "code": 57946
+      }
+    },
+    {
+      "properties": {
+        "name": "gauge",
+        "code": 58920
+      }
+    },
+    {
+      "properties": {
+        "name": "gear-six",
+        "code": 57970
+      }
+    },
+    {
+      "properties": {
+        "name": "gift",
+        "code": 57974
+      }
+    },
+    {
+      "properties": {
+        "name": "globe",
+        "code": 57992
+      }
+    },
+    {
+      "properties": {
+        "name": "globe-earth",
+        "code": 60937
+      }
+    },
+    {
+      "properties": {
+        "name": "house",
+        "code": 58050
+      }
+    },
+    {
+      "properties": {
+        "name": "identification-card",
+        "code": 58056
+      }
+    },
+    {
+      "properties": {
+        "name": "info",
+        "code": 58062
+      }
+    },
+    {
+      "properties": {
+        "name": "link-simple",
+        "code": 58086
+      }
+    },
+    {
+      "properties": {
+        "name": "lock",
+        "code": 58106
+      }
+    },
+    {
+      "properties": {
+        "name": "lock-key",
+        "code": 58110
+      }
+    },
+    {
+      "properties": {
+        "name": "lock-open",
+        "code": 58118
+      }
+    },
+    {
+      "properties": {
+        "name": "magnifying-glass",
+        "code": 58124
+      }
+    },
+    {
+      "properties": {
+        "name": "map-pin",
+        "code": 58134
+      }
+    },
+    {
+      "properties": {
+        "name": "mask-happy",
+        "code": 59892
+      }
+    },
+    {
+      "properties": {
+        "name": "menu",
+        "code": 60915
+      }
+    },
+    {
+      "properties": {
+        "name": "microphone",
+        "code": 58150
+      }
+    },
+    {
+      "properties": {
+        "name": "moon",
+        "code": 58160
+      }
+    },
+    {
+      "properties": {
+        "name": "novel-reader-auto-fast",
+        "code": 60946
+      }
+    },
+    {
+      "properties": {
+        "name": "novel-reader-auto-slow",
+        "code": 60945
+      }
+    },
+    {
+      "properties": {
+        "name": "novel-reader-brightness-high",
+        "code": 60944
+      }
+    },
+    {
+      "properties": {
+        "name": "novel-reader-brightness-low",
+        "code": 60943
+      }
+    },
+    {
+      "properties": {
+        "name": "novel-reader-catalog",
+        "code": 60939
+      }
+    },
+    {
+      "properties": {
+        "name": "novel-reader-settings",
+        "code": 60942
+      }
+    },
+    {
+      "properties": {
+        "name": "novel-reader-text",
+        "code": 60940
+      }
+    },
+    {
+      "properties": {
+        "name": "novel-reader-theme",
+        "code": 60941
+      }
+    },
+    {
+      "properties": {
+        "name": "palette",
+        "code": 59080
+      }
+    },
+    {
+      "properties": {
+        "name": "paper-plane-tilt",
+        "code": 58264
+      }
+    },
+    {
+      "properties": {
+        "name": "password",
+        "code": 59218
+      }
+    },
+    {
+      "properties": {
+        "name": "pause",
+        "code": 58270
+      }
+    },
+    {
+      "properties": {
+        "name": "pencil-simple",
+        "code": 58292
+      }
+    },
+    {
+      "properties": {
+        "name": "picture-in-picture",
+        "code": 58956
+      }
+    },
+    {
+      "properties": {
+        "name": "play",
+        "code": 58320
+      }
+    },
+    {
+      "properties": {
+        "name": "plus",
+        "code": 58324
+      }
+    },
+    {
+      "properties": {
+        "name": "printer",
+        "code": 58332
+      }
+    },
+    {
+      "properties": {
+        "name": "qr-code",
+        "code": 58342
+      }
+    },
+    {
+      "properties": {
+        "name": "receipt",
+        "code": 58348
+      }
+    },
+    {
+      "properties": {
+        "name": "resize",
+        "code": 60782
+      }
+    },
+    {
+      "properties": {
+        "name": "rewind",
+        "code": 59048
+      }
+    },
+    {
+      "properties": {
+        "name": "selection-all",
+        "code": 59206
+      }
+    },
+    {
+      "properties": {
+        "name": "settings-sync",
+        "code": 57345
+      }
+    },
+    {
+      "properties": {
+        "name": "settings-web-features",
+        "code": 60929
+      }
+    },
+    {
+      "properties": {
+        "name": "share-network",
+        "code": 58376
+      }
+    },
+    {
+      "properties": {
+        "name": "shield",
+        "code": 58378
+      }
+    },
+    {
+      "properties": {
+        "name": "shield-check",
+        "code": 58380
+      }
+    },
+    {
+      "properties": {
+        "name": "speaker-high",
+        "code": 58442
+      }
+    },
+    {
+      "properties": {
+        "name": "speaker-low",
+        "code": 58444
+      }
+    },
+    {
+      "properties": {
+        "name": "speaker-simple-high",
+        "code": 58448
+      }
+    },
+    {
+      "properties": {
+        "name": "speaker-slash",
+        "code": 58458
+      }
+    },
+    {
+      "properties": {
+        "name": "stack",
+        "code": 58470
+      }
+    },
+    {
+      "properties": {
+        "name": "sun",
+        "code": 58482
+      }
+    },
+    {
+      "properties": {
+        "name": "tabs",
+        "code": 59256
+      }
+    },
+    {
+      "properties": {
+        "name": "tabs-overview-close-all",
+        "code": 60920
+      }
+    },
+    {
+      "properties": {
+        "name": "tabs-overview-new",
+        "code": 60919
+      }
+    },
+    {
+      "properties": {
+        "name": "text-align-justify",
+        "code": 58498
+      }
+    },
+    {
+      "properties": {
+        "name": "text-t",
+        "code": 58506
+      }
+    },
+    {
+      "properties": {
+        "name": "text-t-slash",
+        "code": 58504
+      }
+    },
+    {
+      "properties": {
+        "name": "toolbar-bookmark-add",
+        "code": 60935
+      }
+    },
+    {
+      "properties": {
+        "name": "toolbar-bookmark-selected",
+        "code": 60936
+      }
+    },
+    {
+      "properties": {
+        "name": "toolbar-copy-link",
+        "code": 60923
+      }
+    },
+    {
+      "properties": {
+        "name": "toolbar-element-inspection",
+        "code": 60928
+      }
+    },
+    {
+      "properties": {
+        "name": "toolbar-expand-hint",
+        "code": 60934
+      }
+    },
+    {
+      "properties": {
+        "name": "toolbar-private-mode",
+        "code": 60922
+      }
+    },
+    {
+      "properties": {
+        "name": "toolbar-scan",
+        "code": 60921
+      }
+    },
+    {
+      "properties": {
+        "name": "toolbar-slot-empty",
+        "code": 60949
+      }
+    },
+    {
+      "properties": {
+        "name": "toolbar-translate",
+        "code": 60924
+      }
+    },
+    {
+      "properties": {
+        "name": "toolbar-user-script",
+        "code": 60938
+      }
+    },
+    {
+      "properties": {
+        "name": "translate",
+        "code": 58530
+      }
+    },
+    {
+      "properties": {
+        "name": "trash",
+        "code": 58534
+      }
+    },
+    {
+      "properties": {
+        "name": "user-shield",
+        "code": 57348
+      }
+    },
+    {
+      "properties": {
+        "name": "video-assistant-cast",
+        "code": 60930
+      }
+    },
+    {
+      "properties": {
+        "name": "video-assistant-fill-screen",
+        "code": 60925
+      }
+    },
+    {
+      "properties": {
+        "name": "video-assistant-playback-speed",
+        "code": 60926
+      }
+    },
+    {
+      "properties": {
+        "name": "video-assistant-rotate",
+        "code": 60927
+      }
+    },
+    {
+      "properties": {
+        "name": "warning-octagon",
+        "code": 58596
+      }
+    },
+    {
+      "properties": {
+        "name": "waveform",
+        "code": 59394
+      }
+    },
+    {
+      "properties": {
+        "name": "x",
+        "code": 58614
+      }
+    }
+  ],
+  "preferences": {
+    "fontPref": {
+      "metadata": {
+        "fontFamily": "AiraOperationalIcons",
+        "description": "Aira Operational Icon font",
+        "license": "Commercial license held by the project owner"
+      }
+    }
+  }
+}

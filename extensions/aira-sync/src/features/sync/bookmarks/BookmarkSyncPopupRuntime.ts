@@ -52,6 +52,11 @@ import type {
 import { normalizeLeafTabSyncSnapshot, type LeafTabSyncSnapshot } from '@/sync/leaftab/schema';
 import { LeafTabSyncAiraCloudError } from '@/sync/leaftab/airaCloudStore';
 import {
+  clearAiraCloudClientUpdateBlock,
+  persistAiraCloudClientUpdateBlock,
+  readAiraCloudClientUpdateBlock,
+} from './airaCloudClientUpdateBlock';
+import {
   clearPendingLeafTabLocalBookmarkChangesInExtensionStorage,
   readPendingLeafTabLocalBookmarkChangedAtFromExtensionStorage,
 } from '@/sync/leaftab/localChangeTracker';
@@ -83,6 +88,7 @@ export type BookmarkSyncPopupBlockedReason =
   | 'cloud-login-required'
   | 'cloud-temporarily-unavailable'
   | 'cloud-pro-required'
+  | 'client-update-required'
   | 'source-disabled'
   | 'bookmarks-permission-required'
   | 'pending-conflict';
@@ -104,6 +110,7 @@ interface BookmarkSyncPopupExecutionConfig {
   cloudDeviceCredential: string;
   cloudSyncEnabled: boolean;
   cloudCapability: AiraDesktopProCapabilityStatus;
+  cloudClientUpdateMessage: string;
   webdavState: WebdavStorageState;
   personalServerConnection: PersonalServerConnection | null;
   pendingConflict: LeafTabPendingBookmarkConflict | null;
@@ -303,6 +310,15 @@ export class BookmarkSyncPopupRuntime {
       });
     } catch (error) {
       await this.markError(remoteKind, error);
+      if (remoteKind === 'aira-cloud' && error instanceof LeafTabSyncAiraCloudError &&
+        error.code === 'client_update_required') {
+        await persistAiraCloudClientUpdateBlock(error.message);
+        return {
+          type: 'blocked',
+          reason: 'client-update-required',
+          message: error.message,
+        };
+      }
       if (remoteKind === 'aira-cloud') {
         await this.recordCloudCredentialFailure(error, expectedCloudIdentity, false);
       }
@@ -321,7 +337,9 @@ export class BookmarkSyncPopupRuntime {
     return withBookmarkSyncExecutionLock(async (): Promise<BookmarkSyncPopupOverviewResult> => {
       const executionConfig = await this.readExecutionConfig(remoteKind, undefined, false);
       const runtime = this.createRuntime(remoteKind, executionConfig);
-      const overviewPromise = runtime.module.readSummary({ includeRemote })
+      const shouldReadRemote = includeRemote &&
+        !(remoteKind === 'aira-cloud' && executionConfig.cloudClientUpdateMessage.length > 0);
+      const overviewPromise = runtime.module.readSummary({ includeRemote: shouldReadRemote })
         .then((overview) => ({ overview }))
         .catch((error: unknown) => ({ error }));
       const baselineSnapshot = remoteKind === 'aira-cloud'
@@ -396,6 +414,13 @@ export class BookmarkSyncPopupRuntime {
         message: '请先连接 Aira 桌面设备',
       };
     }
+    if (config.cloudClientUpdateMessage.length > 0) {
+      return {
+        type: 'blocked',
+        reason: 'client-update-required',
+        message: config.cloudClientUpdateMessage,
+      };
+    }
     if (operation.type === 'sync-now' && !config.cloudSyncEnabled) {
       return {
         type: 'blocked',
@@ -433,12 +458,13 @@ export class BookmarkSyncPopupRuntime {
     refreshCloudMembership: boolean,
   ): Promise<BookmarkSyncPopupExecutionConfig> {
     const [storedWebdav, storedPendingConflict, initialCloudProfile, selectedSourceRecord,
-      personalServerConnection] = await Promise.all([
+      personalServerConnection, cloudClientUpdateBlock] = await Promise.all([
       readWebdavStorageStateFromExtensionStorage(),
       readPendingBookmarkConflictWithinExecutionLock(),
       readAiraDesktopConnectionProfileWithinExecutionLock(),
       readExtensionStorageRecord([LEAFTAB_SELECTED_SYNC_SOURCE_KEY]),
       readPersonalServerConnection(),
+      readAiraCloudClientUpdateBlock(),
     ]);
     let cloudProfile: AiraDesktopConnectionProfile | null = initialCloudProfile;
     let cloudCapability: AiraDesktopProCapabilityStatus = 'login-required';
@@ -493,6 +519,7 @@ export class BookmarkSyncPopupRuntime {
       cloudDeviceCredential,
       cloudSyncEnabled: await readAiraCloudSyncEnabledFromExtensionStorage(cloudUid),
       cloudCapability,
+      cloudClientUpdateMessage: cloudClientUpdateBlock.blocked ? cloudClientUpdateBlock.message : '',
       webdavState: {
         profileName: effectiveWebdav.profileName.trim(),
         url: effectiveWebdav.url.trim(),
@@ -562,6 +589,7 @@ export class BookmarkSyncPopupRuntime {
         localStorage.removeItem(AIRA_CLOUD_LAST_ERROR_AT_KEY);
         localStorage.removeItem(AIRA_CLOUD_LAST_ERROR_MESSAGE_KEY);
       });
+      await clearAiraCloudClientUpdateBlock();
     } else if (remoteKind === 'personal-server') {
       await Promise.all([
         writeExtensionStorageRecord({ [PERSONAL_SERVER_LAST_SYNC_AT_KEY]: nowIso }),

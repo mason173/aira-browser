@@ -583,7 +583,8 @@ export function buildLocalBookmarkNode(
       source: 'local',
       lastModifiedAt: now,
       lastModifiedBy: LOCAL_ACTOR,
-      deviceId: DEFAULT_DEVICE_ID
+      deviceId: DEFAULT_DEVICE_ID,
+      originId: id
     }
   };
 }

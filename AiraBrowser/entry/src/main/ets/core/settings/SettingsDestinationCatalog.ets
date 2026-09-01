@@ -492,7 +492,7 @@ const ADVANCED_TARGETS: SettingsDestinationCatalogTarget[] = [
     'source_repository', 'about_details', ['GitHub', '源码', '开源仓库']),
   target('open_source_license', 'about', 'about', '开源许可', '高级 / 关于Aira / 开源项目', 'subpage',
     'open_source_license', 'about_details', ['GPL', 'GPLv3', 'GPL-3.0-only']),
-  target('third_party_notices', 'about', 'about', '第三方声明', '高级 / 关于Aira / 开源项目', 'subpage',
+  target('third_party_notices', 'about', 'about', '第三方开源许可', '高级 / 关于Aira / 协议与合规', 'subpage',
     'third_party_notices', 'about_details', ['第三方许可', '依赖许可']),
   target('security_policy', 'about', 'about', '安全问题反馈', '高级 / 关于Aira / 开源项目', 'subpage',
     'security_policy', 'about_details', ['安全报告', '漏洞报告', 'SECURITY'])
@@ -507,13 +507,13 @@ const OFFICIAL_ONLY_SETTINGS_TARGET_IDS: string[] = [
   'pro_auto_renewal_service_agreement',
   'third_party_sdk_and_services',
   'personal_info_and_permissions',
-  'icp_filing'
+  'icp_filing',
+  'third_party_notices'
 ];
 
 const COMMUNITY_ONLY_SETTINGS_TARGET_IDS: string[] = [
   'source_repository',
   'open_source_license',
-  'third_party_notices',
   'security_policy'
 ];
 

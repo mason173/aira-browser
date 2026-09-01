@@ -5,11 +5,14 @@ const {
   COMMUNITY_EXTENSION_ID,
   COMMUNITY_MANIFEST_KEY,
   FIREFOX_EXTENSION_ID,
+  LOCAL_OFFICIAL_EXTENSION_ID,
+  LOCAL_OFFICIAL_MANIFEST_KEY,
   RELEASE_EDITION,
   RELEASE_PACKAGE_BASENAME,
   computeExtensionIdFromManifestKey,
   detectReleaseEditionByManifest,
   getCommunityReleasePackageFilename,
+  getLocalOfficialReleasePackageFilename,
   readReleaseMarkerFromZip,
 } = require('./release-utils');
 
@@ -46,7 +49,14 @@ function readZipEntries(zipPath) {
 }
 
 function detectPackageKind(zipPath, manifest) {
-  const name = path.basename(zipPath).toLowerCase();
+  const basename = path.basename(zipPath);
+  if (
+    basename === getLocalOfficialReleasePackageFilename(manifest.version)
+    || manifest.key === LOCAL_OFFICIAL_MANIFEST_KEY
+  ) {
+    return 'local-official';
+  }
+  const name = basename.toLowerCase();
   if (name.includes('-firefox-') || manifest.browser_specific_settings?.gecko?.id === FIREFOX_EXTENSION_ID) {
     return 'firefox';
   }
@@ -58,7 +68,14 @@ function readStringArray(value) {
   return Array.isArray(value) ? value.filter((item) => typeof item === 'string') : [];
 }
 
-function verifyZip({ zipPath, expectedEdition, expectedVersion, expectedVersionName, expectedManifestKey }) {
+function verifyZip({
+  zipPath,
+  expectedEdition,
+  expectedVersion,
+  expectedVersionName,
+  expectedManifestKey,
+  expectedLocalManifestKey,
+}) {
   if (!fs.existsSync(zipPath)) {
     throw new Error(`Zip not found: ${zipPath}`);
   }
@@ -127,6 +144,14 @@ function verifyZip({ zipPath, expectedEdition, expectedVersion, expectedVersionN
       ].join(' ')
     );
   }
+  if (packageKind === 'local-official' && !actualManifestKey) {
+    throw new Error(
+      [
+        `Official local package must include manifest.key in ${path.basename(zipPath)}.`,
+        'The fixed key preserves the existing Chromium extension ID for manual updates.',
+      ].join(' ')
+    );
+  }
   if (!permissions.includes('history')) {
     throw new Error(`Package must include required "history" permission in ${path.basename(zipPath)}.`);
   }
@@ -145,6 +170,23 @@ function verifyZip({ zipPath, expectedEdition, expectedVersion, expectedVersionN
         `Expected: ${COMMUNITY_EXTENSION_ID}`,
         `Actual: ${actualExtensionId || '(empty)'}`,
         'Do not rotate manifest.key or manual-update users will lose extension-scoped data.',
+      ].join(' ')
+    );
+  }
+  if (packageKind === 'local-official' && actualManifestKey !== expectedLocalManifestKey) {
+    throw new Error(
+      [
+        `Official local manifest.key mismatch in ${path.basename(zipPath)}.`,
+        'The local Official package must use the legacy fixed public key.',
+      ].join(' ')
+    );
+  }
+  if (packageKind === 'local-official' && actualExtensionId !== LOCAL_OFFICIAL_EXTENSION_ID) {
+    throw new Error(
+      [
+        `Official local extension ID mismatch in ${path.basename(zipPath)}.`,
+        `Expected: ${LOCAL_OFFICIAL_EXTENSION_ID}`,
+        `Actual: ${actualExtensionId || '(empty)'}`,
       ].join(' ')
     );
   }
@@ -195,6 +237,7 @@ function main() {
   const expectedVersion = String(expectedManifest.version || '');
   const expectedVersionName = String(expectedManifest.version_name || '');
   const expectedManifestKey = COMMUNITY_MANIFEST_KEY;
+  const expectedLocalManifestKey = LOCAL_OFFICIAL_MANIFEST_KEY;
   if (!expectedVersion) {
     throw new Error('Missing final manifest version.');
   }
@@ -204,6 +247,8 @@ function main() {
     path.join(root, getCommunityReleasePackageFilename(releaseVersion)),
     path.join(root, `${RELEASE_PACKAGE_BASENAME}-${expectedEdition}-firefox-store-v${releaseVersion}.zip`),
   ];
+  const localOfficialZip = path.join(root, getLocalOfficialReleasePackageFilename(releaseVersion));
+  if (fs.existsSync(localOfficialZip)) defaultZips.push(localOfficialZip);
   const zipPaths = args.length > 0 ? args.map((p) => path.resolve(root, p)) : defaultZips;
 
   console.log(
@@ -216,6 +261,7 @@ function main() {
       expectedVersion,
       expectedVersionName,
       expectedManifestKey,
+      expectedLocalManifestKey,
     });
   });
   console.log('[verify] All release zip checks passed.');

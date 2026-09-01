@@ -9,6 +9,9 @@ const RELEASE_PACKAGE_BASENAME = 'aira-sync';
 const COMMUNITY_RELEASE_PACKAGE_BASENAME = 'Aira-sync';
 const COMMUNITY_MANIFEST_KEY = 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvlMkYp7QrqMlAHhIKMXOP3WAhRXMmyEyZwsne4hy5m472qv7IXqCuGb2Zt4ZxCdCCUxs0DVQJEpoGLGlJi9HCIayKOjmyCunpLwqsX4vwjXwvRlNs50NesZ+UniYN6VmRJW+K9hdL/fZ93Y1wU7ZaYD5vMWiOg34ShaLVcyNiRjidxyJWSK2yX4yQ6PWhNg+fOsbaQJWgL9D/Ecw0Iay3mfY2vbaXLgJiDqMmoUX97gNzwZtVOM2s5PFjjvyc2FUCPNJq7u/DB7w6f8I6Ya3n1Jigbl9L+yhlEw/OU+Ld6Ps+HxOYdHLwhiCDWNrYpIdd7vD0HbJrY/da+wTIgPBQQIDAQAB';
 const COMMUNITY_EXTENSION_ID = 'efehgppkhnkjamcpbipclfmmofdildji';
+// Public manifest identity retained for Official manual-install updates.
+const LOCAL_OFFICIAL_MANIFEST_KEY = 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAqjAoslU3RDPLkH+htp3PaoxQ9gIJaFTHp7ww9ALBpaiFk5vBXlbPMKOs1u1CCWi0t31aDWp59hd1yWYmnUgIJ2DDLkmRobM7I8jOXng8O9S1bLdjFK82lLTYVjHTaPWnWosw8ObtVJfCI1Q62S0p80DmHETLq1sn8/JrMxq8hJuaD1dxzV1sF+fZ1pZpzaNWMsXgxJXti8wg1dBFbGflCsMcOzhRw4fks97sSCbUbX+OaFmupMSLc+47ptYEdg8BgfGtlBnT1wJOA0jF4IgR7bzIG+VBgK4RvIVMjBVALpg+ZtLc3Kdn6gGpqkoDlF4pNU9PiHi4LToRLHOebNZW0QIDAQAB';
+const LOCAL_OFFICIAL_EXTENSION_ID = 'plnjjlkaaonbccmjpfljbbbbaahfklem';
 const FIREFOX_EXTENSION_ID = 'aira-sync@aira-browser';
 
 function detectReleaseEditionByManifest(manifest) {
@@ -40,6 +43,10 @@ function getCommunityReleasePackageFilename(version) {
   return `${COMMUNITY_RELEASE_PACKAGE_BASENAME}-v${version}.zip`;
 }
 
+function getLocalOfficialReleasePackageFilename(version) {
+  return `Aira-Sync-Official-v${version}.zip`;
+}
+
 function readReleaseMarkerFromZip(zipPath) {
   try {
     const output = execSync(`unzip -p "${zipPath}" ${RELEASE_MARKER_FILE}`, { encoding: 'utf-8' });
@@ -68,6 +75,8 @@ function computeExtensionIdFromManifestKey(manifestKey) {
 module.exports = {
   COMMUNITY_EXTENSION_ID,
   COMMUNITY_MANIFEST_KEY,
+  LOCAL_OFFICIAL_EXTENSION_ID,
+  LOCAL_OFFICIAL_MANIFEST_KEY,
   FIREFOX_EXTENSION_ID,
   RELEASE_EDITION,
   RELEASE_MARKER_FILE,
@@ -75,6 +84,7 @@ module.exports = {
   computeExtensionIdFromManifestKey,
   detectReleaseEditionByManifest,
   getCommunityReleasePackageFilename,
+  getLocalOfficialReleasePackageFilename,
   readReleaseMarkerFromDir,
   readReleaseMarkerFromZip,
   writeReleaseMarkerToDir,

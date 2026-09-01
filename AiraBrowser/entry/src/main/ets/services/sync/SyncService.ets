@@ -3,6 +3,8 @@ import {
   AiraBookmarkHistoryDescriptor,
   AiraBookmarkMergeSyncResult,
   AiraBookmarkOverview,
+  AiraBookmarkSyncFailure,
+  AiraBookmarkSyncFailureStage,
   AiraBookmarkSyncApplyResult,
   AiraBookmarkSyncRemoteObservation,
   AIRA_SYNC_DEFAULT_ROOT,
@@ -81,6 +83,18 @@ const AIRA_CHROME_SYNC_ROOT_IDS: string[] = [
 ];
 const HUAWEI_SPACE_BOOKMARK_WRITE_CONFLICT_MESSAGE: string = '华为云空间远端已更新，请先重新拉取后再同步。';
 const HUAWEI_SPACE_BOOKMARK_WRITE_CONFLICT_RETRY_LIMIT: number = 3;
+
+class AiraBookmarkSyncStageError extends Error {
+  readonly failure: AiraBookmarkSyncFailure;
+  readonly originalError: Error;
+
+  constructor(failure: AiraBookmarkSyncFailure, originalError: Error) {
+    super(originalError.message);
+    this.failure = failure;
+    this.originalError = originalError;
+  }
+}
+
 export class SyncService {
   private static bookmarkMergeQueue: Promise<void> = Promise.resolve();
   private bookmarkSnapshotService: AiraBookmarkSnapshotService;
@@ -134,10 +148,14 @@ export class SyncService {
     return this.bookmarkSnapshotService.buildFreshBookmarkOverview();
   }
 
-  async buildFreshAiraBookmarkSnapshot(preferCurrentCache: boolean = false): Promise<AiraSyncSnapshot> {
+  async buildFreshAiraBookmarkSnapshot(
+    preferCurrentCache: boolean = false,
+    previousSnapshot?: AiraSyncSnapshot | null
+  ): Promise<AiraSyncSnapshot> {
     const snapshot = await this.bookmarkSnapshotService.buildFreshBookmarkSnapshot(
       this.resolveLocalSyncSourceId(),
-      preferCurrentCache
+      preferCurrentCache,
+      previousSnapshot
     );
     return snapshot;
   }
@@ -184,6 +202,13 @@ export class SyncService {
 
   initializeAiraSyncSettings(): Promise<AiraSyncSettings> {
     return this.requireSyncConfigStore().initialize();
+  }
+
+  resolveBookmarkSyncFailure(error: Error | Object): AiraBookmarkSyncFailure {
+    if (error instanceof AiraBookmarkSyncStageError) {
+      return error.failure;
+    }
+    return this.createBookmarkSyncFailure('unknown');
   }
 
   resolveAiraProviderIdForKind(remoteKind: AiraSyncRemoteKind): string {
@@ -351,22 +376,37 @@ export class SyncService {
   ): Promise<AiraBookmarkMergeSyncResult> {
     return this.runSerializedBookmarkTask<AiraBookmarkMergeSyncResult>(async () => {
       const settings = this.getAiraSyncSettings();
-      this.assertRemoteKindConfigured(settings, remoteKind);
       try {
+        await this.runBookmarkStage('authentication', async (): Promise<void> => {
+          this.assertRemoteKindConfigured(settings, remoteKind);
+        });
         const result = await this.mergeAiraRemoteBookmarksForKind(
           remoteKind,
           intent
         );
         if (result.blocked || result.conflictCount > 0) {
-          await this.requireSyncConfigStore().saveBookmarkBlockedState(remoteKind, result.summary);
+          await this.requireSyncConfigStore().saveBookmarkBlockedState(
+            remoteKind,
+            result.summary,
+            this.createBookmarkConflictFailure()
+          );
         } else {
           await this.saveBookmarkSyncCompletion(remoteKind, result);
         }
         return result;
       } catch (error) {
-        const message = this.stringifyError(error as Error);
-        await this.requireSyncConfigStore().saveProviderRuntimeState(remoteKind, 'unavailable', message, false);
-        throw new Error(message);
+        const syncError = this.ensureBookmarkStageError(error as Error, 'unknown');
+        await this.requireSyncConfigStore().saveProviderRuntimeState(
+          remoteKind,
+          'unavailable',
+          this.stringifyError(syncError.originalError),
+          false,
+          'bookmark',
+          undefined,
+          false,
+          syncError.failure
+        );
+        throw syncError;
       }
     });
   }
@@ -383,15 +423,28 @@ export class SyncService {
           this.resolveTargetMergeIntentForActiveMerge(settings, activeProvider)
         );
         if (result.blocked || result.conflictCount > 0) {
-          await this.requireSyncConfigStore().saveBookmarkBlockedState(activeProvider, result.summary);
+          await this.requireSyncConfigStore().saveBookmarkBlockedState(
+            activeProvider,
+            result.summary,
+            this.createBookmarkConflictFailure()
+          );
           return result;
         }
         await this.saveBookmarkSyncCompletion(activeProvider, result);
         await this.requireSyncConfigStore().setBookmarkSyncEnabled(true);
       } catch (error) {
-        const message = this.stringifyError(error as Error);
-        await this.requireSyncConfigStore().saveProviderRuntimeState(activeProvider, 'unavailable', message, false);
-        throw new Error(message);
+        const syncError = this.ensureBookmarkStageError(error as Error, 'unknown');
+        await this.requireSyncConfigStore().saveProviderRuntimeState(
+          activeProvider,
+          'unavailable',
+          this.stringifyError(syncError.originalError),
+          false,
+          'bookmark',
+          undefined,
+          false,
+          syncError.failure
+        );
+        throw syncError;
       }
       const backupSummary = await this.writeBookmarkBackupSnapshotsSafely(settings, activeProvider);
       await this.clearBookmarkSyncPending(completedPendingBookmarkSyncAt);
@@ -520,7 +573,11 @@ export class SyncService {
         resolution === 'prefer-remote' ? 'cloud-over-local' : 'local-over-cloud'
       );
       if (result.blocked || result.conflictCount > 0) {
-        await this.requireSyncConfigStore().saveBookmarkBlockedState(remoteKind, result.summary);
+        await this.requireSyncConfigStore().saveBookmarkBlockedState(
+          remoteKind,
+          result.summary,
+          this.createBookmarkConflictFailure()
+        );
       } else {
         await this.saveBookmarkSyncCompletion(remoteKind, result);
         await this.clearBookmarkSyncPending(completedPendingBookmarkSyncAt);
@@ -545,15 +602,19 @@ export class SyncService {
         this.resolveTargetMergeIntentForActiveMerge(settings, activeProvider)
       );
       if (activeResult.blocked) {
-        await this.requireSyncConfigStore().saveBookmarkBlockedState(activeProvider, activeResult.summary);
+        await this.requireSyncConfigStore().saveBookmarkBlockedState(
+          activeProvider,
+          activeResult.summary,
+          this.createBookmarkConflictFailure()
+        );
         return activeResult;
       }
       await this.saveBookmarkSyncCompletion(activeProvider, activeResult);
     } catch (error) {
-      const syncError = error as Error;
-      const errorMessage = this.stringifyError(syncError);
+      const syncError = this.ensureBookmarkStageError(error as Error, 'unknown');
+      const errorMessage = this.stringifyError(syncError.originalError);
       const blocked = activeProvider === 'huawei_space' &&
-        !isRetryableHuaweiSpaceBookmarkSyncError(syncError);
+        !isRetryableHuaweiSpaceBookmarkSyncError(syncError.originalError);
       await this.requireSyncConfigStore().saveProviderRuntimeState(
         activeProvider,
         'unavailable',
@@ -561,7 +622,8 @@ export class SyncService {
         false,
         'bookmark',
         undefined,
-        blocked
+        blocked,
+        syncError.failure
       );
       throw syncError;
     }
@@ -594,7 +656,8 @@ export class SyncService {
     try {
       return await this.writeBookmarkBackupSnapshots(settings, activeProvider, forceBackupWrites);
     } catch (error) {
-      return `附加备份待处理：${this.stringifyError(error as Error)}`;
+      const failure = this.resolveBookmarkSyncFailure(error as Error);
+      return `附加备份待处理：${failure.safeDetail}（错误码：${failure.code}）`;
     }
   }
 
@@ -617,7 +680,8 @@ export class SyncService {
     try {
       snapshot = await this.buildFreshAiraBookmarkSnapshot();
     } catch (error) {
-      const message = this.stringifyError(error as Error);
+      const syncError = this.ensureBookmarkStageError(error as Error, 'local_snapshot');
+      const message = this.stringifyError(syncError.originalError);
       for (let index = 0; index < backupKinds.length; index += 1) {
         const remoteKind = backupKinds[index];
         if (remoteKind === activeProvider) {
@@ -628,9 +692,13 @@ export class SyncService {
           'degraded',
           message,
           false,
-          'bookmark_backup'
+          'bookmark_backup',
+          undefined,
+          false,
+          syncError.failure
         ).catch((_inner: Error): void => {});
-        summaries.push(`${this.resolveRemoteLabel(remoteKind)}备份待处理：${message}`);
+        summaries.push(`${this.resolveRemoteLabel(remoteKind)}备份待处理：${syncError.failure.safeDetail}` +
+          `（错误码：${syncError.failure.code}）`);
       }
       return summaries.join('\n');
     }
@@ -639,6 +707,7 @@ export class SyncService {
       if (remoteKind === activeProvider) {
         continue;
       }
+      let failureStage: AiraBookmarkSyncFailureStage = 'merge';
       try {
         const providerId = this.resolveProviderId(remoteKind);
         const baseline = await this.requireSyncConfigStore().readBaseline(providerId);
@@ -656,6 +725,7 @@ export class SyncService {
           snapshot,
           history
         ).snapshot;
+        failureStage = 'remote_read_validation';
         const remoteHead = await this.readRemoteHeadSafely(store);
         if (remoteHead === undefined || remoteHead.commitId !== baseline.commitId) {
           throw new Error('附加备份历史已变化，请先将该位置设为当前同步方式完成合并。');
@@ -674,6 +744,7 @@ export class SyncService {
           summaries.push(`${this.resolveRemoteLabel(remoteKind)}备份已是最新。`);
           continue;
         }
+        failureStage = 'remote_commit';
         const writeResult = await store.writeState({
           snapshot: providerSnapshot,
           history: history,
@@ -681,6 +752,7 @@ export class SyncService {
           parentCommitId: baseline.commitId,
           createdAt: providerSnapshot.meta.generatedAt
         });
+        failureStage = 'remote_confirmation';
         await this.confirmRemoteBookmarkCommit(
           store,
           remoteKind,
@@ -688,6 +760,7 @@ export class SyncService {
           providerSnapshot,
           history
         );
+        failureStage = 'local_apply';
         await this.recordSuccessfulSync(
           remoteKind,
           providerSnapshot,
@@ -698,15 +771,20 @@ export class SyncService {
         );
         summaries.push(`${this.resolveRemoteLabel(remoteKind)}备份已更新。`);
       } catch (error) {
-        const message = this.stringifyError(error as Error);
+        const syncError = this.ensureBookmarkStageError(error as Error, failureStage);
+        const message = this.stringifyError(syncError.originalError);
         await this.requireSyncConfigStore().saveProviderRuntimeState(
           remoteKind,
           'degraded',
           message,
           false,
-          'bookmark_backup'
+          'bookmark_backup',
+          undefined,
+          false,
+          syncError.failure
         );
-        summaries.push(`${this.resolveRemoteLabel(remoteKind)}备份待处理：${message}`);
+        summaries.push(`${this.resolveRemoteLabel(remoteKind)}备份待处理：${syncError.failure.safeDetail}` +
+          `（错误码：${syncError.failure.code}）`);
       }
     }
     return summaries.join('\n');
@@ -836,36 +914,55 @@ export class SyncService {
   ): Promise<AiraBookmarkMergeSyncResult> {
     let settings = initialSettings;
     const providerId = this.resolveProviderId(remoteKind);
-    const storedBaseline = await this.requireSyncConfigStore().readBaseline(providerId);
+    const storedBaseline = await this.runBookmarkStage(
+      'local_snapshot',
+      (): Promise<AiraSyncBaselineRecord | undefined> => this.requireSyncConfigStore().readBaseline(providerId)
+    );
     const baseline = (settings.bookmarkGenerationInitializedAt ?? 0) <= 0
       ? undefined
       : storedBaseline;
-    await this.confirmPendingRemoteWrites(settings, store, remoteKind);
-    let remoteState = this.projectRemoteStateForBookmarkSync(await store.readState());
+    await this.runBookmarkStage('remote_confirmation', (): Promise<void> => {
+      return this.confirmPendingRemoteWrites(settings, store, remoteKind);
+    });
+    let remoteState = await this.runBookmarkStage(
+      'remote_read_validation',
+      async (): Promise<AiraSyncRemoteState> => this.projectRemoteStateForBookmarkSync(await store.readState())
+    );
     await this.workThrottle.afterStage();
     const recoveredHuaweiRemoteFromBaseline = remoteKind === 'huawei_space' && baseline !== undefined &&
       remoteState.snapshot === null && remoteState.commitId === null;
-    remoteState = this.reconcileRemoteStateForMerge(remoteKind, baseline, remoteState);
+    remoteState = await this.runBookmarkStage('remote_read_validation', async (): Promise<AiraSyncRemoteState> => {
+      return this.reconcileRemoteStateForMerge(remoteKind, baseline, remoteState);
+    });
     const completedPendingBookmarkSyncAt = settings.pendingBookmarkSyncAt ?? 0;
-    const localSnapshot = await this.resolveLocalSnapshotForMerge(settings);
+    const localSnapshot = await this.runBookmarkStage(
+      'local_snapshot',
+      (): Promise<AiraSyncSnapshot> => this.resolveLocalSnapshotForMerge(settings, baseline)
+    );
     await this.workThrottle.afterStage();
-    const historyPlan = await this.bookmarkHistoryService.planMerge(
-      baseline,
-      localSnapshot,
-      remoteState,
-      localSnapshot.meta.deviceId,
-      Date.now()
+    const historyPlan = await this.runBookmarkStage(
+      'merge',
+      () => this.bookmarkHistoryService.planMerge(
+        baseline,
+        localSnapshot,
+        remoteState,
+        localSnapshot.meta.deviceId,
+        Date.now()
+      )
     );
     const decisionLocalSnapshot = this.resolveMaterializedLocalSnapshotForDecision(
       historyPlan.localSnapshot,
       historyPlan.baselineSnapshot
     );
-    const mergeResult = await this.bookmarkDecisionService.decideCooperatively({
-      intent: intent,
-      baseline: conservativeMerge ? null : historyPlan.baselineSnapshot,
-      local: decisionLocalSnapshot,
-      remote: historyPlan.remoteSnapshot
-    }, this.workThrottle);
+    const mergeResult = await this.runBookmarkStage(
+      'merge',
+      () => this.bookmarkDecisionService.decideCooperatively({
+        intent: intent,
+        baseline: conservativeMerge ? null : historyPlan.baselineSnapshot,
+        local: decisionLocalSnapshot,
+        remote: historyPlan.remoteSnapshot
+      }, this.workThrottle)
+    );
     await this.workThrottle.afterStage();
     if (mergeResult.hasConflicts) {
       if (!historyPlan.requiresRemoteHistoryWrite &&
@@ -899,7 +996,10 @@ export class SyncService {
       const localApplyRequired = mergeResult.localApplyRequired;
       const remoteWriteRequired = mergeResult.remoteWriteRequired || historyPlan.requiresRemoteHistoryWrite;
       if (localApplyRequired && !remoteWriteRequired) {
-        const applyResult = await this.bookmarkSnapshotService.applyBookmarkSnapshotToLocalDb(mergeResult.snapshot);
+        const applyResult = await this.runBookmarkStage(
+          'local_apply',
+          () => this.bookmarkSnapshotService.applyBookmarkSnapshotToLocalDb(mergeResult.snapshot)
+        );
         if (applyResult.blocked) {
           return {
             commitId: completedCommitId,
@@ -913,7 +1013,9 @@ export class SyncService {
             summary: applyResult.summary
           };
         }
-        await this.assertBookmarkSnapshotMaterializedLocally(mergeResult.snapshot);
+        await this.runBookmarkStage('local_apply', (): Promise<void> => {
+          return this.assertBookmarkSnapshotMaterializedLocally(mergeResult.snapshot);
+        });
         await this.recordSuccessfulSync(
           remoteKind,
           mergeResult.snapshot,
@@ -959,22 +1061,31 @@ export class SyncService {
       }
     }
     await this.workThrottle.beforeMainThreadWrite();
-    const writeResult = await store.writeState({
-      snapshot: mergeResult.snapshot,
-      history: historyPlan.history,
-      deviceId: mergeResult.snapshot.meta.deviceId,
-      parentCommitId: remoteState.commitId,
-      createdAt: mergeResult.snapshot.meta.generatedAt
-    });
-    await this.confirmRemoteBookmarkCommit(
-      store,
-      remoteKind,
-      writeResult.commitId,
-      mergeResult.snapshot,
-      historyPlan.history
+    const writeResult = await this.runBookmarkStage(
+      'remote_commit',
+      () => store.writeState({
+        snapshot: mergeResult.snapshot,
+        history: historyPlan.history,
+        deviceId: mergeResult.snapshot.meta.deviceId,
+        parentCommitId: remoteState.commitId,
+        createdAt: mergeResult.snapshot.meta.generatedAt
+      })
+    );
+    await this.runBookmarkStage(
+      'remote_confirmation',
+      (): Promise<void> => this.confirmRemoteBookmarkCommit(
+        store,
+        remoteKind,
+        writeResult.commitId,
+        mergeResult.snapshot,
+        historyPlan.history
+      )
     );
     if (this.shouldApplyMergedBookmarkSnapshotToLocal(settings, mergeResult)) {
-      const applyResult = await this.bookmarkSnapshotService.applyBookmarkSnapshotToLocalDb(mergeResult.snapshot);
+      const applyResult = await this.runBookmarkStage(
+        'local_apply',
+        () => this.bookmarkSnapshotService.applyBookmarkSnapshotToLocalDb(mergeResult.snapshot)
+      );
       if (applyResult.blocked) {
         return {
           commitId: writeResult.commitId,
@@ -988,7 +1099,9 @@ export class SyncService {
           summary: applyResult.summary
         };
       }
-      await this.assertBookmarkSnapshotMaterializedLocally(mergeResult.snapshot);
+      await this.runBookmarkStage('local_apply', (): Promise<void> => {
+        return this.assertBookmarkSnapshotMaterializedLocally(mergeResult.snapshot);
+      });
     }
     await this.recordSuccessfulSync(
       remoteKind,
@@ -1030,8 +1143,14 @@ export class SyncService {
     }
   }
 
-  private async resolveLocalSnapshotForMerge(settings: AiraSyncSettings): Promise<AiraSyncSnapshot> {
-    return this.buildFreshAiraBookmarkSnapshot(this.shouldPreferCachedLocalSnapshot(settings));
+  private async resolveLocalSnapshotForMerge(
+    settings: AiraSyncSettings,
+    baseline?: AiraSyncBaselineRecord
+  ): Promise<AiraSyncSnapshot> {
+    return this.buildFreshAiraBookmarkSnapshot(
+      this.shouldPreferCachedLocalSnapshot(settings),
+      baseline?.snapshot
+    );
   }
 
   private async confirmRemoteBookmarkCommit(
@@ -1706,6 +1825,102 @@ export class SyncService {
       return '个人服务器';
     }
     return '同步服务';
+  }
+
+  private async runBookmarkStage<T>(
+    stage: AiraBookmarkSyncFailureStage,
+    operation: () => Promise<T>
+  ): Promise<T> {
+    try {
+      return await operation();
+    } catch (error) {
+      throw this.ensureBookmarkStageError(error as Error, stage);
+    }
+  }
+
+  private ensureBookmarkStageError(
+    error: Error,
+    fallbackStage: AiraBookmarkSyncFailureStage
+  ): AiraBookmarkSyncStageError {
+    if (error instanceof AiraBookmarkSyncStageError) {
+      return error;
+    }
+    return new AiraBookmarkSyncStageError(
+      this.createBookmarkSyncFailure(fallbackStage),
+      error
+    );
+  }
+
+  private createBookmarkConflictFailure(): AiraBookmarkSyncFailure {
+    return {
+      code: 'BKM-CONFLICT-001',
+      stage: 'merge',
+      safeDetail: '检测到需要确认的书签冲突，已保留本机和云端内容。请按页面提示处理。'
+    };
+  }
+
+  private createBookmarkSyncFailure(stage: AiraBookmarkSyncFailureStage): AiraBookmarkSyncFailure {
+    if (stage === 'authentication') {
+      return {
+        code: 'BKM-AUTH-001',
+        stage: stage,
+        safeDetail: '同步账号或同步源配置尚未通过校验，请重新确认账号状态和同步设置。'
+      };
+    }
+    if (stage === 'network') {
+      return {
+        code: 'BKM-NETWORK-001',
+        stage: stage,
+        safeDetail: '网络请求未完成，请检查网络后重试。'
+      };
+    }
+    if (stage === 'remote_read_validation') {
+      return {
+        code: 'BKM-REMOTE-READ-001',
+        stage: stage,
+        safeDetail: '无法读取或校验同步源中的书签快照，已停止后续写入以保护书签。'
+      };
+    }
+    if (stage === 'local_snapshot') {
+      return {
+        code: 'BKM-LOCAL-SNAPSHOT-001',
+        stage: stage,
+        safeDetail: '无法生成或读取本机书签快照，尚未向同步源写入数据。'
+      };
+    }
+    if (stage === 'merge') {
+      return {
+        code: 'BKM-MERGE-001',
+        stage: stage,
+        safeDetail: '书签合并未完成，已保留本机和同步源中的现有内容。'
+      };
+    }
+    if (stage === 'remote_commit') {
+      return {
+        code: 'BKM-REMOTE-WRITE-001',
+        stage: stage,
+        safeDetail: '书签提交到同步源时未完成，本机内容和待同步状态已保留。'
+      };
+    }
+    if (stage === 'remote_confirmation') {
+      return {
+        code: 'BKM-REMOTE-CONFIRM-001',
+        stage: stage,
+        safeDetail: '同步源未能确认完整提交，本次同步不会标记为成功。'
+      };
+    }
+    if (stage === 'local_apply') {
+      return {
+        code: 'BKM-LOCAL-APPLY-001',
+        stage: stage,
+        safeDetail: '合并结果未能完整写入并校验到本机，本次同步不会标记为成功。'
+      };
+    }
+    return {
+      code: 'BKM-UNKNOWN-001',
+      stage: 'unknown',
+      safeDetail: '书签同步在未识别的阶段中断，请重试并向客服提供错误码。'
+    };
   }
 
   private stringifyError(error: Error): string {

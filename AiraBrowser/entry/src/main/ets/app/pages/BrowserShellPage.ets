@@ -1174,6 +1174,9 @@ struct BrowserShellPage {
       (): void => {
         this.browserShellRouteCoordinator.openAiraProPage();
       },
+      (): void => {
+        this.browserShellRouteCoordinator.openSyncSettingsPage();
+      },
       (title: string, message: string): void => {
         this.browserNativeAlertDialogPresenter.inform({
           title: title,

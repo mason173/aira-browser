@@ -2,6 +2,8 @@ import {
   AIRA_BOOKMARK_SYNC_PROTOCOL_ID,
   AIRA_SYNC_DEFAULT_ROOT,
   AiraAdditionalBackupIntervalDays,
+  AiraBookmarkSyncFailure,
+  AiraBookmarkSyncFailureStage,
   AiraBookmarkHistoryDescriptor,
   AiraBookmarkSyncRemoteObservation,
   AiraSyncDomainRuntimeState,
@@ -293,6 +295,7 @@ export class AiraSyncConfigStore {
         'bookmark',
         undefined,
         false,
+        undefined,
         now
       );
     });
@@ -421,7 +424,8 @@ export class AiraSyncConfigStore {
     successful: boolean = false,
     domain: AiraSyncRuntimeDomainId = 'bookmark',
     revision?: string,
-    blocked?: boolean
+    blocked?: boolean,
+    failure?: AiraBookmarkSyncFailure
   ): Promise<AiraSyncSettings> {
     return this.mutateSettings((settings: AiraSyncSettings): AiraSyncSettings => {
       const now = Date.now();
@@ -434,6 +438,7 @@ export class AiraSyncConfigStore {
         domain,
         revision,
         blocked,
+        failure,
         now
       );
     });
@@ -454,6 +459,7 @@ export class AiraSyncConfigStore {
         'bookmark',
         observation.commitId,
         false,
+        undefined,
         now
       );
       const bookmarkFolders = Math.max(0, Math.floor(observation.bookmarkFolders));
@@ -472,7 +478,8 @@ export class AiraSyncConfigStore {
 
   saveBookmarkBlockedState(
     remoteKind: AiraSyncProviderKind,
-    summary: string
+    summary: string,
+    failure?: AiraBookmarkSyncFailure
   ): Promise<AiraSyncSettings> {
     return this.saveProviderRuntimeState(
       remoteKind,
@@ -481,7 +488,8 @@ export class AiraSyncConfigStore {
       false,
       'bookmark',
       undefined,
-      true
+      true,
+      failure
     );
   }
 
@@ -553,6 +561,7 @@ export class AiraSyncConfigStore {
         'bookmark',
         undefined,
         false,
+        undefined,
         now
       );
     });
@@ -976,6 +985,7 @@ export class AiraSyncConfigStore {
     domain: AiraSyncRuntimeDomainId,
     revision: string | undefined,
     blocked: boolean | undefined,
+    failure: AiraBookmarkSyncFailure | undefined,
     now: number
   ): AiraSyncSettings {
     const states = (settings.providerStates ?? []).filter((state: AiraSyncProviderRuntimeState): boolean => {
@@ -994,6 +1004,9 @@ export class AiraSyncConfigStore {
       lastSuccessAt: successful ? now : previousDomain.lastSuccessAt,
       revision: successful && revision !== undefined ? revision.trim() : previousDomain.revision,
       lastError: errorMessage.trim(),
+      failureCode: health === 'healthy' ? '' : (failure?.code.trim() ?? ''),
+      failureStage: health === 'healthy' ? '' : (failure?.stage ?? ''),
+      failureDetail: health === 'healthy' ? '' : (failure?.safeDetail.trim() ?? ''),
       blocked: health === 'healthy' ? false : (blocked ?? previousDomain.blocked)
     };
     states.push({
@@ -1325,8 +1338,22 @@ export class AiraSyncConfigStore {
       lastSuccessAt: this.normalizeTimestamp(value?.lastSuccessAt),
       revision: `${value?.revision ?? ''}`.trim(),
       lastError: `${value?.lastError ?? ''}`.trim(),
+      failureCode: `${value?.failureCode ?? ''}`.trim(),
+      failureStage: this.normalizeBookmarkFailureStage(value?.failureStage),
+      failureDetail: `${value?.failureDetail ?? ''}`.trim(),
       blocked: value?.blocked === true
     };
+  }
+
+  private normalizeBookmarkFailureStage(
+    value: AiraBookmarkSyncFailureStage | '' | undefined
+  ): AiraBookmarkSyncFailureStage | '' {
+    if (value === 'authentication' || value === 'network' || value === 'remote_read_validation' ||
+      value === 'local_snapshot' || value === 'merge' || value === 'remote_commit' ||
+      value === 'remote_confirmation' || value === 'local_apply' || value === 'unknown') {
+      return value;
+    }
+    return '';
   }
 
   private normalizeProviderHealth(value: AiraSyncProviderHealth | undefined): AiraSyncProviderHealth {

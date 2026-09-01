@@ -7,13 +7,13 @@ const path = require('path');
 const repoRoot = path.resolve(__dirname, '..');
 const vendorRoot = path.join(
   repoRoot,
-  'resources/icon-sources/aira/vendor/icons8/ios-27-glyph'
+  'resources/icon-sources/aira/vendor/lucide/aira-operational-icons'
 );
 const sourceOutputRoot = path.join(vendorRoot, 'svg');
 const manifestPath = path.join(vendorRoot, 'source-manifest.json');
 
 function fail(message) {
-  throw new Error(`Icons8 source import: ${message}`);
+  throw new Error(`Lucide source import: ${message}`);
 }
 
 function sha256(content) {
@@ -42,7 +42,7 @@ function loadManifest() {
     fail(`missing canonical source manifest: ${path.relative(repoRoot, manifestPath)}`);
   }
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-  if (manifest.schemaVersion !== 1 || manifest.authority !== 'aira-icons8-ios-27-glyph-source-pack') {
+  if (manifest.schemaVersion !== 1 || manifest.authority !== 'aira-lucide-operational-source-pack') {
     fail('unsupported source manifest schema or authority.');
   }
   if (!Array.isArray(manifest.glyphs) || manifest.glyphs.length <= 0) {
@@ -59,8 +59,8 @@ function loadManifest() {
     if (!Number.isInteger(entry.codePoint) || entry.codePoint < 0 || entry.codePoint > 0xFFFF) {
       fail(`glyph ${entry.glyph} has an invalid BMP codePoint.`);
     }
-    if (typeof entry.icons8Name !== 'string' || entry.icons8Name.length <= 0) {
-      fail(`glyph ${entry.glyph} has no Icons8 name.`);
+    if (typeof entry.lucideSlug !== 'string' || entry.lucideSlug.length <= 0) {
+      fail(`glyph ${entry.glyph} has no Lucide slug.`);
     }
     if (typeof entry.sourceFile !== 'string' || !entry.sourceFile.startsWith('svg/') ||
       path.basename(entry.sourceFile) !== entry.sourceFile.slice(4)) {
@@ -102,7 +102,7 @@ function listSvgFilesRecursive(root) {
 function main() {
   const sourceRoot = process.argv[2] ? path.resolve(process.argv[2]) : '';
   if (!sourceRoot || !fs.statSync(sourceRoot, { throwIfNoEntry: false })?.isDirectory()) {
-    fail('pass the licensed SVG directory as the only argument.');
+    fail('pass the Lucide SVG directory as the only argument.');
   }
 
   const manifest = loadManifest();
@@ -113,7 +113,7 @@ function main() {
     current.push(sourcePath);
     suppliedPathsByName.set(sourceName, current);
   });
-  const expectedFiles = new Set(manifest.glyphs.map((entry) => path.basename(entry.sourceFile)));
+  const expectedFiles = new Set(manifest.glyphs.map((entry) => `${entry.lucideSlug}.svg`));
   const missing = [...expectedFiles].filter((fileName) => !suppliedPathsByName.has(fileName));
   if (missing.length > 0) {
     fail(`missing SVG files: ${missing.join(', ')}`);
@@ -130,16 +130,16 @@ function main() {
     }
   });
   manifest.glyphs.forEach((entry) => {
-    const sourceName = path.basename(entry.sourceFile);
+    const sourceName = `${entry.lucideSlug}.svg`;
     const content = fs.readFileSync(suppliedPathsByName.get(sourceName)[0]);
     validateSvg(sourceName, content);
-    fs.writeFileSync(path.join(sourceOutputRoot, sourceName), content);
+    fs.writeFileSync(path.join(sourceOutputRoot, path.basename(entry.sourceFile)), content);
     entry.sourceSha256 = sha256(content);
   });
 
   fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
   console.log(
-    `Imported ${manifest.glyphs.length} licensed Icons8 SVGs into ${path.relative(repoRoot, vendorRoot)}.`
+    `Imported ${manifest.glyphs.length} Lucide SVGs into ${path.relative(repoRoot, vendorRoot)}.`
   );
 }
 

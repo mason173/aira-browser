@@ -18,8 +18,8 @@
     "note": "user-provided canonical start-window artwork; identical bytes for light and dark"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Browser Window.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Browser Window",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/app-window.svg",
+    "originalSource": "Lucide 1.38.0 / app-window",
     "primaryResourceFamily": "app_settings_web_apps",
     "resourceFamilies": [
       "app_settings_web_apps",
@@ -28,26 +28,26 @@
     "note": "one font glyph serves multiple app resource families"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/undo.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Undo",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/arrow-counter-clockwise.svg",
+    "originalSource": "Lucide 1.38.0 / undo-2",
     "primaryResourceFamily": "app_reader_refresh",
     "resourceFamilies": [
       "app_reader_refresh"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-back 1.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Back",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/arrow-left.svg",
+    "originalSource": "Lucide 1.38.0 / arrow-left",
     "primaryResourceFamily": "app_toolbar_back",
     "resourceFamilies": [
       "app_toolbar_back"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/External Link.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / External Link",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/arrow-square-out.svg",
+    "originalSource": "Lucide 1.38.0 / external-link",
     "primaryResourceFamily": "app_site_setting_external_actions",
     "resourceFamilies": [
       "app_site_setting_external_actions",
@@ -57,17 +57,17 @@
     "note": "one font glyph serves multiple app resource families"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Up Left Arrow.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Up Left Arrow",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/arrow-up-left.svg",
+    "originalSource": "Lucide 1.38.0 / arrow-up-left",
     "primaryResourceFamily": "app_search_suggestion_fill_arrow",
     "resourceFamilies": [
       "app_search_suggestion_fill_arrow"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Refresh.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Refresh",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/arrows-clockwise.svg",
+    "originalSource": "Lucide 1.38.0 / refresh-cw",
     "primaryResourceFamily": "app_toolbar_refresh",
     "resourceFamilies": [
       "app_toolbar_refresh",
@@ -77,35 +77,35 @@
     "note": "one font glyph serves multiple app resource families"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Resize Horizontal.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Resize Horizontal",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/arrows-out-line-horizontal.svg",
+    "originalSource": "Lucide 1.38.0 / move-horizontal",
     "primaryResourceFamily": "app_reader_page_width",
     "resourceFamilies": [
       "app_reader_page_width"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/News.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / News",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/article.svg",
+    "originalSource": "Lucide 1.38.0 / newspaper",
     "primaryResourceFamily": "app_toolbar_saved_pages",
     "resourceFamilies": [
       "app_toolbar_saved_pages"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Reading.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Reading",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/book-open-text.svg",
+    "originalSource": "Lucide 1.38.0 / book-open-text",
     "primaryResourceFamily": "app_toolbar_reader",
     "resourceFamilies": [
       "app_toolbar_reader"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Bookmark Ribbon.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Bookmark Ribbon",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/bookmark-simple.svg",
+    "originalSource": "Lucide 1.38.0 / bookmark",
     "primaryResourceFamily": "app_reader_add_bookmark",
     "resourceFamilies": [
       "app_reader_add_bookmark",
@@ -114,8 +114,8 @@
     "note": "one font glyph serves multiple app resource families"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Bookmark.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Bookmark",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/bookmarks.svg",
+    "originalSource": "Lucide 1.38.0 / book-marked",
     "primaryResourceFamily": "app_shortcut_bookmarks",
     "resourceFamilies": [
       "app_shortcut_bookmarks",
@@ -124,26 +124,26 @@
     "note": "one font glyph serves multiple app resource families"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Web.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Web",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/browser.svg",
+    "originalSource": "Lucide 1.38.0 / panel-top",
     "primaryResourceFamily": "app_toolbar_user_agent",
     "resourceFamilies": [
       "app_toolbar_user_agent"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Camera.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Camera",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/camera.svg",
+    "originalSource": "Lucide 1.38.0 / camera",
     "primaryResourceFamily": "app_site_permission_camera",
     "resourceFamilies": [
       "app_site_permission_camera"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Color Palette.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Color Palette",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/circles-three.svg",
+    "originalSource": "Lucide 1.38.0 / palette",
     "primaryResourceFamily": "app_settings_appearance",
     "resourceFamilies": [
       "app_settings_appearance",
@@ -153,35 +153,35 @@
     "note": "one font glyph serves multiple app resource families"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/clipboard.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Clipboard",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/clipboard.svg",
+    "originalSource": "Lucide 1.38.0 / clipboard",
     "primaryResourceFamily": "app_site_permission_clipboard",
     "resourceFamilies": [
       "app_site_permission_clipboard"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Clock.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Clock",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/clock.svg",
+    "originalSource": "Lucide 1.38.0 / clock",
     "primaryResourceFamily": "app_membership_invite_record_clock",
     "resourceFamilies": [
       "app_membership_invite_record_clock"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/历史记录.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / History",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/clock-counter-clockwise.svg",
+    "originalSource": "Lucide 1.38.0 / history",
     "primaryResourceFamily": "app_shortcut_history",
     "resourceFamilies": [
       "app_shortcut_history"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Cloud.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Cloud",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/cloud.svg",
+    "originalSource": "Lucide 1.38.0 / cloud",
     "primaryResourceFamily": "app_settings_webdav",
     "resourceFamilies": [
       "app_settings_webdav",
@@ -190,8 +190,8 @@
     "note": "one font glyph serves multiple app resource families"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/脚本.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Code",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/code.svg",
+    "originalSource": "Lucide 1.38.0 / code",
     "primaryResourceFamily": "app_settings_user_scripts",
     "resourceFamilies": [
       "app_settings_user_scripts",
@@ -202,17 +202,17 @@
     "note": "one font glyph serves multiple app resource families"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/全屏模式.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Full Screen Mode",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/corners-out.svg",
+    "originalSource": "Lucide 1.38.0 / fullscreen",
     "primaryResourceFamily": "app_toolbar_full_screen",
     "resourceFamilies": [
       "app_toolbar_full_screen"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Crown.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Crown",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/crown.svg",
+    "originalSource": "Lucide 1.38.0 / crown",
     "primaryResourceFamily": "app_settings_membership",
     "resourceFamilies": [
       "app_settings_membership",
@@ -221,53 +221,53 @@
     "note": "one font glyph serves multiple app resource families"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Text Cursor.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Text Cursor",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/cursor-text.svg",
+    "originalSource": "Lucide 1.38.0 / text-cursor-input",
     "primaryResourceFamily": "app_toolbar_fill_address",
     "resourceFamilies": [
       "app_toolbar_fill_address"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Monitor.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Monitor",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/desktop.svg",
+    "originalSource": "Lucide 1.38.0 / monitor",
     "primaryResourceFamily": "app_theme_mode_system",
     "resourceFamilies": [
       "app_theme_mode_system"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Smartphone.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Smartphone",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/device-mobile.svg",
+    "originalSource": "Lucide 1.38.0 / smartphone",
     "primaryResourceFamily": "app_toolbar_add_to_desktop",
     "resourceFamilies": [
       "app_toolbar_add_to_desktop"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Rotate Screen.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Rotate Screen",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/device-rotate.svg",
+    "originalSource": "Lucide 1.38.0 / rotate-cw",
     "primaryResourceFamily": "app_toolbar_screen_orientation",
     "resourceFamilies": [
       "app_toolbar_screen_orientation"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/More.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / More",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/dots-three.svg",
+    "originalSource": "Lucide 1.38.0 / ellipsis",
     "primaryResourceFamily": "app_toolbar_more",
     "resourceFamilies": [
       "app_toolbar_more"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Download.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Download",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/download-simple.svg",
+    "originalSource": "Lucide 1.38.0 / download",
     "primaryResourceFamily": "app_settings_downloads",
     "resourceFamilies": [
       "app_settings_downloads",
@@ -277,26 +277,26 @@
     "note": "one font glyph serves multiple app resource families"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Eraser.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Eraser",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/eraser.svg",
+    "originalSource": "Lucide 1.38.0 / eraser",
     "primaryResourceFamily": "app_toolbar_manual_element_hide",
     "resourceFamilies": [
       "app_toolbar_manual_element_hide"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Fast Forward.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Fast Forward",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/fast-forward.svg",
+    "originalSource": "Lucide 1.38.0 / fast-forward",
     "primaryResourceFamily": "app_video_assistant_seek_forward_10",
     "resourceFamilies": [
       "app_video_assistant_seek_forward_10"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Test Tube.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Test Tube",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/flask.svg",
+    "originalSource": "Lucide 1.38.0 / flask-conical",
     "primaryResourceFamily": "app_settings_experiments",
     "resourceFamilies": [
       "app_settings_experiments",
@@ -305,35 +305,35 @@
     "note": "one font glyph serves multiple app resource families"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Save.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Save",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/floppy-disk.svg",
+    "originalSource": "Lucide 1.38.0 / save",
     "primaryResourceFamily": "app_toolbar_offline",
     "resourceFamilies": [
       "app_toolbar_offline"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Folder Invoices.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Folder Invoices",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/folder-simple.svg",
+    "originalSource": "Lucide 1.38.0 / folder",
     "primaryResourceFamily": "app_bookmark_folder",
     "resourceFamilies": [
       "app_bookmark_folder"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Speed.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Speed",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/gauge.svg",
+    "originalSource": "Lucide 1.38.0 / gauge",
     "primaryResourceFamily": "app_video_assistant_playback_speed",
     "resourceFamilies": [
       "app_video_assistant_playback_speed"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-settings 1.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Settings",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/gear-six.svg",
+    "originalSource": "Lucide 1.38.0 / settings",
     "primaryResourceFamily": "app_settings_general",
     "resourceFamilies": [
       "app_settings_general",
@@ -342,8 +342,8 @@
     "note": "one font glyph serves multiple app resource families"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-gift 1.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Gift",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/gift.svg",
+    "originalSource": "Lucide 1.38.0 / gift",
     "primaryResourceFamily": "app_membership_gift",
     "resourceFamilies": [
       "app_membership_gift",
@@ -353,8 +353,8 @@
     "note": "one font glyph serves multiple app resource families"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Globe.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Globe",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/globe.svg",
+    "originalSource": "Lucide 1.38.0 / globe",
     "primaryResourceFamily": "app_settings_site_settings",
     "resourceFamilies": [
       "app_settings_site_settings",
@@ -363,17 +363,17 @@
     "note": "one font glyph serves multiple app resource families"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-globe_earth 1.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Globe Earth",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/globe-earth.svg",
+    "originalSource": "Lucide 1.38.0 / earth",
     "primaryResourceFamily": "app_userscripts_default_icon",
     "resourceFamilies": [
       "app_userscripts_default_icon"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-home 1.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Home",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/house.svg",
+    "originalSource": "Lucide 1.38.0 / house",
     "primaryResourceFamily": "app_settings_custom_homepage",
     "resourceFamilies": [
       "app_settings_custom_homepage",
@@ -382,8 +382,8 @@
     "note": "one font glyph serves multiple app resource families"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-contact 1.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Contact Card",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/identification-card.svg",
+    "originalSource": "Lucide 1.38.0 / contact",
     "primaryResourceFamily": "app_settings_user_agent",
     "resourceFamilies": [
       "app_settings_user_agent",
@@ -392,53 +392,53 @@
     "note": "one font glyph serves multiple app resource families"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/关于aira.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Info",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/info.svg",
+    "originalSource": "Lucide 1.38.0 / info",
     "primaryResourceFamily": "app_settings_about",
     "resourceFamilies": [
       "app_settings_about"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-link 1.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Link",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/link-simple.svg",
+    "originalSource": "Lucide 1.38.0 / link",
     "primaryResourceFamily": "app_toolbar_copy_link",
     "resourceFamilies": [
       "app_toolbar_copy_link"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-lock 1.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Lock",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/lock.svg",
+    "originalSource": "Lucide 1.38.0 / lock",
     "primaryResourceFamily": "app_video_assistant_lock",
     "resourceFamilies": [
       "app_video_assistant_lock"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-key 1.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Key Security",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/lock-key.svg",
+    "originalSource": "Lucide 1.38.0 / shield-keyhole",
     "primaryResourceFamily": "app_toolbar_connection_security",
     "resourceFamilies": [
       "app_toolbar_connection_security"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-padlock 1.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Unlock",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/lock-open.svg",
+    "originalSource": "Lucide 1.38.0 / lock-open",
     "primaryResourceFamily": "app_video_assistant_unlock",
     "resourceFamilies": [
       "app_video_assistant_unlock"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-search 1.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Search",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/magnifying-glass.svg",
+    "originalSource": "Lucide 1.38.0 / search",
     "primaryResourceFamily": "app_reader_find",
     "resourceFamilies": [
       "app_reader_find",
@@ -448,134 +448,134 @@
     "note": "one font glyph serves multiple app resource families"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-marker 1.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Marker",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/map-pin.svg",
+    "originalSource": "Lucide 1.38.0 / map-pin",
     "primaryResourceFamily": "app_site_permission_location",
     "resourceFamilies": [
       "app_site_permission_location"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Anonymous Mask.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Anonymous Mask",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/mask-happy.svg",
+    "originalSource": "Lucide 1.38.0 / venetian-mask",
     "primaryResourceFamily": "app_tabs_privacy_mode",
     "resourceFamilies": [
       "app_tabs_privacy_mode"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-microphone 1.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Microphone",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/microphone.svg",
+    "originalSource": "Lucide 1.38.0 / mic",
     "primaryResourceFamily": "app_site_permission_microphone",
     "resourceFamilies": [
       "app_site_permission_microphone"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-moon_symbol 1.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Moon Symbol",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/moon.svg",
+    "originalSource": "Lucide 1.38.0 / moon",
     "primaryResourceFamily": "app_theme_mode_dark",
     "resourceFamilies": [
       "app_theme_mode_dark"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-color_palette 1.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Color Palette",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/palette.svg",
+    "originalSource": "Lucide 1.38.0 / palette",
     "primaryResourceFamily": "app_reader_theme",
     "resourceFamilies": [
       "app_reader_theme"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-paper_plane 1.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Paper Plane",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/paper-plane-tilt.svg",
+    "originalSource": "Lucide 1.38.0 / send",
     "primaryResourceFamily": "app_toolbar_send_to_desktop",
     "resourceFamilies": [
       "app_toolbar_send_to_desktop"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-password 1.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Password",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/password.svg",
+    "originalSource": "Lucide 1.38.0 / key-round",
     "primaryResourceFamily": "app_settings_passwords",
     "resourceFamilies": [
       "app_settings_passwords"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-pause 1.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Pause",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/pause.svg",
+    "originalSource": "Lucide 1.38.0 / pause",
     "primaryResourceFamily": "app_video_assistant_pause",
     "resourceFamilies": [
       "app_video_assistant_pause"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-edit 1.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Edit",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/pencil-simple.svg",
+    "originalSource": "Lucide 1.38.0 / pencil",
     "primaryResourceFamily": "app_toolbar_edit",
     "resourceFamilies": [
       "app_toolbar_edit"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-picture_in_picture 1.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Picture in Picture",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/picture-in-picture.svg",
+    "originalSource": "Lucide 1.38.0 / picture-in-picture",
     "primaryResourceFamily": "app_video_assistant_popup",
     "resourceFamilies": [
       "app_video_assistant_popup"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-play 1.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Play",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/play.svg",
+    "originalSource": "Lucide 1.38.0 / play",
     "primaryResourceFamily": "app_video_assistant_play",
     "resourceFamilies": [
       "app_video_assistant_play"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Plus.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Plus",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/plus.svg",
+    "originalSource": "Lucide 1.38.0 / plus",
     "primaryResourceFamily": "app_tabs_add",
     "resourceFamilies": [
       "app_tabs_add"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-print 1.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Print",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/printer.svg",
+    "originalSource": "Lucide 1.38.0 / printer",
     "primaryResourceFamily": "app_toolbar_print_page",
     "resourceFamilies": [
       "app_toolbar_print_page"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-qr_code 1.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / QR Code",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/qr-code.svg",
+    "originalSource": "Lucide 1.38.0 / qr-code",
     "primaryResourceFamily": "app_shortcut_scan_qr",
     "resourceFamilies": [
       "app_shortcut_scan_qr"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Receipt.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Receipt",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/receipt.svg",
+    "originalSource": "Lucide 1.38.0 / receipt",
     "primaryResourceFamily": "app_settings_restore_purchase",
     "resourceFamilies": [
       "app_settings_restore_purchase",
@@ -584,35 +584,35 @@
     "note": "one font glyph serves multiple app resource families"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-resize 1.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Resize",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/resize.svg",
+    "originalSource": "Lucide 1.38.0 / ratio",
     "primaryResourceFamily": "app_video_assistant_aspect_ratio",
     "resourceFamilies": [
       "app_video_assistant_aspect_ratio"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-rewind 1.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Rewind",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/rewind.svg",
+    "originalSource": "Lucide 1.38.0 / rewind",
     "primaryResourceFamily": "app_video_assistant_seek_backward_10",
     "resourceFamilies": [
       "app_video_assistant_seek_backward_10"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-select_all 1.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Select All",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/selection-all.svg",
+    "originalSource": "Lucide 1.38.0 / box-select",
     "primaryResourceFamily": "app_toolbar_select_all",
     "resourceFamilies": [
       "app_toolbar_select_all"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-share 1.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Share",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/share-network.svg",
+    "originalSource": "Lucide 1.38.0 / share-2",
     "primaryResourceFamily": "app_reader_share",
     "resourceFamilies": [
       "app_reader_share",
@@ -622,8 +622,8 @@
     "note": "one font glyph serves multiple app resource families"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Shield.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Shield",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/shield.svg",
+    "originalSource": "Lucide 1.38.0 / shield",
     "primaryResourceFamily": "app_settings_privacy_security",
     "resourceFamilies": [
       "app_settings_privacy_security",
@@ -632,17 +632,17 @@
     "note": "one font glyph serves multiple app resource families"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Security Checked.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Security Checked",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/shield-check.svg",
+    "originalSource": "Lucide 1.38.0 / shield-check",
     "primaryResourceFamily": "app_membership_benefit_ad_blocker",
     "resourceFamilies": [
       "app_membership_benefit_ad_blocker"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/High Volume.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / High Volume",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/speaker-high.svg",
+    "originalSource": "Lucide 1.38.0 / volume-2",
     "primaryResourceFamily": "app_reader_read_aloud",
     "resourceFamilies": [
       "app_reader_read_aloud",
@@ -651,44 +651,44 @@
     "note": "one font glyph serves multiple app resource families"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Low Volume.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Low Volume",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/speaker-low.svg",
+    "originalSource": "Lucide 1.38.0 / volume-1",
     "primaryResourceFamily": "app_video_assistant_gesture_volume_low",
     "resourceFamilies": [
       "app_video_assistant_gesture_volume_low"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Medium Volume.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Medium Volume",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/speaker-simple-high.svg",
+    "originalSource": "Lucide 1.38.0 / volume",
     "primaryResourceFamily": "app_video_assistant_gesture_volume_medium",
     "resourceFamilies": [
       "app_video_assistant_gesture_volume_medium"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Mute.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Mute",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/speaker-slash.svg",
+    "originalSource": "Lucide 1.38.0 / volume-x",
     "primaryResourceFamily": "app_video_assistant_gesture_volume_muted",
     "resourceFamilies": [
       "app_video_assistant_gesture_volume_muted"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-stack 1.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Stack",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/stack.svg",
+    "originalSource": "Lucide 1.38.0 / layers-3",
     "primaryResourceFamily": "app_shortcut_page_resources",
     "resourceFamilies": [
       "app_shortcut_page_resources"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-sun 1.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Sun",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/sun.svg",
+    "originalSource": "Lucide 1.38.0 / sun",
     "primaryResourceFamily": "app_theme_mode_light",
     "resourceFamilies": [
       "app_theme_mode_light",
@@ -697,44 +697,44 @@
     "note": "one font glyph serves multiple app resource families"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/标签页.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Windows",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/tabs.svg",
+    "originalSource": "Lucide 1.38.0 / panel-top",
     "primaryResourceFamily": "app_toolbar_tabs",
     "resourceFamilies": [
       "app_toolbar_tabs"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-align_justify 1.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Align Justify",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/text-align-justify.svg",
+    "originalSource": "Lucide 1.38.0 / text-align-justify",
     "primaryResourceFamily": "app_reader_line_height",
     "resourceFamilies": [
       "app_reader_line_height"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-increase_font 1.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Increase Font",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/text-t.svg",
+    "originalSource": "Lucide 1.38.0 / type",
     "primaryResourceFamily": "app_reader_increase_font",
     "resourceFamilies": [
       "app_reader_increase_font"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-decrease_font 1.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Decrease Font",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/text-t-slash.svg",
+    "originalSource": "Lucide 1.38.0 / a-large-small",
     "primaryResourceFamily": "app_reader_decrease_font",
     "resourceFamilies": [
       "app_reader_decrease_font"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-translation 1.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Translation",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/translate.svg",
+    "originalSource": "Lucide 1.38.0 / languages",
     "primaryResourceFamily": "app_settings_webpage_translation",
     "resourceFamilies": [
       "app_settings_webpage_translation",
@@ -744,35 +744,35 @@
     "note": "one font glyph serves multiple app resource families"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-trash 1.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Trash",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/trash.svg",
+    "originalSource": "Lucide 1.38.0 / trash",
     "primaryResourceFamily": "app_site_setting_clear_on_close",
     "resourceFamilies": [
       "app_site_setting_clear_on_close"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-error 1.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Error",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/warning-octagon.svg",
+    "originalSource": "Lucide 1.38.0 / octagon-alert",
     "primaryResourceFamily": "app_toolbar_report_site",
     "resourceFamilies": [
       "app_toolbar_report_site"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/传感器权限.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Activity",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/waveform.svg",
+    "originalSource": "Lucide 1.38.0 / activity",
     "primaryResourceFamily": "app_site_permission_sensor",
     "resourceFamilies": [
       "app_site_permission_sensor"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/icons8-delete 1.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Delete Sign",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/x.svg",
+    "originalSource": "Lucide 1.38.0 / x",
     "primaryResourceFamily": "app_toolbar_clear_input",
     "resourceFamilies": [
       "app_toolbar_clear_input",
@@ -781,17 +781,17 @@
     "note": "one font glyph serves multiple app resource families"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/选择同步内容弹窗的活动热力图.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Activity Heatmap",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/activity-heatmap.svg",
+    "originalSource": "Lucide 1.38.0 / activity",
     "primaryResourceFamily": "app_sync_first_activation_activity_heatmap",
     "resourceFamilies": [
       "app_sync_first_activation_activity_heatmap"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/设置-同步.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Cloud Sync",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/settings-sync.svg",
+    "originalSource": "Lucide 1.38.0 / cloud-sync",
     "primaryResourceFamily": "app_settings_sync",
     "resourceFamilies": [
       "app_settings_sync",
@@ -800,373 +800,373 @@
     "note": "one font glyph serves multiple app resource families"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/copy.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Copy",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/copy.svg",
+    "originalSource": "Lucide 1.38.0 / copy",
     "primaryResourceFamily": "app_browser_address_copy",
     "resourceFamilies": [
       "app_browser_address_copy"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/ad_blocker.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Ad Blocker",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/ad-blocker.svg",
+    "originalSource": "Lucide 1.38.0 / shield-off",
     "primaryResourceFamily": "app_settings_ad_blocker",
     "resourceFamilies": [
       "app_settings_ad_blocker"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/user_shield.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / User Shield",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/user-shield.svg",
+    "originalSource": "Lucide 1.38.0 / user-shield",
     "primaryResourceFamily": "app_settings_notice_user_shield",
     "resourceFamilies": [
       "app_settings_notice_user_shield"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/菜单.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Menu",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/menu.svg",
+    "originalSource": "Lucide 1.38.0 / menu",
     "primaryResourceFamily": "app_toolbar_menu",
     "resourceFamilies": [
       "app_toolbar_menu"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/分享.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Share",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/browser-address-expanded-share.svg",
+    "originalSource": "Lucide 1.38.0 / share-2",
     "primaryResourceFamily": "app_browser_address_expanded_share",
     "resourceFamilies": [
       "app_browser_address_expanded_share"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/编辑.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Edit",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/browser-address-expanded-edit.svg",
+    "originalSource": "Lucide 1.38.0 / pencil",
     "primaryResourceFamily": "app_browser_address_expanded_edit",
     "resourceFamilies": [
       "app_browser_address_expanded_edit"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/复制.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Copy",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/browser-address-expanded-copy.svg",
+    "originalSource": "Lucide 1.38.0 / copy",
     "primaryResourceFamily": "app_browser_address_expanded_copy",
     "resourceFamilies": [
       "app_browser_address_expanded_copy"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/新建标签页.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / New Tab",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/tabs-overview-new.svg",
+    "originalSource": "Lucide 1.38.0 / square-plus",
     "primaryResourceFamily": "app_tabs_overview_add",
     "resourceFamilies": [
       "app_tabs_overview_add"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/111关闭.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Close",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/tabs-overview-close-all.svg",
+    "originalSource": "Lucide 1.38.0 / x",
     "primaryResourceFamily": "app_tabs_overview_close",
     "resourceFamilies": [
       "app_tabs_overview_close"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/扫一扫.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Scan QR",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/toolbar-scan.svg",
+    "originalSource": "Lucide 1.38.0 / scan-qr-code",
     "primaryResourceFamily": "app_toolbar_scan_qr",
     "resourceFamilies": [
       "app_toolbar_scan_qr"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/隐私模式.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Private Mode",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/toolbar-private-mode.svg",
+    "originalSource": "Lucide 1.38.0 / venetian-mask",
     "primaryResourceFamily": "app_toolbar_privacy_mode",
     "resourceFamilies": [
       "app_toolbar_privacy_mode"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/复制链接.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Copy Link",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/toolbar-copy-link.svg",
+    "originalSource": "Lucide 1.38.0 / link",
     "primaryResourceFamily": "app_toolbar_action_copy_link",
     "resourceFamilies": [
       "app_toolbar_action_copy_link"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/翻译.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Translate",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/toolbar-translate.svg",
+    "originalSource": "Lucide 1.38.0 / languages",
     "primaryResourceFamily": "app_toolbar_action_translate",
     "resourceFamilies": [
       "app_toolbar_action_translate"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/撑满屏幕.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Fill Screen",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/video-assistant-fill-screen.svg",
+    "originalSource": "Lucide 1.38.0 / fullscreen",
     "primaryResourceFamily": "app_video_assistant_control_aspect_ratio",
     "resourceFamilies": [
       "app_video_assistant_control_aspect_ratio"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/倍速.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Playback Speed",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/video-assistant-playback-speed.svg",
+    "originalSource": "Lucide 1.38.0 / gauge",
     "primaryResourceFamily": "app_video_assistant_control_playback_speed",
     "resourceFamilies": [
       "app_video_assistant_control_playback_speed"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/旋转.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Rotate Video",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/video-assistant-rotate.svg",
+    "originalSource": "Lucide 1.38.0 / rotate-cw",
     "primaryResourceFamily": "app_video_assistant_control_rotate",
     "resourceFamilies": [
       "app_video_assistant_control_rotate"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/审查元素.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Inspect Element",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/toolbar-element-inspection.svg",
+    "originalSource": "Lucide 1.38.0 / scan-search",
     "primaryResourceFamily": "app_toolbar_action_element_inspection",
     "resourceFamilies": [
       "app_toolbar_action_element_inspection"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/网页功能.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Web Features",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/settings-web-features.svg",
+    "originalSource": "Lucide 1.38.0 / blocks",
     "primaryResourceFamily": "app_settings_web_features",
     "resourceFamilies": [
       "app_settings_web_features"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/投屏.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Cast",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/video-assistant-cast.svg",
+    "originalSource": "Lucide 1.38.0 / cast",
     "primaryResourceFamily": "app_video_assistant_cast",
     "resourceFamilies": [
       "app_video_assistant_cast"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/重新选择.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Reselect Element",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/element-inspection-reselect.svg",
+    "originalSource": "Lucide 1.38.0 / mouse-pointer-square-dashed",
     "primaryResourceFamily": "app_element_inspection_reselect",
     "resourceFamilies": [
       "app_element_inspection_reselect"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/元素审查全屏.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Element Inspection Fullscreen",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/element-inspection-fullscreen.svg",
+    "originalSource": "Lucide 1.38.0 / fullscreen",
     "primaryResourceFamily": "app_element_inspection_fullscreen",
     "resourceFamilies": [
       "app_element_inspection_fullscreen"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/元素审查收起全屏.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Element Inspection Exit Fullscreen",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/element-inspection-exit-fullscreen.svg",
+    "originalSource": "Lucide 1.38.0 / minimize",
     "primaryResourceFamily": "app_element_inspection_exit_fullscreen",
     "resourceFamilies": [
       "app_element_inspection_exit_fullscreen"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/up.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Expand Up",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/toolbar-expand-hint.svg",
+    "originalSource": "Lucide 1.38.0 / chevron-up",
     "primaryResourceFamily": "app_toolbar_expand_hint",
     "resourceFamilies": [
       "app_toolbar_expand_hint"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/添加书签.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Add Bookmark",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/toolbar-bookmark-add.svg",
+    "originalSource": "Lucide 1.38.0 / bookmark-plus",
     "primaryResourceFamily": "app_omnibox_add_bookmark",
     "resourceFamilies": [
       "app_omnibox_add_bookmark"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/已经添加书签了，已经是书签了。.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Bookmarked",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/toolbar-bookmark-selected.svg",
+    "originalSource": "Lucide 1.38.0 / bookmark-check",
     "primaryResourceFamily": "app_omnibox_bookmarked",
     "resourceFamilies": [
       "app_omnibox_bookmarked"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/用户脚本工具栏.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / User Script",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/toolbar-user-script.svg",
+    "originalSource": "Lucide 1.38.0 / code-xml",
     "primaryResourceFamily": "app_toolbar_user_scripts",
     "resourceFamilies": [
       "app_toolbar_user_scripts"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/目录.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Novel Reader Catalog",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/novel-reader-catalog.svg",
+    "originalSource": "Lucide 1.38.0 / list",
     "primaryResourceFamily": "app_novel_reader_catalog",
     "resourceFamilies": [
       "app_novel_reader_catalog"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/文字.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Novel Reader Text",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/novel-reader-text.svg",
+    "originalSource": "Lucide 1.38.0 / type",
     "primaryResourceFamily": "app_novel_reader_text",
     "resourceFamilies": [
       "app_novel_reader_text"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/颜色浅色.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Novel Reader Light Color",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/novel-reader-theme.svg",
+    "originalSource": "Lucide 1.38.0 / palette",
     "primaryResourceFamily": "app_novel_reader_theme",
     "resourceFamilies": [
       "app_novel_reader_theme"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/设置.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Novel Reader Settings",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/novel-reader-settings.svg",
+    "originalSource": "Lucide 1.38.0 / settings",
     "primaryResourceFamily": "app_novel_reader_settings",
     "resourceFamilies": [
       "app_novel_reader_settings"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/左边亮度.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Novel Reader Brightness Low",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/novel-reader-brightness-low.svg",
+    "originalSource": "Lucide 1.38.0 / sun-dim",
     "primaryResourceFamily": "app_novel_reader_brightness_low",
     "resourceFamilies": [
       "app_novel_reader_brightness_low"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/右边亮度.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Novel Reader Brightness High",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/novel-reader-brightness-high.svg",
+    "originalSource": "Lucide 1.38.0 / sun",
     "primaryResourceFamily": "app_novel_reader_brightness_high",
     "resourceFamilies": [
       "app_novel_reader_brightness_high"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/乌龟代表慢.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Novel Reader Auto Slow",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/novel-reader-auto-slow.svg",
+    "originalSource": "Lucide 1.38.0 / turtle",
     "primaryResourceFamily": "app_novel_reader_auto_slow",
     "resourceFamilies": [
       "app_novel_reader_auto_slow"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/兔子代表快.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Novel Reader Auto Fast",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/novel-reader-auto-fast.svg",
+    "originalSource": "Lucide 1.38.0 / rabbit",
     "primaryResourceFamily": "app_novel_reader_auto_fast",
     "resourceFamilies": [
       "app_novel_reader_auto_fast"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/我的书架.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Bookshelf",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/bookshelf.svg",
+    "originalSource": "Lucide 1.38.0 / library",
     "primaryResourceFamily": "app_toolbar_bookshelf",
     "resourceFamilies": [
       "app_toolbar_bookshelf"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/下载中.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Active Download",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/active-download.svg",
+    "originalSource": "Lucide 1.38.0 / download-cloud",
     "primaryResourceFamily": "app_toolbar_active_download",
     "resourceFamilies": [
       "app_toolbar_active_download"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/Empty.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Empty",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/toolbar-slot-empty.svg",
+    "originalSource": "Lucide 1.38.0 / square-dashed",
     "primaryResourceFamily": "app_toolbar_empty_slot",
     "resourceFamilies": [
       "app_toolbar_empty_slot"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/拖动抓手.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Bookmark Edit Drag Handle",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/bookmark-edit-drag-handle.svg",
+    "originalSource": "Lucide 1.38.0 / grip-vertical",
     "primaryResourceFamily": "app_bookmark_edit_drag_handle",
     "resourceFamilies": [
       "app_bookmark_edit_drag_handle"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/移动.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Bookmark Edit Move",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/bookmark-edit-move.svg",
+    "originalSource": "Lucide 1.38.0 / move",
     "primaryResourceFamily": "app_bookmark_edit_move",
     "resourceFamilies": [
       "app_bookmark_edit_move"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/全选.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Bookmark Edit Select All",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/bookmark-edit-select-all.svg",
+    "originalSource": "Lucide 1.38.0 / box-select",
     "primaryResourceFamily": "app_bookmark_edit_select_all",
     "resourceFamilies": [
       "app_bookmark_edit_select_all"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
-    "exportedFile": "vendor/icons8/ios-27-glyph/svg/前进.svg",
-    "originalSource": "Icons8 iOS 27 Glyph / Forward",
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/arrow-right.svg",
+    "originalSource": "Lucide 1.38.0 / arrow-right",
     "primaryResourceFamily": "app_toolbar_forward",
     "resourceFamilies": [
       "app_toolbar_forward"
     ],
-    "note": "licensed Icons8 Operational font source"
+    "note": "Lucide Operational font source"
   },
   {
     "exportedFile": "icons/app_widget_shortcut_history__user-provided.svg",

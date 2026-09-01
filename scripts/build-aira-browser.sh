@@ -36,7 +36,7 @@ BOOKMARK_SNAPSHOT_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-bookmark-snapsho
 PRODUCTION_BUNDLE_NAME="com.aira.browser"
 PRODUCTION_APP_NAME="Aira"
 COMMUNITY_BUNDLE_NAME="org.aira.browser"
-COMMUNITY_APP_NAME="Aira Community"
+COMMUNITY_APP_NAME="Aira"
 MIN_SUPPORTED_API_VERSION=23
 MAX_HARMONY_VERSION_CODE=2147483647
 APP_OUTPUT_DIR="${PROJECT_DIR}/build/outputs/default"
@@ -166,6 +166,18 @@ case "${DISTRIBUTION}" in
     fail "Unsupported AIRA_DISTRIBUTION=${DISTRIBUTION}. Use community or official."
     ;;
 esac
+
+# A community build normally uses its own bundle name. For local acceptance on
+# a device that already has the store package installed, an explicitly requested
+# temporary bundle override can reuse that package's signing identity while the
+# source-level distribution remains Community.
+PACKAGE_BUNDLE_NAME="${AIRA_PACKAGE_BUNDLE_NAME:-${EXPECTED_BUNDLE_NAME}}"
+if [ "${PACKAGE_BUNDLE_NAME}" != "${EXPECTED_BUNDLE_NAME}" ]; then
+  if [ "${DISTRIBUTION}" != "community" ] || [ "${PACKAGE_BUNDLE_NAME}" != "${PRODUCTION_BUNDLE_NAME}" ]; then
+    fail "AIRA_PACKAGE_BUNDLE_NAME may only temporarily map Community to ${PRODUCTION_BUNDLE_NAME}."
+  fi
+  echo "Temporary package bundle override: ${EXPECTED_BUNDLE_NAME} -> ${PACKAGE_BUNDLE_NAME}"
+fi
 
 ARCHIVE_CRASH_SYMBOLS="${AIRA_ARCHIVE_CRASH_SYMBOLS:-}"
 if [ -z "${ARCHIVE_CRASH_SYMBOLS}" ]; then
@@ -389,7 +401,8 @@ apply_distribution_configuration() {
     "${APP_VERSION_INFO}" \
     "${DISTRIBUTION_OWNER}" \
     "${AGCONNECT_SOURCE}" \
-    "${EXPECTED_BUNDLE_NAME}" \
+    "${DISTRIBUTION}" \
+    "${PACKAGE_BUNDLE_NAME}" \
     "${EXPECTED_APP_NAME}" \
     "${AIRA_HUAWEI_APP_ID:-}" \
     "${AIRA_HUAWEI_CLIENT_ID:-}" <<'NODE'
@@ -404,6 +417,7 @@ const [
   appVersionInfoPath,
   ownerPath,
   agconnectPath,
+  distribution,
   bundleName,
   appName,
   requestedAppId,
@@ -420,7 +434,7 @@ function writeJson(path, value) {
 
 const appConfig = readJson5(appConfigPath);
 appConfig.app.bundleName = bundleName;
-appConfig.app.cloudStructuredDataSyncEnabled = bundleName === 'com.aira.browser';
+appConfig.app.cloudStructuredDataSyncEnabled = distribution === 'official';
 writeJson(appConfigPath, appConfig);
 
 const appScopeStrings = JSON.parse(fs.readFileSync(appScopeStringPath, 'utf8'));
@@ -457,12 +471,12 @@ if (!/export const AIRA_DISTRIBUTION: AiraDistribution = '[^']*';/.test(ownerSou
 }
 const nextOwnerSource = ownerSource.replace(
   /export const AIRA_DISTRIBUTION: AiraDistribution = '[^']*';/,
-  `export const AIRA_DISTRIBUTION: AiraDistribution = '${bundleName === 'com.aira.browser' ? 'official' : 'community'}';`
+  `export const AIRA_DISTRIBUTION: AiraDistribution = '${distribution}';`
 );
 if (!/export const AIRA_HOSTED_API_BASE_URL: string = '[^']*';/.test(nextOwnerSource)) {
   throw new Error(`Could not find AIRA_HOSTED_API_BASE_URL in ${ownerPath}`);
 }
-const hostedApiBaseUrl = bundleName === 'com.aira.browser'
+const hostedApiBaseUrl = distribution === 'official'
   ? 'https://api.aira.cool'
   : 'https://community.invalid';
 const nextOwnerWithApiBaseUrl = nextOwnerSource.replace(
@@ -473,7 +487,7 @@ fs.writeFileSync(ownerPath, nextOwnerWithApiBaseUrl);
 
 const moduleConfig = readJson5(moduleConfigPath);
 const metadata = Array.isArray(moduleConfig.module.metadata) ? moduleConfig.module.metadata : [];
-const isOfficial = bundleName === 'com.aira.browser';
+const isOfficial = distribution === 'official';
 if (!isOfficial) {
   moduleConfig.module.metadata = metadata.filter((item) => item.name !== 'app_id' && item.name !== 'client_id');
 } else {
@@ -504,7 +518,7 @@ NODE
   else
     rm -f "${AGCONNECT_RAWFILE}"
   fi
-  echo "Distribution: ${DISTRIBUTION} (${EXPECTED_APP_NAME}, ${EXPECTED_BUNDLE_NAME})"
+  echo "Distribution: ${DISTRIBUTION} (${EXPECTED_APP_NAME}, ${PACKAGE_BUNDLE_NAME})"
 }
 
 read_bundle_name() {
@@ -1550,8 +1564,8 @@ if [ "${BUILD_VARIANT}" = "release" ] && [ -n "${LATEST_RELEASE_VERSION_CODE}" ]
   fi
 fi
 
-if [ "${SOURCE_APP_BUNDLE_NAME}" != "${EXPECTED_BUNDLE_NAME}" ]; then
-  fail "App bundleName must remain ${EXPECTED_BUNDLE_NAME} for ${DISTRIBUTION}. Found ${SOURCE_APP_BUNDLE_NAME} in ${APP_CONFIG}."
+if [ "${SOURCE_APP_BUNDLE_NAME}" != "${PACKAGE_BUNDLE_NAME}" ]; then
+  fail "App bundleName must remain ${PACKAGE_BUNDLE_NAME} for ${DISTRIBUTION}. Found ${SOURCE_APP_BUNDLE_NAME} in ${APP_CONFIG}."
 fi
 
 if [ "${SOURCE_APP_NAME}" != "${EXPECTED_APP_NAME}" ] || [ "${SOURCE_ENTRY_ABILITY_LABEL}" != "${EXPECTED_APP_NAME}" ]; then

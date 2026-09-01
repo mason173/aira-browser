@@ -43,6 +43,7 @@ import {
   SECURE_DNS_PROFILE_EDIT_ROUTE,
   SECURE_DNS_SETTINGS_ROUTE,
   SETTINGS_CHANGELOG_ROUTE,
+  SETTINGS_THIRD_PARTY_NOTICES_ROUTE,
   SETTINGS_AUTO_RENEWAL_NOTICE_ROUTE,
   SETTINGS_DETAIL_ROUTE,
   SETTINGS_LEGAL_WEB_DOCUMENT_ROUTE,
@@ -291,6 +292,10 @@ export class SettingsNavigationCoordinator {
 
   openChangelog(boundary: BrowserBoundaryRouteState): void {
     this.pushUrl(SETTINGS_CHANGELOG_ROUTE, this.buildParams(boundary));
+  }
+
+  openThirdPartyNotices(boundary: BrowserBoundaryRouteState): void {
+    this.pushUrl(SETTINGS_THIRD_PARTY_NOTICES_ROUTE, this.buildParams(boundary));
   }
 
   openLegalWebDocument(documentId: string, boundary: BrowserBoundaryRouteState): void {

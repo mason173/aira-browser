@@ -493,9 +493,14 @@ export function useBookmarkSyncRuntimeController(
           && (options.showAllBlockedReasons === true
           || outcome.reason === 'pending-conflict'
           || outcome.reason === 'cloud-login-required'
+          || outcome.reason === 'client-update-required'
           || outcome.reason === 'bookmarks-permission-required');
         if (shouldShowBlocked) {
           toast.error(outcome.message);
+        }
+        if (runStarted && outcome.reason === 'client-update-required') {
+          markSyncError(outcome.message);
+          failSyncProgress(new Error(outcome.message), remoteKind);
         }
         return null;
       }

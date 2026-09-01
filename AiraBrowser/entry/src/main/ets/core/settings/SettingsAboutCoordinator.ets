@@ -1,6 +1,5 @@
 import bundleManager from '@ohos.bundle.bundleManager';
 import {
-  APP_BUNDLE_NAME,
   APP_PREVIEW_VERSION_CODE,
   APP_PREVIEW_VERSION_NAME
 } from '../../common/constants/AppVersionInfo';
@@ -15,8 +14,15 @@ export interface SettingsAboutAppIdentity {
 export class SettingsAboutCoordinator {
   buildAppIdentity(): SettingsAboutAppIdentity {
     try {
-      const bundleInfo = bundleManager.getBundleInfoForSelfSync(bundleManager.BundleFlag.GET_BUNDLE_INFO_DEFAULT);
-      const bundleName = this.readText(bundleInfo.name, APP_BUNDLE_NAME);
+      // The installed bundle is authoritative; do not infer it from a build
+      // distribution or package override.
+      const bundleInfo = bundleManager.getBundleInfoForSelfSync(
+        bundleManager.BundleFlag.GET_BUNDLE_INFO_WITH_APPLICATION
+      );
+      const bundleName = this.readText(bundleInfo.name, '');
+      if (bundleName.length === 0) {
+        throw new Error('BundleManager returned an empty bundle name.');
+      }
       const versionName = this.readText(bundleInfo.versionName, APP_PREVIEW_VERSION_NAME);
       return {
         appName: 'Aira',
@@ -30,11 +36,10 @@ export class SettingsAboutCoordinator {
   }
 
   private buildFallbackIdentity(): SettingsAboutAppIdentity {
-    const fallbackBundleName = APP_BUNDLE_NAME;
     const fallbackVersionName = APP_PREVIEW_VERSION_NAME;
     return {
       appName: 'Aira',
-      bundleName: fallbackBundleName,
+      bundleName: '未知',
       versionName: fallbackVersionName,
       versionCode: `${APP_PREVIEW_VERSION_CODE}`
     };

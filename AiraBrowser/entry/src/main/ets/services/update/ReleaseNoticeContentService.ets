@@ -4,6 +4,7 @@ import {
   AppVersionIdentity,
   ChangelogContentService
 } from '../settings/ChangelogContentService';
+import { AIRA_DISTRIBUTION_CAPABILITY_OWNER } from '../../common/config/AiraDistributionCapabilityOwner';
 
 const RELEASE_NOTICE_RAW_FILE_NAME: string = 'release_notice.json';
 const DEFAULT_RELEASE_NOTICE_ACTION_LABEL: string = '查看详细更新日志';
@@ -37,6 +38,9 @@ export class ReleaseNoticeContentService {
   }
 
   buildContent(context: common.Context, version: AppVersionIdentity): ReleaseNoticeContent | undefined {
+    if (AIRA_DISTRIBUTION_CAPABILITY_OWNER.isCommunity()) {
+      return undefined;
+    }
     const config = this.readConfig(context);
     if (config === undefined || config.enabled !== true) {
       return undefined;

@@ -378,7 +378,7 @@ page runtime captured manifest
 
 ```text
 Version: 0.2.7 (1000129)
-Device: 5MT0226114030639
+Device: <device-id>
 URL: <redacted real video site>
 Log: .tmp-navigation-capture/site-pid-49835-20260709-104440.log
 Layer: validation

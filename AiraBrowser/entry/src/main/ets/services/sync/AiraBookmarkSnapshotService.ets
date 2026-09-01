@@ -86,13 +86,14 @@ export class AiraBookmarkSnapshotService {
 
   async buildFreshBookmarkSnapshot(
     deviceId: string = DEFAULT_DEVICE_ID,
-    preferCurrentCache: boolean = false
+    preferCurrentCache: boolean = false,
+    previousSnapshot?: AiraSyncSnapshot | null
   ): Promise<AiraSyncSnapshot> {
     await this.bookmarkRepository.initialize();
     if (!preferCurrentCache) {
       await this.bookmarkRepository.refresh();
     }
-    const snapshot = await this.buildBookmarkSnapshotProgressively(deviceId);
+    const snapshot = await this.buildBookmarkSnapshotProgressively(deviceId, previousSnapshot);
     return this.snapshotValidationService.validate(snapshot, '本机');
   }
 
@@ -284,20 +285,23 @@ export class AiraBookmarkSnapshotService {
   }
 
   private async buildBookmarkSnapshotProgressively(
-    deviceId: string = DEFAULT_DEVICE_ID
+    deviceId: string = DEFAULT_DEVICE_ID,
+    previousSnapshot?: AiraSyncSnapshot | null
   ): Promise<AiraSyncSnapshot> {
     const generatedAt = new Date().toISOString();
     const regularDataSet = await this.buildBookmarkDataSetProgressively(
       AIRA_BOOKMARK_SYNC_SCOPE,
       LOCAL_CHROME_SYNC_ROOT_IDS,
       generatedAt,
-      deviceId
+      deviceId,
+      previousSnapshot
     );
     const privateDataSet = await this.buildBookmarkDataSetProgressively(
       AIRA_PRIVATE_BOOKMARK_SYNC_SCOPE,
       [PRIVATE_BOOKMARK_TOOLBAR_ROOT_ID, PRIVATE_BOOKMARK_OTHER_ROOT_ID],
       generatedAt,
-      deviceId
+      deviceId,
+      previousSnapshot
     );
 
     return {
@@ -318,7 +322,8 @@ export class AiraBookmarkSnapshotService {
     scope: string,
     rootIds: string[],
     generatedAt: string,
-    deviceId: string
+    deviceId: string,
+    previousSnapshot?: AiraSyncSnapshot | null
   ): Promise<AiraSyncBookmarkDataSet> {
     const nodes = this.bookmarkRepository.listSyncNodes(resolveBookmarkScope(scope));
     const syncNodeIds = await this.buildScopedSyncNodeIdSetAsync(nodes, rootIds);
@@ -328,7 +333,8 @@ export class AiraBookmarkSnapshotService {
     const bookmarkItems: AiraSyncBookmarkItemEntity[] = [];
     const tombstones: AiraSyncTombstone[] = [];
     const sourceNodes = nodes;
-    const entityIdPlan = await this.buildBookmarkEntityIdPlanAsync(sourceNodes, true);
+    const entityIdPlan = await this.buildBookmarkEntityIdPlanAsync(sourceNodes, true, previousSnapshot);
+    await this.persistMissingBookmarkOriginIds(sourceNodes, entityIdPlan);
     const orderIdsByParent = await this.buildOrderIdsByParentAsync(activeNodes, entityIdPlan);
     const nodesByEntityId = await this.buildNodesByPlannedEntityIdAsync(activeNodes, entityIdPlan);
 
@@ -378,6 +384,46 @@ export class AiraBookmarkSnapshotService {
       }
     });
     return Array.from(latestByKey.values());
+  }
+
+  private async persistMissingBookmarkOriginIds(
+    nodes: BookmarkNode[],
+    entityIdPlan: AiraBookmarkEntityIdPlan
+  ): Promise<void> {
+    const repairedNodes: BookmarkNode[] = [];
+    for (let index = 0; index < nodes.length; index += 1) {
+      const node = nodes[index];
+      const existingOriginId = node.sync.originId?.trim() ?? '';
+      if (!isBookmarkRootNodeId(node.id) && existingOriginId.length <= 0) {
+        const plannedOriginId = entityIdPlan.idsByNodeId.get(node.id)?.trim() ?? '';
+        if (plannedOriginId.length > 0) {
+          repairedNodes.push({
+            id: node.id,
+            type: node.type,
+            scope: resolveBookmarkScope(node.scope),
+            parentId: node.parentId,
+            title: node.title,
+            url: node.url,
+            position: node.position,
+            createdAt: node.createdAt,
+            updatedAt: node.updatedAt,
+            sync: {
+              state: node.sync.state,
+              source: node.sync.source,
+              lastModifiedAt: node.sync.lastModifiedAt,
+              lastModifiedBy: node.sync.lastModifiedBy,
+              deviceId: node.sync.deviceId,
+              originId: plannedOriginId,
+              deletedAt: node.sync.deletedAt
+            }
+          });
+        }
+      }
+      await this.workThrottle.afterBatchItem(index + 1);
+    }
+    if (repairedNodes.length > 0) {
+      await this.bookmarkRepository.upsertSyncNodes(repairedNodes);
+    }
   }
 
   private isNewerTombstone(candidate: AiraSyncTombstone, current: AiraSyncTombstone): boolean {
@@ -985,11 +1031,20 @@ export class AiraBookmarkSnapshotService {
 
   private async buildBookmarkEntityIdPlanAsync(
     nodes: BookmarkNode[],
-    reuseExistingOriginId: boolean = true
+    reuseExistingOriginId: boolean = true,
+    previousSnapshot?: AiraSyncSnapshot | null
   ): Promise<AiraBookmarkEntityIdPlan> {
     const idsByNodeId = new Map<string, string>();
     const parentEntityIdsByNodeId = new Map<string, string | null>();
     const occurrenceByNodeId = await this.buildBookmarkEntityOccurrenceByNodeIdAsync(nodes);
+    const usedEntityIds = new Set<string>();
+    for (let index = 0; index < nodes.length; index += 1) {
+      const originId = nodes[index].sync.originId?.trim() ?? '';
+      if (originId.length > 0) {
+        usedEntityIds.add(originId);
+      }
+      await this.workThrottle.afterBatchItem(index + 1);
+    }
     const nodesById = new Map<string, BookmarkNode>();
     for (let index = 0; index < nodes.length; index += 1) {
       const node = nodes[index];
@@ -1004,8 +1059,14 @@ export class AiraBookmarkSnapshotService {
         idsByNodeId,
         parentEntityIdsByNodeId,
         occurrenceByNodeId,
-        reuseExistingOriginId
+        reuseExistingOriginId,
+        previousSnapshot,
+        usedEntityIds
       );
+      const plannedId = idsByNodeId.get(node.id);
+      if (plannedId !== undefined) {
+        usedEntityIds.add(plannedId);
+      }
       await this.workThrottle.afterBatchItem(index + 1);
     }
     const suppressedTombstoneNodeIds = await this.resolveBookmarkEntityIdCollisionsAsync(nodes, idsByNodeId);
@@ -1139,7 +1200,9 @@ export class AiraBookmarkSnapshotService {
     idsByNodeId: Map<string, string>,
     parentEntityIdsByNodeId: Map<string, string | null>,
     occurrenceByNodeId: Map<string, number>,
-    reuseExistingOriginId: boolean
+    reuseExistingOriginId: boolean,
+    previousSnapshot?: AiraSyncSnapshot | null,
+    usedEntityIds?: Set<string>
   ): string | null {
     if (node.parentId !== undefined) {
       const parentNode = nodesById.get(node.parentId);
@@ -1150,7 +1213,9 @@ export class AiraBookmarkSnapshotService {
           idsByNodeId,
           parentEntityIdsByNodeId,
           occurrenceByNodeId,
-          reuseExistingOriginId
+          reuseExistingOriginId,
+          previousSnapshot,
+          usedEntityIds
         );
       }
       return this.toAiraBookmarkEntityId(node.parentId);
@@ -1171,7 +1236,9 @@ export class AiraBookmarkSnapshotService {
     idsByNodeId: Map<string, string>,
     parentEntityIdsByNodeId: Map<string, string | null>,
     occurrenceByNodeId: Map<string, number>,
-    reuseExistingOriginId: boolean
+    reuseExistingOriginId: boolean,
+    previousSnapshot?: AiraSyncSnapshot | null,
+    usedEntityIds?: Set<string>
   ): string {
     const existing = idsByNodeId.get(node.id);
     if (existing !== undefined) {
@@ -1183,14 +1250,18 @@ export class AiraBookmarkSnapshotService {
       idsByNodeId,
       parentEntityIdsByNodeId,
       occurrenceByNodeId,
-      reuseExistingOriginId
+      reuseExistingOriginId,
+      previousSnapshot,
+      usedEntityIds
     );
     parentEntityIdsByNodeId.set(node.id, parentEntityId);
     const entityId = this.createBookmarkEntityId(
       node,
       parentEntityId,
       occurrenceByNodeId.get(node.id) ?? 1,
-      reuseExistingOriginId
+      reuseExistingOriginId,
+      previousSnapshot,
+      usedEntityIds
     );
     idsByNodeId.set(node.id, entityId);
     return entityId;
@@ -1200,7 +1271,9 @@ export class AiraBookmarkSnapshotService {
     node: BookmarkNode,
     parentEntityId: string | null,
     occurrence: number,
-    reuseExistingOriginId: boolean
+    reuseExistingOriginId: boolean,
+    previousSnapshot?: AiraSyncSnapshot | null,
+    usedEntityIds?: Set<string>
   ): string {
     const rootEntityId = this.toAiraBookmarkEntityId(node.id);
     if (rootEntityId === AIRA_TOOLBAR_ROOT_ID || rootEntityId === AIRA_OTHER_ROOT_ID ||
@@ -1214,10 +1287,48 @@ export class AiraBookmarkSnapshotService {
         return existingOriginId.trim();
       }
     }
+    const previousEntityId = this.resolveUniquePreviousBookmarkEntityId(
+      node,
+      previousSnapshot,
+      usedEntityIds ?? new Set<string>()
+    );
+    if (previousEntityId !== undefined) {
+      return previousEntityId;
+    }
     if (node.type === 'folder') {
       return this.createFolderEntityId(parentEntityId, node.title, occurrence);
     }
     return this.createItemEntityId(parentEntityId, node.title, node.url ?? '', occurrence);
+  }
+
+  private resolveUniquePreviousBookmarkEntityId(
+    node: BookmarkNode,
+    previousSnapshot: AiraSyncSnapshot | null | undefined,
+    usedEntityIds: Set<string>
+  ): string | undefined {
+    if (previousSnapshot === undefined || previousSnapshot === null) {
+      return undefined;
+    }
+    let previousFolders: AiraSyncBookmarkFolderEntity[] = previousSnapshot.bookmarkFolders;
+    let previousItems: AiraSyncBookmarkItemEntity[] = previousSnapshot.bookmarkItems;
+    if (resolveBookmarkScope(node.scope) === 'private') {
+      if (previousSnapshot.appPrivateBookmarks === undefined) {
+        return undefined;
+      }
+      previousFolders = previousSnapshot.appPrivateBookmarks.bookmarkFolders;
+      previousItems = previousSnapshot.appPrivateBookmarks.bookmarkItems;
+    }
+    if (node.type === 'folder') {
+      const candidates = previousFolders
+        .filter((folder: AiraSyncBookmarkFolderEntity): boolean => folder.title === node.title)
+        .map((folder: AiraSyncBookmarkFolderEntity): string => folder.id);
+      return candidates.length === 1 && !usedEntityIds.has(candidates[0]) ? candidates[0] : undefined;
+    }
+    const nodeUrl = node.url ?? '';
+    const candidates = previousItems
+      .filter((item: AiraSyncBookmarkItemEntity): boolean => item.title === node.title && item.url === nodeUrl)
+      .map((item: AiraSyncBookmarkItemEntity): string => item.id);
+    return candidates.length === 1 && !usedEntityIds.has(candidates[0]) ? candidates[0] : undefined;
   }
 
   private isCanonicalBookmarkRootEntityId(id: string): boolean {

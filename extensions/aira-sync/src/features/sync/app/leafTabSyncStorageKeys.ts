@@ -64,4 +64,5 @@ export const LEAFTAB_BACKGROUND_STORAGE_KEYS = {
   nextRemoteProbeAt: 'leaftab_sync_g3_background_next_remote_probe_at',
   autoSyncLastError: 'leaftab_sync_g3_background_auto_sync_last_error',
   autoSyncRetryProvider: 'leaftab_sync_g3_background_auto_sync_retry_provider',
+  airaCloudClientUpdateRequired: 'leaftab_sync_g3_aira_cloud_client_update_required',
 } as const;

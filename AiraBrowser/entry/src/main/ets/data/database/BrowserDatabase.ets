@@ -47,6 +47,7 @@ import {
   BOOKMARK_OTHER_ROOT_ID,
   BOOKMARK_TOOLBAR_ROOT_ID,
   buildBookmarkRootRecords,
+  markBookmarkMoved,
   resolveBookmarkScope
 } from '../repositories/BookmarkRepositoryCore';
 
@@ -73,6 +74,7 @@ const BOOKMARK_ROOTS_TABLE = 'bookmark_roots';
 const BOOKMARK_NODES_TABLE = 'bookmark_nodes';
 const BOOKMARK_ORDERS_TABLE = 'bookmark_orders';
 const BOOKMARK_SYNC_LINKS_TABLE = 'bookmark_sync_links_g2';
+const LEGACY_MOBILE_BOOKMARK_ROOT_ID = 'bookmark-root-mobile';
 const REMOVED_BOOKMARK_SYNC_OUTBOX_TABLE = 'bookmark_sync_outbox_g2';
 const IMPORT_BATCHES_TABLE = 'import_batches';
 const BOOKMARK_COLUMNS: string[] = [
@@ -714,14 +716,17 @@ const SITE_ICON_SCHEMA_SQL: string[] = [
 export class BrowserDatabase {
   private store?: relationalStore.RdbStore;
   private storePromise?: Promise<relationalStore.RdbStore>;
+  private legacyMobileBookmarkRootCleanupPromise?: Promise<void>;
   private historySyncCanonicalBackfilledAccounts: Set<string> = new Set<string>();
 
   async initialize(): Promise<void> {
     await this.getStore();
+    await this.ensureLegacyMobileBookmarkRootCleanup();
   }
 
   async listBookmarkNodes(): Promise<BookmarkNode[]> {
     try {
+      await this.ensureLegacyMobileBookmarkRootCleanup();
       const store = await this.getStore();
       return await this.listBookmarkNodesFromDomainTables(store);
     } catch (error) {
@@ -736,6 +741,7 @@ export class BrowserDatabase {
     scope?: 'regular' | 'private'
   ): Promise<BookmarkNode[]> {
     try {
+      await this.ensureLegacyMobileBookmarkRootCleanup();
       const store = await this.getStore();
       return await this.listBookmarkPreviewChildrenFromDomainTables(store, parentId, limit, scope);
     } catch (error) {
@@ -916,6 +922,175 @@ export class BrowserDatabase {
     } catch (error) {
       hilog.error(DOMAIN, TAG, 'Failed to purge deleted bookmark nodes: %{public}s', JSON.stringify(error));
       throw new Error('Failed to purge deleted bookmark nodes.');
+    }
+  }
+
+  private async ensureLegacyMobileBookmarkRootCleanup(): Promise<void> {
+    if (this.legacyMobileBookmarkRootCleanupPromise === undefined) {
+      this.legacyMobileBookmarkRootCleanupPromise = this.deleteBookmarkRootPermanently(
+        LEGACY_MOBILE_BOOKMARK_ROOT_ID,
+        BOOKMARK_OTHER_ROOT_ID
+      ).then((): void => undefined).catch((error: Error) => {
+        this.legacyMobileBookmarkRootCleanupPromise = undefined;
+        throw error;
+      });
+    }
+    return this.legacyMobileBookmarkRootCleanupPromise;
+  }
+
+  async deleteBookmarkRootPermanently(
+    rootId: string,
+    replacementParentId: string
+  ): Promise<boolean> {
+    const normalizedRootId = rootId.trim();
+    const normalizedReplacementParentId = replacementParentId.trim();
+    if (normalizedRootId.length === 0 || normalizedReplacementParentId.length === 0) {
+      return false;
+    }
+
+    let transactionStarted = false;
+    let store: relationalStore.RdbStore | undefined = undefined;
+    try {
+      store = await this.getStore();
+      store.beginTransaction();
+      transactionStarted = true;
+
+      const legacyChildPredicates = new relationalStore.RdbPredicates(BOOKMARKS_TABLE);
+      legacyChildPredicates.equalTo('parent_id', normalizedRootId);
+      const legacyChildren = this.mapBookmarkRows(await store.query(legacyChildPredicates, BOOKMARK_COLUMNS));
+
+      const legacyReplacementPredicates = new relationalStore.RdbPredicates(BOOKMARKS_TABLE);
+      legacyReplacementPredicates.equalTo('parent_id', normalizedReplacementParentId);
+      const legacyReplacementChildren = this.mapBookmarkRows(
+        await store.query(legacyReplacementPredicates, BOOKMARK_COLUMNS)
+      );
+
+      const domainChildOrderPredicates = new relationalStore.RdbPredicates(BOOKMARK_ORDERS_TABLE);
+      domainChildOrderPredicates.equalTo('parent_id', normalizedRootId);
+      const domainChildOrders = this.mapBookmarkOrderRows(
+        await store.query(domainChildOrderPredicates, BOOKMARK_ORDER_COLUMNS)
+      );
+
+      const replacementOrderPredicates = new relationalStore.RdbPredicates(BOOKMARK_ORDERS_TABLE);
+      replacementOrderPredicates.equalTo('parent_id', normalizedReplacementParentId);
+      const replacementOrders = this.mapBookmarkOrderRows(
+        await store.query(replacementOrderPredicates, BOOKMARK_ORDER_COLUMNS)
+      );
+
+      const domainChildIds = domainChildOrders.map((order: BookmarkOrderRecord): string => order.childId);
+      const domainChildrenById = new Map<string, BookmarkNode>();
+      if (domainChildIds.length > 0) {
+        const domainChildPredicates = new relationalStore.RdbPredicates(BOOKMARK_NODES_TABLE);
+        domainChildPredicates.in('id', domainChildIds);
+        const domainChildren = this.mapBookmarkNodeRows(
+          await store.query(domainChildPredicates, BOOKMARK_NODE_COLUMNS)
+        );
+        domainChildren.forEach((node: BookmarkNode): void => {
+          domainChildrenById.set(node.id, node);
+        });
+      }
+
+      const activeChildrenById = new Map<string, BookmarkNode>();
+      domainChildOrders
+        .slice()
+        .sort((left: BookmarkOrderRecord, right: BookmarkOrderRecord) => {
+          if (left.position === right.position) {
+            return left.childId.localeCompare(right.childId);
+          }
+          return left.position - right.position;
+        })
+        .forEach((order: BookmarkOrderRecord): void => {
+          const node = domainChildrenById.get(order.childId);
+          if (node !== undefined && node.sync.deletedAt === undefined) {
+            activeChildrenById.set(node.id, {
+              id: node.id,
+              type: node.type,
+              scope: resolveBookmarkScope(node.scope),
+              parentId: normalizedRootId,
+              title: node.title,
+              url: node.url,
+              position: order.position,
+              createdAt: node.createdAt,
+              updatedAt: node.updatedAt,
+              sync: node.sync
+            });
+          }
+        });
+
+      legacyChildren
+        .filter((node: BookmarkNode) => node.sync.deletedAt === undefined)
+        .sort((left: BookmarkNode, right: BookmarkNode) => {
+          if (left.position === right.position) {
+            return left.id.localeCompare(right.id);
+          }
+          return left.position - right.position;
+        })
+        .forEach((node: BookmarkNode): void => {
+          if (!activeChildrenById.has(node.id)) {
+            activeChildrenById.set(node.id, node);
+          }
+        });
+
+      const replacementPositions: number[] = replacementOrders.map((order: BookmarkOrderRecord) => order.position);
+      legacyReplacementChildren
+        .filter((node: BookmarkNode) => node.sync.deletedAt === undefined)
+        .forEach((node: BookmarkNode): void => {
+          replacementPositions.push(node.position);
+        });
+      let nextPosition = replacementPositions.length > 0 ? Math.max(...replacementPositions) + 1 : 0;
+      const now = Date.now();
+      const reparentedChildren: BookmarkNode[] = [];
+      Array.from(activeChildrenById.values())
+        .sort((left: BookmarkNode, right: BookmarkNode) => {
+          if (left.position === right.position) {
+            return left.id.localeCompare(right.id);
+          }
+          return left.position - right.position;
+        })
+        .forEach((node: BookmarkNode): void => {
+          reparentedChildren.push(markBookmarkMoved(node, normalizedReplacementParentId, nextPosition, now));
+          nextPosition += 1;
+        });
+      await this.batchUpsertBookmarkDomainRows(store, reparentedChildren);
+
+      let updatedLegacyChildCount = 0;
+      for (const node of reparentedChildren) {
+        const childIdPredicates = this.createBookmarkIdPredicates(node.id);
+        updatedLegacyChildCount += await store.update(this.toBookmarkValues(node), childIdPredicates);
+      }
+
+      const syncPredicates = new relationalStore.RdbPredicates(BOOKMARK_SYNC_LINKS_TABLE);
+      syncPredicates.equalTo('node_id', normalizedRootId);
+      const deletedSyncLinkCount = await store.delete(syncPredicates);
+
+      const rootOrderPredicates = new relationalStore.RdbPredicates(BOOKMARK_ORDERS_TABLE);
+      rootOrderPredicates.equalTo('child_id', normalizedRootId);
+      const deletedRootOrderCount = await store.delete(rootOrderPredicates);
+
+      const remainingChildOrderPredicates = new relationalStore.RdbPredicates(BOOKMARK_ORDERS_TABLE);
+      remainingChildOrderPredicates.equalTo('parent_id', normalizedRootId);
+      const deletedChildOrderCount = await store.delete(remainingChildOrderPredicates);
+
+      const deletedNodeCount = await store.delete(this.createBookmarkNodeIdPredicates(normalizedRootId));
+
+      const rootRecordPredicates = new relationalStore.RdbPredicates(BOOKMARK_ROOTS_TABLE);
+      rootRecordPredicates.equalTo('node_id', normalizedRootId);
+      const deletedRootRecordCount = await store.delete(rootRecordPredicates);
+
+      const deletedLegacyCount = await store.delete(this.createBookmarkIdPredicates(normalizedRootId));
+      const remainingLegacyChildPredicates = new relationalStore.RdbPredicates(BOOKMARKS_TABLE);
+      remainingLegacyChildPredicates.equalTo('parent_id', normalizedRootId);
+      const deletedLegacyChildCount = await store.delete(remainingLegacyChildPredicates);
+
+      store.commit();
+      transactionStarted = false;
+      return reparentedChildren.length > 0 || updatedLegacyChildCount > 0 || deletedSyncLinkCount > 0 ||
+        deletedRootOrderCount > 0 || deletedChildOrderCount > 0 || deletedNodeCount > 0 ||
+        deletedRootRecordCount > 0 || deletedLegacyCount > 0 || deletedLegacyChildCount > 0;
+    } catch (error) {
+      this.rollbackBookmarkTransaction(store, transactionStarted);
+      hilog.error(DOMAIN, TAG, 'Failed to permanently delete bookmark root: %{public}s', JSON.stringify(error));
+      throw new Error('Failed to permanently delete bookmark root.');
     }
   }
 

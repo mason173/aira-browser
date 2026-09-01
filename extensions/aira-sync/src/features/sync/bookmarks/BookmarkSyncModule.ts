@@ -240,12 +240,14 @@ export const createBookmarkSyncBrowserLocalAdapter = (
   config: BookmarkSyncBrowserLocalAdapterConfig,
 ): BookmarkSyncRuntimeLocalAdapter => ({
   async buildSnapshot(baselineStorageKey: string): Promise<LeafTabSyncSnapshot> {
+    const baseline = await new LeafTabSyncExtensionStorageBaselineStore(baselineStorageKey).load();
+    const previousSnapshot = normalizeLeafTabSyncSnapshot(baseline?.snapshot || null);
     const bookmarkTree = await captureLeafTabBookmarkTreeDraft({
       requestPermission: config.requestPermission,
       throwOnPermissionDenied: true,
+      previousSnapshot,
+      deviceId: config.deviceId,
     });
-    const baseline = await new LeafTabSyncExtensionStorageBaselineStore(baselineStorageKey).load();
-    const previousSnapshot = normalizeLeafTabSyncSnapshot(baseline?.snapshot || null);
     const generatedAt = new Date().toISOString();
     const state = createLeafTabSyncBuildState({
       previousSnapshot,
@@ -291,6 +293,7 @@ export const createBookmarkSyncBrowserLocalAdapter = (
         ),
         tombstoneIds: Object.keys(snapshot.tombstones || {}),
         requestPermission: false,
+        deviceId: config.deviceId,
     });
     if (!applied) {
       throw new Error('未授予书签权限，无法写入本地书签');
@@ -300,6 +303,7 @@ export const createBookmarkSyncBrowserLocalAdapter = (
     const bookmarkTree = await captureLeafTabBookmarkTreeDraft({
       requestPermission: false,
       throwOnPermissionDenied: true,
+      deviceId: config.deviceId,
     });
     assertLeafTabBookmarkTreeMatchesSnapshot(bookmarkTree, snapshot);
   },

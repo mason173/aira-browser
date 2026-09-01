@@ -22,7 +22,6 @@ import {
 import { SettingsCenterDestination } from './SettingsCenterViewModel';
 import { BrowserThemePaletteService } from '../../services/theme/BrowserThemePaletteService';
 import {
-  APP_BUNDLE_NAME,
   APP_ICP_FILING_NUMBER,
   APP_PREVIEW_VERSION_CODE,
   APP_PREVIEW_VERSION_NAME
@@ -49,7 +48,7 @@ export type SettingsDetailRowAction =
   'open_icp_filing_query' |
   'open_community_source_repository' |
   'open_community_license' |
-  'open_community_third_party_notices' |
+  'open_third_party_notices' |
   'open_community_security_policy' |
   'copy_support_qq_group' |
   'open_app_review_page' |
@@ -386,7 +385,7 @@ export class SettingsDetailViewModel {
     },
     about: SettingsAboutDisplayState = {
       appName: 'Aira',
-      bundleName: APP_BUNDLE_NAME,
+      bundleName: '',
       versionName: APP_PREVIEW_VERSION_NAME,
       versionCode: `${APP_PREVIEW_VERSION_CODE}`
     },
@@ -1073,10 +1072,10 @@ export class SettingsDetailViewModel {
           ),
           this.navigationRow(
             'third_party_notices',
-            '第三方声明',
+            '第三方开源许可',
             '',
             '',
-            'open_community_third_party_notices'
+            'open_third_party_notices'
           ),
           this.navigationRow(
             'security_policy',
@@ -1086,7 +1085,7 @@ export class SettingsDetailViewModel {
             'open_community_security_policy'
           )
         ],
-        footerText: 'Aira Community 源代码按 GPL-3.0-only 发布；第三方组件和品牌资产按各自许可使用。'
+        footerText: 'Aira 源代码按 GPL-3.0-only 发布；第三方组件和品牌资产按各自许可使用。'
       });
     } else {
       const legalRows: SettingsDetailRowState[] = [
@@ -1124,6 +1123,13 @@ export class SettingsDetailViewModel {
           '',
           '',
           'open_third_party_sdk_and_services'
+        ),
+        this.navigationRow(
+          'third_party_notices',
+          '第三方开源许可',
+          '',
+          '',
+          'open_third_party_notices'
         ),
         this.navigationRow(
           'personal_info_and_permissions',

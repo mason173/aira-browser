@@ -566,7 +566,7 @@
     {
       "id": "settings-colored-tile-foreground",
       "title": "Settings colored-tile white foreground icons",
-      "description": "Operational Icons rendered as white glyphs inside colored 30vp settings tiles. Six frozen Resource consumers receive generated compatibility SVGs from the same Icons8 source pack.",
+      "description": "Operational Icons rendered as white glyphs inside colored 30vp settings tiles. Six frozen Resource consumers receive generated compatibility SVGs from the same Lucide source pack.",
       "entryKind": "resource",
       "renderContext": "SettingsNavigationRow, SettingsToggleRow, and frozen Resource compatibility consumers",
       "foregroundColor": "#FFFFFF",

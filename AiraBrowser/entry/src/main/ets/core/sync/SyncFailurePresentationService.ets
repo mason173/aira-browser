@@ -1,4 +1,9 @@
 import { HuaweiCloudSyncErrorMessageService } from '../../services/sync/HuaweiCloudSyncErrorMessageService';
+import {
+  AiraBookmarkSyncFailure,
+  AiraBookmarkSyncFailureStage,
+  AiraSyncRemoteKind
+} from '../../common/models/AiraSyncModels';
 
 const HUAWEI_SPACE_PERSONALIZATION_PROGRESS_CODE_ONE: string =
   '华为云空间个性化同步未完成（进度码 1）';
@@ -23,6 +28,12 @@ export interface SyncFailureDetailItem {
   value: string;
 }
 
+export interface SyncBookmarkFailurePresentationInput {
+  remoteKind: AiraSyncRemoteKind;
+  operationName: string;
+  failure?: AiraBookmarkSyncFailure;
+}
+
 interface SyncHttpFailure {
   provider: string;
   action: string;
@@ -32,6 +43,18 @@ interface SyncHttpFailure {
 
 export class SyncFailurePresentationService {
   private huaweiCloudErrorMessageService: HuaweiCloudSyncErrorMessageService = new HuaweiCloudSyncErrorMessageService();
+
+  buildBookmarkFailureMessage(input: SyncBookmarkFailurePresentationInput): string {
+    const failure = input.failure ?? {
+      code: 'BKM-UNKNOWN-001',
+      stage: 'unknown' as AiraBookmarkSyncFailureStage,
+      safeDetail: '书签同步在未识别的阶段中断，请重试并向客服提供错误码。'
+    };
+    const operationName = input.operationName.trim().length > 0 ? input.operationName.trim() : '书签同步';
+    const providerLabel = this.resolveBookmarkProviderLabel(input.remoteKind);
+    return `${operationName}未完成（同步源：${providerLabel}；阶段：${this.resolveBookmarkStageLabel(failure.stage)}；` +
+      `错误码：${failure.code}）。${failure.safeDetail}`;
+  }
 
   buildHuaweiSpacePersonalizationSystemUpdateGuidance(errorMessage: string): string {
     return errorMessage.indexOf(HUAWEI_SPACE_PERSONALIZATION_PROGRESS_CODE_ONE) >= 0
@@ -238,6 +261,47 @@ export class SyncFailurePresentationService {
       serviceName.indexOf('云同步') >= 0 ||
       serviceName.indexOf('华为') >= 0 ||
       serviceName.indexOf('Cloud') >= 0;
+  }
+
+  private resolveBookmarkStageLabel(stage: AiraBookmarkSyncFailureStage): string {
+    if (stage === 'authentication') {
+      return '账号与配置校验';
+    }
+    if (stage === 'network') {
+      return '网络请求';
+    }
+    if (stage === 'remote_read_validation') {
+      return '读取与校验云端快照';
+    }
+    if (stage === 'local_snapshot') {
+      return '生成本机快照';
+    }
+    if (stage === 'merge') {
+      return '合并书签';
+    }
+    if (stage === 'remote_commit') {
+      return '提交云端快照';
+    }
+    if (stage === 'remote_confirmation') {
+      return '确认云端提交';
+    }
+    if (stage === 'local_apply') {
+      return '写入与校验本机书签';
+    }
+    return '未识别阶段';
+  }
+
+  private resolveBookmarkProviderLabel(remoteKind: AiraSyncRemoteKind): string {
+    if (remoteKind === 'aira_cloud') {
+      return 'Aira 云';
+    }
+    if (remoteKind === 'huawei_space') {
+      return '华为云空间';
+    }
+    if (remoteKind === 'webdav') {
+      return 'WebDAV';
+    }
+    return '未配置';
   }
 
   private resolveHuaweiCloudErrorContext(serviceName: string): 'aira_cloud' | 'huawei_space' {

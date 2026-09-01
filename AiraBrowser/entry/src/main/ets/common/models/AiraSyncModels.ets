@@ -195,6 +195,21 @@ export type AiraSyncRuntimeDomainId =
   | 'personalization_backup';
 export type AiraAdditionalBackupIntervalDays = 1 | 3 | 7;
 export type AiraSyncProviderHealth = 'idle' | 'healthy' | 'degraded' | 'unavailable';
+export type AiraBookmarkSyncFailureStage =
+  | 'authentication'
+  | 'network'
+  | 'remote_read_validation'
+  | 'local_snapshot'
+  | 'merge'
+  | 'remote_commit'
+  | 'remote_confirmation'
+  | 'local_apply'
+  | 'unknown';
+export interface AiraBookmarkSyncFailure {
+  code: string;
+  stage: AiraBookmarkSyncFailureStage;
+  safeDetail: string;
+}
 export interface AiraSyncDomainRuntimeState {
   providerIdentity: string;
   health: AiraSyncProviderHealth;
@@ -202,6 +217,9 @@ export interface AiraSyncDomainRuntimeState {
   lastSuccessAt: number;
   revision: string;
   lastError: string;
+  failureCode: string;
+  failureStage: AiraBookmarkSyncFailureStage | '';
+  failureDetail: string;
   blocked: boolean;
 }
 export interface AiraSyncProviderRuntimeState {
@@ -365,6 +383,9 @@ export function createAiraSyncDomainRuntimeState(): AiraSyncDomainRuntimeState {
     lastSuccessAt: 0,
     revision: '',
     lastError: '',
+    failureCode: '',
+    failureStage: '',
+    failureDetail: '',
     blocked: false
   };
 }

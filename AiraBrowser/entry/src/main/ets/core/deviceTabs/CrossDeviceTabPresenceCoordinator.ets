@@ -49,15 +49,18 @@ interface CrossDeviceTabPresenceProviderContext {
 export class CrossDeviceTabPresenceEntryHost {
   private readonly openTabsSheetAction: () => void;
   private readonly openProAction: () => void;
+  private readonly openSyncSettingsAction: () => void;
   private readonly showUnavailableAction: (title: string, message: string) => void;
 
   constructor(
     openTabsSheetAction: () => void,
     openProAction: () => void,
+    openSyncSettingsAction: () => void,
     showUnavailableAction: (title: string, message: string) => void
   ) {
     this.openTabsSheetAction = openTabsSheetAction;
     this.openProAction = openProAction;
+    this.openSyncSettingsAction = openSyncSettingsAction;
     this.showUnavailableAction = showUnavailableAction;
   }
 
@@ -67,6 +70,10 @@ export class CrossDeviceTabPresenceEntryHost {
 
   openPro(): void {
     this.openProAction();
+  }
+
+  openSyncSettings(): void {
+    this.openSyncSettingsAction();
   }
 
   showUnavailable(title: string, message: string): void {
@@ -182,7 +189,8 @@ export class CrossDeviceTabPresenceCoordinator {
           allowed: false,
           title: '请先连接个人服务器',
           message: '跨设备标签页需要有效的个人服务器设备凭据。',
-          openPro: false
+          openPro: false,
+          openSyncSettings: true
         };
       }
       await this.enableProviderByDefault(context);
@@ -193,20 +201,31 @@ export class CrossDeviceTabPresenceCoordinator {
         openPro: false
       };
     }
+    if (AIRA_DISTRIBUTION_CAPABILITY_OWNER.isCommunity()) {
+      return {
+        allowed: false,
+        title: '请先连接个人服务器',
+        message: '跨设备标签页支持通过你自己部署的个人服务器使用，请先在同步设置中完成连接。',
+        openPro: false,
+        openSyncSettings: true
+      };
+    }
     if (settings.remoteKind !== 'aira_cloud') {
       return {
         allowed: false,
         title: '当前同步服务不支持跨设备标签页',
         message: this.resolveUnsupportedProviderMessage(),
-        openPro: false
+        openPro: false,
+        openSyncSettings: false
       };
     }
     if (!AIRA_DISTRIBUTION_CAPABILITY_OWNER.isAvailable('aira_cloud')) {
       return {
         allowed: false,
-        title: '当前发行版不支持跨设备标签页',
-        message: AIRA_DISTRIBUTION_CAPABILITY_OWNER.resolveUnavailableReason('aira_cloud'),
-        openPro: false
+        title: '请先配置跨设备同步',
+        message: '跨设备标签页需要官方云服务或你自己部署的个人服务器。',
+        openPro: false,
+        openSyncSettings: true
       };
     }
     const decision = await featureGateCoordinator.evaluateAccess(
@@ -340,6 +359,10 @@ export class CrossDeviceTabPresenceCoordinator {
       }
       if (decision.openPro) {
         host.openPro();
+        return;
+      }
+      if (decision.openSyncSettings === true) {
+        host.openSyncSettings();
         return;
       }
       host.showUnavailable(decision.title, decision.message);

@@ -67,8 +67,8 @@ Each component keeps an independent version and release artifact. Use component-
 
 Aira-authored source is offered under [GPL-3.0-only](LICENSE). Component directories retain their own license and
 third-party notice files where useful for standalone source distributions. Review
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) before redistribution: the current Icons8 asset set is commercially
-licensed and remains a publication gate until its public source/binary distribution rights are confirmed or replaced.
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) before redistribution. The Aira Operational Icon set is sourced from
+the vendored Lucide 1.38.0 package under its ISC license.
 
 Contributions and security reports follow [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), and
 [TRADEMARKS.md](TRADEMARKS.md).
