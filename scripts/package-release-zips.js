@@ -3,6 +3,7 @@ const path = require('path');
 const { execSync } = require('child_process');
 const {
   COMMUNITY_EXTENSION_ID,
+  COMMUNITY_MANIFEST_KEY,
   FIREFOX_EXTENSION_ID,
   RELEASE_EDITION,
   RELEASE_PACKAGE_BASENAME,
@@ -13,7 +14,7 @@ const {
 } = require('./release-utils');
 
 const root = path.resolve(__dirname, '..');
-const buildDir = path.join(root, 'build');
+const buildDir = path.join(root, 'build', 'community');
 
 const verifyScript = path.join(root, 'scripts', 'verify-release.js');
 const packWorkDir = path.join(root, '.tmp-release-pack');
@@ -62,7 +63,22 @@ function updateManifestVersion(filePath, nextVersion) {
 
 function shouldBumpReleaseVersion() {
   return process.argv.includes('--bump')
-    || process.env.AIRATAB_BUMP_RELEASE_VERSION === '1';
+    || process.env.AIRA_SYNC_BUMP_RELEASE_VERSION === '1';
+}
+
+function assertCommunityIdentityConfig() {
+  for (const sourceManifestPath of [manifestFinalPath, manifestPath]) {
+    const manifest = readJson(sourceManifestPath);
+    if (Object.prototype.hasOwnProperty.call(manifest, 'key')) {
+      throw new Error(`Source manifest must not contain a fixed key: ${path.relative(root, sourceManifestPath)}`);
+    }
+  }
+  const extensionId = computeExtensionIdFromManifestKey(COMMUNITY_MANIFEST_KEY);
+  if (extensionId !== COMMUNITY_EXTENSION_ID) {
+    throw new Error(
+      `Community identity mismatch: expected ${COMMUNITY_EXTENSION_ID}, got ${extensionId || '(empty)'}.`
+    );
+  }
 }
 
 function assertReleaseVersionLocked() {
@@ -81,17 +97,7 @@ function assertReleaseVersionLocked() {
       ].join(' ')
     );
   }
-  const extensionId = computeExtensionIdFromManifestKey(finalManifest.key);
-  if (extensionId !== COMMUNITY_EXTENSION_ID) {
-    throw new Error(
-      [
-        `Community extension ID changed unexpectedly.`,
-        `Expected: ${COMMUNITY_EXTENSION_ID}`,
-        `Actual: ${extensionId || '(empty)'}`,
-        'Do not rotate manifest.key or community users will lose extension-scoped data.',
-      ].join(' ')
-    );
-  }
+  assertCommunityIdentityConfig();
   console.log(`[pack] Packaging existing release version: ${currentVersion}`);
   console.log(`[pack] Community extension ID locked: ${COMMUNITY_EXTENSION_ID}`);
   return currentVersion;
@@ -105,20 +111,9 @@ function bumpReleaseVersion() {
   pkg.version = nextVersion;
   writeJson(packageJsonPath, pkg, 6);
   updatePackageLockVersion(nextVersion);
-  const finalManifest = updateManifestVersion(manifestFinalPath, nextVersion);
+  updateManifestVersion(manifestFinalPath, nextVersion);
   updateManifestVersion(manifestPath, nextVersion);
-
-  const extensionId = computeExtensionIdFromManifestKey(finalManifest.key);
-  if (extensionId !== COMMUNITY_EXTENSION_ID) {
-    throw new Error(
-      [
-        `Community extension ID changed unexpectedly.`,
-        `Expected: ${COMMUNITY_EXTENSION_ID}`,
-        `Actual: ${extensionId || '(empty)'}`,
-        'Do not rotate manifest.key or community users will lose extension-scoped data.',
-      ].join(' ')
-    );
-  }
+  assertCommunityIdentityConfig();
 
   console.log(`[pack] Bumped release version: ${currentVersion} -> ${nextVersion}`);
   console.log(`[pack] Community extension ID locked: ${COMMUNITY_EXTENSION_ID}`);

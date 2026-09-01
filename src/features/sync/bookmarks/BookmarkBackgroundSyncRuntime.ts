@@ -7,10 +7,19 @@ import {
   LEAFTAB_SELECTED_SYNC_SOURCE_KEY,
   LEAFTAB_SYNC_DEFAULT_ROOT_PATH,
   LEAFTAB_SYNC_DEVICE_ID_KEY,
+  PERSONAL_SERVER_LAST_ERROR_AT_KEY,
+  PERSONAL_SERVER_LAST_ERROR_MESSAGE_KEY,
+  PERSONAL_SERVER_LAST_SYNC_AT_KEY,
   WEBDAV_LAST_ERROR_AT_KEY,
   WEBDAV_LAST_ERROR_MESSAGE_KEY,
   WEBDAV_LAST_SYNC_AT_KEY,
 } from '@/features/sync/app/leafTabSyncStorageKeys';
+import {
+  PERSONAL_SERVER_CONNECTION_STORAGE_KEY,
+  PersonalServerRemoteError,
+  readPersonalServerConnection,
+  type PersonalServerConnection,
+} from '@/features/personal-server/PersonalServerConnection';
 import {
   readAiraDesktopConnectionProfileWithinExecutionLock,
   refreshAiraDesktopConnectionProfileMembershipWithinExecutionLock,
@@ -74,6 +83,7 @@ type BackgroundSyncConfig = {
   cloudDeviceCredential: string;
   cloudSyncEnabled: boolean;
   webdavSyncEnabled: boolean;
+  personalServerConnection: PersonalServerConnection | null;
   selectedSource: LeafTabSyncRemoteKind | null;
   hasPendingConflict: boolean;
   webdavConfig: ({
@@ -159,10 +169,11 @@ export function createBookmarkBackgroundSyncRuntime(
   }
 
   async function readBackgroundSyncConfigWithinExecutionLock(): Promise<BackgroundSyncConfig> {
-    const [deviceId, loginProfile, webdavState] = await Promise.all([
+    const [deviceId, loginProfile, webdavState, personalServerConnection] = await Promise.all([
       getOrCreateDeviceId(),
       readAiraDesktopConnectionProfileWithinExecutionLock(),
       readWebdavStorageStateFromExtensionStorage(),
+      readPersonalServerConnection(),
     ]);
     const rootPath = LEAFTAB_SYNC_DEFAULT_ROOT_PATH;
     const cloudUid = loginProfile?.uid?.trim() || '';
@@ -175,21 +186,27 @@ export function createBookmarkBackgroundSyncRuntime(
     const selectedSource = parseLeafTabSyncRemoteKind(
       sharedRecord[LEAFTAB_SELECTED_SYNC_SOURCE_KEY],
     );
-    const pendingConflictMatchesCurrentIdentity = pendingConflict !== null && (
-      pendingConflict.provider === 'aira-cloud'
-        ? isPendingBookmarkConflictForSource(pendingConflict, {
+    let pendingConflictMatchesCurrentIdentity = false;
+    if (pendingConflict?.provider === 'aira-cloud') {
+      pendingConflictMatchesCurrentIdentity = isPendingBookmarkConflictForSource(pendingConflict, {
             remoteKind: 'aira-cloud',
             uid: cloudUid,
             deviceCredential: cloudDeviceCredential,
-          }, rootPath)
-        : isPendingBookmarkConflictForSource(pendingConflict, {
+          }, rootPath);
+    } else if (pendingConflict?.provider === 'personal-server' && personalServerConnection) {
+      pendingConflictMatchesCurrentIdentity = isPendingBookmarkConflictForSource(pendingConflict, {
+        remoteKind: 'personal-server',
+        connection: personalServerConnection,
+      }, rootPath);
+    } else if (pendingConflict?.provider === 'webdav') {
+      pendingConflictMatchesCurrentIdentity = isPendingBookmarkConflictForSource(pendingConflict, {
             remoteKind: 'webdav',
             url: webdavState.url,
             username: webdavState.username,
             password: webdavState.password,
             requestPermission: false,
-          }, rootPath)
-    );
+          }, rootPath);
+    }
     if (pendingConflict && !pendingConflictMatchesCurrentIdentity) {
       await clearPendingBookmarkConflict();
     }
@@ -200,6 +217,7 @@ export function createBookmarkBackgroundSyncRuntime(
       cloudDeviceCredential,
       cloudSyncEnabled,
       webdavSyncEnabled: webdavState.syncEnabled,
+      personalServerConnection,
       selectedSource,
       hasPendingConflict: pendingConflictMatchesCurrentIdentity,
       webdavConfig: webdavState.url
@@ -232,6 +250,7 @@ export function createBookmarkBackgroundSyncRuntime(
       airaCloudEnabled: config.cloudSyncEnabled,
       webdavUrl: config.webdavConfig?.url || '',
       webdavEnabled: config.webdavSyncEnabled,
+      personalServerConfigured: Boolean(config.personalServerConnection?.capabilities.bookmarks),
     });
   }
 
@@ -243,21 +262,31 @@ export function createBookmarkBackgroundSyncRuntime(
     },
   ): ReturnType<typeof createBookmarkSyncRuntime> {
     const rootPath = config.rootPath;
-    return createBookmarkSyncRuntime({
-      provider: remoteKind === 'aira-cloud'
-        ? {
+    let provider;
+    if (remoteKind === 'aira-cloud') {
+      provider = {
             remoteKind: 'aira-cloud',
             uid: config.cloudUid,
             deviceCredential: config.cloudDeviceCredential,
-          }
-        : {
+          } as const;
+    } else if (remoteKind === 'personal-server') {
+      if (!config.personalServerConnection) throw new Error('请先连接 Personal Server');
+      provider = {
+        remoteKind: 'personal-server',
+        connection: config.personalServerConnection,
+      } as const;
+    } else {
+      provider = {
             remoteKind: 'webdav',
             url: config.webdavConfig?.url || '',
             username: config.webdavConfig?.username,
             password: config.webdavConfig?.password,
             requestPermission: false,
             requestTimeoutMs: options?.webdavRequestTimeoutMs,
-          },
+          } as const;
+    }
+    return createBookmarkSyncRuntime({
+      provider,
       deviceId: config.deviceId,
       rootPath,
       local: createBookmarkSyncBrowserLocalAdapter({
@@ -299,6 +328,17 @@ export function createBookmarkBackgroundSyncRuntime(
       ]);
       return;
     }
+    if (remoteKind === 'personal-server') {
+      await writeExtensionStorageRecord({
+        [PERSONAL_SERVER_LAST_SYNC_AT_KEY]: nowIso,
+        [LEAFTAB_BACKGROUND_STORAGE_KEYS.autoSyncLastError]: '',
+      });
+      await removeExtensionStorageKeys([
+        PERSONAL_SERVER_LAST_ERROR_AT_KEY,
+        PERSONAL_SERVER_LAST_ERROR_MESSAGE_KEY,
+      ]);
+      return;
+    }
     await writeExtensionStorageRecord({
       [WEBDAV_LAST_SYNC_AT_KEY]: nowIso,
       [LEAFTAB_BACKGROUND_STORAGE_KEYS.autoSyncLastError]: '',
@@ -320,6 +360,14 @@ export function createBookmarkBackgroundSyncRuntime(
       });
       return;
     }
+    if (remoteKind === 'personal-server') {
+      await writeExtensionStorageRecord({
+        [PERSONAL_SERVER_LAST_ERROR_AT_KEY]: nowIso,
+        [PERSONAL_SERVER_LAST_ERROR_MESSAGE_KEY]: message,
+        [LEAFTAB_BACKGROUND_STORAGE_KEYS.autoSyncLastError]: message,
+      });
+      return;
+    }
     await writeExtensionStorageRecord({
       [WEBDAV_LAST_ERROR_AT_KEY]: nowIso,
       [WEBDAV_LAST_ERROR_MESSAGE_KEY]: message,
@@ -337,6 +385,9 @@ export function createBookmarkBackgroundSyncRuntime(
         'desktop_session_expired',
         'pro_required',
       ].includes(error.code);
+    }
+    if (error instanceof PersonalServerRemoteError) {
+      return error.status === 401 || error.status === 403 || error.code === 'personal_server_required';
     }
     const message = String((error as Error)?.message || error || '');
     return /请先|重新扫码|权限|认证|凭据/i.test(message);
@@ -561,7 +612,7 @@ export function createBookmarkBackgroundSyncRuntime(
     ]);
     const retryProviderValue = retryRecord[LEAFTAB_BACKGROUND_STORAGE_KEYS.autoSyncRetryProvider];
     const retryProvider: LeafTabSyncRemoteKind | undefined =
-      retryProviderValue === 'aira-cloud' || retryProviderValue === 'webdav'
+      retryProviderValue === 'aira-cloud' || retryProviderValue === 'personal-server' || retryProviderValue === 'webdav'
         ? retryProviderValue
         : undefined;
     if (pendingLocalChangedAt <= 0 && !retryProvider) {
@@ -657,6 +708,7 @@ export function createBookmarkBackgroundSyncRuntime(
         WEBDAV_STORAGE_KEYS.username,
         WEBDAV_STORAGE_KEYS.password,
         AIRA_DESKTOP_CONNECTION_STORAGE_KEY,
+        PERSONAL_SERVER_CONNECTION_STORAGE_KEY,
       ];
       const changedKeys = Object.keys(changes);
       const relevantChanged = changedKeys.some((key) => (

@@ -3,6 +3,7 @@ const path = require('path');
 const { execSync } = require('child_process');
 const {
   COMMUNITY_EXTENSION_ID,
+  COMMUNITY_MANIFEST_KEY,
   FIREFOX_EXTENSION_ID,
   RELEASE_EDITION,
   RELEASE_PACKAGE_BASENAME,
@@ -193,7 +194,7 @@ function main() {
   const expectedManifest = getExpectedManifest(root);
   const expectedVersion = String(expectedManifest.version || '');
   const expectedVersionName = String(expectedManifest.version_name || '');
-  const expectedManifestKey = String(expectedManifest.key || '');
+  const expectedManifestKey = COMMUNITY_MANIFEST_KEY;
   if (!expectedVersion) {
     throw new Error('Missing final manifest version.');
   }

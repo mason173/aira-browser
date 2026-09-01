@@ -14,7 +14,16 @@ import {
   type AiraDesktopProCapabilityStatus,
 } from '@/features/desktop-connection/desktopConnectionProfile';
 import { writeExtensionStorageRecord } from '@/platform/extensionStorage';
+import { readExtensionStorageRecord } from '@/platform/extensionStorage';
 import { HistorySyncModule } from './HistorySyncModule';
+import { AiraCloudHistoryRemoteStore } from './AiraCloudHistoryRemoteStore';
+import {
+  PERSONAL_SERVER_CONNECTION_STORAGE_KEY,
+  personalServerAccountScope,
+  readPersonalServerConnection,
+} from '@/features/personal-server/PersonalServerConnection';
+import { LEAFTAB_SELECTED_SYNC_SOURCE_KEY } from '@/features/sync/app/leafTabSyncStorageKeys';
+import { parseLeafTabSyncRemoteKind } from '@/sync/leaftab/source';
 import {
   HISTORY_MESSAGE_TYPE,
   HISTORY_REVISION_STORAGE_KEY,
@@ -49,7 +58,42 @@ export function createHistoryBackgroundSyncRuntime(config: {
 
   async function resolveSession(
     refreshMembership: boolean,
-  ): Promise<{ session: AiraDesktopAuthorizedSession | null; status: HistoryCapabilityStatus }> {
+  ): Promise<{
+    session: AiraDesktopAuthorizedSession | null;
+    status: HistoryCapabilityStatus;
+    remote: AiraCloudHistoryRemoteStore | null;
+    hosted: boolean;
+  }> {
+    const [sourceRecord, personalServer] = await Promise.all([
+      readExtensionStorageRecord([LEAFTAB_SELECTED_SYNC_SOURCE_KEY]),
+      readPersonalServerConnection(),
+    ]);
+    const selectedSource = parseLeafTabSyncRemoteKind(sourceRecord[LEAFTAB_SELECTED_SYNC_SOURCE_KEY]);
+    if (selectedSource === 'personal-server' && personalServer?.capabilities.history) {
+      const session: AiraDesktopAuthorizedSession = {
+        uid: personalServerAccountScope(personalServer),
+        deviceId: personalServer.deviceId,
+        deviceName: personalServer.deviceName,
+        deviceCredential: personalServer.deviceToken,
+      };
+      return {
+        session,
+        status: 'ready',
+        remote: new AiraCloudHistoryRemoteStore(
+          session,
+          `${personalServer.baseUrl}/v1/sync/history`,
+          {
+            authorizationToken: personalServer.deviceToken,
+            includeHostedCredentials: false,
+            serviceLabel: 'Personal Server History',
+          },
+        ),
+        hosted: false,
+      };
+    }
+    if (selectedSource !== 'aira-cloud') {
+      return { session: null, status: 'login-required', remote: null, hosted: false };
+    }
     let profile = await readAiraDesktopConnectionProfile();
     let status: AiraDesktopProCapabilityStatus = resolveAiraDesktopProCapability(profile);
     if (
@@ -65,8 +109,8 @@ export function createHistoryBackgroundSyncRuntime(config: {
       }
     }
     const session = await readAiraDesktopAuthorizedSession();
-    if (!session) return { session: null, status: 'login-required' };
-    return { session, status };
+    if (!session) return { session: null, status: 'login-required', remote: null, hosted: true };
+    return { session, status, remote: new AiraCloudHistoryRemoteStore(session), hosted: true };
   }
 
   async function bumpRevision(): Promise<void> {
@@ -124,12 +168,12 @@ export function createHistoryBackgroundSyncRuntime(config: {
           }
           return false;
         }
-        await module.runSync(resolved.session);
+        await module.runSync(resolved.session, resolved.remote || undefined);
         await bumpRevision();
         return true;
       } catch (error) {
         await module.markSyncError(resolved.session, error).catch(() => undefined);
-        if (isAiraDesktopCredentialRejection(error)) {
+        if (resolved.hosted && isAiraDesktopCredentialRejection(error)) {
           await recordAiraDesktopConnectionFailure(error, {
             uid: resolved.session.uid,
             deviceCredential: resolved.session.deviceCredential,
@@ -189,18 +233,17 @@ export function createHistoryBackgroundSyncRuntime(config: {
   }
 
   async function listForCurrentAccount(message: HistoryRuntimeMessage): Promise<HistoryRuntimeResponse> {
-    const profile = await readAiraDesktopConnectionProfile();
-    const status = resolveAiraDesktopProCapability(profile);
-    if (!profile?.uid) {
-      return { success: true, status: 'login-required', page: emptyTimelinePage() };
+    const resolved = await resolveSession(false);
+    if (!resolved.session) {
+      return { success: true, status: resolved.status, page: emptyTimelinePage() };
     }
-    const page = await module.listTimeline(profile.uid, {
+    const page = await module.listTimeline(resolved.session.uid, {
       query: message.query,
       deviceId: message.deviceId,
       offset: message.offset,
       limit: message.limit,
     });
-    return { success: true, status, page };
+    return { success: true, status: resolved.status, page };
   }
 
   async function handleRuntimeMessage(message: HistoryRuntimeMessage): Promise<HistoryRuntimeResponse> {
@@ -268,7 +311,11 @@ export function createHistoryBackgroundSyncRuntime(config: {
         .catch((error) => console.error('[Aira][History startup]', error));
     },
     notifyStorageChanged(changes: Record<string, unknown>, areaName: string): void {
-      if (areaName !== 'local' || !Object.prototype.hasOwnProperty.call(changes, config.connectionStorageKey)) {
+      if (areaName !== 'local' || (
+        !Object.prototype.hasOwnProperty.call(changes, config.connectionStorageKey)
+        && !Object.prototype.hasOwnProperty.call(changes, PERSONAL_SERVER_CONNECTION_STORAGE_KEY)
+        && !Object.prototype.hasOwnProperty.call(changes, LEAFTAB_SELECTED_SYNC_SOURCE_KEY)
+      )) {
         return;
       }
       void runBackgroundSync(false)

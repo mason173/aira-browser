@@ -6,6 +6,7 @@ const ORIGIN_HISTORY = {
   epochId: 'bookmark-history-v1-origin',
   retainedFrom: '1970-01-01T00:00:00.000Z',
 };
+const TEST_BOOKMARK_ENDPOINT = 'https://sync.example.test/sync/v3/bookmarks';
 
 const EMPTY_WIRE_SNAPSHOT = {
   meta: {
@@ -38,7 +39,7 @@ describe('LeafTabSyncAiraCloudStore', () => {
         headers: { 'Content-Type': 'application/json' },
       });
     });
-    const store = new LeafTabSyncAiraCloudStore('uid-a', 'desktop-token');
+    const store = new LeafTabSyncAiraCloudStore('uid-a', 'desktop-token', TEST_BOOKMARK_ENDPOINT);
 
     const state = await store.readState();
 
@@ -48,7 +49,7 @@ describe('LeafTabSyncAiraCloudStore', () => {
       history: state.history,
       snapshotDeviceId: state.snapshot?.meta.deviceId,
     }).toEqual({
-      requestedUrl: 'https://api.aira.cool/sync/v3/bookmarks/read',
+      requestedUrl: `${TEST_BOOKMARK_ENDPOINT}/read`,
       commitId: 'commit-v3',
       history: ORIGIN_HISTORY,
       snapshotDeviceId: 'desktop-a',
@@ -68,7 +69,7 @@ describe('LeafTabSyncAiraCloudStore', () => {
         writtenAt: '2026-08-04T00:00:00.000Z',
       }), { status: 200 });
     });
-    const store = new LeafTabSyncAiraCloudStore('uid-a', 'desktop-token');
+    const store = new LeafTabSyncAiraCloudStore('uid-a', 'desktop-token', TEST_BOOKMARK_ENDPOINT);
 
     await store.writeState({
       snapshot: {
@@ -85,7 +86,7 @@ describe('LeafTabSyncAiraCloudStore', () => {
     });
 
     expect(request).toMatchObject({
-      url: 'https://api.aira.cool/sync/v3/bookmarks/write',
+      url: `${TEST_BOOKMARK_ENDPOINT}/write`,
       body: {
         uid: 'uid-a',
         source: 'airatab',
@@ -102,7 +103,7 @@ describe('LeafTabSyncAiraCloudStore', () => {
       commitId: 'commit-incomplete',
       snapshot: EMPTY_WIRE_SNAPSHOT,
     }), { status: 200 }));
-    const store = new LeafTabSyncAiraCloudStore('uid-a', 'desktop-token');
+    const store = new LeafTabSyncAiraCloudStore('uid-a', 'desktop-token', TEST_BOOKMARK_ENDPOINT);
 
     await expect(store.readState()).rejects.toThrow('同步状态不完整');
   });
@@ -113,7 +114,7 @@ describe('LeafTabSyncAiraCloudStore', () => {
       requested = true;
       return new Response(JSON.stringify({ ok: true, commitId: 'should-not-write' }), { status: 200 });
     });
-    const store = new LeafTabSyncAiraCloudStore('uid-a', 'desktop-token');
+    const store = new LeafTabSyncAiraCloudStore('uid-a', 'desktop-token', TEST_BOOKMARK_ENDPOINT);
 
     await expect(store.writeState({
       snapshot: {

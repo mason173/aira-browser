@@ -33,6 +33,14 @@ import {
   readExtensionStorageRecord,
 } from '@/platform/extensionStorage';
 import { DeviceTabsBackgroundRuntime } from '@/features/device-tabs/DeviceTabsBackgroundRuntime';
+import {
+  PERSONAL_SERVER_CONNECTION_STORAGE_KEY,
+  postPersonalServerJson,
+  readPersonalServerConnection,
+  type PersonalServerConnection,
+} from '@/features/personal-server/PersonalServerConnection';
+import { LEAFTAB_SELECTED_SYNC_SOURCE_KEY } from '@/features/sync/app/leafTabSyncStorageKeys';
+import { parseLeafTabSyncRemoteKind } from '@/sync/leaftab/source';
 
 const WEBDAV_PROXY_MESSAGE_TYPE = 'LEAFTAB_WEBDAV_PROXY';
 const PHONE_PAGE_PUSH_POLL_ALARM_NAME = 'aira.phone-page-push.poll';
@@ -94,6 +102,16 @@ type PhonePagePushAckResponse = {
   code?: string;
   message?: string;
 };
+
+type PhonePagePushPollContext =
+  | {
+      kind: 'personal-server';
+      connection: PersonalServerConnection;
+    }
+  | {
+      kind: 'aira-cloud';
+      profile: NonNullable<Awaited<ReturnType<typeof readAiraDesktopConnectionProfile>>>;
+    };
 
 function parsePhonePagePushConnectionRecord(value: unknown): PhonePagePushConnectionRecord | null {
   try {
@@ -260,11 +278,21 @@ async function openPhonePagePushPayload(payload: PhonePagePushUrlPayload, title:
   return openPhonePagePushTab(originalUrl, title);
 }
 
-async function resolvePhonePagePushPollProfile() {
+async function resolvePhonePagePushPollContext(): Promise<PhonePagePushPollContext | null> {
   phonePagePushEnabled = await readPhonePagePushEnabledFromExtensionStorage();
   if (!phonePagePushEnabled) {
     return null;
   }
+
+  const [selectedRecord, personalServer] = await Promise.all([
+    readExtensionStorageRecord([LEAFTAB_SELECTED_SYNC_SOURCE_KEY]),
+    readPersonalServerConnection(),
+  ]);
+  const selectedSource = parseLeafTabSyncRemoteKind(selectedRecord[LEAFTAB_SELECTED_SYNC_SOURCE_KEY]);
+  if (selectedSource === 'personal-server' && personalServer?.capabilities.pagePush) {
+    return { kind: 'personal-server', connection: personalServer };
+  }
+  if (selectedSource !== 'aira-cloud') return null;
 
   const profile = await readAiraDesktopConnectionProfile();
   if (!profile?.uid || !profile.deviceCredential) {
@@ -278,14 +306,14 @@ async function resolvePhonePagePushPollProfile() {
       if (!isAiraDesktopConnectionProfilePro(latestProfile)) {
         return null;
       }
-      return latestProfile;
+      return latestProfile ? { kind: 'aira-cloud', profile: latestProfile } : null;
     } catch (error) {
       if (!isCachedPro) return null;
       console.warn('[Aira][PhonePush] membership refresh failed; using cached active Pro state', error);
     }
   }
 
-  return isCachedPro ? profile : null;
+  return isCachedPro ? { kind: 'aira-cloud', profile } : null;
 }
 
 async function schedulePhonePagePushPollAlarm(delayMs: number = PHONE_PAGE_PUSH_ALARM_FALLBACK_MS): Promise<void> {
@@ -325,8 +353,8 @@ function clearPhonePagePushPollTimer(): void {
 }
 
 async function reconcilePhonePagePushSchedule(isStartup: boolean = false): Promise<void> {
-  const profile = await resolvePhonePagePushPollProfile();
-  if (!profile) {
+  const context = await resolvePhonePagePushPollContext();
+  if (!context) {
     clearPhonePagePushPollTimer();
     await clearPhonePagePushPollAlarm();
     return;
@@ -336,24 +364,29 @@ async function reconcilePhonePagePushSchedule(isStartup: boolean = false): Promi
 }
 
 async function ackPhonePagePushTask(params: {
-  desktopPushToken: string;
-  deviceId: string;
-  deviceName: string;
+  context: PhonePagePushPollContext;
   taskId: string;
   leaseToken: string;
   status: 'opened' | 'failed';
   error?: string;
 }): Promise<void> {
-  const response = await postAiraDesktopJson<PhonePagePushAckResponse>('/phone-page-push/ack', {
-    desktopPushToken: params.desktopPushToken,
-    deviceId: params.deviceId,
-    deviceName: params.deviceName,
+  const body = {
     taskId: params.taskId,
     leaseToken: params.leaseToken,
     status: params.status,
     error: params.error || '',
     source: PHONE_PAGE_PUSH_SOURCE,
-  });
+  };
+  const response = params.context.kind === 'personal-server'
+    ? await postPersonalServerJson<PhonePagePushAckResponse>(
+        '/v1/page-push/ack', body, undefined, params.context.connection,
+      )
+    : await postAiraDesktopJson<PhonePagePushAckResponse>('pagePushAck', {
+        ...body,
+        desktopPushToken: params.context.profile.deviceCredential,
+        deviceId: params.context.profile.deviceId,
+        deviceName: params.context.profile.deviceName,
+      });
   if (!response.ok) {
     throw new Error(response.message || 'Phone page push acknowledgement failed.');
   }
@@ -366,8 +399,8 @@ async function pollPhonePagePushOnce(options: { waitMs?: number } = {}): Promise
 
   activePhonePagePushPollPromise = (async () => {
     const pollGeneration = phonePagePushPollGeneration;
-    const profile = await resolvePhonePagePushPollProfile();
-    if (!profile?.deviceCredential) {
+    const context = await resolvePhonePagePushPollContext();
+    if (!context) {
       clearPhonePagePushPollTimer();
       await clearPhonePagePushPollAlarm();
       return false;
@@ -377,13 +410,20 @@ async function pollPhonePagePushOnce(options: { waitMs?: number } = {}): Promise
     let continuePolling = true;
     const keepAlive = startBackgroundKeepAlive();
     try {
-      const response = await postAiraDesktopJson<PhonePagePushPollResponse>('/phone-page-push/poll', {
-        desktopPushToken: profile.deviceCredential,
-        deviceId: profile.deviceId,
-        deviceName: profile.deviceName,
+      const body = {
         source: PHONE_PAGE_PUSH_SOURCE,
         waitMs: Math.max(0, Math.min(PHONE_PAGE_PUSH_LONG_POLL_WAIT_MS, Number(options.waitMs || 0))),
-      });
+      };
+      const response = context.kind === 'personal-server'
+        ? await postPersonalServerJson<PhonePagePushPollResponse>(
+            '/v1/page-push/poll', body, undefined, context.connection,
+          )
+        : await postAiraDesktopJson<PhonePagePushPollResponse>('pagePushPoll', {
+            ...body,
+            desktopPushToken: context.profile.deviceCredential,
+            deviceId: context.profile.deviceId,
+            deviceName: context.profile.deviceName,
+          });
       if (!response.ok) {
         throw new Error(response.message || 'Phone page push polling failed.');
       }
@@ -401,19 +441,19 @@ async function pollPhonePagePushOnce(options: { waitMs?: number } = {}): Promise
       const opened = await openPhonePagePushPayload(task || {}, title);
       try {
         await ackPhonePagePushTask({
-          desktopPushToken: profile.deviceCredential,
-          deviceId: profile.deviceId,
-          deviceName: profile.deviceName,
+          context,
           taskId,
           leaseToken,
           status: opened ? 'opened' : 'failed',
           error: opened ? '' : 'tabs.create unavailable or failed',
         });
       } catch (error) {
-        const snapshot = await recordAiraDesktopConnectionFailure(error, {
-          uid: profile.uid,
-          deviceCredential: profile.deviceCredential,
-        }).catch(() => null);
+        const snapshot = context.kind === 'aira-cloud'
+          ? await recordAiraDesktopConnectionFailure(error, {
+              uid: context.profile.uid,
+              deviceCredential: context.profile.deviceCredential,
+            }).catch(() => null)
+          : null;
         if (snapshot?.status === 'reauth-required') {
           continuePolling = false;
         }
@@ -422,10 +462,12 @@ async function pollPhonePagePushOnce(options: { waitMs?: number } = {}): Promise
       return opened;
     } catch (error) {
       nextDelayMs = PHONE_PAGE_PUSH_ERROR_RETRY_MS;
-      const snapshot = await recordAiraDesktopConnectionFailure(error, {
-        uid: profile.uid,
-        deviceCredential: profile.deviceCredential,
-      }).catch(() => null);
+      const snapshot = context.kind === 'aira-cloud'
+        ? await recordAiraDesktopConnectionFailure(error, {
+            uid: context.profile.uid,
+            deviceCredential: context.profile.deviceCredential,
+          }).catch(() => null)
+        : null;
       if (snapshot?.status === 'reauth-required') {
         continuePolling = false;
       }
@@ -512,7 +554,9 @@ function bindLifecycleListeners(): void {
     const phonePagePushPreferenceChanged = changedKeys.some(isPhonePagePushPreferenceStorageKey);
     const phonePagePushRelevantChanged = phonePagePushPreferenceChanged
       || (changedKeys.includes(AIRA_DESKTOP_CONNECTION_STORAGE_KEY)
-        && isPhonePagePushConnectionChangeRelevant(changes[AIRA_DESKTOP_CONNECTION_STORAGE_KEY]));
+        && isPhonePagePushConnectionChangeRelevant(changes[AIRA_DESKTOP_CONNECTION_STORAGE_KEY]))
+      || changedKeys.includes(PERSONAL_SERVER_CONNECTION_STORAGE_KEY)
+      || changedKeys.includes(LEAFTAB_SELECTED_SYNC_SOURCE_KEY);
     if (phonePagePushRelevantChanged) {
       phonePagePushPollGeneration += 1;
       void reconcilePhonePagePushSchedule();
@@ -623,7 +667,7 @@ function bindPhonePagePushMessageListener(): void {
           error: capability === 'login-required'
             ? 'Aira desktop reconnection is required'
             : capability === 'pro-required'
-              ? 'Aira Pro is required'
+              ? 'Aira Cloud Page Push requires Pro'
               : 'Aira service is temporarily unavailable',
         });
         return;

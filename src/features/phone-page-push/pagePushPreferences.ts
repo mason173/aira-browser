@@ -1,5 +1,11 @@
 import { readAiraDesktopConnectionSnapshot } from '@/features/desktop-connection/desktopConnectionRuntime';
 import { AiraAccountBooleanPreferenceModule } from '@/features/desktop-connection/AiraAccountPreferenceModule';
+import { readExtensionStorageRecord } from '@/platform/extensionStorage';
+import {
+  personalServerAccountScope,
+  readPersonalServerConnection,
+} from '@/features/personal-server/PersonalServerConnection';
+import { LEAFTAB_SELECTED_SYNC_SOURCE_KEY } from '@/features/sync/app/leafTabSyncStorageKeys';
 
 export const PHONE_PAGE_PUSH_ENABLED_KEY = 'aira_phone_page_push_enabled_v1';
 const PHONE_PAGE_PUSH_ACCOUNT_KEY_PREFIX = 'aira_phone_page_push_enabled_v2';
@@ -24,8 +30,16 @@ export const writePhonePagePushEnabled = (uid: string, enabled: boolean): void =
 
 export const readPhonePagePushEnabledFromExtensionStorage = async (): Promise<boolean> => {
   try {
-    const snapshot = await readAiraDesktopConnectionSnapshot();
-    return preference.readExtension(snapshot.account?.uid || '');
+    const [sourceRecord, personalServer, snapshot] = await Promise.all([
+      readExtensionStorageRecord([LEAFTAB_SELECTED_SYNC_SOURCE_KEY]),
+      readPersonalServerConnection(),
+      readAiraDesktopConnectionSnapshot(),
+    ]);
+    const source = String(sourceRecord[LEAFTAB_SELECTED_SYNC_SOURCE_KEY] || '');
+    const scope = source === 'personal-server' && personalServer
+      ? personalServerAccountScope(personalServer)
+      : snapshot.account?.uid || '';
+    return preference.readExtension(scope);
   } catch {
     return true;
   }

@@ -1,11 +1,13 @@
-# AiraTab
+# Aira-sync
 
-AiraTab connects one desktop browser installation to an Aira account so background capabilities can continue without requiring the popup to stay open.
+Aira-sync connects one desktop browser installation to Aira Browser through either a paired Personal Server or, in the
+Official distribution, an Aira Desktop Device Session. Background capabilities continue without requiring the popup to
+stay open. Community operation has no account or membership dependency.
 
 ## Language
 
 **桌面设备会话 (Desktop Device Session)**:
-一份 Aira 账号与某个桌面设备之间的长期配对关系。同一账号可以同时拥有多个互不替换的桌面设备会话；会话可以暂时离线，但只有在未配对或凭证被撤销时才需要用户重新操作。
+一份 Aira 官方账号与某个桌面设备之间的长期配对关系，仅用于 Official 发行版的 Aira Cloud。同一账号可以同时拥有多个互不替换的桌面设备会话；会话可以暂时离线，但只有在未配对或凭证被撤销时才需要用户重新操作。
 _Avoid_: 登录状态、桌面登录
 
 **桌面设备 (Desktop Device)**:

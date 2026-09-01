@@ -1,14 +1,15 @@
-# Airatab Agent Rules
+# Aira-sync Agent Rules
 
 These rules are mandatory for Codex or any other coding agent working in this repository.
 
 ## Frozen Sync Architecture Contract — Explicit User Authorization Required
 
-- Airatab Sync is sealed as of July 18, 2026. It synchronizes Bookmark only. Treat its Popup, Background runtime,
+- Aira-sync Sync preserves the accepted Bookmark contract and the independently scoped History contract. Treat its
+  Popup, Background runtime,
   source switching, WebDAV configuration, Aira pairing/disconnect, browser storage state, Bookmark snapshot/baseline,
   conflict handling, and cross-context execution lock as frozen product infrastructure.
 - Do not edit, refactor, optimize, simplify, clean up, migrate, restore, replace, or delete Sync implementation unless
-  the user explicitly authorizes changing Airatab Sync in the current task. Authorization from an earlier task or
+  the user explicitly authorizes changing Aira-sync Sync in the current task. Authorization from an earlier task or
   conversation does not carry forward. General cleanup, architecture review, release preparation, unrelated bug fixes,
   typecheck/build failures, or requests to improve reliability are not authorization.
 - Protected areas include, but are not limited to, `src/sync/**`, `src/features/sync/**`, Sync behavior in `src/popup.tsx`,
@@ -18,7 +19,7 @@ These rules are mandatory for Codex or any other coding agent working in this re
 - Read-only diagnosis is allowed without change authorization. If investigation indicates a Sync edit may be required,
   stop after diagnosis, identify the exact protected files and invariant at risk, and ask the user for explicit
   authorization before editing.
-- Before any authorized Sync change, completely read this file, `/Users/mason/Desktop/AiraBrowser/AGENTS.md`, and the App
+- Before any authorized Sync change, completely read this file, `/Users/mason/Desktop/AiraBrowser-api26/AGENTS.md`, and the App
   ADR-0047/0048/0049 contracts. State the exact approved scope and target files before editing. Keep the existing one
   execution lock from `src/sync/leaftab/executionLock.ts`; after acquiring it, re-read authoritative extension storage
   identity, source, WebDAV configuration, and pending conflict state.

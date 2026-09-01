@@ -5,10 +5,11 @@ const crypto = require('crypto');
 
 const RELEASE_EDITION = 'final';
 const RELEASE_MARKER_FILE = '.release-edition';
-const RELEASE_PACKAGE_BASENAME = 'aira-sync-assistant';
-const COMMUNITY_RELEASE_PACKAGE_BASENAME = 'Aira-Sync';
-const COMMUNITY_EXTENSION_ID = 'plnjjlkaaonbccmjpfljbbbbaahfklem';
-const FIREFOX_EXTENSION_ID = 'airatab@cc';
+const RELEASE_PACKAGE_BASENAME = 'aira-sync';
+const COMMUNITY_RELEASE_PACKAGE_BASENAME = 'Aira-sync';
+const COMMUNITY_MANIFEST_KEY = 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvlMkYp7QrqMlAHhIKMXOP3WAhRXMmyEyZwsne4hy5m472qv7IXqCuGb2Zt4ZxCdCCUxs0DVQJEpoGLGlJi9HCIayKOjmyCunpLwqsX4vwjXwvRlNs50NesZ+UniYN6VmRJW+K9hdL/fZ93Y1wU7ZaYD5vMWiOg34ShaLVcyNiRjidxyJWSK2yX4yQ6PWhNg+fOsbaQJWgL9D/Ecw0Iay3mfY2vbaXLgJiDqMmoUX97gNzwZtVOM2s5PFjjvyc2FUCPNJq7u/DB7w6f8I6Ya3n1Jigbl9L+yhlEw/OU+Ld6Ps+HxOYdHLwhiCDWNrYpIdd7vD0HbJrY/da+wTIgPBQQIDAQAB';
+const COMMUNITY_EXTENSION_ID = 'efehgppkhnkjamcpbipclfmmofdildji';
+const FIREFOX_EXTENSION_ID = 'aira-sync@aira-browser';
 
 function detectReleaseEditionByManifest(manifest) {
   void manifest;
@@ -66,6 +67,7 @@ function computeExtensionIdFromManifestKey(manifestKey) {
 
 module.exports = {
   COMMUNITY_EXTENSION_ID,
+  COMMUNITY_MANIFEST_KEY,
   FIREFOX_EXTENSION_ID,
   RELEASE_EDITION,
   RELEASE_MARKER_FILE,

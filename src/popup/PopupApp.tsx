@@ -58,11 +58,20 @@ import {
   readCrossDeviceTabsEnabledFromLocalStorage,
   writeCrossDeviceTabsEnabled,
 } from '@/features/device-tabs/deviceTabsPreferences';
+import {
+  disconnectPersonalServer,
+  pairPersonalServer,
+  personalServerAccountScope,
+  readPersonalServerConnection,
+  type PersonalServerConnection,
+} from '@/features/personal-server/PersonalServerConnection';
+import { AIRATAB_CAPABILITIES } from '@/config/AiratabDistribution';
 
 type PopupView =
   | 'home'
   | 'account'
   | 'webdav'
+  | 'personal-server'
   | 'sync-method'
   | 'advanced'
   | 'login'
@@ -86,6 +95,18 @@ type ConfiguredHomeState = {
   isDesktopLoggedIn: boolean;
   phonePagePushEnabled: boolean;
   crossDeviceTabsEnabled: boolean;
+};
+
+type CrossDeviceFeatureState = {
+  provider: 'aira-cloud' | 'personal-server';
+  identityKey: string;
+  preferenceScope: string;
+  pagePushAvailable: boolean;
+  crossDeviceTabsAvailable: boolean;
+  pagePushEnabled: boolean;
+  crossDeviceTabsEnabled: boolean;
+  requiresPro: boolean;
+  entitled: boolean;
 };
 
 type PopupSyncRuntime = Pick<LeafTabSyncFacade, 'state' | 'actions'>;
@@ -207,6 +228,43 @@ function isConfiguredHomeStatePro(profile: ConfiguredHomeState | null): boolean 
   }
   const expiresAt = Number(profile?.membershipExpiresAt || 0);
   return expiresAt === 0 || expiresAt > Date.now();
+}
+
+function readCrossDeviceFeatureState(
+  selectedSource: PopupSyncRuntime['state']['leafTabSelectedSyncSource'],
+  profile: ConfiguredHomeState | null,
+  personalServer: PersonalServerConnection | null,
+): CrossDeviceFeatureState | null {
+  if (selectedSource === 'personal-server' && personalServer) {
+    const scope = personalServerAccountScope(personalServer);
+    return {
+      provider: 'personal-server',
+      identityKey: scope,
+      preferenceScope: scope,
+      pagePushAvailable: personalServer.capabilities.pagePush,
+      crossDeviceTabsAvailable: personalServer.capabilities.crossDeviceTabs,
+      pagePushEnabled: personalServer.capabilities.pagePush
+        && readPhonePagePushEnabledFromLocalStorage(scope),
+      crossDeviceTabsEnabled: personalServer.capabilities.crossDeviceTabs
+        && readCrossDeviceTabsEnabledFromLocalStorage(scope),
+      requiresPro: false,
+      entitled: true,
+    };
+  }
+  if (selectedSource === 'aira-cloud' && profile) {
+    return {
+      provider: 'aira-cloud',
+      identityKey: profile.userId,
+      preferenceScope: profile.userId,
+      pagePushAvailable: true,
+      crossDeviceTabsAvailable: true,
+      pagePushEnabled: profile.phonePagePushEnabled,
+      crossDeviceTabsEnabled: profile.crossDeviceTabsEnabled,
+      requiresPro: true,
+      entitled: isConfiguredHomeStatePro(profile),
+    };
+  }
+  return null;
 }
 
 function resolveMembershipLabel(plan: string, t: ReturnType<typeof useTranslation>['t']) {
@@ -550,32 +608,36 @@ function HomeHeader({
       <div className="flex min-w-0 flex-1 items-center gap-2.5">
         <img src="/icons/icon32.png" alt="" className="h-7 w-7 shrink-0" />
         <div className="min-w-0">
-          <div className="truncate text-sm font-semibold leading-5 text-foreground">AiraTab</div>
-          {profile ? (
+          <div className="truncate text-sm font-semibold leading-5 text-foreground">Aira-sync</div>
+          {AIRATAB_CAPABILITIES.airaCloud && profile ? (
             <div className="truncate text-[10px] leading-4 text-muted-foreground">{profile.nickname}</div>
           ) : null}
         </div>
       </div>
-      {profile ? <StatusBadge>{resolveMembershipLabel(profile.membershipPlan, t)}</StatusBadge> : null}
-      <button
-        type="button"
-        className="ml-2 flex h-9 w-9 items-center justify-center rounded-full transition-colors hover:bg-accent"
-        onClick={onOpenAccount}
-        aria-label={profile
-          ? t('popup.profile.accountInfo', { defaultValue: '账号信息' })
-          : t('popup.profile.loginNow', { defaultValue: '立即登录' })}
-        title={profile
-          ? t('popup.profile.accountInfo', { defaultValue: '账号信息' })
-          : t('popup.profile.loginNow', { defaultValue: '立即登录' })}
-      >
-        {profile ? (
-          <ProfileAvatar profile={profile} compact />
-        ) : (
-          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary text-muted-foreground">
-            <RiUserFill className="size-4" />
-          </span>
-        )}
-      </button>
+      {AIRATAB_CAPABILITIES.airaCloud ? (
+        <>
+          {profile ? <StatusBadge>{resolveMembershipLabel(profile.membershipPlan, t)}</StatusBadge> : null}
+          <button
+            type="button"
+            className="ml-2 flex h-9 w-9 items-center justify-center rounded-full transition-colors hover:bg-accent"
+            onClick={onOpenAccount}
+            aria-label={profile
+              ? t('popup.profile.accountInfo', { defaultValue: '账号信息' })
+              : t('popup.profile.loginNow', { defaultValue: '立即登录' })}
+            title={profile
+              ? t('popup.profile.accountInfo', { defaultValue: '账号信息' })
+              : t('popup.profile.loginNow', { defaultValue: '立即登录' })}
+          >
+            {profile ? (
+              <ProfileAvatar profile={profile} compact />
+            ) : (
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary text-muted-foreground">
+                <RiUserFill className="size-4" />
+              </span>
+            )}
+          </button>
+        </>
+      ) : null}
     </header>
   );
 }
@@ -704,7 +766,9 @@ function resolveBookmarkSyncPresentation(
 ) {
   const selectedSource = syncRuntime.state.leafTabSelectedSyncSource;
   const syncing = syncRuntime.state.topNavSyncStatus === 'syncing';
-  const sourceLabel = selectedSource === 'aira-cloud' ? 'Aira 云同步' : 'WebDAV';
+  const sourceLabel = selectedSource === 'aira-cloud'
+    ? 'Aira 云同步'
+    : selectedSource === 'personal-server' ? 'Personal Server' : selectedSource === 'webdav' ? 'WebDAV' : '未选择';
   const statusLabel = selectedSource === 'aira-cloud' && !syncRuntime.state.leafTabCloudLoggedIn
     ? t('popup.dashboard.loginRequired', { defaultValue: '需要重新连接桌面设备' })
     : selectedSource === 'aira-cloud' && syncRuntime.state.leafTabCloudSyncStatus === 'pro-required'
@@ -713,6 +777,8 @@ function resolveBookmarkSyncPresentation(
         ? t('popup.dashboard.disabledStatus', { defaultValue: '同步未启用' })
       : selectedSource === 'webdav' && !syncRuntime.state.leafTabWebdavConfigured
         ? t('popup.dashboard.webdavConfigRequired', { defaultValue: '需要配置 WebDAV' })
+        : selectedSource === 'personal-server' && !syncRuntime.state.leafTabPersonalServerConfigured
+          ? '需要连接 Personal Server'
         : syncRuntime.state.topNavSyncStatus === 'conflict'
           ? t('popup.dashboard.conflictStatus', { defaultValue: '需要处理冲突' })
           : syncRuntime.state.topNavSyncStatus === 'error'
@@ -722,7 +788,9 @@ function resolveBookmarkSyncPresentation(
               : t('popup.dashboard.autoSyncEnabled', { defaultValue: '自动同步已开启' });
   const lastSyncLabel = selectedSource === 'aira-cloud'
     ? syncRuntime.state.leafTabCloudLastSyncLabel
-    : syncRuntime.state.leafTabWebdavLastSyncLabel;
+    : selectedSource === 'personal-server'
+      ? syncRuntime.state.leafTabPersonalServerLastSyncLabel
+      : syncRuntime.state.leafTabWebdavLastSyncLabel;
   return {
     selectedSource,
     syncing,
@@ -735,11 +803,13 @@ function resolveBookmarkSyncPresentation(
 function BookmarkSyncControls({
   syncRuntime,
   onSelectCloud,
+  onOpenPersonalServer,
   onOpenWebdav,
   onOpenAdvanced,
 }: {
   syncRuntime: PopupSyncRuntime;
   onSelectCloud: () => void;
+  onOpenPersonalServer: () => void;
   onOpenWebdav: () => void;
   onOpenAdvanced: () => void;
 }) {
@@ -755,12 +825,22 @@ function BookmarkSyncControls({
     return (
       <div className="space-y-2">
         <SectionLabel>{t('popup.dashboard.chooseSyncMethod', { defaultValue: '选择书签同步方式' })}</SectionLabel>
+        {AIRATAB_CAPABILITIES.airaCloud ? (
+          <MenuItem
+            icon={<RiCloudFill className="size-4" />}
+            title="Aira 云同步"
+            description={t('popup.home.cloudDesc', { defaultValue: '需要连接 Aira 桌面设备和 Pro 权限' })}
+            status="PRO"
+            onClick={onSelectCloud}
+          />
+        ) : null}
         <MenuItem
           icon={<RiCloudFill className="size-4" />}
-          title="Aira 云同步"
-          description={t('popup.home.cloudDesc', { defaultValue: '需要连接 Aira 桌面设备和 Pro 权限' })}
-          status="PRO"
-          onClick={onSelectCloud}
+          title="使用自己的服务器"
+          description={syncRuntime.state.leafTabPersonalServerConfigured
+            ? syncRuntime.state.leafTabPersonalServerProfileLabel
+            : '连接 Personal Server，同步书签和历史记录'}
+          onClick={onOpenPersonalServer}
         />
         <MenuItem
           icon={<RiHardDrive3Fill className="size-4" />}
@@ -792,7 +872,9 @@ function BookmarkSyncControls({
           <InfoRow
             label={selectedSource === 'aira-cloud'
               ? t('popup.dashboard.cloudData', { defaultValue: '云端数据' })
-              : t('popup.dashboard.webdavData', { defaultValue: 'WebDAV 数据' })}
+              : selectedSource === 'personal-server'
+                ? '个人服务器数据'
+                : t('popup.dashboard.webdavData', { defaultValue: 'WebDAV 数据' })}
             value={formatBookmarkDataSummary(
               syncRuntime.state.leafTabRemoteSummary,
               syncRuntime.state.leafTabSummaryLoading,
@@ -829,9 +911,11 @@ function BookmarkSyncControls({
 
 function ConfiguredHome({
   profile,
+  crossDeviceFeatures,
   syncRuntime,
   onOpenAccount,
   onSelectCloud,
+  onOpenPersonalServer,
   onOpenWebdav,
   onOpenAdvanced,
   onOpenHistory,
@@ -839,9 +923,11 @@ function ConfiguredHome({
   phoneTabCount,
 }: {
   profile: ConfiguredHomeState;
+  crossDeviceFeatures: CrossDeviceFeatureState | null;
   syncRuntime: PopupSyncRuntime;
   onOpenAccount: () => void;
   onSelectCloud: () => void;
+  onOpenPersonalServer: () => void;
   onOpenWebdav: () => void;
   onOpenAdvanced: () => void;
   onOpenHistory: () => void;
@@ -859,14 +945,14 @@ function ConfiguredHome({
             <QuickActionButton
               icon={<MonitorSmartphone className="size-4" aria-hidden="true" />}
               title={t('deviceTabs.title', { defaultValue: '手机标签页' })}
-              badge="PRO"
+              badge={crossDeviceFeatures?.requiresPro ? 'PRO' : undefined}
               countBadge={phoneTabCount}
               onClick={onOpenDeviceTabs}
             />
             <QuickActionButton
               icon={<HistoryIcon className="size-4" aria-hidden="true" />}
               title={t('popup.dashboard.history', { defaultValue: '历史记录' })}
-              badge="PRO"
+              badge={crossDeviceFeatures?.requiresPro ? 'PRO' : undefined}
               onClick={onOpenHistory}
             />
           </div>
@@ -877,6 +963,7 @@ function ConfiguredHome({
           <BookmarkSyncControls
             syncRuntime={syncRuntime}
             onSelectCloud={onSelectCloud}
+            onOpenPersonalServer={onOpenPersonalServer}
             onOpenWebdav={onOpenWebdav}
             onOpenAdvanced={onOpenAdvanced}
           />
@@ -975,6 +1062,7 @@ function LoggedOutHome({
   syncRuntime,
   onOpenLogin,
   onSelectCloud,
+  onOpenPersonalServer,
   onOpenWebdav,
   onOpenAdvanced,
   onOpenHistory,
@@ -983,6 +1071,7 @@ function LoggedOutHome({
   syncRuntime: PopupSyncRuntime;
   onOpenLogin: () => void;
   onSelectCloud: () => void;
+  onOpenPersonalServer: () => void;
   onOpenWebdav: () => void;
   onOpenAdvanced: () => void;
   onOpenHistory: () => void;
@@ -1000,20 +1089,26 @@ function LoggedOutHome({
             <QuickActionButton
               icon={<MonitorSmartphone className="size-4" aria-hidden="true" />}
               title={t('deviceTabs.title', { defaultValue: '手机标签页' })}
-              badge="PRO"
+              badge={AIRATAB_CAPABILITIES.airaCloud ? 'PRO' : undefined}
               onClick={onOpenDeviceTabs}
             />
             <QuickActionButton
               icon={<HistoryIcon className="size-4" aria-hidden="true" />}
               title={t('popup.dashboard.history', { defaultValue: '历史记录' })}
-              badge="PRO"
+              badge={AIRATAB_CAPABILITIES.airaCloud ? 'PRO' : undefined}
               onClick={onOpenHistory}
             />
           </div>
         </div>
 
-        <Button type="button" className="h-10 w-full rounded-[8px]" onClick={onOpenLogin}>
-          {t('popup.profile.loginNow', { defaultValue: '立即登录' })}
+        <Button
+          type="button"
+          className="h-10 w-full rounded-[8px]"
+          onClick={AIRATAB_CAPABILITIES.airaCloud ? onOpenLogin : onOpenPersonalServer}
+        >
+          {AIRATAB_CAPABILITIES.airaCloud
+            ? t('popup.profile.loginNow', { defaultValue: '立即登录' })
+            : '连接个人服务器'}
         </Button>
 
         <div className="space-y-2">
@@ -1021,6 +1116,82 @@ function LoggedOutHome({
           <BookmarkSyncControls
             syncRuntime={syncRuntime}
             onSelectCloud={onSelectCloud}
+            onOpenPersonalServer={onOpenPersonalServer}
+            onOpenWebdav={onOpenWebdav}
+            onOpenAdvanced={onOpenAdvanced}
+          />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function PersonalServerHome({
+  profile,
+  personalServer,
+  syncRuntime,
+  onOpenAccount,
+  onSelectCloud,
+  onOpenPersonalServer,
+  onOpenWebdav,
+  onOpenAdvanced,
+  onOpenHistory,
+  onOpenDeviceTabs,
+  phoneTabCount,
+}: {
+  profile: ConfiguredHomeState | null;
+  personalServer: PersonalServerConnection | null;
+  syncRuntime: PopupSyncRuntime;
+  onOpenAccount: () => void;
+  onSelectCloud: () => void;
+  onOpenPersonalServer: () => void;
+  onOpenWebdav: () => void;
+  onOpenAdvanced: () => void;
+  onOpenHistory: () => void;
+  onOpenDeviceTabs: () => void;
+  phoneTabCount: number;
+}) {
+  const { t } = useTranslation();
+  return (
+    <section className="min-h-[480px] bg-background">
+      <HomeHeader profile={profile} onOpenAccount={onOpenAccount} />
+      <div className="space-y-4 px-3 py-3">
+        <div className="space-y-2">
+          <SectionLabel>{t('popup.dashboard.commonFeatures', { defaultValue: '常用功能' })}</SectionLabel>
+          <div className="grid grid-cols-2 gap-2">
+            <QuickActionButton
+              icon={<MonitorSmartphone className="size-4" aria-hidden="true" />}
+              title={t('deviceTabs.title', { defaultValue: '手机标签页' })}
+              countBadge={phoneTabCount}
+              onClick={onOpenDeviceTabs}
+            />
+            <QuickActionButton
+              icon={<HistoryIcon className="size-4" aria-hidden="true" />}
+              title={t('popup.dashboard.history', { defaultValue: '历史记录' })}
+              onClick={onOpenHistory}
+            />
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <SectionLabel>个人服务器</SectionLabel>
+          <MenuItem
+            icon={<RiCloudFill className="size-4" />}
+            title="使用自己的服务器"
+            description={personalServer
+              ? `${personalServer.baseUrl} · ${personalServer.instanceId.slice(-8)}`
+              : '尚未连接 Personal Server'}
+            status={personalServer ? '已连接' : undefined}
+            onClick={onOpenPersonalServer}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <SectionLabel>{t('popup.dashboard.bookmarkSync', { defaultValue: '书签同步' })}</SectionLabel>
+          <BookmarkSyncControls
+            syncRuntime={syncRuntime}
+            onSelectCloud={onSelectCloud}
+            onOpenPersonalServer={onOpenPersonalServer}
             onOpenWebdav={onOpenWebdav}
             onOpenAdvanced={onOpenAdvanced}
           />
@@ -1032,10 +1203,13 @@ function LoggedOutHome({
 
 function PopupHome({
   profile,
+  personalServer,
+  crossDeviceFeatures,
   syncRuntime,
   onOpenLogin,
   onOpenAccount,
   onSelectCloud,
+  onOpenPersonalServer,
   onOpenWebdav,
   onOpenAdvanced,
   onOpenHistory,
@@ -1043,23 +1217,46 @@ function PopupHome({
   phoneTabCount,
 }: {
   profile: ConfiguredHomeState | null;
+  personalServer: PersonalServerConnection | null;
+  crossDeviceFeatures: CrossDeviceFeatureState | null;
   syncRuntime: PopupSyncRuntime;
   onOpenLogin: () => void;
   onOpenAccount: () => void;
   onSelectCloud: () => void;
+  onOpenPersonalServer: () => void;
   onOpenWebdav: () => void;
   onOpenAdvanced: () => void;
   onOpenHistory: () => void;
   onOpenDeviceTabs: () => void;
   phoneTabCount: number;
 }) {
+  if (!AIRATAB_CAPABILITIES.airaCloud
+    || syncRuntime.state.leafTabSelectedSyncSource === 'personal-server') {
+    return (
+      <PersonalServerHome
+        profile={profile}
+        personalServer={personalServer}
+        syncRuntime={syncRuntime}
+        onOpenAccount={profile ? onOpenAccount : onOpenLogin}
+        onSelectCloud={onSelectCloud}
+        onOpenPersonalServer={onOpenPersonalServer}
+        onOpenWebdav={onOpenWebdav}
+        onOpenAdvanced={onOpenAdvanced}
+        onOpenHistory={onOpenHistory}
+        onOpenDeviceTabs={onOpenDeviceTabs}
+        phoneTabCount={phoneTabCount}
+      />
+    );
+  }
   if (profile) {
     return (
       <ConfiguredHome
         profile={profile}
+        crossDeviceFeatures={crossDeviceFeatures}
         syncRuntime={syncRuntime}
         onOpenAccount={onOpenAccount}
         onSelectCloud={onSelectCloud}
+        onOpenPersonalServer={onOpenPersonalServer}
         onOpenWebdav={onOpenWebdav}
         onOpenAdvanced={onOpenAdvanced}
         onOpenHistory={onOpenHistory}
@@ -1074,6 +1271,7 @@ function PopupHome({
       syncRuntime={syncRuntime}
       onOpenLogin={onOpenLogin}
       onSelectCloud={onSelectCloud}
+      onOpenPersonalServer={onOpenPersonalServer}
       onOpenWebdav={onOpenWebdav}
       onOpenAdvanced={onOpenAdvanced}
       onOpenHistory={onOpenHistory}
@@ -1083,12 +1281,12 @@ function PopupHome({
 }
 
 function AdvancedSettingsPage({
-  profile,
+  crossDeviceFeatures,
   syncRuntime,
   onBack,
   onOpenSyncMethod,
 }: {
-  profile: ConfiguredHomeState | null;
+  crossDeviceFeatures: CrossDeviceFeatureState | null;
   syncRuntime: PopupSyncRuntime;
   onBack: () => void;
   onOpenSyncMethod: () => void;
@@ -1100,7 +1298,7 @@ function AdvancedSettingsPage({
     ? t('popup.dashboard.cloudData', { defaultValue: '云端数据' })
     : selectedSource === 'webdav'
       ? t('popup.dashboard.webdavData', { defaultValue: 'WebDAV 数据' })
-      : t('popup.dashboard.remoteData', { defaultValue: '云端数据' });
+      : selectedSource === 'personal-server' ? '个人服务器数据' : '远程数据';
   return (
     <section className="min-h-[360px] bg-background">
       <PopupHeader
@@ -1161,7 +1359,7 @@ function AdvancedSettingsPage({
           />
         </div>
 
-        {profile ? (
+        {crossDeviceFeatures ? (
           <>
             <SectionLabel>
               {t('popup.dashboard.phonePushTitle', { defaultValue: '设备联动' })}
@@ -1169,28 +1367,30 @@ function AdvancedSettingsPage({
             <div className="overflow-hidden rounded-[8px] border border-border bg-card px-3 py-2.5">
               <SyncToggleField
                 label={t('popup.dashboard.phonePushEnabled', { defaultValue: '接收手机网页推送' })}
-                checked={profile.phonePagePushEnabled}
-                disabled={!isConfiguredHomeStatePro(profile)}
+                checked={crossDeviceFeatures.pagePushEnabled}
+                disabled={!crossDeviceFeatures.pagePushAvailable
+                  || (crossDeviceFeatures.requiresPro && !crossDeviceFeatures.entitled)}
                 onCheckedChange={async (enabled) => {
-                  if (enabled && !(await refreshAndRequirePro(t))) {
+                  if (enabled && crossDeviceFeatures.requiresPro && !(await refreshAndRequirePro(t))) {
                     window.dispatchEvent(new CustomEvent('phone-page-push-setting-changed'));
                     return;
                   }
-                  writePhonePagePushEnabled(profile.userId, enabled);
+                  writePhonePagePushEnabled(crossDeviceFeatures.preferenceScope, enabled);
                   window.dispatchEvent(new CustomEvent('phone-page-push-setting-changed'));
                 }}
               />
               <div className="mt-2 border-t border-border pt-2">
                 <SyncToggleField
                   label={t('deviceTabs.toggle', { defaultValue: '跨设备标签页' })}
-                  checked={profile.crossDeviceTabsEnabled}
-                  disabled={!isConfiguredHomeStatePro(profile)}
+                  checked={crossDeviceFeatures.crossDeviceTabsEnabled}
+                  disabled={!crossDeviceFeatures.crossDeviceTabsAvailable
+                    || (crossDeviceFeatures.requiresPro && !crossDeviceFeatures.entitled)}
                   onCheckedChange={async (enabled) => {
-                    if (enabled && !(await refreshAndRequirePro(t))) {
+                    if (enabled && crossDeviceFeatures.requiresPro && !(await refreshAndRequirePro(t))) {
                       window.dispatchEvent(new CustomEvent('cross-device-tabs-setting-changed'));
                       return;
                     }
-                    writeCrossDeviceTabsEnabled(profile.userId, enabled);
+                    writeCrossDeviceTabsEnabled(crossDeviceFeatures.preferenceScope, enabled);
                     window.dispatchEvent(new CustomEvent('cross-device-tabs-setting-changed'));
                   }}
                 />
@@ -1227,6 +1427,7 @@ function SyncMethodPage({
   syncRuntime,
   onBack,
   onOpenLogin,
+  onOpenPersonalServer,
   onOpenWebdav,
   onSelected,
 }: {
@@ -1234,6 +1435,7 @@ function SyncMethodPage({
   syncRuntime: PopupSyncRuntime;
   onBack: () => void;
   onOpenLogin: () => void;
+  onOpenPersonalServer: () => void;
   onOpenWebdav: () => void;
   onSelected: () => void;
 }) {
@@ -1266,22 +1468,34 @@ function SyncMethodPage({
           })}
         </p>
 
+        {AIRATAB_CAPABILITIES.airaCloud ? (
+          <MenuItem
+            icon={<RiCloudFill className="size-4" />}
+            title="Aira 云同步"
+            description={syncRuntime.state.leafTabCloudLoggedIn
+              ? t('popup.syncMethod.cloudReady', {
+                  defaultValue: `${profile?.nickname || '当前账号'} · 需要 Aira Pro`,
+                })
+              : t('popup.home.cloudDesc', { defaultValue: '需要连接 Aira 桌面设备和 Pro 权限' })}
+            status={selectedSource === 'aira-cloud'
+              ? t('popup.syncMethod.current', { defaultValue: '当前使用' })
+              : 'PRO'}
+            onClick={() => {
+              if (!syncing) void selectCloud();
+            }}
+          />
+        ) : null}
+
         <MenuItem
           icon={<RiCloudFill className="size-4" />}
-          title="Aira 云同步"
-          description={syncRuntime.state.leafTabCloudLoggedIn
-            ? t('popup.syncMethod.cloudReady', {
-                defaultValue: `${profile?.nickname || '当前账号'} · 需要 Aira Pro`,
-              })
-            : t('popup.home.cloudDesc', { defaultValue: '需要连接 Aira 桌面设备和 Pro 权限' })}
-          status={selectedSource === 'aira-cloud'
+          title="Personal Server"
+          description={syncRuntime.state.leafTabPersonalServerConfigured
+            ? syncRuntime.state.leafTabPersonalServerProfileLabel
+            : '连接自己部署的服务器'}
+          status={selectedSource === 'personal-server'
             ? t('popup.syncMethod.current', { defaultValue: '当前使用' })
-            : 'PRO'}
-          onClick={() => {
-            if (!syncing) {
-              void selectCloud();
-            }
-          }}
+            : undefined}
+          onClick={onOpenPersonalServer}
         />
 
         <MenuItem
@@ -1348,6 +1562,114 @@ function WebdavProviderIcon({ provider }: { provider: WebdavProviderOption }) {
         className="h-6 w-6 object-contain"
       />
     </span>
+  );
+}
+
+function PersonalServerConfigPage({
+  syncRuntime,
+  onBack,
+  onConnected,
+}: {
+  syncRuntime: PopupSyncRuntime;
+  onBack: () => void;
+  onConnected: () => void;
+}) {
+  const [baseUrl, setBaseUrl] = useState('');
+  const [pairingCode, setPairingCode] = useState('');
+  const [connectedLabel, setConnectedLabel] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    let disposed = false;
+    void readPersonalServerConnection().then((connection) => {
+      if (disposed || !connection) return;
+      setBaseUrl(connection.baseUrl);
+      setConnectedLabel(`${connection.baseUrl} · ${connection.instanceId.slice(-8)}`);
+    });
+    return () => { disposed = true; };
+  }, []);
+
+  const connect = async () => {
+    if (!baseUrl.trim() || !pairingCode.trim()) {
+      toast.error('请输入服务器地址和一次性配对码');
+      return;
+    }
+    setBusy(true);
+    try {
+      const connection = await pairPersonalServer(baseUrl, pairingCode);
+      setPairingCode('');
+      setConnectedLabel(`${connection.baseUrl} · ${connection.instanceId.slice(-8)}`);
+      const selected = await syncRuntime.actions.handleSelectSyncSource('personal-server');
+      if (selected) onConnected();
+    } catch (error) {
+      toast.error(String((error as Error)?.message || '连接 Personal Server 失败'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const disconnect = async () => {
+    setBusy(true);
+    try {
+      await disconnectPersonalServer();
+      setConnectedLabel('');
+      setPairingCode('');
+      toast.success('已断开 Personal Server');
+      onConnected();
+    } catch (error) {
+      toast.error(String((error as Error)?.message || '断开 Personal Server 失败'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className="min-h-[420px] bg-background">
+      <PopupHeader title="Personal Server" onBack={onBack} />
+      <div className="space-y-4 px-3 py-3">
+        {connectedLabel ? (
+          <div className="overflow-hidden rounded-[8px] border border-border bg-card">
+            <InfoRow label="连接状态" value="已连接" />
+            <InfoRow label="服务器" value={connectedLabel} />
+          </div>
+        ) : null}
+        <NativeField label="服务器地址">
+          <Input
+            value={baseUrl}
+            onChange={(event) => setBaseUrl(event.target.value)}
+            placeholder="https://sync.example.com"
+            disabled={busy}
+          />
+        </NativeField>
+        <NativeField label="一次性配对码">
+          <Input
+            value={pairingCode}
+            onChange={(event) => setPairingCode(event.target.value)}
+            placeholder="从已配对设备或服务器获取"
+            disabled={busy}
+          />
+        </NativeField>
+        <Button
+          type="button"
+          className="h-10 w-full rounded-[8px]"
+          disabled={busy || !baseUrl.trim() || !pairingCode.trim()}
+          onClick={() => void connect()}
+        >
+          {busy ? '正在连接...' : connectedLabel ? '重新配对' : '连接并使用'}
+        </Button>
+        {connectedLabel ? (
+          <Button
+            type="button"
+            variant="outline"
+            className="h-10 w-full rounded-[8px] text-destructive hover:text-destructive"
+            disabled={busy}
+            onClick={() => void disconnect()}
+          >
+            断开 Personal Server
+          </Button>
+        ) : null}
+      </div>
+    </section>
   );
 }
 
@@ -1614,20 +1936,47 @@ export function PopupApp() {
   const [view, setView] = useState<PopupView>('home');
   const [localVersion, setLocalVersion] = useState(0);
   const [pendingCloudSelectionAfterLogin, setPendingCloudSelectionAfterLogin] = useState(false);
+  const [personalServerConnection, setPersonalServerConnection] =
+    useState<PersonalServerConnection | null>(null);
   const { t } = useTranslation();
   const desktopConnectionProfile = useAiraDesktopConnectionProfile();
   const syncRuntime = useBookmarkSyncRuntimeController({
     desktopConnectionProfile,
     openWebdavConfig: () => setView('webdav'),
+    openPersonalServerConfig: () => setView('personal-server'),
   });
   const configuredHomeState = useMemo(() => {
     void localVersion;
     return readConfiguredHomeState(t, desktopConnectionProfile);
   }, [desktopConnectionProfile, localVersion, t]);
+  const crossDeviceFeatureState = useMemo(() => {
+    void localVersion;
+    return readCrossDeviceFeatureState(
+      syncRuntime.state.leafTabSelectedSyncSource,
+      configuredHomeState,
+      personalServerConnection,
+    );
+  }, [
+    configuredHomeState,
+    localVersion,
+    personalServerConnection,
+    syncRuntime.state.leafTabSelectedSyncSource,
+  ]);
   const deviceTabsList = useDeviceTabsList({
-    enabled: configuredHomeState?.crossDeviceTabsEnabled === true,
-    identityKey: configuredHomeState?.userId || '',
+    enabled: crossDeviceFeatureState?.crossDeviceTabsAvailable === true
+      && crossDeviceFeatureState.crossDeviceTabsEnabled,
+    identityKey: crossDeviceFeatureState?.identityKey || '',
   });
+
+  useEffect(() => {
+    let disposed = false;
+    void readPersonalServerConnection().then((connection) => {
+      if (!disposed) setPersonalServerConnection(connection);
+    }).catch(() => {
+      if (!disposed) setPersonalServerConnection(null);
+    });
+    return () => { disposed = true; };
+  }, [localVersion, syncRuntime.state.leafTabPersonalServerConfigured]);
 
   useEffect(() => {
     const refresh = () => setLocalVersion((value) => value + 1);
@@ -1644,7 +1993,7 @@ export function PopupApp() {
   }, []);
 
   useEffect(() => {
-    if (!desktopConnectionProfile?.uid) return;
+    if (!AIRATAB_CAPABILITIES.airaCloud || !desktopConnectionProfile?.uid) return;
     refreshAiraDesktopConnectionProfileMembership()
       .then(() => {
         setLocalVersion((value) => value + 1);
@@ -1663,6 +2012,7 @@ export function PopupApp() {
   ]);
 
   const selectCloudOrLogin = () => {
+    if (!AIRATAB_CAPABILITIES.airaCloud) return;
     if (!configuredHomeState?.isDesktopLoggedIn) {
       setPendingCloudSelectionAfterLogin(true);
       setView('login');
@@ -1689,23 +2039,46 @@ export function PopupApp() {
     }
   };
 
+  const openHistoryForActiveProvider = () => {
+    if (crossDeviceFeatureState?.provider === 'personal-server') {
+      openHistory();
+      return;
+    }
+    if (crossDeviceFeatureState?.provider === 'aira-cloud') {
+      openHistory();
+      return;
+    }
+    setView(AIRATAB_CAPABILITIES.airaCloud ? 'login' : 'personal-server');
+  };
+
+  const openDeviceTabsForActiveProvider = () => {
+    if (crossDeviceFeatureState?.crossDeviceTabsAvailable) {
+      setView('device-tabs');
+      return;
+    }
+    setView(AIRATAB_CAPABILITIES.airaCloud ? 'login' : 'personal-server');
+  };
+
   return (
     <main className="w-[360px] max-w-full overflow-hidden bg-background text-foreground [font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe_UI',sans-serif]">
       {view === 'home' && (
         <PopupHome
           profile={configuredHomeState}
+          personalServer={personalServerConnection}
+          crossDeviceFeatures={crossDeviceFeatureState}
           syncRuntime={syncRuntime}
           onOpenLogin={() => setView('login')}
           onOpenAccount={() => setView('account')}
           onSelectCloud={selectCloudOrLogin}
+          onOpenPersonalServer={() => setView('personal-server')}
           onOpenWebdav={() => setView('webdav')}
           onOpenAdvanced={() => setView('advanced')}
-          onOpenHistory={openHistory}
-          onOpenDeviceTabs={() => setView(configuredHomeState ? 'device-tabs' : 'login')}
+          onOpenHistory={openHistoryForActiveProvider}
+          onOpenDeviceTabs={openDeviceTabsForActiveProvider}
           phoneTabCount={deviceTabsList.totalTabCount}
         />
       )}
-      {view === 'account' && configuredHomeState && (
+      {view === 'account' && AIRATAB_CAPABILITIES.airaCloud && configuredHomeState && (
         <AccountPage
           profile={configuredHomeState}
           onBack={() => setView('home')}
@@ -1722,6 +2095,16 @@ export function PopupApp() {
           }}
         />
       )}
+      {view === 'personal-server' && (
+        <PersonalServerConfigPage
+          syncRuntime={syncRuntime}
+          onBack={() => setView('home')}
+          onConnected={() => {
+            setLocalVersion((value) => value + 1);
+            setView('home');
+          }}
+        />
+      )}
       {view === 'sync-method' && (
         <SyncMethodPage
           profile={configuredHomeState}
@@ -1731,19 +2114,20 @@ export function PopupApp() {
             setPendingCloudSelectionAfterLogin(true);
             setView('login');
           }}
+          onOpenPersonalServer={() => setView('personal-server')}
           onOpenWebdav={() => setView('webdav')}
           onSelected={() => setView('advanced')}
         />
       )}
       {view === 'advanced' && (
         <AdvancedSettingsPage
-          profile={configuredHomeState}
+          crossDeviceFeatures={crossDeviceFeatureState}
           syncRuntime={syncRuntime}
           onBack={() => setView('home')}
           onOpenSyncMethod={() => setView('sync-method')}
         />
       )}
-      {view === 'login' && (
+      {view === 'login' && AIRATAB_CAPABILITIES.airaCloud && (
         <LoginQrPage
           onOpenWebdav={() => {
             setPendingCloudSelectionAfterLogin(false);
@@ -1757,7 +2141,8 @@ export function PopupApp() {
       )}
       {view === 'device-tabs' && (
         <DeviceTabsPage
-          enabled={configuredHomeState?.crossDeviceTabsEnabled === true}
+          enabled={crossDeviceFeatureState?.crossDeviceTabsAvailable === true
+            && crossDeviceFeatureState.crossDeviceTabsEnabled}
           devices={deviceTabsList.devices}
           loading={deviceTabsList.loading}
           error={deviceTabsList.error}

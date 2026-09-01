@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build:community
+
+      - name: Audit Community boundary
+        shell: bash
+        run: |
+          test "$(cat build/community/.aira-sync-distribution)" = "community"
+          test "$(node -p "'key' in require('./build/community/manifest.json')")" = "true"
+          test "$(node -e "const {computeExtensionIdFromManifestKey}=require('./scripts/release-utils');process.stdout.write(computeExtensionIdFromManifestKey(require('./build/community/manifest.json').key))")" = "efehgppkhnkjamcpbipclfmmofdildji"
+          ! rg -a -F 'api.aira.cool' build/community
+          ! rg -a -e '/desktop-login/' -e '/desktop-session/' -e '/phone-page-push/' -e '/device-tabs/v1' build/community
+
+      - name: Build Official path with non-production routes
+        env:
+          AIRA_SYNC_OFFICIAL_API_ROUTES: >-
+            {"bookmarkSync":"https://example.invalid/sync/v3/bookmarks","historySync":"https://example.invalid/sync/v1/history","desktopPairingCreate":"https://example.invalid/desktop-login/create","desktopPairingStatus":"https://example.invalid/desktop-login/status","desktopMembershipState":"https://example.invalid/desktop-login/membership-state","desktopSessionRevoke":"https://example.invalid/desktop-session/revoke","pagePushPoll":"https://example.invalid/phone-page-push/poll","pagePushAck":"https://example.invalid/phone-page-push/ack","deviceTabsPublish":"https://example.invalid/device-tabs/v1/publish","deviceTabsList":"https://example.invalid/device-tabs/v1/list","deviceTabsClear":"https://example.invalid/device-tabs/v1/clear"}
+        run: npm run build:official
+
+      - name: Audit Official extension identity
+        run: test "$(node -p "'key' in require('./build/official/manifest.json')")" = "false"

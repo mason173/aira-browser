@@ -38,6 +38,9 @@ export type LeafTabSyncState = {
   leafTabWebdavConfigured: boolean;
   leafTabWebdavProfileLabel: string;
   leafTabWebdavLastSyncLabel: string;
+  leafTabPersonalServerConfigured: boolean;
+  leafTabPersonalServerProfileLabel: string;
+  leafTabPersonalServerLastSyncLabel: string;
   leafTabCloudLoggedIn: boolean;
   leafTabCloudSyncEnabled: boolean;
   leafTabCloudSyncStatus: AiraDesktopSyncStatus;

@@ -14,8 +14,8 @@ import type {
   LeafTabSyncWriteStateResult,
 } from './remoteStore';
 import { LeafTabSyncTombstoneLifecycle } from './historyLifecycle';
+import { requireAiratabOfficialApiRoute } from '@/config/AiratabDistribution';
 
-const AIRA_CLOUD_SYNC_ENDPOINT = 'https://api.aira.cool/sync/v3/bookmarks';
 const AIRA_CLOUD_REQUEST_TIMEOUT_MS = 60_000;
 const AIRA_CLOUD_LARGE_REQUEST_TIMEOUT_MS = 600_000;
 
@@ -69,10 +69,10 @@ export class LeafTabSyncAiraCloudStore implements LeafTabSyncRemoteStore {
   private readonly endpoint: string;
   private readonly historyLifecycle = new LeafTabSyncTombstoneLifecycle();
 
-  constructor(uid: string, deviceCredential: string, endpoint = AIRA_CLOUD_SYNC_ENDPOINT) {
+  constructor(uid: string, deviceCredential: string, endpoint = '') {
     this.uid = uid.trim();
     this.deviceCredential = deviceCredential.trim();
-    this.endpoint = endpoint.trim().replace(/\/+$/, '');
+    this.endpoint = (endpoint.trim() || requireAiratabOfficialApiRoute('bookmarkSync')).replace(/\/+$/, '');
   }
 
   async readHead(): Promise<LeafTabSyncRemoteHead> {

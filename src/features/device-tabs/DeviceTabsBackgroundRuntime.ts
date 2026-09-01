@@ -7,6 +7,8 @@ import {
   isCrossDeviceTabsPreferenceStorageKey,
   readCrossDeviceTabsEnabledFromExtensionStorage,
 } from './deviceTabsPreferences';
+import { PERSONAL_SERVER_CONNECTION_STORAGE_KEY } from '@/features/personal-server/PersonalServerConnection';
+import { LEAFTAB_SELECTED_SYNC_SOURCE_KEY } from '@/features/sync/app/leafTabSyncStorageKeys';
 
 const DEVICE_TABS_HEARTBEAT_ALARM = 'aira.cross-device-tabs.heartbeat';
 const PUBLISH_DEBOUNCE_MS = 750;
@@ -34,6 +36,8 @@ export class DeviceTabsBackgroundRuntime {
     if (areaName !== 'local') return;
     const keys = Object.keys(changes);
     if (!keys.includes(AIRA_DESKTOP_CONNECTION_STORAGE_KEY)
+      && !keys.includes(PERSONAL_SERVER_CONNECTION_STORAGE_KEY)
+      && !keys.includes(LEAFTAB_SELECTED_SYNC_SOURCE_KEY)
       && !keys.some(isCrossDeviceTabsPreferenceStorageKey)) {
       return;
     }

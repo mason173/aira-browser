@@ -1,5 +1,7 @@
 import { LeafTabSyncExtensionStorageBaselineStore } from '@/sync/leaftab/baseline';
 import { LeafTabSyncAiraCloudStore } from '@/sync/leaftab/airaCloudStore';
+import { LeafTabSyncPersonalServerStore } from '@/sync/leaftab/personalServerStore';
+import type { PersonalServerConnection } from '@/features/personal-server/PersonalServerConnection';
 import {
   captureLeafTabBookmarkTreeDraft,
   replaceLeafTabBookmarkTree,
@@ -63,7 +65,8 @@ export type BookmarkSyncDataOverview = {
 const normalizePendingConflict = (value: unknown): BookmarkSyncPendingConflict | null => {
   if (!value || typeof value !== 'object') return null;
   const candidate = value as Partial<BookmarkSyncPendingConflict>;
-  if (candidate.provider !== 'aira-cloud' && candidate.provider !== 'webdav') return null;
+  if (candidate.provider !== 'aira-cloud' && candidate.provider !== 'personal-server' &&
+    candidate.provider !== 'webdav') return null;
   const sourceIdentity = String(candidate.sourceIdentity || '').trim();
   if (!sourceIdentity) return null;
   return {
@@ -137,6 +140,10 @@ export type BookmarkSyncRuntimeProvider =
       password?: string;
       requestPermission?: boolean;
       requestTimeoutMs?: number;
+    }
+  | {
+      remoteKind: 'personal-server';
+      connection: PersonalServerConnection;
     };
 
 export const createBookmarkSyncSourceIdentity = (
@@ -148,6 +155,14 @@ export const createBookmarkSyncSourceIdentity = (
     return [
       'aira-cloud',
       String(provider.uid || '').trim(),
+      normalizedRootPath,
+    ].map((value) => encodeURIComponent(value)).join(':');
+  }
+  if (provider.remoteKind === 'personal-server') {
+    return [
+      'personal-server',
+      provider.connection.instanceId,
+      provider.connection.baseUrl,
       normalizedRootPath,
     ].map((value) => encodeURIComponent(value)).join(':');
   }
@@ -318,8 +333,11 @@ const createEmptyBookmarkSyncSnapshot = (deviceId: string): LeafTabSyncSnapshot 
 });
 
 export const createBookmarkSyncRuntime = (config: BookmarkSyncRuntimeConfig): BookmarkSyncRuntime => {
+  const baselineProvider = config.provider.remoteKind === 'personal-server'
+    ? { remoteKind: 'personal-server' as const, instanceId: config.provider.connection.instanceId }
+    : config.provider;
   const baselineStorageKey = createLeafTabSyncBaselineStorageKey(
-    config.provider,
+    baselineProvider,
     config.rootPath,
   );
   const module = new BookmarkSyncModule({
@@ -442,9 +460,13 @@ export class BookmarkSyncModule {
 
   private createRemoteStore(): LeafTabSyncRemoteStore {
     const provider = this.config.provider;
-    return provider.remoteKind === 'aira-cloud'
-      ? new LeafTabSyncAiraCloudStore(provider.uid, provider.deviceCredential)
-      : new LeafTabSyncWebdavStore({
+    if (provider.remoteKind === 'aira-cloud') {
+      return new LeafTabSyncAiraCloudStore(provider.uid, provider.deviceCredential);
+    }
+    if (provider.remoteKind === 'personal-server') {
+      return new LeafTabSyncPersonalServerStore(provider.connection);
+    }
+    return new LeafTabSyncWebdavStore({
           url: provider.url,
           username: provider.username,
           password: provider.password,

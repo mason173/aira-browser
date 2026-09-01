@@ -1,10 +1,10 @@
 {
   "appTitle": {
-    "message": "Aira Sync Assistant",
+    "message": "Aira-sync",
     "description": "The title of the application"
   },
   "appDescription": {
-    "message": "Connect Aira Browser on HarmonyOS to sync bookmarks and browsing history on desktop, and receive pages sent from your phone.",
+    "message": "Connect Aira Browser across devices with bookmark, history, page push, and open-tab synchronization.",
     "description": "The description of the application"
   }
 }

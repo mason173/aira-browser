@@ -1,5 +1,11 @@
 import { AiraAccountBooleanPreferenceModule } from '@/features/desktop-connection/AiraAccountPreferenceModule';
 import { readAiraDesktopConnectionSnapshot } from '@/features/desktop-connection/desktopConnectionRuntime';
+import { readExtensionStorageRecord } from '@/platform/extensionStorage';
+import {
+  personalServerAccountScope,
+  readPersonalServerConnection,
+} from '@/features/personal-server/PersonalServerConnection';
+import { LEAFTAB_SELECTED_SYNC_SOURCE_KEY } from '@/features/sync/app/leafTabSyncStorageKeys';
 
 const CROSS_DEVICE_TABS_ENABLED_KEY = 'aira_cross_device_tabs_enabled_v1';
 const CROSS_DEVICE_TABS_ACCOUNT_KEY_PREFIX = 'aira_cross_device_tabs_enabled_v2';
@@ -21,8 +27,16 @@ export function readCrossDeviceTabsEnabledFromLocalStorage(uid: string): boolean
 }
 
 export async function readCrossDeviceTabsEnabledFromExtensionStorage(): Promise<boolean> {
-  const snapshot = await readAiraDesktopConnectionSnapshot();
-  return preference.readExtension(snapshot.account?.uid || '');
+  const [sourceRecord, personalServer, snapshot] = await Promise.all([
+    readExtensionStorageRecord([LEAFTAB_SELECTED_SYNC_SOURCE_KEY]),
+    readPersonalServerConnection(),
+    readAiraDesktopConnectionSnapshot(),
+  ]);
+  const source = String(sourceRecord[LEAFTAB_SELECTED_SYNC_SOURCE_KEY] || '');
+  const scope = source === 'personal-server' && personalServer
+    ? personalServerAccountScope(personalServer)
+    : snapshot.account?.uid || '';
+  return preference.readExtension(scope);
 }
 
 export function writeCrossDeviceTabsEnabled(uid: string, enabled: boolean): void {

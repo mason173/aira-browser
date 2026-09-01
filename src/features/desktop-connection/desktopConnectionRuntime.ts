@@ -5,6 +5,10 @@ import {
 } from '@/platform/extensionStorage';
 import { withBookmarkSyncExecutionLock } from '@/sync/leaftab/executionLock';
 import {
+  requireAiratabOfficialApiRoute,
+  type AiratabOfficialApiRoute,
+} from '@/config/AiratabDistribution';
+import {
   AiraDesktopConnectionModule,
   AiraDesktopConnectionRemoteError,
   type AiraDesktopAuthorizedSession,
@@ -18,7 +22,6 @@ import {
   type AiraDesktopPairingStatus,
 } from './AiraDesktopConnectionModule';
 
-const AIRA_API_BASE_URL = 'https://api.aira.cool';
 const AIRA_DESKTOP_REQUEST_TIMEOUT_MS = 25_000;
 export const AIRA_DESKTOP_CONNECTION_STORAGE_KEY = 'aira_desktop_connection_v1';
 const AIRA_DESKTOP_DEVICE_ID_KEY = 'aira_desktop_device_id_v1';
@@ -156,7 +159,7 @@ class ChromeDesktopConnectionStorage implements AiraDesktopConnectionStorage {
 
 class HttpAiraDesktopConnectionRemote implements AiraDesktopConnectionRemote {
   async createPairing(device: { deviceId: string; deviceName: string }): Promise<AiraDesktopPairingSession> {
-    const response = await postAiraDesktopJson<RemoteResponse>('/desktop-login/create', device);
+    const response = await postAiraDesktopJson<RemoteResponse>('desktopPairingCreate', device);
     return {
       sessionId: requiredString(response.sessionId, 'Login service returned an invalid session.'),
       pollToken: requiredString(response.pollToken, 'Login service returned an invalid poll token.'),
@@ -170,7 +173,7 @@ class HttpAiraDesktopConnectionRemote implements AiraDesktopConnectionRemote {
   }
 
   async pollPairing(session: AiraDesktopPairingSession): Promise<AiraDesktopPairingStatus> {
-    const response = await postAiraDesktopJson<RemoteResponse>('/desktop-login/status', {
+    const response = await postAiraDesktopJson<RemoteResponse>('desktopPairingStatus', {
       sessionId: session.sessionId,
       pollToken: session.pollToken,
     });
@@ -201,7 +204,7 @@ class HttpAiraDesktopConnectionRemote implements AiraDesktopConnectionRemote {
   }
 
   async refreshMembership(session: AiraDesktopAuthorizedSession): Promise<AiraDesktopMembershipResponse> {
-    const response = await postAiraDesktopJson<RemoteResponse>('/desktop-login/membership-state', {
+    const response = await postAiraDesktopJson<RemoteResponse>('desktopMembershipState', {
       desktopPushToken: session.deviceCredential,
       deviceId: session.deviceId,
       deviceName: session.deviceName,
@@ -225,7 +228,7 @@ class HttpAiraDesktopConnectionRemote implements AiraDesktopConnectionRemote {
   }
 
   async revoke(session: AiraDesktopAuthorizedSession): Promise<void> {
-    await postAiraDesktopJson<RemoteResponse>('/desktop-session/revoke', {
+    await postAiraDesktopJson<RemoteResponse>('desktopSessionRevoke', {
       desktopPushToken: session.deviceCredential,
       deviceId: session.deviceId,
       deviceName: session.deviceName,
@@ -251,11 +254,11 @@ async function getOrCreateDesktopDeviceIdentity(): Promise<{ deviceId: string; d
   };
 }
 
-export async function postAiraDesktopJson<T>(path: string, body: unknown): Promise<T> {
+export async function postAiraDesktopJson<T>(route: AiratabOfficialApiRoute, body: unknown): Promise<T> {
   const controller = new AbortController();
   const timeout = globalThis.setTimeout(() => controller.abort(), AIRA_DESKTOP_REQUEST_TIMEOUT_MS);
   try {
-    const response = await fetch(`${AIRA_API_BASE_URL}${path}`, {
+    const response = await fetch(requireAiratabOfficialApiRoute(route), {
       method: 'POST',
       headers: {
         Accept: 'application/json',
@@ -401,5 +404,5 @@ function createDeviceId(): string {
 
 function resolveDeviceName(): string {
   const userAgent = typeof navigator !== 'undefined' ? String(navigator.userAgent || '').trim() : '';
-  return userAgent.slice(0, 120) || 'AiraTab Desktop';
+  return userAgent.slice(0, 120) || 'Aira-sync Desktop';
 }

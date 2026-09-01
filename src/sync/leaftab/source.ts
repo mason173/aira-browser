@@ -1,9 +1,9 @@
 import type { LeafTabSyncMergeIntent } from './merge';
 
-export type LeafTabSyncRemoteKind = 'aira-cloud' | 'webdav';
+export type LeafTabSyncRemoteKind = 'aira-cloud' | 'personal-server' | 'webdav';
 
 export const parseLeafTabSyncRemoteKind = (value: unknown): LeafTabSyncRemoteKind | null => {
-  if (value === 'aira-cloud' || value === 'webdav') {
+  if (value === 'aira-cloud' || value === 'personal-server' || value === 'webdav') {
     return value;
   }
   return null;
@@ -23,6 +23,7 @@ export const canRunLeafTabSelectedAutoSync = (values: {
   cloudUid: unknown;
   cloudDeviceCredential: unknown;
   cloudEntitled?: unknown;
+  personalServerConfigured?: unknown;
   webdavUrl: unknown;
   airaCloudEnabled?: unknown;
   webdavEnabled?: unknown;
@@ -36,6 +37,9 @@ export const canRunLeafTabSelectedAutoSync = (values: {
   if (selectedSource === 'webdav') {
     return values.webdavEnabled === true
       && String(values.webdavUrl || '').trim().length > 0;
+  }
+  if (selectedSource === 'personal-server') {
+    return values.personalServerConfigured === true;
   }
   return false;
 };

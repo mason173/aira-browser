@@ -1,5 +1,5 @@
 {
-      "name": "airatab",
+      "name": "aira-sync",
       "version": "0.2.13",
       "private": true,
       "dependencies": {
@@ -28,17 +28,20 @@
             "@types/react": "^19.2.10",
             "@types/react-dom": "^19.2.3",
             "@vitejs/plugin-react-swc": "^3.10.2",
+            "fake-indexeddb": "^6.2.5",
             "typescript": "^5.9.3",
-            "vite": "6.3.5",
+            "vite": "^6.4.3",
             "vitest": "^3.2.4"
       },
       "scripts": {
             "dev": "vite --host",
-            "build": "npm run build:final",
+            "build": "npm run build:community",
             "test": "vitest run",
             "typecheck": "tsc --noEmit -p tsconfig.json",
             "check": "npm run typecheck && npm run build",
-            "build:final": "node scripts/build-final.js",
+            "build:community": "node scripts/build-distribution.js community",
+            "build:official": "node scripts/build-distribution.js official",
+            "build:final": "npm run build:official",
             "pack:zip": "node scripts/package-release-zips.js",
             "pack:zip:no-icons": "node scripts/package-release-zips.js",
             "pack:zip:optimized": "npm run pack:zip",
@@ -47,5 +50,5 @@
             "release:bump": "node scripts/package-release-zips.js --bump",
             "verify:release": "node scripts/verify-release.js"
       },
-      "license": "UNLICENSED"
+      "license": "GPL-3.0-only"
 }

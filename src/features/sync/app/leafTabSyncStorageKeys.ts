@@ -11,6 +11,9 @@ export const AIRA_CLOUD_LAST_ERROR_MESSAGE_KEY = 'aira_cloud_bookmark_sync_g3_la
 export const WEBDAV_LAST_SYNC_AT_KEY = 'webdav_bookmark_sync_g3_last_sync_at';
 export const WEBDAV_LAST_ERROR_AT_KEY = 'webdav_bookmark_sync_g3_last_error_at';
 export const WEBDAV_LAST_ERROR_MESSAGE_KEY = 'webdav_bookmark_sync_g3_last_error_message';
+export const PERSONAL_SERVER_LAST_SYNC_AT_KEY = 'personal_server_bookmark_sync_g3_last_sync_at';
+export const PERSONAL_SERVER_LAST_ERROR_AT_KEY = 'personal_server_bookmark_sync_g3_last_error_at';
+export const PERSONAL_SERVER_LAST_ERROR_MESSAGE_KEY = 'personal_server_bookmark_sync_g3_last_error_message';
 
 type LeafTabSyncBaselineProvider =
   | {
@@ -21,6 +24,10 @@ type LeafTabSyncBaselineProvider =
       remoteKind: 'webdav';
       url: string;
       username?: string;
+    }
+  | {
+      remoteKind: 'personal-server';
+      instanceId: string;
     };
 
 const BOOKMARK_WEBDAV_BASELINE_PROTOCOL = 'bookmark-snapshot-v2';
@@ -36,6 +43,10 @@ export const createLeafTabSyncBaselineStorageKey = (
   if (provider.remoteKind === 'aira-cloud') {
     const safeUid = (provider.uid || 'unknown').replace(/[^a-zA-Z0-9_-]+/g, '_');
     return `leaftab_sync_g3_baseline:aira_cloud:${safeUid}:${suffix}`;
+  }
+  if (provider.remoteKind === 'personal-server') {
+    const safeInstanceId = (provider.instanceId || 'unknown').replace(/[^a-zA-Z0-9_-]+/g, '_');
+    return `leaftab_sync_g3_baseline:personal_server:${safeInstanceId}:${suffix}`;
   }
   const endpoint = String(provider.url || '').trim().replace(/\/+$/, '');
   const username = String(provider.username || '').trim();

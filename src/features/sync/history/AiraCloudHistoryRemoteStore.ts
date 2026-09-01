@@ -10,8 +10,8 @@ import {
   type HistorySyncMutationAcknowledgement,
   type HistorySyncVisit,
 } from './HistorySyncModels';
+import { requireAiratabOfficialApiRoute } from '@/config/AiratabDistribution';
 
-const AIRA_HISTORY_ENDPOINT = 'https://api.aira.cool/sync/v1/history';
 const REQUEST_TIMEOUT_MS = 45_000;
 
 type RemoteResponse = {
@@ -46,7 +46,12 @@ export class AiraCloudHistoryRemoteError extends Error {
 export class AiraCloudHistoryRemoteStore {
   constructor(
     private readonly session: AiraDesktopAuthorizedSession,
-    private readonly endpoint = AIRA_HISTORY_ENDPOINT,
+    private readonly endpoint = '',
+    private readonly options: {
+      authorizationToken?: string;
+      includeHostedCredentials?: boolean;
+      serviceLabel?: string;
+    } = {},
   ) {}
 
   async exchange(params: {
@@ -54,9 +59,7 @@ export class AiraCloudHistoryRemoteStore {
     mutations: HistorySyncMutation[];
   }): Promise<HistorySyncExchangeResponse> {
     const response = await this.post('/exchange', {
-      uid: this.session.uid,
-      desktopPushToken: this.session.deviceCredential,
-      source: 'airatab_history_sync',
+      ...this.hostedCredentials(),
       clientId: this.session.deviceId,
       cursor: params.cursor,
       mutations: params.mutations.slice(0, HISTORY_SYNC_EXCHANGE_BATCH_SIZE),
@@ -79,9 +82,7 @@ export class AiraCloudHistoryRemoteStore {
     afterVisitId?: string;
   }): Promise<HistorySyncBootstrapResponse> {
     const body: Record<string, unknown> = {
-      uid: this.session.uid,
-      desktopPushToken: this.session.deviceCredential,
-      source: 'airatab_history_sync',
+      ...this.hostedCredentials(),
       clientId: this.session.deviceId,
       pageLimit: HISTORY_SYNC_BOOTSTRAP_PAGE_SIZE,
     };
@@ -112,11 +113,15 @@ export class AiraCloudHistoryRemoteStore {
     const controller = new AbortController();
     const timeout = globalThis.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
     try {
-      const response = await fetch(`${this.endpoint}${path}`, {
+      const endpoint = (this.endpoint.trim() || requireAiratabOfficialApiRoute('historySync')).replace(/\/+$/, '');
+      const response = await fetch(`${endpoint}${path}`, {
         method: 'POST',
         headers: {
           Accept: 'application/json',
           'Content-Type': 'application/json; charset=utf-8',
+          ...(this.options.authorizationToken
+            ? { Authorization: `Bearer ${this.options.authorizationToken}` }
+            : {}),
         },
         body: JSON.stringify(body),
         signal: controller.signal,
@@ -128,14 +133,14 @@ export class AiraCloudHistoryRemoteStore {
       } catch {
         throw new AiraCloudHistoryRemoteError(
           'invalid_response',
-          `Aira History returned invalid data (${response.status}).`,
+          `${this.serviceLabel()} returned invalid data (${response.status}).`,
           response.status,
         );
       }
       if (!response.ok || parsed.ok !== true) {
         throw new AiraCloudHistoryRemoteError(
           String(parsed.code || (response.ok ? 'remote_rejected' : 'http_error')),
-          String(parsed.message || `Aira History request failed (${response.status}).`),
+          String(parsed.message || `${this.serviceLabel()} request failed (${response.status}).`),
           response.status,
         );
       }
@@ -144,11 +149,24 @@ export class AiraCloudHistoryRemoteStore {
       if (error instanceof AiraCloudHistoryRemoteError) throw error;
       throw new AiraCloudHistoryRemoteError(
         'network_unavailable',
-        String((error as Error)?.message || 'Aira History is temporarily unavailable.'),
+        String((error as Error)?.message || `${this.serviceLabel()} is temporarily unavailable.`),
       );
     } finally {
       globalThis.clearTimeout(timeout);
     }
+  }
+
+  private hostedCredentials(): Record<string, unknown> {
+    if (this.options.includeHostedCredentials === false) return {};
+    return {
+      uid: this.session.uid,
+      desktopPushToken: this.session.deviceCredential,
+      source: 'airatab_history_sync',
+    };
+  }
+
+  private serviceLabel(): string {
+    return this.options.serviceLabel || 'Aira History';
   }
 }
 

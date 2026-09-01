@@ -34,16 +34,19 @@ export class HistorySyncModule {
     await this.database.initialize();
   }
 
-  runSync(session: AiraDesktopAuthorizedSession): Promise<HistorySyncRunResult> {
+  runSync(
+    session: AiraDesktopAuthorizedSession,
+    remoteStore?: AiraCloudHistoryRemoteStore,
+  ): Promise<HistorySyncRunResult> {
     const syncKey = `${session.uid}\n${session.deviceId}`;
     if (this.activeSyncPromise) {
       if (this.activeSyncKey === syncKey) return this.activeSyncPromise;
       return this.activeSyncPromise.then(
-        () => this.runSync(session),
-        () => this.runSync(session),
+        () => this.runSync(session, remoteStore),
+        () => this.runSync(session, remoteStore),
       );
     }
-    const run = this.runSyncInternal(session).finally(() => {
+    const run = this.runSyncInternal(session, remoteStore).finally(() => {
       if (this.activeSyncPromise === run) {
         this.activeSyncPromise = null;
         this.activeSyncKey = '';
@@ -188,9 +191,12 @@ export class HistorySyncModule {
     );
   }
 
-  private async runSyncInternal(session: AiraDesktopAuthorizedSession): Promise<HistorySyncRunResult> {
+  private async runSyncInternal(
+    session: AiraDesktopAuthorizedSession,
+    remoteStore?: AiraCloudHistoryRemoteStore,
+  ): Promise<HistorySyncRunResult> {
     await this.database.initialize();
-    const remote = new AiraCloudHistoryRemoteStore(session);
+    const remote = remoteStore ?? new AiraCloudHistoryRemoteStore(session);
     let state = await this.database.getState(session.uid, session.deviceId);
     let appliedChangeCount = 0;
     let uploadedMutationCount = 0;

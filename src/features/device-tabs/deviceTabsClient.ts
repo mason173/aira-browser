@@ -9,6 +9,14 @@ import type {
   CrossDeviceTabList,
   DesktopDeviceMetadata,
 } from './deviceTabsModels';
+import {
+  postPersonalServerJson,
+  readPersonalServerConnection,
+  type PersonalServerConnection,
+} from '@/features/personal-server/PersonalServerConnection';
+import { readExtensionStorageRecord } from '@/platform/extensionStorage';
+import { LEAFTAB_SELECTED_SYNC_SOURCE_KEY } from '@/features/sync/app/leafTabSyncStorageKeys';
+import { parseLeafTabSyncRemoteKind } from '@/sync/leaftab/source';
 
 type ApiResponse = {
   ok?: boolean;
@@ -25,12 +33,11 @@ type NavigatorUserAgentData = {
 
 export async function publishCurrentDesktopTabs(): Promise<boolean> {
   const context = await readDesktopContext();
-  if (!context || !context.pro) {
+  if (!context || !context.entitled) {
     return false;
   }
   const tabs = await queryPublishableTabs();
-  await postAiraDesktopJson<ApiResponse>('/device-tabs/v1/publish', {
-    ...toCredentials(context),
+  await postDeviceTabs(context, '/publish', {
     source: 'airatab_cross_device_tabs_publish',
     device: context.device,
     tabs,
@@ -41,13 +48,12 @@ export async function publishCurrentDesktopTabs(): Promise<boolean> {
 export async function listPhoneTabs(): Promise<CrossDeviceTabList> {
   const context = await readDesktopContext();
   if (!context) {
-    throw new Error('请先连接 Aira 手机端。');
+    throw new Error('请先连接 Personal Server 或 Aira 手机端。');
   }
-  if (!context.pro) {
-    throw new Error('跨设备标签页需要 Aira Pro。');
+  if (!context.entitled) {
+    throw new Error('Aira 云跨设备标签页需要 Pro；Personal Server 不需要会员。');
   }
-  const response = await postAiraDesktopJson<ApiResponse>('/device-tabs/v1/list', {
-    ...toCredentials(context),
+  const response = await postDeviceTabs(context, '/list', {
     source: 'airatab_cross_device_tabs_list',
   });
   return {
@@ -64,34 +70,57 @@ export async function clearDesktopTabSnapshot(): Promise<boolean> {
   if (!context) {
     return false;
   }
-  await postAiraDesktopJson<ApiResponse>('/device-tabs/v1/clear', {
-    ...toCredentials(context),
+  await postDeviceTabs(context, '/clear', {
     source: 'airatab_cross_device_tabs_clear',
   });
   return true;
 }
 
 async function readDesktopContext(): Promise<{
+  kind: 'aira-cloud' | 'personal-server';
   uid: string;
   deviceCredential: string;
-  pro: boolean;
+  entitled: boolean;
+  personalServer?: PersonalServerConnection;
   device: DesktopDeviceMetadata;
 } | null> {
-  const [session, snapshot] = await Promise.all([
+  const [sourceRecord, personalServer, session, snapshot] = await Promise.all([
+    readExtensionStorageRecord([LEAFTAB_SELECTED_SYNC_SOURCE_KEY]),
+    readPersonalServerConnection(),
     readAiraDesktopAuthorizedSession(),
     readAiraDesktopConnectionSnapshot(),
   ]);
+  const selectedSource = parseLeafTabSyncRemoteKind(sourceRecord[LEAFTAB_SELECTED_SYNC_SOURCE_KEY]);
+  const metadata = resolveBrowserMetadata();
+  if (selectedSource === 'personal-server' && personalServer?.capabilities.crossDeviceTabs) {
+    return {
+      kind: 'personal-server',
+      uid: personalServer.instanceId,
+      deviceCredential: personalServer.deviceToken,
+      entitled: true,
+      personalServer,
+      device: {
+        deviceId: personalServer.deviceId,
+        deviceName: `${metadata.browserName} · ${metadata.platform}`,
+        platform: metadata.platform,
+        model: '',
+        browserName: metadata.browserName,
+        browserVersion: metadata.browserVersion,
+      },
+    };
+  }
+  if (selectedSource !== 'aira-cloud') return null;
   if (!session?.uid || !session.deviceCredential || snapshot.status === 'reauth-required') {
     return null;
   }
-  const metadata = resolveBrowserMetadata();
   const expiresAt = Number(snapshot.membership?.expiresAt || 0);
   const pro = String(snapshot.membership?.plan || '').trim().toLowerCase() === 'pro'
     && (expiresAt === 0 || expiresAt > Date.now());
   return {
+    kind: 'aira-cloud',
     uid: session.uid,
     deviceCredential: session.deviceCredential,
-    pro,
+    entitled: pro,
     device: {
       deviceId: session.deviceId,
       deviceName: `${metadata.browserName} · ${metadata.platform}`,
@@ -158,7 +187,7 @@ function resolveBrowserMetadata(): { platform: string; browserName: string; brow
   if (edge) return { platform, browserName: 'Microsoft Edge', browserVersion: edge[1] };
   const chrome = userAgent.match(/Chrome\/([0-9.]+)/);
   if (chrome) return { platform, browserName: 'Google Chrome', browserVersion: chrome[1] };
-  return { platform, browserName: 'AiraTab', browserVersion: '' };
+  return { platform, browserName: 'Aira-sync', browserVersion: '' };
 }
 
 function parseDevice(value: unknown): CrossDeviceTabDevice | null {
@@ -203,6 +232,28 @@ function toCredentials(context: { uid: string; deviceCredential: string; device:
     desktopPushToken: context.deviceCredential,
     deviceId: context.device.deviceId,
   };
+}
+
+async function postDeviceTabs(
+  context: NonNullable<Awaited<ReturnType<typeof readDesktopContext>>>,
+  path: '/publish' | '/list' | '/clear',
+  body: Record<string, unknown>,
+): Promise<ApiResponse> {
+  if (context.kind === 'personal-server' && context.personalServer) {
+    return postPersonalServerJson<ApiResponse>(
+      `/v1/device-tabs${path}`,
+      body,
+      undefined,
+      context.personalServer,
+    );
+  }
+  const route = path === '/publish'
+    ? 'deviceTabsPublish'
+    : path === '/list' ? 'deviceTabsList' : 'deviceTabsClear';
+  return postAiraDesktopJson<ApiResponse>(route, {
+    ...body,
+    ...toCredentials(context),
+  });
 }
 
 function normalizeTimestamp(value: unknown): number {

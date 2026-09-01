@@ -17,7 +17,7 @@ const buildDir = path.join(root, outDir);
 const finalLocaleMessages = {
   en: {
     appTitle: {
-      message: 'Aira Sync Assistant',
+      message: 'Aira-sync',
       description: 'The title of the application',
     },
     appDescription: {
@@ -27,7 +27,7 @@ const finalLocaleMessages = {
   },
   zh_CN: {
     appTitle: {
-      message: 'Aira 同步助手',
+      message: 'Aira-sync',
       description: 'The title of the application',
     },
     appDescription: {
