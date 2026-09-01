@@ -33,4 +33,3 @@ fs.readdirSync(migrationDir)
   });
 
 module.exports = { db, databasePath };
-

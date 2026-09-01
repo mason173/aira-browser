@@ -22,6 +22,12 @@ Only paired-device bearer credentials can access data. Device tokens are generat
 - a persistent data volume;
 - HTTPS from a reverse proxy when the server is reachable outside a trusted local network.
 
+Run the following deployment and development commands from the component directory:
+
+```bash
+cd services/personal-server
+```
+
 ## Docker Quick Start
 
 ```bash
@@ -83,7 +89,7 @@ domains, Page Push, Cross-device Tabs, compare-and-swap conflicts, credential ro
 
 ## Scope And Compatibility
 
-The discovery document at `/.well-known/aira` is the client compatibility contract. Protocol changes must remain explicit and versioned. Aira production membership, IAP, admin, analytics, diagnostics, and Huawei-account services are intentionally outside this repository.
+The discovery document at `/.well-known/aira` is the client compatibility contract. Protocol changes must remain explicit and versioned. Aira production membership, IAP, admin, analytics, diagnostics, and Huawei-account services are intentionally outside this public monorepo.
 
 ## Security
 

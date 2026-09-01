@@ -129,4 +129,3 @@ function parseStored(value) {
 }
 
 module.exports = { readBookmark, readBookmarkHead, readSnapshot, writeBookmark, writeSnapshot };
-

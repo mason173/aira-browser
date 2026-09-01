@@ -1,30 +1,49 @@
 # Contributing
 
-Aira Browser is maintained as one HarmonyOS source tree with Community and Official build distributions. Keep changes
-distribution-neutral unless they belong behind the existing capability owner.
+Aira Browser, Aira-sync, and Personal Server are maintained in one monorepo. Keep cross-component protocol changes in
+one pull request so compatibility, documentation, and all affected clients can be reviewed together.
 
-## Development Setup
+## Component Checks
 
-Install DevEco Studio and the HarmonyOS SDK version documented in [AiraBrowser/README.md](AiraBrowser/README.md), then:
+HarmonyOS Community:
 
 ```bash
 cd AiraBrowser
 ohpm install
 cd ..
-AIRA_DISTRIBUTION=community SKIP_INSTALL=1 ./scripts/build-aira-browser.sh
+AIRA_DISTRIBUTION=community AIRA_ALLOW_UNSIGNED_BUILD=1 SKIP_INSTALL=1 ./scripts/build-aira-browser.sh
 ```
 
-The Community build needs a local signing profile for `org.aira.browser.community`. Signing files and AGConnect data are
-machine-local inputs and must never be committed.
+Aira-sync:
+
+```bash
+cd extensions/aira-sync
+npm ci
+npm run typecheck
+npm test
+npm run build:community
+```
+
+Personal Server:
+
+```bash
+cd services/personal-server
+npm ci
+npm run check
+```
+
+The installable HarmonyOS Community build needs a local signing profile for `org.aira.browser.community`. Signing files,
+AGConnect data, production routes, device credentials, databases, and browser profiles must never be committed.
 
 ## Pull Requests
 
 - Keep changes focused and explain user-visible behavior, privacy impact, data-loss risk, and Provider compatibility.
 - Prefer existing owners and shared components over distribution-specific copies.
-- Update the affected contract script or documentation when protocol or build behavior changes.
-- Preserve local user data by default and keep self-host credentials isolated by Personal Server instance identity.
-- Do not add account registration, passwords, organizations, roles, billing, membership, referral, or Huawei identity to
-  Personal Server flows.
+- Update discovery, protocol documentation, and every affected component when wire semantics change.
+- Preserve local user data by default and isolate self-host credentials by Personal Server instance identity.
+- Do not add registration, passwords, organizations, roles, billing, membership, referral, or Huawei identity to Personal
+  Server flows.
+- Run the checks for every touched component; root workflows use path filters to enforce the same boundary in CI.
 
-Personal Server changes belong in [mason173/aira-server](https://github.com/mason173/aira-server). Aira's production
-backend, Admin, deployment configuration, and operations are not part of this repository.
+Aira's production backend, Admin, deployment configuration, signing inputs, and operations remain private and are not
+part of this monorepo.

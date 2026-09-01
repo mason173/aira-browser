@@ -1,8 +1,8 @@
 # Personal Server
 
-Aira Personal Server is maintained in the separate
-[mason173/aira-server](https://github.com/mason173/aira-server) repository. It is designed for one person who controls
-one server and pairs multiple devices.
+Aira Personal Server is maintained in this monorepo under
+[`services/personal-server`](../services/personal-server/README.md). It is designed for one person who controls one server
+and pairs multiple devices.
 
 It deliberately has no registration, password accounts, user directory, organizations, roles, membership, billing,
 referral, Huawei identity, or Aira production control plane. Device pairing issues revocable per-device credentials;
@@ -19,7 +19,8 @@ The v1 server supports:
 - Docker/Compose deployment and health checks
 - SQLite migrations, online backup, validated restore, credential rotation, and revocation
 
-Follow the Personal Server repository's README for deployment, reverse proxy/TLS, pairing, upgrade, backup, and recovery.
+Follow the [Personal Server README](../services/personal-server/README.md) for deployment, reverse proxy/TLS, pairing,
+upgrade, backup, and recovery.
 In Aira Browser, open Sync, choose Personal Server, enter the HTTPS server URL, and complete the one-time pairing flow.
 Create another one-time pairing code for each Aira-sync installation and connect it to the same server. The paired phone
 and desktops can then use the same server for sync, Page Push, and Cross-device Tabs without an Aira account.

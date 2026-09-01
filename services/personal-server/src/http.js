@@ -48,4 +48,3 @@ function writeJson(response, status, body, extraHeaders = {}) {
 }
 
 module.exports = { readJson, writeJson };
-

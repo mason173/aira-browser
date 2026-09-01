@@ -124,4 +124,3 @@ CREATE TABLE history_sync_mutation_receipts_v1 (
 );
 
 CREATE INDEX history_receipts_created ON history_sync_mutation_receipts_v1(created_at);
-

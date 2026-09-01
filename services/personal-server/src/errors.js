@@ -29,4 +29,3 @@ function toPublicError(error) {
 }
 
 module.exports = { PublicError, buildPublicError, fail, toPublicError };
-

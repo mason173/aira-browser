@@ -1,6 +1,9 @@
-# Aira Browser Contributor Rules
+# Aira Contributor Rules
 
-- This repository contains a HarmonyOS NEXT app built with ArkTS, ArkUI, ArkWeb, and the Stage model.
+- This monorepo contains the HarmonyOS client at `AiraBrowser/`, Aira-sync at `extensions/aira-sync/`, and Personal
+  Server at `services/personal-server/`.
+- Apply the nearest nested `AGENTS.md` in addition to these root rules. Aira-sync's frozen Sync contract remains in
+  `extensions/aira-sync/AGENTS.md`.
 - Treat Huawei official documentation as the source of truth for platform APIs, lifecycle, permissions, storage,
   networking, and Web components.
 - Keep Community and Official as build distributions of one source tree. Do not create edition branches or duplicate

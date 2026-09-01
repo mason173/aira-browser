@@ -2,8 +2,14 @@ name: Client CI
 
 on:
   pull_request:
+    paths-ignore:
+      - 'extensions/**'
+      - 'services/**'
   push:
     branches: [main]
+    paths-ignore:
+      - 'extensions/**'
+      - 'services/**'
   workflow_dispatch:
 
 permissions:

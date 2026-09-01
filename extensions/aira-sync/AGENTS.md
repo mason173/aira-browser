@@ -19,8 +19,8 @@ These rules are mandatory for Codex or any other coding agent working in this re
 - Read-only diagnosis is allowed without change authorization. If investigation indicates a Sync edit may be required,
   stop after diagnosis, identify the exact protected files and invariant at risk, and ask the user for explicit
   authorization before editing.
-- Before any authorized Sync change, completely read this file, `/Users/mason/Desktop/AiraBrowser-api26/AGENTS.md`, and the App
-  ADR-0047/0048/0049 contracts. State the exact approved scope and target files before editing. Keep the existing one
+- Before any authorized Sync change, completely read this file, the monorepo-root `AGENTS.md`, and the App
+  `docs/adr/0047`, `0048`, and `0049` contracts. State the exact approved scope and target files before editing. Keep the existing one
   execution lock from `src/sync/leaftab/executionLock.ts`; after acquiring it, re-read authoritative extension storage
   identity, source, WebDAV configuration, and pending conflict state.
 - Extension storage remains authoritative; `localStorage` is only a best-effort UI cache. A normal WebDAV candidate

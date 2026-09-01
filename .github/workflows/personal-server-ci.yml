@@ -1,0 +1,38 @@
+name: Personal Server CI
+
+on:
+  pull_request:
+    paths:
+      - 'services/personal-server/**'
+      - '.github/workflows/personal-server-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'services/personal-server/**'
+      - '.github/workflows/personal-server-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: personal-server-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: services/personal-server
+
+jobs:
+  install-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: services/personal-server/package-lock.json
+      - run: npm ci
+      - run: npm run check

@@ -4,7 +4,9 @@ server/node_modules/
 private-backend/
 
 .DS_Store
-.planning/.bindings/
+.planning/
+.tmp-webdav-root/
+.tmp-competitors/
 
 build/
 build-firefox/

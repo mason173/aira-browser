@@ -26,5 +26,5 @@ tokens, browser profiles, Personal Server data, WebDAV credentials, or generated
   membership, billing, referrals, or Huawei identity.
 - Run typecheck, tests, and both applicable distribution builds before requesting review.
 
-Personal Server protocol changes belong in the separate
-[aira-server](https://github.com/mason173/aira-server) repository and must remain explicitly versioned.
+Personal Server protocol changes belong in [`services/personal-server`](../../services/personal-server/README.md) in the
+same monorepo and must remain explicitly versioned. Update every affected client and protocol document in one pull request.

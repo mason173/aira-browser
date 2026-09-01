@@ -28,4 +28,3 @@ function normalizePositiveInteger(value, fallback) {
   }
   return number;
 }
-

@@ -1,7 +1,15 @@
 # Open-Source Distribution Boundary
 
-This document describes the current release boundary for the Aira HarmonyOS client. Official and Community are two
-distributions of the same source tree and commit. They are not long-lived forks.
+This document describes the release boundary for the public components in the Aira monorepo. The HarmonyOS client and
+Aira-sync each build Official and Community distributions from the same component source and commit. They are not
+long-lived forks. Personal Server is a distribution-neutral, single-owner self-hosted service.
+
+## Repository Layout
+
+- `AiraBrowser/`, `scripts/`, and `resources/` contain the HarmonyOS client and its build inputs.
+- `extensions/aira-sync/` contains the desktop browser extension.
+- `services/personal-server/` contains the deployable self-hosted server.
+- Aira's production backend, Admin, operations, and private build credentials are not in this monorepo.
 
 ## Capability Matrix
 
@@ -76,7 +84,7 @@ distributions; only the capability owner, package identity, private configuratio
 
 ## Publication Checklist
 
-Before making the repository public, all of the following must be true:
+Before making the monorepo public, all of the following must be true:
 
 1. A clean Community checkout builds with only documented public inputs.
 2. Official and Community artifacts are built from the same commit and have separate matching signing profiles.

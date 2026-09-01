@@ -29,6 +29,7 @@ The Community build contains no default Aira production API endpoint. Official s
 ## Development
 
 ```bash
+cd extensions/aira-sync
 npm ci
 npm run typecheck
 npm test
@@ -63,7 +64,7 @@ credentials. Do not commit a production environment file.
 
 ## Personal Server
 
-Deploy [Aira Personal Server](https://github.com/mason173/aira-server), then open Aira-sync and choose
+Deploy [Aira Personal Server](../../services/personal-server/README.md), then open Aira-sync and choose
 `使用自己的服务器`. Enter the public HTTPS base URL and a one-time pairing code. The first code comes from the server's
 `setup-code` file; later codes can be created by an already paired device.
 

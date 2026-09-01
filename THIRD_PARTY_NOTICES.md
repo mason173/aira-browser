@@ -18,6 +18,9 @@ components retain their own licenses and notices.
   `resources/icon-sources/aira/vendor/gravity-ui/2.20.0/LICENSE`.
 - HarmonyOS and AGConnect packages are declared in `AiraBrowser/oh-package.json5` and remain subject to their publishers'
   terms.
+- Aira-sync JavaScript dependencies and WebDAV provider-branding notes are documented in
+  `extensions/aira-sync/THIRD_PARTY_NOTICES.md`.
+- Personal Server runtime dependencies are documented in `services/personal-server/THIRD_PARTY_NOTICES.md`.
 
 ## Commercial Icon Assets
 

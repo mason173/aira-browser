@@ -2,7 +2,7 @@
 
 ## Deploy
 
-Follow the [Aira Personal Server deployment guide](https://github.com/mason173/aira-server). For internet access, place
+Follow the [Aira Personal Server deployment guide](../../../services/personal-server/README.md). For internet access, place
 the server behind a trusted HTTPS reverse proxy. Aira-sync accepts HTTP for a trusted local network, but HTTPS should be
 used whenever traffic leaves that network.
 

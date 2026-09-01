@@ -20,3 +20,7 @@ identifier with a non-working placeholder.
 - WebDAV credentials remain device-local and are sent only to the endpoint selected by the user.
 - Automatic crash collection and upload are disabled in both distributions.
 - Personal Server does not provide end-to-end encryption; its host administrator can read synchronized data.
+- Aira-sync excludes private/incognito tabs and non-HTTP(S) URLs from Cross-device Tabs, and never writes remote visits
+  into browser-native history.
+
+Identify the affected component as `AiraBrowser`, `extensions/aira-sync`, or `services/personal-server` in the report.
