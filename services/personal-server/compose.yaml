@@ -1,0 +1,14 @@
+services:
+  aira-server:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8787:8787"
+    environment:
+      AIRA_PUBLIC_URL: ${AIRA_PUBLIC_URL:-}
+    volumes:
+      - aira-data:/data
+
+volumes:
+  aira-data:
+

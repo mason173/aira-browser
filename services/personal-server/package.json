@@ -1,0 +1,20 @@
+{
+  "name": "aira-personal-server",
+  "version": "0.2.0",
+  "private": false,
+  "description": "Single-owner, self-hosted sync server for Aira Browser",
+  "license": "GPL-3.0-only",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "check": "node scripts/check-install.js",
+    "backup": "node scripts/backup.js",
+    "restore": "node scripts/restore.js"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.10.0"
+  }
+}
