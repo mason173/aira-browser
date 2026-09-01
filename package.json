@@ -1,6 +1,6 @@
 {
   "name": "aira-personal-server",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": false,
   "description": "Single-owner, self-hosted sync server for Aira Browser",
   "license": "GPL-3.0-only",

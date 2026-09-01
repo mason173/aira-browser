@@ -26,7 +26,8 @@ Huawei access tokens, Aira membership state, IAP receipts, passwords, and cookie
 | `POST` | `/v1/device/rotate` | Replace the caller's credential immediately |
 | `POST` | `/v1/devices/:deviceId/revoke` | Revoke one active device |
 
-History requests require `clientId` to equal the device ID bound to the bearer credential.
+Pairing requests declare `deviceKind` as `phone` or `desktop`. Older clients that omit it remain compatible and are
+treated as phones. History requests require `clientId` to equal the device ID bound to the bearer credential.
 
 ## Sync Domains
 
@@ -37,6 +38,23 @@ History requests require `clientId` to equal the device ID bound to the bearer c
 | Personalization | 2 | `/v1/sync/personalization` | Complete snapshot, revision CAS |
 | Novel Bookshelf | 2 | `/v1/sync/novel-bookshelf` | Complete snapshot, revision CAS |
 
+## Cross-device Services
+
+| Service | Version | Base path | Retention model |
+| --- | ---: | --- | --- |
+| Page Push | 1 | `/v1/page-push` | Two-minute per-desktop task with lease and acknowledgement |
+| Cross-device Tabs | 1 | `/v1/device-tabs` | Latest per-device snapshot, online for two minutes |
+
+Page Push uses `enqueue`, `poll`, and `ack` operations. A paired phone enqueues one task for each paired desktop that has
+polled Page Push within the last two minutes. General authenticated activity does not make a desktop a Page Push target.
+A desktop leases its own task before opening it and acknowledges `opened` or `failed`; another device cannot
+poll or acknowledge that task. Task rows are physically removed after fourteen days.
+
+Cross-device Tabs uses `publish`, `list`, and `clear`. The authenticated device ID and kind are authoritative; payloads
+cannot impersonate another device. A phone lists desktop snapshots and a desktop lists phone snapshots. Only HTTP(S)
+URLs without embedded credentials are accepted, and each device may publish at most 100 tabs. Revoking a paired device
+immediately excludes its snapshot from list results even when the snapshot TTL has not elapsed.
+
 Application conflicts use HTTP `409` with stable JSON codes such as `sync_conflict`, `personalization_sync_write_conflict`, and `novel_bookshelf_sync_write_conflict`. Clients must preserve and parse error bodies on non-2xx responses.
 
 ## Compatibility Rules
@@ -46,3 +64,4 @@ Application conflicts use HTTP `409` with stable JSON codes such as `sync_confli
 - New migrations are append-only and ordered by filename.
 - The stable `instanceId` must survive upgrades and restores.
 - A client must isolate baselines, runtime state, and History account scope by `instanceId` and normalized base URL.
+- Page Push and Cross-device Tabs are ephemeral coordination services, not durable Sync Domains or browser-history stores.

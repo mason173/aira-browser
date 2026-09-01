@@ -9,6 +9,11 @@ The server currently synchronizes:
 - personalization through the complete-snapshot v2 protocol;
 - Novel Bookshelf metadata and reading anchors through the complete-snapshot v2 protocol.
 
+The same paired-device connection also provides:
+
+- phone-to-desktop Page Push with per-device delivery, short leases, and acknowledgement;
+- Cross-device Tabs using short-lived latest snapshots from paired phones and desktops.
+
 Only paired-device bearer credentials can access data. Device tokens are generated randomly and stored by the server only as SHA-256 hashes.
 
 ## Requirements
@@ -73,7 +78,8 @@ curl --fail --silent https://sync.example.com/health
 npm run check
 ```
 
-`npm run check` starts an isolated temporary server and verifies discovery, first and second device pairing, all four sync domains, compare-and-swap conflicts, credential rotation, device listing, and revocation.
+`npm run check` starts an isolated temporary server and verifies discovery, phone and desktop pairing, all four sync
+domains, Page Push, Cross-device Tabs, compare-and-swap conflicts, credential rotation, device listing, and revocation.
 
 ## Scope And Compatibility
 

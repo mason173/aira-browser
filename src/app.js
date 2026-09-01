@@ -12,8 +12,10 @@ const {
 } = require('./instance');
 const { readBookmark, readBookmarkHead, readSnapshot, writeBookmark, writeSnapshot } = require('./snapshot-store');
 const { handleHistoryBootstrap, handleHistoryExchange } = require('./routes/history-routes');
+const pagePush = require('./page-push');
+const crossDeviceTabs = require('./cross-device-tabs');
 
-const VERSION = '0.1.0';
+const VERSION = '0.2.0';
 
 async function handleRequest(request, response) {
   try {
@@ -45,6 +47,29 @@ async function handleRequest(request, response) {
     }
 
     const body = request.method === 'POST' ? await readJson(request) : {};
+    if (request.method === 'POST' && url.pathname === '/v1/page-push/enqueue') {
+      return writeJson(response, 201, { ok: true, code: 'page_push_queued', ...pagePush.enqueue(body, device) });
+    }
+    if (request.method === 'POST' && url.pathname === '/v1/page-push/poll') {
+      const result = await pagePush.poll(body, device);
+      return writeJson(response, 200, {
+        ok: true,
+        code: result.task ? 'page_push_task' : 'page_push_empty',
+        ...result,
+      });
+    }
+    if (request.method === 'POST' && url.pathname === '/v1/page-push/ack') {
+      return writeJson(response, 200, { ok: true, code: 'page_push_acknowledged', ...pagePush.acknowledge(body, device) });
+    }
+    if (request.method === 'POST' && url.pathname === '/v1/device-tabs/publish') {
+      return writeJson(response, 200, { ok: true, code: 'cross_device_tabs_published', ...crossDeviceTabs.publish(body, device) });
+    }
+    if (request.method === 'POST' && url.pathname === '/v1/device-tabs/list') {
+      return writeJson(response, 200, { ok: true, code: 'cross_device_tabs_listed', ...crossDeviceTabs.list(device) });
+    }
+    if (request.method === 'POST' && url.pathname === '/v1/device-tabs/clear') {
+      return writeJson(response, 200, { ok: true, code: 'cross_device_tabs_cleared', ...crossDeviceTabs.clear(device) });
+    }
     if (request.method === 'POST' && url.pathname === '/v1/sync/bookmarks/read') {
       return writeJson(response, 200, { ok: true, code: 'bookmark_sync_state', ...readBookmark() });
     }
@@ -96,9 +121,10 @@ function discovery() {
       personalization: { version: 2, path: '/v1/sync/personalization' },
       novelBookshelf: { version: 2, path: '/v1/sync/novel-bookshelf' },
       deviceManagement: { version: 1, path: '/v1/devices' },
+      pagePush: { version: 1, path: '/v1/page-push' },
+      crossDeviceTabs: { version: 1, path: '/v1/device-tabs' },
     },
   };
 }
 
 module.exports = { handleRequest };
-

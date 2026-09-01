@@ -22,13 +22,13 @@ async function run() {
     assert(discovery.protocolVersion === 1 && discovery.instanceId, 'discovery');
     const setupCode = fs.readFileSync(path.join(dataDir, 'setup-code'), 'utf8').trim();
     const first = await json('POST', '/v1/pairing/exchange', {
-      code: setupCode, deviceId: 'check-device-1', deviceName: 'Check Device 1',
+      code: setupCode, deviceId: 'check-device-1', deviceName: 'Check Phone', deviceKind: 'phone',
     });
     assert(first.token && first.instanceId === discovery.instanceId, 'first pairing');
     let firstToken = first.token;
     const pairing = await json('POST', '/v1/pairing/codes', {}, firstToken);
     const second = await json('POST', '/v1/pairing/exchange', {
-      code: pairing.code, deviceId: 'check-device-2', deviceName: 'Check Device 2',
+      code: pairing.code, deviceId: 'check-device-2', deviceName: 'Check Desktop', deviceKind: 'desktop',
     });
     assert(second.token, 'second pairing');
     const generatedAt = new Date().toISOString();
@@ -81,16 +81,84 @@ async function run() {
       clientId: 'check-device-2', cursor: historyRead.bootstrapHead, pullLimit: 200, mutations: [],
     }, second.token);
     assert(historyIncremental.nextCursor === historyRead.bootstrapHead, 'history incremental continuation');
+    const desktopTabs = [{
+      title: 'Desktop Example', url: 'https://desktop.example/', active: true,
+      lastActiveAt: Date.now(), windowOrder: 0, tabOrder: 0,
+    }];
+    await json('POST', '/v1/device-tabs/publish', {
+      device: {
+        deviceId: 'check-device-2', deviceName: 'Check Desktop', platform: 'Linux',
+        model: '', browserName: 'Chrome', browserVersion: '1',
+      },
+      tabs: desktopTabs,
+    }, second.token);
+    const phoneTabs = [{
+      title: 'Phone Example', url: 'https://phone.example/', active: true,
+      lastActiveAt: Date.now(), windowOrder: 0, tabOrder: 0,
+    }];
+    await json('POST', '/v1/device-tabs/publish', {
+      device: {
+        deviceId: 'check-device-1', deviceName: 'Check Phone', platform: 'HarmonyOS',
+        model: 'Phone', browserName: 'Aira', browserVersion: '1',
+      },
+      tabs: phoneTabs,
+    }, firstToken);
+    const tabsForPhone = await json('POST', '/v1/device-tabs/list', {}, firstToken);
+    const tabsForDesktop = await json('POST', '/v1/device-tabs/list', {}, second.token);
+    assert(tabsForPhone.devices.length === 1 && tabsForPhone.devices[0].tabs[0].url === 'https://desktop.example/',
+      'desktop tabs visible to phone');
+    assert(tabsForDesktop.devices.length === 1 && tabsForDesktop.devices[0].tabs[0].url === 'https://phone.example/',
+      'phone tabs visible to desktop');
+    await json('POST', '/v1/device-tabs/clear', {}, second.token);
+    const tabsAfterClear = await json('POST', '/v1/device-tabs/list', {}, firstToken);
+    assert(tabsAfterClear.devices.length === 0, 'cross-device tabs clear');
+    const inactiveDesktopPush = await raw('POST', '/v1/page-push/enqueue', {
+      url: 'https://example.com/article', originalUrl: 'https://example.com/article',
+      title: 'Example Article',
+    }, firstToken);
+    assert(inactiveDesktopPush.status === 409, 'general activity does not enable page push');
+    const emptyPagePoll = await json('POST', '/v1/page-push/poll', { waitMs: 0 }, second.token);
+    assert(emptyPagePoll.task === null, 'page push poll establishes online presence');
+    const queuedPage = await json('POST', '/v1/page-push/enqueue', {
+      url: 'https://example.com/article', originalUrl: 'https://example.com/article',
+      title: 'Example Article',
+    }, firstToken);
+    assert(queuedPage.deliveryCount === 1 && queuedPage.taskId, 'page push enqueue');
+    const polledPage = await json('POST', '/v1/page-push/poll', { waitMs: 0 }, second.token);
+    assert(polledPage.task && polledPage.task.taskId === queuedPage.taskId && polledPage.leaseToken,
+      'page push poll');
+    const invalidAcknowledgement = await raw('POST', '/v1/page-push/ack', {
+      taskId: polledPage.task.taskId, leaseToken: polledPage.leaseToken, status: 'unexpected',
+    }, second.token);
+    assert(invalidAcknowledgement.status === 400, 'page push acknowledgement status validation');
+    const acknowledgedPage = await json('POST', '/v1/page-push/ack', {
+      taskId: polledPage.task.taskId, leaseToken: polledPage.leaseToken, status: 'opened',
+    }, second.token);
+    assert(acknowledgedPage.status === 'opened', 'page push acknowledgement');
     const rotated = await json('POST', '/v1/device/rotate', {}, firstToken);
     assert(rotated.token && rotated.credentialId, 'credential rotation');
     const oldCredential = await raw('GET', '/v1/devices', undefined, firstToken);
     assert(oldCredential.status === 401, 'rotated credential invalidation');
     firstToken = rotated.token;
     const devices = await json('GET', '/v1/devices', undefined, firstToken);
-    assert(devices.devices.length === 2, 'device list');
+    assert(devices.devices.length === 2 && devices.devices.some((device) => device.deviceKind === 'desktop'),
+      'device list');
+    await json('POST', '/v1/device-tabs/publish', {
+      device: {
+        deviceId: 'check-device-2', deviceName: 'Check Desktop', platform: 'Linux',
+        model: '', browserName: 'Chrome', browserVersion: '1',
+      },
+      tabs: desktopTabs,
+    }, second.token);
     await json('POST', '/v1/devices/check-device-2/revoke', {}, firstToken);
     const revokedStatus = await raw('POST', '/v1/sync/personalization/read', {}, second.token);
     assert(revokedStatus.status === 401, 'revocation');
+    const tabsAfterRevocation = await json('POST', '/v1/device-tabs/list', {}, firstToken);
+    assert(tabsAfterRevocation.devices.length === 0, 'revoked device tabs disappear immediately');
+    const pushAfterRevocation = await raw('POST', '/v1/page-push/enqueue', {
+      url: 'https://example.com/after-revocation', title: 'After Revocation',
+    }, firstToken);
+    assert(pushAfterRevocation.status === 409, 'revoked desktop is not a page push target');
     console.log('Aira Personal Server install check passed.');
   } finally {
     child.kill('SIGTERM');

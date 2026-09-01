@@ -21,16 +21,17 @@ const getPairingCodeStatement = db.prepare(
   'SELECT kind FROM pairing_codes WHERE code_hash = ? AND used_at = 0 AND expires_at >= ?'
 );
 const insertDeviceStatement = db.prepare(`
-  INSERT INTO devices(device_id, credential_id, token_hash, name, created_at, last_seen_at, rotated_at, revoked_at)
-  VALUES(@device_id, @credential_id, @token_hash, @name, @created_at, @last_seen_at, 0, 0)
+  INSERT INTO devices(
+    device_id, credential_id, token_hash, name, created_at, last_seen_at, rotated_at, revoked_at, device_kind
+  ) VALUES(@device_id, @credential_id, @token_hash, @name, @created_at, @last_seen_at, 0, 0, @device_kind)
 `);
 const authenticateStatement = db.prepare(`
-  SELECT device_id, credential_id, name, created_at, last_seen_at, rotated_at
+  SELECT device_id, credential_id, name, created_at, last_seen_at, rotated_at, device_kind
   FROM devices WHERE token_hash = ? AND revoked_at = 0
 `);
 const touchDeviceStatement = db.prepare('UPDATE devices SET last_seen_at = ? WHERE device_id = ? AND revoked_at = 0');
 const listDevicesStatement = db.prepare(`
-  SELECT device_id, credential_id, name, created_at, last_seen_at, rotated_at, revoked_at
+  SELECT device_id, credential_id, name, created_at, last_seen_at, rotated_at, revoked_at, device_kind
   FROM devices ORDER BY created_at ASC, device_id ASC
 `);
 const revokeDeviceStatement = db.prepare(
@@ -65,6 +66,7 @@ function exchangePairingCode(body) {
   const code = requireString(body.code, 'missing_pairing_code', 'Pairing code is required.', 128);
   const deviceId = requireDeviceId(body.deviceId);
   const deviceName = requireString(body.deviceName, 'missing_device_name', 'Device name is required.', 128);
+  const deviceKind = normalizeDeviceKind(body.deviceKind);
   const now = Date.now();
   const codeHash = hashSecret(code);
   const pairing = getPairingCodeStatement.get(codeHash, now);
@@ -81,6 +83,7 @@ function exchangePairingCode(body) {
         credential_id: credentialId,
         token_hash: hashSecret(token),
         name: deviceName,
+        device_kind: deviceKind,
         created_at: now,
         last_seen_at: now,
       });
@@ -96,6 +99,7 @@ function exchangePairingCode(body) {
     instanceId: getInstance().instanceId,
     protocolVersion: 1,
     deviceId,
+    deviceKind,
     credentialId,
     token,
   };
@@ -178,11 +182,20 @@ function requireString(value, code, message, maxLength) {
   return normalized;
 }
 
+function normalizeDeviceKind(value) {
+  const normalized = String(value || 'phone').trim().toLowerCase();
+  if (normalized !== 'phone' && normalized !== 'desktop') {
+    fail(400, 'invalid_device_kind', 'Device kind must be phone or desktop.');
+  }
+  return normalized;
+}
+
 function toDevice(row) {
   return {
     deviceId: row.device_id,
     credentialId: row.credential_id,
     name: row.name,
+    deviceKind: row.device_kind === 'desktop' ? 'desktop' : 'phone',
     createdAt: Number(row.created_at || 0),
     lastSeenAt: Number(row.last_seen_at || 0),
     rotatedAt: Number(row.rotated_at || 0),
@@ -200,4 +213,3 @@ module.exports = {
   revokeDevice,
   rotateCredential,
 };
-
