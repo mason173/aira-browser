@@ -1,0 +1,45 @@
+node_modules/
+server/
+server/node_modules/
+private-backend/
+
+.DS_Store
+.planning/.bindings/
+
+build/
+build-firefox/
+build-lite/
+dist/
+test-results/
+
+*.zip
+*.crx
+*.xpi
+
+*.db
+
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+
+.env
+.env.*
+!.env.example
+
+deployment/leaftab-backend.env
+deployment/*.env
+!deployment/*env.example
+
+# Local-only admin helper scripts (do not publish)
+scripts/get-admin-api-key.sh
+scripts/local/get-admin-api-key.sh
+
+# Embedded reference repos should stay local only
+.references/GitSyncMarks/
+.references/floccus/
+core/
+
+# Large optional model assets are downloaded locally and should not be committed
+public/models/paraphrase-multilingual-MiniLM-L12-v2/

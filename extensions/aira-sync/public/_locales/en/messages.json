@@ -1,0 +1,10 @@
+{
+  "appTitle": {
+    "message": "Aira-sync",
+    "description": "The title of the application"
+  },
+  "appDescription": {
+    "message": "Connect Aira Browser across devices with bookmark, history, page push, and open-tab synchronization.",
+    "description": "The description of the application"
+  }
+}

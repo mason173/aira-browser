@@ -1,0 +1,10 @@
+{
+  "appTitle": {
+    "message": "Aira-sync",
+    "description": "The title of the application"
+  },
+  "appDescription": {
+    "message": "连接鸿蒙手机上的 Aira 浏览器，在电脑浏览器同步书签和历史记录，并接收手机推送的当前网页。",
+    "description": "The description of the application"
+  }
+}
