@@ -1018,10 +1018,16 @@ check_file_contains_rule "${BOTTOM_CHROME_MATERIAL_TOKENS}" "${BOTTOM_CHROME_MAT
   "Bottom Chrome dark material must remain a distinguishable neutral gray instead of a pure-black tint."
 check_file_not_contains_rule "${BOTTOM_CHROME_RENDERER}" "${BOTTOM_CHROME_RENDERER_REL}" \
   'materialBorderWidth|materialBorderColor|BROWSER_BOTTOM_CHROME_BORDER' \
-  "Bottom Chrome floating materials must remain borderless."
+  "Bottom Chrome floating materials must use the semantic edge-highlight surface API."
 check_file_not_contains_rule "${BOTTOM_CHROME_MATERIAL_TOKENS}" "${BOTTOM_CHROME_MATERIAL_TOKENS_REL}" \
   'BROWSER_BOTTOM_CHROME_.*BORDER' \
-  "Bottom Chrome must not keep theme border tokens after the border was removed."
+  "Bottom Chrome must not add ad-hoc theme border tokens."
+check_file_contains_rule "${BOTTOM_CHROME_RENDERER}" "${BOTTOM_CHROME_RENDERER_REL}" \
+  'edgeHighlightWidth: BROWSER_BOTTOM_CHROME_EDGE_HIGHLIGHT_WIDTH' \
+  "Bottom Chrome must render its narrow theme edge highlight through the shared material surface."
+check_file_contains_rule "${BOTTOM_CHROME_MATERIAL_TOKENS}" "${BOTTOM_CHROME_MATERIAL_TOKENS_REL}" \
+  'resolveBrowserBottomChromeEdgeHighlightColor' \
+  "Bottom Chrome edge highlight color must remain theme-aware."
 check_file_contains_rule "${BOTTOM_ADDRESS_PANEL}" "${BOTTOM_ADDRESS_PANEL_REL}" \
   'resolveBrowserBottomChromeMaterialTintForMode\(this\.resolveNeutralThemeMode\(\)\)' \
   "Bottom Address Panel must consume the Bottom Chrome-specific semantic material tint."

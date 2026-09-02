@@ -10,6 +10,7 @@ export struct BrowserPhonePrimarySurface {
   @Prop homeLiveContentMounted: boolean = false;
   @Prop homeBackdropLayerMounted: boolean = false;
   @Prop webLayerMounted: boolean = false;
+  @Prop webLayerOpacity: number = 1;
 
   @BuilderParam homeSurface: () => void = this.emptyBuilder;
   @BuilderParam homeBackdropSurface: () => void = this.emptyBuilder;
@@ -26,7 +27,12 @@ export struct BrowserPhonePrimarySurface {
       }
 
       if (this.webLayerMounted) {
-        this.webSurface()
+        Stack() {
+          this.webSurface()
+        }
+        .width('100%')
+        .height('100%')
+        .opacity(this.resolveWebLayerOpacity())
       }
     }
     .width('100%')
@@ -35,5 +41,12 @@ export struct BrowserPhonePrimarySurface {
 
   @Builder
   private emptyBuilder() {
+  }
+
+  private resolveWebLayerOpacity(): number {
+    if (!Number.isFinite(this.webLayerOpacity)) {
+      return 1;
+    }
+    return Math.max(0, Math.min(1, this.webLayerOpacity));
   }
 }

@@ -11,6 +11,8 @@ export struct BrowserFloatingGlassMaterialSurface {
   @Prop tintColor: ResourceColor = BROWSER_FLOATING_GLASS_MATERIAL_LIGHT_TINT;
   @Prop materialStyle: uiMaterial.ImmersiveStyle = uiMaterial.ImmersiveStyle.THIN;
   @Prop lightEffectColor: ResourceColor = FLOATING_GLASS_MATERIAL_LIGHT_EFFECT_COLOR;
+  @Prop materialShadowEnabled: boolean = true;
+  @Prop materialInteractive: boolean = true;
   @Prop overlayColor: ResourceColor | undefined = undefined;
   @Prop overlayOpacity: number = 0;
   @Prop materialBorderWidth: number = 0;
@@ -26,6 +28,8 @@ export struct BrowserFloatingGlassMaterialSurface {
         tintColor: this.tintColor,
         materialStyle: this.materialStyle,
         lightEffectColor: this.lightEffectColor,
+        materialShadowEnabled: this.materialShadowEnabled,
+        materialInteractive: this.materialInteractive,
         overlayColor: this.overlayColor,
         overlayOpacity: this.overlayOpacity,
         materialBorderWidth: this.materialBorderWidth,

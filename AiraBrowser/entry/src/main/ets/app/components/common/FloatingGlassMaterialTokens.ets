@@ -17,14 +17,16 @@ export function resolveFloatingGlassMaterialTintForMode(resolvedThemeMode: strin
 export function createFloatingGlassMaterial(
   tintColor: ResourceColor,
   style: uiMaterial.ImmersiveStyle = FLOATING_GLASS_MATERIAL_IMMERSIVE_STYLE,
-  lightEffectColor: ResourceColor = FLOATING_GLASS_MATERIAL_LIGHT_EFFECT_COLOR
+  lightEffectColor: ResourceColor = FLOATING_GLASS_MATERIAL_LIGHT_EFFECT_COLOR,
+  applyShadow: boolean = true,
+  interactive: boolean = true
 ): uiMaterial.ImmersiveMaterial {
   return new uiMaterial.ImmersiveMaterial({
     style: style,
     materialColor: tintColor,
     colorInvert: true,
-    applyShadow: true,
-    interactive: true,
+    applyShadow: applyShadow,
+    interactive: interactive,
     lightEffect: {
       color: lightEffectColor
     }

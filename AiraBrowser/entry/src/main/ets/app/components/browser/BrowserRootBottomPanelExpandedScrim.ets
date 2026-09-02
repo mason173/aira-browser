@@ -1,3 +1,4 @@
+import { BROWSER_TABS_OVERVIEW_GLASS_MATERIAL_TINT } from './BrowserFloatingGlassMaterialTokens';
 import {
   BrowserSearchBackdropPresentation,
   BrowserSearchBackdropPresentationChannel,
@@ -40,7 +41,7 @@ export struct BrowserRootBottomPanelExpandedScrim {
         Stack()
           .width('100%')
           .height('100%')
-          .backgroundColor($r('app.color.browser_overlay_scrim'))
+          .backgroundColor(BROWSER_TABS_OVERVIEW_GLASS_MATERIAL_TINT)
           .opacity(this.resolveEffectiveScrimOpacity())
           .hitTestBehavior(HitTestMode.None)
       }

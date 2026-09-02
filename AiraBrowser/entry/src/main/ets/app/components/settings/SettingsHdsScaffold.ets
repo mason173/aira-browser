@@ -434,7 +434,7 @@ export struct SettingsHdsScaffold {
   }
 
   private resolveTitleActionIconColor(): ResourceColor {
-    return $r('app.color.settings_title_bar_action_icon');
+    return $r('sys.color.icon_primary');
   }
 
   private resolveMenuActionImageRenderKey(): string {

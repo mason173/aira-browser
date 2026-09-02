@@ -15,6 +15,8 @@ export struct FloatingGlassMaterialSurface {
   @Prop tintColor: ResourceColor = FLOATING_GLASS_MATERIAL_LIGHT_TINT;
   @Prop materialStyle: uiMaterial.ImmersiveStyle = FLOATING_GLASS_MATERIAL_IMMERSIVE_STYLE;
   @Prop lightEffectColor: ResourceColor = FLOATING_GLASS_MATERIAL_LIGHT_EFFECT_COLOR;
+  @Prop materialShadowEnabled: boolean = true;
+  @Prop materialInteractive: boolean = true;
   @Prop overlayColor: ResourceColor | undefined = undefined;
   @Prop overlayOpacity: number = 0;
   @Prop materialBorderWidth: number = 0;
@@ -61,7 +63,9 @@ export struct FloatingGlassMaterialSurface {
     .systemMaterial(isFloatingGlassMaterialAvailable() ? createFloatingGlassMaterial(
       this.tintColor,
       this.materialStyle,
-      this.lightEffectColor
+      this.lightEffectColor,
+      this.materialShadowEnabled,
+      this.materialInteractive
     ) : undefined)
   }
 

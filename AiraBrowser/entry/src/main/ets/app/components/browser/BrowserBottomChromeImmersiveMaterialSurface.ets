@@ -10,6 +10,13 @@ export struct BrowserBottomChromeImmersiveMaterialSurface {
   @Prop surfaceHeight: Length = 1;
   @Prop surfaceRadius: number = 0;
   @Prop materialTint: ResourceColor = BROWSER_FLOATING_GLASS_MATERIAL_LIGHT_TINT;
+  @Prop materialStyle: uiMaterial.ImmersiveStyle = uiMaterial.ImmersiveStyle.THIN;
+  @Prop materialShadowEnabled: boolean = true;
+  @Prop materialInteractive: boolean = true;
+  @Prop materialLightEffectEnabled: boolean = true;
+  @Prop materialLightEffectColor: ResourceColor = BROWSER_BOTTOM_CHROME_IMMERSIVE_LIGHT_EFFECT_COLOR;
+  @Prop edgeHighlightWidth: number = 0;
+  @Prop edgeHighlightColor: ResourceColor = $r('sys.color.ohos_id_color_background_transparent');
   @Prop overlayColor: ResourceColor | undefined = undefined;
   @Prop overlayOpacity: number = 0;
   @Prop materialBorderWidth: number = 0;
@@ -29,14 +36,14 @@ export struct BrowserBottomChromeImmersiveMaterialSurface {
 
       this.content()
 
-      if (this.resolveBorderWidth() > 0) {
+      if (this.resolveEdgeHighlightWidth() > 0) {
         Stack()
           .width('100%')
           .height('100%')
           .borderRadius(this.resolveSurfaceRadius())
           .border({
-            width: this.resolveBorderWidth(),
-            color: this.materialBorderColor
+            width: this.resolveEdgeHighlightWidth(),
+            color: this.resolveEdgeHighlightColor()
           })
           .hitTestBehavior(HitTestMode.None)
       }
@@ -46,13 +53,13 @@ export struct BrowserBottomChromeImmersiveMaterialSurface {
     .borderRadius(this.resolveSurfaceRadius())
     .clip(true)
     .systemMaterial(new uiMaterial.ImmersiveMaterial({
-      style: uiMaterial.ImmersiveStyle.THIN,
+      style: this.materialStyle,
       materialColor: this.materialTint,
       colorInvert: true,
-      applyShadow: true,
-      interactive: true,
+      applyShadow: this.materialShadowEnabled,
+      interactive: this.materialInteractive,
       lightEffect: {
-        color: BROWSER_BOTTOM_CHROME_IMMERSIVE_LIGHT_EFFECT_COLOR
+        color: this.materialLightEffectEnabled ? this.materialLightEffectColor : '#00000000'
       }
     }))
   }
@@ -67,6 +74,14 @@ export struct BrowserBottomChromeImmersiveMaterialSurface {
 
   private resolveBorderWidth(): number {
     return Math.max(0, this.materialBorderWidth);
+  }
+
+  private resolveEdgeHighlightWidth(): number {
+    return this.edgeHighlightWidth > 0 ? Math.max(0, this.edgeHighlightWidth) : this.resolveBorderWidth();
+  }
+
+  private resolveEdgeHighlightColor(): ResourceColor {
+    return this.edgeHighlightWidth > 0 ? this.edgeHighlightColor : this.materialBorderColor;
   }
 
   private resolveOverlayOpacity(): number {

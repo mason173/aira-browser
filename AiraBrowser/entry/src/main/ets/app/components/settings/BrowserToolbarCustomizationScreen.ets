@@ -69,6 +69,7 @@ import {
   BrowserToolbarCustomizationCoordinator
 } from '../../../core/browser/BrowserToolbarCustomizationCoordinator';
 import {
+  resolveBrowserBottomChromeEdgeHighlightColor,
   resolveBrowserBottomChromeMaterialTintForMode
 } from '../browser/BrowserFloatingGlassMaterialTokens';
 import {
@@ -317,10 +318,12 @@ export struct BrowserToolbarCustomizationScreen {
             presentation: this.buildToolbarPreviewPresentation(),
             materialTint: resolveBrowserBottomChromeMaterialTintForMode(this.storedResolvedThemeMode),
             materialShadowColor: resolveBrowserBottomFloatingMaterialShadowColor(this.storedResolvedThemeMode),
+            edgeHighlightColor: resolveBrowserBottomChromeEdgeHighlightColor(this.storedResolvedThemeMode),
             primaryIconColor: resolveBrowserBottomNeutralPrimaryColor(this.storedResolvedThemeMode),
             disabledIconColor: resolveBrowserBottomNeutralSecondaryColor(this.storedResolvedThemeMode),
             primaryTextColor: resolveBrowserBottomNeutralPrimaryColor(this.storedResolvedThemeMode),
             secondaryTextColor: resolveBrowserBottomNeutralSecondaryColor(this.storedResolvedThemeMode),
+            adaptiveForeground: true,
             pressedBackgroundColor: resolveBrowserBottomNeutralPressedColor(this.storedResolvedThemeMode),
             chromeIconTone: AppIconResources.chromeToneForResolvedThemeMode(this.storedResolvedThemeMode),
             onIntent: (intent: BrowserBottomChromeTapIntent): void => {

@@ -15,7 +15,11 @@ export const BROWSER_FLOATING_GLASS_MATERIAL_ADAPTIVE_OPTIONS: BackgroundBlurSty
 export const BROWSER_FLOATING_GLASS_MATERIAL_LIGHT_TINT: ResourceColor = FLOATING_GLASS_MATERIAL_LIGHT_TINT;
 export const BROWSER_FLOATING_GLASS_MATERIAL_DARK_TINT: ResourceColor = FLOATING_GLASS_MATERIAL_DARK_TINT;
 export const BROWSER_BOTTOM_CHROME_DARK_MATERIAL_TINT: ResourceColor = '#332C2C2E';
+export const BROWSER_BOTTOM_CHROME_LIGHT_EDGE_HIGHLIGHT_COLOR: ResourceColor = '#33000000';
+export const BROWSER_BOTTOM_CHROME_DARK_EDGE_HIGHLIGHT_COLOR: ResourceColor = '#33FFFFFF';
 export const BROWSER_BOTTOM_CHROME_IMMERSIVE_LIGHT_EFFECT_COLOR: ResourceColor = '#25FFFFFF';
+export const BROWSER_BOTTOM_QUICK_ACTION_SURFACE_MATERIAL_STYLE: uiMaterial.ImmersiveStyle =
+  uiMaterial.ImmersiveStyle.ULTRA_THICK;
 export const BROWSER_HOME_SHORTCUT_DARK_MATERIAL_TINT: ResourceColor = '#332C2C2E';
 export const BROWSER_FLOATING_GLASS_MATERIAL_LIGHT_OPTIONS: BackgroundBlurStyleOptions = {
   colorMode: ThemeColorMode.LIGHT
@@ -37,6 +41,12 @@ export function resolveBrowserBottomChromeMaterialTintForMode(resolvedThemeMode:
   return resolvedThemeMode === 'dark' ?
     BROWSER_BOTTOM_CHROME_DARK_MATERIAL_TINT :
     BROWSER_FLOATING_GLASS_MATERIAL_LIGHT_TINT;
+}
+
+export function resolveBrowserBottomChromeEdgeHighlightColor(resolvedThemeMode: string): ResourceColor {
+  return resolvedThemeMode === 'dark' ?
+    BROWSER_BOTTOM_CHROME_DARK_EDGE_HIGHLIGHT_COLOR :
+    BROWSER_BOTTOM_CHROME_LIGHT_EDGE_HIGHLIGHT_COLOR;
 }
 
 export function resolveBrowserHomeShortcutMaterialTintForMode(resolvedThemeMode: string): ResourceColor {

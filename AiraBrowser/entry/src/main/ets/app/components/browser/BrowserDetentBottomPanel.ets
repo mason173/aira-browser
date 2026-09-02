@@ -198,6 +198,7 @@ export struct BrowserDetentBottomPanel {
   floatingContentFirstCollapseActive: boolean = false;
   @Prop @Watch('syncFloatingExpandedContentHeight') floatingExpandedContentHeight: number = 0;
   @Prop floatingOverlayPanEnabled: boolean = false;
+  @Prop floatingHeaderPanEnabled: boolean = true;
   @Prop @Watch('syncCurrentPanelGeometry') floatingExpandedSurfaceCoversHeader: boolean = false;
   @Prop @Watch('syncCurrentPanelGeometry') floatingExpandedSurfaceCoverProgress: number = 0;
   @Prop floatingExpandedSurfaceChromeVisible: boolean = true;
@@ -481,18 +482,33 @@ export struct BrowserDetentBottomPanel {
       this.reportFloatingPanelVisualHeightFromArea(newArea, 'header');
     })
     .gesture(
-      PanGesture({ direction: PanDirection.Vertical, distance: BROWSER_DETENT_PAN_START_DISTANCE })
+      PanGesture({
+        direction: this.floatingHeaderPanEnabled ? PanDirection.Vertical : PanDirection.None,
+        distance: BROWSER_DETENT_PAN_START_DISTANCE
+      })
         .onActionStart((event: GestureEvent) => {
+          if (!this.floatingHeaderPanEnabled) {
+            return;
+          }
           this.rememberPanelGestureStart(event);
           this.beginPanelDrag();
         })
         .onActionUpdate((event: GestureEvent) => {
+          if (!this.floatingHeaderPanEnabled) {
+            return;
+          }
           this.updatePanelDrag(event);
         })
         .onActionEnd((event: GestureEvent) => {
+          if (!this.floatingHeaderPanEnabled) {
+            return;
+          }
           this.handlePanelPanEnd(event);
         })
         .onActionCancel(() => {
+          if (!this.floatingHeaderPanEnabled) {
+            return;
+          }
           this.endPanelDrag(0);
         }),
       GestureMask.Normal

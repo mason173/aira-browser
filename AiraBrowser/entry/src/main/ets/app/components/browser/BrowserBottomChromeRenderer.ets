@@ -33,9 +33,13 @@ import {
   createHiddenDownloadToolbarIndicatorState
 } from '../../../core/download/DownloadToolbarIndicatorViewModel';
 import { BrowserBottomChromeImmersiveMaterialSurface } from './BrowserBottomChromeImmersiveMaterialSurface';
+import {
+  BROWSER_BOTTOM_CHROME_LIGHT_EDGE_HIGHLIGHT_COLOR
+} from './BrowserFloatingGlassMaterialTokens';
 
 const BROWSER_BOTTOM_CHROME_RENDER_HEIGHT: number = 52;
 const BROWSER_BOTTOM_CHROME_ICON_SIZE: number = 24;
+const BROWSER_BOTTOM_CHROME_EDGE_HIGHLIGHT_WIDTH: number = 0.5;
 const BROWSER_BOTTOM_CHROME_SHADOW_RADIUS: number = 6;
 const BROWSER_BOTTOM_CHROME_ENABLED_OPACITY: number = 1;
 const BROWSER_BOTTOM_CHROME_DISABLED_OPACITY: number = 0.42;
@@ -105,10 +109,17 @@ export struct BrowserBottomChromeRenderer {
   presentation: BrowserBottomChromePresentation = DEFAULT_BROWSER_BOTTOM_CHROME_PRESENTATION;
   @Prop materialTint: ResourceColor = '';
   @Prop materialShadowColor: ResourceColor = '';
+  @Prop edgeHighlightColor: ResourceColor = BROWSER_BOTTOM_CHROME_LIGHT_EDGE_HIGHLIGHT_COLOR;
   @Prop primaryIconColor: ResourceColor = '';
   @Prop disabledIconColor: ResourceColor = '';
   @Prop primaryTextColor: ResourceColor = '';
   @Prop secondaryTextColor: ResourceColor = '';
+  /**
+   * API 26's color inversion only resolves when the material subtree receives
+   * special system color resources. Keep the explicit colors as a fallback for
+   * callers that render this component without adaptive material support.
+   */
+  @Prop adaptiveForeground: boolean = true;
   @Prop pressedBackgroundColor: ResourceColor = '';
   @Prop downloadProgressColor: ResourceColor = '';
   @Prop downloadIndicatorState: DownloadToolbarIndicatorState = createHiddenDownloadToolbarIndicatorState();
@@ -174,13 +185,16 @@ export struct BrowserBottomChromeRenderer {
         surfaceWidth: '100%',
         surfaceHeight: this.resolveOuterVisualSize(this.animatedFrame.leadingOuterWidth),
         surfaceRadius: this.resolveOuterVisualSize(this.animatedFrame.leadingOuterWidth) / 2,
-        materialTint: this.materialTint
+        materialTint: this.materialTint,
+        materialShadowEnabled: false,
+        edgeHighlightWidth: BROWSER_BOTTOM_CHROME_EDGE_HIGHLIGHT_WIDTH,
+        edgeHighlightColor: this.edgeHighlightColor
       }) {
         Stack({ alignContent: Alignment.Center }) {
           AiraIcon({
             airaIconId: this.presentation.leadingOuterIconId,
             iconSize: BROWSER_BOTTOM_CHROME_ICON_SIZE,
-            iconColor: this.leadingOuterVisualEnabled ? this.primaryIconColor : this.disabledIconColor
+            iconColor: this.resolveIconForeground(this.leadingOuterVisualEnabled)
           })
             .opacity(this.resolveVisualIconOpacity(this.leadingOuterVisualEnabled))
             .hitTestBehavior(HitTestMode.None)
@@ -210,14 +224,17 @@ export struct BrowserBottomChromeRenderer {
         surfaceWidth: '100%',
         surfaceHeight: this.resolveOuterVisualSize(this.animatedFrame.trailingOuterWidth),
         surfaceRadius: this.resolveOuterVisualSize(this.animatedFrame.trailingOuterWidth) / 2,
-        materialTint: this.materialTint
+        materialTint: this.materialTint,
+        materialShadowEnabled: false,
+        edgeHighlightWidth: BROWSER_BOTTOM_CHROME_EDGE_HIGHLIGHT_WIDTH,
+        edgeHighlightColor: this.edgeHighlightColor
       }) {
         Stack({ alignContent: Alignment.Center }) {
           if (this.presentation.trailingOuterIconId === 'browser.toolbar.tabs') {
             AiraIcon({
               airaIconId: 'browser.toolbar.tabs',
               iconSize: BROWSER_BOTTOM_CHROME_ICON_SIZE,
-              iconColor: this.trailingOuterVisualEnabled ? this.primaryIconColor : this.disabledIconColor
+              iconColor: this.resolveIconForeground(this.trailingOuterVisualEnabled)
             })
               .opacity(this.resolveVisualIconOpacity(this.trailingOuterVisualEnabled))
               .hitTestBehavior(HitTestMode.None)
@@ -225,7 +242,7 @@ export struct BrowserBottomChromeRenderer {
             AiraIcon({
               airaIconId: this.presentation.trailingOuterIconId,
               iconSize: BROWSER_BOTTOM_CHROME_ICON_SIZE,
-              iconColor: this.trailingOuterVisualEnabled ? this.primaryIconColor : this.disabledIconColor
+              iconColor: this.resolveIconForeground(this.trailingOuterVisualEnabled)
             })
               .opacity(this.resolveVisualIconOpacity(this.trailingOuterVisualEnabled))
               .hitTestBehavior(HitTestMode.None)
@@ -257,7 +274,10 @@ export struct BrowserBottomChromeRenderer {
           surfaceWidth: '100%',
           surfaceHeight: this.animatedFrame.centerHeight,
           surfaceRadius: this.animatedFrame.centerRadius,
-          materialTint: this.materialTint
+          materialTint: this.materialTint,
+          materialShadowEnabled: false,
+          edgeHighlightWidth: BROWSER_BOTTOM_CHROME_EDGE_HIGHLIGHT_WIDTH,
+          edgeHighlightColor: this.edgeHighlightColor
         }) {
           Row({ space: 0 }) {
             this.buildCenterLeadingSlot()
@@ -317,7 +337,7 @@ export struct BrowserBottomChromeRenderer {
         AiraIcon({
           airaIconId: 'browser.toolbar.activeDownload',
           iconSize: BROWSER_BOTTOM_CHROME_ICON_SIZE,
-          iconColor: this.primaryIconColor
+          iconColor: this.resolvePrimaryIconForeground()
         })
           .opacity(this.animatedFrame.menuOpacity + this.animatedFrame.editingOpacity)
           .hitTestBehavior(HitTestMode.None)
@@ -334,7 +354,7 @@ export struct BrowserBottomChromeRenderer {
           AiraIcon({
             airaIconId: 'browser.toolbar.search',
             iconSize: BROWSER_BOTTOM_CHROME_ICON_SIZE,
-            iconColor: this.primaryIconColor
+            iconColor: this.resolvePrimaryIconForeground()
           })
             .opacity(this.animatedFrame.editingOpacity)
             .hitTestBehavior(HitTestMode.None)
@@ -344,7 +364,7 @@ export struct BrowserBottomChromeRenderer {
           AiraIcon({
             airaIconId: this.presentation.centerLeadingIconId,
             iconSize: BROWSER_BOTTOM_CHROME_ICON_SIZE,
-            iconColor: this.centerLeadingVisualEnabled ? this.primaryIconColor : this.disabledIconColor
+            iconColor: this.resolveIconForeground(this.centerLeadingVisualEnabled)
           })
             .opacity(this.animatedFrame.menuOpacity *
               this.resolveVisualIconOpacity(this.centerLeadingVisualEnabled))
@@ -451,14 +471,14 @@ export struct BrowserBottomChromeRenderer {
           AiraIcon({
             airaIconId: 'browser.toolbar.search',
             iconSize: BROWSER_BOTTOM_CHROME_ICON_SIZE,
-            iconColor: this.primaryIconColor
+            iconColor: this.resolvePrimaryIconForeground()
           })
             .hitTestBehavior(HitTestMode.None)
         }
         Text(engine.name)
           .layoutWeight(1)
           .fontSize(BROWSER_BOTTOM_CHROME_TEXT_SIZE)
-          .fontColor(this.primaryTextColor)
+          .fontColor(this.resolvePrimaryTextForeground())
           .fontWeight(this.isSelectedSearchEngine(engine.id) ? FontWeight.Medium : FontWeight.Regular)
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
@@ -494,7 +514,7 @@ export struct BrowserBottomChromeRenderer {
       AiraIcon({
         airaIconId: this.presentation.centerPrimaryIconId,
         iconSize: BROWSER_BOTTOM_CHROME_ICON_SIZE,
-        iconColor: this.centerPrimaryVisualEnabled ? this.primaryIconColor : this.disabledIconColor
+        iconColor: this.resolveIconForeground(this.centerPrimaryVisualEnabled)
       })
         .opacity(this.animatedFrame.refreshOpacity *
           this.resolveVisualIconOpacity(this.centerPrimaryVisualEnabled))
@@ -502,14 +522,14 @@ export struct BrowserBottomChromeRenderer {
       AiraIcon({
         airaIconId: 'browser.address.expandedCopy',
         iconSize: BROWSER_BOTTOM_CHROME_ICON_SIZE,
-        iconColor: this.primaryIconColor
+        iconColor: this.resolvePrimaryIconForeground()
       })
         .opacity(this.animatedFrame.copyOpacity)
         .hitTestBehavior(HitTestMode.None)
       AiraIcon({
         airaIconId: 'browser.toolbar.clearInput',
         iconSize: BROWSER_BOTTOM_CHROME_ICON_SIZE,
-        iconColor: this.primaryIconColor
+        iconColor: this.resolvePrimaryIconForeground()
       })
         .opacity(this.animatedFrame.clearOpacity)
         .hitTestBehavior(HitTestMode.None)
@@ -534,7 +554,7 @@ export struct BrowserBottomChromeRenderer {
       AiraIcon({
         airaIconId: 'browser.address.expandedEdit',
         iconSize: BROWSER_BOTTOM_CHROME_ICON_SIZE,
-        iconColor: this.primaryIconColor
+        iconColor: this.resolvePrimaryIconForeground()
       })
         .opacity(this.animatedFrame.editOpacity)
         .hitTestBehavior(HitTestMode.None)
@@ -563,7 +583,8 @@ export struct BrowserBottomChromeRenderer {
         .lineHeight(BROWSER_BOTTOM_CHROME_TEXT_LINE_HEIGHT)
         .halfLeading(true)
         .textVerticalAlign(TextVerticalAlign.CENTER)
-        .fontColor(this.outgoingDisplayUsesSecondaryTone ? this.secondaryTextColor : this.primaryTextColor)
+        .fontColor(this.outgoingDisplayUsesSecondaryTone ? this.resolveSecondaryTextForeground() :
+          this.resolvePrimaryTextForeground())
         .fontWeight(FontWeight.Regular)
         .maxLines(1)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
@@ -580,7 +601,8 @@ export struct BrowserBottomChromeRenderer {
         .lineHeight(BROWSER_BOTTOM_CHROME_TEXT_LINE_HEIGHT)
         .halfLeading(true)
         .textVerticalAlign(TextVerticalAlign.CENTER)
-        .fontColor(this.incomingDisplayUsesSecondaryTone ? this.secondaryTextColor : this.primaryTextColor)
+        .fontColor(this.incomingDisplayUsesSecondaryTone ? this.resolveSecondaryTextForeground() :
+          this.resolvePrimaryTextForeground())
         .fontWeight(FontWeight.Regular)
         .maxLines(1)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
@@ -599,7 +621,7 @@ export struct BrowserBottomChromeRenderer {
         .lineHeight(BROWSER_BOTTOM_CHROME_TEXT_LINE_HEIGHT)
         .halfLeading(true)
         .textVerticalAlign(TextVerticalAlign.CENTER)
-        .fontColor(this.primaryTextColor)
+        .fontColor(this.resolvePrimaryTextForeground())
         .fontWeight(FontWeight.Regular)
         .maxLines(1)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
@@ -631,7 +653,7 @@ export struct BrowserBottomChromeRenderer {
         AiraIcon({
           airaIconId: 'settings.privacySecurity',
           iconSize: 23,
-          iconColor: this.primaryTextColor
+          iconColor: this.resolvePrimaryTextForeground()
         })
       }
       .width(24)
@@ -641,7 +663,7 @@ export struct BrowserBottomChromeRenderer {
         .fontSize(BROWSER_BOTTOM_CHROME_TEXT_SIZE)
         .lineHeight(BROWSER_BOTTOM_CHROME_TEXT_LINE_HEIGHT)
         .fontWeight(FontWeight.Medium)
-        .fontColor(this.primaryTextColor)
+        .fontColor(this.resolvePrimaryTextForeground())
         .maxLines(1)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
     }
@@ -727,7 +749,7 @@ export struct BrowserBottomChromeRenderer {
       MenuItem(this.buildPasteAndGoMenuItem)
     }
     .width(BROWSER_BOTTOM_ADDRESS_CONTEXT_MENU_WIDTH)
-    .fontColor($r('sys.color.ohos_id_color_text_primary'))
+    .fontColor(this.resolvePrimaryTextForeground())
     .backgroundColor($r('sys.color.ohos_id_color_background_transparent'))
     .backgroundBlurStyle(BlurStyle.NONE)
     .systemMaterial(new uiMaterial.ImmersiveMaterial({
@@ -753,7 +775,7 @@ export struct BrowserBottomChromeRenderer {
       .align(Alignment.Start)
       .fontSize(BROWSER_BOTTOM_ADDRESS_PASTE_BUTTON_TEXT_SIZE)
       .fontWeight(FontWeight.Regular)
-      .fontColor($r('sys.color.ohos_id_color_text_primary'))
+      .fontColor(this.resolvePrimaryTextForeground())
       .backgroundColor($r('sys.color.ohos_id_color_background_transparent'))
       .borderWidth(0)
       .borderRadius(BROWSER_BOTTOM_ADDRESS_PASTE_BUTTON_RADIUS)
@@ -1383,6 +1405,28 @@ export struct BrowserBottomChromeRenderer {
       this.presentation.searchEnginePresentation.selectedSearchEngine,
       this.chromeIconTone
     );
+  }
+
+  private resolveIconForeground(enabled: boolean): ResourceColor {
+    return enabled ? this.resolvePrimaryIconForeground() : this.resolveDisabledIconForeground();
+  }
+
+  private resolvePrimaryIconForeground(): ResourceColor {
+    return this.adaptiveForeground ? $r('sys.color.icon_primary') : this.primaryIconColor;
+  }
+
+  private resolveDisabledIconForeground(): ResourceColor {
+    // Keep the disabled opacity animation in the renderer; the adaptive
+    // resource supplies the complementary foreground for the material.
+    return this.adaptiveForeground ? $r('sys.color.icon_primary') : this.disabledIconColor;
+  }
+
+  private resolvePrimaryTextForeground(): ResourceColor {
+    return this.adaptiveForeground ? $r('sys.color.font_primary') : this.primaryTextColor;
+  }
+
+  private resolveSecondaryTextForeground(): ResourceColor {
+    return this.adaptiveForeground ? $r('sys.color.font_secondary') : this.secondaryTextColor;
   }
 
   private resolveMaterialShadow(): ShadowOptions {

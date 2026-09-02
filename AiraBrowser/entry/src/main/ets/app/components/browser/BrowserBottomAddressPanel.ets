@@ -68,14 +68,15 @@ import {
 import {
   BrowserBottomToolbarExpansionStage,
   BrowserBottomToolbarExpansionViewModel,
-  BrowserBottomToolbarGestureReleaseDecision,
   BrowserBottomToolbarQuickActionLayoutState,
   BrowserBottomToolbarSurfaceTransitionState
 } from '../../../core/browser/BrowserBottomToolbarExpansionViewModel';
 import { BrowserBottomChromeRenderer } from './BrowserBottomChromeRenderer';
 import {
+  resolveBrowserBottomChromeEdgeHighlightColor,
   resolveBrowserBottomChromeMaterialTintForMode
 } from './BrowserFloatingGlassMaterialTokens';
+import { BrowserBottomSheetSurface } from './BrowserModalBottomSheet';
 import { BROWSER_GLOBAL_SYMBOL_WEIGHT } from './BrowserIconStyle';
 import { HomeSearchQuickActionCard } from './HomeSearchQuickActionCard';
 import { AiraIcon } from '../common/AiraIcon';
@@ -89,9 +90,11 @@ import { hilog } from '@kit.PerformanceAnalysisKit';
 import {
   BROWSER_THEME_STORAGE_ACCENT_KEY,
   BROWSER_THEME_STORAGE_APP_PROXY_ACTIVE_BACKGROUND_KEY,
+  BROWSER_THEME_STORAGE_PAGE_BACKGROUND_KEY,
   BROWSER_THEME_STORAGE_SETTINGS_ICON_FOREGROUND_KEY,
   BROWSER_THEME_STORAGE_RESOLVED_MODE_KEY
 } from '../../../core/theme/BrowserThemeStorageKeys';
+import { DEFAULT_THEME_PALETTE } from '../../../features/theme/palettes/DefaultThemePalette';
 import {
   BROWSER_BOTTOM_NEUTRAL_ICON_DISABLED_OPACITY,
   BROWSER_BOTTOM_NEUTRAL_ICON_ENABLED_OPACITY,
@@ -273,6 +276,8 @@ export struct BrowserBottomAddressPanel {
   @StorageProp(BROWSER_THEME_STORAGE_ACCENT_KEY) private storedAccentColor: string = '#0A59F7';
   @StorageProp(BROWSER_THEME_STORAGE_APP_PROXY_ACTIVE_BACKGROUND_KEY)
   private storedAppProxyActiveBackgroundColor: string = '#9C55D7';
+  @StorageProp(BROWSER_THEME_STORAGE_PAGE_BACKGROUND_KEY)
+  private storedPageBackgroundColor: string = DEFAULT_THEME_PALETTE.light.pageBackground;
   @StorageProp(BROWSER_THEME_STORAGE_SETTINGS_ICON_FOREGROUND_KEY)
   private storedSelectedIconForegroundColor: string = '#FFFFFF';
   @StorageProp(BROWSER_THEME_STORAGE_RESOLVED_MODE_KEY) private storedResolvedThemeMode: string = 'light';
@@ -293,6 +298,9 @@ export struct BrowserBottomAddressPanel {
   @State private quickActionReorderActive: boolean = false;
   @State private liveQuickActionOrderIds: BrowserBottomAddressPanelActionId[] = [];
   @State private floatingActionSurfacePrepared: boolean = false;
+  @State private toolbarSystemSheetVisible: boolean = false;
+  @State private toolbarSystemSheetDetentSelection: Length = 0;
+  @State private toolbarSystemSheetExpanded: boolean = false;
   @State private floatingActionContentSettled: boolean = false;
   @State private floatingActionContentGestureRevealed: boolean = false;
   @State private floatingActionContentEntryActive: boolean = false;
@@ -334,6 +342,7 @@ export struct BrowserBottomAddressPanel {
   private homeDismissAfterLowSettlePending: boolean = false;
   private activeChromeGestureSource: BrowserBottomChromeGestureSource = 'none';
   private activeChromeGestureMiddlePanelHeight: number = 0;
+  private pendingToolbarSystemSheetAction: BrowserBottomAddressPanelAction | undefined = undefined;
   private handledImmediateLowDetentRequestVersion: number = 0;
   private dragConsumedQuickActionId: BrowserBottomAddressPanelActionId | undefined = undefined;
   private quickActionDragClickGuardTimeout: number = -1;
@@ -486,6 +495,10 @@ export struct BrowserBottomAddressPanel {
     this.resetQuickActionReorderState();
     this.preserveExpandedBackdropForActiveToolbarGesture = false;
     this.floatingActionSurfacePrepared = false;
+    this.toolbarSystemSheetVisible = false;
+    this.toolbarSystemSheetDetentSelection = 0;
+    this.toolbarSystemSheetExpanded = false;
+    this.pendingToolbarSystemSheetAction = undefined;
     this.floatingActionContentSettled = false;
     this.floatingActionContentGestureRevealed = false;
     this.floatingHeaderTracksPanelMotion = false;
@@ -509,8 +522,11 @@ export struct BrowserBottomAddressPanel {
         floatingContentFirstCollapseEnabled: this.shouldSequenceFloatingActionContentExit(),
         floatingContentFirstCollapseActive: this.floatingActionContentExitActive,
         floatingExpandedContentHeight: this.resolveFloatingActionSurfaceHeight(),
-        floatingOverlayPanEnabled: this.isExpandedPanelDetent(this.panelDetent) &&
+        floatingOverlayPanEnabled: this.resolveFloatingLayoutMode() === 'input' &&
+          this.isExpandedPanelDetent(this.panelDetent) &&
           !this.quickActionReorderActive,
+        floatingHeaderPanEnabled: this.resolveFloatingLayoutMode() === 'input' ||
+          this.shouldUseThreeBlockBottomChrome(),
         floatingExpandedSurfaceCoversHeader: this.shouldRenderFloatingActionSurface(),
         floatingExpandedSurfaceCoverProgress: this.resolveToolbarSurfaceTransitionState().surfaceCoverProgress,
         floatingExpandedSurfaceChromeVisible: false,
@@ -608,6 +624,10 @@ export struct BrowserBottomAddressPanel {
           }
           const source = this.activeChromeGestureSource;
           this.activeChromeGestureSource = 'none';
+          if (this.shouldOpenToolbarSystemSheetFromGesture(targetDetent, offsetY, source)) {
+            this.openToolbarSystemSheet();
+            return 'low';
+          }
           return this.onPanelDragEndIntercept(panelHeight, targetDetent, offsetY, source);
         },
         onPanelGestureRelease: (
@@ -616,7 +636,10 @@ export struct BrowserBottomAddressPanel {
           offsetY: number,
           velocityY: number
         ): BrowserDetentBottomPanelGestureReleaseDisposition => {
-          return this.resolveToolbarGestureRelease(targetDetent, offsetY, velocityY);
+          void targetDetent;
+          void offsetY;
+          void velocityY;
+          return 'default';
         },
         onExpandToMiddle: () => {
           if (!this.livePanelMotionState.panelExpansionEnabled) {
@@ -661,6 +684,147 @@ export struct BrowserBottomAddressPanel {
     .width('100%')
     .height('100%')
     .hitTestBehavior(HitTestMode.Transparent)
+    .bindSheet($$this.toolbarSystemSheetVisible, this.buildToolbarSystemSheet(),
+      this.buildToolbarSystemSheetOptions())
+  }
+
+  private buildToolbarSystemSheetOptions(): SheetOptions {
+    const layoutState = this.resolveToolbarRenderSnapshot().layoutState;
+    const previewHeight = this.resolveToolbarSystemSheetPreviewHeight(layoutState);
+    const fullHeight = this.resolveToolbarSystemSheetFullHeight(layoutState);
+    return {
+      preferType: SheetType.BOTTOM,
+      height: fullHeight,
+      detents: [previewHeight, fullHeight],
+      detentSelection: this.toolbarSystemSheetDetentSelection > 0 ?
+        this.toolbarSystemSheetDetentSelection : previewHeight,
+      dragBar: true,
+      showClose: false,
+      onDetentsDidChange: (detentHeight: number): void => {
+        this.handleToolbarSystemSheetDetentChanged(detentHeight, previewHeight, fullHeight);
+      },
+      onDisappear: (): void => {
+        this.handleToolbarSystemSheetDisappear();
+      }
+    };
+  }
+
+  @Builder
+  private buildToolbarSystemSheet() {
+    BrowserBottomSheetSurface({
+      fullHeight: true,
+      horizontalPadding: 0,
+      topPadding: 0,
+      bottomPadding: 0,
+      surfaceColor: this.storedPageBackgroundColor
+    }) {
+      ForEach([this.resolveToolbarRenderSnapshot().layoutState],
+        (layoutState: BrowserBottomToolbarQuickActionLayoutState) => {
+          Column({ space: 0 }) {
+            if (this.shouldShowReadingContinuation()) {
+              this.buildReadingContinuationRow()
+            }
+            this.buildToolbarSystemSheetActionGrid(
+              this.resolveToolbarSystemSheetActions(),
+              layoutState
+            )
+          }
+          .width('100%')
+          .height('100%')
+          .padding({
+            top: layoutState.surfaceVerticalPadding,
+            bottom: layoutState.surfaceVerticalPadding
+          })
+        }, (_layoutState: BrowserBottomToolbarQuickActionLayoutState) =>
+          this.resolveToolbarSystemSheetRenderKey())
+    }
+  }
+
+  private resolveToolbarSystemSheetActions(): BrowserBottomAddressPanelAction[] {
+    const snapshot = this.resolveToolbarRenderSnapshot();
+    if (this.toolbarSystemSheetExpanded) {
+      return snapshot.actions;
+    }
+    const previewActionLimit = this.toolbarExpansionViewModel.resolvePreviewActionLimit(
+      snapshot.layoutState.columnCount
+    );
+    return snapshot.actions.slice(0, previewActionLimit);
+  }
+
+  private resolveToolbarSystemSheetPreviewHeight(
+    layoutState: BrowserBottomToolbarQuickActionLayoutState
+  ): number {
+    const previewRows = Math.min(3, layoutState.rowCount);
+    const gridHeight = previewRows > 0 ?
+      previewRows * layoutState.cardHeight +
+        Math.max(0, previewRows - 1) * layoutState.rowGap +
+        layoutState.groupVerticalPadding * 2 : 0;
+    return Math.max(1,
+      gridHeight +
+        layoutState.surfaceVerticalPadding * 2 +
+        this.resolveReadingContinuationHeight());
+  }
+
+  private resolveToolbarSystemSheetFullHeight(
+    layoutState: BrowserBottomToolbarQuickActionLayoutState
+  ): number {
+    return Math.max(
+      this.resolveToolbarSystemSheetPreviewHeight(layoutState) + 1,
+      layoutState.fullSurfaceHeight + this.resolveReadingContinuationHeight()
+    );
+  }
+
+  private resolveToolbarSystemSheetRenderKey(): string {
+    return `${this.resolveToolbarRenderSnapshot().layoutRenderKey}:` +
+      `stage=${this.toolbarSystemSheetExpanded ? 'full' : 'preview'}`;
+  }
+
+  private handleToolbarSystemSheetDetentChanged(
+    detentHeight: number,
+    previewHeight: number,
+    fullHeight: number
+  ): void {
+    // HarmonyOS returns the settled bottom-sheet height in px, not a detent index.
+    const expanded = Math.abs(detentHeight - fullHeight) < Math.abs(detentHeight - previewHeight);
+    this.toolbarSystemSheetExpanded = expanded;
+    this.toolbarSystemSheetDetentSelection = expanded ? fullHeight : previewHeight;
+  }
+
+  @Builder
+  private buildToolbarSystemSheetActionGrid(
+    actions: BrowserBottomAddressPanelAction[],
+    layoutState: BrowserBottomToolbarQuickActionLayoutState
+  ) {
+    List({ space: layoutState.rowGap }) {
+      ForEach(actions, (item: BrowserBottomAddressPanelAction) => {
+        ListItem() {
+          Row() {
+            this.buildQuickActionCard(
+              item,
+              layoutState.buttonSize,
+              layoutState.cardHeight,
+              false,
+              true
+            )
+          }
+          .width('100%')
+          .height('100%')
+        }
+        .width('100%')
+        .height(layoutState.cardHeight)
+      }, (item: BrowserBottomAddressPanelAction) => item.id)
+    }
+    .width('100%')
+    .layoutWeight(1)
+    .lanes(layoutState.columnCount, layoutState.columnGap)
+    .scrollBar(BarState.Off)
+    .edgeEffect(EdgeEffect.None)
+    .padding({
+      left: BROWSER_BOTTOM_QUICK_ACTION_GROUP_HORIZONTAL_PADDING,
+      right: BROWSER_BOTTOM_QUICK_ACTION_GROUP_HORIZONTAL_PADDING,
+      top: layoutState.groupVerticalPadding,
+      bottom: layoutState.groupVerticalPadding
+    })
   }
 
   @Builder
@@ -682,10 +846,12 @@ export struct BrowserBottomAddressPanel {
       presentation: this.liveBottomChromePresentation,
       materialTint: this.resolveBottomChromeMaterialTint(),
       materialShadowColor: resolveBrowserBottomFloatingMaterialShadowColor(this.resolveNeutralThemeMode()),
+      edgeHighlightColor: resolveBrowserBottomChromeEdgeHighlightColor(this.resolveNeutralThemeMode()),
       primaryIconColor: this.resolveIconColor(true),
       disabledIconColor: this.resolveIconColor(false),
       primaryTextColor: this.resolvePrimaryTextColor(),
       secondaryTextColor: this.resolveSecondaryTextColor(),
+      adaptiveForeground: true,
       pressedBackgroundColor: this.resolvePressedBackgroundColor(),
       downloadProgressColor: this.storedAccentColor,
       downloadIndicatorState: this.downloadIndicatorState,
@@ -1379,7 +1545,9 @@ export struct BrowserBottomAddressPanel {
   private buildQuickActionCard(
     item: BrowserBottomAddressPanelAction,
     buttonSize: number,
-    cardHeight: number
+    cardHeight: number,
+    useGlassMaterial: boolean = true,
+    toolbarSystemSheetAction: boolean = false
   ) {
     Row() {
       HomeSearchQuickActionCard({
@@ -1387,16 +1555,23 @@ export struct BrowserBottomAddressPanel {
         airaIconId: this.resolveActionAiraIconId(item),
         label: item.title,
         cardEnabled: item.enabled,
-        cardImageFillColor: this.resolveQuickActionCardImageFillColor(item),
-        cardLabelColor: this.resolveQuickActionLabelColor(item.enabled),
-        cardBackgroundColor: this.resolveQuickActionCardBackgroundColor(item),
+        cardImageFillColor: toolbarSystemSheetAction ?
+          this.resolveToolbarSystemSheetActionIconColor(item) : this.resolveQuickActionCardImageFillColor(item),
+        cardLabelColor: toolbarSystemSheetAction ?
+          this.resolveItemTextColor(item.enabled) : this.resolveQuickActionLabelColor(item.enabled),
+        cardBackgroundColor: toolbarSystemSheetAction ?
+          this.resolveToolbarSystemSheetActionBackgroundColor(item) : this.resolveQuickActionCardBackgroundColor(item),
         cardDisabledOpacity: 1,
         cardBorderWidth: 0,
-        useGlassMaterial: true,
+        useGlassMaterial: useGlassMaterial,
         glassTintColor: this.resolveBottomChromeMaterialTint(),
         buttonSize,
         imageRenderVersion: this.resolveActionRenderVersion(item),
         action: () => {
+          if (toolbarSystemSheetAction) {
+            this.requestToolbarSystemSheetAction(item);
+            return;
+          }
           this.dispatchPanelAction(item);
         }
       })
@@ -1920,6 +2095,22 @@ export struct BrowserBottomAddressPanel {
     return resolveBrowserBottomExpandedToolbarActionIconColor(this.resolveNeutralThemeMode());
   }
 
+  private resolveToolbarSystemSheetActionBackgroundColor(
+    item: BrowserBottomAddressPanelAction
+  ): ResourceColor {
+    const actionBackgroundColor = this.buildQuickActionVisualState(item).backgroundColor;
+    return actionBackgroundColor ??
+      resolveBrowserBottomExpandedToolbarActionColor(this.resolveNeutralThemeMode());
+  }
+
+  private resolveToolbarSystemSheetActionIconColor(
+    item: BrowserBottomAddressPanelAction
+  ): ResourceColor | undefined {
+    const actionColor = this.buildQuickActionVisualState(item).imageFillColor;
+    return actionColor ??
+      resolveBrowserBottomExpandedToolbarActionIconColor(this.resolveNeutralThemeMode());
+  }
+
   private buildQuickActionVisualState(item: BrowserBottomAddressPanelAction): BrowserBottomAddressPanelActionVisualState {
     return this.actionVisualViewModel.buildState(item, {
       defaultSelectedBackgroundColor: this.storedAccentColor,
@@ -1976,6 +2167,36 @@ export struct BrowserBottomAddressPanel {
       this.finishAddressEditing(true);
       this.onAction(item.id);
     });
+  }
+
+  private requestToolbarSystemSheetAction(item: BrowserBottomAddressPanelAction): void {
+    if (!item.enabled) {
+      const message = item.disabledMessage.trim();
+      if (message.length > 0) {
+        this.getUIContext().getPromptAction().showToast({ message: message, duration: 1500 });
+      }
+      return;
+    }
+    this.pendingToolbarSystemSheetAction = item;
+    this.toolbarSystemSheetVisible = false;
+  }
+
+  private openToolbarSystemSheet(): void {
+    this.pendingToolbarSystemSheetAction = undefined;
+    this.toolbarSystemSheetDetentSelection = 0;
+    this.toolbarSystemSheetExpanded = false;
+    this.toolbarSystemSheetVisible = true;
+  }
+
+  private handleToolbarSystemSheetDisappear(): void {
+    this.toolbarSystemSheetVisible = false;
+    this.toolbarSystemSheetDetentSelection = 0;
+    this.toolbarSystemSheetExpanded = false;
+    const pendingAction = this.pendingToolbarSystemSheetAction;
+    this.pendingToolbarSystemSheetAction = undefined;
+    if (pendingAction !== undefined) {
+      this.onAction(pendingAction.id);
+    }
   }
 
   private dispatchHeaderAction(item: BrowserBottomAddressPanelHeaderAction): void {
@@ -2063,6 +2284,10 @@ export struct BrowserBottomAddressPanel {
       return;
     }
     if (intent.kind !== 'dispatch-header-action') {
+      return;
+    }
+    if (intent.actionId === 'bottomChromeMenu') {
+      this.openToolbarSystemSheet();
       return;
     }
     const item = this.findLiveHeaderAction(intent.actionId);
@@ -2964,6 +3189,19 @@ export struct BrowserBottomAddressPanel {
     return this.liveBottomChromePresentation.resolveGestureSource(startX);
   }
 
+  private shouldOpenToolbarSystemSheetFromGesture(
+    targetDetent: HomeSearchPanelDetent,
+    offsetY: number,
+    source: BrowserBottomChromeGestureSource
+  ): boolean {
+    return source === 'center-capsule' &&
+      this.isWebContentMode() &&
+      !this.isAddressInputPresentationActive() &&
+      targetDetent === 'middle' &&
+      Number.isFinite(offsetY) &&
+      offsetY < 0;
+  }
+
   private resolveBottomChromeMaterialTint(): ResourceColor {
     return resolveBrowserBottomChromeMaterialTintForMode(this.resolveNeutralThemeMode());
   }
@@ -3181,28 +3419,6 @@ export struct BrowserBottomAddressPanel {
       suggestionHeight;
   }
 
-  private resolveToolbarGestureRelease(
-    targetDetent: HomeSearchPanelDetent,
-    offsetY: number,
-    velocityY: number
-  ): BrowserDetentBottomPanelGestureReleaseDisposition {
-    const previousStage = this.toolbarExpansionStage;
-    const fullExpansionAvailable = this.isToolbarFullExpansionAvailable();
-    const decision: BrowserBottomToolbarGestureReleaseDecision =
-      this.toolbarExpansionViewModel.resolveGestureRelease({
-        stage: previousStage,
-        currentDetent: this.panelDetent,
-        targetDetent,
-        offsetY,
-        velocityY,
-        fullExpansionAvailable
-      });
-    if (decision.stage !== this.toolbarExpansionStage) {
-      this.toolbarExpansionStage = decision.stage;
-    }
-    return decision.disposition;
-  }
-
   private isToolbarFullExpansionAvailable(): boolean {
     return this.resolveToolbarRenderSnapshot().fullExpansionAvailable;
   }
@@ -3276,11 +3492,17 @@ export struct BrowserBottomAddressPanel {
   }
 
   private shouldRenderFloatingActionSurface(): boolean {
-    return this.buildSearchChromeSurfaceState().actionPanelAvailable;
+    return this.shouldRenderLegacyFloatingActionSurface() &&
+      this.buildSearchChromeSurfaceState().actionPanelAvailable;
+  }
+
+  private shouldRenderLegacyFloatingActionSurface(): boolean {
+    return false;
   }
 
   private shouldMountFloatingActionSurface(): boolean {
-    return this.buildSearchChromeSurfaceState().actionPanelMounted;
+    return this.shouldRenderLegacyFloatingActionSurface() &&
+      this.buildSearchChromeSurfaceState().actionPanelMounted;
   }
 
   private shouldPrepareFloatingActionSurface(): boolean {
@@ -3288,7 +3510,8 @@ export struct BrowserBottomAddressPanel {
   }
 
   private shouldMountFloatingActionContent(): boolean {
-    return this.buildSearchChromeSurfaceState().actionPanelContentMounted;
+    return this.shouldRenderLegacyFloatingActionSurface() &&
+      this.buildSearchChromeSurfaceState().actionPanelContentMounted;
   }
 
   private isFloatingActionContentReady(): boolean {
