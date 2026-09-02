@@ -259,6 +259,22 @@ export default function airaBookmarkMergeServiceTest(): void {
       );
     });
 
+    it('preserves changed restored content before remote tombstone conflict detection', 0, () => {
+      const baseline = createSnapshot('baseline', true, false, false, undefined, 'local-backup-import-1');
+      const local = createSnapshot('phone-a', true, false, false, undefined, 'local-backup-import-2');
+      local.bookmarkItems[0].title = 'Restored title';
+      local.bookmarkItems[0].url = 'https://example.com/restored';
+      const remote = createSnapshot('desktop-a', false, false, true);
+      const result = new AiraBookmarkMergeService().merge(baseline, local, remote, 'phone-a');
+
+      expect(result.hasConflicts).assertFalse();
+      expect(result.snapshot.bookmarkItems.length).assertEqual(1);
+      expect(result.snapshot.bookmarkItems[0].title).assertEqual('Restored title');
+      expect(result.snapshot.bookmarkItems[0].url).assertEqual('https://example.com/restored');
+      expect(result.snapshot.tombstones.length).assertEqual(0);
+      expect(result.remoteWriteRequired).assertTrue();
+    });
+
     it('preserves a cooperative restored local addition against a remote tombstone absent from baseline', 0, async () => {
       const baseline = createSnapshot('baseline', false, false);
       const local = createSnapshot('phone-a', true, false, false, undefined, 'local-backup-import');

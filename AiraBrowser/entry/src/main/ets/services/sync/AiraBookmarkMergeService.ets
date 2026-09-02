@@ -1839,6 +1839,22 @@ export class AiraBookmarkMergeService {
         ignoredTombstoneKeys
       );
     }
+    this.ignoreRemoteTombstonesForRestoredLocalEntities(
+      baseline.bookmarkFolders,
+      local.bookmarkFolders,
+      remote.bookmarkFolders,
+      remoteTombstones,
+      'bookmark-folder',
+      ignoredTombstoneKeys
+    );
+    this.ignoreRemoteTombstonesForRestoredLocalEntities(
+      baseline.bookmarkItems,
+      local.bookmarkItems,
+      remote.bookmarkItems,
+      remoteTombstones,
+      'bookmark-item',
+      ignoredTombstoneKeys
+    );
     this.resolveDeleteEditCollection<AiraSyncBookmarkFolderEntity>(
       baseline.bookmarkFolders,
       local.bookmarkFolders,
@@ -1871,22 +1887,6 @@ export class AiraBookmarkMergeService {
       },
       resolution,
       conflictDetails,
-      ignoredTombstoneKeys
-    );
-    this.ignoreRemoteTombstonesForRestoredLocalEntities(
-      baseline.bookmarkFolders,
-      local.bookmarkFolders,
-      remote.bookmarkFolders,
-      remoteTombstones,
-      'bookmark-folder',
-      ignoredTombstoneKeys
-    );
-    this.ignoreRemoteTombstonesForRestoredLocalEntities(
-      baseline.bookmarkItems,
-      local.bookmarkItems,
-      remote.bookmarkItems,
-      remoteTombstones,
-      'bookmark-item',
       ignoredTombstoneKeys
     );
     return {
