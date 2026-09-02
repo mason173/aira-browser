@@ -279,6 +279,7 @@ export struct BrowserTabsFloatingOverlay {
         surfaceOpacity: this.resolveClearButtonOpacity(),
         interactionEnabled: this.interactionEnabled && !this.exiting && !this.closeAllExitActive,
         regularChromeIconTone: this.regularChromeIconTone,
+        adaptiveForeground: true,
         onClearAll: () => {
           this.onRequestCloseAll();
         }
@@ -291,6 +292,7 @@ export struct BrowserTabsFloatingOverlay {
           surfaceOpacity: this.resolveClearButtonOpacity(),
           interactionEnabled: this.interactionEnabled && !this.exiting && !this.closeAllExitActive,
           regularChromeIconTone: this.regularChromeIconTone,
+          adaptiveForeground: true,
           onOpenDeviceTabs: () => {
             this.onOpenDeviceTabs();
           }
@@ -307,6 +309,7 @@ export struct BrowserTabsFloatingOverlay {
           surfaceOpacity: this.resolveBottomChromeOpacity(),
           chromeInteractionEnabled: this.interactionEnabled && !this.exiting && !this.closeAllExitActive,
           regularChromeIconTone: this.regularChromeIconTone,
+          adaptiveForeground: true,
           onReturn: () => {
             this.returnToEntryTab();
           },

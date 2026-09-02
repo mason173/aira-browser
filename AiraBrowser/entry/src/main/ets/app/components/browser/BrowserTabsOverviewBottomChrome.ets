@@ -50,6 +50,7 @@ export struct BrowserTabsOverviewBottomChrome {
   @Prop surfaceOpacity: number = 1;
   @Prop chromeInteractionEnabled: boolean = true;
   @Prop regularChromeIconTone: AppChromeIconTone = 'light';
+  @Prop adaptiveForeground: boolean = true;
   @State private pressedTarget: string = '';
   @State private pressedOuterScaleTarget: string = '';
   @State private pressedOuterScale: number = 1;
@@ -284,7 +285,8 @@ export struct BrowserTabsOverviewBottomChrome {
 
   private resolveSectionTextColor(section: BrowserTabsOverviewSection): ResourceColor {
     return this.selectedSection === section ? this.storedOnAccentColor :
-      resolveBrowserBottomNeutralSecondaryColor(this.resolveMaterialMode());
+      this.adaptiveForeground ? $r('sys.color.font_secondary') :
+        resolveBrowserBottomNeutralSecondaryColor(this.resolveMaterialMode());
   }
 
   private resolvePressedBackground(target: string): ResourceColor {
@@ -297,7 +299,8 @@ export struct BrowserTabsOverviewBottomChrome {
   }
 
   private resolvePrimaryColor(): ResourceColor {
-    return resolveBrowserBottomNeutralPrimaryColor(this.resolveMaterialMode());
+    return this.adaptiveForeground ? $r('sys.color.icon_primary') :
+      resolveBrowserBottomNeutralPrimaryColor(this.resolveMaterialMode());
   }
 
   private resolvePressedColor(): ResourceColor {

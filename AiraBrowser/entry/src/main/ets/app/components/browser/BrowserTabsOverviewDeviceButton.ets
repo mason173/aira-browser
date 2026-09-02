@@ -26,6 +26,7 @@ export struct BrowserTabsOverviewDeviceButton {
   @Prop surfaceOpacity: number = 1;
   @Prop interactionEnabled: boolean = true;
   @Prop regularChromeIconTone: AppChromeIconTone = 'light';
+  @Prop adaptiveForeground: boolean = true;
   @State private pressed: boolean = false;
   @State private pressedScale: number = 1;
 
@@ -124,7 +125,8 @@ export struct BrowserTabsOverviewDeviceButton {
   }
 
   private resolvePrimaryColor(): ResourceColor {
-    return resolveBrowserBottomNeutralPrimaryColor(this.resolveMaterialMode());
+    return this.adaptiveForeground ? $r('sys.color.icon_primary') :
+      resolveBrowserBottomNeutralPrimaryColor(this.resolveMaterialMode());
   }
 
   private resolvePressedColor(): ResourceColor {
