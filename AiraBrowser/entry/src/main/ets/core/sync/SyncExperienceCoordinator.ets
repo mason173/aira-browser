@@ -658,6 +658,15 @@ export class SyncExperienceCoordinator {
     return this.advancedOperations.presentActiveBookmarkMerge(remoteKind, bookmarkOutcome.result);
   }
 
+  async forceAdvancedBookmarkAuthority(
+    remoteKind: AiraSyncProviderKind,
+    resolution: AiraBookmarkConflictResolution
+  ): Promise<SyncExperienceAdvancedMergeOutcome> {
+    return this.automaticRuntime.runProviderTransition(() => {
+      return this.advancedOperations.forceBookmarkAuthority(remoteKind, resolution);
+    });
+  }
+
   async selectAdvancedProvider(
     remoteKind: AiraSyncRemoteKind
   ): Promise<SyncExperienceProviderSelectionPresentation> {

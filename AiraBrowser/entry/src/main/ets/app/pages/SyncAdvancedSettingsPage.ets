@@ -1,7 +1,10 @@
 import router from '@ohos.router';
 import { showCenteredAlertDialog } from '../components/common/CenteredDialogSurface';
 import { pasteboard } from '@kit.BasicServicesKit';
-import { AiraSyncRemoteKind } from '../../common/models/AiraSyncModels';
+import {
+  AiraBookmarkConflictResolution,
+  AiraSyncRemoteKind
+} from '../../common/models/AiraSyncModels';
 import {
   sharedMembershipFeature,
   sharedPreferencesRepository,
@@ -275,6 +278,12 @@ struct SyncAdvancedSettingsPage {
       },
       onCheckProvider: (remoteKind: AiraSyncRemoteKind) => {
         this.readProviderSummary(remoteKind);
+      },
+      onPushProvider: (remoteKind: AiraSyncRemoteKind) => {
+        this.confirmPushLocalSnapshot(remoteKind);
+      },
+      onPullProvider: (remoteKind: AiraSyncRemoteKind) => {
+        this.confirmPullRemoteSnapshot(remoteKind);
       }
     })
   }
@@ -375,6 +384,104 @@ struct SyncAdvancedSettingsPage {
       })
       .catch((error: Error) => {
         this.finishSyncFloatingOperation('检查失败', '请稍后再试');
+        this.showSyncFailureDialog(title, this.resolveProviderServiceName(remoteKind), error);
+      })
+      .finally(() => {
+        this.isBusy = false;
+      });
+  }
+
+  private confirmPushLocalSnapshot(remoteKind: AiraSyncRemoteKind): void {
+    const title = `本机覆盖${this.resolveProviderShortLabel(remoteKind)}`;
+    if (!this.guardSyncBoundary('push_webdav') || !this.guardProviderSyncReady(remoteKind, title)) {
+      return;
+    }
+    AlertDialog.show({
+      title: `${title}？`,
+      message: `会把当前本机完整书签快照写入${this.resolveProviderServiceName(remoteKind)}，远端现有内容可能被替换。`,
+      autoCancel: true,
+      primaryButton: {
+        value: '取消',
+        action: () => {}
+      },
+      secondaryButton: {
+        value: '覆盖',
+        action: () => {
+          this.forceBookmarkAuthority(remoteKind, 'prefer-local');
+        }
+      }
+    });
+  }
+
+  private confirmPullRemoteSnapshot(remoteKind: AiraSyncRemoteKind): void {
+    const title = `${this.resolveProviderShortLabel(remoteKind)}覆盖本机`;
+    if (!this.guardSyncBoundary('pull_webdav') || !this.guardProviderSyncReady(remoteKind, title)) {
+      return;
+    }
+    AlertDialog.show({
+      title: `${title}？`,
+      message: `会用${this.resolveProviderServiceName(remoteKind)}的完整书签快照覆盖本机，云端删除记录也会在本机生效。`,
+      autoCancel: true,
+      primaryButton: {
+        value: '取消',
+        action: () => {}
+      },
+      secondaryButton: {
+        value: '覆盖',
+        action: () => {
+          this.forceBookmarkAuthority(remoteKind, 'prefer-remote');
+        }
+      }
+    });
+  }
+
+  private async forceBookmarkAuthority(
+    remoteKind: AiraSyncRemoteKind,
+    resolution: AiraBookmarkConflictResolution
+  ): Promise<void> {
+    if (remoteKind === 'none' || this.isBusy) {
+      return;
+    }
+    const title = resolution === 'prefer-remote'
+      ? `${this.resolveProviderShortLabel(remoteKind)}覆盖本机`
+      : `本机覆盖${this.resolveProviderShortLabel(remoteKind)}`;
+    const boundaryAction = resolution === 'prefer-remote' ? 'pull_webdav' : 'push_webdav';
+    if (!this.guardSyncBoundary(boundaryAction) || !this.guardProviderSyncReady(remoteKind, title)) {
+      return;
+    }
+    if (!await this.ensureProviderSyncAccess(remoteKind, title)) {
+      return;
+    }
+    this.isBusy = true;
+    this.beginSyncFloatingOperation(
+      title,
+      resolution === 'prefer-remote'
+        ? `正在读取${this.resolveProviderShortLabel(remoteKind)}数据`
+        : `正在准备${this.resolveProviderShortLabel(remoteKind)}空间`,
+      this.resolveProviderOperationTimeoutMs(remoteKind)
+    );
+    this.updateSyncFloatingStep(
+      title,
+      resolution === 'prefer-remote'
+        ? '正在更新本机书签'
+        : `正在保存本机书签到${this.resolveProviderShortLabel(remoteKind)}`,
+      48
+    );
+    sharedSyncExperienceCoordinator.forceAdvancedBookmarkAuthority(remoteKind, resolution)
+      .then((outcome: SyncExperienceAdvancedMergeOutcome) => {
+        if (outcome.result.blocked) {
+          this.finishSyncFloatingOperation('覆盖未完成', '请先查看同步状态', 100);
+          this.showDialog(outcome.dialogTitle, outcome.message);
+          return;
+        }
+        this.updateSyncFloatingStep(title, '正在确认同步结果', 84);
+        this.finishSyncFloatingOperation(outcome.completionTitle, outcome.completionSubtitle);
+        this.recordProviderSyncUsageIfNeeded(remoteKind);
+        this.showDialog(outcome.dialogTitle, outcome.message);
+        this.refreshStatus();
+      })
+      .catch((error: Error) => {
+        this.finishSyncFloatingOperation('覆盖失败', '请检查网络或同步设置');
         this.showSyncFailureDialog(title, this.resolveProviderServiceName(remoteKind), error);
       })
       .finally(() => {

@@ -22,13 +22,15 @@ export struct SyncAdvancedOperationsSection {
   private viewModel: SyncAdvancedSettingsViewModel = new SyncAdvancedSettingsViewModel();
   onMerge?: () => void;
   onCheckProvider?: (remoteKind: AiraSyncRemoteKind) => void;
+  onPushProvider?: (remoteKind: AiraSyncRemoteKind) => void;
+  onPullProvider?: (remoteKind: AiraSyncRemoteKind) => void;
 
   build() {
     Column({ space: 16 }) {
       SettingsSection({ title: '合并同步' }) {
         this.buildActionButton(this.mergeActionLabel, () => {
           this.onMerge?.();
-        }, this.actionState.mergeRequiresPro)
+        }, false, this.actionState.mergeRequiresPro)
       }
       if (this.actionState.showHuaweiCloud) {
         this.buildProviderOperationSection('aira_cloud')
@@ -49,6 +51,12 @@ export struct SyncAdvancedOperationsSection {
       this.buildActionButton(this.viewModel.resolveProviderCheckActionLabel(remoteKind), () => {
         this.onCheckProvider?.(remoteKind);
       })
+      this.buildActionButton(`本机覆盖${this.viewModel.resolveProviderShortLabel(remoteKind)}`, () => {
+        this.onPushProvider?.(remoteKind);
+      })
+      this.buildActionButton(`${this.viewModel.resolveProviderShortLabel(remoteKind)}覆盖本机`, () => {
+        this.onPullProvider?.(remoteKind);
+      }, true)
     }
   }
 
@@ -56,11 +64,12 @@ export struct SyncAdvancedOperationsSection {
   private buildActionButton(
     label: string,
     action: () => void,
+    isDestructive: boolean = false,
     requiresPro: boolean = false
   ) {
     SettingsActionButton({
       title: label,
-      emphasis: 'primary',
+      emphasis: isDestructive ? 'danger' : 'primary',
       isEnabled: !this.isBusy && !this.isPrivateSession,
       membershipBadge: requiresPro ? 'pro' : 'none',
       accentColor: this.accentColor,

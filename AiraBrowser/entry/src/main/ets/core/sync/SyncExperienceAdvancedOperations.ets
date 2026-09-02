@@ -1,7 +1,9 @@
 import {
+  AiraBookmarkConflictResolution,
   AiraBookmarkOverview,
   AiraBookmarkMergeSyncResult,
   AiraSyncBaselineRecord,
+  AiraSyncProviderKind,
   AiraSyncRemoteKind
 } from '../../common/models/AiraSyncModels';
 import { EntitlementDecision } from '../../common/models/MembershipModels';
@@ -118,6 +120,33 @@ export class SyncExperienceAdvancedOperations {
     };
   }
 
+  async forceBookmarkAuthority(
+    remoteKind: AiraSyncProviderKind,
+    resolution: AiraBookmarkConflictResolution
+  ): Promise<SyncAdvancedMergeOutcome> {
+    const result = await this.syncService.resolveAiraBookmarkConflicts(remoteKind, resolution);
+    const label = this.resolveProviderShortLabel(remoteKind);
+    const remoteWins = resolution === 'prefer-remote';
+    if (result.blocked) {
+      return {
+        result: result,
+        completionTitle: '覆盖未完成',
+        completionSubtitle: '请先处理同步状态',
+        dialogTitle: '覆盖未完成',
+        message: result.summary
+      };
+    }
+    return {
+      result: result,
+      completionTitle: remoteWins ? `${label}已覆盖本机` : `本机已覆盖${label}`,
+      completionSubtitle: remoteWins ? `本机已按${label}数据更新` : `${label}已按本机数据更新`,
+      dialogTitle: '覆盖完成',
+      message: remoteWins
+        ? `本机书签已使用${label}的完整快照覆盖。`
+        : `本机完整书签快照已保存到${label}。`
+    };
+  }
+
   readEnabledBaselines(enabledKinds: AiraSyncRemoteKind[]): Promise<AiraSyncBaselineRecord[]> {
     const tasks: Promise<AiraSyncBaselineRecord | undefined>[] = [];
     enabledKinds.forEach((remoteKind: AiraSyncRemoteKind): void => {
@@ -227,6 +256,16 @@ export class SyncExperienceAdvancedOperations {
       return this.simplifyHuaweiSpaceMergeSummary(result);
     }
     return this.simplifyMergeSummary(result);
+  }
+
+  private resolveProviderShortLabel(remoteKind: AiraSyncRemoteKind): string {
+    if (remoteKind === 'aira_cloud') {
+      return 'Aira 云端';
+    }
+    if (remoteKind === 'huawei_space') {
+      return '云空间';
+    }
+    return 'WebDAV';
   }
 
   private simplifyMergeSummary(result: AiraBookmarkMergeSyncResult): string {
