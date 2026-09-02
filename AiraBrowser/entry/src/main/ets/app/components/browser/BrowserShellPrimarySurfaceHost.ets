@@ -3,7 +3,10 @@ import {
   BrowserShellPresentationSnapshot
 } from '../../../core/browser/BrowserShellPresentationCoordinator';
 import { BrowserLargeScreenPresentationSnapshot } from '../../../core/browser/BrowserLargeScreenPresentationViewModel';
-import { BrowserTabsOverviewSceneRenderState } from '../../../core/browser/tabsOverview/BrowserTabsOverviewSceneDriver';
+import {
+  BrowserTabsOverviewSceneRenderState,
+  shouldUseHomeSurfaceForLargeScreen
+} from '../../../core/browser/tabsOverview/BrowserTabsOverviewSceneDriver';
 import { BrowserLargeScreenPrimarySurface } from './BrowserLargeScreenPrimarySurface';
 import {
   BrowserQuickSearchSwitchingPresentation,
@@ -125,6 +128,10 @@ export struct BrowserShellPrimarySurfaceHost {
     if (this.presentationSurface === 'large_screen') {
       BrowserLargeScreenPrimarySurface({
         presentation: this.resolveLargeScreenPresentation(),
+        homeSurfaceVisible: shouldUseHomeSurfaceForLargeScreen(
+          this.showHomePage,
+          this.tabsOverviewSceneRenderState
+        ),
         sidePanelVisible: this.resolveLargeScreenSidePanelVisible(),
         bottomStatusVisible: this.resolveLargeScreenBottomStatusVisible(),
         omniboxPresentation: this.largeScreenOmniboxPresentation,
@@ -156,6 +163,9 @@ export struct BrowserShellPrimarySurfaceHost {
         },
         webSurface: () => {
           this.buildLargeScreenWebSurface()
+        },
+        homeSurface: () => {
+          this.buildHomeSurface()
         },
         sidePanel: this.emptyBuilder,
         bottomStatus: this.emptyBuilder
@@ -219,7 +229,7 @@ export struct BrowserShellPrimarySurfaceHost {
 
   @Builder
   private buildLargeScreenWebSurface() {
-    if (this.showHomePage) {
+    if (shouldUseHomeSurfaceForLargeScreen(this.showHomePage, this.tabsOverviewSceneRenderState)) {
       Stack({ alignContent: Alignment.Top }) {
         this.homeSurfaceSlot()
       }

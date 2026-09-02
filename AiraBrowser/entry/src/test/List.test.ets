@@ -23,6 +23,7 @@ import browserUserAgentRuntimeServiceTest from './BrowserUserAgentRuntimeService
 import browserUserAgentHostPolicyCatalogTest from './BrowserUserAgentHostPolicyCatalog.test';
 import localBackupImportScenariosTest from './LocalBackupImportScenarios.test';
 import airaBookmarkSnapshotServiceTest from './AiraBookmarkSnapshotService.test';
+import browserTabsOverviewSceneDriverTest from './BrowserTabsOverviewSceneDriver.test';
 
 export default function tests(): void {
   userScriptValueStateStoreTest();
@@ -48,4 +49,5 @@ export default function tests(): void {
   browserUserAgentHostPolicyCatalogTest();
   localBackupImportScenariosTest();
   airaBookmarkSnapshotServiceTest();
+  browserTabsOverviewSceneDriverTest();
 }

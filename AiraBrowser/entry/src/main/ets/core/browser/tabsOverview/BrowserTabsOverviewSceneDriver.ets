@@ -47,6 +47,13 @@ export interface BrowserTabsOverviewSceneRenderState {
   rootBottomPanelHostRetained: boolean;
 }
 
+export function shouldUseHomeSurfaceForLargeScreen(
+  showHomePage: boolean,
+  renderState: BrowserTabsOverviewSceneRenderState
+): boolean {
+  return showHomePage || (renderState.cardsLayerMounted && renderState.homeLiveContentMounted);
+}
+
 export interface BrowserTabsOverviewCapturedEntryInput {
   tabId: string;
   showTabsSheet: boolean;
@@ -123,10 +130,14 @@ export class BrowserTabsOverviewSceneDriver {
     const homeLayerMounted = input.showHomePage ||
       input.keepHomeResident ||
       tabsSceneVisible;
+    // The overview is a home-backed surface regardless of its entry point. Keep the
+    // complete Home surface resident while the overview is mounted so its glass
+    // material samples the same content when opened from Home or from Web.
+    const homeLiveContentMounted = homeLayerMounted;
     return {
       homeLayerMounted: homeLayerMounted,
-      homeLiveContentMounted: input.showHomePage || input.keepHomeResident,
-      homeBackdropLayerMounted: homeLayerMounted && !input.showHomePage,
+      homeLiveContentMounted: homeLiveContentMounted,
+      homeBackdropLayerMounted: homeLayerMounted && !homeLiveContentMounted,
       homeLayerInteractive: input.showHomePage && !tabsSceneVisible,
       webLayerMounted: this.shouldMountWebLayer(currentSceneState, input, tabsSceneVisible),
       webLayerInteractive: !input.showHomePage && !tabsSceneVisible,

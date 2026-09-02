@@ -91,6 +91,7 @@ const LARGE_SCREEN_QUICK_SEARCH_BAR_HEIGHT_VP: number = 40;
 @Component
 export struct BrowserLargeScreenPrimarySurface {
   @Prop presentation: BrowserLargeScreenPresentationSnapshot | undefined = undefined;
+  @Prop homeSurfaceVisible: boolean = false;
   @Prop sidePanelVisible: boolean = false;
   @Prop bottomStatusVisible: boolean = false;
   @Prop omniboxPresentation: BrowserLargeScreenOmniboxPresentation =
@@ -121,6 +122,7 @@ export struct BrowserLargeScreenPrimarySurface {
     (_action: BrowserDesktopBookmarkBarAction): void => {};
 
   @BuilderParam webSurface: () => void = this.emptyBuilder;
+  @BuilderParam homeSurface: () => void = this.emptyBuilder;
   @BuilderParam sidePanel: () => void = this.emptyBuilder;
   @BuilderParam bottomStatus: () => void = this.emptyBuilder;
 
@@ -269,7 +271,9 @@ export struct BrowserLargeScreenPrimarySurface {
 
   @Builder
   private buildMainStageSurface() {
-    if (this.presentation?.activeTabChrome.scene === 'bookmarks') {
+    if (this.homeSurfaceVisible) {
+      this.homeSurface()
+    } else if (this.presentation?.activeTabChrome.scene === 'bookmarks') {
       BookmarkLargeScreenWorkspace({
         tabId: this.presentation.activeTabChrome.tabId,
         routeUrl: this.presentation.activeTabChrome.nativeRouteUrl,
