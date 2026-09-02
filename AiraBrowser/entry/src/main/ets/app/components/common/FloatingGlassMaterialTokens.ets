@@ -4,6 +4,7 @@ export const FLOATING_GLASS_MATERIAL_BLUR_STYLE: BlurStyle = BlurStyle.COMPONENT
 export const FLOATING_GLASS_MATERIAL_LIGHT_TINT: ResourceColor = '#18FFFFFF';
 export const FLOATING_GLASS_MATERIAL_DARK_TINT: ResourceColor = '#18000000';
 export const FLOATING_GLASS_MATERIAL_LIGHT_EFFECT_COLOR: ResourceColor = '#25FFFFFF';
+export const FLOATING_GLASS_MATERIAL_IMMERSIVE_STYLE: uiMaterial.ImmersiveStyle = uiMaterial.ImmersiveStyle.THIN;
 
 let cachedFloatingGlassMaterialAvailable: boolean | undefined = undefined;
 
@@ -13,15 +14,19 @@ export function resolveFloatingGlassMaterialTintForMode(resolvedThemeMode: strin
     FLOATING_GLASS_MATERIAL_LIGHT_TINT;
 }
 
-export function createFloatingGlassMaterial(tintColor: ResourceColor): uiMaterial.ImmersiveMaterial {
+export function createFloatingGlassMaterial(
+  tintColor: ResourceColor,
+  style: uiMaterial.ImmersiveStyle = FLOATING_GLASS_MATERIAL_IMMERSIVE_STYLE,
+  lightEffectColor: ResourceColor = FLOATING_GLASS_MATERIAL_LIGHT_EFFECT_COLOR
+): uiMaterial.ImmersiveMaterial {
   return new uiMaterial.ImmersiveMaterial({
-    style: uiMaterial.ImmersiveStyle.THIN,
+    style: style,
     materialColor: tintColor,
     colorInvert: true,
     applyShadow: true,
     interactive: true,
     lightEffect: {
-      color: FLOATING_GLASS_MATERIAL_LIGHT_EFFECT_COLOR
+      color: lightEffectColor
     }
   });
 }

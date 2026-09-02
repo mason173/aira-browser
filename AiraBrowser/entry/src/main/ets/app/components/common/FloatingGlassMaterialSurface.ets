@@ -1,5 +1,8 @@
+import { uiMaterial } from '@kit.ArkUI';
 import {
   createFloatingGlassMaterial,
+  FLOATING_GLASS_MATERIAL_IMMERSIVE_STYLE,
+  FLOATING_GLASS_MATERIAL_LIGHT_EFFECT_COLOR,
   FLOATING_GLASS_MATERIAL_LIGHT_TINT,
   isFloatingGlassMaterialAvailable
 } from './FloatingGlassMaterialTokens';
@@ -10,6 +13,8 @@ export struct FloatingGlassMaterialSurface {
   @Prop surfaceHeight: Length = 1;
   @Prop surfaceRadius: number = 0;
   @Prop tintColor: ResourceColor = FLOATING_GLASS_MATERIAL_LIGHT_TINT;
+  @Prop materialStyle: uiMaterial.ImmersiveStyle = FLOATING_GLASS_MATERIAL_IMMERSIVE_STYLE;
+  @Prop lightEffectColor: ResourceColor = FLOATING_GLASS_MATERIAL_LIGHT_EFFECT_COLOR;
   @Prop overlayColor: ResourceColor | undefined = undefined;
   @Prop overlayOpacity: number = 0;
   @Prop materialBorderWidth: number = 0;
@@ -53,7 +58,11 @@ export struct FloatingGlassMaterialSurface {
     .height(this.surfaceHeight)
     .borderRadius(this.resolveSurfaceRadius())
     .clip(true)
-    .systemMaterial(isFloatingGlassMaterialAvailable() ? createFloatingGlassMaterial(this.tintColor) : undefined)
+    .systemMaterial(isFloatingGlassMaterialAvailable() ? createFloatingGlassMaterial(
+      this.tintColor,
+      this.materialStyle,
+      this.lightEffectColor
+    ) : undefined)
   }
 
   @Builder

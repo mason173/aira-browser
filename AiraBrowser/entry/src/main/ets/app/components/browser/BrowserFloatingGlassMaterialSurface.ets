@@ -1,3 +1,5 @@
+import { uiMaterial } from '@kit.ArkUI';
+import { FLOATING_GLASS_MATERIAL_LIGHT_EFFECT_COLOR } from '../common/FloatingGlassMaterialTokens';
 import { FloatingGlassMaterialSurface } from '../common/FloatingGlassMaterialSurface';
 import { BROWSER_FLOATING_GLASS_MATERIAL_LIGHT_TINT } from './BrowserFloatingGlassMaterialTokens';
 
@@ -7,6 +9,8 @@ export struct BrowserFloatingGlassMaterialSurface {
   @Prop surfaceHeight: Length = 1;
   @Prop surfaceRadius: number = 0;
   @Prop tintColor: ResourceColor = BROWSER_FLOATING_GLASS_MATERIAL_LIGHT_TINT;
+  @Prop materialStyle: uiMaterial.ImmersiveStyle = uiMaterial.ImmersiveStyle.THIN;
+  @Prop lightEffectColor: ResourceColor = FLOATING_GLASS_MATERIAL_LIGHT_EFFECT_COLOR;
   @Prop overlayColor: ResourceColor | undefined = undefined;
   @Prop overlayOpacity: number = 0;
   @Prop materialBorderWidth: number = 0;
@@ -20,6 +24,8 @@ export struct BrowserFloatingGlassMaterialSurface {
         surfaceHeight: this.surfaceHeight,
         surfaceRadius: this.surfaceRadius,
         tintColor: this.tintColor,
+        materialStyle: this.materialStyle,
+        lightEffectColor: this.lightEffectColor,
         overlayColor: this.overlayColor,
         overlayOpacity: this.overlayOpacity,
         materialBorderWidth: this.materialBorderWidth,

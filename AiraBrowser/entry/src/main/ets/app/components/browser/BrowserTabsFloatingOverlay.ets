@@ -64,6 +64,8 @@ import {
 } from '../../../core/theme/BrowserThemeStorageKeys';
 import { AppChromeIconTone } from '../../../core/resources/AppIconResources';
 import {
+  BROWSER_TABS_OVERVIEW_GLASS_LIGHT_EFFECT_COLOR,
+  BROWSER_TABS_OVERVIEW_GLASS_MATERIAL_STYLE,
   BROWSER_TABS_OVERVIEW_GLASS_MATERIAL_TINT
 } from './BrowserFloatingGlassMaterialTokens';
 import { BrowserFloatingGlassMaterialSurface } from './BrowserFloatingGlassMaterialSurface';
@@ -340,6 +342,8 @@ export struct BrowserTabsFloatingOverlay {
           surfaceHeight: '100%',
           surfaceRadius: 0,
           tintColor: BROWSER_TABS_OVERVIEW_GLASS_MATERIAL_TINT,
+          materialStyle: BROWSER_TABS_OVERVIEW_GLASS_MATERIAL_STYLE,
+          lightEffectColor: BROWSER_TABS_OVERVIEW_GLASS_LIGHT_EFFECT_COLOR,
           overlayColor: BROWSER_TABS_OVERVIEW_GLASS_MATERIAL_TINT,
           overlayOpacity: 1
         }) {

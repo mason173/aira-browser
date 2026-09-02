@@ -1,3 +1,4 @@
+import { uiMaterial } from '@kit.ArkUI';
 import { AppChromeIconTone } from '../../../core/resources/AppIconResources';
 import {
   FLOATING_GLASS_MATERIAL_BLUR_STYLE,
@@ -23,6 +24,8 @@ export const BROWSER_FLOATING_GLASS_MATERIAL_DARK_OPTIONS: BackgroundBlurStyleOp
   colorMode: ThemeColorMode.DARK
 };
 export const BROWSER_TABS_OVERVIEW_GLASS_MATERIAL_TINT: ResourceColor = BROWSER_FLOATING_GLASS_MATERIAL_DARK_TINT;
+export const BROWSER_TABS_OVERVIEW_GLASS_MATERIAL_STYLE: uiMaterial.ImmersiveStyle = uiMaterial.ImmersiveStyle.THICK;
+export const BROWSER_TABS_OVERVIEW_GLASS_LIGHT_EFFECT_COLOR: ResourceColor = '#55FFFFFF';
 export const BROWSER_TABS_OVERVIEW_GLASS_MATERIAL_OPTIONS: BackgroundBlurStyleOptions =
   BROWSER_FLOATING_GLASS_MATERIAL_DARK_OPTIONS;
 
