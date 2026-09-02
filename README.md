@@ -1,46 +1,75 @@
 # Aira
 
-Aira is a privacy-focused browser ecosystem for HarmonyOS NEXT and desktop browsers.
-It lets you keep browsing data local, or connect your own devices to a Personal Server that you control.
+Aira is a GPL-3.0 monorepo for building a privacy-focused browser stack on HarmonyOS NEXT and desktop browsers.
+It contains the browser client, the desktop extension, and the single-owner backend used for self-hosted sync.
 
-The browser, desktop extension, and self-hosted server are maintained in one repository so their protocols and
-cross-device features can evolve together.
+This README is for contributors, integrators, and developers who want to run or extend Aira. It describes the public
+source boundary and the shortest path to a working local development environment.
 
-> Aira is currently in active development. The repository is usable for development and self-hosting, but release
-> packages and production services are not provided here yet.
+## Repository Contract
 
-## What You Get
+- The browser and extension are built as **Community** or **Official** distributions from the same source commit.
+- Community builds do not require Aira production credentials or hosted-service access.
+- Personal Server is a single-owner, paired-device service. It has no registration, password accounts, organizations,
+  roles, membership, billing, referrals, or Huawei authentication.
+- Local data providers, WebDAV, and Personal Server are available without Aira membership.
+- Production Aira services, Admin tooling, Huawei project configuration, signing material, and deployment secrets are
+  outside this repository.
 
-- A native HarmonyOS NEXT browser built with ArkTS, ArkUI, ArkWeb, and the Stage model.
-- A Chromium/Firefox extension for bookmarks, history, Page Push, and Cross-device Tabs.
-- A single-owner Personal Server that you can run on your own computer, NAS, VPS, or home server.
-- Local-first data handling with WebDAV and Personal Server providers for people who do not want to use Aira's hosted
-  services.
-- One source tree for Community and Official builds. There are no long-lived edition forks.
+## Components
 
-## Repository Layout
-
-| Component | Location | Description |
+| Component | Location | Developer responsibility |
 | --- | --- | --- |
-| Aira Browser | [`AiraBrowser/`](AiraBrowser/README.md) | HarmonyOS NEXT browser client |
-| Aira-sync | [`extensions/aira-sync/`](extensions/aira-sync/README.md) | Desktop browser extension |
-| Personal Server | [`services/personal-server/`](services/personal-server/README.md) | Single-owner self-hosted backend |
-| Shared documentation | [`docs/`](docs/) | Architecture, protocol, deployment, and release notes |
+| HarmonyOS client | [`AiraBrowser/`](AiraBrowser/README.md) | ArkTS/ArkUI browser shell, local storage, and provider integration |
+| Desktop extension | [`extensions/aira-sync/`](extensions/aira-sync/README.md) | Chromium/Firefox UI, background runtime, and cross-device client |
+| Personal Server | [`services/personal-server/`](services/personal-server/README.md) | Node.js/Docker sync, pairing, Page Push, and tab-presence APIs |
+| Shared resources | [`resources/`](resources/) and [`docs/`](docs/) | Icons, notices, architecture decisions, and protocol documentation |
 
-## Personal Server
+## Architecture At A Glance
 
-Personal Server is the recommended way to connect your own phone and desktop browsers without an Aira account or
-membership. It is intentionally single-owner and paired-device only:
+The clients keep their local browser state and select one remote provider for each supported sync domain. The public
+providers are WebDAV and Personal Server; Official builds can additionally use Aira Cloud and Huawei Cloud Space.
 
-- no registration or password account system;
-- no organizations, roles, invitations, billing, or referral system;
-- no Huawei Account, IAP, or Aira production credentials;
-- revocable per-device credentials and a one-time pairing code.
+Personal Server exposes discovery, one-time pairing, Bookmark, History, Personalization, Novel Bookshelf, Page Push,
+and Cross-device Tabs endpoints. It uses per-device bearer credentials, stores only credential hashes, and does not
+implement a user account system.
 
-### Quick Start With Docker
+Start with these contracts before changing wire behavior:
 
-Requirements: Docker Engine with Compose, a persistent data volume, and HTTPS when the server is reachable outside a
-trusted local network.
+- [Open-source distribution boundary](docs/open-source-distribution.md)
+- [Personal Server self-hosting](docs/self-hosting.md)
+- [Personal Server protocol](services/personal-server/docs/protocol.md)
+- [Personal Server operations](services/personal-server/docs/operations.md)
+- [Aira-sync development notes](extensions/aira-sync/README.md)
+- [HarmonyOS client development notes](AiraBrowser/README.md)
+
+## Development Prerequisites
+
+| Area | Requirement |
+| --- | --- |
+| Repository scripts | Node.js `18.20.8` from `.node-version` / `.nvmrc` |
+| Aira-sync | Node.js 18.x and npm |
+| Personal Server | Node.js 20 or newer, or Docker with Compose |
+| HarmonyOS client | DevEco Studio, HarmonyOS NEXT SDK/API 23 or newer, and `ohpm` |
+
+Clone the repository and run commands from its root unless a section says otherwise:
+
+```bash
+git clone https://github.com/mason173/aira.git
+cd aira
+```
+
+## Run Personal Server Locally
+
+The Node.js check is the fastest way to exercise the server without creating persistent data:
+
+```bash
+cd services/personal-server
+npm ci
+npm run check
+```
+
+To run a persistent local instance with Docker:
 
 ```bash
 cd services/personal-server
@@ -49,16 +78,11 @@ docker compose up -d --build
 docker compose exec aira-server cat /data/setup-code
 ```
 
-Open Aira or Aira-sync, choose **Personal Server**, enter the server URL, and use the one-time setup code. The setup
-code is removed after the first device pairs. The default Compose file binds the service to `127.0.0.1:8787`; put a
-TLS reverse proxy such as Caddy or Nginx in front of it before exposing it publicly.
+Use the printed one-time code to pair a development client. The default Compose file binds `127.0.0.1:8787`; use a
+TLS reverse proxy before making an instance reachable outside a trusted local network. Backup, restore, upgrades,
+reverse proxy settings, and credential revocation are documented in the server README and operations guide.
 
-Deployment, reverse proxy, backup, restore, upgrades, pairing, and revocation are documented in
-[`docs/self-hosting.md`](docs/self-hosting.md) and [`services/personal-server/README.md`](services/personal-server/README.md).
-
-## Build And Test
-
-### Aira-sync
+## Build Aira-sync
 
 ```bash
 cd extensions/aira-sync
@@ -68,24 +92,15 @@ npm test
 npm run build:community
 ```
 
-The Community extension is written to `build/community/` and can be loaded as an unpacked extension in Chrome, Edge,
-or another Chromium-compatible browser. It uses the stable public extension ID:
-`efehgppkhnkjamcpbipclfmmofdildji`.
+The Community output is written to `build/community/` and can be loaded as an unpacked extension in a Chromium-based
+browser. The public Community manifest has the stable extension ID `efehgppkhnkjamcpbipclfmmofdildji`.
 
-### Personal Server
+Official builds use private route configuration supplied through `AIRA_SYNC_OFFICIAL_API_ROUTES`; the repository does
+not contain production routes. See the extension README for the complete route schema and package commands.
 
-```bash
-cd services/personal-server
-npm ci
-npm run check
-```
+## Build The HarmonyOS Client
 
-The check command exercises discovery, pairing, sync protocols, Page Push, Cross-device Tabs, conflict handling,
-credential rotation, and revocation in an isolated temporary server.
-
-### HarmonyOS Browser
-
-Open `AiraBrowser/` in DevEco Studio, or use the repository build script:
+Open `AiraBrowser/` in DevEco Studio, or use the root build script:
 
 ```bash
 cd AiraBrowser
@@ -94,45 +109,56 @@ cd ..
 AIRA_DISTRIBUTION=community AIRA_ALLOW_UNSIGNED_BUILD=1 SKIP_INSTALL=1 ./scripts/build-aira-browser.sh
 ```
 
-The unsigned command is suitable for CI and source verification. Installing on a device requires a local signing
-profile for `org.aira.browser`. See [`AiraBrowser/README.md`](AiraBrowser/README.md) for DevEco, signing, API level,
-release, and device-install instructions.
+This produces an unsigned Community HAP suitable for CI and source verification. Device installation requires a local
+signing profile for `org.aira.browser`. An Official build additionally requires private AGConnect input, production
+routes, and a signing profile for `com.aira.browser`:
+
+```bash
+AIRA_DISTRIBUTION=official SKIP_INSTALL=1 ./scripts/build-aira-browser.sh
+```
+
+Do not commit `agconnect-services.json`, build profiles containing encrypted passwords, `.p12`/`.p7b` files, or any
+other signing material. See [`AiraBrowser/README.md`](AiraBrowser/README.md) for signing setup, release packaging, and
+device installation.
 
 ## Community And Official
 
-Both distributions are built from the same source commit. Community is the public-safe default and does not contain
-Aira's production identity, Huawei project configuration, or hosted-service routes.
+The two distributions share source code and tests. Only build-time identity and private capability inputs differ:
 
 | Capability | Community | Official |
 | --- | --- | --- |
-| Local browsing, tabs, offline pages, themes, userscripts, and ad blocking | Available | Available |
-| User-provided WebDAV | Available | Available |
-| Personal Server sync and Cross-device Tabs | Available | Available |
-| Huawei Account and Huawei Cloud Space | Not included | Private production configuration |
-| Aira Cloud and hosted-service pairing | Not included | Private production service |
-| Huawei IAP and Aira Pro entitlement | Not included | Private production service |
+| Local browser features and local storage | Enabled | Enabled |
+| User-selected WebDAV | Enabled | Enabled |
+| Personal Server sync and Cross-device Tabs | Enabled | Enabled |
+| Huawei Account / Huawei Cloud Space | Not configured | Private Huawei project and approval |
+| Aira Cloud hosted services | Not configured | Private service routes and entitlement |
+| Huawei IAP / Aira Pro | Not configured | Private production service |
 
-Official builds require private Huawei/AGConnect inputs, production routes, and a matching signing profile. Those
-materials are deliberately outside this repository. Read [`docs/open-source-distribution.md`](docs/open-source-distribution.md)
-before preparing a release.
+Read [`docs/open-source-distribution.md`](docs/open-source-distribution.md) before adding a provider or changing a
+distribution boundary. Do not create a long-lived Community fork or copy Official-only pages into a second source tree.
 
-## Data And Privacy
+## Contribution Workflow
 
-Local data stays on the device unless you explicitly choose a provider. Personal Server and WebDAV credentials remain
-in client storage and are sent only to the endpoint you select. Personal Server stores synchronized data for its single
-owner; it is not end-to-end encrypted, so the server administrator can read that data.
+Keep cross-component protocol changes in one pull request and run checks for every component you touch. Put policy,
+transport, persistence, and orchestration in their existing `core`, `services`, `data`, or `features` owners rather
+than adding behavior to native UI shells.
 
-The browser and extension do not require Aira registration. Huawei Account authentication, Huawei Cloud Space, Aira
-Cloud, IAP, and production membership services are Official-only capabilities.
+Before opening a pull request:
 
-For vulnerability reports, use GitHub Security Advisories and follow [`SECURITY.md`](SECURITY.md). Never include
-credentials, device tokens, browsing data, databases, backups, or signing files in an issue or pull request.
+```bash
+# from the repository root
+git diff --check
 
-## Contributing
+# for Aira-sync changes
+(cd extensions/aira-sync && npm run typecheck && npm test)
 
-Cross-component protocol changes should be submitted together so the browser, extension, and server remain compatible.
-Run the checks for every component you touch, and read [`CONTRIBUTING.md`](CONTRIBUTING.md) before opening a pull
-request.
+# for Personal Server changes
+(cd services/personal-server && npm run check)
+```
+
+Read [`CONTRIBUTING.md`](CONTRIBUTING.md) for review expectations and [`SECURITY.md`](SECURITY.md) for private
+vulnerability reporting. Never include device data, credentials, tokens, databases, backups, browser profiles, or
+production configuration in an issue or pull request.
 
 ## License
 
