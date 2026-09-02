@@ -57,6 +57,48 @@ export interface AiraCloudBookmarkApiResponseBody {
   writtenAt?: string;
 }
 
+/**
+ * Keeps a structured API error when a gateway or HTTP adapter returns a non-2xx status.
+ * The normal Aira API handler uses HTTP 200 for `{ ok: false }`, but proxies may not.
+ */
+export function parseAiraCloudBookmarkHttpError(
+  responseCode: number,
+  result: Object | string | null | undefined
+): AiraCloudBookmarkApiResponseBody {
+  let parsed: AiraCloudBookmarkApiResponseBody | undefined;
+  if (typeof result === 'string') {
+    try {
+      parsed = JSON.parse(result) as AiraCloudBookmarkApiResponseBody;
+    } catch (_error) {
+      parsed = undefined;
+    }
+  } else if (result !== undefined && result !== null && typeof result === 'object') {
+    const raw = result as AiraCloudBookmarkApiResponseEnvelope;
+    if (typeof raw.body === 'string') {
+      try {
+        parsed = JSON.parse(raw.body) as AiraCloudBookmarkApiResponseBody;
+      } catch (_error) {
+        parsed = undefined;
+      }
+    } else if (raw.body !== undefined && raw.body !== null && typeof raw.body === 'object') {
+      parsed = raw.body as AiraCloudBookmarkApiResponseBody;
+    } else {
+      parsed = raw as AiraCloudBookmarkApiResponseBody;
+    }
+  }
+  const code = typeof parsed?.code === 'string' && parsed.code.trim().length > 0
+    ? parsed.code.trim()
+    : 'http_error';
+  const message = typeof parsed?.message === 'string' && parsed.message.trim().length > 0
+    ? parsed.message.trim()
+    : `Aira 云同步服务请求失败（${responseCode}）。`;
+  return {
+    ok: false,
+    code: code,
+    message: message
+  };
+}
+
 interface AiraCloudBookmarkApiResponseEnvelope {
   body?: Object | string;
   ok?: boolean;
@@ -162,16 +204,10 @@ class NetworkAiraCloudBookmarkApiHttpAdapter implements AiraCloudBookmarkApiHttp
         extraData: JSON.stringify(body)
       });
       if (response.responseCode < 200 || response.responseCode >= 300) {
-        const responseBody = `${response.result ?? ''}`.trim();
-        if (responseBody.length > 0) {
-          return responseBody;
-        }
-        const errorResponse: AiraCloudBookmarkApiResponseBody = {
-          ok: false,
-          code: 'http_error',
-          message: `Aira 云同步服务请求失败（${response.responseCode}）。`
-        };
-        return errorResponse;
+        return parseAiraCloudBookmarkHttpError(
+          response.responseCode,
+          response.result as Object | string | null | undefined
+        );
       }
       return response.result as string | Object | null | undefined;
     } finally {
