@@ -101,6 +101,8 @@ interface LocalBackupScriptRestoreSummary {
   scriptIdMap: Map<string, string>;
 }
 
+const AIRA_LOCAL_BACKUP_IMPORT_ACTOR: string = 'local-backup-import';
+
 export interface LocalBackupBookmarkDomain {
   buildLocalBackupBookmarkSnapshot(): Promise<AiraSyncSnapshot>;
   importLocalBackupBookmarkSnapshot(snapshot: AiraSyncSnapshot): Promise<AiraBookmarkSyncApplyResult>;
@@ -145,6 +147,7 @@ export class LocalBackupService {
     UserScriptPackageLifecycleCoordinator | LocalBackupUserScriptPackageDomain;
   private readonly userScriptValueStore: UserScriptValueStateStore | LocalBackupUserScriptValueDomain;
   private readonly changelogContentService: ChangelogContentService = new ChangelogContentService();
+  private localBackupImportSequence: number = 0;
 
   constructor(
     syncService: SyncService | LocalBackupBookmarkDomain,
@@ -409,7 +412,8 @@ export class LocalBackupService {
 
   private buildBookmarkSnapshot(payload: LocalBackupBookmarksPayload): AiraSyncSnapshot {
     const generatedAt = new Date().toISOString();
-    const regular = this.buildSyncBookmarkDataSet(payload.regular);
+    const sourceId = this.createLocalBackupImportActor();
+    const regular = this.buildSyncBookmarkDataSet(payload.regular, sourceId);
     const snapshot: AiraSyncSnapshot = {
       meta: {
         version: AIRA_SYNC_SCHEMA_VERSION,
@@ -422,13 +426,12 @@ export class LocalBackupService {
       tombstones: []
     };
     if (payload.private !== undefined) {
-      snapshot.appPrivateBookmarks = this.buildSyncBookmarkDataSet(payload.private);
+      snapshot.appPrivateBookmarks = this.buildSyncBookmarkDataSet(payload.private, sourceId);
     }
     return snapshot;
   }
 
-  private buildSyncBookmarkDataSet(payload: LocalBackupBookmarkDataSet): AiraSyncBookmarkDataSet {
-    const sourceId = 'local-backup-import';
+  private buildSyncBookmarkDataSet(payload: LocalBackupBookmarkDataSet, sourceId: string): AiraSyncBookmarkDataSet {
     return {
       bookmarkFolders: payload.folders.map(
         (folder: LocalBackupBookmarkFolderRecord): AiraSyncBookmarkFolderEntity => {
@@ -473,6 +476,11 @@ export class LocalBackupService {
       ),
       tombstones: []
     };
+  }
+
+  private createLocalBackupImportActor(): string {
+    this.localBackupImportSequence = (this.localBackupImportSequence + 1) % 1000000;
+    return `${AIRA_LOCAL_BACKUP_IMPORT_ACTOR}-${Date.now()}-${this.localBackupImportSequence}`;
   }
 
   private validateBookmarksPayload(payload: LocalBackupBookmarksPayload): void {

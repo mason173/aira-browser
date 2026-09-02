@@ -22,7 +22,8 @@ function createSnapshot(
   includeLiveItem: boolean = false,
   includeFolderTombstone: boolean = false,
   includeItemTombstone: boolean = false,
-  appPrivateBookmarks?: AiraSyncBookmarkDataSet
+  appPrivateBookmarks?: AiraSyncBookmarkDataSet,
+  liveItemUpdatedBy?: string
 ): AiraSyncSnapshot {
   const folders: AiraSyncBookmarkFolderEntity[] = [{
     id: ROOT_ID,
@@ -42,7 +43,7 @@ function createSnapshot(
     url: 'https://example.com/live',
     createdAt: T0,
     updatedAt: T0,
-    updatedBy: deviceId,
+    updatedBy: liveItemUpdatedBy ?? deviceId,
     revision: 1
   }] : [];
   const orders: AiraSyncBookmarkOrder[] = [{
@@ -217,6 +218,93 @@ export default function airaBookmarkMergeServiceTest(): void {
 
     it('still propagates an ordinary same-type deletion', 0, () => {
       const baseline = createSnapshot('baseline', true, false);
+      const local = createSnapshot('phone-a', true, false);
+      const remote = createSnapshot('desktop-a', false, false, true);
+      const result = new AiraBookmarkMergeService().merge(baseline, local, remote, 'phone-a');
+
+      expect(result.snapshot.bookmarkItems.length).assertEqual(0);
+      expect(result.snapshot.tombstones.length).assertEqual(1);
+      expect(result.snapshot.tombstones[0].type).assertEqual('bookmark-item');
+      expect(new AiraBookmarkSnapshotValidationService().validate(result.snapshot, '合并后')).assertEqual(
+        result.snapshot
+      );
+    });
+
+    it('preserves a restored local addition when remote carries a tombstone for an ID absent from baseline', 0, () => {
+      const baseline = createSnapshot('baseline', false, false);
+      const local = createSnapshot('phone-a', true, false, false, undefined, 'local-backup-import');
+      const remote = createSnapshot('desktop-a', false, false, true);
+      const result = new AiraBookmarkMergeService().merge(baseline, local, remote, 'phone-a');
+
+      expect(result.snapshot.bookmarkItems.length).assertEqual(1);
+      expect(result.snapshot.bookmarkItems[0].id).assertEqual(COLLIDING_ID);
+      expect(result.snapshot.tombstones.length).assertEqual(0);
+      expect(result.remoteWriteRequired).assertTrue();
+      expect(new AiraBookmarkSnapshotValidationService().validate(result.snapshot, '合并后')).assertEqual(
+        result.snapshot
+      );
+    });
+
+    it('preserves a restored local entity when its prior baseline version was live', 0, () => {
+      const baseline = createSnapshot('baseline', true, false);
+      const local = createSnapshot('phone-a', true, false, false, undefined, 'local-backup-import');
+      const remote = createSnapshot('desktop-a', false, false, true);
+      const result = new AiraBookmarkMergeService().merge(baseline, local, remote, 'phone-a');
+
+      expect(result.snapshot.bookmarkItems.length).assertEqual(1);
+      expect(result.snapshot.tombstones.length).assertEqual(0);
+      expect(result.remoteWriteRequired).assertTrue();
+      expect(new AiraBookmarkSnapshotValidationService().validate(result.snapshot, '合并后')).assertEqual(
+        result.snapshot
+      );
+    });
+
+    it('preserves a cooperative restored local addition against a remote tombstone absent from baseline', 0, async () => {
+      const baseline = createSnapshot('baseline', false, false);
+      const local = createSnapshot('phone-a', true, false, false, undefined, 'local-backup-import');
+      const remote = createSnapshot('desktop-a', false, false, true);
+      const result = await new AiraBookmarkMergeService().mergeCooperatively(
+        baseline,
+        local,
+        remote,
+        new AiraSyncWorkThrottleService(),
+        'phone-a'
+      );
+
+      expect(result.snapshot.bookmarkItems.length).assertEqual(1);
+      expect(result.snapshot.bookmarkItems[0].id).assertEqual(COLLIDING_ID);
+      expect(result.snapshot.tombstones.length).assertEqual(0);
+      expect(result.remoteWriteRequired).assertTrue();
+      expect(new AiraBookmarkSnapshotValidationService().validate(result.snapshot, '合并后')).assertEqual(
+        result.snapshot
+      );
+    });
+
+    it('resumes ordinary tombstone propagation after a restore is recorded in the baseline', 0, () => {
+      const baseline = createSnapshot('baseline', true, false, false, undefined, 'local-backup-import-1');
+      const local = createSnapshot('phone-a', true, false, false, undefined, 'local-backup-import-1');
+      const remote = createSnapshot('desktop-a', false, false, true);
+      const result = new AiraBookmarkMergeService().merge(baseline, local, remote, 'phone-a');
+
+      expect(result.snapshot.bookmarkItems.length).assertEqual(0);
+      expect(result.snapshot.tombstones.length).assertEqual(1);
+      expect(result.snapshot.tombstones[0].type).assertEqual('bookmark-item');
+    });
+
+    it('treats a later backup import as a new restore intent', 0, () => {
+      const baseline = createSnapshot('baseline', true, false, false, undefined, 'local-backup-import-1');
+      const local = createSnapshot('phone-a', true, false, false, undefined, 'local-backup-import-2');
+      const remote = createSnapshot('desktop-a', false, false, true);
+      const result = new AiraBookmarkMergeService().merge(baseline, local, remote, 'phone-a');
+
+      expect(result.snapshot.bookmarkItems.length).assertEqual(1);
+      expect(result.snapshot.bookmarkItems[0].id).assertEqual(COLLIDING_ID);
+      expect(result.snapshot.tombstones.length).assertEqual(0);
+      expect(result.remoteWriteRequired).assertTrue();
+    });
+
+    it('still propagates a remote tombstone for an ordinary new local entity', 0, () => {
+      const baseline = createSnapshot('baseline', false, false);
       const local = createSnapshot('phone-a', true, false);
       const remote = createSnapshot('desktop-a', false, false, true);
       const result = new AiraBookmarkMergeService().merge(baseline, local, remote, 'phone-a');

@@ -93,6 +93,7 @@ class InMemoryBookmarkBackupDomain implements LocalBackupBookmarkDomain {
 }
 
 class StatefulBookmarkBackupDomain implements LocalBackupBookmarkDomain {
+  lastImportedActor: string = '';
   private snapshot: AiraSyncSnapshot = {
     meta: {
       version: AIRA_SYNC_SCHEMA_VERSION,
@@ -129,6 +130,9 @@ class StatefulBookmarkBackupDomain implements LocalBackupBookmarkDomain {
   }
 
   async importLocalBackupBookmarkSnapshot(snapshot: AiraSyncSnapshot): Promise<AiraBookmarkSyncApplyResult> {
+    this.lastImportedActor = snapshot.bookmarkItems.find(
+      (item): boolean => item.id === 'backup-item'
+    )?.updatedBy ?? '';
     const existingFolderIds = new Set<string>(this.snapshot.bookmarkFolders.map((folder): string => folder.id));
     const existingBookmarkIds = new Set<string>(this.snapshot.bookmarkItems.map((item): string => item.id));
     const mergeResult = await this.mergeService.mergeCooperatively(
@@ -774,6 +778,7 @@ export default function localBackupImportScenariosTest(): void {
       const selection = createSelection(true, false, false, false, false);
 
       const first = await service.importDocument(document, selection);
+      const firstImportedActor = bookmarkDomain.lastImportedActor;
       const second = await service.importDocument(document, selection);
 
       expect(first.bookmarkCount).assertEqual(2);
@@ -781,6 +786,8 @@ export default function localBackupImportScenariosTest(): void {
       expect(bookmarkDomain.hasNode('local-bookmark')).assertTrue();
       expect(bookmarkDomain.hasNode('backup-folder')).assertTrue();
       expect(bookmarkDomain.hasNode('backup-item')).assertTrue();
+      expect(firstImportedActor.length > 0).assertTrue();
+      expect(bookmarkDomain.lastImportedActor !== firstImportedActor).assertTrue();
     });
 
     it('converts portable activity totals into a dedicated backup contribution', 0, async () => {

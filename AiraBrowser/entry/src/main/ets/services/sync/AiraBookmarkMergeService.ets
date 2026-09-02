@@ -12,6 +12,10 @@ import {
 } from '../../common/models/AiraSyncModels';
 import { AiraSyncWorkThrottleService } from './AiraSyncWorkThrottleService';
 
+const AIRA_LOCAL_BACKUP_IMPORT_ACTOR: string = 'local-backup-import';
+// A backup import is an explicit recovery operation; once its actor is recorded in the baseline,
+// later ordinary synchronization resumes normal tombstone propagation.
+
 export interface AiraBookmarkMergeResult {
   snapshot: AiraSyncSnapshot;
   hasConflicts: boolean;
@@ -1869,10 +1873,57 @@ export class AiraBookmarkMergeService {
       conflictDetails,
       ignoredTombstoneKeys
     );
+    this.ignoreRemoteTombstonesForRestoredLocalEntities(
+      baseline.bookmarkFolders,
+      local.bookmarkFolders,
+      remote.bookmarkFolders,
+      remoteTombstones,
+      'bookmark-folder',
+      ignoredTombstoneKeys
+    );
+    this.ignoreRemoteTombstonesForRestoredLocalEntities(
+      baseline.bookmarkItems,
+      local.bookmarkItems,
+      remote.bookmarkItems,
+      remoteTombstones,
+      'bookmark-item',
+      ignoredTombstoneKeys
+    );
     return {
       conflictDetails: conflictDetails,
       ignoredTombstoneKeys: ignoredTombstoneKeys
     };
+  }
+
+  private ignoreRemoteTombstonesForRestoredLocalEntities<T extends AiraSyncBaseEntity>(
+    baselineValues: T[],
+    localValues: T[],
+    remoteValues: T[],
+    remoteTombstones: Map<string, AiraSyncTombstone>,
+    entityType: 'bookmark-folder' | 'bookmark-item',
+    ignoredTombstoneKeys: Set<string>
+  ): void {
+    const baselineById = this.buildValueMap(baselineValues, (value: T): string => value.id);
+    const remoteIds = new Set<string>();
+    remoteValues.forEach((value: T): void => {
+      remoteIds.add(value.id);
+    });
+    localValues.forEach((value: T): void => {
+      const baselineValue = baselineById.get(value.id);
+      const isLocalBackupRestore = this.isLocalBackupImportActor(value.updatedBy);
+      const alreadyRecordedAsRestore = baselineValue !== undefined &&
+        baselineValue.updatedBy === value.updatedBy;
+      if (isLocalBackupRestore && !alreadyRecordedAsRestore &&
+        !remoteIds.has(value.id) &&
+        remoteTombstones.has(`${entityType}|${value.id}`)) {
+        ignoredTombstoneKeys.add(`${entityType}|${value.id}`);
+      }
+    });
+  }
+
+  private isLocalBackupImportActor(actor: string): boolean {
+    return actor === AIRA_LOCAL_BACKUP_IMPORT_ACTOR ||
+      actor.startsWith(`${AIRA_LOCAL_BACKUP_IMPORT_ACTOR}-`);
   }
 
   private resolveDeleteEditCollection<T extends AiraSyncBaseEntity>(

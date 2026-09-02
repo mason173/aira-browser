@@ -31,8 +31,8 @@ export function isFloatingGlassMaterialAvailable(): boolean {
     return cachedFloatingGlassMaterialAvailable;
   }
   try {
-    cachedFloatingGlassMaterialAvailable = uiMaterial.isImmersiveMaterialSupported() &&
-      uiMaterial.getMaterialInfo().state !== uiMaterial.MaterialState.DISABLE;
+    const materialState = uiMaterial.getMaterialInfo().state;
+    cachedFloatingGlassMaterialAvailable = materialState !== uiMaterial.MaterialState.DISABLE;
   } catch (_error) {
     cachedFloatingGlassMaterialAvailable = false;
   }

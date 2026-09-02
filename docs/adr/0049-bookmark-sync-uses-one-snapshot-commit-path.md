@@ -413,3 +413,14 @@ any older-epoch Block is deleted and freshly confirmed. Cleanup runs after an or
 error is logged and swallowed, leaving unreachable rows for a later attempt without failing or rolling back Sync. The
 logical tombstone frontier remains owned solely by `AiraBookmarkTombstoneLifecycleService`; storage epochs never retire
 a tombstone or reinterpret snapshot history.
+
+Amended 2026-09-02 after a local-backup restore was removed by an existing remote tombstone: an explicit user-initiated
+Local Backup bookmark import is a restore intent, not an ordinary same-Provider synchronization. For each import, the
+App marks imported live folder/item entities with a unique `local-backup-import-*` actor. During the merge for that
+restore, a remote same-type tombstone is ignored when the ID has no remote live entity and the durable baseline does not
+already contain the same restore actor; the merged live entity and the tombstone-free snapshot are then committed and
+confirmed as usual. Once that exact actor is present in the baseline, later ordinary synchronization propagates a remote
+tombstone normally. A later explicit import receives a new actor and can therefore restore the same ID again. The legacy
+fixed `local-backup-import` actor remains recognized for compatibility, but cannot distinguish repeated imports. This
+exception does not alter Provider switching, Additional Backup, ordinary deletion semantics, snapshot validation, CAS,
+local-apply verification, or baseline advancement.
