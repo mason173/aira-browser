@@ -1172,17 +1172,22 @@ export class BrowserDatabase {
           v.device_id AS device_id,
           v.session_id AS session_id,
           v.profile_id AS profile_id,
-          v.data_scope AS data_scope
+          v.data_scope AS data_scope,
+          v.sync_id AS sync_id,
+          v.sync_account_uid AS sync_account_uid,
+          v.sync_origin AS sync_origin
         FROM ${HISTORY_VISITS_TABLE} v
-        INNER JOIN ${HISTORY_URLS_TABLE} u ON v.url_id = u.id
-        WHERE u.hidden = 0 AND (
-          lower(u.title) LIKE ? OR
-          lower(u.url) LIKE ? OR
-          lower(u.host) LIKE ?
+        LEFT JOIN ${HISTORY_URLS_TABLE} u ON v.url_id = u.id
+        WHERE (
+          lower(COALESCE(u.title, '')) LIKE ? OR
+          lower(COALESCE(u.url, '')) LIKE ? OR
+          lower(COALESCE(u.normalized_url, '')) LIKE ? OR
+          lower(COALESCE(u.host, '')) LIKE ? OR
+          lower(COALESCE(u.origin, '')) LIKE ?
         )
-        ORDER BY v.visited_at DESC
-        LIMIT ? OFFSET ?`,
-        [pattern, pattern, pattern, normalizedLimit, normalizedOffset]
+        ORDER BY v.visited_at DESC, v.id DESC
+        LIMIT ${normalizedLimit} OFFSET ${normalizedOffset}`,
+        [pattern, pattern, pattern, pattern, pattern]
       );
       const visits = this.mapHistoryVisitEventRows(resultSet);
       const hydrated = await this.hydrateHistoryVisits(visits);
@@ -1192,7 +1197,7 @@ export class BrowserDatabase {
       return hydrated;
     } catch (error) {
       hilog.error(DOMAIN, TAG, 'Failed to search history visits: %{public}s', JSON.stringify(error));
-      return [];
+      return this.searchHistoryVisitsFromLoadedData(normalizedQuery, normalizedOffset, normalizedLimit);
     }
   }
 
@@ -1202,14 +1207,15 @@ export class BrowserDatabase {
     const normalizedLimit = Math.max(1, Math.floor(limit));
     const hasQuery = normalizedQuery.length > 0;
     const whereClause = hasQuery ?
-      `WHERE hidden = 0 AND (lower(host) LIKE ? OR lower(title) LIKE ? OR lower(url) LIKE ?)` :
-      `WHERE hidden = 0`;
+      `WHERE (lower(COALESCE(host, '')) LIKE ? OR lower(COALESCE(title, '')) LIKE ? OR ` +
+        `lower(COALESCE(url, '')) LIKE ? OR lower(COALESCE(normalized_url, '')) LIKE ? OR ` +
+        `lower(COALESCE(origin, '')) LIKE ?)` :
+      '';
     const bindArgs: relationalStore.ValueType[] = [];
     if (hasQuery) {
       const pattern = `%${normalizedQuery}%`;
-      bindArgs.push(pattern, pattern, pattern);
+      bindArgs.push(pattern, pattern, pattern, pattern, pattern);
     }
-    bindArgs.push(normalizedLimit, normalizedOffset);
     try {
       const startedAt = Date.now();
       const store = await this.getStore();
@@ -1232,7 +1238,7 @@ export class BrowserDatabase {
           ${whereClause}
           GROUP BY host
           ORDER BY latest_visited_at DESC
-          LIMIT ? OFFSET ?
+          LIMIT ${normalizedLimit} OFFSET ${normalizedOffset}
         ) agg
         INNER JOIN ${HISTORY_URLS_TABLE} latest
           ON latest.host = agg.host AND latest.last_visit_at = agg.latest_visited_at
@@ -1247,6 +1253,99 @@ export class BrowserDatabase {
       return sites;
     } catch (error) {
       hilog.error(DOMAIN, TAG, 'Failed to load history sites: %{public}s', JSON.stringify(error));
+      return this.searchHistorySitesFromLoadedData(normalizedQuery, normalizedOffset, normalizedLimit);
+    }
+  }
+
+  private async searchHistoryVisitsFromLoadedData(
+    normalizedQuery: string,
+    offset: number,
+    limit: number
+  ): Promise<HistoryVisit[]> {
+    try {
+      const visits = await this.listHistoryVisits();
+      const matched = visits.filter((visit: HistoryVisit): boolean => {
+        const searchableText = [
+          visit.title,
+          visit.url,
+          visit.normalizedUrl ?? '',
+          visit.host ?? '',
+          visit.origin ?? ''
+        ].join(' ').trim().toLowerCase();
+        return searchableText.includes(normalizedQuery);
+      });
+      return matched.slice(offset, offset + limit);
+    } catch (fallbackError) {
+      hilog.error(DOMAIN, TAG, 'Failed to fall back to in-memory history search: %{public}s',
+        JSON.stringify(fallbackError));
+      return [];
+    }
+  }
+
+  private async searchHistorySitesFromLoadedData(
+    normalizedQuery: string,
+    offset: number,
+    limit: number
+  ): Promise<HistorySiteAggregate[]> {
+    try {
+      const visits = await this.listHistoryVisits();
+      const urlsByHost = new Map<string, Map<string, HistoryVisit>>();
+      visits.forEach((visit: HistoryVisit): void => {
+        const searchableText = [
+          visit.title,
+          visit.url,
+          visit.normalizedUrl ?? '',
+          visit.host ?? '',
+          visit.origin ?? ''
+        ].join(' ').trim().toLowerCase();
+        if (normalizedQuery.length > 0 && !searchableText.includes(normalizedQuery)) {
+          return;
+        }
+        const host = (visit.host ?? '').trim() || '未知站点';
+        const urlKey = (visit.urlId ?? '').trim() || visit.url.trim().toLowerCase();
+        let urls = urlsByHost.get(host);
+        if (urls === undefined) {
+          urls = new Map<string, HistoryVisit>();
+          urlsByHost.set(host, urls);
+        }
+        const existing = urls.get(urlKey);
+        if (existing === undefined || visit.visitedAt > existing.visitedAt) {
+          urls.set(urlKey, visit);
+        }
+      });
+
+      const sites: HistorySiteAggregate[] = [];
+      urlsByHost.forEach((urls: Map<string, HistoryVisit>, host: string): void => {
+        let latest: HistoryVisit | undefined;
+        let visitCount = 0;
+        urls.forEach((visit: HistoryVisit): void => {
+          visitCount += Math.max(1, visit.visitCount ?? 1);
+          if (latest === undefined || visit.visitedAt > latest.visitedAt) {
+            latest = visit;
+          }
+        });
+        if (latest === undefined) {
+          return;
+        }
+        sites.push({
+          key: `${host}:${visitCount}:${latest.visitedAt}`,
+          host: host,
+          origin: latest.origin ?? '',
+          title: host,
+          latestTitle: latest.title,
+          latestUrl: latest.url,
+          latestVisitedAt: latest.visitedAt,
+          visitCount: visitCount,
+          uniqueUrlCount: urls.size
+        });
+      });
+      return sites
+        .sort((left: HistorySiteAggregate, right: HistorySiteAggregate): number =>
+          right.latestVisitedAt - left.latestVisitedAt)
+        .slice(offset, offset + limit);
+    } catch (fallbackError) {
+      hilog.error(DOMAIN, TAG, 'Failed to fall back to in-memory history site search: %{public}s',
+        JSON.stringify(fallbackError));
       return [];
     }
   }
