@@ -23,6 +23,10 @@ const toolbarSheetContentStart = addressPanel.indexOf('private buildToolbarSyste
 const toolbarSheetContentEnd = addressPanel.indexOf('private buildAddressHeader()', toolbarSheetContentStart);
 const toolbarSheetContent = toolbarSheetContentStart >= 0 && toolbarSheetContentEnd > toolbarSheetContentStart ?
   addressPanel.slice(toolbarSheetContentStart, toolbarSheetContentEnd) : '';
+const toolbarSheetGridStart = addressPanel.indexOf('private buildToolbarSystemSheetActionGrid(');
+const toolbarSheetGridEnd = addressPanel.indexOf('\n  @Builder', toolbarSheetGridStart + 1);
+const toolbarSheetGrid = toolbarSheetGridStart >= 0 && toolbarSheetGridEnd > toolbarSheetGridStart ?
+  addressPanel.slice(toolbarSheetGridStart, toolbarSheetGridEnd) : '';
 
 function assertContract(condition, message) {
   if (!condition) {
@@ -46,10 +50,18 @@ assertContract(addressPanel.includes('dragBar: true') && addressPanel.includes('
 assertContract(!toolbarSheetBinding.includes('title:') && !toolbarSheetBinding.includes('detents:') &&
   !toolbarSheetBinding.includes('systemMaterial:') && !toolbarSheetBinding.includes('onWillDismiss:'),
   'Toolbar system Sheet must not add a title, custom material, or dismissal state machine.');
-assertContract(addressPanel.includes('onDetentsDidChange: (detentHeight: number): void =>') &&
-  addressPanel.includes('Math.abs(detentHeight - fullHeight) < Math.abs(detentHeight - previewHeight)') &&
-  !addressPanel.includes('detentIndex >= 1'),
-  'Toolbar system Sheet must interpret native detent callbacks as settled heights in px.');
+assertContract(!addressPanel.includes('onDetentsDidChange:') &&
+  !addressPanel.includes('toolbarSystemSheetExpanded') &&
+  toolbarSheetContent.includes('this.resolveToolbarRenderSnapshot().actions') &&
+  addressPanel.includes('scrollSizeMode: ScrollSizeMode.FOLLOW_DETENT'),
+  'Toolbar system Sheet must keep one stable full action list and let native detents control the visible window.');
+assertContract(toolbarSheetGrid.includes('Column({ space: layoutState.rowGap })') &&
+  toolbarSheetGrid.includes('this.resolveQuickActionRowsForActions(actions, layoutState.columnCount)') &&
+  !toolbarSheetGrid.includes('List(') &&
+  !toolbarSheetGrid.includes('Scroll(') &&
+  !toolbarSheetGrid.includes('.scrollable(') &&
+  !toolbarSheetGrid.includes('.layoutWeight(1)'),
+  'Toolbar system Sheet action grid must be fixed rows without an inner scroll container.');
 assertContract(/private shouldRenderLegacyFloatingActionSurface\(\): boolean\s*\{\s*return false;\s*\}/s.test(addressPanel),
   'Legacy floating toolbar presentation must stay disabled; native Sheet owns both stages.');
 assertContract(/private shouldMountFloatingActionSurface\(\): boolean\s*\{\s*return this\.shouldRenderLegacyFloatingActionSurface\(\) &&/s.test(addressPanel) &&

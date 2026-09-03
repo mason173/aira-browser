@@ -300,7 +300,6 @@ export struct BrowserBottomAddressPanel {
   @State private floatingActionSurfacePrepared: boolean = false;
   @State private toolbarSystemSheetVisible: boolean = false;
   @State private toolbarSystemSheetDetentSelection: Length = 0;
-  @State private toolbarSystemSheetExpanded: boolean = false;
   @State private floatingActionContentSettled: boolean = false;
   @State private floatingActionContentGestureRevealed: boolean = false;
   @State private floatingActionContentEntryActive: boolean = false;
@@ -497,7 +496,6 @@ export struct BrowserBottomAddressPanel {
     this.floatingActionSurfacePrepared = false;
     this.toolbarSystemSheetVisible = false;
     this.toolbarSystemSheetDetentSelection = 0;
-    this.toolbarSystemSheetExpanded = false;
     this.pendingToolbarSystemSheetAction = undefined;
     this.floatingActionContentSettled = false;
     this.floatingActionContentGestureRevealed = false;
@@ -698,11 +696,9 @@ export struct BrowserBottomAddressPanel {
       detents: [previewHeight, fullHeight],
       detentSelection: this.toolbarSystemSheetDetentSelection > 0 ?
         this.toolbarSystemSheetDetentSelection : previewHeight,
+      scrollSizeMode: ScrollSizeMode.FOLLOW_DETENT,
       dragBar: true,
       showClose: false,
-      onDetentsDidChange: (detentHeight: number): void => {
-        this.handleToolbarSystemSheetDetentChanged(detentHeight, previewHeight, fullHeight);
-      },
       onDisappear: (): void => {
         this.handleToolbarSystemSheetDisappear();
       }
@@ -725,7 +721,7 @@ export struct BrowserBottomAddressPanel {
               this.buildReadingContinuationRow()
             }
             this.buildToolbarSystemSheetActionGrid(
-              this.resolveToolbarSystemSheetActions(),
+              this.resolveToolbarRenderSnapshot().actions,
               layoutState
             )
           }
@@ -736,19 +732,8 @@ export struct BrowserBottomAddressPanel {
             bottom: layoutState.surfaceVerticalPadding
           })
         }, (_layoutState: BrowserBottomToolbarQuickActionLayoutState) =>
-          this.resolveToolbarSystemSheetRenderKey())
+          this.resolveToolbarRenderSnapshot().layoutRenderKey)
     }
-  }
-
-  private resolveToolbarSystemSheetActions(): BrowserBottomAddressPanelAction[] {
-    const snapshot = this.resolveToolbarRenderSnapshot();
-    if (this.toolbarSystemSheetExpanded) {
-      return snapshot.actions;
-    }
-    const previewActionLimit = this.toolbarExpansionViewModel.resolvePreviewActionLimit(
-      snapshot.layoutState.columnCount
-    );
-    return snapshot.actions.slice(0, previewActionLimit);
   }
 
   private resolveToolbarSystemSheetPreviewHeight(
@@ -774,57 +759,61 @@ export struct BrowserBottomAddressPanel {
     );
   }
 
-  private resolveToolbarSystemSheetRenderKey(): string {
-    return `${this.resolveToolbarRenderSnapshot().layoutRenderKey}:` +
-      `stage=${this.toolbarSystemSheetExpanded ? 'full' : 'preview'}`;
-  }
-
-  private handleToolbarSystemSheetDetentChanged(
-    detentHeight: number,
-    previewHeight: number,
-    fullHeight: number
-  ): void {
-    // HarmonyOS returns the settled bottom-sheet height in px, not a detent index.
-    const expanded = Math.abs(detentHeight - fullHeight) < Math.abs(detentHeight - previewHeight);
-    this.toolbarSystemSheetExpanded = expanded;
-    this.toolbarSystemSheetDetentSelection = expanded ? fullHeight : previewHeight;
-  }
-
   @Builder
   private buildToolbarSystemSheetActionGrid(
     actions: BrowserBottomAddressPanelAction[],
     layoutState: BrowserBottomToolbarQuickActionLayoutState
   ) {
-    List({ space: layoutState.rowGap }) {
-      ForEach(actions, (item: BrowserBottomAddressPanelAction) => {
-        ListItem() {
-          Row() {
-            this.buildQuickActionCard(
-              item,
-              layoutState.buttonSize,
-              layoutState.cardHeight,
-              false,
-              true
-            )
+    // Keep the Sheet content fixed. Native detents reveal the preview rows or
+    // the complete grid; the action surface itself must never become a scroll
+    // container.
+    Column({ space: layoutState.rowGap }) {
+      ForEach(
+        this.resolveQuickActionRowsForActions(actions, layoutState.columnCount),
+        (row: BrowserBottomAddressPanelActionGridRow) => {
+          Row({ space: layoutState.columnGap }) {
+            ForEach(row.actions, (item: BrowserBottomAddressPanelAction) => {
+              ForEach([this.buildActionRenderKey(item)], (_renderKey: string) => {
+                this.buildQuickActionCard(
+                  item,
+                  layoutState.buttonSize,
+                  layoutState.cardHeight,
+                  false,
+                  true
+                );
+              }, (renderKey: string) => renderKey)
+            }, (item: BrowserBottomAddressPanelAction) => item.id)
+
+            ForEach(this.resolvePrimaryActionPlaceholderIndexes(
+              row.actions.length,
+              layoutState.columnCount
+            ), (placeholderIndex: number) => {
+              Blank()
+                .width(this.resolveToolbarSystemSheetActionCellWidth(layoutState))
+            }, (placeholderIndex: number) => `${row.rowIndex}-${placeholderIndex}`)
           }
           .width('100%')
-          .height('100%')
-        }
-        .width('100%')
-        .height(layoutState.cardHeight)
-      }, (item: BrowserBottomAddressPanelAction) => item.id)
+          .height(layoutState.cardHeight)
+        }, (row: BrowserBottomAddressPanelActionGridRow) =>
+          `${row.rowIndex}-${row.actions.length}`)
     }
     .width('100%')
-    .layoutWeight(1)
-    .lanes(layoutState.columnCount, layoutState.columnGap)
-    .scrollBar(BarState.Off)
-    .edgeEffect(EdgeEffect.None)
     .padding({
       left: BROWSER_BOTTOM_QUICK_ACTION_GROUP_HORIZONTAL_PADDING,
       right: BROWSER_BOTTOM_QUICK_ACTION_GROUP_HORIZONTAL_PADDING,
       top: layoutState.groupVerticalPadding,
       bottom: layoutState.groupVerticalPadding
     })
+  }
+
+  private resolveToolbarSystemSheetActionCellWidth(
+    layoutState: BrowserBottomToolbarQuickActionLayoutState
+  ): number {
+    const columnCount = Math.max(1, Math.floor(layoutState.columnCount));
+    const availableWidth = this.resolveFloatingQuickActionLayoutWidth();
+    const horizontalPadding = BROWSER_BOTTOM_QUICK_ACTION_GROUP_HORIZONTAL_PADDING * 2;
+    const totalGapWidth = Math.max(0, columnCount - 1) * Math.max(0, layoutState.columnGap);
+    return Math.max(1, (availableWidth - horizontalPadding - totalGapWidth) / columnCount);
   }
 
   @Builder
@@ -2182,16 +2171,19 @@ export struct BrowserBottomAddressPanel {
   }
 
   private openToolbarSystemSheet(): void {
+    if (this.toolbarSystemSheetVisible) {
+      return;
+    }
     this.pendingToolbarSystemSheetAction = undefined;
-    this.toolbarSystemSheetDetentSelection = 0;
-    this.toolbarSystemSheetExpanded = false;
+    this.toolbarSystemSheetDetentSelection = this.resolveToolbarSystemSheetPreviewHeight(
+      this.resolveToolbarRenderSnapshot().layoutState
+    );
     this.toolbarSystemSheetVisible = true;
   }
 
   private handleToolbarSystemSheetDisappear(): void {
     this.toolbarSystemSheetVisible = false;
     this.toolbarSystemSheetDetentSelection = 0;
-    this.toolbarSystemSheetExpanded = false;
     const pendingAction = this.pendingToolbarSystemSheetAction;
     this.pendingToolbarSystemSheetAction = undefined;
     if (pendingAction !== undefined) {
@@ -3194,10 +3186,10 @@ export struct BrowserBottomAddressPanel {
     offsetY: number,
     source: BrowserBottomChromeGestureSource
   ): boolean {
+    void targetDetent;
     return source === 'center-capsule' &&
       this.isWebContentMode() &&
       !this.isAddressInputPresentationActive() &&
-      targetDetent === 'middle' &&
       Number.isFinite(offsetY) &&
       offsetY < 0;
   }
@@ -3382,7 +3374,20 @@ export struct BrowserBottomAddressPanel {
     if (!this.shouldRenderFloatingStackPanel()) {
       return 0;
     }
-    return this.resolveFloatingStackMiddlePanelHeight();
+    const currentMiddleHeight = this.resolveFloatingStackMiddlePanelHeight();
+    if (currentMiddleHeight > this.resolveLowPanelDragHeight()) {
+      return currentMiddleHeight;
+    }
+    // The action surface is owned by the native Sheet. The persistent bottom
+    // chrome still needs a real middle height so its gesture can track motion
+    // while the Sheet is opened from the center capsule.
+    if (this.isWebContentMode() && this.hasQuickActionSlotsAvailable()) {
+      return Math.max(
+        this.resolveLowPanelDragHeight() + 1,
+        this.resolveToolbarSystemSheetPreviewHeight(this.resolveToolbarRenderSnapshot().layoutState)
+      );
+    }
+    return currentMiddleHeight;
   }
 
   private resolveFloatingStackHeightWithoutSuggestion(): number {
