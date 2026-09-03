@@ -2,6 +2,7 @@ import {
   BrowserConfirmationRequest,
   BrowserConfirmationSink
 } from '../../../core/browser/BrowserConfirmationSink';
+import { configureCenteredAlertDialog } from '../common/CenteredDialogSurface';
 
 export interface BrowserNativeAlertInformationPresentation {
   title: string;
@@ -20,7 +21,7 @@ export class BrowserNativeAlertDialogPresenter implements BrowserConfirmationSin
     const cancel = (): void => {
       presentation.onCancel?.();
     };
-    AlertDialog.show({
+    AlertDialog.show(configureCenteredAlertDialog({
       title: presentation.title,
       message: presentation.message,
       autoCancel: true,
@@ -30,11 +31,11 @@ export class BrowserNativeAlertDialogPresenter implements BrowserConfirmationSin
         action: cancel
       },
       secondaryButton: this.buildConfirmButton(presentation)
-    });
+    }));
   }
 
   inform(presentation: BrowserNativeAlertInformationPresentation): void {
-    AlertDialog.show({
+    AlertDialog.show(configureCenteredAlertDialog({
       title: presentation.title,
       message: presentation.message,
       autoCancel: true,
@@ -43,7 +44,7 @@ export class BrowserNativeAlertDialogPresenter implements BrowserConfirmationSin
         action: () => {
         }
       }
-    });
+    }));
   }
 
   private buildConfirmButton(

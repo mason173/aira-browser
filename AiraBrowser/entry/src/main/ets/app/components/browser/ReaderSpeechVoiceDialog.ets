@@ -12,7 +12,7 @@ import {
   SettingsGroupDivider
 } from '../settings/SettingsLayout';
 import { BrowserSheetActionButton } from './BrowserModalBottomSheet';
-import { CENTERED_DIALOG_TALL_PADDED_SURFACE_MODIFIER } from '../common/CenteredDialogSurface';
+import { CENTERED_DIALOG_SYSTEM_TALL_PADDED_SURFACE_MODIFIER } from '../common/CenteredDialogSurface';
 
 const READER_SPEECH_VOICE_RADIO_GROUP: string = 'reader-speech-voice';
 const READER_SPEECH_VOICE_DIALOG_MAX_LIST_HEIGHT: number = 320;
@@ -55,7 +55,7 @@ export struct ReaderSpeechVoiceDialog {
         .width('100%')
         .height(44)
     }
-    .attributeModifier(CENTERED_DIALOG_TALL_PADDED_SURFACE_MODIFIER)
+    .attributeModifier(CENTERED_DIALOG_SYSTEM_TALL_PADDED_SURFACE_MODIFIER)
   }
 
   @Builder

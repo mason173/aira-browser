@@ -6,7 +6,7 @@ import {
 } from '../../../core/theme/BrowserThemeStorageKeys';
 import { SettingsTextField } from '../settings/SettingsRows';
 import { BrowserSheetActionButton } from '../browser/BrowserModalBottomSheet';
-import { CENTERED_DIALOG_SURFACE_MODIFIER } from '../common/CenteredDialogSurface';
+import { CENTERED_DIALOG_SYSTEM_SURFACE_MODIFIER } from '../common/CenteredDialogSurface';
 
 @CustomDialog
 export struct SiteControlsManualOriginDialog {
@@ -33,6 +33,7 @@ export struct SiteControlsManualOriginDialog {
         placeholder: 'http://192.168.1.10:8080',
         helperText: '输入域名、IP 或完整地址。非默认端口会作为独立站点。',
         errorText: this.errorText,
+        underlineStyle: true,
         inputType: InputType.URL,
         maxLength: 2048,
         controlBackgroundColor: this.storedControlBackgroundColor,
@@ -69,6 +70,6 @@ export struct SiteControlsManualOriginDialog {
       }
       .width('100%')
     }
-    .attributeModifier(CENTERED_DIALOG_SURFACE_MODIFIER)
+    .attributeModifier(CENTERED_DIALOG_SYSTEM_SURFACE_MODIFIER)
   }
 }

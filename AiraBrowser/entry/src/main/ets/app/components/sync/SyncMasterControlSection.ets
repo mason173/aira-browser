@@ -1,5 +1,8 @@
 import { SyncExperienceActionOutcome } from '../../../core/sync/SyncExperienceCoordinator';
-import { showCenteredAlertDialog } from '../common/CenteredDialogSurface';
+import {
+  createCenteredDialogMaterial,
+  showCenteredAlertDialog
+} from '../common/CenteredDialogSurface';
 import {
   createDefaultSyncExperienceViewState,
   SyncExperienceViewState
@@ -68,7 +71,8 @@ export struct SyncMasterControlSection {
     }),
     alignment: DialogAlignment.Center,
     autoCancel: false,
-    customStyle: true,
+    customStyle: false,
+    systemMaterial: createCenteredDialogMaterial(),
     onWillDismiss: (dismissDialogAction: DismissDialogAction) => {
       if (!this.progressInProgress) {
         dismissDialogAction.dismiss();

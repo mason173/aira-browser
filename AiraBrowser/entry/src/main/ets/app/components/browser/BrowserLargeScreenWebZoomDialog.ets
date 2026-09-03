@@ -8,7 +8,7 @@ import {
   BROWSER_THEME_STORAGE_DIVIDER_KEY,
   BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY
 } from '../../../core/theme/BrowserThemeStorageKeys';
-import { CENTERED_DIALOG_SURFACE_MODIFIER } from '../common/CenteredDialogSurface';
+import { CENTERED_DIALOG_SYSTEM_SURFACE_MODIFIER } from '../common/CenteredDialogSurface';
 import { BrowserSheetActionButton, BrowserSheetIconButton } from './BrowserModalBottomSheet';
 
 const LARGE_SCREEN_WEB_ZOOM_CONTROL_HEIGHT_VP: number = 40;
@@ -103,7 +103,7 @@ export struct BrowserLargeScreenWebZoomDialog {
         }
       })
     }
-    .attributeModifier(CENTERED_DIALOG_SURFACE_MODIFIER)
+    .attributeModifier(CENTERED_DIALOG_SYSTEM_SURFACE_MODIFIER)
   }
 
   @Builder

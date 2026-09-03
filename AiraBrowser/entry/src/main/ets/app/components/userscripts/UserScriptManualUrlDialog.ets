@@ -1,16 +1,16 @@
 import {
   BROWSER_THEME_STORAGE_ACCENT_KEY,
-  BROWSER_THEME_STORAGE_CONTROL_BACKGROUND_KEY,
+  BROWSER_THEME_STORAGE_DIVIDER_KEY,
   BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY,
   BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY
 } from '../../../core/theme/BrowserThemeStorageKeys';
 import { BrowserSheetActionButton } from '../browser/BrowserModalBottomSheet';
-import { CENTERED_DIALOG_SURFACE_MODIFIER } from '../common/CenteredDialogSurface';
+import { CENTERED_DIALOG_SYSTEM_SURFACE_MODIFIER } from '../common/CenteredDialogSurface';
 
 @CustomDialog
 export struct UserScriptManualUrlDialog {
   @StorageProp(BROWSER_THEME_STORAGE_ACCENT_KEY) private storedAccentColor: string = '#0A59F7';
-  @StorageProp(BROWSER_THEME_STORAGE_CONTROL_BACKGROUND_KEY) private storedControlBackgroundColor: string = '#EEF2F6';
+  @StorageProp(BROWSER_THEME_STORAGE_DIVIDER_KEY) private storedDividerColor: string = '#E3E8EF';
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY) private storedPrimaryTextColor: string = '#111318';
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY) private storedSecondaryTextColor: string = '#5F6875';
   controller?: CustomDialogController;
@@ -32,8 +32,10 @@ export struct UserScriptManualUrlDialog {
         .fontSize(15)
         .fontColor(this.storedPrimaryTextColor)
         .placeholderColor(this.storedSecondaryTextColor)
-        .backgroundColor(this.storedControlBackgroundColor)
-        .borderRadius(14)
+        .backgroundColor($r('sys.color.ohos_id_color_background_transparent'))
+        .border({ width: { bottom: 1 }, color: this.storedDividerColor })
+        .borderRadius(0)
+        .padding({ left: 0, right: 0 })
         .type(InputType.URL)
         .onChange((value: string) => {
           this.urlDraft = value;
@@ -63,6 +65,6 @@ export struct UserScriptManualUrlDialog {
       }
       .width('100%')
     }
-    .attributeModifier(CENTERED_DIALOG_SURFACE_MODIFIER)
+    .attributeModifier(CENTERED_DIALOG_SYSTEM_SURFACE_MODIFIER)
   }
 }

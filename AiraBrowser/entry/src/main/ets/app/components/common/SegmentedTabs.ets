@@ -68,6 +68,7 @@ export struct SegmentedTabs {
     })
     .width('100%')
     .height(this.barHeight)
+    .borderRadius(this.barHeight / 2)
     .clip(true)
   }
 

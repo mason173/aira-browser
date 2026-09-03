@@ -1,5 +1,8 @@
 import router from '@ohos.router';
-import { showCenteredAlertDialog } from '../components/common/CenteredDialogSurface';
+import {
+  createCenteredDialogMaterial,
+  showCenteredAlertDialog
+} from '../components/common/CenteredDialogSurface';
 import { pasteboard } from '@kit.BasicServicesKit';
 import {
   AiraBookmarkConflictResolution,
@@ -135,7 +138,8 @@ struct SyncAdvancedSettingsPage {
     }),
     alignment: DialogAlignment.Center,
     autoCancel: true,
-    customStyle: true
+    customStyle: false,
+    systemMaterial: createCenteredDialogMaterial()
   });
   private syncResultDialogController: CustomDialogController = new CustomDialogController({
     builder: SyncResultDialog({
@@ -144,7 +148,8 @@ struct SyncAdvancedSettingsPage {
     }),
     alignment: DialogAlignment.Center,
     autoCancel: true,
-    customStyle: true
+    customStyle: false,
+    systemMaterial: createCenteredDialogMaterial()
   });
   private syncProgressDialogOpen: boolean = false;
   private syncProgressTipTimer: number = -1;
@@ -167,7 +172,8 @@ struct SyncAdvancedSettingsPage {
     }),
     alignment: DialogAlignment.Center,
     autoCancel: false,
-    customStyle: true,
+    customStyle: false,
+    systemMaterial: createCenteredDialogMaterial(),
     onWillDismiss: (dismissDialogAction: DismissDialogAction) => {
       if (!this.syncFloatingInProgress) {
         dismissDialogAction.dismiss();
@@ -396,7 +402,7 @@ struct SyncAdvancedSettingsPage {
     if (!this.guardSyncBoundary('push_webdav') || !this.guardProviderSyncReady(remoteKind, title)) {
       return;
     }
-    AlertDialog.show({
+    showCenteredAlertDialog({
       title: `${title}？`,
       message: `会把当前本机完整书签快照写入${this.resolveProviderServiceName(remoteKind)}，远端现有内容可能被替换。`,
       autoCancel: true,
@@ -418,7 +424,7 @@ struct SyncAdvancedSettingsPage {
     if (!this.guardSyncBoundary('pull_webdav') || !this.guardProviderSyncReady(remoteKind, title)) {
       return;
     }
-    AlertDialog.show({
+    showCenteredAlertDialog({
       title: `${title}？`,
       message: `会用${this.resolveProviderServiceName(remoteKind)}的完整书签快照覆盖本机，云端删除记录也会在本机生效。`,
       autoCancel: true,

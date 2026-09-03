@@ -7,7 +7,10 @@ import {
   BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY
 } from '../../../core/theme/BrowserThemeStorageKeys';
 import { BrowserSheetActionButton } from '../browser/BrowserModalBottomSheet';
-import { CENTERED_DIALOG_SURFACE_MODIFIER } from '../common/CenteredDialogSurface';
+import {
+  CENTERED_DIALOG_SYSTEM_SURFACE_MODIFIER,
+  createCenteredDialogMaterial
+} from '../common/CenteredDialogSurface';
 
 export type ClientUpdateRequiredAction = 'open_update' | 'continue_local';
 
@@ -70,7 +73,7 @@ struct ClientUpdateRequiredDialog {
       }
       .width('100%')
     }
-    .attributeModifier(CENTERED_DIALOG_SURFACE_MODIFIER)
+    .attributeModifier(CENTERED_DIALOG_SYSTEM_SURFACE_MODIFIER)
   }
 
   private commit(action: ClientUpdateRequiredAction): void {
@@ -108,7 +111,8 @@ export struct ClientUpdateRequiredOverlay {
     }),
     alignment: DialogAlignment.Center,
     autoCancel: false,
-    customStyle: true
+    customStyle: false,
+    systemMaterial: createCenteredDialogMaterial()
   });
 
   aboutToAppear(): void {

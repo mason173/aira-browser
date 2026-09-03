@@ -51,7 +51,7 @@ export struct HomePageSettingsDialog {
   onClose: () => void = () => {};
 
   build() {
-    CenteredDialogSurface({ fillHeight: true }) {
+    CenteredDialogSurface({ fillHeight: true, materialEnabled: false }) {
       HomePageSettingsContent({
         privateModeVisible: this.privateModeVisible,
         layoutMode: 'large_screen',

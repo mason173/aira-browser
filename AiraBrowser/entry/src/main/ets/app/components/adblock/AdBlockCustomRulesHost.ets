@@ -1,5 +1,8 @@
 import { common } from '@kit.AbilityKit';
-import { showCenteredAlertDialog } from '../common/CenteredDialogSurface';
+import {
+  createCenteredDialogMaterial,
+  showCenteredAlertDialog
+} from '../common/CenteredDialogSurface';
 import {
   AdBlockCustomRulesScreen,
   AdBlockGithubRuleDialog
@@ -32,7 +35,7 @@ import {
   BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY,
   BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY
 } from '../../../core/theme/BrowserThemeStorageKeys';
-import { CENTERED_DIALOG_SURFACE_MODIFIER } from '../common/CenteredDialogSurface';
+import { CENTERED_DIALOG_SYSTEM_SURFACE_MODIFIER } from '../common/CenteredDialogSurface';
 
 @CustomDialog
 struct AdBlockRuleImportProgressDialog {
@@ -63,7 +66,7 @@ struct AdBlockRuleImportProgressDialog {
         .textAlign(TextAlign.Center)
         .fontColor(this.storedSecondaryTextColor)
     }
-    .attributeModifier(CENTERED_DIALOG_SURFACE_MODIFIER)
+    .attributeModifier(CENTERED_DIALOG_SYSTEM_SURFACE_MODIFIER)
   }
 }
 
@@ -96,7 +99,8 @@ export struct AdBlockCustomRulesHost {
     }),
     autoCancel: true,
     alignment: DialogAlignment.Center,
-    customStyle: true
+    customStyle: false,
+    systemMaterial: createCenteredDialogMaterial()
   });
   private ruleImportDialogOpen: boolean = false;
   private ruleImportDialogController: CustomDialogController = new CustomDialogController({
@@ -106,7 +110,8 @@ export struct AdBlockCustomRulesHost {
     }),
     autoCancel: false,
     alignment: DialogAlignment.Center,
-    customStyle: true,
+    customStyle: false,
+    systemMaterial: createCenteredDialogMaterial(),
     onWillDismiss: (dismissDialogAction: DismissDialogAction) => {
       if (!this.ruleImportInProgress) {
         dismissDialogAction.dismiss();

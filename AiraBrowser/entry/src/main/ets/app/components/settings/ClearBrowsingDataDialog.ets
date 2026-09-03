@@ -13,7 +13,7 @@ import {
   BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY
 } from '../../../core/theme/BrowserThemeStorageKeys';
 import { BrowserSheetActionButton } from '../browser/BrowserModalBottomSheet';
-import { CENTERED_DIALOG_TALL_PADDED_SURFACE_MODIFIER } from '../common/CenteredDialogSurface';
+import { CENTERED_DIALOG_SYSTEM_TALL_PADDED_SURFACE_MODIFIER } from '../common/CenteredDialogSurface';
 
 const CLEAR_BROWSING_DATA_RANGE_GROUP: string = 'clear-browsing-data-range';
 
@@ -82,7 +82,7 @@ export struct ClearBrowsingDataDialog {
       }
       .width('100%')
     }
-    .attributeModifier(CENTERED_DIALOG_TALL_PADDED_SURFACE_MODIFIER)
+    .attributeModifier(CENTERED_DIALOG_SYSTEM_TALL_PADDED_SURFACE_MODIFIER)
   }
 
   @Builder

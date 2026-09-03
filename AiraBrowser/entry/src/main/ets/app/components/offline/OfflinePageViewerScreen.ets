@@ -1,5 +1,8 @@
 import { common } from '@kit.AbilityKit';
-import { showCenteredAlertDialog } from '../common/CenteredDialogSurface';
+import {
+  createCenteredDialogMaterial,
+  showCenteredAlertDialog
+} from '../common/CenteredDialogSurface';
 import { webview } from '@kit.ArkWeb';
 import { window } from '@kit.ArkUI';
 import { hilog } from '@kit.PerformanceAnalysisKit';
@@ -139,7 +142,8 @@ export struct OfflinePageViewerScreen {
       }
     }),
     alignment: DialogAlignment.Center,
-    customStyle: true,
+    customStyle: false,
+    systemMaterial: createCenteredDialogMaterial(),
     autoCancel: true
   });
   private exportService: OfflinePageExportService = new OfflinePageExportService(sharedOfflinePageRepository);

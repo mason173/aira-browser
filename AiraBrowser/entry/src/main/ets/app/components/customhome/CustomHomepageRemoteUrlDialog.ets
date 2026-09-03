@@ -1,6 +1,6 @@
 import { SettingsTextField } from '../settings/SettingsRows';
 import { BrowserSheetActionButton } from '../browser/BrowserModalBottomSheet';
-import { CENTERED_DIALOG_SURFACE_MODIFIER } from '../common/CenteredDialogSurface';
+import { CENTERED_DIALOG_SYSTEM_SURFACE_MODIFIER } from '../common/CenteredDialogSurface';
 
 @CustomDialog
 export struct CustomHomepageRemoteUrlDialog {
@@ -27,6 +27,7 @@ export struct CustomHomepageRemoteUrlDialog {
         placeholder: 'https://example.com',
         helperText: '输入一个网页地址，它会作为主页候选项显示在列表里。',
         errorText: this.errorText,
+        underlineStyle: true,
         controlBackgroundColor: this.controlBackgroundColor,
         primaryTextColor: this.primaryTextColor,
         secondaryTextColor: this.secondaryTextColor,
@@ -61,6 +62,6 @@ export struct CustomHomepageRemoteUrlDialog {
       }
       .width('100%')
     }
-    .attributeModifier(CENTERED_DIALOG_SURFACE_MODIFIER)
+    .attributeModifier(CENTERED_DIALOG_SYSTEM_SURFACE_MODIFIER)
   }
 }

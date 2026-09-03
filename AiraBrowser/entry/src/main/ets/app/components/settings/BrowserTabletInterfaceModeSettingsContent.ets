@@ -15,6 +15,7 @@ import {
 } from './SettingsLayout';
 import { SettingsOptionRow, SettingsRowPosition } from './SettingsRows';
 import { DesktopInterfaceModeConfirmationDialog } from './DesktopInterfaceModeConfirmationDialog';
+import { createCenteredDialogMaterial } from '../common/CenteredDialogSurface';
 
 const TABLET_INTERFACE_MODE_RADIO_GROUP: string = 'tablet-interface-mode';
 
@@ -47,7 +48,8 @@ export struct BrowserTabletInterfaceModeSettingsContent {
     }),
     alignment: DialogAlignment.Center,
     autoCancel: false,
-    customStyle: true
+    customStyle: false,
+    systemMaterial: createCenteredDialogMaterial()
   });
 
   aboutToAppear(): void {

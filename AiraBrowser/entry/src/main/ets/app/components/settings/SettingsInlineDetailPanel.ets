@@ -1,5 +1,8 @@
 import { common } from '@kit.AbilityKit';
-import { showCenteredAlertDialog } from '../common/CenteredDialogSurface';
+import {
+  createCenteredDialogMaterial,
+  showCenteredAlertDialog
+} from '../common/CenteredDialogSurface';
 import { pasteboard } from '@kit.BasicServicesKit';
 import {
   BrowserAppServiceMode,
@@ -203,7 +206,8 @@ export struct SettingsInlineDetailPanel {
     }),
     alignment: DialogAlignment.Center,
     autoCancel: true,
-    customStyle: true
+    customStyle: false,
+    systemMaterial: createCenteredDialogMaterial()
   });
   private supportQqGroupDialogController: CustomDialogController = new CustomDialogController({
     builder: SupportQqGroupDialog({
@@ -214,7 +218,8 @@ export struct SettingsInlineDetailPanel {
     }),
     alignment: DialogAlignment.Center,
     autoCancel: true,
-    customStyle: true
+    customStyle: false,
+    systemMaterial: createCenteredDialogMaterial()
   });
   private alwaysPrivateConfirmationDialogController: CustomDialogController = new CustomDialogController({
     builder: AlwaysPrivateModeConfirmationDialog({
@@ -230,7 +235,8 @@ export struct SettingsInlineDetailPanel {
     }),
     alignment: DialogAlignment.Center,
     autoCancel: false,
-    customStyle: true
+    customStyle: false,
+    systemMaterial: createCenteredDialogMaterial()
   });
 
   aboutToAppear(): void {

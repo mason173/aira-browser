@@ -41,7 +41,7 @@ export struct SecureDnsProfileEditDialog {
   controller?: CustomDialogController;
 
   build() {
-    CenteredDialogSurface() {
+    CenteredDialogSurface({ materialEnabled: false }) {
       SecureDnsProfileEditHost({
         presentationMode: 'dialog',
         dataScope: this.dataScope,
@@ -213,6 +213,7 @@ export struct SecureDnsProfileEditHost {
       Column({ space: 16 }) {
         SettingsTextField({
           desktopPresentation: this.desktopPresentation,
+          underlineStyle: this.presentationMode === 'dialog',
           label: '名称',
           text: this.draft.name,
           placeholder: '例如：家庭 DNS / 公司 DNS',
@@ -229,6 +230,7 @@ export struct SecureDnsProfileEditHost {
 
         SettingsTextField({
           desktopPresentation: this.desktopPresentation,
+          underlineStyle: this.presentationMode === 'dialog',
           label: 'DoH 地址',
           text: this.draft.endpoint,
           placeholder: 'https://example.com/dns-query',

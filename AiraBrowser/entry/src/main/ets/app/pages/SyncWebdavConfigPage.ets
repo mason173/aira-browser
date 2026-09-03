@@ -2,7 +2,10 @@ import {
   AiraBookmarkConflictResolution,
   AiraSyncProviderKind
 } from '../../common/models/AiraSyncModels';
-import { showCenteredAlertDialog } from '../components/common/CenteredDialogSurface';
+import {
+  createCenteredDialogMaterial,
+  showCenteredAlertDialog
+} from '../components/common/CenteredDialogSurface';
 import router from '@ohos.router';
 import {
   WEB_DAV_PROVIDER_ENDPOINT_KEY,
@@ -149,7 +152,8 @@ struct SyncWebdavConfigPage {
     }),
     alignment: DialogAlignment.Center,
     autoCancel: true,
-    customStyle: true
+    customStyle: false,
+    systemMaterial: createCenteredDialogMaterial()
   });
   private syncResultDialogController: CustomDialogController = new CustomDialogController({
     builder: SyncResultDialog({
@@ -158,7 +162,8 @@ struct SyncWebdavConfigPage {
     }),
     alignment: DialogAlignment.Center,
     autoCancel: true,
-    customStyle: true
+    customStyle: false,
+    systemMaterial: createCenteredDialogMaterial()
   });
   private syncProgressDialogOpen: boolean = false;
   private syncProgressTipTimer: number = -1;
@@ -180,7 +185,8 @@ struct SyncWebdavConfigPage {
     }),
     alignment: DialogAlignment.Center,
     autoCancel: false,
-    customStyle: true,
+    customStyle: false,
+    systemMaterial: createCenteredDialogMaterial(),
     onWillDismiss: (dismissDialogAction: DismissDialogAction) => {
       if (!this.syncFloatingInProgress) {
         dismissDialogAction.dismiss();

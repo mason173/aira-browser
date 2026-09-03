@@ -1,6 +1,7 @@
 import {
   BROWSER_THEME_STORAGE_ACCENT_KEY,
   BROWSER_THEME_STORAGE_CONTROL_BACKGROUND_KEY,
+  BROWSER_THEME_STORAGE_DIVIDER_KEY,
   BROWSER_THEME_STORAGE_FLOATING_SURFACE_KEY,
   BROWSER_THEME_STORAGE_OUTLINE_KEY,
   BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY,
@@ -24,7 +25,7 @@ import {
 } from '../../../core/webapps/WebAppInstallCoordinator';
 import { HomeShortcutEditDraft } from '../../../features/newtab/HomeShortcutTypes';
 import { SiteIconView } from '../common/SiteIconView';
-import { CENTERED_DIALOG_SURFACE_MODIFIER } from '../common/CenteredDialogSurface';
+import { CENTERED_DIALOG_SYSTEM_SURFACE_MODIFIER } from '../common/CenteredDialogSurface';
 import { BrowserSheetActionButton } from './BrowserModalBottomSheet';
 
 @CustomDialog
@@ -64,7 +65,7 @@ export struct DocumentViewerFileInfoDialog {
         }
       })
     }
-    .attributeModifier(CENTERED_DIALOG_SURFACE_MODIFIER)
+    .attributeModifier(CENTERED_DIALOG_SYSTEM_SURFACE_MODIFIER)
   }
 
   @Builder
@@ -94,6 +95,7 @@ export struct DocumentViewerFileInfoDialog {
 @CustomDialog
 export struct HomeShortcutEditDialog {
   @StorageProp(BROWSER_THEME_STORAGE_CONTROL_BACKGROUND_KEY) private storedControlBackgroundColor: string = '#EEF2F6';
+  @StorageProp(BROWSER_THEME_STORAGE_DIVIDER_KEY) private storedDividerColor: string = '#E3E8EF';
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY) private storedPrimaryTextColor: string = '#111318';
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY) private storedSecondaryTextColor: string = '#5F6875';
   controller?: CustomDialogController;
@@ -117,8 +119,10 @@ export struct HomeShortcutEditDialog {
         .fontSize(15)
         .fontColor(this.storedPrimaryTextColor)
         .placeholderColor(this.storedSecondaryTextColor)
-        .backgroundColor(this.storedControlBackgroundColor)
-        .borderRadius(14)
+        .backgroundColor($r('sys.color.ohos_id_color_background_transparent'))
+        .border({ width: { bottom: 1 }, color: this.storedDividerColor })
+        .borderRadius(0)
+        .padding({ left: 0, right: 0 })
         .onChange((value: string) => {
           const nextDraft: HomeShortcutEditDraft = {
             shortcutId: this.draft.shortcutId,
@@ -135,8 +139,10 @@ export struct HomeShortcutEditDialog {
         .fontSize(15)
         .fontColor(this.storedPrimaryTextColor)
         .placeholderColor(this.storedSecondaryTextColor)
-        .backgroundColor(this.storedControlBackgroundColor)
-        .borderRadius(14)
+        .backgroundColor($r('sys.color.ohos_id_color_background_transparent'))
+        .border({ width: { bottom: 1 }, color: this.storedDividerColor })
+        .borderRadius(0)
+        .padding({ left: 0, right: 0 })
         .onChange((value: string) => {
           const nextDraft: HomeShortcutEditDraft = {
             shortcutId: this.draft.shortcutId,
@@ -170,7 +176,7 @@ export struct HomeShortcutEditDialog {
       }
       .width('100%')
     }
-    .attributeModifier(CENTERED_DIALOG_SURFACE_MODIFIER)
+    .attributeModifier(CENTERED_DIALOG_SYSTEM_SURFACE_MODIFIER)
   }
 
   @Builder
@@ -200,6 +206,7 @@ export struct HomeShortcutEditDialog {
 export struct SiteReportDialog {
   @StorageProp(BROWSER_THEME_STORAGE_ACCENT_KEY) private storedAccentColor: string = '#0A59F7';
   @StorageProp(BROWSER_THEME_STORAGE_CONTROL_BACKGROUND_KEY) private storedControlBackgroundColor: string = '#EEF2F6';
+  @StorageProp(BROWSER_THEME_STORAGE_DIVIDER_KEY) private storedDividerColor: string = '#E3E8EF';
   @StorageProp(BROWSER_THEME_STORAGE_FLOATING_SURFACE_KEY) private storedFloatingSurfaceColor: string = '#FFFFFF';
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY) private storedPrimaryTextColor: string = '#111318';
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY) private storedSecondaryTextColor: string = '#5F6875';
@@ -246,9 +253,10 @@ export struct SiteReportDialog {
         .fontSize(15)
         .fontColor(this.storedPrimaryTextColor)
         .placeholderColor(this.storedSecondaryTextColor)
-        .backgroundColor(this.storedFloatingSurfaceColor)
-        .borderRadius(16)
-        .padding({ left: 12, right: 12, top: 10, bottom: 10 })
+        .backgroundColor($r('sys.color.ohos_id_color_background_transparent'))
+        .border({ width: { bottom: 1 }, color: this.storedDividerColor })
+        .borderRadius(0)
+        .padding({ left: 0, right: 0, top: 10, bottom: 10 })
         .onChange((value: string) => {
           this.remark = value;
         })
@@ -276,7 +284,7 @@ export struct SiteReportDialog {
       }
       .width('100%')
     }
-    .attributeModifier(CENTERED_DIALOG_SURFACE_MODIFIER)
+    .attributeModifier(CENTERED_DIALOG_SYSTEM_SURFACE_MODIFIER)
   }
 
   @Builder
@@ -318,6 +326,7 @@ export struct SiteReportDialog {
 export struct DesktopShortcutNameDialog {
   @StorageProp(BROWSER_THEME_STORAGE_ACCENT_KEY) private storedAccentColor: string = '#0A59F7';
   @StorageProp(BROWSER_THEME_STORAGE_CONTROL_BACKGROUND_KEY) private storedControlBackgroundColor: string = '#EEF2F6';
+  @StorageProp(BROWSER_THEME_STORAGE_DIVIDER_KEY) private storedDividerColor: string = '#E3E8EF';
   @StorageProp(BROWSER_THEME_STORAGE_FLOATING_SURFACE_KEY) private storedFloatingSurfaceColor: string = '#FFFFFF';
   @StorageProp(BROWSER_THEME_STORAGE_OUTLINE_KEY) private storedOutlineColor: string = '#D5DBE4';
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY) private storedPrimaryTextColor: string = '#111318';
@@ -407,8 +416,10 @@ export struct DesktopShortcutNameDialog {
         .fontSize(15)
         .fontColor(this.storedPrimaryTextColor)
         .placeholderColor(this.storedSecondaryTextColor)
-        .backgroundColor(this.storedControlBackgroundColor)
-        .borderRadius(14)
+        .backgroundColor($r('sys.color.ohos_id_color_background_transparent'))
+        .border({ width: { bottom: 1 }, color: this.storedDividerColor })
+        .borderRadius(0)
+        .padding({ left: 0, right: 0 })
         .onChange((value: string) => {
           this.onAction({ type: 'update_title', title: value });
         })
@@ -447,13 +458,14 @@ export struct DesktopShortcutNameDialog {
       }
       .width('100%')
     }
-    .attributeModifier(CENTERED_DIALOG_SURFACE_MODIFIER)
+    .attributeModifier(CENTERED_DIALOG_SYSTEM_SURFACE_MODIFIER)
   }
 }
 
 @CustomDialog
 export struct BrowserShellWebPromptDialog {
   @StorageProp(BROWSER_THEME_STORAGE_CONTROL_BACKGROUND_KEY) private storedControlBackgroundColor: string = '#EEF2F6';
+  @StorageProp(BROWSER_THEME_STORAGE_DIVIDER_KEY) private storedDividerColor: string = '#E3E8EF';
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY) private storedPrimaryTextColor: string = '#111318';
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY) private storedSecondaryTextColor: string = '#5F6875';
   controller?: CustomDialogController;
@@ -485,8 +497,10 @@ export struct BrowserShellWebPromptDialog {
         .fontSize(15)
         .fontColor(this.storedPrimaryTextColor)
         .placeholderColor(this.storedSecondaryTextColor)
-        .backgroundColor(this.storedControlBackgroundColor)
-        .borderRadius(14)
+        .backgroundColor($r('sys.color.ohos_id_color_background_transparent'))
+        .border({ width: { bottom: 1 }, color: this.storedDividerColor })
+        .borderRadius(0)
+        .padding({ left: 0, right: 0 })
         .onChange((value: string) => {
           this.presentation = {
             title: this.presentation.title,
@@ -520,13 +534,14 @@ export struct BrowserShellWebPromptDialog {
       }
       .width('100%')
     }
-    .attributeModifier(CENTERED_DIALOG_SURFACE_MODIFIER)
+    .attributeModifier(CENTERED_DIALOG_SYSTEM_SURFACE_MODIFIER)
   }
 }
 
 @CustomDialog
 export struct BrowserShellHttpAuthDialog {
   @StorageProp(BROWSER_THEME_STORAGE_CONTROL_BACKGROUND_KEY) private storedControlBackgroundColor: string = '#EEF2F6';
+  @StorageProp(BROWSER_THEME_STORAGE_DIVIDER_KEY) private storedDividerColor: string = '#E3E8EF';
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY) private storedPrimaryTextColor: string = '#111318';
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY) private storedSecondaryTextColor: string = '#5F6875';
   controller?: CustomDialogController;
@@ -558,8 +573,10 @@ export struct BrowserShellHttpAuthDialog {
         .fontSize(15)
         .fontColor(this.storedPrimaryTextColor)
         .placeholderColor(this.storedSecondaryTextColor)
-        .backgroundColor(this.storedControlBackgroundColor)
-        .borderRadius(14)
+        .backgroundColor($r('sys.color.ohos_id_color_background_transparent'))
+        .border({ width: { bottom: 1 }, color: this.storedDividerColor })
+        .borderRadius(0)
+        .padding({ left: 0, right: 0 })
         .enabled(!this.presentation.usernameLocked)
         .onChange((value: string) => {
           this.presentation = {
@@ -577,8 +594,10 @@ export struct BrowserShellHttpAuthDialog {
         .fontSize(15)
         .fontColor(this.storedPrimaryTextColor)
         .placeholderColor(this.storedSecondaryTextColor)
-        .backgroundColor(this.storedControlBackgroundColor)
-        .borderRadius(14)
+        .backgroundColor($r('sys.color.ohos_id_color_background_transparent'))
+        .border({ width: { bottom: 1 }, color: this.storedDividerColor })
+        .borderRadius(0)
+        .padding({ left: 0, right: 0 })
         .type(InputType.Password)
         .onChange((value: string) => {
           this.presentation = {
@@ -614,6 +633,6 @@ export struct BrowserShellHttpAuthDialog {
       }
       .width('100%')
     }
-    .attributeModifier(CENTERED_DIALOG_SURFACE_MODIFIER)
+    .attributeModifier(CENTERED_DIALOG_SYSTEM_SURFACE_MODIFIER)
   }
 }

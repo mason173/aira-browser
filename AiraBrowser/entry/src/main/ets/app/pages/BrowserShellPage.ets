@@ -947,6 +947,7 @@ import {
 import { ReadingWindowBrightnessService } from '../../services/reading/ReadingWindowBrightnessService';
 import { ReaderSpeechPlayerOverlay } from '../components/browser/ReaderSpeechPlayerScreen';
 import { ReaderSpeechVoiceDialog } from '../components/browser/ReaderSpeechVoiceDialog';
+import { createCenteredDialogMaterial } from '../components/common/CenteredDialogSurface';
 import {
   WebpageTranslationTargetLanguageOverlay
 } from '../components/translation/WebpageTranslationTargetLanguageSheet';
@@ -5055,7 +5056,8 @@ struct BrowserShellPage {
       }
     }),
     alignment: DialogAlignment.Center,
-    customStyle: true,
+    customStyle: false,
+    systemMaterial: createCenteredDialogMaterial(),
     autoCancel: true
   });
   private largeScreenWebZoomDialogController: CustomDialogController = new CustomDialogController({
@@ -5073,7 +5075,8 @@ struct BrowserShellPage {
       }
     }),
     alignment: DialogAlignment.Center,
-    customStyle: true,
+    customStyle: false,
+    systemMaterial: createCenteredDialogMaterial(),
     autoCancel: true,
     onWillDismiss: (dismissDialogAction: DismissDialogAction) => {
       this.browserLargeScreenShellIntentApplication.handleWebZoomDialogDismissed();
@@ -5096,7 +5099,8 @@ struct BrowserShellPage {
       }
     }),
     alignment: DialogAlignment.Center,
-    customStyle: true,
+    customStyle: false,
+    systemMaterial: createCenteredDialogMaterial(),
     autoCancel: false
   });
   private editHomeShortcutDialogController: CustomDialogController = new CustomDialogController({
@@ -5109,7 +5113,8 @@ struct BrowserShellPage {
         });
       }
     }),
-    customStyle: true,
+    customStyle: false,
+    systemMaterial: createCenteredDialogMaterial(),
     autoCancel: true
   });
   private desktopShortcutNameDialogController: CustomDialogController = new CustomDialogController({
@@ -5119,7 +5124,8 @@ struct BrowserShellPage {
         this.webAppInstallCoordinator.handleDialogAction(action);
       }
     }),
-    customStyle: true,
+    customStyle: false,
+    systemMaterial: createCenteredDialogMaterial(),
     autoCancel: true,
     onWillDismiss: (dismissDialogAction: DismissDialogAction) => {
       void this.webAppInstallCoordinator.handleDialogDismissed();
@@ -5136,7 +5142,8 @@ struct BrowserShellPage {
         this.browserWebCapabilityPromptApplicationCoordinator.cancelJavaScriptPrompt();
       }
     }),
-    customStyle: true,
+    customStyle: false,
+    systemMaterial: createCenteredDialogMaterial(),
     autoCancel: false
   });
   private httpAuthDialogController: CustomDialogController = new CustomDialogController({
@@ -5149,7 +5156,8 @@ struct BrowserShellPage {
         this.browserWebCapabilityPromptApplicationCoordinator.cancelHttpAuth();
       }
     }),
-    customStyle: true,
+    customStyle: false,
+    systemMaterial: createCenteredDialogMaterial(),
     autoCancel: false
   });
   private siteReportDialogController: CustomDialogController = new CustomDialogController({
@@ -5161,7 +5169,8 @@ struct BrowserShellPage {
         this.confirmSiteReport();
       }
     }),
-    customStyle: true,
+    customStyle: false,
+    systemMaterial: createCenteredDialogMaterial(),
     autoCancel: true
   });
   private documentViewerFileInfoDialogController: CustomDialogController = new CustomDialogController({
@@ -5169,7 +5178,8 @@ struct BrowserShellPage {
       fileInfo: $documentViewerFileInfoDialogInfo
     }),
     alignment: DialogAlignment.Center,
-    customStyle: true,
+    customStyle: false,
+    systemMaterial: createCenteredDialogMaterial(),
     autoCancel: true
   });
   private readerSpeechVoiceDialogController: CustomDialogController = new CustomDialogController({
@@ -5180,7 +5190,8 @@ struct BrowserShellPage {
       }
     }),
     alignment: DialogAlignment.Center,
-    customStyle: true,
+    customStyle: false,
+    systemMaterial: createCenteredDialogMaterial(),
     autoCancel: true
   });
   @State addressInput: string = '';

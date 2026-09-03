@@ -1,5 +1,8 @@
 import { DEFAULT_THEME_PALETTE } from '../../features/theme/palettes/DefaultThemePalette';
-import { showCenteredAlertDialog } from '../components/common/CenteredDialogSurface';
+import {
+  createCenteredDialogMaterial,
+  showCenteredAlertDialog
+} from '../components/common/CenteredDialogSurface';
 import { common } from '@kit.AbilityKit';
 import { fileIo, picker } from '@kit.CoreFileKit';
 import router from '@ohos.router';
@@ -213,7 +216,8 @@ struct BookmarkManagerPage {
         this.confirmCreateFolder(title);
       }
     }),
-    customStyle: true,
+    customStyle: false,
+    systemMaterial: createCenteredDialogMaterial(),
     autoCancel: true
   });
   private editNodeDialogController: CustomDialogController = new CustomDialogController({
@@ -226,7 +230,8 @@ struct BookmarkManagerPage {
         this.confirmEditNode();
       }
     }),
-    customStyle: true,
+    customStyle: false,
+    systemMaterial: createCenteredDialogMaterial(),
     autoCancel: true
   });
   private bookmarkTransferProgressDialogOpen: boolean = false;
@@ -241,7 +246,8 @@ struct BookmarkManagerPage {
     }),
     alignment: DialogAlignment.Center,
     autoCancel: false,
-    customStyle: true,
+    customStyle: false,
+    systemMaterial: createCenteredDialogMaterial(),
     onWillDismiss: (dismissDialogAction: DismissDialogAction) => {
       if (!this.bookmarkTransferInProgress) {
         dismissDialogAction.dismiss();
@@ -258,7 +264,8 @@ struct BookmarkManagerPage {
     }),
     alignment: DialogAlignment.Center,
     autoCancel: true,
-    customStyle: true
+    customStyle: false,
+    systemMaterial: createCenteredDialogMaterial()
   });
   private bookmarkTransferProgressController: SyncOperationProgressController = new SyncOperationProgressController(
     (state: SyncOperationProgressUiState): void => {

@@ -35,6 +35,7 @@ import {
   SiteIconListTarget
 } from '../../../core/siteicons/SiteIconListPresenter';
 import { SiteControlsManualOriginDialog } from './SiteControlsManualOriginDialog';
+import { createCenteredDialogMaterial } from '../common/CenteredDialogSurface';
 
 const SITE_CONTROLS_CAPABILITY_LIST_CACHE_COUNT: number = 8;
 const SITE_CONTROLS_CAPABILITY_SITE_ROW_CARD_RADIUS: number = 22;
@@ -96,7 +97,8 @@ export struct SiteControlsCapabilityScreen {
       errorText: $manualOriginError,
       confirm: (): boolean => this.confirmManualOrigin()
     }),
-    customStyle: true,
+    customStyle: false,
+    systemMaterial: createCenteredDialogMaterial(),
     autoCancel: true
   });
 

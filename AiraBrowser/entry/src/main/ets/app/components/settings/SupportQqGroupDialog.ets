@@ -5,7 +5,7 @@ import {
   BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY
 } from '../../../core/theme/BrowserThemeStorageKeys';
 import { BrowserSheetActionButton } from '../browser/BrowserModalBottomSheet';
-import { CENTERED_DIALOG_SURFACE_MODIFIER } from '../common/CenteredDialogSurface';
+import { CENTERED_DIALOG_SYSTEM_SURFACE_MODIFIER } from '../common/CenteredDialogSurface';
 
 const SUPPORT_QQ_GROUP_QR_CONTAINER_SIZE: number = 236;
 const SUPPORT_QQ_GROUP_QR_CONTAINER_LIGHT: string = '#FFFFFF';
@@ -80,7 +80,7 @@ export struct SupportQqGroupDialog {
         }
       })
     }
-    .attributeModifier(CENTERED_DIALOG_SURFACE_MODIFIER)
+    .attributeModifier(CENTERED_DIALOG_SYSTEM_SURFACE_MODIFIER)
   }
 
   private resolveQrContainerColor(): ResourceColor {

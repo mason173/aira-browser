@@ -3,7 +3,6 @@ import {
   BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY,
   BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY
 } from '../../../core/theme/BrowserThemeStorageKeys';
-import { CENTERED_DIALOG_SURFACE_MODIFIER } from '../common/CenteredDialogSurface';
 
 @CustomDialog
 export struct SyncOperationProgressDialog {
@@ -51,7 +50,15 @@ export struct SyncOperationProgressDialog {
         .opacity(this.detailOpacity)
         .animation({ duration: 240, curve: Curve.EaseInOut })
     }
-    .attributeModifier(CENTERED_DIALOG_SURFACE_MODIFIER)
+    // Let CustomDialogController's default style own the dialog surface. The
+    // progress content must remain usable when API 26 immersive material is unavailable.
+    .width('100%')
+    .padding({
+      left: 20,
+      right: 20,
+      top: 22,
+      bottom: 18
+    })
   }
 
   private resolveProgress(): number {

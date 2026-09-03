@@ -2,6 +2,7 @@ import { image } from '@kit.ImageKit';
 import {
   BROWSER_APPEARANCE_STORAGE_SITE_ICON_CORNER_RATIO_KEY,
   BROWSER_THEME_STORAGE_CONTROL_BACKGROUND_KEY,
+  BROWSER_THEME_STORAGE_DIVIDER_KEY,
   BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY,
   BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY
 } from '../../../core/theme/BrowserThemeStorageKeys';
@@ -14,14 +15,14 @@ import {
 } from '../../../core/siteicons/SiteIconListPresenter';
 import { BookmarkFolderIcon } from './BookmarkFolderIcon';
 import { SiteIconView } from '../common/SiteIconView';
-import { CENTERED_DIALOG_SURFACE_MODIFIER } from '../common/CenteredDialogSurface';
+import { CENTERED_DIALOG_SYSTEM_SURFACE_MODIFIER } from '../common/CenteredDialogSurface';
 import { BrowserSheetActionButton } from '../browser/BrowserModalBottomSheet';
 
 const BOOKMARK_EDIT_ICON_TARGET_ID: string = 'bookmark-edit-node-dialog';
 
 @CustomDialog
 export struct BookmarkManagerCreateFolderDialog {
-  @StorageProp(BROWSER_THEME_STORAGE_CONTROL_BACKGROUND_KEY) private storedControlBackgroundColor: string = '#EEF2F6';
+  @StorageProp(BROWSER_THEME_STORAGE_DIVIDER_KEY) private storedDividerColor: string = '#E3E8EF';
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY) private storedPrimaryTextColor: string = '#111318';
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY) private storedSecondaryTextColor: string = '#5F6875';
   controller?: CustomDialogController;
@@ -43,8 +44,10 @@ export struct BookmarkManagerCreateFolderDialog {
         .fontSize(15)
         .fontColor(this.storedPrimaryTextColor)
         .placeholderColor(this.storedSecondaryTextColor)
-        .backgroundColor(this.storedControlBackgroundColor)
-        .borderRadius(14)
+        .backgroundColor($r('sys.color.ohos_id_color_background_transparent'))
+        .border({ width: { bottom: 1 }, color: this.storedDividerColor })
+        .borderRadius(0)
+        .padding({ left: 0, right: 0 })
         .onChange((value: string) => {
           this.folderTitle = value;
         })
@@ -72,7 +75,7 @@ export struct BookmarkManagerCreateFolderDialog {
       }
       .width('100%')
     }
-    .attributeModifier(CENTERED_DIALOG_SURFACE_MODIFIER)
+    .attributeModifier(CENTERED_DIALOG_SYSTEM_SURFACE_MODIFIER)
   }
 }
 
@@ -80,6 +83,7 @@ export struct BookmarkManagerCreateFolderDialog {
 export struct BookmarkManagerEditNodeDialog {
   @StorageProp(BROWSER_APPEARANCE_STORAGE_SITE_ICON_CORNER_RATIO_KEY) private storedSiteIconCornerRadiusRatio: number = 0.3;
   @StorageProp(BROWSER_THEME_STORAGE_CONTROL_BACKGROUND_KEY) private storedControlBackgroundColor: string = '#EEF2F6';
+  @StorageProp(BROWSER_THEME_STORAGE_DIVIDER_KEY) private storedDividerColor: string = '#E3E8EF';
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY) private storedPrimaryTextColor: string = '#111318';
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY) private storedSecondaryTextColor: string = '#5F6875';
   controller?: CustomDialogController;
@@ -123,8 +127,10 @@ export struct BookmarkManagerEditNodeDialog {
         .fontSize(15)
         .fontColor(this.storedPrimaryTextColor)
         .placeholderColor(this.storedSecondaryTextColor)
-        .backgroundColor(this.storedControlBackgroundColor)
-        .borderRadius(14)
+        .backgroundColor($r('sys.color.ohos_id_color_background_transparent'))
+        .border({ width: { bottom: 1 }, color: this.storedDividerColor })
+        .borderRadius(0)
+        .padding({ left: 0, right: 0 })
         .onChange((value: string) => {
           this.nodeTitle = value;
         })
@@ -136,8 +142,10 @@ export struct BookmarkManagerEditNodeDialog {
           .fontSize(15)
           .fontColor(this.storedPrimaryTextColor)
           .placeholderColor(this.storedSecondaryTextColor)
-          .backgroundColor(this.storedControlBackgroundColor)
-          .borderRadius(14)
+          .backgroundColor($r('sys.color.ohos_id_color_background_transparent'))
+          .border({ width: { bottom: 1 }, color: this.storedDividerColor })
+          .borderRadius(0)
+          .padding({ left: 0, right: 0 })
           .onChange((value: string) => {
             this.nodeUrl = value;
           })
@@ -166,7 +174,7 @@ export struct BookmarkManagerEditNodeDialog {
       }
       .width('100%')
     }
-    .attributeModifier(CENTERED_DIALOG_SURFACE_MODIFIER)
+    .attributeModifier(CENTERED_DIALOG_SYSTEM_SURFACE_MODIFIER)
   }
 
   @Builder

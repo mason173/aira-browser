@@ -7,7 +7,7 @@ import {
   BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY
 } from '../../../core/theme/BrowserThemeStorageKeys';
 import { BrowserSheetActionButton, BrowserSheetIconButton } from './BrowserModalBottomSheet';
-import { CENTERED_DIALOG_SURFACE_MODIFIER } from '../common/CenteredDialogSurface';
+import { CENTERED_DIALOG_SYSTEM_SURFACE_MODIFIER } from '../common/CenteredDialogSurface';
 
 const WEB_TEXT_ZOOM_CONTROL_HEIGHT: number = 40;
 const WEB_TEXT_ZOOM_CONTROL_RADIUS: number = 15;
@@ -90,7 +90,7 @@ export struct BrowserWebTextZoomSheet {
       }
       .width('100%')
     }
-    .attributeModifier(CENTERED_DIALOG_SURFACE_MODIFIER)
+    .attributeModifier(CENTERED_DIALOG_SYSTEM_SURFACE_MODIFIER)
   }
 
   @Builder

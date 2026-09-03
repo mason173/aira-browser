@@ -32,6 +32,7 @@ import {
   SyncExperienceSelectionDialog,
   SyncExperienceSelectionKind
 } from './SyncExperienceSelectionDialog';
+import { createCenteredDialogMaterial } from '../common/CenteredDialogSurface';
 import { SyncContentSwitchCard } from './SyncContentSwitchCard';
 import {
   BrowserSettingsIconBackgroundTokenSet,
@@ -157,7 +158,8 @@ export struct SyncExperienceScreen {
     }),
     alignment: DialogAlignment.Center,
     autoCancel: false,
-    customStyle: true
+    customStyle: false,
+    systemMaterial: createCenteredDialogMaterial()
   });
 
   aboutToAppear(): void {

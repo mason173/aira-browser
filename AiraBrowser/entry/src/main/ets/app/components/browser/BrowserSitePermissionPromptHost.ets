@@ -7,7 +7,10 @@ import {
   BrowserSitePermissionPromptAction
 } from '../../../core/browser/BrowserWebCapabilityPromptApplicationCoordinator';
 import { BrowserSheetActionButton } from './BrowserModalBottomSheet';
-import { CENTERED_DIALOG_COMPACT_SURFACE_MODIFIER } from '../common/CenteredDialogSurface';
+import {
+  CENTERED_DIALOG_SYSTEM_COMPACT_SURFACE_MODIFIER,
+  createCenteredDialogMaterial
+} from '../common/CenteredDialogSurface';
 
 @CustomDialog
 struct BrowserSitePermissionPromptDialog {
@@ -41,7 +44,7 @@ struct BrowserSitePermissionPromptDialog {
       }
       .width('100%')
     }
-    .attributeModifier(CENTERED_DIALOG_COMPACT_SURFACE_MODIFIER)
+    .attributeModifier(CENTERED_DIALOG_SYSTEM_COMPACT_SURFACE_MODIFIER)
   }
 
   @Builder
@@ -73,7 +76,8 @@ export struct BrowserSitePermissionPromptHost {
       presentation: $presentation,
       onAction: (action: BrowserSitePermissionPromptAction): void => this.handleAction(action)
     }),
-    customStyle: true,
+    customStyle: false,
+    systemMaterial: createCenteredDialogMaterial(),
     autoCancel: true,
     onWillDismiss: (dismissDialogAction: DismissDialogAction): void => {
       if (this.decisionCommitted) {

@@ -1,5 +1,8 @@
 import router from '@ohos.router';
-import { showCenteredAlertDialog } from '../common/CenteredDialogSurface';
+import {
+  createCenteredDialogMaterial,
+  showCenteredAlertDialog
+} from '../common/CenteredDialogSurface';
 import {
   AiraBookmarkConflictResolution,
   AiraSyncProviderKind
@@ -88,7 +91,8 @@ export struct SyncExperienceHost {
     }),
     alignment: DialogAlignment.Center,
     autoCancel: false,
-    customStyle: true,
+    customStyle: false,
+    systemMaterial: createCenteredDialogMaterial(),
     onWillDismiss: (dismissDialogAction: DismissDialogAction) => {
       if (!this.syncProgressInProgress) {
         dismissDialogAction.dismiss();

@@ -14,6 +14,17 @@ ADDRESS_PANEL_FILE="${COMPONENT_DIR}/browser/BrowserBottomAddressPanel.ets"
 SETTINGS_HDS_FILE="${COMPONENT_DIR}/settings/SettingsHdsScaffold.ets"
 MANAGEMENT_HDS_FILE="${COMPONENT_DIR}/common/ManagementHdsScaffold.ets"
 SEGMENTED_TABS_FILE="${COMPONENT_DIR}/common/SegmentedTabs.ets"
+CENTERED_DIALOG_FILE="${COMPONENT_DIR}/common/CenteredDialogSurface.ets"
+SYNC_PROGRESS_DIALOG_FILE="${COMPONENT_DIR}/sync/SyncOperationProgressDialog.ets"
+SYNC_PROGRESS_HOST_FILES=(
+  "${COMPONENT_DIR}/customhome/CustomHomepageSettingsScreen.ets"
+  "${COMPONENT_DIR}/sync/SyncAdditionalBackupHost.ets"
+  "${COMPONENT_DIR}/sync/SyncExperienceHost.ets"
+  "${COMPONENT_DIR}/sync/SyncMasterControlSection.ets"
+  "${REPO_ROOT}/AiraBrowser/entry/src/main/ets/app/pages/BookmarkManagerPage.ets"
+  "${REPO_ROOT}/AiraBrowser/entry/src/main/ets/app/pages/SyncAdvancedSettingsPage.ets"
+  "${REPO_ROOT}/AiraBrowser/entry/src/main/ets/app/pages/SyncWebdavConfigPage.ets"
+)
 
 fail() {
   printf 'Immersive light-sense contract violation: %s\n' "$1" >&2
@@ -29,7 +40,8 @@ require_text() {
 
 for file in "$TOKEN_FILE" "$SURFACE_FILE" "$BROWSER_SURFACE_FILE" "$BOTTOM_SURFACE_FILE" \
   "$TABS_OVERLAY_FILE" "$VIDEO_OVERLAY_FILE" "$ADDRESS_PANEL_FILE" "$SETTINGS_HDS_FILE" \
-  "$MANAGEMENT_HDS_FILE" "$SEGMENTED_TABS_FILE"; do
+  "$MANAGEMENT_HDS_FILE" "$SEGMENTED_TABS_FILE" "$CENTERED_DIALOG_FILE" \
+  "$SYNC_PROGRESS_DIALOG_FILE"; do
   [ -f "$file" ] || fail "required source file is missing: ${file}"
 done
 
@@ -92,6 +104,19 @@ require_text "$MANAGEMENT_HDS_FILE" 'materialLevel: hdsMaterial.MaterialLevel.AD
   'Management HDS title bar must use ADAPTIVE material level.'
 require_text "$MANAGEMENT_HDS_FILE" 'materialEnabled: true' \
   'Management HDS title actions must explicitly opt into the API-gated material.'
+require_text "$CENTERED_DIALOG_FILE" 'const material = createCenteredDialogMaterial();' \
+  'custom dialog surfaces must resolve the API-gated material through the shared helper.'
+require_text "$CENTERED_DIALOG_FILE" 'instance.systemMaterial(material)' \
+  'custom dialog surfaces must apply systemMaterial after the shared layout attributes.'
+if rg -q 'CenteredDialogSurface|systemMaterial\(|ImmersiveMaterial' "$SYNC_PROGRESS_DIALOG_FILE"; then
+  fail 'sync progress must use the CustomDialog system default surface instead of API 26 immersive material.'
+fi
+for file in "${SYNC_PROGRESS_HOST_FILES[@]}"; do
+  require_text "$file" 'customStyle: false' \
+    "sync progress host must use the system CustomDialog style: ${file#"$REPO_ROOT"/}"
+  require_text "$file" 'systemMaterial: createCenteredDialogMaterial()' \
+    "sync progress host must pass material through CustomDialogController: ${file#"$REPO_ROOT"/}"
+done
 require_text "$SEGMENTED_TABS_FILE" 'HdsTabs' \
   'shared segmented tabs must use the HDS Tabs component.'
 require_text "$SEGMENTED_TABS_FILE" 'HdsTabsController' \

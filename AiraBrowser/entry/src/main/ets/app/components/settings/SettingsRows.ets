@@ -1,6 +1,7 @@
 import {
   BROWSER_THEME_STORAGE_ACCENT_KEY,
   BROWSER_THEME_STORAGE_CONTROL_BACKGROUND_KEY,
+  BROWSER_THEME_STORAGE_DIVIDER_KEY,
   BROWSER_THEME_STORAGE_OUTLINE_KEY,
   BROWSER_THEME_STORAGE_PRESSED_BACKGROUND_KEY,
   BROWSER_THEME_STORAGE_RESOLVED_MODE_KEY,
@@ -1435,6 +1436,7 @@ export struct SettingsActionButton {
 @Component
 export struct SettingsTextField {
   @StorageProp(BROWSER_THEME_STORAGE_CONTROL_BACKGROUND_KEY) private storedControlBackgroundColor: string = '#EEF2F6';
+  @StorageProp(BROWSER_THEME_STORAGE_DIVIDER_KEY) private storedDividerColor: string = '#E3E8EF';
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY) private storedPrimaryTextColor: string = '#111318';
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY) private storedSecondaryTextColor: string = '#5F6875';
   @Prop label: ResourceStr = '';
@@ -1450,6 +1452,7 @@ export struct SettingsTextField {
   @Prop primaryTextColor: ResourceColor = '';
   @Prop secondaryTextColor: ResourceColor = '';
   @Prop desktopPresentation: boolean = false;
+  @Prop underlineStyle: boolean = false;
   onChange: (value: string) => void = (_value: string) => {};
 
   build() {
@@ -1470,8 +1473,12 @@ export struct SettingsTextField {
         .type(this.resolveInputType())
         .maxLength(this.resolveMaxLength())
         .backgroundColor(this.resolveControlBackgroundColor())
-        .borderRadius(this.desktopPresentation ? 8 : 14)
-        .padding({ left: 12, right: 12 })
+        .border({
+          width: { bottom: this.underlineStyle ? 1 : 0 },
+          color: this.storedDividerColor
+        })
+        .borderRadius(this.underlineStyle ? 0 : (this.desktopPresentation ? 8 : 14))
+        .padding({ left: this.underlineStyle ? 0 : 12, right: this.underlineStyle ? 0 : 12 })
         .enabled(this.isEnabled)
         .opacity(this.isEnabled ? 1 : 0.48)
         .onChange((nextValue: string) => {
@@ -1509,6 +1516,9 @@ export struct SettingsTextField {
   }
 
   private resolveControlBackgroundColor(): ResourceColor {
+    if (this.underlineStyle) {
+      return $r('sys.color.ohos_id_color_background_transparent');
+    }
     return `${this.controlBackgroundColor}`.length > 0 ? this.controlBackgroundColor : this.storedControlBackgroundColor;
   }
 

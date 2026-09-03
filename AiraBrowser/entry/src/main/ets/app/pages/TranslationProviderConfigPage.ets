@@ -1,5 +1,8 @@
 import { DEFAULT_THEME_PALETTE } from '../../features/theme/palettes/DefaultThemePalette';
-import { showCenteredAlertDialog } from '../components/common/CenteredDialogSurface';
+import {
+  createCenteredDialogMaterial,
+  showCenteredAlertDialog
+} from '../components/common/CenteredDialogSurface';
 import router from '@ohos.router';
 import {
   TranslationProviderConfig,
@@ -29,7 +32,7 @@ import {
 } from '../../core/theme/BrowserThemeStorageKeys';
 import { AppServiceModeGateService } from '../../services/settings/AppServiceModeGateService';
 import { readBrowserBoundaryRouteState } from '../../common/utils/RouteParamUtils';
-import { CENTERED_DIALOG_SURFACE_MODIFIER } from '../components/common/CenteredDialogSurface';
+import { CENTERED_DIALOG_SYSTEM_SURFACE_MODIFIER } from '../components/common/CenteredDialogSurface';
 
 @CustomDialog
 struct TranslationProviderValidationDialog {
@@ -56,7 +59,7 @@ struct TranslationProviderValidationDialog {
         .textAlign(TextAlign.Center)
         .fontColor(this.storedSecondaryTextColor)
     }
-    .attributeModifier(CENTERED_DIALOG_SURFACE_MODIFIER)
+    .attributeModifier(CENTERED_DIALOG_SYSTEM_SURFACE_MODIFIER)
   }
 }
 
@@ -77,7 +80,8 @@ struct TranslationProviderConfigPage {
     builder: TranslationProviderValidationDialog(),
     autoCancel: false,
     alignment: DialogAlignment.Center,
-    customStyle: true
+    customStyle: false,
+    systemMaterial: createCenteredDialogMaterial()
   });
   @State private draft: TranslationProviderEditDraft = this.editViewModel.buildInitialDraft('custom_http');
   @State private errorMessage: string = '';

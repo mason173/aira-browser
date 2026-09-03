@@ -537,9 +537,15 @@ export struct BrowserUserAgentSettingsScreen {
         .fontColor(this.storedPrimaryTextColor)
         .placeholderColor(this.storedSecondaryTextColor)
         .maxLength(maxLength)
-        .backgroundColor(this.storedSurfaceBackgroundColor)
-        .borderRadius(16)
-        .padding({ left: 14, right: 14 })
+        .backgroundColor(this.useCenteredSheet
+          ? $r('sys.color.ohos_id_color_background_transparent')
+          : this.storedSurfaceBackgroundColor)
+        .border({
+          width: { bottom: this.useCenteredSheet ? 1 : 0 },
+          color: this.storedDividerColor
+        })
+        .borderRadius(this.useCenteredSheet ? 0 : 16)
+        .padding({ left: this.useCenteredSheet ? 0 : 14, right: this.useCenteredSheet ? 0 : 14 })
         .enabled(!this.isSaving)
         .opacity(this.isSaving ? 0.48 : 1)
         .onChange((value: string) => {
@@ -565,9 +571,20 @@ export struct BrowserUserAgentSettingsScreen {
         .fontColor(this.storedPrimaryTextColor)
         .placeholderColor(this.storedSecondaryTextColor)
         .maxLength(512)
-        .backgroundColor(this.storedSurfaceBackgroundColor)
-        .borderRadius(16)
-        .padding({ left: 14, right: 14, top: 12, bottom: 12 })
+        .backgroundColor(this.useCenteredSheet
+          ? $r('sys.color.ohos_id_color_background_transparent')
+          : this.storedSurfaceBackgroundColor)
+        .border({
+          width: { bottom: this.useCenteredSheet ? 1 : 0 },
+          color: this.storedDividerColor
+        })
+        .borderRadius(this.useCenteredSheet ? 0 : 16)
+        .padding({
+          left: this.useCenteredSheet ? 0 : 14,
+          right: this.useCenteredSheet ? 0 : 14,
+          top: 12,
+          bottom: 12
+        })
         .enabled(!this.isSaving)
         .opacity(this.isSaving ? 0.48 : 1)
         .onChange((value: string) => {

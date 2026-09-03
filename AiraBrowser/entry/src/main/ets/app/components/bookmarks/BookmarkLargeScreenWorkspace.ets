@@ -1,5 +1,8 @@
 import { DEFAULT_THEME_PALETTE } from '../../../features/theme/palettes/DefaultThemePalette';
-import { showCenteredAlertDialog } from '../common/CenteredDialogSurface';
+import {
+  createCenteredDialogMaterial,
+  showCenteredAlertDialog
+} from '../common/CenteredDialogSurface';
 import {
   BookmarkNode,
   BookmarkStorageScope
@@ -118,7 +121,8 @@ export struct BookmarkLargeScreenWorkspace {
         void this.createFolder(title);
       }
     }),
-    customStyle: true,
+    customStyle: false,
+    systemMaterial: createCenteredDialogMaterial(),
     autoCancel: true
   });
   private editNodeDialogController: CustomDialogController = new CustomDialogController({
@@ -131,7 +135,8 @@ export struct BookmarkLargeScreenWorkspace {
         void this.saveEditingNode();
       }
     }),
-    customStyle: true,
+    customStyle: false,
+    systemMaterial: createCenteredDialogMaterial(),
     autoCancel: true
   });
 

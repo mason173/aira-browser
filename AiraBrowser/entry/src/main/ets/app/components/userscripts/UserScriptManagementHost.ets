@@ -1,5 +1,8 @@
 import { DEFAULT_THEME_PALETTE } from '../../../features/theme/palettes/DefaultThemePalette';
-import { showCenteredAlertDialog } from '../common/CenteredDialogSurface';
+import {
+  createCenteredDialogMaterial,
+  showCenteredAlertDialog
+} from '../common/CenteredDialogSurface';
 import { common } from '@kit.AbilityKit';
 import router from '@ohos.router';
 import {
@@ -113,7 +116,8 @@ export struct UserScriptManagementHost {
         this.loadManualUrl();
       }
     }),
-    customStyle: true,
+    customStyle: false,
+    systemMaterial: createCenteredDialogMaterial(),
     autoCancel: true
   });
 

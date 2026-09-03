@@ -5,7 +5,7 @@ import {
 } from '../../../core/theme/BrowserThemeStorageKeys';
 import { SyncFailureDetailItem } from '../../../core/sync/SyncFailurePresentationService';
 import { BrowserSheetActionButton } from '../browser/BrowserModalBottomSheet';
-import { CENTERED_DIALOG_SURFACE_MODIFIER } from '../common/CenteredDialogSurface';
+import { CENTERED_DIALOG_SYSTEM_SURFACE_MODIFIER } from '../common/CenteredDialogSurface';
 
 @CustomDialog
 export struct SyncFailureDialog {
@@ -75,7 +75,7 @@ export struct SyncFailureDialog {
       }
       .width('100%')
     }
-    .attributeModifier(CENTERED_DIALOG_SURFACE_MODIFIER)
+    .attributeModifier(CENTERED_DIALOG_SYSTEM_SURFACE_MODIFIER)
   }
 
   @Builder

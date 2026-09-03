@@ -1,5 +1,5 @@
-import { SegmentedTabOption, SegmentedTabs } from '../common/SegmentedTabs';
 import { BookmarkStorageScope } from '../../../common/models/BrowserModels';
+import { SegmentedTabOption, SegmentedTabs } from '../common/SegmentedTabs';
 import {
   BOOKMARK_OTHER_ROOT_ID,
   BOOKMARK_TOOLBAR_ROOT_ID,
@@ -15,7 +15,6 @@ export struct BookmarkRootTabs {
   @Prop tabsTopInset: number = 0;
   onSelect: (id: string) => void = (_id: string): void => {};
   @BuilderParam content: () => void = this.emptyBuilder;
-
   build() {
     Stack({ alignContent: Alignment.TopStart }) {
       this.content()
@@ -34,9 +33,14 @@ export struct BookmarkRootTabs {
         })
         .width('100%')
         .height(36)
+        .borderRadius(18)
+        .clip(true)
       }
       .width('100%')
+      .height(36)
       .padding({ left: 16, right: 16 })
+      .borderRadius(18)
+      .clip(true)
       .position({ x: 0, y: this.tabsTopInset })
       .zIndex(2)
     }

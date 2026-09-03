@@ -10,7 +10,7 @@ import {
 } from '../../../features/theme/BrowserThemePaletteModels';
 import { SyncFirstActivationFlowSheet } from './SyncFirstActivationFlowSheet';
 import { SyncGoalSelectionSheet } from './SyncGoalSelectionSheet';
-import { CENTERED_DIALOG_TALL_SURFACE_MODIFIER } from '../common/CenteredDialogSurface';
+import { CENTERED_DIALOG_SYSTEM_TALL_SURFACE_MODIFIER } from '../common/CenteredDialogSurface';
 
 export type SyncExperienceSelectionKind = 'none' | 'setup' | 'goal';
 
@@ -63,7 +63,7 @@ export struct SyncExperienceSelectionDialog {
         })
       }
     }
-    .attributeModifier(CENTERED_DIALOG_TALL_SURFACE_MODIFIER)
+    .attributeModifier(CENTERED_DIALOG_SYSTEM_TALL_SURFACE_MODIFIER)
     .keyboardShortcut(FunctionKey.ESC, [], () => {
       this.onClose();
     })

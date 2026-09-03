@@ -3,7 +3,7 @@ import {
   UserScriptInstallSheetContent
 } from './UserScriptInstallSheetContent';
 import { UserScriptPackageSuccessResult } from '../../../core/userscripts/UserScriptPackageLifecycleCoordinator';
-import { CENTERED_DIALOG_TALL_SURFACE_MODIFIER } from '../common/CenteredDialogSurface';
+import { CENTERED_DIALOG_SYSTEM_TALL_SURFACE_MODIFIER } from '../common/CenteredDialogSurface';
 
 @CustomDialog
 export struct UserScriptInstallDialog {
@@ -33,7 +33,7 @@ export struct UserScriptInstallDialog {
         .width('100%')
         .height('100%')
     }
-    .attributeModifier(CENTERED_DIALOG_TALL_SURFACE_MODIFIER)
+    .attributeModifier(CENTERED_DIALOG_SYSTEM_TALL_SURFACE_MODIFIER)
     .keyboardShortcut(FunctionKey.ESC, [], () => {
       this.onRequestClose();
     })

@@ -36,7 +36,7 @@ import {
   resolveFloatingGlassMaterialBackgroundColor,
   resolveFloatingGlassMaterialTintForMode
 } from '../common/FloatingGlassMaterialTokens';
-import { CENTERED_DIALOG_SURFACE_MODIFIER } from '../common/CenteredDialogSurface';
+import { CENTERED_DIALOG_SYSTEM_SURFACE_MODIFIER } from '../common/CenteredDialogSurface';
 import { BrowserSheetActionButton } from '../browser/BrowserModalBottomSheet';
 
 @CustomDialog
@@ -62,6 +62,7 @@ export struct AdBlockGithubRuleDialog {
       SettingsTextField({
         text: this.ruleUrl,
         placeholder: '粘贴 HTTPS 规则订阅地址',
+        underlineStyle: true,
         controlBackgroundColor: this.storedControlBackgroundColor,
         primaryTextColor: this.storedPrimaryTextColor,
         secondaryTextColor: this.storedSecondaryTextColor,
@@ -95,7 +96,7 @@ export struct AdBlockGithubRuleDialog {
       }
       .width('100%')
     }
-    .attributeModifier(CENTERED_DIALOG_SURFACE_MODIFIER)
+    .attributeModifier(CENTERED_DIALOG_SYSTEM_SURFACE_MODIFIER)
   }
 }
 

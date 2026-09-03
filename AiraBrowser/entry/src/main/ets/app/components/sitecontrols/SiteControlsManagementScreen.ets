@@ -34,6 +34,7 @@ import {
   SiteIconListTarget
 } from '../../../core/siteicons/SiteIconListPresenter';
 import { SiteControlsManualOriginDialog } from './SiteControlsManualOriginDialog';
+import { createCenteredDialogMaterial } from '../common/CenteredDialogSurface';
 
 const SITE_CONTROLS_OVERVIEW_CARD_GAP: number = 10;
 const SITE_CONTROLS_OVERVIEW_CARD_HEIGHT: number = 88;
@@ -104,7 +105,8 @@ export struct SiteControlsManagementScreen {
       errorText: $manualOriginError,
       confirm: (): boolean => this.confirmManualOrigin()
     }),
-    customStyle: true,
+    customStyle: false,
+    systemMaterial: createCenteredDialogMaterial(),
     autoCancel: true
   });
 

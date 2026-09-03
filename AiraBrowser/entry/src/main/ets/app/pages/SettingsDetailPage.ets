@@ -1,5 +1,8 @@
 import { DEFAULT_THEME_PALETTE } from '../../features/theme/palettes/DefaultThemePalette';
-import { showCenteredAlertDialog } from '../components/common/CenteredDialogSurface';
+import {
+  createCenteredDialogMaterial,
+  showCenteredAlertDialog
+} from '../components/common/CenteredDialogSurface';
 import router from '@ohos.router';
 import { common } from '@kit.AbilityKit';
 import { pasteboard } from '@kit.BasicServicesKit';
@@ -213,7 +216,8 @@ struct SettingsDetailPage {
     }),
     alignment: DialogAlignment.Center,
     autoCancel: true,
-    customStyle: true
+    customStyle: false,
+    systemMaterial: createCenteredDialogMaterial()
   });
   private supportQqGroupDialogController: CustomDialogController = new CustomDialogController({
     builder: SupportQqGroupDialog({
@@ -224,7 +228,8 @@ struct SettingsDetailPage {
     }),
     alignment: DialogAlignment.Center,
     autoCancel: true,
-    customStyle: true
+    customStyle: false,
+    systemMaterial: createCenteredDialogMaterial()
   });
   private alwaysPrivateConfirmationDialogController: CustomDialogController = new CustomDialogController({
     builder: AlwaysPrivateModeConfirmationDialog({
@@ -240,7 +245,8 @@ struct SettingsDetailPage {
     }),
     alignment: DialogAlignment.Center,
     autoCancel: false,
-    customStyle: true
+    customStyle: false,
+    systemMaterial: createCenteredDialogMaterial()
   });
 
   aboutToAppear(): void {

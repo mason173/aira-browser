@@ -1,5 +1,8 @@
 import { common } from '@kit.AbilityKit';
-import { showCenteredAlertDialog } from '../common/CenteredDialogSurface';
+import {
+  createCenteredDialogMaterial,
+  showCenteredAlertDialog
+} from '../common/CenteredDialogSurface';
 import {
   BrowserBoundaryRouteState,
   isPrivateBoundaryRoute,
@@ -134,7 +137,8 @@ export struct LocalBackupScreen {
     }),
     alignment: DialogAlignment.Center,
     autoCancel: false,
-    customStyle: true,
+    customStyle: false,
+    systemMaterial: createCenteredDialogMaterial(),
     onDidDisappear: (): void => {
       this.handleImportDialogDisappear();
     }
@@ -143,7 +147,8 @@ export struct LocalBackupScreen {
     builder: LocalBackupImportProgressDialog({}),
     alignment: DialogAlignment.Center,
     autoCancel: false,
-    customStyle: true,
+    customStyle: false,
+    systemMaterial: createCenteredDialogMaterial(),
     onWillDismiss: (dismissDialogAction: DismissDialogAction): void => {
       if (!this.isBusy) {
         dismissDialogAction.dismiss();

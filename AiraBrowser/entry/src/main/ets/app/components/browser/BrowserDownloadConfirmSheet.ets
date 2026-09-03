@@ -2,19 +2,22 @@ import { PendingDownloadPromptState } from '../../../services/download/DownloadR
 import { BrowserDownloadConfirmOverlayAction } from '../../../core/browser/BrowserDownloadConfirmOverlayCoordinator';
 import {
   BROWSER_THEME_STORAGE_ACCENT_KEY,
-  BROWSER_THEME_STORAGE_CONTROL_BACKGROUND_KEY,
+  BROWSER_THEME_STORAGE_DIVIDER_KEY,
   BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY,
   BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY
 } from '../../../core/theme/BrowserThemeStorageKeys';
 import { BrowserSheetActionButton } from './BrowserModalBottomSheet';
-import { CENTERED_DIALOG_SURFACE_MODIFIER } from '../common/CenteredDialogSurface';
+import {
+  CENTERED_DIALOG_SYSTEM_SURFACE_MODIFIER,
+  createCenteredDialogMaterial
+} from '../common/CenteredDialogSurface';
 
 const DOWNLOAD_FILE_NAME_MAX_LENGTH: number = 180;
 
 @CustomDialog
 struct BrowserDownloadConfirmDialog {
   @StorageProp(BROWSER_THEME_STORAGE_ACCENT_KEY) private storedAccentColor: string = '#0A59F7';
-  @StorageProp(BROWSER_THEME_STORAGE_CONTROL_BACKGROUND_KEY) private storedControlBackgroundColor: string = '#EEF2F6';
+  @StorageProp(BROWSER_THEME_STORAGE_DIVIDER_KEY) private storedDividerColor: string = '#E3E8EF';
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY) private storedPrimaryTextColor: string = '#111318';
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY) private storedSecondaryTextColor: string = '#5F6875';
   controller?: CustomDialogController;
@@ -29,7 +32,7 @@ struct BrowserDownloadConfirmDialog {
         this.buildContent(this.prompt!)
       }
     }
-    .attributeModifier(CENTERED_DIALOG_SURFACE_MODIFIER)
+    .attributeModifier(CENTERED_DIALOG_SYSTEM_SURFACE_MODIFIER)
     .alignItems(HorizontalAlign.Start)
   }
 
@@ -55,9 +58,10 @@ struct BrowserDownloadConfirmDialog {
         .fontColor(this.storedPrimaryTextColor)
         .placeholderColor(this.storedSecondaryTextColor)
         .caretColor(this.storedAccentColor)
-        .backgroundColor(this.storedControlBackgroundColor)
-        .borderRadius(14)
-        .padding({ left: 14, right: 14 })
+        .backgroundColor($r('sys.color.ohos_id_color_background_transparent'))
+        .border({ width: { bottom: 1 }, color: this.storedDividerColor })
+        .borderRadius(0)
+        .padding({ left: 0, right: 0 })
         .maxLength(DOWNLOAD_FILE_NAME_MAX_LENGTH)
         .onChange((value: string) => {
           this.fileNameDraft = value;
@@ -159,7 +163,8 @@ export struct BrowserDownloadConfirmOverlay {
     }),
     alignment: DialogAlignment.Center,
     autoCancel: true,
-    customStyle: true,
+    customStyle: false,
+    systemMaterial: createCenteredDialogMaterial(),
     onWillDismiss: (dismissDialogAction: DismissDialogAction): void => {
       this.handleInteractiveDismiss();
       dismissDialogAction.dismiss();

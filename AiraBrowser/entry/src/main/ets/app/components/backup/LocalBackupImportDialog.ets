@@ -6,8 +6,8 @@ import {
   BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY
 } from '../../../core/theme/BrowserThemeStorageKeys';
 import {
-  CENTERED_DIALOG_SURFACE_MODIFIER,
-  CENTERED_DIALOG_SCROLL_SURFACE_MODIFIER
+  CENTERED_DIALOG_SYSTEM_SURFACE_MODIFIER,
+  CENTERED_DIALOG_SYSTEM_SCROLL_SURFACE_MODIFIER
 } from '../common/CenteredDialogSurface';
 import { DEFAULT_THEME_PALETTE } from '../../../features/theme/palettes/DefaultThemePalette';
 import { SettingsGroupCard, SettingsGroupDivider } from '../settings/SettingsLayout';
@@ -71,7 +71,7 @@ export struct LocalBackupImportProgressDialog {
         .fontColor(this.storedSecondaryTextColor)
         .textAlign(TextAlign.Center)
     }
-    .attributeModifier(CENTERED_DIALOG_SURFACE_MODIFIER)
+    .attributeModifier(CENTERED_DIALOG_SYSTEM_SURFACE_MODIFIER)
   }
 }
 
@@ -311,7 +311,7 @@ export struct LocalBackupImportDialog {
         }
       })
     }
-    .attributeModifier(CENTERED_DIALOG_SCROLL_SURFACE_MODIFIER)
+    .attributeModifier(CENTERED_DIALOG_SYSTEM_SCROLL_SURFACE_MODIFIER)
     .keyboardShortcut(FunctionKey.ESC, [], (): void => {
       this.cancelAndClose();
     })

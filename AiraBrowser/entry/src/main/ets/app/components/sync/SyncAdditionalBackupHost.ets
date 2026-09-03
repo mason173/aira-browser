@@ -2,7 +2,10 @@ import {
   AiraAdditionalBackupIntervalDays,
   AiraSyncProviderKind
 } from '../../../common/models/AiraSyncModels';
-import { showCenteredAlertDialog } from '../common/CenteredDialogSurface';
+import {
+  createCenteredDialogMaterial,
+  showCenteredAlertDialog
+} from '../common/CenteredDialogSurface';
 import { EntitlementDecision } from '../../../common/models/MembershipModels';
 import {
   BrowserBoundaryRouteState,
@@ -145,7 +148,8 @@ export struct SyncAdditionalBackupHost {
     }),
     alignment: DialogAlignment.Center,
     autoCancel: false,
-    customStyle: true,
+    customStyle: false,
+    systemMaterial: createCenteredDialogMaterial(),
     onWillDismiss: (dismissDialogAction: DismissDialogAction) => {
       if (!this.progressInProgress) {
         dismissDialogAction.dismiss();
