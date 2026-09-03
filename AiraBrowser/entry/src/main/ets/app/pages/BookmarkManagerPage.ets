@@ -3,7 +3,6 @@ import { showCenteredAlertDialog } from '../components/common/CenteredDialogSurf
 import { common } from '@kit.AbilityKit';
 import { fileIo, picker } from '@kit.CoreFileKit';
 import router from '@ohos.router';
-import buffer from '@ohos.buffer';
 import vibrator from '@ohos.vibrator';
 import {
   BookmarkNode,
@@ -83,6 +82,7 @@ import {
   BookmarkManagerCreateFolderDialog,
   BookmarkManagerEditNodeDialog
 } from '../components/bookmarks/BookmarkManagerDialogs';
+import { readBookmarkTextFromUri } from '../../services/bookmarks/BookmarkHtmlTransferApplicationService';
 import { BookmarkImportResultDialog } from '../components/bookmarks/BookmarkImportResultDialog';
 import {
   BROWSER_THEME_STORAGE_DIVIDER_KEY,
@@ -1339,22 +1339,7 @@ struct BookmarkManagerPage {
   }
 
   private async readTextFromUri(uri: string): Promise<string> {
-    const file = await fileIo.open(uri, fileIo.OpenMode.READ_ONLY);
-    const chunks: string[] = [];
-    const chunkSize = 64 * 1024;
-    try {
-      let bytesRead = 0;
-      do {
-        const data = new ArrayBuffer(chunkSize);
-        bytesRead = await fileIo.read(file.fd, data);
-        if (bytesRead > 0) {
-          chunks.push(buffer.from(data, 0, bytesRead).toString('utf8'));
-        }
-      } while (bytesRead === chunkSize);
-    } finally {
-      await fileIo.close(file);
-    }
-    return chunks.join('');
+    return readBookmarkTextFromUri(uri);
   }
 
   private async writeTextToUri(uri: string, payload: string): Promise<void> {

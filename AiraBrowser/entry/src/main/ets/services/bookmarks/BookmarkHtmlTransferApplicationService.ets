@@ -76,22 +76,7 @@ export class BookmarkHtmlTransferApplicationService {
   }
 
   private async readTextFromUri(uri: string): Promise<string> {
-    const file = await fileIo.open(uri, fileIo.OpenMode.READ_ONLY);
-    const chunks: string[] = [];
-    const chunkSize = 64 * 1024;
-    try {
-      let bytesRead = 0;
-      do {
-        const data = new ArrayBuffer(chunkSize);
-        bytesRead = await fileIo.read(file.fd, data);
-        if (bytesRead > 0) {
-          chunks.push(buffer.from(data, 0, bytesRead).toString('utf8'));
-        }
-      } while (bytesRead === chunkSize);
-    } finally {
-      await fileIo.close(file);
-    }
-    return chunks.join('');
+    return readBookmarkTextFromUri(uri);
   }
 
   private async writeTextToUri(uri: string, payload: string): Promise<void> {
@@ -127,4 +112,37 @@ export class BookmarkHtmlTransferApplicationService {
       message: error.message.length > 0 ? error.message : '未知错误'
     };
   }
+}
+
+/** Read the complete UTF-8 byte stream before decoding so chunk boundaries cannot corrupt text. */
+export async function readBookmarkTextFromUri(uri: string): Promise<string> {
+  const file = await fileIo.open(uri, fileIo.OpenMode.READ_ONLY);
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+  const chunkSize = 64 * 1024;
+  try {
+    let bytesRead = 0;
+    do {
+      const data = new ArrayBuffer(chunkSize);
+      bytesRead = await fileIo.read(file.fd, data);
+      if (bytesRead > 0) {
+        const chunk = new Uint8Array(bytesRead);
+        chunk.set(new Uint8Array(data, 0, bytesRead));
+        chunks.push(chunk);
+        totalBytes += bytesRead;
+      }
+    } while (bytesRead > 0);
+  } finally {
+    await fileIo.close(file);
+  }
+  if (totalBytes === 0) {
+    return '';
+  }
+  const merged = new Uint8Array(totalBytes);
+  let offset = 0;
+  chunks.forEach((chunk: Uint8Array): void => {
+    merged.set(chunk, offset);
+    offset += chunk.byteLength;
+  });
+  return buffer.from(merged.buffer, merged.byteOffset, merged.byteLength).toString('utf8');
 }
