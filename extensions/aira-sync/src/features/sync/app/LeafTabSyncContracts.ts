@@ -19,6 +19,7 @@ export type LeafTabTopNavSyncStatus = 'idle' | 'syncing' | 'error' | 'conflict';
 export type LeafTabSyncProgressState = {
   open: boolean;
   inProgress: boolean;
+  failed: boolean;
   title: string;
   detail: string;
   progress: number;

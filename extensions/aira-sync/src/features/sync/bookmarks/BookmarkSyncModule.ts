@@ -26,7 +26,10 @@ import type {
   LeafTabSyncConflictResolution,
   LeafTabSyncMergeIntent,
 } from '@/sync/leaftab/merge';
-import type { LeafTabSyncRemoteStore } from '@/sync/leaftab/remoteStore';
+import {
+  AIRA_CLOUD_BOOKMARK_SYNC_PROTOCOL,
+  type LeafTabSyncRemoteStore,
+} from '@/sync/leaftab/remoteStore';
 import {
   LeafTabSyncExtensionStorageHistoryStore,
   LeafTabSyncTombstoneLifecycle,
@@ -154,6 +157,7 @@ export const createBookmarkSyncSourceIdentity = (
   if (provider.remoteKind === 'aira-cloud') {
     return [
       'aira-cloud',
+      AIRA_CLOUD_BOOKMARK_SYNC_PROTOCOL,
       String(provider.uid || '').trim(),
       normalizedRootPath,
     ].map((value) => encodeURIComponent(value)).join(':');
@@ -161,6 +165,7 @@ export const createBookmarkSyncSourceIdentity = (
   if (provider.remoteKind === 'personal-server') {
     return [
       'personal-server',
+      AIRA_CLOUD_BOOKMARK_SYNC_PROTOCOL,
       provider.connection.instanceId,
       provider.connection.baseUrl,
       normalizedRootPath,

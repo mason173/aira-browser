@@ -11,6 +11,7 @@ import {
   WEBDAV_LAST_SYNC_AT_KEY,
 } from '@/features/sync/app/leafTabSyncStorageKeys';
 import {
+  PersonalServerRemoteError,
   readPersonalServerConnection,
   type PersonalServerConnection,
 } from '@/features/personal-server/PersonalServerConnection';
@@ -313,6 +314,14 @@ export class BookmarkSyncPopupRuntime {
       if (remoteKind === 'aira-cloud' && error instanceof LeafTabSyncAiraCloudError &&
         error.code === 'client_update_required') {
         await persistAiraCloudClientUpdateBlock(error.message);
+        return {
+          type: 'blocked',
+          reason: 'client-update-required',
+          message: error.message,
+        };
+      }
+      if (remoteKind === 'personal-server' && error instanceof PersonalServerRemoteError &&
+        error.code === 'client_update_required') {
         return {
           type: 'blocked',
           reason: 'client-update-required',

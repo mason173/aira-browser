@@ -1,5 +1,7 @@
 import { uiMaterial } from '@kit.ArkUI';
+import { deviceInfo } from '@kit.BasicServicesKit';
 
+export const IMMERSIVE_MATERIAL_MIN_API_VERSION: number = 26;
 export const FLOATING_GLASS_MATERIAL_BLUR_STYLE: BlurStyle = BlurStyle.COMPONENT_THIN;
 export const FLOATING_GLASS_MATERIAL_LIGHT_TINT: ResourceColor = '#18FFFFFF';
 export const FLOATING_GLASS_MATERIAL_DARK_TINT: ResourceColor = '#18000000';
@@ -17,20 +19,39 @@ export function resolveFloatingGlassMaterialTintForMode(resolvedThemeMode: strin
 export function createFloatingGlassMaterial(
   tintColor: ResourceColor,
   style: uiMaterial.ImmersiveStyle = FLOATING_GLASS_MATERIAL_IMMERSIVE_STYLE,
-  lightEffectColor: ResourceColor = FLOATING_GLASS_MATERIAL_LIGHT_EFFECT_COLOR,
+  lightEffectColor: ResourceColor | null = FLOATING_GLASS_MATERIAL_LIGHT_EFFECT_COLOR,
   applyShadow: boolean = true,
   interactive: boolean = true
 ): uiMaterial.ImmersiveMaterial {
   return new uiMaterial.ImmersiveMaterial({
     style: style,
     materialColor: tintColor,
-    colorInvert: true,
+    // colorInvert is reserved for system resource colors. These tints are app colors.
+    colorInvert: false,
     applyShadow: applyShadow,
     interactive: interactive,
-    lightEffect: {
+    lightEffect: lightEffectColor === null ? null : {
       color: lightEffectColor
     }
   });
+}
+
+export function createFloatingGlassMaterialIfAvailable(
+  tintColor: ResourceColor,
+  style: uiMaterial.ImmersiveStyle = FLOATING_GLASS_MATERIAL_IMMERSIVE_STYLE,
+  lightEffectColor: ResourceColor | null = FLOATING_GLASS_MATERIAL_LIGHT_EFFECT_COLOR,
+  applyShadow: boolean = true,
+  interactive: boolean = true
+): uiMaterial.ImmersiveMaterial | undefined {
+  return isFloatingGlassMaterialAvailable() ?
+    createFloatingGlassMaterial(tintColor, style, lightEffectColor, applyShadow, interactive) :
+    undefined;
+}
+
+export function resolveFloatingGlassMaterialBackgroundColor(
+  fallbackColor: ResourceColor
+): ResourceColor {
+  return isFloatingGlassMaterialAvailable() ? Color.Transparent : fallbackColor;
 }
 
 export function isFloatingGlassMaterialAvailable(): boolean {
@@ -38,6 +59,10 @@ export function isFloatingGlassMaterialAvailable(): boolean {
     return cachedFloatingGlassMaterialAvailable;
   }
   try {
+    if (deviceInfo.sdkApiVersion < IMMERSIVE_MATERIAL_MIN_API_VERSION) {
+      cachedFloatingGlassMaterialAvailable = false;
+      return cachedFloatingGlassMaterialAvailable;
+    }
     const materialState = uiMaterial.getMaterialInfo().state;
     cachedFloatingGlassMaterialAvailable = materialState !== uiMaterial.MaterialState.DISABLE;
   } catch (_error) {

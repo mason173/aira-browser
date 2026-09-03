@@ -4,7 +4,8 @@ import {
 } from '../../../core/customhome/CustomHomepageSystemEntryButtonLayoutViewModel';
 import { BROWSER_THEME_STORAGE_RESOLVED_MODE_KEY } from '../../../core/theme/BrowserThemeStorageKeys';
 import {
-  createFloatingGlassMaterial,
+  createFloatingGlassMaterialIfAvailable,
+  resolveFloatingGlassMaterialBackgroundColor,
   resolveFloatingGlassMaterialTintForMode
 } from '../common/FloatingGlassMaterialTokens';
 
@@ -33,10 +34,7 @@ export struct CustomHomepageSystemEntryButton {
             .width(CUSTOM_HOMEPAGE_SYSTEM_ENTRY_BUTTON_SIZE)
             .height(CUSTOM_HOMEPAGE_SYSTEM_ENTRY_BUTTON_SIZE)
             .borderRadius(CUSTOM_HOMEPAGE_SYSTEM_ENTRY_BUTTON_SIZE / 2)
-            .backgroundColor($r('sys.color.ohos_id_color_background_transparent'))
-            .systemMaterial(createFloatingGlassMaterial(
-              resolveFloatingGlassMaterialTintForMode(this.storedResolvedThemeMode)
-            ))
+            .backgroundColor($r('app.color.surface_floating_background'))
 
           SymbolGlyph($r('sys.symbol.ellipsis_circle'))
             .fontSize(CUSTOM_HOMEPAGE_SYSTEM_ENTRY_ICON_SIZE)
@@ -97,9 +95,10 @@ export struct CustomHomepageSystemEntryButton {
           this.onOpenSettings();
         })
     }
-    .backgroundColor($r('sys.color.ohos_id_color_background_transparent'))
-    .backgroundBlurStyle(BlurStyle.NONE)
-    .systemMaterial(createFloatingGlassMaterial(
+    .backgroundColor(resolveFloatingGlassMaterialBackgroundColor(
+      $r('app.color.surface_floating_background')
+    ))
+    .systemMaterial(createFloatingGlassMaterialIfAvailable(
       resolveFloatingGlassMaterialTintForMode(this.storedResolvedThemeMode)
     ))
   }

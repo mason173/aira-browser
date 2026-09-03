@@ -24,6 +24,7 @@ import {
   RiArrowRightSLine,
   RiCheckFill,
   RiCloudFill,
+  RiErrorWarningFill,
   RiEyeFill,
   RiEyeOffFill,
   RiHardDrive3Fill,
@@ -66,6 +67,7 @@ import {
   type PersonalServerConnection,
 } from '@/features/personal-server/PersonalServerConnection';
 import { AIRATAB_CAPABILITIES } from '@/config/AiratabDistribution';
+import { resolveCloudFeatureEntryView } from './featureEntryRouting';
 
 type PopupView =
   | 'home'
@@ -284,6 +286,7 @@ function SyncProgressDialog({ syncRuntime }: { syncRuntime: PopupSyncRuntime }) 
   const lastResult = syncRuntime.state.leafTabSyncLastResult;
   const pendingConflict = syncRuntime.state.leafTabPendingBookmarkConflict;
   const isConflict = Boolean(pendingConflict || lastResult?.kind === 'conflict') && !progress.inProgress;
+  const isFailed = progress.failed && !progress.inProgress;
   const conflictCount = lastResult?.kind === 'conflict'
     ? lastResult.mergeResult?.conflicts.length || 0
     : 0;
@@ -331,6 +334,12 @@ function SyncProgressDialog({ syncRuntime }: { syncRuntime: PopupSyncRuntime }) 
               <RiSlidersFill
                 aria-hidden="true"
                 className="h-10 w-10 text-primary"
+                strokeWidth={2.2}
+              />
+            ) : isFailed ? (
+              <RiErrorWarningFill
+                aria-hidden="true"
+                className="h-10 w-10 text-destructive"
                 strokeWidth={2.2}
               />
             ) : (
@@ -397,6 +406,26 @@ function SyncProgressDialog({ syncRuntime }: { syncRuntime: PopupSyncRuntime }) 
                 onClick={() => syncRuntime.actions.handleDismissSyncProgress()}
               >
                 {t('popup.progress.later', { defaultValue: '稍后处理' })}
+              </Button>
+            </div>
+          ) : isFailed ? (
+            <div className="grid gap-2">
+              <Button
+                type="button"
+                className="h-10 w-full rounded-[8px]"
+                onClick={() => {
+                  void syncRuntime.actions.handleActiveSyncNowFromCenter();
+                }}
+              >
+                {t('popup.progress.retry', { defaultValue: '再次同步' })}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                className="h-10 w-full rounded-[8px]"
+                onClick={() => syncRuntime.actions.handleDismissSyncProgress()}
+              >
+                {t('popup.progress.done', { defaultValue: '知道了' })}
               </Button>
             </div>
           ) : !progress.inProgress ? (
@@ -2048,7 +2077,10 @@ export function PopupApp() {
       openHistory();
       return;
     }
-    setView(AIRATAB_CAPABILITIES.airaCloud ? 'login' : 'personal-server');
+    setView(resolveCloudFeatureEntryView({
+      hasAiraDesktopSession: configuredHomeState?.isDesktopLoggedIn === true,
+      airaCloudAvailable: AIRATAB_CAPABILITIES.airaCloud,
+    }));
   };
 
   const openDeviceTabsForActiveProvider = () => {
@@ -2056,7 +2088,10 @@ export function PopupApp() {
       setView('device-tabs');
       return;
     }
-    setView(AIRATAB_CAPABILITIES.airaCloud ? 'login' : 'personal-server');
+    setView(resolveCloudFeatureEntryView({
+      hasAiraDesktopSession: configuredHomeState?.isDesktopLoggedIn === true,
+      airaCloudAvailable: AIRATAB_CAPABILITIES.airaCloud,
+    }));
   };
 
   return (

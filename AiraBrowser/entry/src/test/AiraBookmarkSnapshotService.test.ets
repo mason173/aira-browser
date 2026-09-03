@@ -11,7 +11,13 @@ import {
 import { PreferencesRepository } from '../main/ets/data/preferences/PreferencesRepository';
 import { AiraSyncSnapshot } from '../main/ets/common/models/AiraSyncModels';
 import { AiraBookmarkSnapshotService } from '../main/ets/services/sync/AiraBookmarkSnapshotService';
-import { parseAiraCloudBookmarkHttpError } from '../main/ets/services/sync/AiraCloudBookmarkRemoteStore';
+import {
+  AiraCloudBookmarkRemoteError,
+  AiraCloudBookmarkApiAuthProvider,
+  AiraCloudBookmarkApiHttpAdapter,
+  AiraCloudBookmarkRemoteStore,
+  parseAiraCloudBookmarkHttpError
+} from '../main/ets/services/sync/AiraCloudBookmarkRemoteStore';
 
 const T0: string = '2026-08-31T00:00:00.000Z';
 
@@ -97,6 +103,25 @@ function createPreviousSnapshot(): AiraSyncSnapshot {
 
 class FixtureBookmarkRepository extends InMemoryBookmarkRepository implements BookmarkRepository {}
 
+class FixtureCloudAuthProvider implements AiraCloudBookmarkApiAuthProvider {
+  getAuthorizationHeader(): Promise<string> {
+    return Promise.resolve('Bearer fixture-token');
+  }
+}
+
+class FixtureCloudAdapter implements AiraCloudBookmarkApiHttpAdapter {
+  response: Object | string | null | undefined;
+
+  post(
+    _url: string,
+    _body: Object,
+    _authorization: string,
+    _timeoutMs: number
+  ): Promise<Object | string | null | undefined> {
+    return Promise.resolve(this.response);
+  }
+}
+
 async function createRepository(nodes: BookmarkNode[]): Promise<FixtureBookmarkRepository> {
   const repository = new FixtureBookmarkRepository();
   await repository.upsertSyncNodes(nodes);
@@ -156,6 +181,34 @@ export default function airaBookmarkSnapshotServiceTest(): void {
       expect(response.ok).assertEqual(false);
       expect(response.code).assertEqual('sync_conflict');
       expect(response.message).assertEqual('云端书签已经更新，请先重新拉取后再同步。');
+    });
+
+    it('rejects a successful response that omits the current cloud protocol', 0, async () => {
+      const adapter = new FixtureCloudAdapter();
+      adapter.response = {
+        ok: true,
+        commitId: null,
+        snapshot: null,
+        history: null
+      };
+      const store = new AiraCloudBookmarkRemoteStore(
+        'https://sync.example.test/sync/v4/bookmarks',
+        'fixture-user',
+        new FixtureCloudAuthProvider(),
+        adapter
+      );
+      let rejected = false;
+      let errorCode: string = '';
+      try {
+        await store.readState();
+      } catch (error) {
+        rejected = true;
+        if (error instanceof AiraCloudBookmarkRemoteError) {
+          errorCode = error.code;
+        }
+      }
+      expect(rejected).assertTrue();
+      expect(errorCode).assertEqual('client_update_required');
     });
   });
 }

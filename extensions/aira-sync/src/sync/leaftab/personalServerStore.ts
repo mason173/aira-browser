@@ -12,6 +12,7 @@ import type {
   LeafTabSyncWriteStateParams,
   LeafTabSyncWriteStateResult,
 } from './remoteStore';
+import { AIRA_CLOUD_BOOKMARK_SYNC_PROTOCOL } from './remoteStore';
 import { LeafTabSyncTombstoneLifecycle } from './historyLifecycle';
 import {
   PersonalServerRemoteError,
@@ -25,6 +26,7 @@ type PersonalServerBookmarkResponse = {
   ok?: boolean;
   code?: string;
   message?: string;
+  protocol?: string;
   snapshot?: Partial<LeafTabSyncWireSnapshot> | null;
   history?: LeafTabSyncHistoryDescriptor | null;
   commitId?: string | null;
@@ -41,7 +43,8 @@ export class LeafTabSyncPersonalServerStore implements LeafTabSyncRemoteStore {
   constructor(private readonly connection: PersonalServerConnection) {}
 
   async readHead(): Promise<LeafTabSyncRemoteHead> {
-    const response = await this.post('/head', {});
+    const response = await this.post('/head', { protocol: AIRA_CLOUD_BOOKMARK_SYNC_PROTOCOL });
+    this.assertProtocol(response);
     return {
       commitId: normalizeCommitId(response.commitId),
       updatedAt: Number(response.updatedAt || 0),
@@ -54,7 +57,8 @@ export class LeafTabSyncPersonalServerStore implements LeafTabSyncRemoteStore {
   }
 
   async readState(): Promise<LeafTabSyncRemoteState> {
-    const response = await this.post('/read', {});
+    const response = await this.post('/read', { protocol: AIRA_CLOUD_BOOKMARK_SYNC_PROTOCOL });
+    this.assertProtocol(response);
     const snapshot = response.snapshot == null
       ? null
       : parseCanonicalLeafTabSyncWireSnapshot(response.snapshot);
@@ -79,12 +83,14 @@ export class LeafTabSyncPersonalServerStore implements LeafTabSyncRemoteStore {
     const history = this.historyLifecycle.validateHistory(params.history);
     this.historyLifecycle.assertSnapshotWithinHistory(snapshot, history, '个人服务器');
     const response = await this.post('/write', {
+      protocol: AIRA_CLOUD_BOOKMARK_SYNC_PROTOCOL,
       deviceId: params.deviceId,
       parentCommitId: params.parentCommitId ?? null,
       createdAt: params.createdAt ?? snapshot.meta.generatedAt,
       history,
       snapshot: toLeafTabSyncWireSnapshot(snapshot),
     });
+    this.assertProtocol(response);
     const commitId = normalizeCommitId(response.commitId);
     if (!commitId) {
       throw new PersonalServerRemoteError('invalid_response', '个人服务器没有返回书签 commitId。');
@@ -102,6 +108,15 @@ export class LeafTabSyncPersonalServerStore implements LeafTabSyncRemoteStore {
       LARGE_REQUEST_TIMEOUT_MS,
       this.connection,
     );
+  }
+
+  private assertProtocol(response: PersonalServerBookmarkResponse): void {
+    if (response.protocol !== AIRA_CLOUD_BOOKMARK_SYNC_PROTOCOL) {
+      throw new PersonalServerRemoteError(
+        'client_update_required',
+        '个人服务器返回了不兼容的书签协议，请重新配对最新版本。'
+      );
+    }
   }
 }
 

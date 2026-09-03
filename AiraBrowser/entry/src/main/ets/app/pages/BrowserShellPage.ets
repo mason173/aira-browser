@@ -130,6 +130,7 @@ import {
   sharedActivityTracker,
   sharedAppReviewPromptRepository,
   sharedReleaseNoticeCoordinator,
+  sharedClientUpdatePolicyService,
   sharedBrowserGestureOnboardingPromptCoordinator,
   syncBrowserThemeAppStorage
 } from '../bootstrap/BrowserAppRuntime';
@@ -139,6 +140,9 @@ import {
   AppReviewPromptShellFacts
 } from '../../core/review/AppReviewPromptCoordinator';
 import { ReleaseNoticeUiState } from '../../core/update/ReleaseNoticeCoordinator';
+import {
+  ClientUpdatePolicyState
+} from '../../services/update/ClientUpdatePolicyService';
 import {
   ReleaseNoticePresentationCoordinator,
   ReleaseNoticePresentationShellFacts
@@ -917,6 +921,10 @@ import {
   BrowserHostedWebParkingSlots
 } from '../components/browser/BrowserHostedWebSurfaceSlots';
 import { ReleaseNoticeSheet } from '../components/update/ReleaseNoticeSheet';
+import {
+  ClientUpdateRequiredAction,
+  ClientUpdateRequiredOverlay
+} from '../components/update/ClientUpdateRequiredSheet';
 import { DesktopLoginConfirmSheetContent } from '../components/settings/DesktopLoginConfirmSheetContent';
 import { HomeShortcutSelectionSheet } from '../components/browser/HomeShortcutSelectionSheet';
 import { BrowserSystemSurfaceHost } from '../components/browser/BrowserSystemSurfaceHost';
@@ -3061,6 +3069,7 @@ struct BrowserShellPage {
   private phonePagePushCoordinator: BrowserPhonePagePushCoordinator =
     new BrowserPhonePagePushCoordinator(this.featureGateCoordinator, sharedAiraSyncConfigStore);
   private systemSettingsLaunchService: SystemSettingsLaunchService = new SystemSettingsLaunchService();
+  private clientUpdatePolicyUnsubscribe?: () => void;
   private appReviewPromptShell: AppReviewPromptShell = {
     resolveFacts: (): AppReviewPromptShellFacts => {
       return {
@@ -5223,6 +5232,7 @@ struct BrowserShellPage {
   @State browserQrScanSessionSnapshot: BrowserQrScanSessionSnapshot =
     DEFAULT_BROWSER_QR_SCAN_SESSION_SNAPSHOT;
   @State releaseNoticeState: ReleaseNoticeUiState = this.releaseNoticePresentationCoordinator.getSnapshot();
+  @State clientUpdatePolicyState: ClientUpdatePolicyState = sharedClientUpdatePolicyService.getSnapshot();
   @State mediaResourceSessionSnapshot: BrowserMediaResourceSessionSnapshot =
     createBrowserMediaResourceSessionSnapshot();
   @State showTabsSheet: boolean = false;
@@ -5793,6 +5803,11 @@ struct BrowserShellPage {
   @State elementInspectionPresentation: ElementInspectionPresentation =
     this.elementInspectionSessionCoordinator.snapshot();
   aboutToAppear(): void {
+    this.clientUpdatePolicyUnsubscribe = sharedClientUpdatePolicyService.subscribe(
+      (state: ClientUpdatePolicyState): void => {
+        this.clientUpdatePolicyState = state;
+      }
+    );
     const storage = this.getSharedStageStorage();
     const initialViewport = BrowserWindowRuntime.resolveInitialShellViewport(storage);
     this.rootViewportWidth = initialViewport.width;
@@ -5821,9 +5836,12 @@ struct BrowserShellPage {
     this.reconcileShellTabPresentation();
     this.browserShellLifecycleCoordinator.handleAppear();
     this.scheduleColdStartPostFirstFrameWork();
+    void this.checkClientUpdatePolicy();
   }
 
   aboutToDisappear(): void {
+    this.clientUpdatePolicyUnsubscribe?.();
+    this.clientUpdatePolicyUnsubscribe = undefined;
     this.coldStartDeferredContentMountGeneration += 1;
     this.userScriptRuntimeCoordinator.cancelDocumentStartScriptWarmup();
     this.browserUserAgentRuntimePolicyCoordinator.dispose();
@@ -5844,6 +5862,40 @@ struct BrowserShellPage {
 
   onPageShow(): void {
     this.browserShellLifecycleCoordinator.handlePageShow();
+    void this.checkClientUpdatePolicy();
+  }
+
+  private checkClientUpdatePolicy(): Promise<void> {
+    return sharedClientUpdatePolicyService.check(sharedAiraSyncConfigStore.getSettings())
+      .then((): void => undefined)
+      .catch((_error: Error): void => {
+        // The policy is fail-open; a transient network error must not affect local browsing.
+      });
+  }
+
+  private handleClientUpdateRequiredAction(action: ClientUpdateRequiredAction): void {
+    const state = this.clientUpdatePolicyState;
+    sharedClientUpdatePolicyService.deferCurrentRequirement();
+    if (action === 'continue_local') {
+      this.browserNativeAlertDialogPresenter.inform({
+        title: '云同步已暂停',
+        message: '当前版本仍可正常浏览和使用本机书签。升级 Aira 后，Aira 云书签同步才会恢复。',
+        confirmLabel: '知道了'
+      });
+      return;
+    }
+    const updateTask = state.updateUrl.length > 0
+      ? this.systemSettingsLaunchService.openExternalUrl(this.getAbilityContext(), state.updateUrl)
+      : this.systemSettingsLaunchService.openAppGalleryDetailPage(this.getAbilityContext());
+    updateTask.then((result): void => {
+      if (!result.success) {
+        this.browserNativeAlertDialogPresenter.inform({
+          title: '暂时无法打开升级页面',
+          message: `${result.message} 请稍后在应用市场搜索 Aira。`,
+          confirmLabel: '知道了'
+        });
+      }
+    });
   }
 
   build() {
@@ -5909,6 +5961,15 @@ struct BrowserShellPage {
           visible: true,
           prompt: this.pendingDownloadPrompt,
           onAction: (action) => this.browserDownloadConfirmOverlayCoordinator.handleAction(action)
+        })
+      }
+
+      if (this.clientUpdatePolicyState.required) {
+        ClientUpdateRequiredOverlay({
+          state: this.clientUpdatePolicyState,
+          onAction: (action: ClientUpdateRequiredAction): void => {
+            this.handleClientUpdateRequiredAction(action);
+          }
         })
       }
 

@@ -47,6 +47,7 @@ import {
 import { SyncAdditionalBackupPolicyService } from './SyncAdditionalBackupPolicyService';
 import { AiraWebdavRemoteStore } from './AiraWebdavRemoteStore';
 import {
+  AiraCloudBookmarkRemoteError,
   createAiraCloudBookmarkRemoteStore
 } from './AiraCloudBookmarkRemoteStore';
 import {
@@ -207,6 +208,13 @@ export class SyncService {
   resolveBookmarkSyncFailure(error: Error | Object): AiraBookmarkSyncFailure {
     if (error instanceof AiraBookmarkSyncStageError) {
       return error.failure;
+    }
+    if (error instanceof AiraCloudBookmarkRemoteError && error.code === 'client_update_required') {
+      return {
+        code: 'BKM-PROTOCOL-UPDATE-001',
+        stage: 'authentication',
+        safeDetail: '当前书签同步协议已停止服务，请升级鸿蒙 App 或 Aira-sync 插件后再试。本机和云端书签均未被覆盖。'
+      };
     }
     return this.createBookmarkSyncFailure('unknown');
   }

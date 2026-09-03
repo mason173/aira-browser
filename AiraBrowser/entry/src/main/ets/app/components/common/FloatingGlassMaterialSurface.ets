@@ -13,10 +13,13 @@ export struct FloatingGlassMaterialSurface {
   @Prop surfaceHeight: Length = 1;
   @Prop surfaceRadius: number = 0;
   @Prop tintColor: ResourceColor = FLOATING_GLASS_MATERIAL_LIGHT_TINT;
+  // Keep a visible glass-like surface when API 26 material is unavailable or opt-out.
+  @Prop fallbackColor: ResourceColor = $r('app.color.surface_glass_background');
   @Prop materialStyle: uiMaterial.ImmersiveStyle = FLOATING_GLASS_MATERIAL_IMMERSIVE_STYLE;
   @Prop lightEffectColor: ResourceColor = FLOATING_GLASS_MATERIAL_LIGHT_EFFECT_COLOR;
-  @Prop materialShadowEnabled: boolean = true;
+  @Prop materialShadowEnabled: boolean = false;
   @Prop materialInteractive: boolean = true;
+  @Prop materialEnabled: boolean = false;
   @Prop overlayColor: ResourceColor | undefined = undefined;
   @Prop overlayOpacity: number = 0;
   @Prop materialBorderWidth: number = 0;
@@ -25,11 +28,11 @@ export struct FloatingGlassMaterialSurface {
 
   build() {
     Stack({ alignContent: Alignment.Center }) {
-      if (!isFloatingGlassMaterialAvailable()) {
+      if (!this.shouldApplyMaterial()) {
         Stack()
           .width('100%')
           .height('100%')
-          .backgroundColor(this.tintColor)
+          .backgroundColor(this.fallbackColor)
           .hitTestBehavior(HitTestMode.None)
       }
 
@@ -60,7 +63,7 @@ export struct FloatingGlassMaterialSurface {
     .height(this.surfaceHeight)
     .borderRadius(this.resolveSurfaceRadius())
     .clip(true)
-    .systemMaterial(isFloatingGlassMaterialAvailable() ? createFloatingGlassMaterial(
+    .systemMaterial(this.shouldApplyMaterial() ? createFloatingGlassMaterial(
       this.tintColor,
       this.materialStyle,
       this.lightEffectColor,
@@ -86,5 +89,9 @@ export struct FloatingGlassMaterialSurface {
       return 0;
     }
     return Math.max(0, Math.min(1, this.overlayOpacity));
+  }
+
+  private shouldApplyMaterial(): boolean {
+    return this.materialEnabled && isFloatingGlassMaterialAvailable();
   }
 }

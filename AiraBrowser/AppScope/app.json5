@@ -1,13 +1,13 @@
 {
   "app": {
-    "bundleName": "org.aira.browser",
+    "bundleName": "com.aira.browser",
     "vendor": "airabrowser",
-    "versionCode": 1000369,
+    "versionCode": 1000414,
     "versionName": "2.6.1",
     "icon": "$media:layered_image",
     "label": "$string:app_name",
     "configuration": "$profile:configuration",
-    "cloudStructuredDataSyncEnabled": false,
+    "cloudStructuredDataSyncEnabled": true,
     "multiAppMode": {
       "multiAppModeType": "appClone",
       "maxCount": 2

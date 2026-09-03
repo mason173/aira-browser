@@ -2,7 +2,6 @@ import {
   BROWSER_BOTTOM_ADDRESS_PANEL_FLOATING_BOTTOM_GAP,
   BROWSER_BOTTOM_ADDRESS_PANEL_FLOATING_HORIZONTAL_INSET,
   BROWSER_BOTTOM_ADDRESS_PANEL_FLOATING_VERTICAL_PADDING,
-  BROWSER_BOTTOM_CHROME_TEXT_LINE_HEIGHT,
   BROWSER_BOTTOM_CHROME_TEXT_SIZE,
   BROWSER_FLOATING_CHROME_PRESSED_SCALE,
   BROWSER_FLOATING_CHROME_PRESS_DURATION_MS,
@@ -13,13 +12,13 @@ import { BrowserBottomPanelResponsiveViewModel } from '../../../core/browser/Bro
 import { BrowserTabsOverviewSection } from '../../../core/browser/tabsOverview/BrowserTabsOverviewSectionPolicy';
 import { AppChromeIconTone } from '../../../core/resources/AppIconResources';
 import { AiraRenderableIconId } from '../../../core/resources/GeneratedAiraIconCatalog';
+import { SegmentedTabs } from '../common/SegmentedTabs';
 import {
   BROWSER_THEME_STORAGE_ACCENT_KEY,
   BROWSER_THEME_STORAGE_ON_ACCENT_KEY
 } from '../../../core/theme/BrowserThemeStorageKeys';
 import {
   resolveBrowserBottomFloatingMaterialShadowColor,
-  resolveBrowserBottomNeutralPressedColor,
   resolveBrowserBottomNeutralPrimaryColor,
   resolveBrowserBottomNeutralSecondaryColor
 } from '../../../core/theme/BrowserBottomPanelNeutralTheme';
@@ -51,7 +50,6 @@ export struct BrowserTabsOverviewBottomChrome {
   @Prop chromeInteractionEnabled: boolean = true;
   @Prop regularChromeIconTone: AppChromeIconTone = 'light';
   @Prop adaptiveForeground: boolean = true;
-  @State private pressedTarget: string = '';
   @State private pressedOuterScaleTarget: string = '';
   @State private pressedOuterScale: number = 1;
 
@@ -89,7 +87,8 @@ export struct BrowserTabsOverviewBottomChrome {
         surfaceWidth: BROWSER_TABS_OVERVIEW_BOTTOM_CHROME_OUTER_SIZE,
         surfaceHeight: BROWSER_TABS_OVERVIEW_BOTTOM_CHROME_HEIGHT,
         surfaceRadius: BROWSER_TABS_OVERVIEW_BOTTOM_CHROME_HEIGHT / 2,
-        tintColor: this.resolveMaterialTint()
+        tintColor: this.resolveMaterialTint(),
+        materialEnabled: true
       }) {
         Stack({ alignContent: Alignment.Center }) {
           AiraIcon({
@@ -131,70 +130,34 @@ export struct BrowserTabsOverviewBottomChrome {
   @Builder
   private buildSectionSwitcher() {
     Stack({ alignContent: Alignment.Center }) {
-      FloatingGlassMaterialSurface({
-        surfaceWidth: '100%',
-        surfaceHeight: BROWSER_TABS_OVERVIEW_BOTTOM_CHROME_HEIGHT,
-        surfaceRadius: BROWSER_TABS_OVERVIEW_BOTTOM_CHROME_HEIGHT / 2,
-        tintColor: this.resolveMaterialTint()
-      }) {
-        Row({ space: 0 }) {
-          this.buildSectionButton('tabs', this.regularTabsLabel)
-          this.buildSectionButton('privacy', '隐私模式')
+      SegmentedTabs({
+        options: [
+          { id: 'tabs', title: this.regularTabsLabel },
+          { id: 'privacy', title: '隐私模式' }
+        ],
+        selectedId: this.selectedSection,
+        barHeight: BROWSER_TABS_OVERVIEW_BOTTOM_CHROME_HEIGHT,
+        itemHeight: BROWSER_TABS_OVERVIEW_BOTTOM_CHROME_HEIGHT -
+          BROWSER_TABS_OVERVIEW_BOTTOM_CHROME_SEGMENT_INSET * 2,
+        fontSize: BROWSER_BOTTOM_CHROME_TEXT_SIZE,
+        barPadding: BROWSER_TABS_OVERVIEW_BOTTOM_CHROME_SEGMENT_INSET,
+        indicatorBackgroundColor: this.storedAccentColor,
+        selectedTextColor: this.storedOnAccentColor,
+        secondaryTextColor: this.adaptiveForeground ? $r('sys.color.font_secondary') :
+          resolveBrowserBottomNeutralSecondaryColor(this.resolveMaterialMode()),
+        fallbackColor: $r('app.color.browser_bottom_toolbar_glass_background'),
+        onSelect: (id: string): void => {
+          this.dispatchSectionAction(id as BrowserTabsOverviewSection);
         }
+      })
         .width('100%')
-        .height('100%')
-        .padding(BROWSER_TABS_OVERVIEW_BOTTOM_CHROME_SEGMENT_INSET)
-      }
+        .height(BROWSER_TABS_OVERVIEW_BOTTOM_CHROME_HEIGHT)
     }
     .layoutWeight(1)
     .constraintSize({ minWidth: 1 })
     .height(BROWSER_TABS_OVERVIEW_BOTTOM_CHROME_HEIGHT)
     .borderRadius(BROWSER_TABS_OVERVIEW_BOTTOM_CHROME_HEIGHT / 2)
     .shadow(this.resolveMaterialShadow())
-  }
-
-  @Builder
-  private buildSectionButton(section: BrowserTabsOverviewSection, label: string) {
-    Stack({ alignContent: Alignment.Center }) {
-      Stack()
-        .width('100%')
-        .height('100%')
-        .backgroundColor(this.resolveSectionBackground(section))
-        .borderRadius((BROWSER_TABS_OVERVIEW_BOTTOM_CHROME_HEIGHT -
-          BROWSER_TABS_OVERVIEW_BOTTOM_CHROME_SEGMENT_INSET * 2) / 2)
-        .hitTestBehavior(HitTestMode.None)
-
-      Text(label)
-        .width('100%')
-        .height(BROWSER_BOTTOM_CHROME_TEXT_LINE_HEIGHT)
-        .fontSize(BROWSER_BOTTOM_CHROME_TEXT_SIZE)
-        .lineHeight(BROWSER_BOTTOM_CHROME_TEXT_LINE_HEIGHT)
-        .fontColor(this.resolveSectionTextColor(section))
-        .fontWeight(this.selectedSection === section ? FontWeight.Medium : FontWeight.Regular)
-        .maxLines(1)
-        .textOverflow({ overflow: TextOverflow.Ellipsis })
-        .textAlign(TextAlign.Center)
-        .hitTestBehavior(HitTestMode.None)
-
-      Button()
-        .width('100%')
-        .height('100%')
-        .type(ButtonType.Normal)
-        .backgroundColor($r('sys.color.ohos_id_color_background_transparent'))
-        .borderRadius((BROWSER_TABS_OVERVIEW_BOTTOM_CHROME_HEIGHT -
-          BROWSER_TABS_OVERVIEW_BOTTOM_CHROME_SEGMENT_INSET * 2) / 2)
-        .stateEffect(false)
-        .accessibilityText(section === 'tabs' ? label : '切换到隐私模式')
-        .onTouch((event: TouchEvent) => {
-          this.updatePressedTarget(section, event.type);
-        })
-        .onClick(() => {
-          this.dispatchSectionAction(section);
-        })
-    }
-    .layoutWeight(1)
-    .constraintSize({ minWidth: 1 })
-    .height('100%')
   }
 
   private dispatchOuterAction(target: string): void {
@@ -219,28 +182,12 @@ export struct BrowserTabsOverviewBottomChrome {
     this.onSwitchToTabs();
   }
 
-  private updatePressedTarget(target: string, touchType: TouchType): void {
-    if (!this.chromeInteractionEnabled) {
-      this.pressedTarget = '';
-      return;
-    }
-    if (touchType === TouchType.Down) {
-      this.pressedTarget = target;
-      return;
-    }
-    if (touchType === TouchType.Up || touchType === TouchType.Cancel) {
-      this.pressedTarget = '';
-    }
-  }
-
   private updatePressedOuterTarget(target: string, touchType: TouchType): void {
     if (!this.chromeInteractionEnabled) {
-      this.pressedTarget = '';
       this.resetOuterPressScale();
       return;
     }
     if (touchType === TouchType.Down) {
-      this.pressedTarget = target;
       this.pressedOuterScaleTarget = target;
       animateTo({
         duration: BROWSER_FLOATING_CHROME_PRESS_DURATION_MS,
@@ -251,7 +198,6 @@ export struct BrowserTabsOverviewBottomChrome {
       return;
     }
     if (touchType === TouchType.Up || touchType === TouchType.Cancel) {
-      this.pressedTarget = '';
       if (this.pressedOuterScaleTarget !== target) {
         return;
       }
@@ -273,25 +219,8 @@ export struct BrowserTabsOverviewBottomChrome {
     return this.pressedOuterScaleTarget === target ? this.pressedOuterScale : 1;
   }
 
-  private resolveSectionBackground(section: BrowserTabsOverviewSection): ResourceColor {
-    if (this.pressedTarget === section) {
-      return this.resolvePressedColor();
-    }
-    if (this.selectedSection === section) {
-      return this.storedAccentColor;
-    }
-    return $r('sys.color.ohos_id_color_background_transparent');
-  }
-
-  private resolveSectionTextColor(section: BrowserTabsOverviewSection): ResourceColor {
-    return this.selectedSection === section ? this.storedOnAccentColor :
-      this.adaptiveForeground ? $r('sys.color.font_secondary') :
-        resolveBrowserBottomNeutralSecondaryColor(this.resolveMaterialMode());
-  }
-
   private resolvePressedBackground(target: string): ResourceColor {
-    return this.pressedTarget === target ? this.resolvePressedColor() :
-      $r('sys.color.ohos_id_color_background_transparent');
+    return $r('sys.color.ohos_id_color_background_transparent');
   }
 
   private resolveMaterialTint(): ResourceColor {
@@ -301,10 +230,6 @@ export struct BrowserTabsOverviewBottomChrome {
   private resolvePrimaryColor(): ResourceColor {
     return this.adaptiveForeground ? $r('sys.color.icon_primary') :
       resolveBrowserBottomNeutralPrimaryColor(this.resolveMaterialMode());
-  }
-
-  private resolvePressedColor(): ResourceColor {
-    return resolveBrowserBottomNeutralPressedColor(this.resolveMaterialMode());
   }
 
   private resolveMaterialShadow(): ShadowOptions {

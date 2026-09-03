@@ -139,6 +139,21 @@ export class SystemSettingsLaunchService {
     return this.openExternalUrl(context, AIRA_APPGALLERY_REVIEW_URL);
   }
 
+  async openAppGalleryDetailPage(context: common.UIAbilityContext): Promise<SystemSettingsLaunchResult> {
+    const detailPageResult = await this.openAppGalleryDeepLink(
+      context,
+      AIRA_APPGALLERY_DETAIL_URI,
+      '已打开应用市场，请升级 Aira。'
+    );
+    if (detailPageResult.success) {
+      return detailPageResult;
+    }
+    return this.openExternalUrl(
+      context,
+      `https://appgallery.huawei.com/app/detail?id=${APP_BUNDLE_NAME}`
+    );
+  }
+
   async showAppReviewPrompt(context: common.UIAbilityContext): Promise<SystemSettingsLaunchResult> {
     try {
       await commentManager.showCommentDialog(context);

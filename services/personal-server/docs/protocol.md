@@ -33,7 +33,7 @@ treated as phones. History requests require `clientId` to equal the device ID bo
 
 | Domain | Version | Base path | Storage model |
 | --- | ---: | --- | --- |
-| Bookmarks | 3 | `/v1/sync/bookmarks` | Complete snapshot, history descriptor, commit CAS |
+| Bookmarks | 4 | `/v1/sync/bookmarks` | Complete snapshot, history descriptor, commit CAS; protocol `aira-cloud-bookmarks-v4` |
 | History | 1 | `/v1/sync/history` | Bounded mutations, cursor exchange, stable-head bootstrap |
 | Personalization | 2 | `/v1/sync/personalization` | Complete snapshot, revision CAS |
 | Novel Bookshelf | 2 | `/v1/sync/novel-bookshelf` | Complete snapshot, revision CAS |
@@ -64,4 +64,6 @@ Application conflicts use HTTP `409` with stable JSON codes such as `sync_confli
 - New migrations are append-only and ordered by filename.
 - The stable `instanceId` must survive upgrades and restores.
 - A client must isolate baselines, runtime state, and History account scope by `instanceId` and normalized base URL.
+- Bookmark requests must include `protocol: aira-cloud-bookmarks-v4`; older bookmark clients receive `426 client_update_required` and cannot read or write state.
+- Personal Server v4 is a deliberate breaking generation before public release; clients must pair again when the stored connection generation is older.
 - Page Push and Cross-device Tabs are ephemeral coordination services, not durable Sync Domains or browser-history stores.

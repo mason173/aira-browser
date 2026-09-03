@@ -213,6 +213,18 @@ class StaleReadBackRemoteStore extends MemoryRemoteStore {
   }
 }
 
+class TransientReadFailureRemoteStore extends MemoryRemoteStore {
+  readAttempts = 0;
+
+  override async readState(): Promise<LeafTabSyncRemoteState> {
+    this.readAttempts += 1;
+    if (this.readAttempts === 1) {
+      throw new Error('network unavailable');
+    }
+    return super.readState();
+  }
+}
+
 class RacingRemoteStore extends MemoryRemoteStore {
   private readonly racedState: LeafTabSyncRemoteState;
   private hasRaced = false;
@@ -1038,6 +1050,43 @@ describe('Airatab realistic bookmark sync flows', () => {
       applied,
       baselineItems: expectLiveItemIds(baselineStore.value!.snapshot!),
     }).toEqual({ applied: false, baselineItems: [] });
+  });
+
+  test('a transient remote read failure leaves local state and baseline unchanged for retry', async () => {
+    const base = createSnapshot('desktop-a', [{ id: 'item-a' }]);
+    const remote = new TransientReadFailureRemoteStore({
+      snapshot: clone(base),
+      commitId: 'commit-seed',
+      history: ORIGIN_HISTORY,
+    });
+    const baselineStore = new MemoryBaselineStore(createBaseline(base, 'commit-seed'));
+    let local = clone(base);
+    const engine = new LeafTabSyncEngine({
+      deviceId: 'desktop-a',
+      remoteStore: remote,
+      baselineStore,
+      historyLifecycle: new LeafTabSyncTombstoneLifecycle(new MemoryHistoryStore()),
+      buildLocalSnapshot: async () => clone(local),
+      applyLocalSnapshot: async (snapshot) => { local = clone(snapshot); },
+      verifyLocalSnapshot: async (snapshot) => {
+        expect(comparableSnapshot(local)).toEqual(comparableSnapshot(snapshot));
+      },
+      createEmptySnapshot: () => createSnapshot('desktop-a'),
+    });
+
+    await expect(engine.sync()).rejects.toThrow('network unavailable');
+    expect({
+      readAttempts: remote.readAttempts,
+      localItems: expectLiveItemIds(local),
+      baselineCommitId: baselineStore.value?.commitId,
+    }).toEqual({
+      readAttempts: 1,
+      localItems: ['item-a'],
+      baselineCommitId: 'commit-seed',
+    });
+
+    await expect(engine.sync()).resolves.toMatchObject({ kind: 'noop' });
+    expect(remote.readAttempts).toBe(2);
   });
 
   test('a remote compare-and-swap race leaves the baseline unchanged and converges on retry', async () => {

@@ -400,7 +400,8 @@ export function createBookmarkBackgroundSyncRuntime(
       ].includes(error.code);
     }
     if (error instanceof PersonalServerRemoteError) {
-      return error.status === 401 || error.status === 403 || error.code === 'personal_server_required';
+      return error.status === 401 || error.status === 403 ||
+        error.code === 'personal_server_required' || error.code === 'client_update_required';
     }
     const message = String((error as Error)?.message || error || '');
     return /请先|重新扫码|权限|认证|凭据/i.test(message);
@@ -470,6 +471,13 @@ export function createBookmarkBackgroundSyncRuntime(
         if (remoteKind === 'aira-cloud' && error instanceof LeafTabSyncAiraCloudError &&
           error.code === 'client_update_required') {
           await persistAiraCloudClientUpdateBlock(error.message);
+          await clearBackgroundAlarms();
+        }
+        if (remoteKind === 'personal-server' && error instanceof PersonalServerRemoteError &&
+          error.code === 'client_update_required') {
+          await removeExtensionStorageKeys([
+            LEAFTAB_BACKGROUND_STORAGE_KEYS.autoSyncRetryProvider,
+          ]);
           await clearBackgroundAlarms();
         }
         if (error instanceof LeafTabSyncAiraCloudError && isAiraDesktopCredentialRejection(error)) {

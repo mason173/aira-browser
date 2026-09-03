@@ -1,4 +1,6 @@
 import {
+  AIRA_CLOUD_BOOKMARK_SYNC_GENERATION,
+  AIRA_CLOUD_BOOKMARK_SYNC_PROTOCOL_ID,
   AIRA_BOOKMARK_SYNC_PROTOCOL_ID,
   AIRA_SYNC_DEFAULT_ROOT,
   AiraAdditionalBackupIntervalDays,
@@ -18,6 +20,7 @@ import {
   AiraSyncSettings,
   AiraSyncSnapshot,
   buildAiraHuaweiSpaceRemoteStatusProviderKey,
+  buildAiraPersonalServerRemoteStatusProviderKey,
   buildAiraWebdavRemoteStatusProviderKey,
   createAiraSyncDomainRuntimeState,
   createDefaultAiraPersonalServerConfig,
@@ -1466,7 +1469,9 @@ export class AiraSyncConfigStore {
       .replace(/[^a-zA-Z0-9_-]+/g, '_')
       .replace(/_+/g, '_')
       .replace(/^_+|_+$/g, '');
-    return suffix.length > 0 ? `aira-cloud-v3:${suffix}` : 'aira-cloud-v3';
+    return suffix.length > 0
+      ? `aira-cloud-v${AIRA_CLOUD_BOOKMARK_SYNC_GENERATION}:${suffix}`
+      : `aira-cloud-v${AIRA_CLOUD_BOOKMARK_SYNC_GENERATION}`;
   }
 
   private buildHuaweiSpaceProviderId(uid: string): string {
@@ -1501,14 +1506,15 @@ export class AiraSyncConfigStore {
     if (remoteKind === 'self_hosted') {
       const config = resolveAiraPersonalServerConfig(settings);
       return [
-        'sync-provider-g3',
+        `sync-provider-g${AIRA_CLOUD_BOOKMARK_SYNC_GENERATION}`,
         'self_hosted',
+        AIRA_CLOUD_BOOKMARK_SYNC_PROTOCOL_ID,
         config.instanceId.trim(),
         config.baseUrl.trim().replace(/\/+$/, '')
       ].map((value: string): string => encodeURIComponent(value)).join('|');
     }
     return [
-      'sync-provider-g3',
+      `sync-provider-g${AIRA_CLOUD_BOOKMARK_SYNC_GENERATION}`,
       'aira_cloud',
       settings.huaweiCloud.uid.trim()
     ].map((value: string): string => encodeURIComponent(value)).join('|');
@@ -1546,7 +1552,7 @@ export class AiraSyncConfigStore {
     }
     if (remoteKind === 'self_hosted') {
       const config = resolveAiraPersonalServerConfig(settings);
-      return `aira-personal-server-v1:${encodeURIComponent(config.instanceId.trim())}`;
+      return `aira-personal-server-v${AIRA_CLOUD_BOOKMARK_SYNC_GENERATION}:${encodeURIComponent(config.instanceId.trim())}`;
     }
     return DEFAULT_PROVIDER_ID;
   }
@@ -1570,7 +1576,12 @@ export class AiraSyncConfigStore {
   }
 
   private buildHuaweiCloudStatusProviderKey(uid: string, rootPath: string): string {
-    return `aira_cloud|${uid.trim()}|${rootPath.trim()}`;
+    return [
+      'aira_cloud',
+      AIRA_CLOUD_BOOKMARK_SYNC_PROTOCOL_ID,
+      uid.trim(),
+      rootPath.trim()
+    ].map((value: string): string => encodeURIComponent(value)).join('|');
   }
 
   private buildHuaweiSpaceStatusProviderKey(uid: string, databaseName: string, rootPath: string): string {
@@ -1597,7 +1608,7 @@ export class AiraSyncConfigStore {
     }
     if (remoteKind === 'self_hosted') {
       const config = resolveAiraPersonalServerConfig(settings);
-      return `self_hosted|${config.instanceId.trim()}|${config.baseUrl.trim().replace(/\/+$/, '')}`;
+      return buildAiraPersonalServerRemoteStatusProviderKey(config.instanceId, config.baseUrl);
     }
     return buildAiraWebdavRemoteStatusProviderKey(
       settings.webdav.endpoint,

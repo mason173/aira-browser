@@ -2,7 +2,16 @@
   "module": {
     "name": "entry",
     "type": "entry",
-    "metadata": [],
+    "metadata": [
+      {
+        "name": "app_id",
+        "value": "6917606047264922088"
+      },
+      {
+        "name": "client_id",
+        "value": "1954626833320263296"
+      }
+    ],
     "requestPermissions": [
       {
         "name": "ohos.permission.INTERNET",
@@ -14,10 +23,6 @@
       {
         "name": "ohos.permission.GET_NETWORK_INFO"
       },
-      // PC/2in1 browser ACL only. Keep this disabled for the phone/tablet release package.
-      // {
-      //   "name": "ohos.permission.GET_ABILITY_INFO"
-      // },
       {
         "name": "ohos.permission.CAMERA",
         "reason": "$string:camera_permission_reason",
@@ -312,7 +317,7 @@
             "name": "ohos.extension.backup",
             "resource": "$profile:backup_config"
           }
-        ],
+        ]
       },
       {
         "name": "AiraSearchFormAbility",

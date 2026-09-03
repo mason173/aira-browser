@@ -133,4 +133,96 @@ describe('LeafTabSyncEngine', () => {
       confirmedHistory: ORIGIN_HISTORY,
     });
   });
+
+  test('retries a transient remote read-back mismatch before failing confirmation', async () => {
+    const localSnapshot = createEmptySnapshot('desktop-a');
+    const baselineStore = new MemoryBaselineStore();
+    const historyStore = new MemoryHistoryStore();
+    const historyLifecycle = new LeafTabSyncTombstoneLifecycle(historyStore);
+    let readCount = 0;
+    let committed = false;
+    const remoteStore: LeafTabSyncRemoteStore = {
+      async readState() {
+        readCount += 1;
+        return readCount < 3 || !committed
+          ? { snapshot: null, commitId: null, history: null }
+          : { snapshot: localSnapshot, commitId: 'commit-first-upload', history: ORIGIN_HISTORY };
+      },
+      async writeState() {
+        committed = true;
+        return {
+          commitId: 'commit-first-upload',
+          writtenAt: '2026-08-04T00:00:00.000Z',
+        };
+      },
+    };
+    const engine = new LeafTabSyncEngine({
+      deviceId: 'desktop-a',
+      remoteStore,
+      baselineStore,
+      historyLifecycle,
+      buildLocalSnapshot: async () => localSnapshot,
+      applyLocalSnapshot: async () => undefined,
+      verifyLocalSnapshot: async () => undefined,
+      createEmptySnapshot: () => createEmptySnapshot('desktop-a'),
+    });
+
+    await engine.sync();
+    expect(readCount).toBe(3);
+    await expect(baselineStore.load()).resolves.not.toBeNull();
+  });
+
+  test('treats equivalent snapshots with different object key order as the same commit', async () => {
+    const localSnapshot = createEmptySnapshot('desktop-a');
+    localSnapshot.bookmarkFolders = {
+      folder: {
+        id: 'folder',
+        type: 'bookmark-folder',
+        parentId: null,
+        title: '书签栏',
+        createdAt: EMPTY_TIMESTAMP,
+        updatedAt: EMPTY_TIMESTAMP,
+        updatedBy: 'desktop-a',
+        revision: 1,
+      },
+    };
+    const remoteSnapshot = {
+      ...localSnapshot,
+      bookmarkFolders: {
+        folder: {
+          revision: 1,
+          updatedBy: 'desktop-a',
+          updatedAt: EMPTY_TIMESTAMP,
+          createdAt: EMPTY_TIMESTAMP,
+          title: '书签栏',
+          parentId: null,
+          type: 'bookmark-folder' as const,
+          id: 'folder',
+        },
+      },
+    };
+    const baselineStore = new MemoryBaselineStore();
+    const historyStore = new MemoryHistoryStore();
+    const historyLifecycle = new LeafTabSyncTombstoneLifecycle(historyStore);
+    const remoteStore: LeafTabSyncRemoteStore = {
+      async readState() {
+        return { snapshot: remoteSnapshot, commitId: 'commit-equivalent', history: ORIGIN_HISTORY };
+      },
+      async writeState() {
+        throw new Error('equivalent snapshots must not be rewritten');
+      },
+    };
+    const engine = new LeafTabSyncEngine({
+      deviceId: 'desktop-a',
+      remoteStore,
+      baselineStore,
+      historyLifecycle,
+      buildLocalSnapshot: async () => localSnapshot,
+      applyLocalSnapshot: async () => undefined,
+      verifyLocalSnapshot: async () => undefined,
+      createEmptySnapshot: () => createEmptySnapshot('desktop-a'),
+    });
+
+    await expect(engine.sync()).resolves.toMatchObject({ kind: 'noop' });
+  });
 });

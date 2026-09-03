@@ -3,17 +3,17 @@ export const LEAFTAB_SYNC_DEVICE_ID_REQUEST_TYPE = 'AIRA_LEAFTAB_SYNC_G2_DEVICE_
 export const LEAFTAB_SYNC_DEFAULT_ROOT_PATH = 'aira/g3/bookmarks';
 export const LEAFTAB_BOOKMARK_MAPPING_KEY = 'leaftab_sync_g2_bookmark_mapping:roots:toolbar+other';
 export const LEAFTAB_SELECTED_SYNC_SOURCE_KEY = 'leaftab_sync_g2_active_provider';
-export const LEAFTAB_SYNC_HISTORY_KEY = 'leaftab_sync_g3_confirmed_bookmark_history';
-export const LEAFTAB_PENDING_BOOKMARK_CONFLICT_KEY = 'leaftab_sync_g3_pending_bookmark_conflict';
-export const AIRA_CLOUD_LAST_SYNC_AT_KEY = 'aira_cloud_bookmark_sync_g3_last_sync_at';
-export const AIRA_CLOUD_LAST_ERROR_AT_KEY = 'aira_cloud_bookmark_sync_g3_last_error_at';
-export const AIRA_CLOUD_LAST_ERROR_MESSAGE_KEY = 'aira_cloud_bookmark_sync_g3_last_error_message';
+export const LEAFTAB_SYNC_HISTORY_KEY = 'leaftab_sync_g4_confirmed_bookmark_history';
+export const LEAFTAB_PENDING_BOOKMARK_CONFLICT_KEY = 'leaftab_sync_g4_pending_bookmark_conflict';
+export const AIRA_CLOUD_LAST_SYNC_AT_KEY = 'aira_cloud_bookmark_sync_g4_last_sync_at';
+export const AIRA_CLOUD_LAST_ERROR_AT_KEY = 'aira_cloud_bookmark_sync_g4_last_error_at';
+export const AIRA_CLOUD_LAST_ERROR_MESSAGE_KEY = 'aira_cloud_bookmark_sync_g4_last_error_message';
 export const WEBDAV_LAST_SYNC_AT_KEY = 'webdav_bookmark_sync_g3_last_sync_at';
 export const WEBDAV_LAST_ERROR_AT_KEY = 'webdav_bookmark_sync_g3_last_error_at';
 export const WEBDAV_LAST_ERROR_MESSAGE_KEY = 'webdav_bookmark_sync_g3_last_error_message';
-export const PERSONAL_SERVER_LAST_SYNC_AT_KEY = 'personal_server_bookmark_sync_g3_last_sync_at';
-export const PERSONAL_SERVER_LAST_ERROR_AT_KEY = 'personal_server_bookmark_sync_g3_last_error_at';
-export const PERSONAL_SERVER_LAST_ERROR_MESSAGE_KEY = 'personal_server_bookmark_sync_g3_last_error_message';
+export const PERSONAL_SERVER_LAST_SYNC_AT_KEY = 'personal_server_bookmark_sync_g4_last_sync_at';
+export const PERSONAL_SERVER_LAST_ERROR_AT_KEY = 'personal_server_bookmark_sync_g4_last_error_at';
+export const PERSONAL_SERVER_LAST_ERROR_MESSAGE_KEY = 'personal_server_bookmark_sync_g4_last_error_message';
 
 type LeafTabSyncBaselineProvider =
   | {
@@ -42,11 +42,11 @@ export const createLeafTabSyncBaselineStorageKey = (
   const suffix = normalizedRootPath.replace(/[^a-zA-Z0-9_-]+/g, '_');
   if (provider.remoteKind === 'aira-cloud') {
     const safeUid = (provider.uid || 'unknown').replace(/[^a-zA-Z0-9_-]+/g, '_');
-    return `leaftab_sync_g3_baseline:aira_cloud:${safeUid}:${suffix}`;
+    return `leaftab_sync_g4_baseline:aira_cloud:${safeUid}:${suffix}`;
   }
   if (provider.remoteKind === 'personal-server') {
     const safeInstanceId = (provider.instanceId || 'unknown').replace(/[^a-zA-Z0-9_-]+/g, '_');
-    return `leaftab_sync_g3_baseline:personal_server:${safeInstanceId}:${suffix}`;
+    return `leaftab_sync_g4_baseline:personal_server:${safeInstanceId}:${suffix}`;
   }
   const endpoint = String(provider.url || '').trim().replace(/\/+$/, '');
   const username = String(provider.username || '').trim();
@@ -60,9 +60,9 @@ export const createLeafTabSyncBaselineStorageKey = (
 };
 
 export const LEAFTAB_BACKGROUND_STORAGE_KEYS = {
-  lastRemoteProbeAt: 'leaftab_sync_g3_background_last_remote_probe_at',
-  nextRemoteProbeAt: 'leaftab_sync_g3_background_next_remote_probe_at',
-  autoSyncLastError: 'leaftab_sync_g3_background_auto_sync_last_error',
-  autoSyncRetryProvider: 'leaftab_sync_g3_background_auto_sync_retry_provider',
-  airaCloudClientUpdateRequired: 'leaftab_sync_g3_aira_cloud_client_update_required',
+  lastRemoteProbeAt: 'leaftab_sync_g4_background_last_remote_probe_at',
+  nextRemoteProbeAt: 'leaftab_sync_g4_background_next_remote_probe_at',
+  autoSyncLastError: 'leaftab_sync_g4_background_auto_sync_last_error',
+  autoSyncRetryProvider: 'leaftab_sync_g4_background_auto_sync_retry_provider',
+  airaCloudClientUpdateRequired: 'leaftab_sync_g4_aira_cloud_client_update_required',
 } as const;

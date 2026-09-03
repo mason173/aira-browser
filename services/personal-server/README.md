@@ -4,7 +4,7 @@ Aira Personal Server is the single-owner sync backend for Aira Browser. It is de
 
 The server currently synchronizes:
 
-- bookmarks through the complete-snapshot v3 protocol with compare-and-swap writes;
+- bookmarks through the complete-snapshot v4 protocol (`aira-cloud-bookmarks-v4`) with compare-and-swap writes;
 - history through the bounded incremental/bootstrap v1 protocol;
 - personalization through the complete-snapshot v2 protocol;
 - Novel Bookshelf metadata and reading anchors through the complete-snapshot v2 protocol.
@@ -90,6 +90,10 @@ domains, Page Push, Cross-device Tabs, compare-and-swap conflicts, credential ro
 ## Scope And Compatibility
 
 The discovery document at `/.well-known/aira` is the client compatibility contract. Protocol changes must remain explicit and versioned. Aira production membership, IAP, admin, analytics, diagnostics, and Huawei-account services are intentionally outside this public monorepo.
+
+This release is a deliberate breaking generation for the unpublished Personal Server. It has no public-user
+compatibility or legacy-data migration obligation. Bookmarks require the v4 protocol; pre-v4 bookmark clients are rejected
+before any state is read or written. The server stores one complete snapshot and never merges legacy sources.
 
 ## Security
 

@@ -27,7 +27,10 @@ import {
 import { resolveBrowserOperationalIconColor } from '../../../core/theme/BrowserOperationalIconTheme';
 import { AppEmptyState } from '../common/AppEmptyState';
 import { WebsiteIconView } from '../common/WebsiteIconView';
-import { createFloatingGlassMaterial } from '../common/FloatingGlassMaterialTokens';
+import {
+  createFloatingGlassMaterialIfAvailable,
+  resolveFloatingGlassMaterialBackgroundColor
+} from '../common/FloatingGlassMaterialTokens';
 import { HOME_WALLPAPER_APPEARANCE_TRANSITION_MS } from '../../../core/wallpaper/HomeWallpaperPresentationTokens';
 import { BrowserFloatingGlassMaterialSurface } from './BrowserFloatingGlassMaterialSurface';
 import { resolveBrowserHomeShortcutMaterialTintForMode } from './BrowserFloatingGlassMaterialTokens';
@@ -499,9 +502,10 @@ export struct HomeShortcutSurface {
     }
     .width(216)
     .radius(HOME_CONTEXT_MENU_RADIUS)
-    .backgroundColor($r('sys.color.ohos_id_color_background_transparent'))
-    .backgroundBlurStyle(BlurStyle.NONE)
-    .systemMaterial(createFloatingGlassMaterial(
+    .backgroundColor(resolveFloatingGlassMaterialBackgroundColor(
+      $r('app.color.surface_floating_background')
+    ))
+    .systemMaterial(createFloatingGlassMaterialIfAvailable(
       resolveBrowserHomeShortcutMaterialTintForMode(this.storedResolvedThemeMode)
     ))
   }

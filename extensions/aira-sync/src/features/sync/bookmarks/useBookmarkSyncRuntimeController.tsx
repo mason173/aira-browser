@@ -177,6 +177,7 @@ const refreshSyncUiCacheFromExtensionStorage = async () => {
 const createIdleProgressState = (): LeafTabSyncProgressState => ({
   open: false,
   inProgress: false,
+  failed: false,
   title: '',
   detail: '',
   progress: 0,
@@ -270,6 +271,7 @@ export function useBookmarkSyncRuntimeController(
     setLeafTabSyncProgress({
       open: true,
       inProgress: true,
+      failed: false,
       title: '正在同步书签',
       detail: resolveProgressDetail(remoteKind, detail),
       progress: 8,
@@ -286,6 +288,7 @@ export function useBookmarkSyncRuntimeController(
     setLeafTabSyncProgress(() => ({
       open: true,
       inProgress: true,
+      failed: false,
       title: '正在同步书签',
       detail: resolveProgressDetail(remoteKind, progress.message),
       progress: Math.max(0, Math.min(100, Math.round(mappedProgress ?? progress.progress))),
@@ -299,6 +302,7 @@ export function useBookmarkSyncRuntimeController(
       ...current,
       open: true,
       inProgress: false,
+      failed: false,
       title: '同步完成',
       detail: detail || '书签已同步完成',
       progress: 100,
@@ -313,6 +317,7 @@ export function useBookmarkSyncRuntimeController(
       ...current,
       open: true,
       inProgress: false,
+      failed: false,
       title: '需要处理同步冲突',
       detail: detail || '检测到同步冲突，请选择保留哪一端的数据。',
       progress: 100,
@@ -325,6 +330,7 @@ export function useBookmarkSyncRuntimeController(
       ...current,
       open: true,
       inProgress: false,
+      failed: true,
       title: '同步失败',
       detail: formatLeafTabSyncErrorMessage(error, remoteKind),
       progress: Math.max(current.progress, 100),
@@ -355,6 +361,7 @@ export function useBookmarkSyncRuntimeController(
         setLeafTabSyncProgress((current) => current.inProgress ? current : {
           open: true,
           inProgress: false,
+          failed: false,
           title: '需要处理同步冲突',
           detail: pending.summary,
           progress: 100,

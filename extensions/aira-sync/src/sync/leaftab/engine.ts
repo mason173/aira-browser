@@ -66,6 +66,22 @@ const summarizeSnapshot = (snapshot: LeafTabSyncSnapshot | null): LeafTabSyncDat
   return countLeafTabLiveBookmarkEntities(snapshot);
 };
 
+const stableSnapshotValue = (value: unknown): unknown => {
+  if (Array.isArray(value)) {
+    return value.map(stableSnapshotValue);
+  }
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.keys(value as Record<string, unknown>)
+        .sort()
+        .map((key) => [key, stableSnapshotValue((value as Record<string, unknown>)[key])]),
+    );
+  }
+  return value;
+};
+
+const stableSnapshotJson = (value: unknown): string => JSON.stringify(stableSnapshotValue(value));
+
 const sameSnapshotContent = (
   left: LeafTabSyncSnapshot | null,
   right: LeafTabSyncSnapshot | null,
@@ -76,14 +92,14 @@ const sameSnapshotContent = (
     const { deviceId: _deviceId, generatedAt: _generatedAt, ...preservedMeta } = snapshot.meta;
     return preservedMeta;
   };
-  return JSON.stringify({
+  return stableSnapshotJson({
     meta: comparableMeta(left),
     bookmarkFolders: left.bookmarkFolders,
     bookmarkItems: left.bookmarkItems,
     bookmarkOrders: left.bookmarkOrders,
     tombstones: left.tombstones,
     appPrivateBookmarks: left.appPrivateBookmarks,
-  }) === JSON.stringify({
+  }) === stableSnapshotJson({
     meta: comparableMeta(right),
     bookmarkFolders: right.bookmarkFolders,
     bookmarkItems: right.bookmarkItems,
@@ -102,6 +118,12 @@ const createSyncResult = (
 ): LeafTabSyncEngineResult => ({
   ...result,
   snapshotSummary: summarizeSnapshot(result.snapshot),
+});
+
+const REMOTE_CONFIRMATION_RETRY_DELAYS_MS = [250, 750] as const;
+
+const waitForRemoteConfirmationRetry = (delayMs: number) => new Promise<void>((resolve) => {
+  globalThis.setTimeout(resolve, delayMs);
 });
 
 const createConcurrentConflictSummaryText = (conflictCount: number) => (
@@ -136,13 +158,28 @@ export class LeafTabSyncEngine {
     expectedSnapshot: LeafTabSyncSnapshot,
     expectedHistory: LeafTabSyncHistoryDescriptor,
   ): Promise<void> {
-    const confirmed = await this.config.remoteStore.readState();
-    if (confirmed.commitId !== expectedCommitId
-      || !confirmed.history
-      || !this.config.historyLifecycle.sameHistory(confirmed.history, expectedHistory)
-      || !sameSnapshotContent(confirmed.snapshot, expectedSnapshot)) {
-      throw new Error('当前同步位置未能确认完整的书签提交。');
+    let lastReadError: unknown;
+    for (let attempt = 0; attempt <= REMOTE_CONFIRMATION_RETRY_DELAYS_MS.length; attempt += 1) {
+      try {
+        const confirmed = await this.config.remoteStore.readState();
+        const matches = confirmed.commitId === expectedCommitId
+          && Boolean(confirmed.history)
+          && this.config.historyLifecycle.sameHistory(confirmed.history!, expectedHistory)
+          && sameSnapshotContent(confirmed.snapshot, expectedSnapshot);
+        if (matches) return;
+      } catch (error) {
+        lastReadError = error;
+      }
+
+      if (attempt < REMOTE_CONFIRMATION_RETRY_DELAYS_MS.length) {
+        await waitForRemoteConfirmationRetry(REMOTE_CONFIRMATION_RETRY_DELAYS_MS[attempt]);
+      }
     }
+
+    if (lastReadError) {
+      throw lastReadError;
+    }
+    throw new Error('当前同步位置未能确认完整的书签提交（远端回读与本次提交不一致，本次写入可能已经成功，请勿重复操作）。');
   }
 
   private async persistCompletedState(

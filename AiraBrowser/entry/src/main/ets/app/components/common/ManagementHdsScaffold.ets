@@ -16,7 +16,8 @@ import { resolveWindowTopSafeInsetVp } from '../../../core/browser/BrowserWindow
 import { AiraIcon } from './AiraIcon';
 import { FloatingGlassMaterialSurface } from './FloatingGlassMaterialSurface';
 import {
-  createFloatingGlassMaterial,
+  createFloatingGlassMaterialIfAvailable,
+  resolveFloatingGlassMaterialBackgroundColor,
   resolveFloatingGlassMaterialTintForMode
 } from './FloatingGlassMaterialTokens';
 
@@ -177,7 +178,7 @@ export struct ManagementHdsScaffold {
           },
           systemMaterialEffect: {
             materialType: hdsMaterial.MaterialType.ADAPTIVE,
-            materialLevel: hdsMaterial.MaterialLevel.SMOOTH
+            materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE
           }
         }
         })
@@ -272,7 +273,8 @@ export struct ManagementHdsScaffold {
         surfaceWidth: MANAGEMENT_TITLE_ACTION_SIZE,
         surfaceHeight: MANAGEMENT_TITLE_ACTION_SIZE,
         surfaceRadius: MANAGEMENT_TITLE_ACTION_SIZE / 2,
-        tintColor: resolveFloatingGlassMaterialTintForMode(this.storedResolvedThemeMode)
+        tintColor: resolveFloatingGlassMaterialTintForMode(this.storedResolvedThemeMode),
+        materialEnabled: true
       }) {
         Button() {
           if (this.backIconKind === 'close') {
@@ -337,7 +339,8 @@ export struct ManagementHdsScaffold {
       surfaceWidth: MANAGEMENT_TITLE_ACTION_SIZE,
       surfaceHeight: MANAGEMENT_TITLE_ACTION_SIZE,
       surfaceRadius: MANAGEMENT_TITLE_ACTION_SIZE / 2,
-      tintColor: resolveFloatingGlassMaterialTintForMode(this.storedResolvedThemeMode)
+      tintColor: resolveFloatingGlassMaterialTintForMode(this.storedResolvedThemeMode),
+      materialEnabled: true
     }) {
       Button() {
         SymbolGlyph(this.resolveMenuActionIcon(menuAction))
@@ -367,7 +370,8 @@ export struct ManagementHdsScaffold {
       surfaceWidth: MANAGEMENT_TITLE_ACTION_SIZE,
       surfaceHeight: MANAGEMENT_TITLE_ACTION_SIZE,
       surfaceRadius: MANAGEMENT_TITLE_ACTION_SIZE / 2,
-      tintColor: resolveFloatingGlassMaterialTintForMode(this.storedResolvedThemeMode)
+      tintColor: resolveFloatingGlassMaterialTintForMode(this.storedResolvedThemeMode),
+      materialEnabled: true
     }) {
       Button() {
         AiraIcon({
@@ -400,9 +404,10 @@ export struct ManagementHdsScaffold {
           })
       }, (menuAction: ManagementHdsMenuAction) => menuAction.label)
     }
-    .backgroundColor($r('sys.color.ohos_id_color_background_transparent'))
-    .backgroundBlurStyle(BlurStyle.NONE)
-    .systemMaterial(createFloatingGlassMaterial(
+    .backgroundColor(resolveFloatingGlassMaterialBackgroundColor(
+      $r('app.color.surface_floating_background')
+    ))
+    .systemMaterial(createFloatingGlassMaterialIfAvailable(
       resolveFloatingGlassMaterialTintForMode(this.storedResolvedThemeMode)
     ))
   }
@@ -414,7 +419,8 @@ export struct ManagementHdsScaffold {
         surfaceWidth: MANAGEMENT_TITLE_ACTION_SIZE,
         surfaceHeight: MANAGEMENT_TITLE_ACTION_SIZE,
         surfaceRadius: MANAGEMENT_TITLE_ACTION_SIZE / 2,
-        tintColor: resolveFloatingGlassMaterialTintForMode(this.storedResolvedThemeMode)
+        tintColor: resolveFloatingGlassMaterialTintForMode(this.storedResolvedThemeMode),
+        materialEnabled: true
       }) {
         SymbolGlyph($r('sys.symbol.lock_fill'))
           .fontSize(MANAGEMENT_TITLE_ACTION_ICON_SIZE)

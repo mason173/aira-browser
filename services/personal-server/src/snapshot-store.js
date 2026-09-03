@@ -1,6 +1,10 @@
 const crypto = require('crypto');
 const { db } = require('./db/database');
 const { fail } = require('./errors');
+const {
+  assertBookmarkSyncProtocol,
+  BOOKMARK_SYNC_PROTOCOL
+} = require('./bookmark-sync-protocol');
 
 const getBookmark = db.prepare('SELECT * FROM bookmark_state WHERE singleton = 1');
 const upsertBookmark = db.prepare(`
@@ -28,10 +32,20 @@ const upsertSnapshot = db.prepare(`
     updated_at = excluded.updated_at
 `);
 
-function readBookmark() {
+function readBookmark(body) {
+  assertBookmarkSyncProtocol(body);
   const row = getBookmark.get();
-  if (!row) return { snapshot: null, history: null, commitId: null, updatedAt: 0 };
+  if (!row) {
+    return {
+      protocol: BOOKMARK_SYNC_PROTOCOL,
+      snapshot: null,
+      history: null,
+      commitId: null,
+      updatedAt: 0
+    };
+  }
   return {
+    protocol: BOOKMARK_SYNC_PROTOCOL,
     snapshot: parseStored(row.snapshot_json),
     history: parseStored(row.history_json),
     commitId: row.commit_id,
@@ -39,16 +53,24 @@ function readBookmark() {
   };
 }
 
-function readBookmarkHead() {
-  const state = readBookmark();
+function readBookmarkHead(body) {
+  assertBookmarkSyncProtocol(body);
+  const state = readBookmark(body);
   const folders = state.snapshot && Array.isArray(state.snapshot.bookmarkFolders)
     ? state.snapshot.bookmarkFolders.length : 0;
   const items = state.snapshot && Array.isArray(state.snapshot.bookmarkItems)
     ? state.snapshot.bookmarkItems.length : 0;
-  return { commitId: state.commitId, updatedAt: state.updatedAt, bookmarkFolders: folders, bookmarkItems: items };
+  return {
+    protocol: BOOKMARK_SYNC_PROTOCOL,
+    commitId: state.commitId,
+    updatedAt: state.updatedAt,
+    bookmarkFolders: folders,
+    bookmarkItems: items
+  };
 }
 
 function writeBookmark(body, device) {
+  assertBookmarkSyncProtocol(body);
   const snapshot = requireObject(body.snapshot, 'invalid_bookmark_snapshot');
   const history = requireObject(body.history, 'invalid_bookmark_history');
   const current = getBookmark.get();
@@ -73,7 +95,7 @@ function writeBookmark(body, device) {
     created_at: createdAt,
     updated_at: now,
   });
-  return { commitId, writtenAt: createdAt, updatedAt: now };
+  return { protocol: BOOKMARK_SYNC_PROTOCOL, commitId, writtenAt: createdAt, updatedAt: now };
 }
 
 function readSnapshot(domain) {

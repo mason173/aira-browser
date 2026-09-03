@@ -1,7 +1,6 @@
 import {
   BROWSER_LARGE_SCREEN_MODAL_CORNER_RADIUS_VP
 } from '../../../core/browser/BrowserModalPresentationTokens';
-import { createCenteredDialogMaterial } from '../common/CenteredDialogSurface';
 import { BrowserLargeScreenModalHeader } from './BrowserLargeScreenModalHeader';
 import { BrowserModalBottomOverlay } from './BrowserModalBottomSheet';
 import {
@@ -117,8 +116,7 @@ export struct BrowserAdaptiveModalOverlay {
           .width('100%')
           .layoutWeight(1)
         }
-        .backgroundColor(Color.Transparent)
-        .systemMaterial(createCenteredDialogMaterial())
+        .backgroundColor($r('app.color.surface_floating_background'))
         .borderRadius(BROWSER_LARGE_SCREEN_MODAL_CORNER_RADIUS_VP)
         .clip(true)
         .opacity(this.largeScreenPresentationVisible ? 1 : 0)

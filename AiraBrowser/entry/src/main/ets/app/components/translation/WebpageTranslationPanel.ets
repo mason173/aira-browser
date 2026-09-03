@@ -16,7 +16,8 @@ import {
   FloatingPromptMenuButton
 } from '../common/FloatingPromptCard';
 import {
-  createFloatingGlassMaterial,
+  createFloatingGlassMaterialIfAvailable,
+  resolveFloatingGlassMaterialBackgroundColor,
   resolveFloatingGlassMaterialTintForMode
 } from '../common/FloatingGlassMaterialTokens';
 
@@ -129,9 +130,10 @@ export struct WebpageTranslationPanel {
       startMargin: LengthMetrics.vp(12),
       endMargin: LengthMetrics.vp(12)
     })
-    .backgroundColor($r('sys.color.ohos_id_color_background_transparent'))
-    .backgroundBlurStyle(BlurStyle.NONE)
-    .systemMaterial(createFloatingGlassMaterial(
+    .backgroundColor(resolveFloatingGlassMaterialBackgroundColor(
+      $r('app.color.surface_floating_background')
+    ))
+    .systemMaterial(createFloatingGlassMaterialIfAvailable(
       resolveFloatingGlassMaterialTintForMode(this.storedResolvedThemeMode)
     ))
   }

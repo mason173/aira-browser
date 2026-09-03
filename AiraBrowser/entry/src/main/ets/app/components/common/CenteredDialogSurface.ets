@@ -1,4 +1,5 @@
 import { uiMaterial } from '@kit.ArkUI';
+import { isFloatingGlassMaterialAvailable } from './FloatingGlassMaterialTokens';
 
 export const CENTERED_DIALOG_HORIZONTAL_MARGIN_VP: number = 12;
 export const CENTERED_DIALOG_MAX_WIDTH_VP: number = 420;
@@ -18,7 +19,10 @@ const CENTERED_DIALOG_ALERT_WIDTH: Dimension = '90%';
 const CENTERED_DIALOG_TALL_HEIGHT: string = 'calc(100% - 48vp)';
 const CENTERED_DIALOG_TALL_MAX_HEIGHT_VP: number = 720;
 
-export function createCenteredDialogMaterial(): uiMaterial.ImmersiveMaterial {
+export function createCenteredDialogMaterial(): uiMaterial.ImmersiveMaterial | undefined {
+  if (!isFloatingGlassMaterialAvailable()) {
+    return undefined;
+  }
   return new uiMaterial.ImmersiveMaterial({
     style: uiMaterial.ImmersiveStyle.THICK,
     applyShadow: true,
@@ -74,7 +78,6 @@ class CenteredDialogSurfaceModifier implements AttributeModifier<CommonAttribute
     } else {
       instance.constraintSize({ maxWidth: CENTERED_DIALOG_MAX_WIDTH_VP })
     }
-    instance.systemMaterial(createCenteredDialogMaterial())
     instance.borderRadius(CENTERED_DIALOG_CORNER_RADIUS_VP)
     instance.clip(true)
     if (this.contentPadding) {

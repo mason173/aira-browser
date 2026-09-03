@@ -10,7 +10,7 @@ import {
   ScrollEffectType,
   TitleSize
 } from '@kit.UIDesignKit';
-import { LengthMetrics, uiMaterial } from '@kit.ArkUI';
+import { LengthMetrics } from '@kit.ArkUI';
 import { BrowserStatusBarStyleService } from '../../../services/browser/BrowserStatusBarStyleService';
 import { SettingsTopSafeInsetService } from '../../../services/settings/SettingsTopSafeInsetService';
 import { SettingsContentFrame } from './SettingsContentFrame';
@@ -36,19 +36,6 @@ const SETTINGS_TITLE_BAR_CUSTOM_MENU_BUTTON_GAP: number = 8;
 const SETTINGS_TITLE_BAR_CUSTOM_MENU_BUTTON_LEFT: number = 16;
 const SETTINGS_TITLE_BAR_CUSTOM_MENU_BUTTON_RIGHT: number = 16;
 const SETTINGS_TITLE_BAR_ACTION_ICON_SIZE: number = 21;
-
-function createSettingsTitleActionMaterial(): uiMaterial.ImmersiveMaterial {
-  return new uiMaterial.ImmersiveMaterial({
-    style: uiMaterial.ImmersiveStyle.THIN,
-    materialColor: $r('app.color.settings_title_bar_material_tint'),
-    colorInvert: true,
-    applyShadow: true,
-    interactive: true,
-    lightEffect: {
-      color: $r('app.color.settings_title_bar_material_light_effect')
-    }
-  });
-}
 
 @Component
 export struct SettingsHdsScaffold {
@@ -191,7 +178,7 @@ export struct SettingsHdsScaffold {
           },
           systemMaterialEffect: {
             materialType: hdsMaterial.MaterialType.ADAPTIVE,
-            materialLevel: hdsMaterial.MaterialLevel.SMOOTH
+            materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE
           }
         }
       })
@@ -245,9 +232,8 @@ export struct SettingsHdsScaffold {
     .height(SETTINGS_TITLE_BAR_CUSTOM_MENU_BUTTON_SIZE)
     .type(ButtonType.Normal)
     .stateEffect(true)
-    .backgroundColor($r('sys.color.ohos_id_color_background_transparent'))
+    .backgroundColor(this.headerButtonBackground)
     .borderRadius(SETTINGS_TITLE_BAR_CUSTOM_MENU_BUTTON_SIZE / 2)
-    .systemMaterial(createSettingsTitleActionMaterial())
     .position({
       x: SETTINGS_TITLE_BAR_CUSTOM_MENU_BUTTON_LEFT,
       y: this.resolveCustomMenuActionButtonTop()
@@ -311,9 +297,8 @@ export struct SettingsHdsScaffold {
     .height(SETTINGS_TITLE_BAR_CUSTOM_MENU_BUTTON_SIZE)
     .type(ButtonType.Normal)
     .stateEffect(true)
-    .backgroundColor($r('sys.color.ohos_id_color_background_transparent'))
+    .backgroundColor(this.headerButtonBackground)
     .borderRadius(SETTINGS_TITLE_BAR_CUSTOM_MENU_BUTTON_SIZE / 2)
-    .systemMaterial(createSettingsTitleActionMaterial())
     .enabled(menuAction.enabled !== false)
     .accessibilityText(menuAction.label)
     .onClick(() => {
@@ -350,9 +335,8 @@ export struct SettingsHdsScaffold {
     .width(SETTINGS_TITLE_BAR_CUSTOM_MENU_BUTTON_SIZE)
     .height(SETTINGS_TITLE_BAR_CUSTOM_MENU_BUTTON_SIZE)
     .type(ButtonType.Normal)
-    .backgroundColor($r('sys.color.ohos_id_color_background_transparent'))
+    .backgroundColor(this.headerButtonBackground)
     .borderRadius(SETTINGS_TITLE_BAR_CUSTOM_MENU_BUTTON_SIZE / 2)
-    .systemMaterial(createSettingsTitleActionMaterial())
     .enabled(this.menuActionEnabled)
     .stateEffect(true)
     .accessibilityText(this.menuActionLabel)
@@ -384,9 +368,8 @@ export struct SettingsHdsScaffold {
     .height(SETTINGS_TITLE_BAR_CUSTOM_MENU_BUTTON_SIZE)
     .type(ButtonType.Normal)
     .stateEffect(false)
-    .backgroundColor($r('sys.color.ohos_id_color_background_transparent'))
+    .backgroundColor(this.headerButtonBackground)
     .borderRadius(SETTINGS_TITLE_BAR_CUSTOM_MENU_BUTTON_SIZE / 2)
-    .systemMaterial(createSettingsTitleActionMaterial())
     .hitTestBehavior(HitTestMode.None)
     .accessibilityText('私密模式')
   }

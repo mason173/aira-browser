@@ -4,6 +4,10 @@ export const AIRA_SYNC_SCHEMA_VERSION: number = 2;
 export const AIRA_SYNC_DEFAULT_ROOT: string = 'aira/g3/bookmarks';
 export const AIRA_SYNC_ROOT_ORDER_KEY: string = '__root__';
 export const AIRA_BOOKMARK_SYNC_PROTOCOL_ID: string = 'bookmark-snapshot-v3';
+// Aira Cloud and the browser extension share one deliberately breaking protocol epoch.
+// WebDAV keeps its file envelope identity above; this token identifies the hosted API only.
+export const AIRA_CLOUD_BOOKMARK_SYNC_PROTOCOL_ID: string = 'aira-cloud-bookmarks-v4';
+export const AIRA_CLOUD_BOOKMARK_SYNC_GENERATION: number = 4;
 export const AIRA_BOOKMARK_HISTORY_VERSION: number = 1;
 export const AIRA_BOOKMARK_TOMBSTONE_RETENTION_MS: number = 90 * 24 * 60 * 60 * 1000;
 
@@ -34,6 +38,18 @@ export function buildAiraHuaweiSpaceRemoteStatusProviderKey(
     uid.trim(),
     databaseName.trim(),
     rootPath.trim()
+  ].map((value: string): string => encodeURIComponent(value)).join('|');
+}
+
+export function buildAiraPersonalServerRemoteStatusProviderKey(
+  instanceId: string,
+  baseUrl: string
+): string {
+  return [
+    'self_hosted',
+    AIRA_CLOUD_BOOKMARK_SYNC_PROTOCOL_ID,
+    instanceId.trim(),
+    baseUrl.trim().replace(/\/+$/, '')
   ].map((value: string): string => encodeURIComponent(value)).join('|');
 }
 

@@ -1,5 +1,6 @@
 import { http } from '@kit.NetworkKit';
 import {
+  AIRA_CLOUD_BOOKMARK_SYNC_PROTOCOL_ID,
   AiraPersonalServerConfig,
   AiraSyncSettings,
   createDefaultAiraPersonalServerConfig,
@@ -31,6 +32,7 @@ const PERSONAL_SERVER_MAX_PROTOCOL_VERSION: number = 1;
 
 interface PersonalServerCapabilityDescriptor {
   version?: number;
+  protocol?: string;
   path?: string;
 }
 
@@ -124,7 +126,9 @@ export class AiraPersonalServerInstanceService {
       protocolVersion < PERSONAL_SERVER_MIN_PROTOCOL_VERSION ||
       protocolVersion > PERSONAL_SERVER_MAX_PROTOCOL_VERSION ||
       minimumClientProtocolVersion > PERSONAL_SERVER_MAX_PROTOCOL_VERSION || capabilities === undefined ||
-      capabilities.bookmarks?.version !== 3 || capabilities.history?.version !== 1 ||
+      capabilities.bookmarks?.version !== 4 ||
+      capabilities.bookmarks?.protocol !== AIRA_CLOUD_BOOKMARK_SYNC_PROTOCOL_ID ||
+      capabilities.history?.version !== 1 ||
       capabilities.personalization?.version !== 2 || capabilities.novelBookshelf?.version !== 2 ||
       capabilities.pagePush?.version !== 1 || capabilities.crossDeviceTabs?.version !== 1) {
       throw new Error('该地址不是兼容的 Aira 个人服务器，或协议版本暂不受支持。');

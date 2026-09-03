@@ -20,6 +20,8 @@ async function run() {
     await waitForHealth();
     const discovery = await json('GET', '/.well-known/aira');
     assert(discovery.protocolVersion === 1 && discovery.instanceId, 'discovery');
+    assert(discovery.capabilities.bookmarks.version === 4 &&
+      discovery.capabilities.bookmarks.protocol === 'aira-cloud-bookmarks-v4', 'bookmark protocol discovery');
     const setupCode = fs.readFileSync(path.join(dataDir, 'setup-code'), 'utf8').trim();
     const first = await json('POST', '/v1/pairing/exchange', {
       code: setupCode, deviceId: 'check-device-1', deviceName: 'Check Phone', deviceKind: 'phone',
@@ -33,14 +35,21 @@ async function run() {
     assert(second.token, 'second pairing');
     const generatedAt = new Date().toISOString();
     const bookmarkWrite = await json('POST', '/v1/sync/bookmarks/write', {
+      protocol: 'aira-cloud-bookmarks-v4',
       parentCommitId: null,
       deviceId: 'check-device-1',
       createdAt: generatedAt,
       history: { version: 1, epochId: 'check', retainedFrom: 0 },
       snapshot: { meta: { generatedAt }, bookmarkFolders: [], bookmarkItems: [] },
     }, firstToken);
-    const bookmarkRead = await json('POST', '/v1/sync/bookmarks/read', {}, second.token);
+    const bookmarkRead = await json('POST', '/v1/sync/bookmarks/read', {
+      protocol: 'aira-cloud-bookmarks-v4'
+    }, second.token);
     assert(bookmarkWrite.commitId && bookmarkRead.commitId === bookmarkWrite.commitId, 'bookmark sync');
+    assert(bookmarkWrite.protocol === 'aira-cloud-bookmarks-v4' &&
+      bookmarkRead.protocol === 'aira-cloud-bookmarks-v4', 'bookmark protocol response');
+    const retiredBookmark = await raw('POST', '/v1/sync/bookmarks/read', {}, second.token);
+    assert(retiredBookmark.status === 426, 'retired bookmark protocol');
     const write = await json('POST', '/v1/sync/personalization/write', {
       expectedRevision: '', deviceId: 'check-device-1', snapshot: { meta: { generatedAt: new Date().toISOString() } },
     }, firstToken);

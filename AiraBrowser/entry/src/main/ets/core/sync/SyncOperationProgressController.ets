@@ -156,6 +156,22 @@ export class SyncOperationProgressController {
     this.closeProgressDialog();
   }
 
+  fail(title: string, subtitle: string): void {
+    if (!this.isProgressDialogOpen()) {
+      return;
+    }
+    this.stopTimers();
+    this.applyState({
+      title: title,
+      subtitle: subtitle,
+      progress: this.state.progress,
+      inProgress: false,
+      details: subtitle,
+      detailOpacity: 1
+    });
+    this.closeProgressDialog();
+  }
+
   dispose(): void {
     this.stopTimers();
     this.closeProgressDialog();

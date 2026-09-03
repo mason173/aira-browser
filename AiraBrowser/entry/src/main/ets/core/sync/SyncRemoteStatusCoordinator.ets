@@ -6,6 +6,7 @@ import {
   AiraSyncSettings,
   AiraSyncStatusSummary,
   buildAiraHuaweiSpaceRemoteStatusProviderKey,
+  buildAiraPersonalServerRemoteStatusProviderKey,
   buildAiraWebdavRemoteStatusProviderKey
 } from '../../common/models/AiraSyncModels';
 import { SyncService } from '../../services/sync/SyncService';
@@ -280,7 +281,7 @@ export class SyncRemoteStatusCoordinator {
       if (config === undefined) {
         return 'none';
       }
-      return `self_hosted|${config.instanceId.trim()}|${config.baseUrl.trim().replace(/\/+$/, '')}`;
+      return buildAiraPersonalServerRemoteStatusProviderKey(config.instanceId, config.baseUrl);
     }
     return buildAiraWebdavRemoteStatusProviderKey(
       settings.webdav.endpoint,

@@ -17,7 +17,8 @@ import { AiraRenderableIconId } from '../../../core/resources/GeneratedAiraIconC
 import { SettingsDetailOption } from '../../../core/settings/SettingsDetailViewModel';
 import { AiraIcon } from '../common/AiraIcon';
 import {
-  createFloatingGlassMaterial,
+  createFloatingGlassMaterialIfAvailable,
+  resolveFloatingGlassMaterialBackgroundColor,
   resolveFloatingGlassMaterialTintForMode
 } from '../common/FloatingGlassMaterialTokens';
 
@@ -629,9 +630,10 @@ export struct SettingsDropdownRow {
     .constraintSize({ minWidth: SETTINGS_DROPDOWN_MENU_MIN_WIDTH })
     .padding({ left: 6, right: 6, top: 6, bottom: 6 })
     .radius(14)
-    .backgroundColor($r('sys.color.ohos_id_color_background_transparent'))
-    .backgroundBlurStyle(BlurStyle.NONE)
-    .systemMaterial(createFloatingGlassMaterial(
+    .backgroundColor(resolveFloatingGlassMaterialBackgroundColor(
+      $r('app.color.surface_floating_background')
+    ))
+    .systemMaterial(createFloatingGlassMaterialIfAvailable(
       resolveFloatingGlassMaterialTintForMode(this.storedResolvedThemeMode)
     ))
   }

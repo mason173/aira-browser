@@ -5,7 +5,7 @@ to the same single-owner Aira Personal Server used by the HarmonyOS app.
 
 With a Personal Server, paired devices can share:
 
-- bookmarks through the complete-snapshot v3 protocol;
+- bookmarks through the complete-snapshot v4 protocol (`aira-cloud-bookmarks-v4`);
 - browsing history through the bounded incremental/bootstrap v1 protocol;
 - phone-to-desktop Page Push;
 - short-lived Cross-device Tabs presence.
@@ -47,7 +47,7 @@ An Official build requires every hosted-service route to be supplied as one JSON
 
 ```bash
 AIRA_SYNC_OFFICIAL_API_ROUTES='{
-  "bookmarkSync":"https://example.invalid/sync/v3/bookmarks",
+  "bookmarkSync":"https://example.invalid/sync/v4/bookmarks",
   "historySync":"https://example.invalid/sync/v1/history",
   "desktopPairingCreate":"https://example.invalid/desktop-login/create",
   "desktopPairingStatus":"https://example.invalid/desktop-login/status",

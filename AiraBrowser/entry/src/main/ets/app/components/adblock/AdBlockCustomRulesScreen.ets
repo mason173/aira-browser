@@ -32,7 +32,8 @@ import { AdBlockRuleNoticeCard } from './AdBlockRuleNoticeCard';
 import { sharedSettingsNoticeDismissalRepository } from '../../bootstrap/BrowserAppRuntime';
 import { SETTINGS_NOTICE_ADBLOCK_RULES } from '../../../data/preferences/SettingsNoticeDismissalRepository';
 import {
-  createFloatingGlassMaterial,
+  createFloatingGlassMaterialIfAvailable,
+  resolveFloatingGlassMaterialBackgroundColor,
   resolveFloatingGlassMaterialTintForMode
 } from '../common/FloatingGlassMaterialTokens';
 import { CENTERED_DIALOG_SURFACE_MODIFIER } from '../common/CenteredDialogSurface';
@@ -375,9 +376,10 @@ export struct AdBlockCustomRulesScreen {
       }
     }
     .width(188)
-    .backgroundColor($r('sys.color.ohos_id_color_background_transparent'))
-    .backgroundBlurStyle(BlurStyle.NONE)
-    .systemMaterial(createFloatingGlassMaterial(
+    .backgroundColor(resolveFloatingGlassMaterialBackgroundColor(
+      $r('app.color.surface_floating_background')
+    ))
+    .systemMaterial(createFloatingGlassMaterialIfAvailable(
       resolveFloatingGlassMaterialTintForMode(this.storedResolvedThemeMode)
     ))
   }

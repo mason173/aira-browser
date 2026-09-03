@@ -14,16 +14,11 @@ import {
   BROWSER_BOTTOM_QUICK_ACTION_LABEL_LINE_HEIGHT,
   BROWSER_BOTTOM_QUICK_ACTION_VERTICAL_GAP
 } from '../../../core/browser/BrowserBottomAddressPanelMetrics';
-import { BrowserBottomChromeImmersiveMaterialSurface } from './BrowserBottomChromeImmersiveMaterialSurface';
-import {
-  resolveBrowserFloatingGlassMaterialTintForMode
-} from './BrowserFloatingGlassMaterialTokens';
 import { AiraRenderableIconId } from '../../../core/resources/GeneratedAiraIconCatalog';
 import { AiraIcon } from '../common/AiraIcon';
 const HOME_SEARCH_QUICK_ACTION_CARD_IMAGE_ICON_SIZE: number = 26;
 const HOME_SEARCH_QUICK_ACTION_CARD_LABEL_SIZE: number = 11;
 const HOME_SEARCH_QUICK_ACTION_CARD_BORDER_WIDTH: number = 1;
-const HOME_SEARCH_QUICK_ACTION_GLASS_OVERLAY_OPACITY: number = 0.72;
 const HOME_SEARCH_QUICK_ACTION_CARD_PRESSED_SCALE: number = 0.94;
 const HOME_SEARCH_QUICK_ACTION_CARD_PRESS_DURATION_MS: number = 90;
 const HOME_SEARCH_QUICK_ACTION_CARD_RELEASE_DURATION_MS: number = 260;
@@ -42,8 +37,6 @@ export struct HomeSearchQuickActionCard {
   @Prop cardBackgroundColor: ResourceColor | undefined = undefined;
   @Prop cardDisabledOpacity: number = 0.42;
   @Prop cardBorderWidth: number = HOME_SEARCH_QUICK_ACTION_CARD_BORDER_WIDTH;
-  @Prop useGlassMaterial: boolean = false;
-  @Prop glassTintColor: ResourceColor | undefined = undefined;
   @Prop imageRenderVersion: number = 0;
   @Prop buttonSize: number = BROWSER_BOTTOM_QUICK_ACTION_BUTTON_SIZE;
   @State private pressed: boolean = false;
@@ -97,33 +90,15 @@ export struct HomeSearchQuickActionCard {
 
   @Builder
   private buildQuickActionButtonSurface() {
-    if (this.useGlassMaterial) {
-      BrowserBottomChromeImmersiveMaterialSurface({
-        surfaceWidth: this.resolveButtonSize(),
-        surfaceHeight: this.resolveButtonSize(),
-        surfaceRadius: this.resolveButtonRadius(),
-        materialTint: this.resolveGlassTintColor(),
-        materialShadowEnabled: false,
-        materialInteractive: false,
-        materialLightEffectEnabled: false,
-        overlayColor: this.cardBackgroundColor,
-        overlayOpacity: this.cardBackgroundColor === undefined ? 0 : HOME_SEARCH_QUICK_ACTION_GLASS_OVERLAY_OPACITY,
-        materialBorderWidth: this.cardBorderWidth,
-        materialBorderColor: this.storedDividerColor
-      }) {
-        this.buildQuickActionButtonIcon()
-      }
-    } else {
-      Stack({ alignContent: Alignment.Center }) {
-        this.buildQuickActionButtonIcon()
-      }
-      .width(this.resolveButtonSize())
-      .height(this.resolveButtonSize())
-      .backgroundColor(this.resolveBackgroundColor())
-      .borderWidth(this.cardBorderWidth)
-      .borderColor(this.storedDividerColor)
-      .borderRadius(this.resolveButtonRadius())
+    Stack({ alignContent: Alignment.Center }) {
+      this.buildQuickActionButtonIcon()
     }
+    .width(this.resolveButtonSize())
+    .height(this.resolveButtonSize())
+    .backgroundColor(this.resolveBackgroundColor())
+    .borderWidth(this.cardBorderWidth)
+    .borderColor(this.storedDividerColor)
+    .borderRadius(this.resolveButtonRadius())
   }
 
   @Builder
@@ -200,13 +175,6 @@ export struct HomeSearchQuickActionCard {
       return this.cardBackgroundColor;
     }
     return resolveBrowserBottomNeutralContainerColor(this.storedResolvedThemeMode);
-  }
-
-  private resolveGlassTintColor(): ResourceColor {
-    if (this.glassTintColor !== undefined) {
-      return this.glassTintColor;
-    }
-    return resolveBrowserFloatingGlassMaterialTintForMode(this.storedResolvedThemeMode);
   }
 
   private resolveButtonSize(): number {

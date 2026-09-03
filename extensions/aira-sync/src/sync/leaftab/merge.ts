@@ -292,6 +292,199 @@ const chooseOrderByFreshness = (
     : { order: remote, source: 'remote' as const };
 };
 
+type MigrationEntityKind = 'folder' | 'item';
+
+type MigrationCandidate = {
+  id: string;
+  snapshotIndex: number;
+  position: number;
+};
+
+type MigrationEntity = LeafTabSyncBookmarkFolderEntity | LeafTabSyncBookmarkItemEntity;
+
+const migrationEntityPrefix = (kind: MigrationEntityKind) => kind === 'folder' ? 'bkf_' : 'bkm_';
+
+const isCurrentDeviceStableId = (
+  kind: MigrationEntityKind,
+  id: string,
+  deviceId: string,
+) => id.startsWith(`${migrationEntityPrefix(kind)}local_${encodeURIComponent(deviceId)}_`);
+
+const isLegacyMigrationId = (kind: MigrationEntityKind, id: string) => {
+  const prefix = migrationEntityPrefix(kind);
+  return id.startsWith(prefix)
+    && !id.startsWith(`${prefix}local_`)
+    && !id.startsWith(`${prefix}initial_`);
+};
+
+const getMigrationCandidatePosition = (
+  snapshot: LeafTabSyncSnapshot,
+  entity: MigrationEntity,
+) => {
+  const order = snapshot.bookmarkOrders[entity.parentId || '__root__'];
+  const position = order?.ids.indexOf(entity.id) ?? -1;
+  return position < 0 ? Number.MAX_SAFE_INTEGER : position;
+};
+
+const uniqueMigrationCandidates = (candidates: MigrationCandidate[]) => {
+  const byId = new Map<string, MigrationCandidate>();
+  candidates.forEach((candidate) => {
+    const current = byId.get(candidate.id);
+    if (!current || candidate.snapshotIndex < current.snapshotIndex ||
+      (candidate.snapshotIndex === current.snapshotIndex && candidate.position < current.position)) {
+      byId.set(candidate.id, candidate);
+    }
+  });
+  return Array.from(byId.values()).sort((left, right) => (
+    left.snapshotIndex - right.snapshotIndex
+    || left.position - right.position
+    || left.id.localeCompare(right.id)
+  ));
+};
+
+const createMigrationEntityKey = (
+  entity: MigrationEntity,
+  parentId: string | null,
+) => JSON.stringify([
+  parentId,
+  entity.title,
+  entity.type === 'bookmark-item' ? entity.url : null,
+]);
+
+const collectMigrationIdMap = (
+  snapshots: LeafTabSyncSnapshot[],
+  kind: MigrationEntityKind,
+  deviceId: string,
+  initialMap: Map<string, string> = new Map(),
+) => {
+  const idMap = new Map(initialMap);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    const groups = new Map<string, { legacy: MigrationCandidate[]; stable: MigrationCandidate[] }>();
+    snapshots.forEach((snapshot, snapshotIndex) => {
+      const entities: MigrationEntity[] = kind === 'folder'
+        ? Object.values(snapshot.bookmarkFolders)
+        : Object.values(snapshot.bookmarkItems);
+      entities.forEach((entity) => {
+        const stable = isCurrentDeviceStableId(kind, entity.id, deviceId);
+        const legacy = isLegacyMigrationId(kind, entity.id);
+        if (!stable && !legacy) return;
+        const parentId = entity.parentId === null ? null : idMap.get(entity.parentId) || entity.parentId;
+        const key = createMigrationEntityKey(entity, parentId);
+        const group = groups.get(key) || { legacy: [], stable: [] };
+        const candidate = {
+          id: entity.id,
+          snapshotIndex,
+          position: getMigrationCandidatePosition(snapshot, entity),
+        };
+        if (stable) group.stable.push(candidate);
+        if (legacy) group.legacy.push(candidate);
+        groups.set(key, group);
+      });
+    });
+
+    groups.forEach((group) => {
+      const legacy = uniqueMigrationCandidates(group.legacy);
+      const stable = uniqueMigrationCandidates(group.stable);
+      const pairCount = legacy.length === stable.length
+        ? legacy.length
+        : legacy.length === 1 && stable.length === 1
+          ? 1
+          : 0;
+      for (let index = 0; index < pairCount; index += 1) {
+        const stableId = stable[index].id;
+        const legacyId = legacy[index].id;
+        if (stableId === legacyId || idMap.has(stableId)) continue;
+        idMap.set(stableId, legacyId);
+        changed = true;
+      }
+    });
+  }
+  return idMap;
+};
+
+const remapKnownMigrationDuplicates = (
+  snapshot: LeafTabSyncSnapshot,
+  idMap: Map<string, string>,
+): LeafTabSyncSnapshot => {
+  const bookmarkFolders: Record<string, LeafTabSyncBookmarkFolderEntity> = {};
+  Object.values(snapshot.bookmarkFolders).forEach((folder) => {
+    const id = idMap.get(folder.id) || folder.id;
+    const parentId = folder.parentId === null ? null : idMap.get(folder.parentId) || folder.parentId;
+    const nextFolder = { ...folder, id, parentId };
+    const existing = bookmarkFolders[id];
+    if (!existing) {
+      bookmarkFolders[id] = nextFolder;
+      return;
+    }
+    const chosen = chooseByRevision(existing, nextFolder).entity;
+    bookmarkFolders[id] = { ...chosen, id, parentId };
+  });
+
+  const bookmarkItems: Record<string, LeafTabSyncBookmarkItemEntity> = {};
+  Object.values(snapshot.bookmarkItems).forEach((item) => {
+    const id = idMap.get(item.id) || item.id;
+    const parentId = item.parentId === null ? null : idMap.get(item.parentId) || item.parentId;
+    const nextItem = { ...item, id, parentId };
+    const existing = bookmarkItems[id];
+    if (!existing) {
+      bookmarkItems[id] = nextItem;
+      return;
+    }
+    const chosen = chooseByRevision(existing, nextItem).entity;
+    bookmarkItems[id] = { ...chosen, id, parentId };
+  });
+
+  const bookmarkOrders: Record<string, LeafTabSyncBookmarkOrder> = {};
+  Object.values(snapshot.bookmarkOrders).forEach((order) => {
+    const parentId = order.parentId === null ? null : idMap.get(order.parentId) || order.parentId;
+    const orderKey = parentId || '__root__';
+    const ids = Array.from(new Set(order.ids.map((id) => idMap.get(id) || id)));
+    const nextOrder = { ...order, parentId, ids };
+    const existing = bookmarkOrders[orderKey];
+    if (!existing) {
+      bookmarkOrders[orderKey] = nextOrder;
+      return;
+    }
+    const chosen = chooseOrderByFreshness(existing, nextOrder).order || nextOrder;
+    bookmarkOrders[orderKey] = {
+      ...chosen,
+      parentId,
+      ids: Array.from(new Set([...existing.ids, ...nextOrder.ids])),
+    };
+  });
+
+  const tombstones: Record<string, LeafTabSyncTombstone> = {};
+  Object.values(snapshot.tombstones).forEach((tombstone) => {
+    const id = idMap.get(tombstone.id) || tombstone.id;
+    const key = createLeafTabSyncTombstoneKey(tombstone.type, id);
+    const nextTombstone = { ...tombstone, id };
+    const existing = tombstones[key];
+    if (!existing || nextTombstone.lastKnownRevision > existing.lastKnownRevision ||
+      (nextTombstone.lastKnownRevision === existing.lastKnownRevision && nextTombstone.deletedAt > existing.deletedAt)) {
+      tombstones[key] = nextTombstone;
+    }
+  });
+
+  return {
+    ...snapshot,
+    bookmarkFolders,
+    bookmarkItems,
+    bookmarkOrders,
+    tombstones,
+  };
+};
+
+const normalizeKnownMigrationDuplicates = (
+  snapshots: LeafTabSyncSnapshot[],
+  deviceId: string,
+) => {
+  const folderIdMap = collectMigrationIdMap(snapshots, 'folder', deviceId);
+  const itemIdMap = collectMigrationIdMap(snapshots, 'item', deviceId, folderIdMap);
+  return snapshots.map((snapshot) => remapKnownMigrationDuplicates(snapshot, itemIdMap));
+};
+
 const collectChildrenByParent = (snapshot: LeafTabSyncSnapshot) => {
   const map = new Map<string, Set<string>>();
   const add = (parentId: string | null, id: string) => {
@@ -505,6 +698,10 @@ export const mergeLeafTabSyncSnapshot = (
     mergeIntent?: LeafTabSyncMergeIntent;
   },
 ): LeafTabSyncMergeResult => {
+  [baseSnapshot, localSnapshot, remoteSnapshot] = normalizeKnownMigrationDuplicates(
+    [baseSnapshot, localSnapshot, remoteSnapshot],
+    options.deviceId,
+  ) as [LeafTabSyncSnapshot, LeafTabSyncSnapshot, LeafTabSyncSnapshot];
   const generatedAt = options.generatedAt || new Date().toISOString();
   const nextBookmarkFolders: Record<string, LeafTabSyncBookmarkFolderEntity> = {};
   const nextBookmarkItems: Record<string, LeafTabSyncBookmarkItemEntity> = {};
@@ -692,7 +889,11 @@ export const mergeLeafTabSyncSnapshotWithoutBaseline = (
     generatedAt?: string;
   },
 ): LeafTabSyncMergeResult => {
-  const prepared = prepareMissingBaselineSnapshots(localSnapshot, remoteSnapshot);
+  const [normalizedLocalSnapshot, normalizedRemoteSnapshot] = normalizeKnownMigrationDuplicates(
+    [localSnapshot, remoteSnapshot],
+    options.deviceId,
+  );
+  const prepared = prepareMissingBaselineSnapshots(normalizedLocalSnapshot, normalizedRemoteSnapshot);
   const emptyBase: LeafTabSyncSnapshot = {
     meta: cloneLeafTabSyncSnapshotMeta(localSnapshot.meta, {
       deviceId: options.deviceId,

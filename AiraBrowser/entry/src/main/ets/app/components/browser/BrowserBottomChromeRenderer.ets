@@ -1,5 +1,4 @@
 import { hilog } from '@kit.PerformanceAnalysisKit';
-import { uiMaterial } from '@kit.ArkUI';
 import {
   BrowserBottomAddressContextAction,
   BrowserBottomChromeFrame,
@@ -36,6 +35,10 @@ import { BrowserBottomChromeImmersiveMaterialSurface } from './BrowserBottomChro
 import {
   BROWSER_BOTTOM_CHROME_LIGHT_EDGE_HIGHLIGHT_COLOR
 } from './BrowserFloatingGlassMaterialTokens';
+import {
+  createFloatingGlassMaterialIfAvailable,
+  resolveFloatingGlassMaterialBackgroundColor
+} from '../common/FloatingGlassMaterialTokens';
 
 const BROWSER_BOTTOM_CHROME_RENDER_HEIGHT: number = 52;
 const BROWSER_BOTTOM_CHROME_ICON_SIZE: number = 24;
@@ -750,15 +753,10 @@ export struct BrowserBottomChromeRenderer {
     }
     .width(BROWSER_BOTTOM_ADDRESS_CONTEXT_MENU_WIDTH)
     .fontColor(this.resolvePrimaryTextForeground())
-    .backgroundColor($r('sys.color.ohos_id_color_background_transparent'))
-    .backgroundBlurStyle(BlurStyle.NONE)
-    .systemMaterial(new uiMaterial.ImmersiveMaterial({
-      style: uiMaterial.ImmersiveStyle.THIN,
-      materialColor: this.materialTint,
-      colorInvert: true,
-      applyShadow: true,
-      interactive: true
-    }))
+    .backgroundColor(resolveFloatingGlassMaterialBackgroundColor(
+      $r('app.color.surface_floating_background')
+    ))
+    .systemMaterial(createFloatingGlassMaterialIfAvailable(this.materialTint))
   }
 
   @Builder

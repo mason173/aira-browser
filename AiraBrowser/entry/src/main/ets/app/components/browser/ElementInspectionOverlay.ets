@@ -21,7 +21,10 @@ import {
 import { resolveBrowserBottomFloatingMaterialShadowColor } from '../../../core/theme/BrowserBottomPanelNeutralTheme';
 import { APP_STANDARD_HORIZONTAL_PADDING } from '../common/AppLayoutTokens';
 import { AiraIcon } from '../common/AiraIcon';
-import { createFloatingGlassMaterial } from '../common/FloatingGlassMaterialTokens';
+import {
+  createFloatingGlassMaterialIfAvailable,
+  resolveFloatingGlassMaterialBackgroundColor
+} from '../common/FloatingGlassMaterialTokens';
 import {
   FLOATING_PROMPT_CARD_ANIMATION_MS,
   FLOATING_PROMPT_CARD_HEIGHT,
@@ -513,9 +516,10 @@ export struct ElementInspectionOverlay {
           this.onAction('copy_html');
         })
     }
-    .backgroundColor($r('sys.color.ohos_id_color_background_transparent'))
-    .backgroundBlurStyle(BlurStyle.NONE)
-    .systemMaterial(createFloatingGlassMaterial(
+    .backgroundColor(resolveFloatingGlassMaterialBackgroundColor(
+      $r('app.color.surface_floating_background')
+    ))
+    .systemMaterial(createFloatingGlassMaterialIfAvailable(
       resolveBrowserFloatingGlassMaterialTintForMode(this.storedResolvedThemeMode)
     ))
   }

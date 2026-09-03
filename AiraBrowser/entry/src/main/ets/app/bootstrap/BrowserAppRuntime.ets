@@ -89,6 +89,7 @@ import { HuaweiAccountMutationCoordinator } from '../../core/account/HuaweiAccou
 import { sharedCrossDeviceTabPresenceCoordinator } from '../../core/deviceTabs/CrossDeviceTabPresenceCoordinator';
 import { ActivityForegroundSessionCoordinator } from '../../core/activity/ActivityForegroundSessionCoordinator';
 import { ReleaseNoticeCoordinator } from '../../core/update/ReleaseNoticeCoordinator';
+import { sharedClientUpdatePolicyService } from '../../services/update/ClientUpdatePolicyService';
 import { BrowserGestureOnboardingPromptCoordinator } from '../../core/browser/BrowserGestureOnboardingPromptCoordinator';
 import { SearchEngineSettingsCoordinator } from '../../core/search/SearchEngineSettingsCoordinator';
 import { BrowserThemeModeCoordinator } from '../../core/browser/BrowserThemeModeCoordinator';
@@ -314,6 +315,7 @@ export const sharedActivityForegroundSessionCoordinator: ActivityForegroundSessi
 export const sharedReleaseNoticeRepository: ReleaseNoticeRepository = new ReleaseNoticeRepository();
 export const sharedReleaseNoticeCoordinator: ReleaseNoticeCoordinator =
   new ReleaseNoticeCoordinator(sharedReleaseNoticeRepository);
+export { sharedClientUpdatePolicyService };
 export const sharedSitePolicyService: SitePolicyService =
   new SitePolicyService(sharedPreferencesRepository);
 export const sharedArkWebAppProxyService: ArkWebAppProxyService = new ArkWebAppProxyService();

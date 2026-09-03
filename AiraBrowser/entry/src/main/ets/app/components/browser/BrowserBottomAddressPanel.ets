@@ -77,6 +77,10 @@ import {
   resolveBrowserBottomChromeMaterialTintForMode
 } from './BrowserFloatingGlassMaterialTokens';
 import { BrowserBottomSheetSurface } from './BrowserModalBottomSheet';
+import {
+  createFloatingGlassMaterialIfAvailable,
+  resolveFloatingGlassMaterialBackgroundColor
+} from '../common/FloatingGlassMaterialTokens';
 import { BROWSER_GLOBAL_SYMBOL_WEIGHT } from './BrowserIconStyle';
 import { HomeSearchQuickActionCard } from './HomeSearchQuickActionCard';
 import { AiraIcon } from '../common/AiraIcon';
@@ -699,6 +703,9 @@ export struct BrowserBottomAddressPanel {
       scrollSizeMode: ScrollSizeMode.FOLLOW_DETENT,
       dragBar: true,
       showClose: false,
+      systemMaterial: createFloatingGlassMaterialIfAvailable(
+        this.resolveBottomChromeMaterialTint()
+      ),
       onDisappear: (): void => {
         this.handleToolbarSystemSheetDisappear();
       }
@@ -712,7 +719,7 @@ export struct BrowserBottomAddressPanel {
       horizontalPadding: 0,
       topPadding: 0,
       bottomPadding: 0,
-      surfaceColor: this.storedPageBackgroundColor
+      surfaceColor: resolveFloatingGlassMaterialBackgroundColor(this.storedPageBackgroundColor)
     }) {
       ForEach([this.resolveToolbarRenderSnapshot().layoutState],
         (layoutState: BrowserBottomToolbarQuickActionLayoutState) => {
@@ -778,7 +785,6 @@ export struct BrowserBottomAddressPanel {
                   item,
                   layoutState.buttonSize,
                   layoutState.cardHeight,
-                  false,
                   true
                 );
               }, (renderKey: string) => renderKey)
@@ -1535,7 +1541,6 @@ export struct BrowserBottomAddressPanel {
     item: BrowserBottomAddressPanelAction,
     buttonSize: number,
     cardHeight: number,
-    useGlassMaterial: boolean = true,
     toolbarSystemSheetAction: boolean = false
   ) {
     Row() {
@@ -1552,8 +1557,6 @@ export struct BrowserBottomAddressPanel {
           this.resolveToolbarSystemSheetActionBackgroundColor(item) : this.resolveQuickActionCardBackgroundColor(item),
         cardDisabledOpacity: 1,
         cardBorderWidth: 0,
-        useGlassMaterial: useGlassMaterial,
-        glassTintColor: this.resolveBottomChromeMaterialTint(),
         buttonSize,
         imageRenderVersion: this.resolveActionRenderVersion(item),
         action: () => {

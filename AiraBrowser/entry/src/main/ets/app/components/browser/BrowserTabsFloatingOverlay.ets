@@ -63,12 +63,6 @@ import {
   BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY
 } from '../../../core/theme/BrowserThemeStorageKeys';
 import { AppChromeIconTone } from '../../../core/resources/AppIconResources';
-import {
-  BROWSER_TABS_OVERVIEW_GLASS_LIGHT_EFFECT_COLOR,
-  BROWSER_TABS_OVERVIEW_GLASS_MATERIAL_STYLE,
-  BROWSER_TABS_OVERVIEW_GLASS_MATERIAL_TINT
-} from './BrowserFloatingGlassMaterialTokens';
-import { BrowserFloatingGlassMaterialSurface } from './BrowserFloatingGlassMaterialSurface';
 import { BrowserWindowRuntime } from '../../runtime/BrowserWindowRuntime';
 import { SiteIconListRenderState } from '../../../core/siteicons/SiteIconListPresenter';
 
@@ -338,50 +332,19 @@ export struct BrowserTabsFloatingOverlay {
 
   @Builder
   private buildBackgroundDismissLayer() {
-    if (this.shouldUseFloatingGlassMaterialBackground()) {
-      Stack() {
-        BrowserFloatingGlassMaterialSurface({
-          surfaceWidth: '100%',
-          surfaceHeight: '100%',
-          surfaceRadius: 0,
-          tintColor: BROWSER_TABS_OVERVIEW_GLASS_MATERIAL_TINT,
-          materialStyle: BROWSER_TABS_OVERVIEW_GLASS_MATERIAL_STYLE,
-          lightEffectColor: BROWSER_TABS_OVERVIEW_GLASS_LIGHT_EFFECT_COLOR,
-          overlayColor: BROWSER_TABS_OVERVIEW_GLASS_MATERIAL_TINT,
-          overlayOpacity: 1
-        }) {
-          Stack()
-            .width('100%')
-            .height('100%')
-            .hitTestBehavior(HitTestMode.None)
+    Stack()
+      .width('100%')
+      .height('100%')
+      .backgroundColor(this.resolvePanelPageBackgroundColor())
+      .opacity(this.resolveBackgroundTintOpacity())
+      .hitTestBehavior((this.interactionEnabled && !this.closeAllExitActive) ?
+        HitTestMode.Default : HitTestMode.None)
+      .onClick(() => {
+        if (this.interactionEnabled && !this.closeAllExitActive) {
+          this.onDismiss();
         }
-      }
-        .width('100%')
-        .height('100%')
-        .opacity(this.resolveBackgroundSurfaceOpacity())
-        .hitTestBehavior((this.interactionEnabled && !this.closeAllExitActive) ?
-          HitTestMode.Default : HitTestMode.None)
-        .onClick(() => {
-          if (this.interactionEnabled && !this.closeAllExitActive) {
-            this.onDismiss();
-          }
-        })
-        .zIndex(0)
-    } else {
-      Stack()
-        .width('100%')
-        .height('100%')
-        .backgroundColor(this.resolvePanelPageBackgroundColor())
-        .opacity(this.resolveBackgroundTintOpacity())
-        .hitTestBehavior((this.interactionEnabled && !this.closeAllExitActive) ?
-          HitTestMode.Default : HitTestMode.None)
-        .onClick(() => {
-          if (this.interactionEnabled && !this.closeAllExitActive) {
-            this.onDismiss();
-          }
-        })
-        .zIndex(0)
-    }
+      })
+      .zIndex(0)
   }
 
   @Builder
@@ -1361,9 +1324,9 @@ export struct BrowserTabsFloatingOverlay {
   }
 
   private resolveBackgroundTintOpacity(): number {
-    if (!this.backgroundTintEnabled) {
-      return 0;
-    }
+    // The API 26 immersive material is intentionally not used for the full-screen
+    // overview backdrop. Keep the existing transition opacity on the plain page
+    // background so the home surface does not show through unexpectedly.
     return this.resolveBackgroundSurfaceOpacity();
   }
 
@@ -1372,10 +1335,6 @@ export struct BrowserTabsFloatingOverlay {
       return this.resolveSurfaceProgress();
     }
     return Math.max(0, Math.min(1, this.backgroundSurfaceOpacity));
-  }
-
-  private shouldUseFloatingGlassMaterialBackground(): boolean {
-    return !this.backgroundTintEnabled;
   }
 
   private resolvePanelSecondaryTextColor(): ResourceColor {

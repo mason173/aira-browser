@@ -4,6 +4,7 @@ import { hilog } from '@kit.PerformanceAnalysisKit';
 import { AppRuntimeContext } from '../../app/runtime/AppRuntimeContext';
 import { AIRA_HOSTED_API_BASE_URL } from '../../common/config/AiraDistributionCapabilityOwner';
 import {
+  AIRA_CLOUD_BOOKMARK_SYNC_PROTOCOL_ID,
   AiraBookmarkHistoryDescriptor,
   AiraSyncRemoteHead,
   AiraSyncRemoteState,
@@ -16,7 +17,8 @@ import { HuaweiCloudSyncInitService } from './HuaweiCloudSyncInitService';
 import { AiraBookmarkSnapshotValidationService } from './AiraBookmarkSnapshotValidationService';
 import { AiraBookmarkTombstoneLifecycleService } from './AiraBookmarkTombstoneLifecycleService';
 
-export const AIRA_CLOUD_BOOKMARK_SYNC_API_ENDPOINT: string = AIRA_HOSTED_API_BASE_URL + '/sync/v3/bookmarks';
+export const AIRA_CLOUD_BOOKMARK_SYNC_API_ENDPOINT: string = AIRA_HOSTED_API_BASE_URL + '/sync/v4/bookmarks';
+export const AIRA_CLOUD_BOOKMARK_SYNC_PROTOCOL: string = AIRA_CLOUD_BOOKMARK_SYNC_PROTOCOL_ID;
 
 const AIRA_CLOUD_BOOKMARK_API_TIMEOUT_MS: number = 45000;
 export const AIRA_CLOUD_BOOKMARK_API_LARGE_PAYLOAD_TIMEOUT_MS: number = 600000;
@@ -27,16 +29,19 @@ const sharedHuaweiBookmarkSyncInitService: HuaweiCloudSyncInitService = new Huaw
 export interface AiraCloudBookmarkApiReadRequest {
   uid: string;
   source: string;
+  protocol: string;
 }
 
 export interface AiraCloudBookmarkApiHeadRequest {
   uid: string;
   source: string;
+  protocol: string;
 }
 
 export interface AiraCloudBookmarkApiWriteRequest {
   uid: string;
   source: string;
+  protocol: string;
   deviceId: string;
   parentCommitId: string | null;
   createdAt: string;
@@ -48,6 +53,8 @@ export interface AiraCloudBookmarkApiResponseBody {
   ok?: boolean;
   code?: string;
   message?: string;
+  protocol?: string;
+  status?: number;
   snapshot?: AiraSyncSnapshot | null;
   history?: AiraBookmarkHistoryDescriptor | null;
   commitId?: string | null;
@@ -95,7 +102,8 @@ export function parseAiraCloudBookmarkHttpError(
   return {
     ok: false,
     code: code,
-    message: message
+    message: message,
+    status: responseCode
   };
 }
 
@@ -104,6 +112,8 @@ interface AiraCloudBookmarkApiResponseEnvelope {
   ok?: boolean;
   code?: string;
   message?: string;
+  protocol?: string;
+  status?: number;
   snapshot?: AiraSyncSnapshot | null;
   history?: AiraBookmarkHistoryDescriptor | null;
   commitId?: string | null;
@@ -133,6 +143,18 @@ export interface HuaweiBookmarkSyncTokenProvider {
 export interface AiraCloudBookmarkApiHttpAdapter {
   post(url: string, body: Object, authorization: string, timeoutMs: number):
     Promise<Object | string | null | undefined>;
+}
+
+export class AiraCloudBookmarkRemoteError extends Error {
+  readonly code: string;
+  readonly status: number;
+
+  constructor(message: string, code: string = '', status: number = 0) {
+    super(message);
+    this.name = 'AiraCloudBookmarkRemoteError';
+    this.code = code.trim();
+    this.status = Number.isFinite(status) ? Math.max(0, Math.floor(status)) : 0;
+  }
 }
 
 class RuntimeHuaweiBookmarkSyncAuthInitializer implements HuaweiBookmarkSyncAuthInitializer {
@@ -241,7 +263,8 @@ export class AiraCloudBookmarkRemoteStore implements AiraSyncRemoteStore {
     this.assertConfigured();
     const body: AiraCloudBookmarkApiReadRequest = {
       uid: this.uid,
-      source: 'app'
+      source: 'app',
+      protocol: AIRA_CLOUD_BOOKMARK_SYNC_PROTOCOL
     };
     const response = await this.post('/read', body);
     const commitId = `${response.commitId ?? ''}`.trim();
@@ -272,7 +295,8 @@ export class AiraCloudBookmarkRemoteStore implements AiraSyncRemoteStore {
     this.assertConfigured();
     const body: AiraCloudBookmarkApiHeadRequest = {
       uid: this.uid,
-      source: 'app'
+      source: 'app',
+      protocol: AIRA_CLOUD_BOOKMARK_SYNC_PROTOCOL
     };
     const response = await this.post('/head', body);
     const bookmarkFolders = this.normalizeOptionalCount(response.bookmarkFolders);
@@ -294,6 +318,7 @@ export class AiraCloudBookmarkRemoteStore implements AiraSyncRemoteStore {
     const body: AiraCloudBookmarkApiWriteRequest = {
       uid: this.uid,
       source: 'app',
+      protocol: AIRA_CLOUD_BOOKMARK_SYNC_PROTOCOL,
       deviceId: params.deviceId,
       parentCommitId: params.parentCommitId ?? null,
       createdAt: params.createdAt ?? snapshot.meta.generatedAt,
@@ -322,10 +347,18 @@ export class AiraCloudBookmarkRemoteStore implements AiraSyncRemoteStore {
       );
       const response = this.parseResponseValue(value);
       if (response.ok !== true) {
-        if (response.code === 'sync_conflict') {
-          throw new Error('Aira 云远端已更新，请重新拉取后再同步。');
-        }
-        throw new Error(response.message ?? `Aira 云同步服务返回失败：${response.code ?? 'unknown'}`);
+        const code = `${response.code ?? ''}`.trim();
+        const message = code === 'sync_conflict'
+          ? 'Aira 云远端已更新，请重新拉取后再同步。'
+          : (response.message ?? `Aira 云同步服务返回失败：${code || 'unknown'}`);
+        throw new AiraCloudBookmarkRemoteError(message, code, response.status ?? 0);
+      }
+      if (response.protocol !== AIRA_CLOUD_BOOKMARK_SYNC_PROTOCOL) {
+        throw new AiraCloudBookmarkRemoteError(
+          'Aira 云同步服务返回了不兼容的书签协议，请升级后再试。',
+          'client_update_required',
+          response.status ?? 0
+        );
       }
       return response;
     } catch (error) {

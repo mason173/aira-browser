@@ -9,6 +9,7 @@ import {
   AiraSyncRemoteKind,
   AiraSyncSettings,
   buildAiraHuaweiSpaceRemoteStatusProviderKey,
+  buildAiraPersonalServerRemoteStatusProviderKey,
   buildAiraWebdavRemoteStatusProviderKey,
   isAiraSyncProviderEnabled,
   resolveAiraSyncProviderRuntimeState
@@ -225,7 +226,7 @@ export class SyncAdvancedSettingsViewModel {
       if (config === undefined) {
         return 'none';
       }
-      return `self_hosted|${config.instanceId.trim()}|${config.baseUrl.trim().replace(/\/+$/, '')}`;
+      return buildAiraPersonalServerRemoteStatusProviderKey(config.instanceId, config.baseUrl);
     }
     return 'none';
   }

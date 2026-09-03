@@ -26,12 +26,15 @@ import {
 import { AppServiceModeGateService } from '../../../services/settings/AppServiceModeGateService';
 import {
   sharedPreferencesRepository,
-  sharedSyncExperienceCoordinator
+  sharedSyncExperienceCoordinator,
+  sharedClientUpdatePolicyService
 } from '../../bootstrap/BrowserAppRuntime';
 import { SyncExperienceScreen } from './SyncExperienceScreen';
 import { SyncAdditionalBackupHost } from './SyncAdditionalBackupHost';
 import { SyncOperationProgressDialog } from './SyncOperationProgressDialog';
 import { SettingsNavigationCoordinator } from '../../router/SettingsNavigationCoordinator';
+import { SystemSettingsLaunchService } from '../../../services/system/SystemSettingsLaunchService';
+import { AppRuntimeContext } from '../../runtime/AppRuntimeContext';
 import { SYNC_SETTINGS_REFRESH_REVISION_KEY } from '../../../core/sync/SyncSettingsRefreshSignal';
 import { SettingsContentKind } from '../../../core/settings/SettingsContentLayoutPolicy';
 import {
@@ -49,6 +52,7 @@ export struct SyncExperienceHost {
   @StorageProp(BROWSER_THEME_STORAGE_ON_ACCENT_KEY) private storedOnAccentColor: string =
     DEFAULT_THEME_PALETTE.light.onAccent;
   private navigationCoordinator: SettingsNavigationCoordinator = new SettingsNavigationCoordinator();
+  private systemSettingsLaunchService: SystemSettingsLaunchService = new SystemSettingsLaunchService();
   private appServiceModeGateService: AppServiceModeGateService =
     new AppServiceModeGateService(sharedPreferencesRepository);
   @StorageLink(SYNC_SETTINGS_REFRESH_REVISION_KEY) @Watch('refreshState')
@@ -484,7 +488,7 @@ export struct SyncExperienceHost {
       this.syncProgressController.finish(outcome.title, outcome.message, undefined, false);
       return;
     }
-    this.syncProgressController.complete();
+    this.syncProgressController.fail(outcome.title, outcome.message);
     this.renderOutcome(outcome);
   }
 
@@ -527,6 +531,10 @@ export struct SyncExperienceHost {
       this.showMembershipDecision(outcome.membershipDecision);
       return;
     }
+    if (outcome.type === 'failed') {
+      this.showFailureRecoveryDialog(outcome);
+      return;
+    }
     if (outcome.type === 'blocked' && outcome.requiresBookmarkResolution === true) {
       if (outcome.remoteKind === undefined) {
         this.showDialog(outcome.title, outcome.message);
@@ -549,6 +557,124 @@ export struct SyncExperienceHost {
             this.resolveBookmarkConflicts(conflictRemoteKind, 'prefer-local');
           }
         }
+      });
+      return;
+    }
+    this.showDialog(outcome.title, outcome.message);
+  }
+
+  private showFailureRecoveryDialog(outcome: SyncExperienceActionOutcome): void {
+    if (outcome.bookmarkFailure?.code === 'BKM-PROTOCOL-UPDATE-001') {
+      showCenteredAlertDialog({
+        title: '需要升级后才能同步',
+        message: 'Aira 云书签同步已经切换到新协议。请升级 App 后再同步；本机书签和其他同步方式不会被删除。',
+        autoCancel: false,
+        buttonDirection: DialogButtonDirection.VERTICAL,
+        buttons: [
+          {
+            value: '前往升级',
+            primary: true,
+            fontColor: this.storedOnAccentColor,
+            backgroundColor: this.storedAccentColor,
+            action: (): void => {
+              sharedClientUpdatePolicyService.deferCurrentRequirement();
+              if (!AppRuntimeContext.hasUIAbilityContext()) {
+                this.showDialog('无法打开升级页面', '请稍后在应用市场搜索 Aira。');
+                return;
+              }
+              this.systemSettingsLaunchService.openAppGalleryDetailPage(
+                AppRuntimeContext.getUIAbilityContext()
+              ).then((result): void => {
+                if (!result.success) {
+                  this.showDialog('无法打开升级页面', `${result.message} 请稍后在应用市场搜索 Aira。`);
+                }
+              });
+            }
+          },
+          {
+            value: '更换同步方式',
+            action: (): void => {
+              sharedClientUpdatePolicyService.deferCurrentRequirement();
+              this.activeSheetVisible = true;
+            }
+          },
+          {
+            value: '继续使用本地功能',
+            action: (): void => {
+              sharedClientUpdatePolicyService.deferCurrentRequirement();
+            }
+          }
+        ]
+      });
+      return;
+    }
+    if (outcome.retryAction === 'sync' && outcome.remoteKind !== undefined) {
+      showCenteredAlertDialog({
+        title: outcome.title.length > 0 ? outcome.title : '同步失败',
+        message: outcome.message,
+        autoCancel: true,
+        buttonDirection: DialogButtonDirection.VERTICAL,
+        buttons: [
+          {
+            value: '再次同步',
+            primary: true,
+            fontColor: this.storedOnAccentColor,
+            backgroundColor: this.storedAccentColor,
+            action: () => {
+              this.syncNow();
+            }
+          },
+          {
+            value: '更换同步方式',
+            fontColor: this.storedAccentColor,
+            action: () => {
+              this.activeSheetVisible = true;
+            }
+          },
+          { value: '知道了', action: () => {} }
+        ]
+      });
+      return;
+    }
+    if (outcome.retryAction === 'sync') {
+      showCenteredAlertDialog({
+        title: outcome.title.length > 0 ? outcome.title : '同步失败',
+        message: outcome.message,
+        autoCancel: true,
+        buttonDirection: DialogButtonDirection.VERTICAL,
+        buttons: [
+          {
+            value: '再次同步',
+            primary: true,
+            fontColor: this.storedOnAccentColor,
+            backgroundColor: this.storedAccentColor,
+            action: () => {
+              this.syncNow();
+            }
+          },
+          { value: '知道了', action: () => {} }
+        ]
+      });
+      return;
+    }
+    if (outcome.remoteKind !== undefined) {
+      showCenteredAlertDialog({
+        title: outcome.title.length > 0 ? outcome.title : '同步失败',
+        message: outcome.message,
+        autoCancel: true,
+        buttonDirection: DialogButtonDirection.VERTICAL,
+        buttons: [
+          {
+            value: '更换同步方式',
+            primary: true,
+            fontColor: this.storedOnAccentColor,
+            backgroundColor: this.storedAccentColor,
+            action: () => {
+              this.activeSheetVisible = true;
+            }
+          },
+          { value: '知道了', action: () => {} }
+        ]
       });
       return;
     }

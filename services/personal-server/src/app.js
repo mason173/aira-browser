@@ -2,6 +2,10 @@ const { publicBaseUrl } = require('./config');
 const { readJson, writeJson } = require('./http');
 const { toPublicError, fail } = require('./errors');
 const {
+  BOOKMARK_SYNC_PROTOCOL,
+  BOOKMARK_SYNC_VERSION
+} = require('./bookmark-sync-protocol');
+const {
   authenticate,
   createPairingCode,
   exchangePairingCode,
@@ -15,7 +19,7 @@ const { handleHistoryBootstrap, handleHistoryExchange } = require('./routes/hist
 const pagePush = require('./page-push');
 const crossDeviceTabs = require('./cross-device-tabs');
 
-const VERSION = '0.2.0';
+const VERSION = '0.3.0';
 
 async function handleRequest(request, response) {
   try {
@@ -71,10 +75,10 @@ async function handleRequest(request, response) {
       return writeJson(response, 200, { ok: true, code: 'cross_device_tabs_cleared', ...crossDeviceTabs.clear(device) });
     }
     if (request.method === 'POST' && url.pathname === '/v1/sync/bookmarks/read') {
-      return writeJson(response, 200, { ok: true, code: 'bookmark_sync_state', ...readBookmark() });
+      return writeJson(response, 200, { ok: true, code: 'bookmark_sync_state', ...readBookmark(body) });
     }
     if (request.method === 'POST' && url.pathname === '/v1/sync/bookmarks/head') {
-      return writeJson(response, 200, { ok: true, code: 'bookmark_sync_head', ...readBookmarkHead() });
+      return writeJson(response, 200, { ok: true, code: 'bookmark_sync_head', ...readBookmarkHead(body) });
     }
     if (request.method === 'POST' && url.pathname === '/v1/sync/bookmarks/write') {
       return writeJson(response, 200, { ok: true, code: 'bookmark_sync_written', ...writeBookmark(body, device) });
@@ -116,7 +120,11 @@ function discovery() {
     baseUrl: publicBaseUrl,
     auth: { mode: 'paired_device_bearer', pairingExchangePath: '/v1/pairing/exchange' },
     capabilities: {
-      bookmarks: { version: 3, path: '/v1/sync/bookmarks' },
+      bookmarks: {
+        version: BOOKMARK_SYNC_VERSION,
+        protocol: BOOKMARK_SYNC_PROTOCOL,
+        path: '/v1/sync/bookmarks'
+      },
       history: { version: 1, path: '/v1/sync/history' },
       personalization: { version: 2, path: '/v1/sync/personalization' },
       novelBookshelf: { version: 2, path: '/v1/sync/novel-bookshelf' },

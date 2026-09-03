@@ -9,10 +9,12 @@ export struct BrowserFloatingGlassMaterialSurface {
   @Prop surfaceHeight: Length = 1;
   @Prop surfaceRadius: number = 0;
   @Prop tintColor: ResourceColor = BROWSER_FLOATING_GLASS_MATERIAL_LIGHT_TINT;
+  @Prop fallbackColor: ResourceColor = $r('app.color.surface_glass_background');
   @Prop materialStyle: uiMaterial.ImmersiveStyle = uiMaterial.ImmersiveStyle.THIN;
   @Prop lightEffectColor: ResourceColor = FLOATING_GLASS_MATERIAL_LIGHT_EFFECT_COLOR;
-  @Prop materialShadowEnabled: boolean = true;
+  @Prop materialShadowEnabled: boolean = false;
   @Prop materialInteractive: boolean = true;
+  @Prop materialEnabled: boolean = false;
   @Prop overlayColor: ResourceColor | undefined = undefined;
   @Prop overlayOpacity: number = 0;
   @Prop materialBorderWidth: number = 0;
@@ -26,10 +28,12 @@ export struct BrowserFloatingGlassMaterialSurface {
         surfaceHeight: this.surfaceHeight,
         surfaceRadius: this.surfaceRadius,
         tintColor: this.tintColor,
+        fallbackColor: this.fallbackColor,
         materialStyle: this.materialStyle,
         lightEffectColor: this.lightEffectColor,
         materialShadowEnabled: this.materialShadowEnabled,
         materialInteractive: this.materialInteractive,
+        materialEnabled: this.materialEnabled,
         overlayColor: this.overlayColor,
         overlayOpacity: this.overlayOpacity,
         materialBorderWidth: this.materialBorderWidth,

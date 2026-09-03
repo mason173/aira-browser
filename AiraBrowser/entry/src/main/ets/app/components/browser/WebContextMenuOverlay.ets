@@ -23,8 +23,6 @@ import {
   BROWSER_DESKTOP_MENU_VERTICAL_INSET_VP
 } from '../../../core/browser/BrowserDesktopMenuPresentationTokens';
 import { BrowserWindowRuntime } from '../../runtime/BrowserWindowRuntime';
-import { uiMaterial } from '@kit.ArkUI';
-import { resolveBrowserFloatingGlassMaterialTintForMode } from './BrowserFloatingGlassMaterialTokens';
 
 const WEB_CONTEXT_MENU_PHONE_BACKDROP_BLUR_RADIUS: number = 36;
 const WEB_CONTEXT_MENU_LIGHT_BACKDROP_COLOR: string = '#26000000';
@@ -125,15 +123,8 @@ export struct WebContextMenuOverlay {
       top: BROWSER_DESKTOP_MENU_VERTICAL_INSET_VP,
       bottom: BROWSER_DESKTOP_MENU_VERTICAL_INSET_VP
     })
-    .backgroundColor($r('sys.color.ohos_id_color_background_transparent'))
+    .backgroundColor($r('app.color.surface_floating_background'))
     .borderRadius(this.resolveMenuCornerRadius())
-    .systemMaterial(new uiMaterial.ImmersiveMaterial({
-      style: uiMaterial.ImmersiveStyle.THIN,
-      materialColor: resolveBrowserFloatingGlassMaterialTintForMode(this.storedResolvedThemeMode),
-      colorInvert: true,
-      applyShadow: true,
-      interactive: true
-    }))
     .clip(true)
     .hitTestBehavior(HitTestMode.Default)
     .onTouch((event: TouchEvent): void => {

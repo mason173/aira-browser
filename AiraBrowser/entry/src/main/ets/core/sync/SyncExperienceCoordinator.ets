@@ -89,6 +89,8 @@ export type SyncExperienceActionOutcomeType =
   | 'blocked'
   | 'failed';
 
+export type SyncExperienceRetryAction = 'sync' | 'reload';
+
 export interface SyncExperienceActionOutcome {
   type: SyncExperienceActionOutcomeType;
   title: string;
@@ -99,6 +101,7 @@ export interface SyncExperienceActionOutcome {
   requiresBookmarkResolution?: boolean;
   bookmarkFailure?: AiraBookmarkSyncFailure;
   personalizationConfig?: PersonalizationSyncConfig;
+  retryAction?: SyncExperienceRetryAction;
 }
 
 export interface SyncExperienceHuaweiSpaceBookmarkUpgradePromptState {
@@ -920,7 +923,7 @@ export class SyncExperienceCoordinator {
       }
       return this.runEnabledDomains('sync');
     } catch (error) {
-      return this.failure('立即同步失败', error as Error);
+      return this.failure('立即同步失败', error as Error, undefined, undefined, 'sync');
     }
   }
 
@@ -1076,6 +1079,7 @@ export class SyncExperienceCoordinator {
           title: isBackup ? '部分备份需要处理' : '部分内容需要处理',
           message: issueMessages.concat(messages).join(' '),
           remoteKind: context.activeProvider === 'none' ? undefined : context.activeProvider,
+          retryAction: isBackup ? undefined : 'sync',
           requiresBookmarkResolution: issues.some((issue: SyncExperienceDomainIssue): boolean => {
             return issue.domain === 'bookmark' && issue.type === 'blocked';
           })
@@ -1102,7 +1106,13 @@ export class SyncExperienceCoordinator {
           : isBackup ? '当前没有需要备份的内容。' : '当前没有需要同步的内容。'
       };
     } catch (error) {
-      return this.failure(mode === 'backup' ? '立即备份失败' : '立即同步失败', error as Error);
+      return this.failure(
+        mode === 'backup' ? '立即备份失败' : '立即同步失败',
+        error as Error,
+        undefined,
+        undefined,
+        mode === 'backup' ? undefined : 'sync'
+      );
     }
   }
 
@@ -1927,14 +1937,16 @@ export class SyncExperienceCoordinator {
     title: string,
     error: Error,
     remoteKind?: AiraSyncProviderKind,
-    bookmarkFailure?: AiraBookmarkSyncFailure
+    bookmarkFailure?: AiraBookmarkSyncFailure,
+    retryAction?: SyncExperienceRetryAction
   ): SyncExperienceActionOutcome {
     return {
       type: 'failed',
       title: title,
       message: error.message.length > 0 ? error.message : JSON.stringify(error),
       remoteKind: remoteKind,
-      bookmarkFailure: bookmarkFailure
+      bookmarkFailure: bookmarkFailure,
+      retryAction: retryAction
     };
   }
 

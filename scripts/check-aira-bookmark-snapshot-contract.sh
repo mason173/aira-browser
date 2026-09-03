@@ -161,13 +161,13 @@ if [ "${failures}" -eq 0 ]; then
     fi
     if [ -f "${server_app_path}" ]; then
       require_file_pattern "${server_app_path}" \
-        '/sync/v3/bookmarks/read[\s\S]*/sync/v3/bookmarks/head[\s\S]*/sync/v3/bookmarks/write' \
-        "the server must expose the isolated Bookmark v3 protocol"
+        '/sync/v4/bookmarks/read[\s\S]*/sync/v4/bookmarks/head[\s\S]*/sync/v4/bookmarks/write' \
+        "the server must expose the isolated Bookmark v4 protocol"
     fi
     if [ -f "${server_rate_limit_path}" ]; then
       require_file_pattern "${server_rate_limit_path}" \
-        '/sync/v3/bookmarks/write' \
-        "the v3 Bookmark write endpoint must retain the explicit sync write rate limit"
+        '/sync/v4/bookmarks/write' \
+        "the v4 Bookmark write endpoint must retain the explicit sync write rate limit"
     fi
   fi
   require_pattern "${ADR_REL}" \
@@ -261,8 +261,8 @@ if [ "${failures}" -eq 0 ]; then
     'history: manifest\.history[\s\S]*manifest\.history\.version !== AIRA_BOOKMARK_HISTORY_VERSION' \
     "provider baselines must persist and validate the history descriptor"
   require_pattern "${AIRA_STORE_REL}" \
-    'sync/v3/bookmarks[\s\S]*assertSnapshotWithinHistory' \
-    "Aira Cloud must use the isolated v3 path and validate the history boundary"
+    'sync/v4/bookmarks[\s\S]*AIRA_CLOUD_BOOKMARK_SYNC_PROTOCOL_ID[\s\S]*assertSnapshotWithinHistory' \
+    "Aira Cloud must use the isolated v4 path and validate the history boundary"
   require_pattern "${WEBDAV_STORE_REL}" \
     'BOOKMARK_WEBDAV_FILE_VERSION: number = 2[\s\S]*history: history[\s\S]*assertSnapshotWithinHistory' \
     "WebDAV must commit history in its isolated file-v2 envelope"

@@ -13,6 +13,7 @@ import type {
   LeafTabSyncWriteStateParams,
   LeafTabSyncWriteStateResult,
 } from './remoteStore';
+import { AIRA_CLOUD_BOOKMARK_SYNC_PROTOCOL } from './remoteStore';
 import { LeafTabSyncTombstoneLifecycle } from './historyLifecycle';
 import { requireAiratabOfficialApiRoute } from '@/config/AiratabDistribution';
 import { getExtensionManifest } from '@/platform/runtime';
@@ -26,6 +27,7 @@ type AiraCloudResponse = {
   ok?: boolean;
   code?: string;
   message?: string;
+  protocol?: string;
   snapshot?: AiraCloudSnapshot | null;
   history?: LeafTabSyncHistoryDescriptor | null;
   commitId?: string | null;
@@ -89,6 +91,7 @@ export class LeafTabSyncAiraCloudStore implements LeafTabSyncRemoteStore {
       uid: this.uid,
       desktopPushToken: this.deviceCredential,
       source: 'airatab',
+      protocol: AIRA_CLOUD_BOOKMARK_SYNC_PROTOCOL,
       clientVersion: this.clientVersion,
     });
     const commitId = typeof response.commitId === 'string' && response.commitId.trim()
@@ -111,6 +114,7 @@ export class LeafTabSyncAiraCloudStore implements LeafTabSyncRemoteStore {
       uid: this.uid,
       desktopPushToken: this.deviceCredential,
       source: 'airatab',
+      protocol: AIRA_CLOUD_BOOKMARK_SYNC_PROTOCOL,
       clientVersion: this.clientVersion,
     }, AIRA_CLOUD_LARGE_REQUEST_TIMEOUT_MS);
     const snapshot = fromCloudSnapshot(response.snapshot);
@@ -142,6 +146,7 @@ export class LeafTabSyncAiraCloudStore implements LeafTabSyncRemoteStore {
       uid: this.uid,
       desktopPushToken: this.deviceCredential,
       source: 'airatab',
+      protocol: AIRA_CLOUD_BOOKMARK_SYNC_PROTOCOL,
       clientVersion: this.clientVersion,
       deviceId: params.deviceId,
       parentCommitId: params.parentCommitId ?? null,
@@ -199,6 +204,13 @@ export class LeafTabSyncAiraCloudStore implements LeafTabSyncRemoteStore {
         throw new LeafTabSyncAiraCloudError(
           parsed.message || `Aira 云同步请求失败（${response.status}）。`,
           String(parsed.code || ''),
+          response.status,
+        );
+      }
+      if (parsed.protocol !== AIRA_CLOUD_BOOKMARK_SYNC_PROTOCOL) {
+        throw new LeafTabSyncAiraCloudError(
+          'Aira 云同步服务返回了不兼容的书签协议，请升级后再试。',
+          'client_update_required',
           response.status,
         );
       }

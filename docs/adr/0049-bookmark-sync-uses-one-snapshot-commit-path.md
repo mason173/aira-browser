@@ -424,3 +424,13 @@ tombstone normally. A later explicit import receives a new actor and can therefo
 fixed `local-backup-import` actor remains recognized for compatibility, but cannot distinguish repeated imports. This
 exception does not alter Provider switching, Additional Backup, ordinary deletion semantics, snapshot validation, CAS,
 local-apply verification, or baseline advancement.
+
+Amended 2026-09-03 after the unified hosted-sync generation review: Aira Cloud and Aira-sync now use the deliberately
+breaking `aira-cloud-bookmarks-v4` protocol at `/sync/v4/bookmarks`, backed by one `bookmark_sync_states_v4` row per
+UID. A one-time server migration may select exactly one valid legacy source in generation order `v3`, then `v2`, then
+legacy; it never merges rows from different generations. The migration is idempotent and records its source and target
+commit for auditability. All client-facing v2, v3, and former unversioned `/sync/huawei/*` Bookmark routes reject
+requests before reading or writing state with `client_update_required`. The unpublished Personal Server follows the
+same v4 protocol gate and deliberately breaks its pairing-generation cache; it has no public-user compatibility or data
+migration obligation. WebDAV and Huawei Space retain their independent Provider transport identities and do not read the
+hosted v4 table.

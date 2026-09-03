@@ -12,7 +12,7 @@ import {
 } from './leafTabSyncStorageKeys';
 
 describe('LeafTab Sync storage generations', () => {
-  test('keeps local identity and user selection while isolating all v3 provider state', () => {
+  test('keeps local identity and user selection while isolating v4 hosted provider state', () => {
     const airaBaseline = createLeafTabSyncBaselineStorageKey({
       remoteKind: 'aira-cloud',
       uid: 'uid-a',
@@ -46,11 +46,11 @@ describe('LeafTab Sync storage generations', () => {
       ],
       isolated: [
         'aira/g3/bookmarks',
-        'leaftab_sync_g3_confirmed_bookmark_history',
-        'leaftab_sync_g3_pending_bookmark_conflict',
-        'aira_cloud_bookmark_sync_g3_last_sync_at',
+        'leaftab_sync_g4_confirmed_bookmark_history',
+        'leaftab_sync_g4_pending_bookmark_conflict',
+        'aira_cloud_bookmark_sync_g4_last_sync_at',
         'webdav_bookmark_sync_g3_last_sync_at',
-        'leaftab_sync_g3_baseline:aira_cloud:uid-a:aira_g3_bookmarks',
+        'leaftab_sync_g4_baseline:aira_cloud:uid-a:aira_g3_bookmarks',
         'leaftab_sync_bookmark_snapshot_v2_baseline:webdav:bookmark-snapshot-v2:https%3A%2F%2Fdav.example:mason:aira%2Fg3%2Fbookmarks',
       ],
     });

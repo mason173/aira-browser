@@ -114,6 +114,18 @@ const createFolderCollisionSnapshot = (
   return snapshot;
 };
 
+const createMigrationSnapshot = (
+  deviceId: string,
+  itemId: string,
+): LeafTabSyncSnapshot => {
+  const snapshot = createSnapshot(deviceId, { includeLiveItem: true });
+  const item = snapshot.bookmarkItems[COLLIDING_ID];
+  delete snapshot.bookmarkItems[COLLIDING_ID];
+  snapshot.bookmarkItems[itemId] = { ...item, id: itemId };
+  snapshot.bookmarkOrders[ROOT_ID].ids = [itemId];
+  return snapshot;
+};
+
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 
 describe('mergeLeafTabSyncSnapshot', () => {
@@ -147,6 +159,85 @@ describe('mergeLeafTabSyncSnapshot', () => {
     expect(merged.bookmarkItems[COLLIDING_ID]).toBeDefined();
     expect(merged.tombstones[`bookmark-folder|${COLLIDING_ID}`]).toBeUndefined();
     expect(parseCanonicalLeafTabSyncWireSnapshot(toLeafTabSyncWireSnapshot(merged))).not.toBeNull();
+  });
+
+  test('collapses a current-device stable ID onto its matching legacy migration ID', () => {
+    const local = createMigrationSnapshot('desktop-a', 'bkm_local_desktop-a_bookmark-1');
+    const remote = createMigrationSnapshot('phone-a', 'bkm_same-bookmark_legacy');
+
+    const merged = mergeLeafTabSyncSnapshotWithoutBaseline(local, remote, {
+      deviceId: 'desktop-a',
+      generatedAt: T0,
+    }).snapshot;
+
+    expect(Object.keys(merged.bookmarkItems)).toEqual(['bkm_same-bookmark_legacy']);
+    expect(merged.bookmarkOrders[ROOT_ID].ids).toEqual(['bkm_same-bookmark_legacy']);
+  });
+
+  test('converges an already duplicated legacy and stable pair without deleting intentional multiplicity', () => {
+    const local = createMigrationSnapshot('desktop-a', 'bkm_local_desktop-a_bookmark-1');
+    const localSecond = {
+      ...local.bookmarkItems['bkm_local_desktop-a_bookmark-1'],
+      id: 'bkm_legacy-second',
+    };
+    local.bookmarkItems[localSecond.id] = localSecond;
+    local.bookmarkOrders[ROOT_ID].ids = [localSecond.id, 'bkm_local_desktop-a_bookmark-1'];
+
+    const remote = createMigrationSnapshot('phone-a', 'bkm_legacy-first');
+    const remoteSecond = {
+      ...remote.bookmarkItems['bkm_legacy-first'],
+      id: 'bkm_local_desktop-a_bookmark-2',
+    };
+    remote.bookmarkItems[remoteSecond.id] = remoteSecond;
+    remote.bookmarkOrders[ROOT_ID].ids = ['bkm_legacy-first', remoteSecond.id];
+
+    const merged = mergeLeafTabSyncSnapshotWithoutBaseline(local, remote, {
+      deviceId: 'desktop-a',
+      generatedAt: T0,
+    }).snapshot;
+
+    expect(Object.keys(merged.bookmarkItems).sort()).toEqual([
+      'bkm_legacy-first',
+      'bkm_legacy-second',
+    ]);
+    expect(merged.bookmarkOrders[ROOT_ID].ids.sort()).toEqual([
+      'bkm_legacy-first',
+      'bkm_legacy-second',
+    ]);
+  });
+
+  test('does not collapse a stable ID owned by another device', () => {
+    const local = createMigrationSnapshot('desktop-a', 'bkm_local_phone-a_bookmark-1');
+    const remote = createMigrationSnapshot('phone-a', 'bkm_same-bookmark_legacy');
+
+    const merged = mergeLeafTabSyncSnapshotWithoutBaseline(local, remote, {
+      deviceId: 'desktop-a',
+      generatedAt: T0,
+    }).snapshot;
+
+    expect(Object.keys(merged.bookmarkItems).sort()).toEqual([
+      'bkm_local_phone-a_bookmark-1',
+      'bkm_same-bookmark_legacy',
+    ]);
+  });
+
+  test('does not let delimiter characters create a false migration match', () => {
+    const local = createMigrationSnapshot('desktop-a', 'bkm_local_desktop-a_bookmark-1');
+    local.bookmarkItems['bkm_local_desktop-a_bookmark-1'].title = 'A|B';
+    local.bookmarkItems['bkm_local_desktop-a_bookmark-1'].url = 'https://example.com/a|b';
+    const remote = createMigrationSnapshot('phone-a', 'bkm_legacy-parent|A');
+    remote.bookmarkItems['bkm_legacy-parent|A'].title = 'A';
+    remote.bookmarkItems['bkm_legacy-parent|A'].url = 'B|https://example.com/a|b';
+
+    const merged = mergeLeafTabSyncSnapshotWithoutBaseline(local, remote, {
+      deviceId: 'desktop-a',
+      generatedAt: T0,
+    }).snapshot;
+
+    expect(Object.keys(merged.bookmarkItems).sort()).toEqual([
+      'bkm_legacy-parent|A',
+      'bkm_local_desktop-a_bookmark-1',
+    ]);
   });
 
   test('still propagates an ordinary same-type deletion', () => {

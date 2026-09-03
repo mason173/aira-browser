@@ -6,7 +6,7 @@
       "icon": "$media:app_shortcut_bookmarks",
       "wants": [
         {
-          "bundleName": "org.aira.browser",
+          "bundleName": "com.aira.browser",
           "moduleName": "entry",
           "abilityName": "EntryAbility",
           "parameters": {
@@ -21,7 +21,7 @@
       "icon": "$media:app_shortcut_history",
       "wants": [
         {
-          "bundleName": "org.aira.browser",
+          "bundleName": "com.aira.browser",
           "moduleName": "entry",
           "abilityName": "EntryAbility",
           "parameters": {
@@ -36,7 +36,7 @@
       "icon": "$media:app_shortcut_downloads",
       "wants": [
         {
-          "bundleName": "org.aira.browser",
+          "bundleName": "com.aira.browser",
           "moduleName": "entry",
           "abilityName": "EntryAbility",
           "parameters": {
@@ -51,7 +51,7 @@
       "icon": "$media:app_shortcut_search",
       "wants": [
         {
-          "bundleName": "org.aira.browser",
+          "bundleName": "com.aira.browser",
           "moduleName": "entry",
           "abilityName": "EntryAbility",
           "parameters": {

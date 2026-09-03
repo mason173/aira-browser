@@ -6,7 +6,7 @@ const ORIGIN_HISTORY = {
   epochId: 'bookmark-history-v1-origin',
   retainedFrom: '1970-01-01T00:00:00.000Z',
 };
-const TEST_BOOKMARK_ENDPOINT = 'https://sync.example.test/sync/v3/bookmarks';
+const TEST_BOOKMARK_ENDPOINT = 'https://sync.example.test/sync/v4/bookmarks';
 
 const EMPTY_WIRE_SNAPSHOT = {
   meta: {
@@ -25,13 +25,14 @@ afterEach(() => {
 });
 
 describe('LeafTabSyncAiraCloudStore', () => {
-  test('reads the shared v3 bookmark state together with its history descriptor', async () => {
+  test('reads the shared v4 bookmark state together with its history descriptor', async () => {
     let requestedUrl = '';
     vi.stubGlobal('fetch', async (input: string | URL | Request) => {
       requestedUrl = String(input);
       return new Response(JSON.stringify({
         ok: true,
-        commitId: 'commit-v3',
+        protocol: 'aira-cloud-bookmarks-v4',
+        commitId: 'commit-v4',
         history: ORIGIN_HISTORY,
         snapshot: EMPTY_WIRE_SNAPSHOT,
       }), {
@@ -50,13 +51,13 @@ describe('LeafTabSyncAiraCloudStore', () => {
       snapshotDeviceId: state.snapshot?.meta.deviceId,
     }).toEqual({
       requestedUrl: `${TEST_BOOKMARK_ENDPOINT}/read`,
-      commitId: 'commit-v3',
+      commitId: 'commit-v4',
       history: ORIGIN_HISTORY,
       snapshotDeviceId: 'desktop-a',
     });
   });
 
-  test('writes the canonical snapshot and history to the shared v3 endpoint', async () => {
+  test('writes the canonical snapshot and history to the shared v4 endpoint', async () => {
     let request: { url: string; body: Record<string, unknown> } | null = null;
     vi.stubGlobal('fetch', async (input: string | URL | Request, init?: RequestInit) => {
       request = {
@@ -65,6 +66,7 @@ describe('LeafTabSyncAiraCloudStore', () => {
       };
       return new Response(JSON.stringify({
         ok: true,
+        protocol: 'aira-cloud-bookmarks-v4',
         commitId: 'commit-written',
         writtenAt: '2026-08-04T00:00:00.000Z',
       }), { status: 200 });
@@ -90,6 +92,7 @@ describe('LeafTabSyncAiraCloudStore', () => {
       body: {
         uid: 'uid-a',
         source: 'airatab',
+        protocol: 'aira-cloud-bookmarks-v4',
         deviceId: 'desktop-a',
         parentCommitId: null,
         history: ORIGIN_HISTORY,
@@ -97,15 +100,28 @@ describe('LeafTabSyncAiraCloudStore', () => {
     });
   });
 
-  test('rejects an incomplete v3 state that omits history', async () => {
+  test('rejects an incomplete v4 state that omits history', async () => {
     vi.stubGlobal('fetch', async () => new Response(JSON.stringify({
       ok: true,
+      protocol: 'aira-cloud-bookmarks-v4',
       commitId: 'commit-incomplete',
       snapshot: EMPTY_WIRE_SNAPSHOT,
     }), { status: 200 }));
     const store = new LeafTabSyncAiraCloudStore('uid-a', 'desktop-token', TEST_BOOKMARK_ENDPOINT);
 
     await expect(store.readState()).rejects.toThrow('同步状态不完整');
+  });
+
+  test('stops when the server does not identify the v4 protocol', async () => {
+    vi.stubGlobal('fetch', async () => new Response(JSON.stringify({
+      ok: true,
+      commitId: 'legacy-commit',
+      history: ORIGIN_HISTORY,
+      snapshot: EMPTY_WIRE_SNAPSHOT,
+    }), { status: 200 }));
+    const store = new LeafTabSyncAiraCloudStore('uid-a', 'desktop-token', TEST_BOOKMARK_ENDPOINT);
+
+    await expect(store.readState()).rejects.toMatchObject({ code: 'client_update_required' });
   });
 
   test('rejects a non-canonical outgoing snapshot before making a network request', async () => {

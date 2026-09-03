@@ -9,7 +9,7 @@ import {
 } from '@/features/sync/app/leafTabSyncStorageKeys';
 import { withBookmarkSyncExecutionLock } from '@/sync/leaftab/executionLock';
 
-export const PERSONAL_SERVER_CONNECTION_STORAGE_KEY = 'aira_personal_server_connection_v1';
+export const PERSONAL_SERVER_CONNECTION_STORAGE_KEY = 'aira_personal_server_connection_v2';
 const REQUEST_TIMEOUT_MS = 30_000;
 
 export type PersonalServerCapabilities = {
@@ -20,7 +20,7 @@ export type PersonalServerCapabilities = {
 };
 
 export type PersonalServerConnection = {
-  version: 1;
+  version: 2;
   baseUrl: string;
   instanceId: string;
   protocolVersion: number;
@@ -117,7 +117,7 @@ export async function pairPersonalServer(
       );
     }
     const connection: PersonalServerConnection = {
-      version: 1,
+      version: 2,
       baseUrl: canonicalBaseUrl,
       instanceId,
       protocolVersion: 1,
@@ -204,7 +204,7 @@ function parseCapabilities(value: unknown): PersonalServerCapabilities {
     ? value as Record<string, unknown>
     : {};
   return {
-    bookmarks: hasVersion(raw.bookmarks, 3),
+    bookmarks: hasVersionAndProtocol(raw.bookmarks, 4, 'aira-cloud-bookmarks-v4'),
     history: hasVersion(raw.history, 1),
     pagePush: hasVersion(raw.pagePush, 1),
     crossDeviceTabs: hasVersion(raw.crossDeviceTabs, 1),
@@ -216,6 +216,11 @@ function hasVersion(value: unknown, expected: number): boolean {
   return Number((value as { version?: unknown }).version || 0) === expected;
 }
 
+function hasVersionAndProtocol(value: unknown, expected: number, protocol: string): boolean {
+  if (!hasVersion(value, expected)) return false;
+  return String((value as { protocol?: unknown }).protocol || '').trim() === protocol;
+}
+
 function parseConnection(value: unknown): PersonalServerConnection | null {
   try {
     const raw = typeof value === 'string'
@@ -223,7 +228,7 @@ function parseConnection(value: unknown): PersonalServerConnection | null {
       : value as Partial<PersonalServerConnection>;
     if (
       !raw
-      || raw.version !== 1
+      || raw.version !== 2
       || raw.protocolVersion !== 1
       || !raw.baseUrl
       || !raw.instanceId
@@ -232,7 +237,7 @@ function parseConnection(value: unknown): PersonalServerConnection | null {
       || !raw.deviceId
     ) return null;
     return {
-      version: 1,
+      version: 2,
       baseUrl: normalizeBaseUrl(raw.baseUrl),
       instanceId: String(raw.instanceId).trim(),
       protocolVersion: 1,

@@ -51,7 +51,10 @@ import {
   BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY
 } from '../../../core/theme/BrowserThemeStorageKeys';
 import { AiraIcon } from '../common/AiraIcon';
-import { createFloatingGlassMaterial } from '../common/FloatingGlassMaterialTokens';
+import {
+  createFloatingGlassMaterialIfAvailable,
+  resolveFloatingGlassMaterialBackgroundColor
+} from '../common/FloatingGlassMaterialTokens';
 import { NovelBookCover } from '../novel/NovelBookCover';
 import { NovelComicImage } from '../novel/NovelComicImage';
 import { BrowserFloatingGlassMaterialSurface } from './BrowserFloatingGlassMaterialSurface';
@@ -1015,9 +1018,10 @@ export struct NovelReaderOverlay {
           this.onAction({ type: 'return_to_source' });
         })
     }
-    .backgroundColor($r('sys.color.ohos_id_color_background_transparent'))
-    .backgroundBlurStyle(BlurStyle.NONE)
-    .systemMaterial(createFloatingGlassMaterial(
+    .backgroundColor(resolveFloatingGlassMaterialBackgroundColor(
+      $r('app.color.surface_floating_background')
+    ))
+    .systemMaterial(createFloatingGlassMaterialIfAvailable(
       resolveBrowserBottomChromeMaterialTintForMode(this.storedResolvedThemeMode)
     ))
   }
