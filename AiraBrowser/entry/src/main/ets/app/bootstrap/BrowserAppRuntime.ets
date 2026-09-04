@@ -60,6 +60,8 @@ import { NovelBookshelfSyncStateStore } from '../../data/sync/NovelBookshelfSync
 import { SyncExperienceStateStore } from '../../data/sync/SyncExperienceStateStore';
 import { AiraCloudBookmarkV4BootstrapStateStore } from
   '../../data/sync/AiraCloudBookmarkV4BootstrapStateStore';
+import { AiraCloudBookmarkV4RecoveryPointStore } from
+  '../../data/sync/AiraCloudBookmarkV4RecoveryPointStore';
 import { HuaweiSpaceBookmarkUpgradeStore } from '../../data/sync/HuaweiSpaceBookmarkUpgradeStore';
 import { ActivityTracker } from '../../services/activity/ActivityTracker';
 import { SearchEngineAvailabilityProbeService } from '../../services/search/SearchEngineAvailabilityProbeService';
@@ -613,10 +615,20 @@ export const sharedSyncExperienceCoordinator: SyncExperienceCoordinator =
   );
 const sharedAiraCloudBookmarkV4BootstrapStateStore: AiraCloudBookmarkV4BootstrapStateStore =
   new AiraCloudBookmarkV4BootstrapStateStore();
+const sharedAiraCloudBookmarkV4RecoveryPointStore: AiraCloudBookmarkV4RecoveryPointStore =
+  new AiraCloudBookmarkV4RecoveryPointStore(
+    undefined,
+    (): number => Date.now(),
+    undefined,
+    (): Promise<string[]> => sharedAiraCloudBookmarkV4BootstrapStateStore.listProtectedRecoveryPointIds()
+  );
 const sharedAiraCloudBookmarkV4BootstrapCoordinator: AiraCloudBookmarkV4BootstrapCoordinator =
   new AiraCloudBookmarkV4BootstrapCoordinator(
     sharedSyncService,
-    new AiraCloudBookmarkV4RecoveryService(sharedLocalBackupService),
+    new AiraCloudBookmarkV4RecoveryService(
+      sharedLocalBackupService,
+      sharedAiraCloudBookmarkV4RecoveryPointStore
+    ),
     sharedAiraCloudBookmarkV4BootstrapStateStore,
     sharedSyncExperienceCoordinator
   );

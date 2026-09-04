@@ -1,7 +1,5 @@
-import auth from '@hw-agconnect/auth';
 import { http } from '@kit.NetworkKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
-import { AppRuntimeContext } from '../../app/runtime/AppRuntimeContext';
 import { AIRA_HOSTED_API_BASE_URL } from '../../common/config/AiraDistributionCapabilityOwner';
 import {
   AIRA_CLOUD_BOOKMARK_SYNC_PROTOCOL_ID,
@@ -13,7 +11,10 @@ import {
   AiraSyncWriteStateParams,
   AiraSyncWriteStateResult
 } from '../../common/models/AiraSyncModels';
-import { HuaweiCloudSyncInitService } from './HuaweiCloudSyncInitService';
+import {
+  HuaweiAccountAccessTokenProvider,
+  HuaweiAccountSyncAuthService
+} from './HuaweiAccountSyncAuthService';
 import { AiraBookmarkSnapshotValidationService } from './AiraBookmarkSnapshotValidationService';
 import { AiraBookmarkTombstoneLifecycleService } from './AiraBookmarkTombstoneLifecycleService';
 
@@ -24,7 +25,8 @@ const AIRA_CLOUD_BOOKMARK_API_TIMEOUT_MS: number = 45000;
 export const AIRA_CLOUD_BOOKMARK_API_LARGE_PAYLOAD_TIMEOUT_MS: number = 600000;
 const AIRA_CLOUD_BOOKMARK_API_LOG_DOMAIN: number = 0x0000;
 const AIRA_CLOUD_BOOKMARK_API_LOG_TAG: string = 'AiraCloudBookmark';
-const sharedHuaweiBookmarkSyncInitService: HuaweiCloudSyncInitService = new HuaweiCloudSyncInitService();
+const sharedHuaweiAccountAccessTokenProvider: HuaweiAccountAccessTokenProvider =
+  new HuaweiAccountSyncAuthService();
 
 export interface AiraCloudBookmarkApiReadRequest {
   uid: string;
@@ -124,20 +126,7 @@ interface AiraCloudBookmarkApiResponseEnvelope {
 }
 
 export interface AiraCloudBookmarkApiAuthProvider {
-  getAuthorizationHeader(): Promise<string>;
-}
-
-export interface HuaweiBookmarkSyncAuthInitializer {
-  initializeAuth(): Promise<void>;
-}
-
-export interface HuaweiBookmarkSyncToken {
-  tokenString: string;
-  expiration: number;
-}
-
-export interface HuaweiBookmarkSyncTokenProvider {
-  getToken(forceRefresh: boolean): Promise<HuaweiBookmarkSyncToken>;
+  getAuthorizationHeader(expectedUid: string): Promise<string>;
 }
 
 export interface AiraCloudBookmarkApiHttpAdapter {
@@ -157,44 +146,15 @@ export class AiraCloudBookmarkRemoteError extends Error {
   }
 }
 
-class RuntimeHuaweiBookmarkSyncAuthInitializer implements HuaweiBookmarkSyncAuthInitializer {
-  initializeAuth(): Promise<void> {
-    return sharedHuaweiBookmarkSyncInitService.initializeAuth(
-      AppRuntimeContext.getUIAbilityContext()
-    );
-  }
-}
-
-class AgcHuaweiBookmarkSyncTokenProvider implements HuaweiBookmarkSyncTokenProvider {
-  async getToken(forceRefresh: boolean): Promise<HuaweiBookmarkSyncToken> {
-    const user = await auth.getCurrentUser();
-    if (user === null) {
-      throw new Error('No AGC user signed in.');
-    }
-    const token = await user.getToken(forceRefresh);
-    return {
-      tokenString: token.getString(),
-      expiration: token.getExpirePeriod()
-    };
-  }
-}
-
 export class RuntimeAiraCloudBookmarkApiAuthProvider implements AiraCloudBookmarkApiAuthProvider {
-  private initializer: HuaweiBookmarkSyncAuthInitializer;
-  private tokenProvider: HuaweiBookmarkSyncTokenProvider;
+  private tokenProvider: HuaweiAccountAccessTokenProvider;
 
-  constructor(
-    initializer?: HuaweiBookmarkSyncAuthInitializer,
-    tokenProvider?: HuaweiBookmarkSyncTokenProvider
-  ) {
-    this.initializer = initializer ?? new RuntimeHuaweiBookmarkSyncAuthInitializer();
-    this.tokenProvider = tokenProvider ?? new AgcHuaweiBookmarkSyncTokenProvider();
+  constructor(tokenProvider?: HuaweiAccountAccessTokenProvider) {
+    this.tokenProvider = tokenProvider ?? sharedHuaweiAccountAccessTokenProvider;
   }
 
-  async getAuthorizationHeader(): Promise<string> {
-    await this.initializer.initializeAuth();
-    const token = await this.tokenProvider.getToken(true);
-    const tokenString = token.tokenString.trim();
+  async getAuthorizationHeader(expectedUid: string): Promise<string> {
+    const tokenString = (await this.tokenProvider.getCurrentAccessTokenForUid(expectedUid, true)).trim();
     if (tokenString.length <= 0) {
       throw new Error('华为账号登录凭证为空，请重新登录后再开启书签同步。');
     }
@@ -337,7 +297,7 @@ export class AiraCloudBookmarkRemoteStore implements AiraSyncRemoteStore {
   }
 
   private async post(path: string, body: Object): Promise<AiraCloudBookmarkApiResponseBody> {
-    const authorization = await this.authProvider.getAuthorizationHeader();
+    const authorization = await this.authProvider.getAuthorizationHeader(this.uid);
     try {
       const value = await this.adapter.post(
         `${this.endpoint}${path}`,

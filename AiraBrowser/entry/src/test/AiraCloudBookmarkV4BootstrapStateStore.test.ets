@@ -62,5 +62,20 @@ export default function airaCloudBookmarkV4BootstrapStateStoreTest(): void {
 
       expect(loaded).assertUndefined();
     });
+
+    it('does not report an empty recovery protection set when state is corrupt', 0, async () => {
+      const adapter = new InMemoryBootstrapStateAdapter();
+      adapter.value = '{not-json';
+      const store = new AiraCloudBookmarkV4BootstrapStateStore(adapter);
+      let rejected = false;
+
+      try {
+        await store.listProtectedRecoveryPointIds();
+      } catch (_error) {
+        rejected = true;
+      }
+
+      expect(rejected).assertTrue();
+    });
   });
 }

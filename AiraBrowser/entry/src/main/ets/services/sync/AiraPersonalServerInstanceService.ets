@@ -92,7 +92,7 @@ export class AiraPersonalServerDeviceAuthProvider implements AiraCloudBookmarkAp
     this.token = token.trim();
   }
 
-  getAuthorizationHeader(): Promise<string> {
+  getAuthorizationHeader(_expectedUid: string): Promise<string> {
     if (this.token.length <= 0) {
       return Promise.reject(new Error('个人服务器设备凭据为空，请重新配对。'));
     }

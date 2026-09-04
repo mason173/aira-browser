@@ -144,5 +144,25 @@ export default function airaCloudBookmarkV4RecoveryPointStoreTest(): void {
 
       expect(metadataFiles.length).assertEqual(3);
     });
+
+    it('retains an expired recovery point while an unfinished bootstrap still references it', 0, async () => {
+      const adapter = new InMemoryRecoveryFileAdapter();
+      let now: number = 0;
+      let sequence: number = 0;
+      const store = new AiraCloudBookmarkV4RecoveryPointStore(
+        adapter,
+        (): number => now,
+        (): string => `backup-${sequence += 1}`,
+        (): Promise<string[]> => Promise.resolve(['backup-1'])
+      );
+      for (let index: number = 0; index < 5; index += 1) {
+        now = index * 31 * 24 * 60 * 60 * 1000;
+        await store.create({ uid: 'uid-a', payload: `payload-${index}`, remoteCommitId: `commit-${index}` });
+      }
+
+      const restored = await store.readVerifiedPayload('backup-1');
+
+      expect(restored).assertEqual('payload-0');
+    });
   });
 }

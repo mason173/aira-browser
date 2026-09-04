@@ -228,7 +228,7 @@ export class NetworkAiraCloudHistoryRemoteStore implements AiraCloudHistoryRemot
   }
 
   private async post(path: string, body: Object): Promise<AiraCloudHistoryApiResponseBody> {
-    const authorization = await this.authProvider.getAuthorizationHeader();
+    const authorization = await this.authProvider.getAuthorizationHeader(this.uid);
     try {
       const value = await this.adapter.post(
         `${this.endpoint}${path}`,

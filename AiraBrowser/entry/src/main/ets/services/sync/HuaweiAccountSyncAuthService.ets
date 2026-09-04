@@ -10,11 +10,17 @@ import { resolveAiraLocalTestIdentity } from '../../common/config/AiraLocalTestA
 
 const HUAWEI_ACCOUNT_AUTH_DOMAIN = 0x0000;
 const HUAWEI_ACCOUNT_AUTH_TAG = 'HuaweiAccountAuth';
+const sharedHuaweiCloudSyncInitService: HuaweiCloudSyncInitService = new HuaweiCloudSyncInitService();
 
 export interface HuaweiAccountSyncIdentity {
   uid: string;
   displayName: string;
   photoUrl: string;
+}
+
+export interface HuaweiAccountAccessTokenProvider {
+  getCurrentAccessToken(forceRefresh: boolean): Promise<string>;
+  getCurrentAccessTokenForUid(uid: string, forceRefresh: boolean): Promise<string>;
 }
 
 export interface HuaweiAccountSyncAuthAdapter {
@@ -163,13 +169,13 @@ interface HuaweiAccountProfile {
   avatarUri: string;
 }
 
-export class HuaweiAccountSyncAuthService {
+export class HuaweiAccountSyncAuthService implements HuaweiAccountAccessTokenProvider {
   private adapter: HuaweiAccountSyncAuthAdapter;
   private initService: HuaweiCloudSyncInitService;
 
   constructor(adapter?: HuaweiAccountSyncAuthAdapter, initService?: HuaweiCloudSyncInitService) {
     this.adapter = adapter ?? new AgcHuaweiAccountSyncAuthAdapter();
-    this.initService = initService ?? new HuaweiCloudSyncInitService();
+    this.initService = initService ?? sharedHuaweiCloudSyncInitService;
   }
 
   async getCurrentAccessToken(forceRefresh: boolean = false): Promise<string> {

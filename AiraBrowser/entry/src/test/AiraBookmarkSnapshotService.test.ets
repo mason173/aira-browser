@@ -12,12 +12,15 @@ import {
 import { PreferencesRepository } from '../main/ets/data/preferences/PreferencesRepository';
 import { AiraSyncSnapshot } from '../main/ets/common/models/AiraSyncModels';
 import { AiraBookmarkSnapshotService } from '../main/ets/services/sync/AiraBookmarkSnapshotService';
+import { HuaweiAccountAccessTokenProvider } from
+  '../main/ets/services/sync/HuaweiAccountSyncAuthService';
 import {
   AiraCloudBookmarkRemoteError,
   AiraCloudBookmarkApiAuthProvider,
   AiraCloudBookmarkApiHttpAdapter,
   AiraCloudBookmarkRemoteStore,
-  parseAiraCloudBookmarkHttpError
+  parseAiraCloudBookmarkHttpError,
+  RuntimeAiraCloudBookmarkApiAuthProvider
 } from '../main/ets/services/sync/AiraCloudBookmarkRemoteStore';
 
 const T0: string = '2026-08-31T00:00:00.000Z';
@@ -191,8 +194,21 @@ function createBootstrapSnapshot(): AiraSyncSnapshot {
 class FixtureBookmarkRepository extends InMemoryBookmarkRepository implements BookmarkRepository {}
 
 class FixtureCloudAuthProvider implements AiraCloudBookmarkApiAuthProvider {
-  getAuthorizationHeader(): Promise<string> {
+  getAuthorizationHeader(_expectedUid: string): Promise<string> {
     return Promise.resolve('Bearer fixture-token');
+  }
+}
+
+class FixtureCloudAccessTokenProvider implements HuaweiAccountAccessTokenProvider {
+  lastRequestedUid: string = '';
+
+  getCurrentAccessToken(_forceRefresh: boolean): Promise<string> {
+    return Promise.resolve('local-test-token');
+  }
+
+  getCurrentAccessTokenForUid(uid: string, _forceRefresh: boolean): Promise<string> {
+    this.lastRequestedUid = uid;
+    return Promise.resolve('local-test-token');
   }
 }
 
@@ -330,6 +346,18 @@ export default function airaBookmarkSnapshotServiceTest(): void {
       }
       expect(rejected).assertTrue();
       expect(errorCode).assertEqual('client_update_required');
+    });
+
+    it('binds cloud authorization to the requested account', 0, async () => {
+      const tokenProvider = new FixtureCloudAccessTokenProvider();
+      const authProvider = new RuntimeAiraCloudBookmarkApiAuthProvider(
+        tokenProvider
+      );
+
+      const authorization = await authProvider.getAuthorizationHeader('fixture-user');
+
+      expect(authorization).assertEqual('Bearer local-test-token');
+      expect(tokenProvider.lastRequestedUid).assertEqual('fixture-user');
     });
   });
 }

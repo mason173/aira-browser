@@ -22,6 +22,7 @@ class AgcHuaweiCloudSyncInitAdapter implements HuaweiCloudSyncInitAdapter {
 export class HuaweiCloudSyncInitService {
   private adapter: HuaweiCloudSyncInitAdapter;
   private authInitialized: boolean = false;
+  private authInitializationTask?: Promise<void>;
 
   constructor(adapter?: HuaweiCloudSyncInitAdapter) {
     this.adapter = adapter ?? new AgcHuaweiCloudSyncInitAdapter();
@@ -34,7 +35,16 @@ export class HuaweiCloudSyncInitService {
     if (this.authInitialized) {
       return;
     }
-    await this.adapter.initializeAuth(context);
-    this.authInitialized = true;
+    if (this.authInitializationTask === undefined) {
+      this.authInitializationTask = this.adapter.initializeAuth(context)
+        .then((): void => {
+          this.authInitialized = true;
+        })
+        .catch((error: Error): Promise<void> => {
+          this.authInitializationTask = undefined;
+          return Promise.reject(error);
+        });
+    }
+    await this.authInitializationTask;
   }
 }

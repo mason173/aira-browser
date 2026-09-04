@@ -35,6 +35,8 @@ SYNC_FIRST_ACTIVATION_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-sync-first-a
 SYNC_PROVIDER_SWITCH_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-sync-provider-switch-contract.sh"
 HISTORY_SYNC_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-history-sync-contract.sh"
 BOOKMARK_SNAPSHOT_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-bookmark-snapshot-contract.sh"
+HUAWEI_APP_IDENTITY_RESOLVER="${REPO_ROOT}/scripts/huawei-app-identity.js"
+HUAWEI_APP_IDENTITY_TEST="${REPO_ROOT}/scripts/huawei-app-identity.test.js"
 PRODUCTION_BUNDLE_NAME="com.aira.browser"
 PRODUCTION_APP_NAME="Aira"
 COMMUNITY_BUNDLE_NAME="org.aira.browser"
@@ -355,6 +357,12 @@ fi
 
 "${IMMERSIVE_LIGHT_SENSE_GUARD_SCRIPT}"
 
+if [ ! -f "${HUAWEI_APP_IDENTITY_RESOLVER}" ] || [ ! -f "${HUAWEI_APP_IDENTITY_TEST}" ]; then
+  fail "Huawei app identity build contract files are missing."
+fi
+
+"${NODE_BIN}" "${HUAWEI_APP_IDENTITY_TEST}"
+
 if [ ! -x "${JAVA_BIN}" ]; then
   fail "DevEco Studio Java runtime not found at ${JAVA_BIN}"
 fi
@@ -454,6 +462,7 @@ NODE
     "${APP_VERSION_INFO}" \
     "${DISTRIBUTION_OWNER}" \
     "${LOCAL_TEST_AUTH_CONFIG}" \
+    "${HUAWEI_APP_IDENTITY_RESOLVER}" \
     "${AGCONNECT_SOURCE}" \
     "${DISTRIBUTION}" \
     "${PACKAGE_BUNDLE_NAME}" \
@@ -475,6 +484,7 @@ const [
   appVersionInfoPath,
   ownerPath,
   localTestAuthPath,
+  huaweiAppIdentityResolverPath,
   agconnectPath,
   distribution,
   bundleName,
@@ -486,6 +496,7 @@ const [
   localTestUid,
   localTestAuthToken
 ] = process.argv.slice(2);
+const { resolveHuaweiAppIdentity } = require(huaweiAppIdentityResolverPath);
 
 function readJson5(path) {
   return new Function(`return (${fs.readFileSync(path, 'utf8')});`)();
@@ -568,13 +579,14 @@ const isOfficial = distribution === 'official';
 if (!isOfficial) {
   moduleConfig.module.metadata = metadata.filter((item) => item.name !== 'app_id' && item.name !== 'client_id');
 } else {
-  let appId = requestedAppId.trim();
-  let clientId = requestedClientId.trim();
-  if ((appId.length === 0 || clientId.length === 0) && agconnectPath.length > 0) {
-    const agconnect = JSON.parse(fs.readFileSync(agconnectPath, 'utf8'));
-    appId = appId || String(agconnect.client?.app_id || agconnect.app_info?.app_id || '').trim();
-    clientId = clientId || String(agconnect.client?.client_id || agconnect.oauth_client?.client_id || '').trim();
-  }
+  const agconnect = agconnectPath.length > 0
+    ? JSON.parse(fs.readFileSync(agconnectPath, 'utf8'))
+    : {};
+  const { appId, clientId } = resolveHuaweiAppIdentity(
+    agconnect,
+    requestedAppId,
+    requestedClientId
+  );
   if (appId.length === 0 || clientId.length === 0) {
     throw new Error('Official builds require AIRA_HUAWEI_APP_ID and AIRA_HUAWEI_CLIENT_ID, or matching values in the private AGConnect file.');
   }

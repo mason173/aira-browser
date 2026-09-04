@@ -100,9 +100,10 @@ profiles must match `com.aira.browser`; Community profiles must match `org.aira.
 
 Official builds also require private Huawei inputs. Keep them outside Git and provide either `AIRA_AGCONNECT_CONFIG`
 pointing to the private `agconnect-services.json`, or place that file at `AiraBrowser/agconnect-services.local.json`.
-The script reads `app_id` and `client_id` from that private file unless `AIRA_HUAWEI_APP_ID` and
-`AIRA_HUAWEI_CLIENT_ID` are supplied explicitly. The AGConnect file is copied into the package only for the duration of
-the build and removed during cleanup.
+The script reads `app_id` and the Account Kit OAuth `oauth_client.client_id` from that private file unless
+`AIRA_HUAWEI_APP_ID` and `AIRA_HUAWEI_CLIENT_ID` are supplied explicitly. Do not use the separate
+`client.client_id` value used internally by AGConnect Auth as Account Kit's `client_id`. The AGConnect file is copied
+into the package only for the duration of the build and removed during cleanup.
 
 Examples:
 

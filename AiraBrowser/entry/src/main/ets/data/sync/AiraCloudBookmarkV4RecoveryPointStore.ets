@@ -99,6 +99,7 @@ export class AiraCloudBookmarkV4RecoveryPointStore {
   private readonly adapter: AiraCloudBookmarkV4RecoveryFileAdapter;
   private readonly nowProvider: () => number;
   private readonly idProvider: () => string;
+  private readonly protectedRecoveryPointIdsProvider: () => Promise<string[]>;
   private readonly encoder: util.TextEncoder = util.TextEncoder.create('utf-8');
   private readonly decoder: util.TextDecoder = util.TextDecoder.create('utf-8');
   private mutationTask: Promise<void> = Promise.resolve();
@@ -106,13 +107,15 @@ export class AiraCloudBookmarkV4RecoveryPointStore {
   constructor(
     adapter?: AiraCloudBookmarkV4RecoveryFileAdapter,
     nowProvider: () => number = (): number => Date.now(),
-    idProvider?: () => string
+    idProvider?: () => string,
+    protectedRecoveryPointIdsProvider: () => Promise<string[]> = (): Promise<string[]> => Promise.resolve([])
   ) {
     this.adapter = adapter ?? new SandboxAiraCloudBookmarkV4RecoveryFileAdapter();
     this.nowProvider = nowProvider;
     this.idProvider = idProvider ?? ((): string => {
       return `v4-${this.nowProvider()}-${Math.floor(Math.random() * 1000000000)}`;
     });
+    this.protectedRecoveryPointIdsProvider = protectedRecoveryPointIdsProvider;
   }
 
   create(request: AiraCloudBookmarkV4RecoveryPointCreateRequest): Promise<AiraCloudBookmarkV4RecoveryPoint> {
@@ -218,6 +221,14 @@ export class AiraCloudBookmarkV4RecoveryPointStore {
   }
 
   private async pruneNow(): Promise<void> {
+    let protectedRecoveryPointIds: string[];
+    try {
+      protectedRecoveryPointIds = (await this.protectedRecoveryPointIdsProvider())
+        .map((backupId: string): string => backupId.trim())
+        .filter((backupId: string): boolean => backupId.length > 0);
+    } catch (_error) {
+      return;
+    }
     const names = await this.adapter.list();
     const metadataNames = names.filter((name: string): boolean => name.endsWith(METADATA_SUFFIX));
     const points: AiraCloudBookmarkV4RecoveryPoint[] = [];
@@ -234,7 +245,8 @@ export class AiraCloudBookmarkV4RecoveryPointStore {
     const oldestRetainedAt = this.nowProvider() - RETENTION_MS;
     for (let index = 0; index < points.length; index += 1) {
       const point = points[index];
-      if (index < MIN_RECENT_RECOVERY_POINTS || point.createdAt >= oldestRetainedAt) {
+      if (protectedRecoveryPointIds.indexOf(point.backupId) >= 0 ||
+        index < MIN_RECENT_RECOVERY_POINTS || point.createdAt >= oldestRetainedAt) {
         continue;
       }
       await this.adapter.remove(point.fileName);

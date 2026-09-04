@@ -79,6 +79,19 @@ export class AiraCloudBookmarkV4BootstrapStateStore implements AiraCloudBookmark
     return record === undefined ? undefined : this.copyRecord(record);
   }
 
+  async listProtectedRecoveryPointIds(): Promise<string[]> {
+    const records = await this.readRecords(true);
+    const backupIds: string[] = [];
+    records.forEach((record: AiraCloudBookmarkV4BootstrapRecord): void => {
+      const backupId = record.backupId.trim();
+      if (record.status !== 'completed' && record.status !== 'opted_out' &&
+        backupId.length > 0 && backupIds.indexOf(backupId) < 0) {
+        backupIds.push(backupId);
+      }
+    });
+    return backupIds;
+  }
+
   save(record: AiraCloudBookmarkV4BootstrapRecord): Promise<void> {
     const normalized = this.normalizeRecord(record);
     if (normalized === undefined) {
@@ -106,7 +119,7 @@ export class AiraCloudBookmarkV4BootstrapStateStore implements AiraCloudBookmark
     return next;
   }
 
-  private async readRecords(): Promise<AiraCloudBookmarkV4BootstrapRecord[]> {
+  private async readRecords(rejectInvalidState: boolean = false): Promise<AiraCloudBookmarkV4BootstrapRecord[]> {
     let rawValue: string = '';
     try {
       rawValue = await this.adapter.read();
@@ -115,17 +128,28 @@ export class AiraCloudBookmarkV4BootstrapStateStore implements AiraCloudBookmark
       }
       const document = JSON.parse(rawValue) as AiraCloudBookmarkV4BootstrapStateDocument;
       if (document.schemaVersion !== STATE_SCHEMA_VERSION || !Array.isArray(document.records)) {
+        if (rejectInvalidState) {
+          throw new Error('Aira 云书签 V4 初始化状态文档无效。');
+        }
         return [];
       }
       const records: AiraCloudBookmarkV4BootstrapRecord[] = [];
-      document.records.forEach((candidate: AiraCloudBookmarkV4BootstrapRecord): void => {
+      for (let index = 0; index < document.records.length; index += 1) {
+        const candidate = document.records[index];
         const normalized = this.normalizeRecord(candidate);
-        if (normalized !== undefined) {
-          records.push(normalized);
+        if (normalized === undefined) {
+          if (rejectInvalidState) {
+            throw new Error('Aira 云书签 V4 初始化状态记录无效。');
+          }
+          continue;
         }
-      });
+        records.push(normalized);
+      }
       return records;
-    } catch (_error) {
+    } catch (error) {
+      if (rejectInvalidState) {
+        throw error instanceof Error ? error : new Error(JSON.stringify(error));
+      }
       return [];
     }
   }
