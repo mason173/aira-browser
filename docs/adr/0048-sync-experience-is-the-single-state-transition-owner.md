@@ -107,3 +107,10 @@ mutation after that start retains its own revision and debounce run. Only succes
 that Domain's periodic freshness window. Retryable failures keep their classified bounded retry delay, and blocked
 failures remain stopped. Backup and Provider-maintenance operations do not claim ordinary freshness. This remains one
 Automatic Runtime and one serialized execution tail rather than adding a second scheduler or cancellation authority.
+
+Amended 2026-09-04: the one-time Aira Cloud Bookmark V4 App bootstrap, its retry, recovery-point restore, and
+keep-local opt-out all enter through `SyncExperienceCoordinator` and the existing Automatic Runtime execution tail.
+The complete operation, including remote validation, local recovery-point creation, local replacement or restore,
+baseline/state persistence, and any Bookmark Domain disablement, stays inside that barrier. The bootstrap may gate only
+automatic Bookmark work while user action is pending; it does not create a peer transition queue or disable History,
+Personalization, WebDAV, Huawei Space, Personal Server, tabs, or browsing.

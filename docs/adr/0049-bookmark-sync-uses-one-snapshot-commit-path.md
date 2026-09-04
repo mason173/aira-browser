@@ -434,3 +434,15 @@ requests before reading or writing state with `client_update_required`. The unpu
 same v4 protocol gate and deliberately breaks its pairing-generation cache; it has no public-user compatibility or data
 migration obligation. WebDAV and Huawei Space retain their independent Provider transport identities and do not read the
 hosted v4 table.
+
+Amended 2026-09-04 for the user-approved clean App cutover to Aira Cloud Bookmark V4: the ordinary merge/conditional-
+write path has one explicit, one-time upgrade exception. An entitled upgraded App user who already has Aira Cloud
+Bookmark Sync enabled is gated before automatic Bookmark work. After a complete canonical V4 snapshot and history are
+read successfully, the App creates and read-back verifies a bookmark-only `.aira-backup` recovery point from both local
+Bookmark partitions. It then performs a fresh complete V4 read and atomically replaces the regular and App-private local
+Bookmark partitions with that remote snapshot without merging and without writing Aira Cloud. Success is recorded only
+after local materialization, the V4 provider baseline/history, remote observation, and per-UID bootstrap completion are
+durable. A retry reuses the original verified recovery point; restore replaces local Bookmarks from that point and
+disables only Aira Cloud Bookmark Sync; keep-local disables only that Domain. Once resolved, all later synchronization
+uses the ordinary single capture/read/merge/conditional-write/apply/baseline path. WebDAV, Huawei Space, Personal Server,
+History, Personalization, tabs, and browsing are outside this exception.

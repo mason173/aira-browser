@@ -70,3 +70,19 @@ export interface AiraCloudBookmarkV4RecoveryPoint {
   remoteCommitId: string;
   createdAt: number;
 }
+
+export interface AiraCloudBookmarkV4BootstrapDomain {
+  readAiraCloudBookmarkV4BootstrapCommitId(uid: string): Promise<string>;
+  replaceLocalBookmarksFromAiraCloudV4(uid: string): Promise<string>;
+  disableAiraCloudBookmarkSync(): Promise<void>;
+}
+
+export interface AiraCloudBookmarkV4BootstrapRecoveryDomain {
+  createRecoveryPoint(uid: string, remoteCommitId: string): Promise<AiraCloudBookmarkV4RecoveryPoint>;
+  verifyRecoveryPoint(uid: string, backupId: string, backupSha256: string): Promise<void>;
+  restoreRecoveryPoint(uid: string, backupId: string, backupSha256: string): Promise<void>;
+}
+
+export interface AiraCloudBookmarkV4BootstrapTransitionDomain {
+  runAiraCloudBookmarkV4Bootstrap<T>(operation: () => Promise<T>): Promise<T>;
+}

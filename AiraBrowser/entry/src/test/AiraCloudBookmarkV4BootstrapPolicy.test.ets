@@ -86,6 +86,34 @@ export default function airaCloudBookmarkV4BootstrapPolicyTest(): void {
       expect(result.reason).assertEqual('already_v4_initialized');
     });
 
+    it('keeps an interrupted bootstrap required after the normal V4 marker was persisted', 0, () => {
+      const settings = createEligibleSettings();
+      const airaCloudState = settings.providerStates.find((state: AiraSyncProviderRuntimeState): boolean => {
+        return state.remoteKind === 'aira_cloud';
+      });
+      if (airaCloudState !== undefined) {
+        airaCloudState.bookmark.providerIdentity = 'sync-provider-g4|aira_cloud|member-uid';
+        airaCloudState.bookmark.lastSuccessAt = 150;
+      }
+      const record: AiraCloudBookmarkV4BootstrapRecord = {
+        uid: UID,
+        protocol: 'aira-cloud-bookmarks-v4',
+        status: 'running',
+        phase: 'reading_remote',
+        backupId: 'backup-1',
+        backupSha256: 'sha256',
+        remoteCommitId: 'commit-7',
+        errorMessage: '',
+        updatedAt: 160,
+        completedAt: 0
+      };
+
+      const result = policy.evaluate(settings, createProMembership(), record);
+
+      expect(result.required).assertTrue();
+      expect(result.reason).assertEqual('required');
+    });
+
     it('does not interrupt an established user who is switching from another provider', 0, () => {
       const settings = createEligibleSettings();
       settings.pendingBookmarkProviderSwitchFrom = 'webdav';

@@ -1,4 +1,6 @@
 import { EntitlementDecision } from '../../common/models/MembershipModels';
+import { AiraCloudBookmarkV4BootstrapTransitionDomain } from
+  '../../common/models/AiraCloudBookmarkV4BootstrapModels';
 import {
   AIRA_FEATURE_CLOUD_SYNC,
   AiraFeatureKey
@@ -167,7 +169,7 @@ interface SyncExperienceContext {
   experienceState: SyncExperiencePersistedState;
 }
 
-export class SyncExperienceCoordinator {
+export class SyncExperienceCoordinator implements AiraCloudBookmarkV4BootstrapTransitionDomain {
   private syncFailurePresentationService: SyncFailurePresentationService = new SyncFailurePresentationService();
   private syncService: SyncService;
   private syncConfigStore: AiraSyncConfigStore;
@@ -243,6 +245,10 @@ export class SyncExperienceCoordinator {
   }
 
   runLocalBackupImport<T>(operation: () => Promise<T>): Promise<T> {
+    return this.automaticRuntime.runProviderTransition(operation);
+  }
+
+  runAiraCloudBookmarkV4Bootstrap<T>(operation: () => Promise<T>): Promise<T> {
     return this.automaticRuntime.runProviderTransition(operation);
   }
 

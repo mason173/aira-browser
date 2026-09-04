@@ -29,6 +29,8 @@ import {
   AiraSyncWriteStateResult
 } from '../../common/models/AiraSyncModels';
 import { SYNC_ADDITIONAL_BACKUP_MERGE_REQUIRED } from '../../common/constants/SyncFlowErrorCodes';
+import { AiraCloudBookmarkV4BootstrapDomain } from
+  '../../common/models/AiraCloudBookmarkV4BootstrapModels';
 import { PreferencesRepository } from '../../data/preferences/PreferencesRepository';
 import { BookmarkRepository } from '../../data/repositories/BrowserRepositories';
 import { AiraBookmarkSnapshotService } from './AiraBookmarkSnapshotService';
@@ -96,7 +98,7 @@ class AiraBookmarkSyncStageError extends Error {
   }
 }
 
-export class SyncService {
+export class SyncService implements AiraCloudBookmarkV4BootstrapDomain {
   private static bookmarkMergeQueue: Promise<void> = Promise.resolve();
   private bookmarkSnapshotService: AiraBookmarkSnapshotService;
   private bookmarkMergeService: AiraBookmarkMergeService = new AiraBookmarkMergeService();
@@ -585,12 +587,12 @@ export class SyncService {
     });
   }
 
-  disableAiraCloudBookmarkSync(): Promise<AiraSyncSettings> {
+  async disableAiraCloudBookmarkSync(): Promise<void> {
     const settings = this.getAiraSyncSettings();
     if (settings.remoteKind !== 'aira_cloud') {
-      return Promise.reject(new Error('当前书签同步源不是 Aira 云。'));
+      throw new Error('当前书签同步源不是 Aira 云。');
     }
-    return this.requireSyncConfigStore().setBookmarkSyncEnabled(false);
+    await this.requireSyncConfigStore().setBookmarkSyncEnabled(false);
   }
 
   private async readValidatedAiraCloudBootstrapState(

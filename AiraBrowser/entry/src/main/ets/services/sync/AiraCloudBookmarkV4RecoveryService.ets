@@ -1,5 +1,7 @@
-import { AiraCloudBookmarkV4RecoveryPoint } from '../../common/models/AiraCloudBookmarkV4BootstrapModels';
-import { AiraCloudBookmarkV4BootstrapRecoveryDomain } from '../../core/sync/AiraCloudBookmarkV4BootstrapCoordinator';
+import {
+  AiraCloudBookmarkV4BootstrapRecoveryDomain,
+  AiraCloudBookmarkV4RecoveryPoint
+} from '../../common/models/AiraCloudBookmarkV4BootstrapModels';
 import { AiraCloudBookmarkV4RecoveryPointStore } from '../../data/sync/AiraCloudBookmarkV4RecoveryPointStore';
 import { LocalBackupSelection } from '../../features/backup/LocalBackupModels';
 import { LocalBackupService } from '../backup/LocalBackupService';

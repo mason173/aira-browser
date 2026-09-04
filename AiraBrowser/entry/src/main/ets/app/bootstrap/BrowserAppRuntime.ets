@@ -183,8 +183,6 @@ import { AiraCloudBookmarkV4BootstrapRuntime } from
   '../../core/sync/AiraCloudBookmarkV4BootstrapRuntime';
 import { LocalBackupCoordinator } from '../../core/backup/LocalBackupCoordinator';
 import { LocalBackupService } from '../../services/backup/LocalBackupService';
-import { AiraCloudBookmarkV4BootstrapSyncDomain } from
-  '../../services/sync/AiraCloudBookmarkV4BootstrapSyncDomain';
 import { AiraCloudBookmarkV4RecoveryService } from
   '../../services/sync/AiraCloudBookmarkV4RecoveryService';
 import { BrowserUserAgentHostPolicyService } from '../../services/web/BrowserUserAgentHostPolicyService';
@@ -533,21 +531,6 @@ const sharedLocalBackupService: LocalBackupService = new LocalBackupService(
   sharedUserScriptPackageLifecycleCoordinator,
   sharedUserScriptValueStateStore
 );
-const sharedAiraCloudBookmarkV4BootstrapStateStore: AiraCloudBookmarkV4BootstrapStateStore =
-  new AiraCloudBookmarkV4BootstrapStateStore();
-const sharedAiraCloudBookmarkV4BootstrapCoordinator: AiraCloudBookmarkV4BootstrapCoordinator =
-  new AiraCloudBookmarkV4BootstrapCoordinator(
-    new AiraCloudBookmarkV4BootstrapSyncDomain(sharedSyncService),
-    new AiraCloudBookmarkV4RecoveryService(sharedLocalBackupService),
-    sharedAiraCloudBookmarkV4BootstrapStateStore
-  );
-export const sharedAiraCloudBookmarkV4BootstrapRuntime: AiraCloudBookmarkV4BootstrapRuntime =
-  new AiraCloudBookmarkV4BootstrapRuntime(
-    sharedSyncService,
-    sharedMembershipFeature,
-    sharedAiraCloudBookmarkV4BootstrapStateStore,
-    sharedAiraCloudBookmarkV4BootstrapCoordinator
-  );
 const sharedSyncExperienceAutomaticRuntime: SyncExperienceAutomaticRuntime =
   new SyncExperienceAutomaticRuntime(
     sharedSyncService,
@@ -627,6 +610,22 @@ export const sharedSyncExperienceCoordinator: SyncExperienceCoordinator =
     sharedSyncExperienceAdvancedOperations,
     sharedMembershipFeature,
     sharedHuaweiSpaceBookmarkUpgradeStore
+  );
+const sharedAiraCloudBookmarkV4BootstrapStateStore: AiraCloudBookmarkV4BootstrapStateStore =
+  new AiraCloudBookmarkV4BootstrapStateStore();
+const sharedAiraCloudBookmarkV4BootstrapCoordinator: AiraCloudBookmarkV4BootstrapCoordinator =
+  new AiraCloudBookmarkV4BootstrapCoordinator(
+    sharedSyncService,
+    new AiraCloudBookmarkV4RecoveryService(sharedLocalBackupService),
+    sharedAiraCloudBookmarkV4BootstrapStateStore,
+    sharedSyncExperienceCoordinator
+  );
+export const sharedAiraCloudBookmarkV4BootstrapRuntime: AiraCloudBookmarkV4BootstrapRuntime =
+  new AiraCloudBookmarkV4BootstrapRuntime(
+    sharedSyncService,
+    sharedMembershipFeature,
+    sharedAiraCloudBookmarkV4BootstrapStateStore,
+    sharedAiraCloudBookmarkV4BootstrapCoordinator
   );
 export const sharedLocalBackupCoordinator: LocalBackupCoordinator = new LocalBackupCoordinator(
   sharedLocalBackupService,

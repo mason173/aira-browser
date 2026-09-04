@@ -34,9 +34,6 @@ export class AiraCloudBookmarkV4BootstrapPolicyService {
     if ((settings.bookmarkGenerationInitializedAt ?? 0) <= 0) {
       return this.decision(false, uid, 'not_legacy_initialized');
     }
-    if (this.hasCompletedCurrentV4Sync(settings, uid)) {
-      return this.decision(false, uid, 'already_v4_initialized');
-    }
     if (record !== undefined && record.uid === uid &&
       record.protocol === AIRA_CLOUD_BOOKMARK_V4_BOOTSTRAP_PROTOCOL) {
       if (record.status === 'completed') {
@@ -45,6 +42,10 @@ export class AiraCloudBookmarkV4BootstrapPolicyService {
       if (record.status === 'opted_out') {
         return this.decision(false, uid, 'opted_out');
       }
+      return this.decision(true, uid, 'required');
+    }
+    if (this.hasCompletedCurrentV4Sync(settings, uid)) {
+      return this.decision(false, uid, 'already_v4_initialized');
     }
     return this.decision(true, uid, 'required');
   }

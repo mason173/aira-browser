@@ -1300,8 +1300,9 @@ function parseApiVersion(value) {
   if (parenthesized !== null) {
     return Number(parenthesized[1]);
   }
-  if (/^\d+$/.test(text)) {
-    return Number(text);
+  const semantic = text.match(/^(\d+)(?:\.\d+){0,2}$/);
+  if (semantic !== null) {
+    return Number(semantic[1]);
   }
   return NaN;
 }

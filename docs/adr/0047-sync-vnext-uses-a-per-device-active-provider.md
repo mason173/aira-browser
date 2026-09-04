@@ -58,3 +58,11 @@ complete provider identity: Huawei UID plus provider store, or normalized WebDAV
 Changing an identity cannot reuse the previous account's confirmed revision, cannot write through the previous
 account's transport, and leaves every unselected account remote unchanged until that identity is explicitly selected
 and synchronized.
+
+Amended 2026-09-04 for the breaking Aira Cloud Bookmark V4 App upgrade: an entitled upgraded App device that already
+has Aira Cloud Bookmark Sync enabled must complete one bounded local bootstrap before ordinary Bookmark synchronization
+resumes. The bootstrap state and its verified bookmark-only `.aira-backup` recovery point are local upgrade-safety
+artifacts, scoped by UID and protocol. They never replay remote operations, write to a Provider, migrate between
+Providers, or participate in ordinary merge correctness. A successful bootstrap or an explicit opt-out resolves the
+gate; ordinary current-generation synchronization then continues without consulting the recovery artifact. This is the
+only approved recovery-state exception and does not add a general Sync recovery journal, outbox, or compatibility path.

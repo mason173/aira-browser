@@ -1,12 +1,13 @@
 import { describe, expect, it } from '@ohos/hypium';
 import {
-  AiraCloudBookmarkV4BootstrapCoordinator,
-  AiraCloudBookmarkV4BootstrapDomain,
-  AiraCloudBookmarkV4BootstrapRecoveryDomain
+  AiraCloudBookmarkV4BootstrapCoordinator
 } from '../main/ets/core/sync/AiraCloudBookmarkV4BootstrapCoordinator';
 import {
+  AiraCloudBookmarkV4BootstrapDomain,
   AiraCloudBookmarkV4BootstrapRecord,
+  AiraCloudBookmarkV4BootstrapRecoveryDomain,
   AiraCloudBookmarkV4BootstrapStateDomain,
+  AiraCloudBookmarkV4BootstrapTransitionDomain,
   AiraCloudBookmarkV4RecoveryPoint
 } from '../main/ets/common/models/AiraCloudBookmarkV4BootstrapModels';
 
@@ -70,12 +71,12 @@ class FixtureBootstrapDomain implements AiraCloudBookmarkV4BootstrapDomain {
     this.operations = operations;
   }
 
-  async readRemoteCommitId(): Promise<string> {
+  async readAiraCloudBookmarkV4BootstrapCommitId(): Promise<string> {
     this.operations.push('read-head');
     return 'commit-7';
   }
 
-  async replaceLocalFromRemote(): Promise<string> {
+  async replaceLocalBookmarksFromAiraCloudV4(): Promise<string> {
     this.operations.push('replace');
     if (this.fail) {
       throw new Error('remote-read-failed');
@@ -83,9 +84,26 @@ class FixtureBootstrapDomain implements AiraCloudBookmarkV4BootstrapDomain {
     return 'commit-7';
   }
 
-  disableAiraCloudBookmarks(): Promise<void> {
+  disableAiraCloudBookmarkSync(): Promise<void> {
     this.operations.push('disable');
     return Promise.resolve();
+  }
+}
+
+class FixtureBootstrapTransitionDomain implements AiraCloudBookmarkV4BootstrapTransitionDomain {
+  private readonly operations?: string[];
+
+  constructor(operations?: string[]) {
+    this.operations = operations;
+  }
+
+  async runAiraCloudBookmarkV4Bootstrap<T>(operation: () => Promise<T>): Promise<T> {
+    this.operations?.push('transition-start');
+    try {
+      return await operation();
+    } finally {
+      this.operations?.push('transition-end');
+    }
   }
 }
 
@@ -98,6 +116,7 @@ export default function airaCloudBookmarkV4BootstrapCoordinatorTest(): void {
         new FixtureBootstrapDomain(operations),
         new FixtureRecoveryDomain(operations),
         state,
+        new FixtureBootstrapTransitionDomain(),
         (): number => 200
       );
 
@@ -109,6 +128,28 @@ export default function airaCloudBookmarkV4BootstrapCoordinatorTest(): void {
       expect(result.remoteCommitId).assertEqual('commit-7');
     });
 
+    it('runs the complete bootstrap inside the Sync Experience transition barrier', 0, async () => {
+      const operations: string[] = [];
+      const state = new FixtureBootstrapStateDomain();
+      const coordinator = new AiraCloudBookmarkV4BootstrapCoordinator(
+        new FixtureBootstrapDomain(operations),
+        new FixtureRecoveryDomain(operations),
+        state,
+        new FixtureBootstrapTransitionDomain(operations)
+      );
+
+      const result = await coordinator.run('uid-a');
+
+      expect(JSON.stringify(operations)).assertEqual(JSON.stringify([
+        'transition-start',
+        'read-head',
+        'backup',
+        'replace',
+        'transition-end'
+      ]));
+      expect(result.status).assertEqual('completed');
+    });
+
     it('keeps a retryable failed state and never disables sync automatically', 0, async () => {
       const operations: string[] = [];
       const state = new FixtureBootstrapStateDomain();
@@ -118,6 +159,7 @@ export default function airaCloudBookmarkV4BootstrapCoordinatorTest(): void {
         domain,
         new FixtureRecoveryDomain(operations),
         state,
+        new FixtureBootstrapTransitionDomain(),
         (): number => 200
       );
 
@@ -125,6 +167,12 @@ export default function airaCloudBookmarkV4BootstrapCoordinatorTest(): void {
 
       expect(result.status).assertEqual('failed');
       expect(result.backupId).assertEqual('backup-1');
+      expect(JSON.stringify(operations)).assertEqual(JSON.stringify([
+        'read-head',
+        'backup',
+        'replace',
+        'restore:uid-a:backup-1:sha256'
+      ]));
       expect(operations.indexOf('disable')).assertEqual(-1);
     });
 
@@ -147,6 +195,7 @@ export default function airaCloudBookmarkV4BootstrapCoordinatorTest(): void {
         new FixtureBootstrapDomain(operations),
         new FixtureRecoveryDomain(operations),
         state,
+        new FixtureBootstrapTransitionDomain(),
         (): number => 200
       );
 
@@ -169,6 +218,7 @@ export default function airaCloudBookmarkV4BootstrapCoordinatorTest(): void {
         new FixtureBootstrapDomain(operations),
         new FixtureRecoveryDomain(operations),
         state,
+        new FixtureBootstrapTransitionDomain(),
         (): number => 200
       );
 
@@ -197,6 +247,7 @@ export default function airaCloudBookmarkV4BootstrapCoordinatorTest(): void {
         new FixtureBootstrapDomain(operations),
         new FixtureRecoveryDomain(operations),
         state,
+        new FixtureBootstrapTransitionDomain(),
         (): number => 200
       );
 
