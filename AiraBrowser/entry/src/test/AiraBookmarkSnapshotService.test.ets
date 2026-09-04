@@ -2,7 +2,8 @@ import { describe, expect, it } from '@ohos/hypium';
 import { BookmarkNode } from '../main/ets/common/models/BrowserModels';
 import {
   BOOKMARK_OTHER_ROOT_ID,
-  BOOKMARK_TOOLBAR_ROOT_ID
+  BOOKMARK_TOOLBAR_ROOT_ID,
+  PRIVATE_BOOKMARK_TOOLBAR_ROOT_ID
 } from '../main/ets/data/repositories/BookmarkRepositoryCore';
 import {
   BookmarkRepository,
@@ -101,6 +102,92 @@ function createPreviousSnapshot(): AiraSyncSnapshot {
   };
 }
 
+function createBootstrapSnapshot(): AiraSyncSnapshot {
+  return {
+    meta: {
+      version: 2,
+      deviceId: 'cloud-device',
+      generatedAt: T0
+    },
+    bookmarkFolders: [{
+      id: 'browser_root_toolbar',
+      type: 'bookmark-folder',
+      parentId: null,
+      title: '书签栏',
+      createdAt: T0,
+      updatedAt: T0,
+      updatedBy: 'cloud-device',
+      revision: 1
+    }],
+    bookmarkItems: [{
+      id: 'cloud-regular-item',
+      type: 'bookmark-item',
+      parentId: 'browser_root_toolbar',
+      title: '云端普通书签',
+      url: 'https://example.com/cloud-regular',
+      createdAt: T0,
+      updatedAt: T0,
+      updatedBy: 'cloud-device',
+      revision: 1
+    }],
+    bookmarkOrders: [{
+      type: 'bookmark-order',
+      parentId: null,
+      ids: ['browser_root_toolbar'],
+      updatedAt: T0,
+      updatedBy: 'cloud-device',
+      revision: 1
+    }, {
+      type: 'bookmark-order',
+      parentId: 'browser_root_toolbar',
+      ids: ['cloud-regular-item'],
+      updatedAt: T0,
+      updatedBy: 'cloud-device',
+      revision: 1
+    }],
+    tombstones: [],
+    appPrivateBookmarks: {
+      bookmarkFolders: [{
+        id: 'aira_private_root_toolbar',
+        type: 'bookmark-folder',
+        parentId: null,
+        title: '隐私书签栏',
+        createdAt: T0,
+        updatedAt: T0,
+        updatedBy: 'cloud-device',
+        revision: 1
+      }],
+      bookmarkItems: [{
+        id: 'cloud-private-item',
+        type: 'bookmark-item',
+        parentId: 'aira_private_root_toolbar',
+        title: '云端隐私书签',
+        url: 'https://example.com/cloud-private',
+        createdAt: T0,
+        updatedAt: T0,
+        updatedBy: 'cloud-device',
+        revision: 1
+      }],
+      bookmarkOrders: [{
+        type: 'bookmark-order',
+        parentId: null,
+        ids: ['aira_private_root_toolbar'],
+        updatedAt: T0,
+        updatedBy: 'cloud-device',
+        revision: 1
+      }, {
+        type: 'bookmark-order',
+        parentId: 'aira_private_root_toolbar',
+        ids: ['cloud-private-item'],
+        updatedAt: T0,
+        updatedBy: 'cloud-device',
+        revision: 1
+      }],
+      tombstones: []
+    }
+  };
+}
+
 class FixtureBookmarkRepository extends InMemoryBookmarkRepository implements BookmarkRepository {}
 
 class FixtureCloudAuthProvider implements AiraCloudBookmarkApiAuthProvider {
@@ -183,14 +270,48 @@ export default function airaBookmarkSnapshotServiceTest(): void {
       expect(response.message).assertEqual('云端书签已经更新，请先重新拉取后再同步。');
     });
 
+    it('replaces regular and private local trees from one validated cloud snapshot', 0, async () => {
+      const privateNode = createNode(
+        'local-private-item',
+        'bookmark',
+        '本地隐私书签',
+        PRIVATE_BOOKMARK_TOOLBAR_ROOT_ID,
+        0,
+        'https://example.com/local-private'
+      );
+      privateNode.scope = 'private';
+      const repository = await createRepository([
+        createNode(
+          'local-regular-item',
+          'bookmark',
+          '本地普通书签',
+          BOOKMARK_TOOLBAR_ROOT_ID,
+          0,
+          'https://example.com/local-regular'
+        ),
+        privateNode
+      ]);
+      const service = new AiraBookmarkSnapshotService(repository, new PreferencesRepository());
+
+      const result = await service.replaceLocalBookmarksFromRemoteSnapshot(createBootstrapSnapshot());
+      const regularTitles = repository.listNodes('regular').map((node: BookmarkNode): string => node.title);
+      const privateTitles = repository.listNodes('private').map((node: BookmarkNode): string => node.title);
+
+      expect(result.blocked).assertFalse();
+      expect(regularTitles.indexOf('本地普通书签')).assertEqual(-1);
+      expect(privateTitles.indexOf('本地隐私书签')).assertEqual(-1);
+      expect(regularTitles.indexOf('云端普通书签') >= 0).assertTrue();
+      expect(privateTitles.indexOf('云端隐私书签') >= 0).assertTrue();
+    });
+
     it('rejects a successful response that omits the current cloud protocol', 0, async () => {
       const adapter = new FixtureCloudAdapter();
-      adapter.response = {
+      adapter.response = JSON.stringify({
         ok: true,
         commitId: null,
         snapshot: null,
         history: null
-      };
+      });
       const store = new AiraCloudBookmarkRemoteStore(
         'https://sync.example.test/sync/v4/bookmarks',
         'fixture-user',

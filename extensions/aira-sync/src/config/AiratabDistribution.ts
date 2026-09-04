@@ -61,7 +61,7 @@ function readOfficialApiRoutes(): AiratabOfficialApiRoutes {
     const parsed = JSON.parse(String(import.meta.env.VITE_AIRATAB_OFFICIAL_API_ROUTES || '')) as Record<string, unknown>;
     const routes = { ...EMPTY_OFFICIAL_API_ROUTES };
     for (const route of Object.keys(routes) as AiratabOfficialApiRoute[]) {
-      routes[route] = normalizeHttpsEndpoint(parsed[route]);
+      routes[route] = normalizeEndpoint(parsed[route], import.meta.env.VITE_AIRATAB_LOCAL_TEST_MODE === '1');
     }
     return routes;
   } catch {
@@ -69,10 +69,11 @@ function readOfficialApiRoutes(): AiratabOfficialApiRoutes {
   }
 }
 
-function normalizeHttpsEndpoint(value: unknown): string {
+function normalizeEndpoint(value: unknown, allowHttp: boolean): string {
   try {
     const url = new URL(String(value || '').trim());
-    if (url.protocol !== 'https:' || url.username || url.password) return '';
+    const validProtocol = url.protocol === 'https:' || (allowHttp && url.protocol === 'http:');
+    if (!validProtocol || url.username || url.password) return '';
     url.hash = '';
     return url.toString();
   } catch {

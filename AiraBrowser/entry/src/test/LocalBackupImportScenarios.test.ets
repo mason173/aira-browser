@@ -87,6 +87,10 @@ class InMemoryBookmarkBackupDomain implements LocalBackupBookmarkDomain {
     return Promise.reject(new Error('unexpected-bookmark-import'));
   }
 
+  replaceLocalBookmarksFromRecoverySnapshot(_snapshot: AiraSyncSnapshot): Promise<AiraBookmarkSyncApplyResult> {
+    return Promise.reject(new Error('unexpected-bookmark-recovery'));
+  }
+
   validateLocalBackupBookmarkSnapshot(snapshot: AiraSyncSnapshot): AiraSyncSnapshot {
     return snapshot;
   }
@@ -158,6 +162,10 @@ class StatefulBookmarkBackupDomain implements LocalBackupBookmarkDomain {
       summary: ''
     };
     return result;
+  }
+
+  replaceLocalBookmarksFromRecoverySnapshot(_snapshot: AiraSyncSnapshot): Promise<AiraBookmarkSyncApplyResult> {
+    return Promise.reject(new Error('unexpected-bookmark-recovery'));
   }
 
   validateLocalBackupBookmarkSnapshot(snapshot: AiraSyncSnapshot): AiraSyncSnapshot {

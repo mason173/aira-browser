@@ -163,6 +163,10 @@ export interface BookmarkRepository {
   moveSubtree(command: BookmarkMoveSubtreeCommand): Promise<BookmarkNode | undefined>;
   moveSubtrees(command: BookmarkMoveSubtreesCommand): Promise<BookmarkNode[]>;
   replaceSnapshot(snapshot: BookmarkRepositorySnapshot): Promise<BookmarkRepositorySnapshot>;
+  replaceAllScopes(
+    regularSnapshot: BookmarkRepositorySnapshot,
+    privateSnapshot: BookmarkRepositorySnapshot
+  ): Promise<void>;
   purgeDeletedSyncNodes(scope?: BookmarkStorageScope, deletedBefore?: number): Promise<number>;
   deleteNode(id: string): Promise<boolean>;
   deleteNodes(ids: string[]): Promise<number>;
@@ -1075,6 +1079,16 @@ export class RdbBookmarkRepository implements BookmarkRepository {
     await this.refresh();
     this.bumpBookmarkStatsVersion();
     return this.getSnapshot(true);
+  }
+
+  async replaceAllScopes(
+    regularSnapshot: BookmarkRepositorySnapshot,
+    privateSnapshot: BookmarkRepositorySnapshot
+  ): Promise<void> {
+    await this.initialize();
+    await this.database.replaceAllBookmarkTrees(regularSnapshot.nodes, privateSnapshot.nodes);
+    await this.refresh();
+    this.bumpBookmarkStatsVersion();
   }
 
   async purgeDeletedSyncNodes(

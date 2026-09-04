@@ -30,7 +30,8 @@ import { AppServiceModeGateService } from '../../../services/settings/AppService
 import {
   sharedPreferencesRepository,
   sharedSyncExperienceCoordinator,
-  sharedClientUpdatePolicyService
+  sharedClientUpdatePolicyService,
+  sharedAiraCloudBookmarkV4BootstrapRuntime
 } from '../../bootstrap/BrowserAppRuntime';
 import { SyncExperienceScreen } from './SyncExperienceScreen';
 import { SyncAdditionalBackupHost } from './SyncAdditionalBackupHost';
@@ -68,6 +69,7 @@ export struct SyncExperienceHost {
   @State private state: SyncExperienceViewState = DEFAULT_SYNC_EXPERIENCE_STATE;
   @State private isBusy: boolean = false;
   @State private isSyncing: boolean = false;
+  @State private airaCloudRecoveryAvailable: boolean = false;
   @State private preActiveStatusKind: SyncExperiencePreActiveStatusKind = 'initial-loading';
   @State private activeSheetVisible: boolean = false;
   @State private desktopGuideNavigationActive: boolean = false;
@@ -173,6 +175,7 @@ export struct SyncExperienceHost {
         state: this.state,
         isBusy: this.isBusy,
         isSyncing: this.isSyncing,
+        airaCloudRecoveryAvailable: this.airaCloudRecoveryAvailable,
         preActiveStatusKind: this.preActiveStatusKind,
         isPrivateSession: this.boundary.privacyMode === 'private',
         activeSheetVisible: $activeSheetVisible,
@@ -227,6 +230,9 @@ export struct SyncExperienceHost {
         onOpenAdvanced: () => {
           this.navigationCoordinator.openSyncAdvancedSettings(this.buildBoundary('sync_experience'));
         },
+        onRestoreAiraCloudUpgradeBackup: () => {
+          this.confirmRestoreAiraCloudUpgradeBackup();
+        },
         onOpenDesktopGuide: (restoreSheet: boolean) => {
           this.desktopGuideNavigationActive = restoreSheet;
           this.navigationCoordinator.openSyncDesktopBookmarkGuide(
@@ -266,6 +272,8 @@ export struct SyncExperienceHost {
           return;
         }
         this.state = state;
+        this.airaCloudRecoveryAvailable = state.airaCloudActive &&
+          sharedAiraCloudBookmarkV4BootstrapRuntime.hasRecoveryPoint();
         if (state.hasConfiguredSync || !this.isBusy) {
           this.preActiveStatusKind = 'inactive';
         }
@@ -283,6 +291,45 @@ export struct SyncExperienceHost {
         if (mayOpenRequiredSetup && !this.setupSelectionCommitted && !this.isBusy) {
           this.activeSheetVisible = true;
         }
+      });
+  }
+
+  private confirmRestoreAiraCloudUpgradeBackup(): void {
+    if (this.isBusy || this.boundary.privacyMode === 'private' || !this.airaCloudRecoveryAvailable) {
+      return;
+    }
+    showCenteredAlertDialog({
+      title: '恢复升级前书签',
+      message: '当前本机书签会被升级前的恢复点替换，随后将关闭 Aira 云书签同步。此操作不会修改云端书签。',
+      autoCancel: true,
+      primaryButton: { value: '取消', action: (): void => {} },
+      secondaryButton: {
+        value: '恢复',
+        action: (): void => this.restoreAiraCloudUpgradeBackup()
+      }
+    });
+  }
+
+  private restoreAiraCloudUpgradeBackup(): void {
+    if (this.isBusy || this.boundary.privacyMode === 'private') {
+      return;
+    }
+    this.isBusy = true;
+    sharedAiraCloudBookmarkV4BootstrapRuntime.restoreBackupAndDisable()
+      .then((): void => {
+        const state = sharedAiraCloudBookmarkV4BootstrapRuntime.getViewState();
+        if (state.visible && state.status === 'failed') {
+          this.showDialog('恢复失败', state.errorMessage.length > 0 ? state.errorMessage : '请稍后重试。');
+          return;
+        }
+        this.showDialog('已恢复升级前书签', 'Aira 云书签同步已关闭，云端数据没有被修改。');
+      })
+      .catch((error: Error): void => {
+        this.showDialog('恢复失败', error.message.length > 0 ? error.message : '请稍后重试。');
+      })
+      .finally((): void => {
+        this.isBusy = false;
+        this.refreshState();
       });
   }
 

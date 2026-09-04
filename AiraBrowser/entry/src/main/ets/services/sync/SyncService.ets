@@ -189,6 +189,16 @@ export class SyncService {
     return this.bookmarkSnapshotService.applyBookmarkSnapshotToLocalDb(mergeResult.snapshot);
   }
 
+  replaceLocalBookmarksFromRecoverySnapshot(snapshot: AiraSyncSnapshot): Promise<AiraBookmarkSyncApplyResult> {
+    return this.runSerializedBookmarkTask<AiraBookmarkSyncApplyResult>(async (): Promise<AiraBookmarkSyncApplyResult> => {
+      const validated = this.bookmarkSnapshotService.validateBookmarkSnapshot(snapshot, '升级前书签备份');
+      const incoming = this.stripBookmarkTombstones(validated);
+      return this.runBookmarkStage('local_apply', (): Promise<AiraBookmarkSyncApplyResult> => {
+        return this.bookmarkSnapshotService.replaceLocalBookmarksFromRemoteSnapshot(incoming);
+      });
+    });
+  }
+
   validateLocalBackupBookmarkSnapshot(snapshot: AiraSyncSnapshot): AiraSyncSnapshot {
     return this.bookmarkSnapshotService.validateBookmarkSnapshot(snapshot, '本地备份');
   }
@@ -527,6 +537,87 @@ export class SyncService {
     const settings = this.getAiraSyncSettings();
     this.assertCloudConfigured(settings);
     return this.readRemoteHeadForStore(this.createHuaweiCloudRemoteStore(settings));
+  }
+
+  async readAiraCloudBookmarkV4BootstrapCommitId(expectedUid: string): Promise<string> {
+    const settings = this.getAiraSyncSettings();
+    this.assertAiraCloudBootstrapAccount(settings, expectedUid);
+    const store = this.createHuaweiCloudRemoteStore(settings);
+    const remoteState = await this.readValidatedAiraCloudBootstrapState(store);
+    return remoteState.commitId as string;
+  }
+
+  replaceLocalBookmarksFromAiraCloudV4(expectedUid: string): Promise<string> {
+    return this.runSerializedBookmarkTask<string>(async (): Promise<string> => {
+      const settings = this.getAiraSyncSettings();
+      this.assertAiraCloudBootstrapAccount(settings, expectedUid);
+      const store = this.createHuaweiCloudRemoteStore(settings);
+      const remoteState = await this.readValidatedAiraCloudBootstrapState(store);
+      const snapshot = remoteState.snapshot as AiraSyncSnapshot;
+      const history = remoteState.history as AiraBookmarkHistoryDescriptor;
+      const commitId = remoteState.commitId as string;
+      const completedPendingBookmarkSyncAt = settings.pendingBookmarkSyncAt ?? 0;
+
+      await this.runBookmarkStage('local_apply', (): Promise<AiraBookmarkSyncApplyResult> => {
+        return this.bookmarkSnapshotService.replaceLocalBookmarksFromRemoteSnapshot(snapshot);
+      });
+      await this.recordSuccessfulSync(
+        'aira_cloud',
+        snapshot,
+        history,
+        commitId,
+        true,
+        'bookmark',
+        completedPendingBookmarkSyncAt
+      );
+      await this.saveBookmarkSyncCompletion('aira_cloud', {
+        commitId: commitId,
+        merged: false,
+        blocked: false,
+        conflictCount: 0,
+        localChangeCount: 0,
+        remoteChangeCount: 0,
+        conflictDetails: [],
+        remoteObservation: this.buildBookmarkRemoteObservation(snapshot, commitId),
+        summary: '已使用 Aira 云端书签完成 V4 初始化。'
+      });
+      return commitId;
+    });
+  }
+
+  disableAiraCloudBookmarkSync(): Promise<AiraSyncSettings> {
+    const settings = this.getAiraSyncSettings();
+    if (settings.remoteKind !== 'aira_cloud') {
+      return Promise.reject(new Error('当前书签同步源不是 Aira 云。'));
+    }
+    return this.requireSyncConfigStore().setBookmarkSyncEnabled(false);
+  }
+
+  private async readValidatedAiraCloudBootstrapState(
+    store: AiraSyncRemoteStore
+  ): Promise<AiraSyncRemoteState> {
+    const remoteState = this.projectRemoteStateForBookmarkSync(await store.readState());
+    if (remoteState.snapshot === null || remoteState.commitId === null ||
+      remoteState.commitId.trim().length === 0 || remoteState.history === null) {
+      throw new Error('Aira 云端没有完整的 V4 书签快照。');
+    }
+    this.bookmarkSnapshotService.validateBookmarkSnapshot(remoteState.snapshot, 'Aira 云端');
+    const history = this.bookmarkHistoryService.validateHistory(remoteState.history, 'Aira 云端书签墓碑历史纪元');
+    this.bookmarkHistoryService.assertSnapshotWithinHistory(remoteState.snapshot, history, 'Aira 云端');
+    return {
+      snapshot: remoteState.snapshot,
+      commitId: remoteState.commitId,
+      history: history
+    };
+  }
+
+  private assertAiraCloudBootstrapAccount(settings: AiraSyncSettings, expectedUid: string): void {
+    this.assertCloudConfigured(settings);
+    const uid = settings.huaweiCloud.uid.trim();
+    if (settings.remoteKind !== 'aira_cloud' || !settings.bookmarkSyncEnabled ||
+      uid.length === 0 || uid !== expectedUid.trim()) {
+      throw new Error('Aira 云书签初始化账号或同步状态已变化。');
+    }
   }
 
   private async readRemoteHeadForStore(store: AiraSyncRemoteStore): Promise<AiraSyncRemoteHead> {

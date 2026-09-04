@@ -179,6 +179,84 @@ export class AiraBookmarkSnapshotService {
     };
   }
 
+  async replaceLocalBookmarksFromRemoteSnapshot(snapshot: AiraSyncSnapshot): Promise<AiraBookmarkSyncApplyResult> {
+    this.snapshotValidationService.validate(snapshot, '云端');
+    await this.bookmarkRepository.initialize();
+    const previousNodeCount = this.bookmarkRepository.listSyncNodes('regular').length +
+      this.bookmarkRepository.listSyncNodes('private').length;
+    const regularDataSet: AiraSyncBookmarkDataSet = {
+      bookmarkFolders: snapshot.bookmarkFolders,
+      bookmarkItems: snapshot.bookmarkItems,
+      bookmarkOrders: snapshot.bookmarkOrders,
+      tombstones: snapshot.tombstones
+    };
+    const privateDataSet = this.normalizeBookmarkDataSet(snapshot.appPrivateBookmarks);
+    const regularNodes = await this.buildCompleteReplacementNodes(
+      regularDataSet,
+      'regular',
+      snapshot.meta.deviceId
+    );
+    const privateNodes = await this.buildCompleteReplacementNodes(
+      privateDataSet,
+      'private',
+      snapshot.meta.deviceId
+    );
+    await this.workThrottle.beforeMainThreadWrite();
+    await this.bookmarkRepository.replaceAllScopes(
+      { roots: this.bookmarkRepository.listRoots(), nodes: regularNodes },
+      { roots: this.bookmarkRepository.listRoots(), nodes: privateNodes }
+    );
+    this.assertReplacementMaterialized(regularNodes, privateNodes);
+    const allNodes = regularNodes.concat(privateNodes);
+    const folderCount = allNodes.filter((node: BookmarkNode): boolean => node.type === 'folder').length;
+    const bookmarkCount = allNodes.length - folderCount;
+    return {
+      upsertedFolderCount: folderCount,
+      upsertedBookmarkCount: bookmarkCount,
+      deletedNodeCount: previousNodeCount,
+      skippedNodeCount: 0,
+      blocked: false,
+      summary: `已使用云端快照更新 ${folderCount} 个文件夹和 ${bookmarkCount} 个书签。`
+    };
+  }
+
+  private async buildCompleteReplacementNodes(
+    dataSet: AiraSyncBookmarkDataSet,
+    scope: string,
+    deviceId: string
+  ): Promise<BookmarkNode[]> {
+    const existingNodes = this.bookmarkRepository.listSyncNodes(resolveBookmarkScope(scope));
+    const localIdsByEntityId = await this.buildExistingLocalIdsByEntityIdAsync(existingNodes);
+    const deletedEntityIds = await this.buildDeletedBookmarkEntityIdSetAsync(dataSet.tombstones);
+    const nodes = await this.buildSyncNodesFromDataSetAsync(
+      dataSet,
+      deletedEntityIds,
+      localIdsByEntityId,
+      scope,
+      deviceId
+    );
+    this.assertCompleteDataSetProjection(dataSet, nodes, scope);
+    return nodes;
+  }
+
+  private assertReplacementMaterialized(regularNodes: BookmarkNode[], privateNodes: BookmarkNode[]): void {
+    this.assertScopeMaterialized(regularNodes, this.bookmarkRepository.listSyncNodes('regular'), '普通');
+    this.assertScopeMaterialized(privateNodes, this.bookmarkRepository.listSyncNodes('private'), '隐私');
+  }
+
+  private assertScopeMaterialized(expected: BookmarkNode[], actual: BookmarkNode[], label: string): void {
+    if (actual.length !== expected.length) {
+      throw new Error(`${label}书签替换校验失败：预期 ${expected.length} 项，实际 ${actual.length} 项。`);
+    }
+    const actualById = this.buildBookmarkNodesById(actual);
+    for (let index = 0; index < expected.length; index += 1) {
+      const actualNode = actualById.get(expected[index].id);
+      if (actualNode === undefined || !this.sameBookmarkNodeForSyncApply(expected[index], actualNode)) {
+        throw new Error(`${label}书签替换校验失败：本地内容与云端快照不一致。`);
+      }
+    }
+  }
+
   private async applyBookmarkDataSetToLocalDb(
     dataSet: AiraSyncBookmarkDataSet,
     scope: string,

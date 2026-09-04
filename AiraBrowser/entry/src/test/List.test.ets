@@ -24,6 +24,13 @@ import browserUserAgentHostPolicyCatalogTest from './BrowserUserAgentHostPolicyC
 import localBackupImportScenariosTest from './LocalBackupImportScenarios.test';
 import airaBookmarkSnapshotServiceTest from './AiraBookmarkSnapshotService.test';
 import browserTabsOverviewSceneDriverTest from './BrowserTabsOverviewSceneDriver.test';
+import airaLocalTestAuthTest from './AiraLocalTestAuth.test';
+import airaCloudBookmarkV4BootstrapPolicyTest from './AiraCloudBookmarkV4BootstrapPolicy.test';
+import airaCloudBookmarkV4BootstrapStateStoreTest from './AiraCloudBookmarkV4BootstrapStateStore.test';
+import airaCloudBookmarkV4RecoveryPointStoreTest from './AiraCloudBookmarkV4RecoveryPointStore.test';
+import airaCloudBookmarkV4BootstrapCoordinatorTest from './AiraCloudBookmarkV4BootstrapCoordinator.test';
+import airaCloudBookmarkV4BootstrapViewModelTest from './AiraCloudBookmarkV4BootstrapViewModel.test';
+import syncExperienceAutomaticDomainGateTest from './SyncExperienceAutomaticDomainGate.test';
 
 export default function tests(): void {
   userScriptValueStateStoreTest();
@@ -50,4 +57,11 @@ export default function tests(): void {
   localBackupImportScenariosTest();
   airaBookmarkSnapshotServiceTest();
   browserTabsOverviewSceneDriverTest();
+  airaLocalTestAuthTest();
+  airaCloudBookmarkV4BootstrapPolicyTest();
+  airaCloudBookmarkV4BootstrapStateStoreTest();
+  airaCloudBookmarkV4RecoveryPointStoreTest();
+  airaCloudBookmarkV4BootstrapCoordinatorTest();
+  airaCloudBookmarkV4BootstrapViewModelTest();
+  syncExperienceAutomaticDomainGateTest();
 }

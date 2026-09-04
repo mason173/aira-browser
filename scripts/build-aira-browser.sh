@@ -13,6 +13,7 @@ MAIN_PAGES_RESOURCE="${PROJECT_DIR}/entry/src/main/resources/base/profile/main_p
 SHORTCUTS_RESOURCE="${PROJECT_DIR}/entry/src/main/resources/base/profile/shortcuts_config.json"
 APP_VERSION_INFO="${PROJECT_DIR}/entry/src/main/ets/common/constants/AppVersionInfo.ets"
 DISTRIBUTION_OWNER="${PROJECT_DIR}/entry/src/main/ets/common/config/AiraDistributionCapabilityOwner.ets"
+LOCAL_TEST_AUTH_CONFIG="${PROJECT_DIR}/entry/src/main/ets/common/config/AiraLocalTestAuth.ets"
 AGCONNECT_RAWFILE="${PROJECT_DIR}/AppScope/resources/rawfile/agconnect-services.json"
 AGCONNECT_LOCAL_DEFAULT="${PROJECT_DIR}/agconnect-services.local.json"
 BUILD_PROFILE_TEMPLATE="${PROJECT_DIR}/build-profile.json5"
@@ -52,6 +53,7 @@ ENTRY_STRING_BACKUP=""
 SHORTCUTS_BACKUP=""
 APP_VERSION_INFO_BACKUP=""
 DISTRIBUTION_OWNER_BACKUP=""
+LOCAL_TEST_AUTH_CONFIG_BACKUP=""
 AGCONNECT_BACKUP=""
 AGCONNECT_WAS_PRESENT=0
 DISTRIBUTION_CONFIGURED=0
@@ -121,6 +123,10 @@ cleanup() {
     cp "${DISTRIBUTION_OWNER_BACKUP}" "${DISTRIBUTION_OWNER}"
     rm -f "${DISTRIBUTION_OWNER_BACKUP}"
   fi
+  if [ -n "${LOCAL_TEST_AUTH_CONFIG_BACKUP}" ] && [ -f "${LOCAL_TEST_AUTH_CONFIG_BACKUP}" ]; then
+    cp "${LOCAL_TEST_AUTH_CONFIG_BACKUP}" "${LOCAL_TEST_AUTH_CONFIG}"
+    rm -f "${LOCAL_TEST_AUTH_CONFIG_BACKUP}"
+  fi
   if [ -n "${AGCONNECT_BACKUP}" ] && [ -f "${AGCONNECT_BACKUP}" ]; then
     cp "${AGCONNECT_BACKUP}" "${AGCONNECT_RAWFILE}"
     rm -f "${AGCONNECT_BACKUP}"
@@ -167,6 +173,31 @@ case "${DISTRIBUTION}" in
     fail "Unsupported AIRA_DISTRIBUTION=${DISTRIBUTION}. Use community or official."
     ;;
 esac
+
+LOCAL_TEST_MODE="${AIRA_LOCAL_TEST_MODE:-0}"
+case "${LOCAL_TEST_MODE}" in
+  0|1)
+    ;;
+  *)
+    fail "Unsupported AIRA_LOCAL_TEST_MODE=${LOCAL_TEST_MODE}. Use 0 or 1."
+    ;;
+esac
+LOCAL_TEST_UID="${AIRA_LOCAL_TEST_UID:-}"
+LOCAL_TEST_AUTH_TOKEN="${AIRA_LOCAL_TEST_AUTH_TOKEN:-}"
+if [ "${LOCAL_TEST_MODE}" = "1" ]; then
+  if [ "${DISTRIBUTION}" != "official" ]; then
+    fail "AIRA_LOCAL_TEST_MODE=1 requires an Official build."
+  fi
+  if [ -z "${LOCAL_TEST_UID}" ] || [ -z "${LOCAL_TEST_AUTH_TOKEN}" ]; then
+    fail "AIRA_LOCAL_TEST_MODE=1 requires AIRA_LOCAL_TEST_UID and AIRA_LOCAL_TEST_AUTH_TOKEN."
+  fi
+fi
+
+DEFAULT_HOSTED_API_BASE_URL="https://api.aira.cool"
+if [ "${DISTRIBUTION}" = "community" ]; then
+  DEFAULT_HOSTED_API_BASE_URL="https://community.invalid"
+fi
+HOSTED_API_BASE_URL="${AIRA_HOSTED_API_BASE_URL:-${DEFAULT_HOSTED_API_BASE_URL}}"
 
 # A community build normally uses its own bundle name. For local acceptance on
 # a device that already has the store package installed, an explicitly requested
@@ -300,6 +331,9 @@ fi
 if [ ! -f "${DISTRIBUTION_OWNER}" ]; then
   fail "Distribution capability owner not found at ${DISTRIBUTION_OWNER}"
 fi
+if [ ! -f "${LOCAL_TEST_AUTH_CONFIG}" ]; then
+  fail "Local test auth config not found at ${LOCAL_TEST_AUTH_CONFIG}"
+fi
 
 if [ ! -f "${BUILD_PROFILE_TEMPLATE}" ]; then
   fail "Build profile not found at ${BUILD_PROFILE_TEMPLATE}"
@@ -371,6 +405,10 @@ ensure_distribution_file_backups() {
     DISTRIBUTION_OWNER_BACKUP="$(mktemp "${TMPDIR:-/tmp}/aira-distribution-owner-backup-ets.XXXXXX")"
     cp "${DISTRIBUTION_OWNER}" "${DISTRIBUTION_OWNER_BACKUP}"
   fi
+  if [ -z "${LOCAL_TEST_AUTH_CONFIG_BACKUP}" ]; then
+    LOCAL_TEST_AUTH_CONFIG_BACKUP="$(mktemp "${TMPDIR:-/tmp}/aira-local-test-auth-backup-ets.XXXXXX")"
+    cp "${LOCAL_TEST_AUTH_CONFIG}" "${LOCAL_TEST_AUTH_CONFIG_BACKUP}"
+  fi
 }
 
 ensure_agconnect_backup() {
@@ -399,6 +437,14 @@ apply_distribution_configuration() {
     AGCONNECT_SOURCE=""
   fi
 
+  "${NODE_BIN}" - "${HOSTED_API_BASE_URL}" "${LOCAL_TEST_MODE}" "${REPO_ROOT}" <<'NODE'
+const path = require('path');
+const { parseEndpoint } = require(path.join(process.argv[4], 'scripts', 'distribution-endpoint-policy.js'));
+const endpoint = process.argv[2];
+const localTestMode = process.argv[3] === '1';
+parseEndpoint(endpoint, { allowHttp: localTestMode, label: 'AIRA_HOSTED_API_BASE_URL' });
+NODE
+
   "${NODE_BIN}" - \
     "${APP_CONFIG}" \
     "${ENTRY_MODULE_CONFIG}" \
@@ -407,12 +453,17 @@ apply_distribution_configuration() {
     "${SHORTCUTS_RESOURCE}" \
     "${APP_VERSION_INFO}" \
     "${DISTRIBUTION_OWNER}" \
+    "${LOCAL_TEST_AUTH_CONFIG}" \
     "${AGCONNECT_SOURCE}" \
     "${DISTRIBUTION}" \
     "${PACKAGE_BUNDLE_NAME}" \
     "${EXPECTED_APP_NAME}" \
     "${AIRA_HUAWEI_APP_ID:-}" \
-    "${AIRA_HUAWEI_CLIENT_ID:-}" <<'NODE'
+    "${AIRA_HUAWEI_CLIENT_ID:-}" \
+    "${HOSTED_API_BASE_URL}" \
+    "${LOCAL_TEST_MODE}" \
+    "${LOCAL_TEST_UID}" \
+    "${LOCAL_TEST_AUTH_TOKEN}" <<'NODE'
 const fs = require('fs');
 
 const [
@@ -423,12 +474,17 @@ const [
   shortcutsPath,
   appVersionInfoPath,
   ownerPath,
+  localTestAuthPath,
   agconnectPath,
   distribution,
   bundleName,
   appName,
   requestedAppId,
-  requestedClientId
+  requestedClientId,
+  hostedApiBaseUrl,
+  localTestMode,
+  localTestUid,
+  localTestAuthToken
 ] = process.argv.slice(2);
 
 function readJson5(path) {
@@ -483,14 +539,28 @@ const nextOwnerSource = ownerSource.replace(
 if (!/export const AIRA_HOSTED_API_BASE_URL: string = '[^']*';/.test(nextOwnerSource)) {
   throw new Error(`Could not find AIRA_HOSTED_API_BASE_URL in ${ownerPath}`);
 }
-const hostedApiBaseUrl = distribution === 'official'
-  ? 'https://api.aira.cool'
-  : 'https://community.invalid';
 const nextOwnerWithApiBaseUrl = nextOwnerSource.replace(
   /export const AIRA_HOSTED_API_BASE_URL: string = '[^']*';/,
-  `export const AIRA_HOSTED_API_BASE_URL: string = '${hostedApiBaseUrl}';`
+  `export const AIRA_HOSTED_API_BASE_URL: string = ${JSON.stringify(hostedApiBaseUrl)};`
 );
 fs.writeFileSync(ownerPath, nextOwnerWithApiBaseUrl);
+
+const localTestAuthSource = fs.readFileSync(localTestAuthPath, 'utf8');
+for (const [name, value] of [
+  ['AIRA_LOCAL_TEST_MODE', localTestMode === '1' ? 'true' : 'false'],
+  ['AIRA_LOCAL_TEST_UID', JSON.stringify(localTestMode === '1' ? localTestUid : '')],
+  ['AIRA_LOCAL_TEST_AUTH_TOKEN', JSON.stringify(localTestMode === '1' ? localTestAuthToken : '')]
+]) {
+  const pattern = new RegExp(`export const ${name}: (?:boolean|string) = (?:true|false|'[^']*'|"[^"]*");`);
+  if (!pattern.test(localTestAuthSource)) {
+    throw new Error(`Could not find ${name} in ${localTestAuthPath}`);
+  }
+}
+const nextLocalTestAuthSource = localTestAuthSource
+  .replace(/export const AIRA_LOCAL_TEST_MODE: boolean = (?:true|false);/, `export const AIRA_LOCAL_TEST_MODE: boolean = ${localTestMode === '1' ? 'true' : 'false'};`)
+  .replace(/export const AIRA_LOCAL_TEST_UID: string = '[^']*';/, `export const AIRA_LOCAL_TEST_UID: string = ${JSON.stringify(localTestMode === '1' ? localTestUid : '')};`)
+  .replace(/export const AIRA_LOCAL_TEST_AUTH_TOKEN: string = '[^']*';/, `export const AIRA_LOCAL_TEST_AUTH_TOKEN: string = ${JSON.stringify(localTestMode === '1' ? localTestAuthToken : '')};`);
+fs.writeFileSync(localTestAuthPath, nextLocalTestAuthSource);
 
 const moduleConfig = readJson5(moduleConfigPath);
 const metadata = Array.isArray(moduleConfig.module.metadata) ? moduleConfig.module.metadata : [];

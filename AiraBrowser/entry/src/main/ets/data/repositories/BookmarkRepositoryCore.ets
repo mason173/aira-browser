@@ -291,6 +291,16 @@ export class InMemoryBookmarkRepository {
     return Promise.resolve(this.getSnapshot(true));
   }
 
+  async replaceAllScopes(
+    regularSnapshot: BookmarkRepositorySnapshot,
+    privateSnapshot: BookmarkRepositorySnapshot
+  ): Promise<void> {
+    this.roots = buildBookmarkRootRecords();
+    this.nodes = regularSnapshot.nodes.concat(privateSnapshot.nodes);
+    this.rebuildIndexes();
+    return Promise.resolve();
+  }
+
   async purgeDeletedSyncNodes(
     scope: BookmarkStorageScope = 'regular',
     deletedBefore?: number

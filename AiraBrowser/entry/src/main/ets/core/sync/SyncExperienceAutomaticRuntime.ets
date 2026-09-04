@@ -104,6 +104,23 @@ export interface SyncExperienceRuntimeRunResult {
   history?: HistorySyncRunResult;
 }
 
+export interface SyncExperienceAutomaticDomainSelection {
+  runBookmarks: boolean;
+  runPersonalization: boolean;
+  runHistory: boolean;
+}
+
+export function resolveSyncExperienceAutomaticDomainSelection(
+  requested: SyncExperienceAutomaticDomainSelection,
+  bookmarkAutomaticAllowed: boolean
+): SyncExperienceAutomaticDomainSelection {
+  return {
+    runBookmarks: requested.runBookmarks && bookmarkAutomaticAllowed,
+    runPersonalization: requested.runPersonalization,
+    runHistory: requested.runHistory
+  };
+}
+
 interface SyncExperienceAutomaticClock {
   now(): number;
   setTimeout(callback: () => void, delayMs: number): number;
@@ -156,6 +173,7 @@ export class SyncExperienceAutomaticRuntime {
   private clock: SyncExperienceAutomaticClock;
   private networkAvailabilityService: WebNetworkAvailabilityService;
   private syncSettingsRefreshSignal: SyncSettingsRefreshSignal;
+  private bookmarkAutomaticAllowPredicate: () => boolean;
 
   private executionTail: Promise<void> = Promise.resolve();
   private executionRunning: boolean = false;
@@ -225,7 +243,8 @@ export class SyncExperienceAutomaticRuntime {
     experienceStateStore: SyncExperienceStateStore,
     clock?: SyncExperienceAutomaticClock,
     networkAvailabilityService: WebNetworkAvailabilityService = new WebNetworkAvailabilityService(),
-    syncSettingsRefreshSignal: SyncSettingsRefreshSignal = new SyncSettingsRefreshSignal()
+    syncSettingsRefreshSignal: SyncSettingsRefreshSignal = new SyncSettingsRefreshSignal(),
+    bookmarkAutomaticAllowPredicate: () => boolean = (): boolean => true
   ) {
     this.syncService = syncService;
     this.personalizationSyncService = personalizationSyncService;
@@ -238,6 +257,7 @@ export class SyncExperienceAutomaticRuntime {
     this.clock = clock ?? new DefaultSyncExperienceAutomaticClock();
     this.networkAvailabilityService = networkAvailabilityService;
     this.syncSettingsRefreshSignal = syncSettingsRefreshSignal;
+    this.bookmarkAutomaticAllowPredicate = bookmarkAutomaticAllowPredicate;
   }
 
   isRunning(): boolean {
@@ -685,6 +705,14 @@ export class SyncExperienceAutomaticRuntime {
       this.pendingBookmarkAutomaticRun = false;
       this.pendingPersonalizationAutomaticRun = false;
       this.pendingHistoryAutomaticRun = false;
+      const selection = resolveSyncExperienceAutomaticDomainSelection({
+        runBookmarks: runBookmarks,
+        runPersonalization: runPersonalization,
+        runHistory: runHistory
+      }, this.isAutomaticBookmarkGateOpen());
+      runBookmarks = selection.runBookmarks;
+      runPersonalization = selection.runPersonalization;
+      runHistory = selection.runHistory;
     }
 
     const settings = await this.syncService.initializeAiraSyncSettings();
@@ -1141,6 +1169,9 @@ export class SyncExperienceAutomaticRuntime {
   }
 
   private isBookmarkAutomaticSyncActive(): boolean {
+    if (!this.isAutomaticBookmarkGateOpen()) {
+      return false;
+    }
     const settings = this.syncService.getAiraSyncSettings();
     if (settings.remoteKind === 'huawei_space' &&
       resolveAiraSyncDomainRuntimeState(settings, 'huawei_space', 'bookmark').blocked) {
@@ -1148,6 +1179,14 @@ export class SyncExperienceAutomaticRuntime {
     }
     return this.appForeground && settings.bookmarkSyncEnabled === true &&
       this.countEnabledProviders(settings) > 0;
+  }
+
+  private isAutomaticBookmarkGateOpen(): boolean {
+    try {
+      return this.bookmarkAutomaticAllowPredicate();
+    } catch (_error) {
+      return false;
+    }
   }
 
   private countEnabledProviders(settings: AiraSyncSettings): number {

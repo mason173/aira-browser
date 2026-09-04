@@ -892,6 +892,46 @@ export class BrowserDatabase {
     }
   }
 
+  async replaceAllBookmarkTrees(regularNodes: BookmarkNode[], privateNodes: BookmarkNode[]): Promise<void> {
+    let transactionStarted = false;
+    let store: relationalStore.RdbStore | undefined = undefined;
+    try {
+      this.requireBookmarkScope(regularNodes, 'regular');
+      this.requireBookmarkScope(privateNodes, 'private');
+      store = await this.getStore();
+      store.beginTransaction();
+      transactionStarted = true;
+
+      const nodePredicates = new relationalStore.RdbPredicates(BOOKMARK_NODES_TABLE);
+      const existingNodes = this.mapBookmarkNodeRows(await store.query(nodePredicates, BOOKMARK_NODE_COLUMNS));
+      const existingIds = existingNodes.map((node: BookmarkNode): string => node.id);
+      if (existingIds.length > 0) {
+        const syncPredicates = new relationalStore.RdbPredicates(BOOKMARK_SYNC_LINKS_TABLE);
+        syncPredicates.in('node_id', existingIds);
+        await store.delete(syncPredicates);
+        const orderPredicates = new relationalStore.RdbPredicates(BOOKMARK_ORDERS_TABLE);
+        orderPredicates.in('child_id', existingIds);
+        await store.delete(orderPredicates);
+      }
+      await store.delete(nodePredicates);
+      await this.seedBookmarkRootsIfEmpty(store);
+      await this.batchUpsertBookmarkDomainRows(store, regularNodes.concat(privateNodes));
+      store.commit();
+      transactionStarted = false;
+    } catch (error) {
+      this.rollbackBookmarkTransaction(store, transactionStarted);
+      hilog.error(DOMAIN, TAG, 'Failed to replace all bookmark trees: %{public}s', JSON.stringify(error));
+      throw new Error('Failed to replace all bookmark trees.');
+    }
+  }
+
+  private requireBookmarkScope(nodes: BookmarkNode[], expectedScope: 'regular' | 'private'): void {
+    const invalid = nodes.some((node: BookmarkNode): boolean => resolveBookmarkScope(node.scope) !== expectedScope);
+    if (invalid) {
+      throw new Error(`Bookmark replacement contains a node outside the ${expectedScope} scope.`);
+    }
+  }
+
   async purgeDeletedBookmarkNodes(
     scope: 'regular' | 'private',
     deletedBefore?: number

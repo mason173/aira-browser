@@ -131,9 +131,16 @@ import {
   sharedAppReviewPromptRepository,
   sharedReleaseNoticeCoordinator,
   sharedClientUpdatePolicyService,
+  sharedAiraCloudBookmarkV4BootstrapRuntime,
   sharedBrowserGestureOnboardingPromptCoordinator,
   syncBrowserThemeAppStorage
 } from '../bootstrap/BrowserAppRuntime';
+import {
+  AIRA_CLOUD_BOOKMARK_V4_BOOTSTRAP_REVISION_KEY
+} from '../../core/sync/AiraCloudBookmarkV4BootstrapRuntime';
+import {
+  AiraCloudBookmarkV4BootstrapViewState
+} from '../../core/sync/AiraCloudBookmarkV4BootstrapViewModelService';
 import {
   AppReviewPromptCoordinator,
   AppReviewPromptShell,
@@ -925,6 +932,9 @@ import {
   ClientUpdateRequiredAction,
   ClientUpdateRequiredOverlay
 } from '../components/update/ClientUpdateRequiredSheet';
+import {
+  AiraCloudBookmarkV4BootstrapOverlay
+} from '../components/sync/AiraCloudBookmarkV4BootstrapOverlay';
 import { DesktopLoginConfirmSheetContent } from '../components/settings/DesktopLoginConfirmSheetContent';
 import { HomeShortcutSelectionSheet } from '../components/browser/HomeShortcutSelectionSheet';
 import { BrowserSystemSurfaceHost } from '../components/browser/BrowserSystemSurfaceHost';
@@ -5244,6 +5254,10 @@ struct BrowserShellPage {
     DEFAULT_BROWSER_QR_SCAN_SESSION_SNAPSHOT;
   @State releaseNoticeState: ReleaseNoticeUiState = this.releaseNoticePresentationCoordinator.getSnapshot();
   @State clientUpdatePolicyState: ClientUpdatePolicyState = sharedClientUpdatePolicyService.getSnapshot();
+  @StorageProp(AIRA_CLOUD_BOOKMARK_V4_BOOTSTRAP_REVISION_KEY) @Watch('refreshAiraCloudBookmarkV4BootstrapState')
+  private airaCloudBookmarkV4BootstrapRevision: number = 0;
+  @State private airaCloudBookmarkV4BootstrapState: AiraCloudBookmarkV4BootstrapViewState =
+    sharedAiraCloudBookmarkV4BootstrapRuntime.getViewState();
   @State mediaResourceSessionSnapshot: BrowserMediaResourceSessionSnapshot =
     createBrowserMediaResourceSessionSnapshot();
   @State showTabsSheet: boolean = false;
@@ -5819,6 +5833,7 @@ struct BrowserShellPage {
         this.clientUpdatePolicyState = state;
       }
     );
+    this.refreshAiraCloudBookmarkV4BootstrapState();
     const storage = this.getSharedStageStorage();
     const initialViewport = BrowserWindowRuntime.resolveInitialShellViewport(storage);
     this.rootViewportWidth = initialViewport.width;
@@ -6056,6 +6071,17 @@ struct BrowserShellPage {
 
       if (this.isAssistantVideoTakeoverActive()) {
         this.buildSamsungVideoAssistantPlayerOverlay()
+      }
+
+      if (this.airaCloudBookmarkV4BootstrapState.visible) {
+        AiraCloudBookmarkV4BootstrapOverlay({
+          state: this.airaCloudBookmarkV4BootstrapState,
+          onStart: (): void => this.startAiraCloudBookmarkV4Bootstrap(),
+          onRetry: (): void => this.startAiraCloudBookmarkV4Bootstrap(),
+          onRestore: (): void => this.restoreAiraCloudBookmarkV4Backup(),
+          onKeepLocal: (): void => this.keepLocalBookmarksAndDisableAiraCloud()
+        })
+          .zIndex(10000)
       }
 
     }
@@ -6308,6 +6334,9 @@ struct BrowserShellPage {
   }
 
   onBackPress(): boolean {
+    if (this.airaCloudBookmarkV4BootstrapState.visible) {
+      return true;
+    }
     if (this.isAssistantVideoTakeoverActive()) {
       void this.arkWebMediaTakeoverCoordinator.handleAssistantBack(
         this.rootViewportWidth > this.rootViewportHeight,
@@ -6316,6 +6345,34 @@ struct BrowserShellPage {
       return true;
     }
     return this.browserMainBackCoordinator.onBackPress(this.browserMainBackHost);
+  }
+
+  private refreshAiraCloudBookmarkV4BootstrapState(): void {
+    this.airaCloudBookmarkV4BootstrapState = sharedAiraCloudBookmarkV4BootstrapRuntime.getViewState();
+  }
+
+  private startAiraCloudBookmarkV4Bootstrap(): void {
+    void sharedAiraCloudBookmarkV4BootstrapRuntime.start().catch((error: Error): void => {
+      hilog.warn(LOG_DOMAIN, LOG_TAG, 'Aira Cloud Bookmark V4 bootstrap action failed: %{public}s',
+        JSON.stringify(error));
+      this.refreshAiraCloudBookmarkV4BootstrapState();
+    });
+  }
+
+  private restoreAiraCloudBookmarkV4Backup(): void {
+    void sharedAiraCloudBookmarkV4BootstrapRuntime.restoreBackupAndDisable().catch((error: Error): void => {
+      hilog.warn(LOG_DOMAIN, LOG_TAG, 'Aira Cloud Bookmark V4 restore action failed: %{public}s',
+        JSON.stringify(error));
+      this.refreshAiraCloudBookmarkV4BootstrapState();
+    });
+  }
+
+  private keepLocalBookmarksAndDisableAiraCloud(): void {
+    void sharedAiraCloudBookmarkV4BootstrapRuntime.keepLocalAndDisable().catch((error: Error): void => {
+      hilog.warn(LOG_DOMAIN, LOG_TAG, 'Aira Cloud Bookmark V4 opt-out action failed: %{public}s',
+        JSON.stringify(error));
+      this.refreshAiraCloudBookmarkV4BootstrapState();
+    });
   }
 
   private buildBrowserShellBackState(): BrowserShellBackState {

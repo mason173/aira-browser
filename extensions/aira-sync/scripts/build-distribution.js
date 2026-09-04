@@ -7,9 +7,11 @@ const {
   computeExtensionIdFromManifestKey,
   writeReleaseMarkerToDir,
 } = require('./release-utils');
+const { isLocalTestMode, parseEndpoint } = require(path.join(__dirname, '..', '..', '..', 'scripts', 'distribution-endpoint-policy.js'));
 
 const root = path.resolve(__dirname, '..');
 const distribution = String(process.argv[2] || '').trim().toLowerCase();
+const localTestMode = isLocalTestMode(process.env.AIRA_LOCAL_TEST_MODE);
 const routeNames = [
   'bookmarkSync',
   'historySync',
@@ -31,12 +33,13 @@ if (distribution !== 'community' && distribution !== 'official') {
 const outDir = path.join('build', distribution);
 const buildDir = path.join(root, outDir);
 const officialRoutes = distribution === 'official'
-  ? validateOfficialRoutes(process.env.AIRA_SYNC_OFFICIAL_API_ROUTES || '')
+  ? validateOfficialRoutes(process.env.AIRA_SYNC_OFFICIAL_API_ROUTES || '', localTestMode)
   : '';
 const env = {
   ...process.env,
   VITE_AIRATAB_DISTRIBUTION: distribution,
   VITE_AIRATAB_OFFICIAL_API_ROUTES: officialRoutes,
+  VITE_AIRATAB_LOCAL_TEST_MODE: localTestMode ? '1' : '0',
   VITE_BUILD_OUT_DIR: outDir,
 };
 const switchManifestScript = path.join(root, 'scripts', 'switch-manifest.js');
@@ -75,7 +78,7 @@ const localeMessages = distribution === 'community'
       },
     };
 
-function validateOfficialRoutes(raw) {
+function validateOfficialRoutes(raw, allowHttp) {
   let parsed;
   try {
     parsed = JSON.parse(raw);
@@ -84,15 +87,16 @@ function validateOfficialRoutes(raw) {
   }
   for (const routeName of routeNames) {
     const value = String(parsed?.[routeName] || '').trim();
-    let url;
+    let endpoint;
     try {
-      url = new URL(value);
-    } catch {
-      throw new Error(`Official API route ${routeName} must be an absolute HTTPS URL.`);
+      endpoint = parseEndpoint(value, {
+        allowHttp,
+        label: `Official API route ${routeName}`,
+      });
+    } catch (error) {
+      throw new Error(error.message);
     }
-    if (url.protocol !== 'https:' || url.username || url.password) {
-      throw new Error(`Official API route ${routeName} must be an HTTPS URL without credentials.`);
-    }
+    parsed[routeName] = endpoint;
   }
   return JSON.stringify(parsed);
 }
@@ -147,6 +151,7 @@ function applyDistributionManifestIdentity() {
 }
 
 console.log(`[build] Aira-sync distribution: ${distribution}`);
+fs.rmSync(path.join(buildDir, '.aira-sync-local-test-mode'), { force: true });
 const restoreLocales = applyLocaleMessages();
 try {
   runNode(switchManifestScript);
@@ -155,6 +160,9 @@ try {
   removeManifestTemplates();
   writeReleaseMarkerToDir(buildDir);
   fs.writeFileSync(path.join(buildDir, '.aira-sync-distribution'), `${distribution}\n`);
+  const localTestMarker = path.join(buildDir, '.aira-sync-local-test-mode');
+  if (localTestMode) fs.writeFileSync(localTestMarker, '1\n');
+  else fs.rmSync(localTestMarker, { force: true });
 } finally {
   restoreLocales();
   runNode(switchManifestScript);

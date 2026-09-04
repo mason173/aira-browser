@@ -9,6 +9,7 @@ const {
   getLocalOfficialReleasePackageFilename,
   readReleaseMarkerFromDir,
 } = require('./release-utils');
+const { isLocalTestMode } = require(path.join(__dirname, '..', '..', '..', 'scripts', 'distribution-endpoint-policy.js'));
 
 const root = path.resolve(__dirname, '..');
 const buildDir = path.join(root, 'build', 'official');
@@ -16,6 +17,7 @@ const packageJsonPath = path.join(root, 'package.json');
 const manifestFinalPath = path.join(root, 'public', 'manifest.final.json');
 const packWorkDir = path.join(root, '.tmp-local-official-pack');
 const verifyScript = path.join(root, 'scripts', 'verify-release.js');
+const localTestMode = isLocalTestMode(process.env.AIRA_LOCAL_TEST_MODE);
 
 function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, 'utf8'));
@@ -64,6 +66,14 @@ function assertOfficialBuild(expectedVersion) {
   if (Object.prototype.hasOwnProperty.call(manifest, 'key')) {
     throw new Error('Official build must omit manifest.key; the local package adds it in a staging copy.');
   }
+  const localTestMarkerPath = path.join(buildDir, '.aira-sync-local-test-mode');
+  if (localTestMode !== fs.existsSync(localTestMarkerPath)) {
+    throw new Error(
+      localTestMode
+        ? 'Local test package requires an Official build created with AIRA_LOCAL_TEST_MODE=1.'
+        : 'Production local Official package cannot use a local-test Official build.'
+    );
+  }
 }
 
 function copyDir(source, target) {
@@ -85,7 +95,10 @@ if (expectedId !== LOCAL_OFFICIAL_EXTENSION_ID) {
 }
 assertOfficialBuild(version);
 
-const outputPath = path.join(root, getLocalOfficialReleasePackageFilename(version));
+const outputFilename = localTestMode
+  ? `Aira-Sync-Official-v${version}-local-test.zip`
+  : getLocalOfficialReleasePackageFilename(version);
+const outputPath = path.join(root, outputFilename);
 console.log(`[pack] Official local package identity locked: ${LOCAL_OFFICIAL_EXTENSION_ID}`);
 console.log(`[pack] Creating ${path.basename(outputPath)}...`);
 

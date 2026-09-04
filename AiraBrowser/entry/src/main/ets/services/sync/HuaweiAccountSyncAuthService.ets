@@ -6,6 +6,7 @@ import { util } from '@kit.ArkTS';
 import { AppRuntimeContext } from '../../app/runtime/AppRuntimeContext';
 import { HuaweiCloudSyncInitService } from './HuaweiCloudSyncInitService';
 import { AIRA_DISTRIBUTION_CAPABILITY_OWNER } from '../../common/config/AiraDistributionCapabilityOwner';
+import { resolveAiraLocalTestIdentity } from '../../common/config/AiraLocalTestAuth';
 
 const HUAWEI_ACCOUNT_AUTH_DOMAIN = 0x0000;
 const HUAWEI_ACCOUNT_AUTH_TAG = 'HuaweiAccountAuth';
@@ -172,6 +173,10 @@ export class HuaweiAccountSyncAuthService {
   }
 
   async getCurrentAccessToken(forceRefresh: boolean = false): Promise<string> {
+    const localTestIdentity = resolveAiraLocalTestIdentity();
+    if (localTestIdentity !== undefined) {
+      return localTestIdentity.authToken;
+    }
     this.requireHuaweiAccountCapability();
     await this.ensureAuthInitializedIfPossible();
     const token = await this.getSignedInUserAccessToken(forceRefresh);
@@ -179,6 +184,13 @@ export class HuaweiAccountSyncAuthService {
   }
 
   async getCurrentAccessTokenForUid(uid: string, forceRefresh: boolean = false): Promise<string> {
+    const localTestIdentity = resolveAiraLocalTestIdentity();
+    if (localTestIdentity !== undefined) {
+      if (uid.trim() !== localTestIdentity.uid) {
+        throw new Error('Local test account identity mismatch.');
+      }
+      return localTestIdentity.authToken;
+    }
     this.requireHuaweiAccountCapability();
     const expectedUid = uid.trim();
     if (expectedUid.length <= 0) {
@@ -220,6 +232,14 @@ export class HuaweiAccountSyncAuthService {
   }
 
   async signInForBookmarkSync(forceNewSession: boolean = false): Promise<HuaweiAccountSyncIdentity> {
+    const localTestIdentity = resolveAiraLocalTestIdentity();
+    if (localTestIdentity !== undefined) {
+      return {
+        uid: localTestIdentity.uid,
+        displayName: localTestIdentity.displayName,
+        photoUrl: localTestIdentity.photoUrl
+      };
+    }
     this.requireHuaweiAccountCapability();
     if (forceNewSession) {
       await this.resetSignInState();
@@ -235,6 +255,14 @@ export class HuaweiAccountSyncAuthService {
   }
 
   async getCurrentIdentity(): Promise<HuaweiAccountSyncIdentity | undefined> {
+    const localTestIdentity = resolveAiraLocalTestIdentity();
+    if (localTestIdentity !== undefined) {
+      return {
+        uid: localTestIdentity.uid,
+        displayName: localTestIdentity.displayName,
+        photoUrl: localTestIdentity.photoUrl
+      };
+    }
     if (!AIRA_DISTRIBUTION_CAPABILITY_OWNER.isAvailable('huawei_account')) {
       return undefined;
     }
@@ -243,6 +271,14 @@ export class HuaweiAccountSyncAuthService {
   }
 
   async refreshCurrentIdentityProfile(): Promise<HuaweiAccountSyncIdentity | undefined> {
+    const localTestIdentity = resolveAiraLocalTestIdentity();
+    if (localTestIdentity !== undefined) {
+      return {
+        uid: localTestIdentity.uid,
+        displayName: localTestIdentity.displayName,
+        photoUrl: localTestIdentity.photoUrl
+      };
+    }
     if (!AIRA_DISTRIBUTION_CAPABILITY_OWNER.isAvailable('huawei_account')) {
       return undefined;
     }

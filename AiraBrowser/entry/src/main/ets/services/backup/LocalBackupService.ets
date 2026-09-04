@@ -106,6 +106,7 @@ const AIRA_LOCAL_BACKUP_IMPORT_ACTOR: string = 'local-backup-import';
 export interface LocalBackupBookmarkDomain {
   buildLocalBackupBookmarkSnapshot(): Promise<AiraSyncSnapshot>;
   importLocalBackupBookmarkSnapshot(snapshot: AiraSyncSnapshot): Promise<AiraBookmarkSyncApplyResult>;
+  replaceLocalBookmarksFromRecoverySnapshot(snapshot: AiraSyncSnapshot): Promise<AiraBookmarkSyncApplyResult>;
   validateLocalBackupBookmarkSnapshot(snapshot: AiraSyncSnapshot): AiraSyncSnapshot;
 }
 
@@ -287,6 +288,17 @@ export class LocalBackupService {
       );
     }
     return result;
+  }
+
+  async restoreBookmarkDocumentExactly(document: LocalBackupDocument): Promise<AiraBookmarkSyncApplyResult> {
+    this.validateDocument(document);
+    const bookmarks = document.sections.bookmarks;
+    if (bookmarks === undefined) {
+      throw new Error('备份中没有可恢复的书签。');
+    }
+    return this.syncService.replaceLocalBookmarksFromRecoverySnapshot(
+      this.buildBookmarkSnapshot(bookmarks.data)
+    );
   }
 
   private async buildUserScriptValuesPayload(

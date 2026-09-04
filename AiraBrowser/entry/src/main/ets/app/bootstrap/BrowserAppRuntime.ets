@@ -58,6 +58,8 @@ import { AiraLocalBookmarkOverviewCacheRepository } from '../../data/sync/AiraLo
 import { PersonalizationSyncConfigStore } from '../../data/sync/PersonalizationSyncConfigStore';
 import { NovelBookshelfSyncStateStore } from '../../data/sync/NovelBookshelfSyncStateStore';
 import { SyncExperienceStateStore } from '../../data/sync/SyncExperienceStateStore';
+import { AiraCloudBookmarkV4BootstrapStateStore } from
+  '../../data/sync/AiraCloudBookmarkV4BootstrapStateStore';
 import { HuaweiSpaceBookmarkUpgradeStore } from '../../data/sync/HuaweiSpaceBookmarkUpgradeStore';
 import { ActivityTracker } from '../../services/activity/ActivityTracker';
 import { SearchEngineAvailabilityProbeService } from '../../services/search/SearchEngineAvailabilityProbeService';
@@ -175,8 +177,16 @@ import { SyncExperienceProviderOperations } from '../../core/sync/SyncExperience
 import { SyncPersonalizationDomain } from '../../core/sync/SyncPersonalizationDomain';
 import { SyncExperienceProviderActivation } from '../../core/sync/SyncExperienceProviderActivation';
 import { SyncExperienceCoordinator } from '../../core/sync/SyncExperienceCoordinator';
+import { AiraCloudBookmarkV4BootstrapCoordinator } from
+  '../../core/sync/AiraCloudBookmarkV4BootstrapCoordinator';
+import { AiraCloudBookmarkV4BootstrapRuntime } from
+  '../../core/sync/AiraCloudBookmarkV4BootstrapRuntime';
 import { LocalBackupCoordinator } from '../../core/backup/LocalBackupCoordinator';
 import { LocalBackupService } from '../../services/backup/LocalBackupService';
+import { AiraCloudBookmarkV4BootstrapSyncDomain } from
+  '../../services/sync/AiraCloudBookmarkV4BootstrapSyncDomain';
+import { AiraCloudBookmarkV4RecoveryService } from
+  '../../services/sync/AiraCloudBookmarkV4RecoveryService';
 import { BrowserUserAgentHostPolicyService } from '../../services/web/BrowserUserAgentHostPolicyService';
 import {
   BrowserFingerprintPrivacyPolicyService
@@ -510,6 +520,34 @@ const sharedSyncPersonalizationDomain: SyncPersonalizationDomain =
     sharedAiraSyncConfigStore,
     sharedPersonalizationSyncService
   );
+const sharedLocalBackupService: LocalBackupService = new LocalBackupService(
+  sharedSyncService,
+  sharedPersonalizationSyncService,
+  sharedHistoryRepository,
+  new HistoryFeature(
+    sharedHistoryRepository,
+    sharedPreferencesRepository,
+    sharedRecentlyClosedTabRepository
+  ),
+  sharedUserScriptRepository,
+  sharedUserScriptPackageLifecycleCoordinator,
+  sharedUserScriptValueStateStore
+);
+const sharedAiraCloudBookmarkV4BootstrapStateStore: AiraCloudBookmarkV4BootstrapStateStore =
+  new AiraCloudBookmarkV4BootstrapStateStore();
+const sharedAiraCloudBookmarkV4BootstrapCoordinator: AiraCloudBookmarkV4BootstrapCoordinator =
+  new AiraCloudBookmarkV4BootstrapCoordinator(
+    new AiraCloudBookmarkV4BootstrapSyncDomain(sharedSyncService),
+    new AiraCloudBookmarkV4RecoveryService(sharedLocalBackupService),
+    sharedAiraCloudBookmarkV4BootstrapStateStore
+  );
+export const sharedAiraCloudBookmarkV4BootstrapRuntime: AiraCloudBookmarkV4BootstrapRuntime =
+  new AiraCloudBookmarkV4BootstrapRuntime(
+    sharedSyncService,
+    sharedMembershipFeature,
+    sharedAiraCloudBookmarkV4BootstrapStateStore,
+    sharedAiraCloudBookmarkV4BootstrapCoordinator
+  );
 const sharedSyncExperienceAutomaticRuntime: SyncExperienceAutomaticRuntime =
   new SyncExperienceAutomaticRuntime(
     sharedSyncService,
@@ -519,7 +557,11 @@ const sharedSyncExperienceAutomaticRuntime: SyncExperienceAutomaticRuntime =
     sharedSyncBookmarkDomain,
     sharedSyncPersonalizationDomain,
     sharedHistorySyncService,
-    sharedSyncExperienceStateStore
+    sharedSyncExperienceStateStore,
+    undefined,
+    undefined,
+    undefined,
+    (): boolean => sharedAiraCloudBookmarkV4BootstrapRuntime.isAutomaticBookmarkSyncAllowed()
   );
 sharedHistoryRepository.setSyncContextProvider(() => {
   const settings = sharedAiraSyncConfigStore.getSettings();
@@ -587,19 +629,7 @@ export const sharedSyncExperienceCoordinator: SyncExperienceCoordinator =
     sharedHuaweiSpaceBookmarkUpgradeStore
   );
 export const sharedLocalBackupCoordinator: LocalBackupCoordinator = new LocalBackupCoordinator(
-  new LocalBackupService(
-    sharedSyncService,
-    sharedPersonalizationSyncService,
-    sharedHistoryRepository,
-    new HistoryFeature(
-      sharedHistoryRepository,
-      sharedPreferencesRepository,
-      sharedRecentlyClosedTabRepository
-    ),
-    sharedUserScriptRepository,
-    sharedUserScriptPackageLifecycleCoordinator,
-    sharedUserScriptValueStateStore
-  ),
+  sharedLocalBackupService,
   sharedSyncExperienceCoordinator
 );
 export const sharedHuaweiAccountMutationCoordinator: HuaweiAccountMutationCoordinator =
@@ -638,6 +668,10 @@ sharedNovelReadingCheckpointRepository.setChangeHandler((origin) => {
 });
 sharedMembershipFeature.setStateChangeHandler((state) => {
   void sharedCrossDeviceTabPresenceCoordinator.reconcileMembershipState(state);
+  void sharedAiraCloudBookmarkV4BootstrapRuntime.reconcile().catch((error: Error): void => {
+    hilog.warn(DOMAIN, TAG, 'Aira Cloud Bookmark V4 membership reconcile skipped: %{public}s',
+      JSON.stringify(error));
+  });
   sharedSyncExperienceCoordinator.notifyMembershipStateChanged();
 });
 let runtimeInitializationPromise: Promise<void> | undefined = undefined;
@@ -696,7 +730,9 @@ export function initializeBrowserAppFirstPaintReadiness(abilityContext: common.U
           measureStartupStep('personalization_sync_config_store', () =>
             sharedPersonalizationSyncConfigStore.initialize().then((): void => undefined))
         ];
-        return Promise.all(readinessTasks).then((): void => undefined);
+        return Promise.all(readinessTasks)
+          .then(() => measureStartupStep('aira_cloud_bookmark_v4_bootstrap', () =>
+            sharedAiraCloudBookmarkV4BootstrapRuntime.initialize()));
       })
       .then(() => {
         sharedSyncExperienceCoordinator.bindPreferenceChanges(sharedPreferencesRepository);
@@ -1160,6 +1196,7 @@ function refreshMembershipStateAfterLaunch(): Promise<void> {
   return sharedMembershipFeature.refreshState({ loadSyncConfig: false })
     .then(async (state): Promise<void> => {
       await sharedCrossDeviceTabPresenceCoordinator.reconcileMembershipState(state);
+      await sharedAiraCloudBookmarkV4BootstrapRuntime.reconcile();
       hilog.info(DOMAIN, TAG, 'Membership launch refresh completed: %{public}s', state.plan);
       sharedSyncExperienceCoordinator.runPendingBookmarksOnForeground();
     })
