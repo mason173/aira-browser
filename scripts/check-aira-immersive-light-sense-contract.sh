@@ -51,6 +51,12 @@ require_text "$TOKEN_FILE" 'deviceInfo.sdkApiVersion < IMMERSIVE_MATERIAL_MIN_AP
   'material availability must check deviceInfo.sdkApiVersion before calling API 26 APIs.'
 require_text "$TOKEN_FILE" 'uiMaterial.getMaterialInfo().state' \
   'material availability must honor the application MaterialState.'
+if rg -q --fixed-strings 'uiMaterial.ImmersiveStyle.' \
+  "$TOKEN_FILE" "$COMPONENT_DIR/browser/BrowserFloatingGlassMaterialTokens.ets" \
+  "$COMPONENT_DIR/browser/BrowserFloatingGlassMaterialSurface.ets" \
+  "$BOTTOM_SURFACE_FILE" "$CENTERED_DIALOG_FILE"; then
+  fail 'API 26 ImmersiveStyle enum members must not be read during API 23 module initialization.'
+fi
 if rg -q --fixed-strings 'isImmersiveMaterialSupported' "$TOKEN_FILE"; then
   fail 'the client SDK used by this repository does not expose isImmersiveMaterialSupported; keep the API-version and MaterialState gate.'
 fi

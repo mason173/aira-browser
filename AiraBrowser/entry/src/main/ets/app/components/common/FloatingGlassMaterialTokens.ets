@@ -6,7 +6,14 @@ export const FLOATING_GLASS_MATERIAL_BLUR_STYLE: BlurStyle = BlurStyle.COMPONENT
 export const FLOATING_GLASS_MATERIAL_LIGHT_TINT: ResourceColor = '#18FFFFFF';
 export const FLOATING_GLASS_MATERIAL_DARK_TINT: ResourceColor = '#18000000';
 export const FLOATING_GLASS_MATERIAL_LIGHT_EFFECT_COLOR: ResourceColor = '#25FFFFFF';
-export const FLOATING_GLASS_MATERIAL_IMMERSIVE_STYLE: uiMaterial.ImmersiveStyle = uiMaterial.ImmersiveStyle.THIN;
+// ImmersiveStyle is unavailable on API 23-25. Keep the numeric enum values
+// module-safe; the constructor is still reached only after the API 26 gate.
+export const FLOATING_GLASS_MATERIAL_IMMERSIVE_STYLE: uiMaterial.ImmersiveStyle =
+  1 as uiMaterial.ImmersiveStyle;
+export const FLOATING_GLASS_MATERIAL_THICK_STYLE: uiMaterial.ImmersiveStyle =
+  3 as uiMaterial.ImmersiveStyle;
+export const FLOATING_GLASS_MATERIAL_ULTRA_THICK_STYLE: uiMaterial.ImmersiveStyle =
+  4 as uiMaterial.ImmersiveStyle;
 
 let cachedFloatingGlassMaterialAvailable: boolean | undefined = undefined;
 

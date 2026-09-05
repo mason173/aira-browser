@@ -7,6 +7,7 @@ import {
 } from './BrowserFloatingGlassMaterialTokens';
 import {
   createFloatingGlassMaterial,
+  FLOATING_GLASS_MATERIAL_IMMERSIVE_STYLE,
   isFloatingGlassMaterialAvailable
 } from '../common/FloatingGlassMaterialTokens';
 
@@ -17,7 +18,7 @@ export struct BrowserBottomChromeImmersiveMaterialSurface {
   @Prop surfaceRadius: number = 0;
   @Prop materialTint: ResourceColor = BROWSER_FLOATING_GLASS_MATERIAL_LIGHT_TINT;
   @Prop fallbackColor: ResourceColor = $r('app.color.browser_bottom_toolbar_glass_background');
-  @Prop materialStyle: uiMaterial.ImmersiveStyle = uiMaterial.ImmersiveStyle.THIN;
+  @Prop materialStyle: uiMaterial.ImmersiveStyle = FLOATING_GLASS_MATERIAL_IMMERSIVE_STYLE;
   @Prop materialShadowEnabled: boolean = false;
   @Prop materialInteractive: boolean = true;
   @Prop materialLightEffectEnabled: boolean = true;
