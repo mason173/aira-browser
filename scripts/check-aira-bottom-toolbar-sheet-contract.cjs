@@ -5,12 +5,19 @@ const repoRoot = path.resolve(__dirname, '..');
 const panelPath = path.join(repoRoot, 'AiraBrowser/entry/src/main/ets/app/components/browser/BrowserDetentBottomPanel.ets');
 const addressPanelPath = path.join(repoRoot,
   'AiraBrowser/entry/src/main/ets/app/components/browser/BrowserBottomAddressPanel.ets');
+const quickActionCardPath = path.join(repoRoot,
+  'AiraBrowser/entry/src/main/ets/app/components/browser/HomeSearchQuickActionCard.ets');
+const neutralThemePath = path.join(repoRoot,
+  'AiraBrowser/entry/src/main/ets/core/theme/BrowserBottomPanelNeutralTheme.ets');
 const surfaceHostPath = path.join(repoRoot, 'AiraBrowser/entry/src/main/ets/app/components/browser/BrowserShellPrimarySurfaceHost.ets');
 const shellPagePath = path.join(repoRoot, 'AiraBrowser/entry/src/main/ets/app/pages/BrowserShellPage.ets');
 
 const panel = fs.readFileSync(panelPath, 'utf8');
 const addressPanel = fs.readFileSync(addressPanelPath, 'utf8');
 const normalizedAddressPanel = addressPanel.replace(/\s+/g, ' ');
+const quickActionCard = fs.readFileSync(quickActionCardPath, 'utf8');
+const neutralTheme = fs.readFileSync(neutralThemePath, 'utf8');
+const normalizedNeutralTheme = neutralTheme.replace(/\s+/g, ' ');
 const surfaceHost = fs.readFileSync(surfaceHostPath, 'utf8');
 const shellPage = fs.readFileSync(shellPagePath, 'utf8');
 const toolbarSheetBindingStart = addressPanel.indexOf(
@@ -53,8 +60,8 @@ assertContract(!toolbarSheetBinding.includes('title:') && !toolbarSheetBinding.i
 assertContract(!addressPanel.includes('onDetentsDidChange:') &&
   !addressPanel.includes('toolbarSystemSheetExpanded') &&
   toolbarSheetContent.includes('this.resolveToolbarRenderSnapshot().actions') &&
-  addressPanel.includes('scrollSizeMode: ScrollSizeMode.FOLLOW_DETENT'),
-  'Toolbar system Sheet must keep one stable full action list and let native detents control the visible window.');
+  addressPanel.includes('scrollSizeMode: ScrollSizeMode.CONTINUOUS'),
+  'Toolbar system Sheet must keep one stable full action list and resize it continuously between native detents.');
 assertContract(toolbarSheetGrid.includes('Column({ space: layoutState.rowGap })') &&
   toolbarSheetGrid.includes('this.resolveQuickActionRowsForActions(actions, layoutState.columnCount)') &&
   !toolbarSheetGrid.includes('List(') &&
@@ -83,6 +90,21 @@ assertContract(addressPanel.includes('this.toolbarSystemSheetVisible = true;'),
 assertContract(addressPanel.includes('BrowserBottomSheetSurface({') &&
   addressPanel.includes('private buildToolbarSystemSheet()'),
   'Toolbar Sheet content must reuse the existing bottom-sheet surface.');
+assertContract(toolbarSheetContent.includes('surfaceColor: this.storedPageBackgroundColor') &&
+  !toolbarSheetContent.includes('resolveFloatingGlassMaterialBackgroundColor('),
+  'Toolbar system Sheet must use the opaque themed surface instead of a transparent glass background.');
+assertContract(addressPanel.includes('const WEB_BOTTOM_TOOLBAR_SHEET_ACTION_CORNER_RADIUS: number = 16;') &&
+  addressPanel.includes('cardCornerRadius: toolbarSystemSheetAction ?') &&
+  addressPanel.includes('WEB_BOTTOM_TOOLBAR_SHEET_ACTION_CORNER_RADIUS : 0'),
+  'Toolbar system Sheet action icons must use rounded rectangles without changing other quick-action surfaces.');
+assertContract(quickActionCard.includes('@Prop cardCornerRadius: number = 0;') &&
+  quickActionCard.includes('this.cardCornerRadius > 0'),
+  'Shared quick-action cards must keep circles by default and support an explicit rounded-rectangle radius.');
+assertContract(addressPanel.includes('resolveBrowserBottomToolbarSheetActionColor(this.resolveNeutralThemeMode())') &&
+  neutralTheme.includes("const BROWSER_BOTTOM_TOOLBAR_SHEET_ACTION_LIGHT: string = '#FFFFFFFF';") &&
+  normalizedNeutralTheme.includes('return isBrowserBottomNeutralDarkMode(mode) ? ' +
+    'BROWSER_BOTTOM_EXPANDED_TOOLBAR_ACTION_DARK : BROWSER_BOTTOM_TOOLBAR_SHEET_ACTION_LIGHT;'),
+  'Toolbar system Sheet actions must use an opaque light background and preserve the dark theme branch.');
 assertContract(!toolbarSheetContent.includes('PanGesture') && !toolbarSheetContent.includes('.onMove('),
   'Toolbar Sheet content must contain no custom drag or reorder gestures.');
 assertContract(!panel.includes('.bindSheet($$this.nativeSheetVisible'),

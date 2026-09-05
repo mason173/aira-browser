@@ -37,6 +37,7 @@ export struct HomeSearchQuickActionCard {
   @Prop cardBackgroundColor: ResourceColor | undefined = undefined;
   @Prop cardDisabledOpacity: number = 0.42;
   @Prop cardBorderWidth: number = HOME_SEARCH_QUICK_ACTION_CARD_BORDER_WIDTH;
+  @Prop cardCornerRadius: number = 0;
   @Prop imageRenderVersion: number = 0;
   @Prop buttonSize: number = BROWSER_BOTTOM_QUICK_ACTION_BUTTON_SIZE;
   @State private pressed: boolean = false;
@@ -182,7 +183,8 @@ export struct HomeSearchQuickActionCard {
   }
 
   private resolveButtonRadius(): number {
-    return this.resolveButtonSize() / 2;
+    const maximumRadius = this.resolveButtonSize() / 2;
+    return this.cardCornerRadius > 0 ? Math.min(this.cardCornerRadius, maximumRadius) : maximumRadius;
   }
 
   private resolveImageRenderKey(): string {

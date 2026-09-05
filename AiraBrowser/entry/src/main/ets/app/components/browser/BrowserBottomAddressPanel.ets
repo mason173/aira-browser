@@ -77,10 +77,6 @@ import {
   resolveBrowserBottomChromeMaterialTintForMode
 } from './BrowserFloatingGlassMaterialTokens';
 import { BrowserBottomSheetSurface } from './BrowserModalBottomSheet';
-import {
-  createFloatingGlassMaterialIfAvailable,
-  resolveFloatingGlassMaterialBackgroundColor
-} from '../common/FloatingGlassMaterialTokens';
 import { BROWSER_GLOBAL_SYMBOL_WEIGHT } from './BrowserIconStyle';
 import { HomeSearchQuickActionCard } from './HomeSearchQuickActionCard';
 import { AiraIcon } from '../common/AiraIcon';
@@ -111,7 +107,8 @@ import {
   resolveBrowserBottomNeutralContainerColor,
   resolveBrowserBottomNeutralPressedColor,
   resolveBrowserBottomNeutralPrimaryColor,
-  resolveBrowserBottomNeutralSecondaryColor
+  resolveBrowserBottomNeutralSecondaryColor,
+  resolveBrowserBottomToolbarSheetActionColor
 } from '../../../core/theme/BrowserBottomPanelNeutralTheme';
 import { AppChromeIconTone, AppIconResources } from '../../../core/resources/AppIconResources';
 import {
@@ -202,6 +199,7 @@ const WEB_BOTTOM_READING_CONTINUATION_HEIGHT: number = 64;
 const WEB_BOTTOM_READING_CONTINUATION_ICON_SIZE: number = 22;
 const WEB_BOTTOM_READING_CONTINUATION_TRAILING_ICON_SIZE: number = 16;
 const WEB_BOTTOM_READING_CONTINUATION_HORIZONTAL_PADDING: number = 16;
+const WEB_BOTTOM_TOOLBAR_SHEET_ACTION_CORNER_RADIUS: number = 16;
 function buildDefaultBrowserBottomAddressPanelActionInput(): BrowserBottomAddressPanelBuildInput {
   return {
     chromeIconTone: 'light',
@@ -700,12 +698,9 @@ export struct BrowserBottomAddressPanel {
       detents: [previewHeight, fullHeight],
       detentSelection: this.toolbarSystemSheetDetentSelection > 0 ?
         this.toolbarSystemSheetDetentSelection : previewHeight,
-      scrollSizeMode: ScrollSizeMode.FOLLOW_DETENT,
+      scrollSizeMode: ScrollSizeMode.CONTINUOUS,
       dragBar: true,
       showClose: false,
-      systemMaterial: createFloatingGlassMaterialIfAvailable(
-        this.resolveBottomChromeMaterialTint()
-      ),
       onDisappear: (): void => {
         this.handleToolbarSystemSheetDisappear();
       }
@@ -719,7 +714,7 @@ export struct BrowserBottomAddressPanel {
       horizontalPadding: 0,
       topPadding: 0,
       bottomPadding: 0,
-      surfaceColor: resolveFloatingGlassMaterialBackgroundColor(this.storedPageBackgroundColor)
+      surfaceColor: this.storedPageBackgroundColor
     }) {
       ForEach([this.resolveToolbarRenderSnapshot().layoutState],
         (layoutState: BrowserBottomToolbarQuickActionLayoutState) => {
@@ -1557,6 +1552,7 @@ export struct BrowserBottomAddressPanel {
           this.resolveToolbarSystemSheetActionBackgroundColor(item) : this.resolveQuickActionCardBackgroundColor(item),
         cardDisabledOpacity: 1,
         cardBorderWidth: 0,
+        cardCornerRadius: toolbarSystemSheetAction ? WEB_BOTTOM_TOOLBAR_SHEET_ACTION_CORNER_RADIUS : 0,
         buttonSize,
         imageRenderVersion: this.resolveActionRenderVersion(item),
         action: () => {
@@ -2092,7 +2088,7 @@ export struct BrowserBottomAddressPanel {
   ): ResourceColor {
     const actionBackgroundColor = this.buildQuickActionVisualState(item).backgroundColor;
     return actionBackgroundColor ??
-      resolveBrowserBottomExpandedToolbarActionColor(this.resolveNeutralThemeMode());
+      resolveBrowserBottomToolbarSheetActionColor(this.resolveNeutralThemeMode());
   }
 
   private resolveToolbarSystemSheetActionIconColor(

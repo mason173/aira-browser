@@ -12,6 +12,7 @@ const BROWSER_BOTTOM_FLOATING_EXPANDED_CONTAINER_LIGHT: string = '#18FFFFFF';
 const BROWSER_BOTTOM_FLOATING_EXPANDED_CONTAINER_DARK: string = '#18000000';
 const BROWSER_BOTTOM_EXPANDED_TOOLBAR_ACTION_LIGHT: string = '#99FFFFFF';
 const BROWSER_BOTTOM_EXPANDED_TOOLBAR_ACTION_DARK: string = '#14FFFFFF';
+const BROWSER_BOTTOM_TOOLBAR_SHEET_ACTION_LIGHT: string = '#FFFFFFFF';
 const BROWSER_BOTTOM_EXPANDED_TOOLBAR_ACTION_ICON_LIGHT: string = '#BF000000';
 const BROWSER_BOTTOM_EXPANDED_TOOLBAR_ACTION_ICON_DARK: string = '#E6FFFFFF';
 const BROWSER_BOTTOM_ADAPTIVE_QUICK_ACTION_DARK_TEXT_BACKGROUND: string = '#14000000';
@@ -56,6 +57,13 @@ export function resolveBrowserBottomExpandedToolbarActionColor(
 ): ResourceColor {
   return isBrowserBottomNeutralDarkMode(mode) ? BROWSER_BOTTOM_EXPANDED_TOOLBAR_ACTION_DARK :
     BROWSER_BOTTOM_EXPANDED_TOOLBAR_ACTION_LIGHT;
+}
+
+export function resolveBrowserBottomToolbarSheetActionColor(
+  mode: BrowserResolvedThemeMode | string
+): ResourceColor {
+  return isBrowserBottomNeutralDarkMode(mode) ? BROWSER_BOTTOM_EXPANDED_TOOLBAR_ACTION_DARK :
+    BROWSER_BOTTOM_TOOLBAR_SHEET_ACTION_LIGHT;
 }
 
 export function resolveBrowserBottomExpandedToolbarActionIconColor(

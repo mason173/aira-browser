@@ -85,8 +85,14 @@ if rg -q --fixed-strings 'systemMaterial(' "$VIDEO_OVERLAY_FILE" || \
   fail 'video assistant surfaces must not place immersive material above dynamic video content.'
 fi
 
-require_text "$ADDRESS_PANEL_FILE" 'systemMaterial: createFloatingGlassMaterialIfAvailable(' \
-  'the toolbar BindSheet must own its single material through SheetOptions.systemMaterial.'
+sheet_options_start="$(rg -n -m 1 'private buildToolbarSystemSheetOptions\(\)' "$ADDRESS_PANEL_FILE" | cut -d: -f1)"
+sheet_options_end="$(rg -n -m 1 'private buildToolbarSystemSheet\(\)' "$ADDRESS_PANEL_FILE" | cut -d: -f1)"
+[ -n "$sheet_options_start" ] && [ -n "$sheet_options_end" ] || \
+  fail 'toolbar Sheet options source block could not be located.'
+sheet_options_block="$(sed -n "${sheet_options_start},${sheet_options_end}p" "$ADDRESS_PANEL_FILE")"
+if printf '%s\n' "$sheet_options_block" | rg -q --fixed-strings 'systemMaterial:'; then
+  fail 'toolbar native Sheet must keep the system default surface instead of an immersive material.'
+fi
 sheet_start="$(rg -n -m 1 'private buildToolbarSystemSheet\(\)' "$ADDRESS_PANEL_FILE" | cut -d: -f1)"
 sheet_end="$(rg -n -m 1 'private resolveToolbarSystemSheetPreviewHeight' "$ADDRESS_PANEL_FILE" | cut -d: -f1)"
 [ -n "$sheet_start" ] && [ -n "$sheet_end" ] || fail 'toolbar Sheet source block could not be located.'
