@@ -3187,7 +3187,7 @@ export struct BrowserBottomAddressPanel {
   ): boolean {
     void targetDetent;
     return source === 'center-capsule' &&
-      this.isWebContentMode() &&
+      this.hasQuickActionSlotsAvailable() &&
       !this.isAddressInputPresentationActive() &&
       Number.isFinite(offsetY) &&
       offsetY < 0;
@@ -3380,7 +3380,7 @@ export struct BrowserBottomAddressPanel {
     // The action surface is owned by the native Sheet. The persistent bottom
     // chrome still needs a real middle height so its gesture can track motion
     // while the Sheet is opened from the center capsule.
-    if (this.isWebContentMode() && this.hasQuickActionSlotsAvailable()) {
+    if (this.hasQuickActionSlotsAvailable()) {
       return Math.max(
         this.resolveLowPanelDragHeight() + 1,
         this.resolveToolbarSystemSheetPreviewHeight(this.resolveToolbarRenderSnapshot().layoutState)

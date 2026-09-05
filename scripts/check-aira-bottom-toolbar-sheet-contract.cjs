@@ -74,10 +74,17 @@ assertContract(/private shouldRenderLegacyFloatingActionSurface\(\): boolean\s*\
 assertContract(/private shouldMountFloatingActionSurface\(\): boolean\s*\{\s*return this\.shouldRenderLegacyFloatingActionSurface\(\) &&/s.test(addressPanel) &&
   /private shouldMountFloatingActionContent\(\): boolean\s*\{\s*return this\.shouldRenderLegacyFloatingActionSurface\(\) &&/s.test(addressPanel),
   'Legacy floating toolbar content must not be mounted indirectly by the search surface state.');
+const toolbarGestureHelperStart = addressPanel.indexOf('private shouldOpenToolbarSystemSheetFromGesture(');
+const toolbarGestureHelperEnd = addressPanel.indexOf('\n  }', toolbarGestureHelperStart);
+const toolbarGestureHelper = toolbarGestureHelperStart >= 0 && toolbarGestureHelperEnd > toolbarGestureHelperStart ?
+  addressPanel.slice(toolbarGestureHelperStart, toolbarGestureHelperEnd) : '';
 assertContract(addressPanel.includes('private shouldOpenToolbarSystemSheetFromGesture(') &&
   addressPanel.includes('this.openToolbarSystemSheet();') &&
-  addressPanel.includes("return 'low';"),
-  'Web center upward gestures must open the native Sheet and leave the legacy panel at low.');
+  addressPanel.includes("return 'low';") &&
+  toolbarGestureHelper.includes("source === 'center-capsule'") &&
+  toolbarGestureHelper.includes('this.hasQuickActionSlotsAvailable()') &&
+  !toolbarGestureHelper.includes('this.isWebContentMode()'),
+  'Home and Web center upward gestures must open the native Sheet and leave the legacy panel at low.');
 assertContract(!addressPanel.includes('private resolveToolbarGestureRelease('),
   'The old toolbar stage gesture-release state machine must not remain in the address panel.');
 assertContract(addressPanel.includes("intent.actionId === 'bottomChromeMenu'"),
