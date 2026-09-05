@@ -7,6 +7,7 @@ import {
 } from '../main/ets/common/models/AiraSyncModels';
 import { createDefaultAiraSyncSettings } from '../main/ets/services/sync/AiraSyncConfigStore';
 import {
+  AIRA_CLOUD_BOOKMARK_V4_CUTOVER_ID,
   AiraCloudBookmarkV4BootstrapRecord
 } from '../main/ets/common/models/AiraCloudBookmarkV4BootstrapModels';
 import {
@@ -33,10 +34,14 @@ function createProMembership(): AiraMembershipState {
   return state;
 }
 
-function createResolvedRecord(status: 'completed' | 'opted_out'): AiraCloudBookmarkV4BootstrapRecord {
+function createResolvedRecord(
+  status: 'completed' | 'opted_out',
+  cutoverId: string = AIRA_CLOUD_BOOKMARK_V4_CUTOVER_ID
+): AiraCloudBookmarkV4BootstrapRecord {
   return {
     uid: UID,
     protocol: 'aira-cloud-bookmarks-v4',
+    cutoverId: cutoverId,
     status: status,
     phase: status,
     backupId: '',
@@ -70,7 +75,7 @@ export default function airaCloudBookmarkV4BootstrapPolicyTest(): void {
       expect(result.reason).assertEqual('not_legacy_initialized');
     });
 
-    it('does not gate an account that already completed a normal V4 bookmark sync', 0, () => {
+    it('does not let a normal V4 bookmark sync marker skip the formal cutover', 0, () => {
       const settings = createEligibleSettings();
       const airaCloudState = settings.providerStates.find((state: AiraSyncProviderRuntimeState): boolean => {
         return state.remoteKind === 'aira_cloud';
@@ -82,8 +87,37 @@ export default function airaCloudBookmarkV4BootstrapPolicyTest(): void {
 
       const result = policy.evaluate(settings, createProMembership(), undefined);
 
+      expect(result.required).assertTrue();
+      expect(result.reason).assertEqual('required');
+    });
+
+    it('resolves only after the current formal cutover is completed', 0, () => {
+      const result = policy.evaluate(
+        createEligibleSettings(),
+        createProMembership(),
+        createResolvedRecord('completed')
+      );
+
       expect(result.required).assertFalse();
-      expect(result.reason).assertEqual('already_v4_initialized');
+      expect(result.reason).assertEqual('completed');
+    });
+
+    it('requires migration again for an older or missing cutover batch', 0, () => {
+      const oldBatch = policy.evaluate(
+        createEligibleSettings(),
+        createProMembership(),
+        createResolvedRecord('completed', 'bookmarks-v4-cutover-20260903-old')
+      );
+      const missingBatch = policy.evaluate(
+        createEligibleSettings(),
+        createProMembership(),
+        createResolvedRecord('completed', '')
+      );
+
+      expect(oldBatch.required).assertTrue();
+      expect(oldBatch.reason).assertEqual('required');
+      expect(missingBatch.required).assertTrue();
+      expect(missingBatch.reason).assertEqual('required');
     });
 
     it('keeps an interrupted bootstrap required after the normal V4 marker was persisted', 0, () => {
@@ -98,6 +132,7 @@ export default function airaCloudBookmarkV4BootstrapPolicyTest(): void {
       const record: AiraCloudBookmarkV4BootstrapRecord = {
         uid: UID,
         protocol: 'aira-cloud-bookmarks-v4',
+        cutoverId: '',
         status: 'running',
         phase: 'reading_remote',
         backupId: 'backup-1',

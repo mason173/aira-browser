@@ -549,7 +549,7 @@ export class SyncService implements AiraCloudBookmarkV4BootstrapDomain {
     return remoteState.commitId as string;
   }
 
-  replaceLocalBookmarksFromAiraCloudV4(expectedUid: string): Promise<string> {
+  replaceLocalBookmarksFromAiraCloudV4(expectedUid: string, expectedCommitId: string): Promise<string> {
     return this.runSerializedBookmarkTask<string>(async (): Promise<string> => {
       const settings = this.getAiraSyncSettings();
       this.assertAiraCloudBootstrapAccount(settings, expectedUid);
@@ -558,6 +558,9 @@ export class SyncService implements AiraCloudBookmarkV4BootstrapDomain {
       const snapshot = remoteState.snapshot as AiraSyncSnapshot;
       const history = remoteState.history as AiraBookmarkHistoryDescriptor;
       const commitId = remoteState.commitId as string;
+      if (commitId !== expectedCommitId.trim()) {
+        throw new Error('Aira 云端书签在备份期间发生变化，请重新开始 V4 初始化。');
+      }
       const completedPendingBookmarkSyncAt = settings.pendingBookmarkSyncAt ?? 0;
 
       await this.runBookmarkStage('local_apply', (): Promise<AiraBookmarkSyncApplyResult> => {

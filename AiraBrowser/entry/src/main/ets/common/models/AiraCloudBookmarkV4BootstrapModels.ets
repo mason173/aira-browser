@@ -1,4 +1,7 @@
 export const AIRA_CLOUD_BOOKMARK_V4_BOOTSTRAP_PROTOCOL: string = 'aira-cloud-bookmarks-v4';
+// Bump this deliberately when the hosted V4 cutover is re-opened. A completed
+// record from another environment or release must never suppress this gate.
+export const AIRA_CLOUD_BOOKMARK_V4_CUTOVER_ID: string = 'bookmarks-v4-cutover-20260903';
 
 export type AiraCloudBookmarkV4BootstrapStatus =
   | 'required'
@@ -20,6 +23,7 @@ export type AiraCloudBookmarkV4BootstrapPhase =
 export interface AiraCloudBookmarkV4BootstrapRecord {
   uid: string;
   protocol: string;
+  cutoverId: string;
   status: AiraCloudBookmarkV4BootstrapStatus;
   phase: AiraCloudBookmarkV4BootstrapPhase;
   backupId: string;
@@ -41,7 +45,6 @@ export type AiraCloudBookmarkV4BootstrapEligibilityReason =
   | 'not_entitled'
   | 'account_mismatch'
   | 'not_legacy_initialized'
-  | 'already_v4_initialized'
   | 'provider_switch_in_progress'
   | 'completed'
   | 'opted_out';
@@ -73,7 +76,7 @@ export interface AiraCloudBookmarkV4RecoveryPoint {
 
 export interface AiraCloudBookmarkV4BootstrapDomain {
   readAiraCloudBookmarkV4BootstrapCommitId(uid: string): Promise<string>;
-  replaceLocalBookmarksFromAiraCloudV4(uid: string): Promise<string>;
+  replaceLocalBookmarksFromAiraCloudV4(uid: string, expectedCommitId: string): Promise<string>;
   disableAiraCloudBookmarkSync(): Promise<void>;
 }
 

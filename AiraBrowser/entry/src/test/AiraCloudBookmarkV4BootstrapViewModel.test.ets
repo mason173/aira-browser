@@ -10,6 +10,7 @@ function record(status: 'running' | 'failed' | 'completed'): AiraCloudBookmarkV4
   return {
     uid: 'uid-a',
     protocol: 'aira-cloud-bookmarks-v4',
+    cutoverId: 'bookmarks-v4-cutover-20260903',
     status: status,
     phase: status === 'running' ? 'creating_backup' : status,
     backupId: status === 'failed' ? 'backup-1' : '',

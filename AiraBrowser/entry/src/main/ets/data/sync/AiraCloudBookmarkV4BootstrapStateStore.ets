@@ -168,6 +168,7 @@ export class AiraCloudBookmarkV4BootstrapStateStore implements AiraCloudBookmark
     return {
       uid: uid,
       protocol: protocol,
+      cutoverId: this.normalizeText(value.cutoverId, MAX_ID_LENGTH),
       status: status,
       phase: phase,
       backupId: this.normalizeText(value.backupId, MAX_ID_LENGTH),
@@ -209,6 +210,7 @@ export class AiraCloudBookmarkV4BootstrapStateStore implements AiraCloudBookmark
     return {
       uid: value.uid,
       protocol: value.protocol,
+      cutoverId: value.cutoverId,
       status: value.status,
       phase: value.phase,
       backupId: value.backupId,

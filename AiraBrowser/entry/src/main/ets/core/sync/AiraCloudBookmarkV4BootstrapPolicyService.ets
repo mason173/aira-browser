@@ -1,11 +1,9 @@
 import { AiraMembershipState } from '../../common/models/MembershipModels';
 import {
-  AIRA_CLOUD_BOOKMARK_SYNC_GENERATION,
-  AiraSyncDomainRuntimeState,
-  AiraSyncSettings,
-  resolveAiraSyncDomainRuntimeState
+  AiraSyncSettings
 } from '../../common/models/AiraSyncModels';
 import {
+  AIRA_CLOUD_BOOKMARK_V4_CUTOVER_ID,
   AIRA_CLOUD_BOOKMARK_V4_BOOTSTRAP_PROTOCOL,
   AiraCloudBookmarkV4BootstrapEligibility,
   AiraCloudBookmarkV4BootstrapEligibilityReason,
@@ -36,32 +34,15 @@ export class AiraCloudBookmarkV4BootstrapPolicyService {
     }
     if (record !== undefined && record.uid === uid &&
       record.protocol === AIRA_CLOUD_BOOKMARK_V4_BOOTSTRAP_PROTOCOL) {
-      if (record.status === 'completed') {
+      if (record.cutoverId === AIRA_CLOUD_BOOKMARK_V4_CUTOVER_ID && record.status === 'completed') {
         return this.decision(false, uid, 'completed');
       }
-      if (record.status === 'opted_out') {
+      if (record.cutoverId === AIRA_CLOUD_BOOKMARK_V4_CUTOVER_ID && record.status === 'opted_out') {
         return this.decision(false, uid, 'opted_out');
       }
       return this.decision(true, uid, 'required');
     }
-    if (this.hasCompletedCurrentV4Sync(settings, uid)) {
-      return this.decision(false, uid, 'already_v4_initialized');
-    }
     return this.decision(true, uid, 'required');
-  }
-
-  private hasCompletedCurrentV4Sync(settings: AiraSyncSettings, uid: string): boolean {
-    const state: AiraSyncDomainRuntimeState = resolveAiraSyncDomainRuntimeState(
-      settings,
-      'aira_cloud',
-      'bookmark'
-    );
-    const expectedIdentity = [
-      `sync-provider-g${AIRA_CLOUD_BOOKMARK_SYNC_GENERATION}`,
-      'aira_cloud',
-      uid
-    ].map((value: string): string => encodeURIComponent(value)).join('|');
-    return state.providerIdentity === expectedIdentity && state.lastSuccessAt > 0;
   }
 
   private decision(

@@ -24,6 +24,7 @@ function record(uid: string, status: 'completed' | 'failed'): AiraCloudBookmarkV
   return {
     uid: uid,
     protocol: 'aira-cloud-bookmarks-v4',
+    cutoverId: 'bookmarks-v4-cutover-20260903',
     status: status,
     phase: status,
     backupId: `backup-${uid}`,

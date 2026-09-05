@@ -1,4 +1,5 @@
 import {
+  AIRA_CLOUD_BOOKMARK_V4_CUTOVER_ID,
   AIRA_CLOUD_BOOKMARK_V4_BOOTSTRAP_PROTOCOL,
   AiraCloudBookmarkV4BootstrapDomain,
   AiraCloudBookmarkV4BootstrapRecord,
@@ -53,7 +54,8 @@ export class AiraCloudBookmarkV4BootstrapCoordinator {
       async (): Promise<AiraCloudBookmarkV4BootstrapRecord> => {
         const normalizedUid = this.requireUid(uid);
         let current = await this.stateDomain.load(normalizedUid);
-        if (current === undefined || current.backupId.length === 0 || current.backupSha256.length === 0) {
+        if (current === undefined || current.cutoverId !== AIRA_CLOUD_BOOKMARK_V4_CUTOVER_ID ||
+          current.backupId.length === 0 || current.backupSha256.length === 0) {
           throw new Error('没有可用于恢复的升级前书签备份。');
         }
         current.status = 'running';
@@ -91,7 +93,8 @@ export class AiraCloudBookmarkV4BootstrapCoordinator {
   private async runNow(uid: string): Promise<AiraCloudBookmarkV4BootstrapRecord> {
     const normalizedUid = this.requireUid(uid);
     let current = await this.stateDomain.load(normalizedUid);
-    if (current?.status === 'completed' || current?.status === 'opted_out') {
+    if (current !== undefined && current.cutoverId === AIRA_CLOUD_BOOKMARK_V4_CUTOVER_ID &&
+      (current.status === 'completed' || current.status === 'opted_out')) {
       return current;
     }
     current = this.buildRecord(normalizedUid, 'running', 'reading_remote', current);
@@ -120,9 +123,15 @@ export class AiraCloudBookmarkV4BootstrapCoordinator {
       current.updatedAt = this.nowProvider();
       await this.stateDomain.save(current);
 
-      const completedCommitId = await this.domain.replaceLocalBookmarksFromAiraCloudV4(normalizedUid);
+      const completedCommitId = await this.domain.replaceLocalBookmarksFromAiraCloudV4(
+        normalizedUid,
+        remoteCommitId
+      );
       if (completedCommitId.trim().length === 0) {
         throw new Error('Aira 云书签初始化缺少已确认的云端提交。');
+      }
+      if (completedCommitId.trim() !== remoteCommitId.trim()) {
+        throw new Error('Aira 云端书签在备份期间发生变化，请重新开始 V4 初始化。');
       }
       current.status = 'completed';
       current.phase = 'completed';
@@ -174,14 +183,16 @@ export class AiraCloudBookmarkV4BootstrapCoordinator {
     phase: 'reading_remote' | 'opted_out',
     previous?: AiraCloudBookmarkV4BootstrapRecord
   ): AiraCloudBookmarkV4BootstrapRecord {
+    const sameCutover = previous?.cutoverId === AIRA_CLOUD_BOOKMARK_V4_CUTOVER_ID;
     return {
       uid: uid,
       protocol: AIRA_CLOUD_BOOKMARK_V4_BOOTSTRAP_PROTOCOL,
+      cutoverId: AIRA_CLOUD_BOOKMARK_V4_CUTOVER_ID,
       status: status,
       phase: phase,
-      backupId: previous?.backupId ?? '',
-      backupSha256: previous?.backupSha256 ?? '',
-      remoteCommitId: previous?.remoteCommitId ?? '',
+      backupId: sameCutover ? previous?.backupId ?? '' : '',
+      backupSha256: sameCutover ? previous?.backupSha256 ?? '' : '',
+      remoteCommitId: sameCutover ? previous?.remoteCommitId ?? '' : '',
       errorMessage: '',
       updatedAt: this.nowProvider(),
       completedAt: 0

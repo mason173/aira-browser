@@ -3,6 +3,7 @@ import {
   AiraCloudBookmarkV4BootstrapCoordinator
 } from '../main/ets/core/sync/AiraCloudBookmarkV4BootstrapCoordinator';
 import {
+  AIRA_CLOUD_BOOKMARK_V4_CUTOVER_ID,
   AiraCloudBookmarkV4BootstrapDomain,
   AiraCloudBookmarkV4BootstrapRecord,
   AiraCloudBookmarkV4BootstrapRecoveryDomain,
@@ -66,6 +67,8 @@ class FixtureRecoveryDomain implements AiraCloudBookmarkV4BootstrapRecoveryDomai
 class FixtureBootstrapDomain implements AiraCloudBookmarkV4BootstrapDomain {
   operations: string[];
   fail: boolean = false;
+  replacementExpectedCommitId: string = '';
+  replacementCommitId: string = 'commit-7';
 
   constructor(operations: string[]) {
     this.operations = operations;
@@ -76,12 +79,13 @@ class FixtureBootstrapDomain implements AiraCloudBookmarkV4BootstrapDomain {
     return 'commit-7';
   }
 
-  async replaceLocalBookmarksFromAiraCloudV4(): Promise<string> {
-    this.operations.push('replace');
+  async replaceLocalBookmarksFromAiraCloudV4(_uid: string, expectedCommitId: string): Promise<string> {
+    this.replacementExpectedCommitId = expectedCommitId;
+    this.operations.push(`replace:${expectedCommitId}`);
     if (this.fail) {
       throw new Error('remote-read-failed');
     }
-    return 'commit-7';
+    return this.replacementCommitId;
   }
 
   disableAiraCloudBookmarkSync(): Promise<void> {
@@ -122,7 +126,9 @@ export default function airaCloudBookmarkV4BootstrapCoordinatorTest(): void {
 
       const result = await coordinator.run('uid-a');
 
-      expect(JSON.stringify(operations)).assertEqual(JSON.stringify(['read-head', 'backup', 'replace']));
+      expect(JSON.stringify(operations)).assertEqual(
+        JSON.stringify(['read-head', 'backup', 'replace:commit-7'])
+      );
       expect(result.status).assertEqual('completed');
       expect(result.backupId).assertEqual('backup-1');
       expect(result.remoteCommitId).assertEqual('commit-7');
@@ -144,7 +150,7 @@ export default function airaCloudBookmarkV4BootstrapCoordinatorTest(): void {
         'transition-start',
         'read-head',
         'backup',
-        'replace',
+        'replace:commit-7',
         'transition-end'
       ]));
       expect(result.status).assertEqual('completed');
@@ -170,10 +176,35 @@ export default function airaCloudBookmarkV4BootstrapCoordinatorTest(): void {
       expect(JSON.stringify(operations)).assertEqual(JSON.stringify([
         'read-head',
         'backup',
-        'replace',
+        'replace:commit-7',
         'restore:uid-a:backup-1:sha256'
       ]));
       expect(operations.indexOf('disable')).assertEqual(-1);
+    });
+
+    it('restores local bookmarks when the second cloud read returns another commit', 0, async () => {
+      const operations: string[] = [];
+      const state = new FixtureBootstrapStateDomain();
+      const domain = new FixtureBootstrapDomain(operations);
+      domain.replacementCommitId = 'commit-8';
+      const coordinator = new AiraCloudBookmarkV4BootstrapCoordinator(
+        domain,
+        new FixtureRecoveryDomain(operations),
+        state,
+        new FixtureBootstrapTransitionDomain(),
+        (): number => 200
+      );
+
+      const result = await coordinator.run('uid-a');
+
+      expect(result.status).assertEqual('failed');
+      expect(result.errorMessage.indexOf('发生变化') >= 0).assertTrue();
+      expect(JSON.stringify(operations)).assertEqual(JSON.stringify([
+        'read-head',
+        'backup',
+        'replace:commit-7',
+        'restore:uid-a:backup-1:sha256'
+      ]));
     });
 
     it('reuses the original verified recovery point when a failed bootstrap is retried', 0, async () => {
@@ -182,6 +213,7 @@ export default function airaCloudBookmarkV4BootstrapCoordinatorTest(): void {
       await state.save({
         uid: 'uid-a',
         protocol: 'aira-cloud-bookmarks-v4',
+        cutoverId: AIRA_CLOUD_BOOKMARK_V4_CUTOVER_ID,
         status: 'failed',
         phase: 'failed',
         backupId: 'backup-1',
@@ -204,11 +236,45 @@ export default function airaCloudBookmarkV4BootstrapCoordinatorTest(): void {
       expect(JSON.stringify(operations)).assertEqual(JSON.stringify([
         'read-head',
         'verify:uid-a:backup-1:sha256',
-        'replace'
+        'replace:commit-7'
       ]));
       expect(result.status).assertEqual('completed');
       expect(result.backupId).assertEqual('backup-1');
       expect(result.backupSha256).assertEqual('sha256');
+    });
+
+    it('does not treat a completed older cutover as the current completion', 0, async () => {
+      const operations: string[] = [];
+      const state = new FixtureBootstrapStateDomain();
+      await state.save({
+        uid: 'uid-a',
+        protocol: 'aira-cloud-bookmarks-v4',
+        cutoverId: 'bookmarks-v4-cutover-20260903-old',
+        status: 'completed',
+        phase: 'completed',
+        backupId: 'old-backup',
+        backupSha256: 'old-sha256',
+        remoteCommitId: 'old-commit',
+        errorMessage: '',
+        updatedAt: 100,
+        completedAt: 100
+      });
+      const coordinator = new AiraCloudBookmarkV4BootstrapCoordinator(
+        new FixtureBootstrapDomain(operations),
+        new FixtureRecoveryDomain(operations),
+        state,
+        new FixtureBootstrapTransitionDomain(),
+        (): number => 200
+      );
+
+      const result = await coordinator.run('uid-a');
+
+      expect(JSON.stringify(operations)).assertEqual(
+        JSON.stringify(['read-head', 'backup', 'replace:commit-7'])
+      );
+      expect(result.status).assertEqual('completed');
+      expect(result.cutoverId).assertEqual(AIRA_CLOUD_BOOKMARK_V4_CUTOVER_ID);
+      expect(result.backupId).assertEqual('backup-1');
     });
 
     it('opts out by preserving local data and disabling only Aira Cloud bookmarks', 0, async () => {
@@ -234,6 +300,7 @@ export default function airaCloudBookmarkV4BootstrapCoordinatorTest(): void {
       await state.save({
         uid: 'uid-a',
         protocol: 'aira-cloud-bookmarks-v4',
+        cutoverId: AIRA_CLOUD_BOOKMARK_V4_CUTOVER_ID,
         status: 'failed',
         phase: 'failed',
         backupId: 'backup-1',
@@ -259,6 +326,39 @@ export default function airaCloudBookmarkV4BootstrapCoordinatorTest(): void {
       expect(result.status).assertEqual('opted_out');
       expect(result.backupId).assertEqual('backup-1');
       expect(result.errorMessage).assertEqual('');
+    });
+
+    it('does not restore a recovery point from an older cutover batch', 0, async () => {
+      const operations: string[] = [];
+      const state = new FixtureBootstrapStateDomain();
+      await state.save({
+        uid: 'uid-a',
+        protocol: 'aira-cloud-bookmarks-v4',
+        cutoverId: 'bookmarks-v4-cutover-20260903-old',
+        status: 'failed',
+        phase: 'failed',
+        backupId: 'old-backup',
+        backupSha256: 'old-sha256',
+        remoteCommitId: 'old-commit',
+        errorMessage: 'apply-failed',
+        updatedAt: 100,
+        completedAt: 0
+      });
+      const coordinator = new AiraCloudBookmarkV4BootstrapCoordinator(
+        new FixtureBootstrapDomain(operations),
+        new FixtureRecoveryDomain(operations),
+        state,
+        new FixtureBootstrapTransitionDomain()
+      );
+      let rejected = false;
+      try {
+        await coordinator.restoreBackupAndDisable('uid-a');
+      } catch (_error) {
+        rejected = true;
+      }
+
+      expect(rejected).assertTrue();
+      expect(operations.length).assertEqual(0);
     });
   });
 }
