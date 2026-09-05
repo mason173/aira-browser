@@ -552,6 +552,56 @@ function checkExpansionHintContract() {
   'toolbar must render one centered font-backed hint with stable geometry and animated direction');
 }
 
+function checkToolbarResponsiveGridContract() {
+  const panelSource = fs.readFileSync(addressPanelPath, 'utf8');
+  const metricsSource = fs.readFileSync(
+    path.join(repoRoot, 'AiraBrowser/entry/src/main/ets/core/browser/BrowserBottomAddressPanelMetrics.ets'),
+    'utf8'
+  );
+  const expansionModule = evaluateCommonJs(toolbarExpansionPath, () => ({}));
+  const viewModel = new expansionModule.BrowserBottomToolbarExpansionViewModel();
+  const api23Layout = viewModel.resolveQuickActionLayout({
+    actionCount: 29,
+    availableWidth: 320,
+    availableHeight: 488,
+    preferredColumns: 4,
+    maxColumns: 8,
+    buttonSize: 64,
+    labelBlockHeight: 18,
+    columnGap: 12,
+    rowGap: 18,
+    groupHorizontalPadding: 12,
+    groupVerticalPadding: 12,
+    surfaceVerticalPadding: 12,
+    expansionHintSlotHeight: 22,
+    expansionHintBottomGap: 4
+  });
+  const phoneLayout = viewModel.resolveQuickActionLayout({
+    actionCount: 29,
+    availableWidth: 390,
+    availableHeight: 540,
+    preferredColumns: 4,
+    maxColumns: 8,
+    buttonSize: 64,
+    labelBlockHeight: 18,
+    columnGap: 12,
+    rowGap: 18,
+    groupHorizontalPadding: 12,
+    groupVerticalPadding: 12,
+    surfaceVerticalPadding: 12,
+    expansionHintSlotHeight: 22,
+    expansionHintBottomGap: 4
+  });
+  assert(api23Layout.columnCount < 8 && api23Layout.buttonSize >= 48,
+    'API 23 toolbar layout must not fall back to an eight-column micro-grid');
+  assert(api23Layout.contentHeight <= 488.01 && phoneLayout.contentHeight <= 540.01,
+    'toolbar layout must stay inside the drag-bar-adjusted available height');
+  assert(metricsSource.includes(
+    'BROWSER_BOTTOM_TOOLBAR_SYSTEM_SHEET_DRAG_BAR_HEIGHT: number = 16'
+  ) && panelSource.includes('Math.min(hostHeight, maxPanelHeight)'),
+  'toolbar layout must use the window host height rather than the current middle detent');
+}
+
 function checkUnifiedToolbarPageContract() {
   const panelSource = fs.readFileSync(addressPanelPath, 'utf8');
   const detentSource = fs.readFileSync(panelPath, 'utf8');
@@ -704,6 +754,7 @@ const checks = [
   checkHiddenFloatingHeaderHitTesting,
   checkFixedSearchAnchorAndStableGeometry,
   checkExpansionHintContract,
+  checkToolbarResponsiveGridContract,
   checkUnifiedToolbarPageContract,
   checkToolbarGestureFrameContract,
   checkRoutedToolbarBackdropContract

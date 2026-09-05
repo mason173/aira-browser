@@ -36,3 +36,5 @@ export const BROWSER_BOTTOM_QUICK_ACTION_CARD_HEIGHT: number =
     BROWSER_BOTTOM_QUICK_ACTION_LABEL_LINE_HEIGHT;
 export const BROWSER_BOTTOM_TOOLBAR_EXPANSION_HINT_ICON_SIZE: number = 22;
 export const BROWSER_BOTTOM_TOOLBAR_EXPANSION_HINT_BOTTOM_GAP: number = 4;
+// Native bottom Sheets reserve this height for the system drag bar.
+export const BROWSER_BOTTOM_TOOLBAR_SYSTEM_SHEET_DRAG_BAR_HEIGHT: number = 16;

@@ -52,8 +52,16 @@ assertContract(addressPanel.includes('height: fullHeight') &&
   addressPanel.includes('detents: [previewHeight, fullHeight]') &&
   addressPanel.includes('detentSelection: this.toolbarSystemSheetDetentSelection'),
   'Toolbar system Sheet must expose native preview and full detents.');
+assertContract(addressPanel.includes('BROWSER_BOTTOM_TOOLBAR_SYSTEM_SHEET_DRAG_BAR_HEIGHT') &&
+  addressPanel.includes('this.resolveReadingContinuationHeight() +\n        BROWSER_BOTTOM_TOOLBAR_SYSTEM_SHEET_DRAG_BAR_HEIGHT') &&
+  addressPanel.includes('Math.min(hostHeight, maxPanelHeight) -\n        BROWSER_BOTTOM_TOOLBAR_SYSTEM_SHEET_DRAG_BAR_HEIGHT'),
+  'Toolbar Sheet sizing must reserve the native 16vp drag bar in both detents and layout height.');
 assertContract(addressPanel.includes('dragBar: true') && addressPanel.includes('showClose: false'),
   'Toolbar system Sheet must use the plain system drag bar without a custom close header.');
+assertContract(normalizedAddressPanel.includes(
+  "if (this.responsiveState.aspectBreakpoint === 'wide') { options.width = " +
+    'this.resolveFloatingQuickActionLayoutWidth(); }'
+), 'Landscape toolbar Sheets must use the same responsive width as their action grid.');
 assertContract(!toolbarSheetBinding.includes('title:') && !toolbarSheetBinding.includes('detents:') &&
   !toolbarSheetBinding.includes('systemMaterial:') && !toolbarSheetBinding.includes('onWillDismiss:'),
   'Toolbar system Sheet must not add a title, custom material, or dismissal state machine.');
@@ -64,11 +72,22 @@ assertContract(!addressPanel.includes('onDetentsDidChange:') &&
   'Toolbar system Sheet must keep one stable full action list and resize it continuously between native detents.');
 assertContract(toolbarSheetGrid.includes('Column({ space: layoutState.rowGap })') &&
   toolbarSheetGrid.includes('this.resolveQuickActionRowsForActions(actions, layoutState.columnCount)') &&
+  toolbarSheetGrid.includes('true,\n                  this.resolveToolbarSystemSheetActionCellWidth(layoutState)') &&
   !toolbarSheetGrid.includes('List(') &&
   !toolbarSheetGrid.includes('Scroll(') &&
   !toolbarSheetGrid.includes('.scrollable(') &&
   !toolbarSheetGrid.includes('.layoutWeight(1)'),
   'Toolbar system Sheet action grid must be fixed rows without an inner scroll container.');
+assertContract(addressPanel.includes(".width(actionCellWidth > 0 ? actionCellWidth : '100%')") &&
+  addressPanel.includes('.layoutWeight(actionCellWidth > 0 ? 0 : 1)'),
+  'Toolbar system Sheet cards must use fixed equal-width cells so a final partial row stays left aligned.');
+assertContract(toolbarSheetGrid.includes('.justifyContent(FlexAlign.Center)'),
+  'Toolbar system Sheet rows must center the complete fixed-width grid while placeholders keep partial rows column-aligned.');
+assertContract(addressPanel.includes('private shouldSuppressBackdropForToolbarSystemSheetGesture(') &&
+  addressPanel.includes('this.suppressBackdropForActiveToolbarSheetGesture =\n' +
+    '              this.shouldSuppressBackdropForToolbarSystemSheetGesture(this.activeChromeGestureSource);') &&
+  addressPanel.includes('!this.suppressBackdropForActiveToolbarSheetGesture'),
+  'Native toolbar Sheet gestures must not drive the legacy root scrim while the system Sheet supplies its own fade.');
 assertContract(/private shouldRenderLegacyFloatingActionSurface\(\): boolean\s*\{\s*return false;\s*\}/s.test(addressPanel),
   'Legacy floating toolbar presentation must stay disabled; native Sheet owns both stages.');
 assertContract(/private shouldMountFloatingActionSurface\(\): boolean\s*\{\s*return this\.shouldRenderLegacyFloatingActionSurface\(\) &&/s.test(addressPanel) &&

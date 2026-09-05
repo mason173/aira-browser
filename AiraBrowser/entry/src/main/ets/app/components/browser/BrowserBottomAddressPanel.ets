@@ -53,7 +53,8 @@ import {
   BROWSER_BOTTOM_QUICK_ACTION_LABEL_LINE_HEIGHT,
   BROWSER_BOTTOM_QUICK_ACTION_VERTICAL_GAP,
   BROWSER_BOTTOM_TOOLBAR_EXPANSION_HINT_BOTTOM_GAP,
-  BROWSER_BOTTOM_TOOLBAR_EXPANSION_HINT_ICON_SIZE
+  BROWSER_BOTTOM_TOOLBAR_EXPANSION_HINT_ICON_SIZE,
+  BROWSER_BOTTOM_TOOLBAR_SYSTEM_SHEET_DRAG_BAR_HEIGHT
 } from '../../../core/browser/BrowserBottomAddressPanelMetrics';
 import {
   BROWSER_BOTTOM_PANEL_FLOATING_CONTENT_REVEAL_DISTANCE,
@@ -331,6 +332,7 @@ export struct BrowserBottomAddressPanel {
   private addressInputMounted: boolean = false;
   private addressInputActuallyFocused: boolean = false;
   private preserveExpandedBackdropForActiveToolbarGesture: boolean = false;
+  private suppressBackdropForActiveToolbarSheetGesture: boolean = false;
   private addressFocusTimeout: number = -1;
   private addressSelectAllTimeout: number = -1;
   private restorableWebAddressText: string = '';
@@ -495,6 +497,7 @@ export struct BrowserBottomAddressPanel {
     this.clearFloatingActionContentExitBarrier();
     this.resetQuickActionReorderState();
     this.preserveExpandedBackdropForActiveToolbarGesture = false;
+    this.suppressBackdropForActiveToolbarSheetGesture = false;
     this.floatingActionSurfacePrepared = false;
     this.toolbarSystemSheetVisible = false;
     this.toolbarSystemSheetDetentSelection = 0;
@@ -560,6 +563,8 @@ export struct BrowserBottomAddressPanel {
               this.toolbarExpansionViewModel.shouldPreserveExpandedBackdropDuringGesture(this.toolbarExpansionStage);
             this.activeChromeGestureSource = this.isExpandedPanelDetent(this.panelDetent) ? 'none' :
               this.resolveBottomChromeGestureSource(frame.startX, frame.panelWidth);
+            this.suppressBackdropForActiveToolbarSheetGesture =
+              this.shouldSuppressBackdropForToolbarSystemSheetGesture(this.activeChromeGestureSource);
             this.floatingHeaderTracksPanelMotion =
               this.activeChromeGestureSource === 'leading-outer' ||
                 this.activeChromeGestureSource === 'trailing-outer';
@@ -576,6 +581,7 @@ export struct BrowserBottomAddressPanel {
           }
           this.panelDragHeight = frame.panelHeight;
           if (!this.preserveExpandedBackdropForActiveToolbarGesture &&
+            !this.suppressBackdropForActiveToolbarSheetGesture &&
             !this.floatingActionContentExitActive) {
             this.onPanelGestureFrame({
               phase: frame.phase,
@@ -591,6 +597,7 @@ export struct BrowserBottomAddressPanel {
         },
         onPanelVisualHeightChange: (panelHeight: number) => {
           if (!this.preserveExpandedBackdropForActiveToolbarGesture &&
+            !this.suppressBackdropForActiveToolbarSheetGesture &&
             !this.floatingActionContentExitActive) {
             this.onPanelVisualHeightChange(panelHeight, this.resolveMiddlePanelHeight());
           }
@@ -606,6 +613,7 @@ export struct BrowserBottomAddressPanel {
             this.floatingActionContentGestureRevealed = false;
           }
           this.preserveExpandedBackdropForActiveToolbarGesture = false;
+          this.suppressBackdropForActiveToolbarSheetGesture = false;
           this.floatingActionSurfacePrepared = false;
           this.activeChromeGestureMiddlePanelHeight = 0;
         },
@@ -692,7 +700,7 @@ export struct BrowserBottomAddressPanel {
     const layoutState = this.resolveToolbarRenderSnapshot().layoutState;
     const previewHeight = this.resolveToolbarSystemSheetPreviewHeight(layoutState);
     const fullHeight = this.resolveToolbarSystemSheetFullHeight(layoutState);
-    return {
+    const options: SheetOptions = {
       preferType: SheetType.BOTTOM,
       height: fullHeight,
       detents: [previewHeight, fullHeight],
@@ -705,6 +713,10 @@ export struct BrowserBottomAddressPanel {
         this.handleToolbarSystemSheetDisappear();
       }
     };
+    if (this.responsiveState.aspectBreakpoint === 'wide') {
+      options.width = this.resolveFloatingQuickActionLayoutWidth();
+    }
+    return options;
   }
 
   @Builder
@@ -749,7 +761,8 @@ export struct BrowserBottomAddressPanel {
     return Math.max(1,
       gridHeight +
         layoutState.surfaceVerticalPadding * 2 +
-        this.resolveReadingContinuationHeight());
+        this.resolveReadingContinuationHeight() +
+        BROWSER_BOTTOM_TOOLBAR_SYSTEM_SHEET_DRAG_BAR_HEIGHT);
   }
 
   private resolveToolbarSystemSheetFullHeight(
@@ -757,7 +770,9 @@ export struct BrowserBottomAddressPanel {
   ): number {
     return Math.max(
       this.resolveToolbarSystemSheetPreviewHeight(layoutState) + 1,
-      layoutState.fullSurfaceHeight + this.resolveReadingContinuationHeight()
+      layoutState.fullSurfaceHeight +
+        this.resolveReadingContinuationHeight() +
+        BROWSER_BOTTOM_TOOLBAR_SYSTEM_SHEET_DRAG_BAR_HEIGHT
     );
   }
 
@@ -780,7 +795,8 @@ export struct BrowserBottomAddressPanel {
                   item,
                   layoutState.buttonSize,
                   layoutState.cardHeight,
-                  true
+                  true,
+                  this.resolveToolbarSystemSheetActionCellWidth(layoutState)
                 );
               }, (renderKey: string) => renderKey)
             }, (item: BrowserBottomAddressPanelAction) => item.id)
@@ -795,6 +811,9 @@ export struct BrowserBottomAddressPanel {
           }
           .width('100%')
           .height(layoutState.cardHeight)
+          // Center the complete fixed-width row inside the native Sheet. Blank
+          // cells keep a partial final row anchored to the same first column.
+          .justifyContent(FlexAlign.Center)
         }, (row: BrowserBottomAddressPanelActionGridRow) =>
           `${row.rowIndex}-${row.actions.length}`)
     }
@@ -1536,7 +1555,8 @@ export struct BrowserBottomAddressPanel {
     item: BrowserBottomAddressPanelAction,
     buttonSize: number,
     cardHeight: number,
-    toolbarSystemSheetAction: boolean = false
+    toolbarSystemSheetAction: boolean = false,
+    actionCellWidth: number = 0
   ) {
     Row() {
       HomeSearchQuickActionCard({
@@ -1564,8 +1584,9 @@ export struct BrowserBottomAddressPanel {
         }
       })
     }
-    .layoutWeight(1)
+    .width(actionCellWidth > 0 ? actionCellWidth : '100%')
     .height(cardHeight)
+    .layoutWeight(actionCellWidth > 0 ? 0 : 1)
   }
 
   private resolveQuickActionRowEntryTransition(rowIndex: number): TransitionEffect {
@@ -1975,11 +1996,17 @@ export struct BrowserBottomAddressPanel {
   }
 
   private resolveFloatingQuickActionLayoutHeight(): number {
+    const maxPanelHeight = Math.max(1, this.responsiveState.panelMaxHeight);
+    const hostHeight = Math.max(0, this.livePanelMotionState.overlayHostHeight);
+    if (hostHeight > 0) {
+      return Math.max(1, Math.min(hostHeight, maxPanelHeight) -
+        BROWSER_BOTTOM_TOOLBAR_SYSTEM_SHEET_DRAG_BAR_HEIGHT);
+    }
     const panelHeight = Math.max(0, this.livePanelMotionState.panelHeight);
     if (panelHeight > 0) {
-      return panelHeight;
+      return Math.max(1, panelHeight - BROWSER_BOTTOM_TOOLBAR_SYSTEM_SHEET_DRAG_BAR_HEIGHT);
     }
-    return Math.max(1, this.responsiveState.panelMaxHeight);
+    return Math.max(1, maxPanelHeight - BROWSER_BOTTOM_TOOLBAR_SYSTEM_SHEET_DRAG_BAR_HEIGHT);
   }
 
   private resolveToolbarPreviewActionLimit(): number {
@@ -3191,6 +3218,14 @@ export struct BrowserBottomAddressPanel {
       !this.isAddressInputPresentationActive() &&
       Number.isFinite(offsetY) &&
       offsetY < 0;
+  }
+
+  private shouldSuppressBackdropForToolbarSystemSheetGesture(
+    source: BrowserBottomChromeGestureSource
+  ): boolean {
+    return source === 'center-capsule' &&
+      this.hasQuickActionSlotsAvailable() &&
+      !this.isAddressInputPresentationActive();
   }
 
   private resolveBottomChromeMaterialTint(): ResourceColor {
