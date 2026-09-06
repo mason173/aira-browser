@@ -781,43 +781,53 @@ export struct BrowserBottomAddressPanel {
     actions: BrowserBottomAddressPanelAction[],
     layoutState: BrowserBottomToolbarQuickActionLayoutState
   ) {
-    // Keep the Sheet content fixed. Native detents reveal the preview rows or
-    // the complete grid; the action surface itself must never become a scroll
-    // container.
-    Column({ space: layoutState.rowGap }) {
-      ForEach(
-        this.resolveQuickActionRowsForActions(actions, layoutState.columnCount),
-        (row: BrowserBottomAddressPanelActionGridRow) => {
-          Row({ space: layoutState.columnGap }) {
-            ForEach(row.actions, (item: BrowserBottomAddressPanelAction) => {
-              ForEach([this.buildActionRenderKey(item)], (_renderKey: string) => {
-                this.buildQuickActionCard(
-                  item,
-                  layoutState.buttonSize,
-                  layoutState.cardHeight,
-                  true,
-                  this.resolveToolbarSystemSheetActionCellWidth(layoutState)
-                );
-              }, (renderKey: string) => renderKey)
-            }, (item: BrowserBottomAddressPanelAction) => item.id)
-
-            ForEach(this.resolvePrimaryActionPlaceholderIndexes(
-              row.actions.length,
-              layoutState.columnCount
-            ), (placeholderIndex: number) => {
-              Blank()
-                .width(this.resolveToolbarSystemSheetActionCellWidth(layoutState))
-            }, (placeholderIndex: number) => `${row.rowIndex}-${placeholderIndex}`)
+    // The native Sheet owns the detent and backdrop. Its action content still
+    // uses the official List drag-sort contract so a long press can reorder
+    // actions without adding a competing custom gesture to the Sheet itself.
+    List({ space: layoutState.rowGap }) {
+      ForEach(actions, (item: BrowserBottomAddressPanelAction) => {
+        ListItem() {
+          Row() {
+            ForEach([this.buildActionRenderKey(item)], (_renderKey: string) => {
+              this.buildQuickActionCard(
+                item,
+                layoutState.buttonSize,
+                layoutState.cardHeight,
+                true,
+                this.resolveToolbarSystemSheetActionCellWidth(layoutState)
+              );
+            }, (renderKey: string) => renderKey)
           }
           .width('100%')
-          .height(layoutState.cardHeight)
-          // Center the complete fixed-width row inside the native Sheet. Blank
-          // cells keep a partial final row anchored to the same first column.
-          .justifyContent(FlexAlign.Center)
-        }, (row: BrowserBottomAddressPanelActionGridRow) =>
-          `${row.rowIndex}-${row.actions.length}`)
+          .height('100%')
+        }
+        .width('100%')
+        .height(layoutState.cardHeight)
+      }, (item: BrowserBottomAddressPanelAction) => item.id)
+        .onMove((from: number, to: number) => {
+          this.handleQuickActionNativeMove(from, to);
+        }, {
+          onLongPress: (index: number) => {
+            this.beginQuickActionNativeDrag(index, true);
+          },
+          onDragStart: (index: number) => {
+            this.beginQuickActionNativeDrag(index, false);
+          },
+          onDrop: (_index: number) => {
+            this.endQuickActionNativeDrag();
+          }
+        })
     }
     .width('100%')
+    .height(layoutState.gridHeight)
+    .lanes(layoutState.columnCount, layoutState.columnGap)
+    // Keep every action materialized while the Sheet moves between detents;
+    // this prevents off-screen cards from appearing late during expansion.
+    .cachedCount(actions.length)
+    .syncLoad(true)
+    .scrollBar(BarState.Off)
+    .edgeEffect(EdgeEffect.None)
+    .clip(false)
     .padding({
       left: BROWSER_BOTTOM_QUICK_ACTION_GROUP_HORIZONTAL_PADDING,
       right: BROWSER_BOTTOM_QUICK_ACTION_GROUP_HORIZONTAL_PADDING,
@@ -2185,6 +2195,11 @@ export struct BrowserBottomAddressPanel {
   }
 
   private requestToolbarSystemSheetAction(item: BrowserBottomAddressPanelAction): void {
+    if (this.quickActionReorderActive || this.dragConsumedQuickActionId === item.id) {
+      this.dragConsumedQuickActionId = undefined;
+      this.clearQuickActionDragClickGuard();
+      return;
+    }
     if (!item.enabled) {
       const message = item.disabledMessage.trim();
       if (message.length > 0) {
@@ -2406,10 +2421,19 @@ export struct BrowserBottomAddressPanel {
   }
 
   private shouldEnableQuickActionReorder(): boolean {
-    return this.livePresentationConnected &&
+    return this.shouldEnableToolbarSystemSheetReorder() ||
+      (this.livePresentationConnected &&
       !this.quickActionsOnly &&
       !this.viewerInfoActionEnabled &&
       this.isExpandedPanelDetent(this.panelDetent) &&
+      this.shouldRenderUnifiedQuickActionsContent());
+  }
+
+  private shouldEnableToolbarSystemSheetReorder(): boolean {
+    return this.livePresentationConnected &&
+      this.toolbarSystemSheetVisible &&
+      !this.quickActionsOnly &&
+      !this.viewerInfoActionEnabled &&
       this.shouldRenderUnifiedQuickActionsContent();
   }
 

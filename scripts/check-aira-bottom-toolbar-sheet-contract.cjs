@@ -7,6 +7,10 @@ const addressPanelPath = path.join(repoRoot,
   'AiraBrowser/entry/src/main/ets/app/components/browser/BrowserBottomAddressPanel.ets');
 const quickActionCardPath = path.join(repoRoot,
   'AiraBrowser/entry/src/main/ets/app/components/browser/HomeSearchQuickActionCard.ets');
+const toolbarCustomizationCoordinatorPath = path.join(repoRoot,
+  'AiraBrowser/entry/src/main/ets/core/browser/BrowserToolbarCustomizationCoordinator.ets');
+const personalizationSyncSnapshotPath = path.join(repoRoot,
+  'AiraBrowser/entry/src/main/ets/services/sync/PersonalizationSyncSnapshotService.ets');
 const neutralThemePath = path.join(repoRoot,
   'AiraBrowser/entry/src/main/ets/core/theme/BrowserBottomPanelNeutralTheme.ets');
 const surfaceHostPath = path.join(repoRoot, 'AiraBrowser/entry/src/main/ets/app/components/browser/BrowserShellPrimarySurfaceHost.ets');
@@ -16,6 +20,8 @@ const panel = fs.readFileSync(panelPath, 'utf8');
 const addressPanel = fs.readFileSync(addressPanelPath, 'utf8');
 const normalizedAddressPanel = addressPanel.replace(/\s+/g, ' ');
 const quickActionCard = fs.readFileSync(quickActionCardPath, 'utf8');
+const toolbarCustomizationCoordinator = fs.readFileSync(toolbarCustomizationCoordinatorPath, 'utf8');
+const personalizationSyncSnapshot = fs.readFileSync(personalizationSyncSnapshotPath, 'utf8');
 const neutralTheme = fs.readFileSync(neutralThemePath, 'utf8');
 const normalizedNeutralTheme = neutralTheme.replace(/\s+/g, ' ');
 const surfaceHost = fs.readFileSync(surfaceHostPath, 'utf8');
@@ -70,19 +76,22 @@ assertContract(!addressPanel.includes('onDetentsDidChange:') &&
   toolbarSheetContent.includes('this.resolveToolbarRenderSnapshot().actions') &&
   addressPanel.includes('scrollSizeMode: ScrollSizeMode.CONTINUOUS'),
   'Toolbar system Sheet must keep one stable full action list and resize it continuously between native detents.');
-assertContract(toolbarSheetGrid.includes('Column({ space: layoutState.rowGap })') &&
-  toolbarSheetGrid.includes('this.resolveQuickActionRowsForActions(actions, layoutState.columnCount)') &&
-  toolbarSheetGrid.includes('true,\n                  this.resolveToolbarSystemSheetActionCellWidth(layoutState)') &&
-  !toolbarSheetGrid.includes('List(') &&
+assertContract(toolbarSheetGrid.includes('List({ space: layoutState.rowGap })') &&
+  toolbarSheetGrid.includes('.onMove((from: number, to: number) =>') &&
+  toolbarSheetGrid.includes('onLongPress: (index: number) =>') &&
+  toolbarSheetGrid.includes('true,\n                this.resolveToolbarSystemSheetActionCellWidth(layoutState)') &&
   !toolbarSheetGrid.includes('Scroll(') &&
   !toolbarSheetGrid.includes('.scrollable(') &&
-  !toolbarSheetGrid.includes('.layoutWeight(1)'),
-  'Toolbar system Sheet action grid must be fixed rows without an inner scroll container.');
+  toolbarSheetGrid.includes('.cachedCount(actions.length)') &&
+  toolbarSheetGrid.includes('.syncLoad(true)'),
+  'Toolbar system Sheet action grid must use the official List drag-sort seam with all cards preloaded.');
 assertContract(addressPanel.includes(".width(actionCellWidth > 0 ? actionCellWidth : '100%')") &&
   addressPanel.includes('.layoutWeight(actionCellWidth > 0 ? 0 : 1)'),
   'Toolbar system Sheet cards must use fixed equal-width cells so a final partial row stays left aligned.');
-assertContract(toolbarSheetGrid.includes('.justifyContent(FlexAlign.Center)'),
-  'Toolbar system Sheet rows must center the complete fixed-width grid while placeholders keep partial rows column-aligned.');
+assertContract(toolbarSheetGrid.includes(".width('100%')") &&
+  toolbarSheetGrid.includes('.lanes(layoutState.columnCount, layoutState.columnGap)') &&
+  toolbarSheetGrid.includes('this.resolveToolbarSystemSheetActionCellWidth(layoutState)'),
+  'Toolbar system Sheet must use full-width equal lanes so the complete fixed-width grid stays centered and partial rows start at column one.');
 assertContract(addressPanel.includes('private shouldSuppressBackdropForToolbarSystemSheetGesture(') &&
   addressPanel.includes('this.suppressBackdropForActiveToolbarSheetGesture =\n' +
     '              this.shouldSuppressBackdropForToolbarSystemSheetGesture(this.activeChromeGestureSource);') &&
@@ -131,8 +140,16 @@ assertContract(addressPanel.includes('resolveBrowserBottomToolbarSheetActionColo
   normalizedNeutralTheme.includes('return isBrowserBottomNeutralDarkMode(mode) ? ' +
     'BROWSER_BOTTOM_EXPANDED_TOOLBAR_ACTION_DARK : BROWSER_BOTTOM_TOOLBAR_SHEET_ACTION_LIGHT;'),
   'Toolbar system Sheet actions must use an opaque light background and preserve the dark theme branch.');
-assertContract(!toolbarSheetContent.includes('PanGesture') && !toolbarSheetContent.includes('.onMove('),
-  'Toolbar Sheet content must contain no custom drag or reorder gestures.');
+assertContract(!toolbarSheetContent.includes('PanGesture') &&
+  toolbarSheetGrid.includes('.onMove(') &&
+  addressPanel.includes('private shouldEnableToolbarSystemSheetReorder(') &&
+  addressPanel.includes('this.toolbarSystemSheetVisible'),
+  'Toolbar Sheet content must use the official List drag-sort callback without a competing custom PanGesture.');
+assertContract(addressPanel.includes('this.toolbarCustomizationCoordinator.persistPrimaryMove(') &&
+  toolbarCustomizationCoordinator.includes('preferencesRepository.updateToolbarLayoutSettings') &&
+  personalizationSyncSnapshot.includes('toolbarLayout: {') &&
+  personalizationSyncSnapshot.includes('preferences.toolbarLayout.primaryActionIds.slice()'),
+  'Toolbar reorder must persist through PreferencesRepository and remain part of the personalization sync payload.');
 assertContract(!panel.includes('.bindSheet($$this.nativeSheetVisible'),
   'The persistent search/address panel must not own a native Sheet.');
 assertContract(!panel.includes('nativeSheetDetentSelection') &&
