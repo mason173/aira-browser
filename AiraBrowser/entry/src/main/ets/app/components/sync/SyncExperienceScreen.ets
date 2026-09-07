@@ -73,7 +73,6 @@ export struct SyncExperienceScreen {
   @Prop state: SyncExperienceViewState = DEFAULT_SYNC_EXPERIENCE_STATE;
   @Prop isBusy: boolean = false;
   @Prop isSyncing: boolean = false;
-  @Prop airaCloudRecoveryAvailable: boolean = false;
   @Prop preActiveStatusKind: SyncExperiencePreActiveStatusKind = 'inactive';
   @Prop isPrivateSession: boolean = false;
   @Link @Watch('handleActiveSheetVisibilityChange') activeSheetVisible: boolean;
@@ -119,7 +118,6 @@ export struct SyncExperienceScreen {
   onOpenAdditionalBackup: () => void = () => {};
   onOpenAiraPro: () => void = () => {};
   onOpenAdvanced: () => void = () => {};
-  onRestoreAiraCloudUpgradeBackup: () => void = () => {};
   onOpenDesktopGuide: (restoreSheet: boolean) => void = (_restoreSheet: boolean) => {};
   onConfigureWebdav: (
     firstActivationItems?: SyncFirstActivationItemsState
@@ -427,26 +425,6 @@ export struct SyncExperienceScreen {
           }
         })
         SettingsGroupDivider({ dividerColor: this.storedDividerColor })
-        if (this.state.airaCloudActive && this.airaCloudRecoveryAvailable) {
-          SettingsNavigationRow({
-            title: '恢复升级前书签',
-            desktopPresentation: this.desktopPresentation,
-            value: '恢复后关闭 Aira 云书签',
-            icon: $r('sys.symbol.arrow_counterclockwise'),
-            imageIcon: SettingsColoredTileIconResources.foregroundIcon('sync'),
-            iconBackgroundColor: this.settingsIconBackgrounds.sync,
-            iconColor: this.storedSettingsIconForegroundColor,
-            rowPosition: 'middle',
-            isEnabled: !this.isPrivateSession && !this.isBusy,
-            primaryTextColor: this.storedPrimaryTextColor,
-            secondaryTextColor: this.storedSecondaryTextColor,
-            pressedBackgroundColor: this.storedPressedBackgroundColor,
-            onAction: () => {
-              this.onRestoreAiraCloudUpgradeBackup();
-            }
-          })
-          SettingsGroupDivider({ dividerColor: this.storedDividerColor })
-        }
         SettingsNavigationRow({
           title: '跨系统互联',
           desktopPresentation: this.desktopPresentation,

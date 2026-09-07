@@ -586,6 +586,7 @@ export class SyncService implements AiraCloudBookmarkV4BootstrapDomain {
         remoteObservation: this.buildBookmarkRemoteObservation(snapshot, commitId),
         summary: '已使用 Aira 云端书签完成 V4 初始化。'
       });
+      await this.requireSyncConfigStore().setBookmarkSyncEnabled(true);
       return commitId;
     });
   }
@@ -619,7 +620,7 @@ export class SyncService implements AiraCloudBookmarkV4BootstrapDomain {
   private assertAiraCloudBootstrapAccount(settings: AiraSyncSettings, expectedUid: string): void {
     this.assertCloudConfigured(settings);
     const uid = settings.huaweiCloud.uid.trim();
-    if (settings.remoteKind !== 'aira_cloud' || !settings.bookmarkSyncEnabled ||
+    if (settings.remoteKind !== 'aira_cloud' ||
       uid.length === 0 || uid !== expectedUid.trim()) {
       throw new Error('Aira 云书签初始化账号或同步状态已变化。');
     }

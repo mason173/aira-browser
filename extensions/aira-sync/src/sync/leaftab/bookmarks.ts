@@ -7,6 +7,7 @@ import {
 import { ensureExtensionPermission } from '@/utils/extensionPermissions';
 import { LEAFTAB_BOOKMARK_MAPPING_KEY } from '@/features/sync/app/leafTabSyncStorageKeys';
 import type { LeafTabSyncSnapshot } from './schema';
+import { normalizeChromeBookmarkUrl } from './chromeBookmarkUrl';
 
 export interface LeafTabBookmarkFolderDraft {
   entityId: string;
@@ -869,7 +870,7 @@ const ensureBookmarkNode = async (params: {
   if (nextNode.title !== desiredNode.title || (nextNode.url || '') !== (desiredNode.url || '')) {
     const updated = await updateBookmarkNode(nextNode.id, {
       title: desiredNode.title,
-      url: desiredNode.url || '',
+      url: normalizeChromeBookmarkUrl(desiredNode.url || ''),
     });
     nextNode = {
       ...nextNode,
@@ -966,8 +967,8 @@ export const replaceLeafTabBookmarkTree = async (params: {
               id: currentNode?.id || entityId,
               parentId: parentEntityId,
               title: item.title,
-              url: item.url,
-              type: 'bookmark',
+              url: normalizeChromeBookmarkUrl(item.url),
+              type: 'bookmark' as const,
             }
           : null;
       if (!desiredNode) continue;

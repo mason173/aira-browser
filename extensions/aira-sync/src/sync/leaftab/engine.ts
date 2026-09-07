@@ -9,6 +9,7 @@ import {
 import type { LeafTabSyncSnapshot } from './schema';
 import type { LeafTabSyncHistoryDescriptor } from './schema';
 import { countLeafTabLiveBookmarkEntities } from './snapshot';
+import { canonicalizeSnapshotBookmarkUrls } from './chromeBookmarkUrl';
 import { formatLeafTabSyncSummaryText, summarizeLeafTabSyncMerge, type LeafTabSyncChangeSummary } from './summary';
 import type { LeafTabSyncRemoteState, LeafTabSyncRemoteStore } from './remoteStore';
 import type { LeafTabSyncTombstoneLifecycle } from './historyLifecycle';
@@ -82,30 +83,76 @@ const stableSnapshotValue = (value: unknown): unknown => {
 
 const stableSnapshotJson = (value: unknown): string => JSON.stringify(stableSnapshotValue(value));
 
+const canonicalizeBookmarkDataSet = (
+  value: NonNullable<LeafTabSyncSnapshot['appPrivateBookmarks']> | LeafTabSyncSnapshot,
+) => {
+  const dataSet = {
+    bookmarkFolders: value.bookmarkFolders,
+    bookmarkItems: value.bookmarkItems,
+    bookmarkOrders: value.bookmarkOrders,
+    tombstones: value.tombstones,
+  };
+  return {
+    bookmarkFolders: Object.fromEntries(
+      Object.values(dataSet.bookmarkFolders)
+        .slice()
+        .sort((left, right) => left.id.localeCompare(right.id))
+        .map((entry) => [entry.id, entry]),
+    ),
+    bookmarkItems: Object.fromEntries(
+      Object.values(dataSet.bookmarkItems)
+        .slice()
+        .sort((left, right) => left.id.localeCompare(right.id))
+        .map((entry) => [entry.id, entry]),
+    ),
+    bookmarkOrders: Object.fromEntries(
+      Object.values(dataSet.bookmarkOrders)
+        .slice()
+        .sort((left, right) => String(left.parentId ?? '').localeCompare(String(right.parentId ?? '')))
+        .map((entry) => [entry.parentId === null ? '__root__' : entry.parentId, entry]),
+    ),
+    tombstones: Object.fromEntries(
+      Object.values(dataSet.tombstones)
+        .slice()
+        .sort((left, right) => `${left.type}|${left.id}`.localeCompare(`${right.type}|${right.id}`))
+        .map((entry) => [`${entry.type}|${entry.id}`, entry]),
+    ),
+  };
+};
+
 const sameSnapshotContent = (
   left: LeafTabSyncSnapshot | null,
   right: LeafTabSyncSnapshot | null,
 ) => {
   if (!left && !right) return true;
   if (!left || !right) return false;
-  const comparableMeta = (snapshot: LeafTabSyncSnapshot) => {
-    const { deviceId: _deviceId, generatedAt: _generatedAt, ...preservedMeta } = snapshot.meta;
-    return preservedMeta;
-  };
   return stableSnapshotJson({
-    meta: comparableMeta(left),
-    bookmarkFolders: left.bookmarkFolders,
-    bookmarkItems: left.bookmarkItems,
-    bookmarkOrders: left.bookmarkOrders,
-    tombstones: left.tombstones,
-    appPrivateBookmarks: left.appPrivateBookmarks,
+    meta: { version: left.meta.version },
+    ...canonicalizeBookmarkDataSet(left),
+    appPrivateBookmarks: left.appPrivateBookmarks
+      ? canonicalizeBookmarkDataSet(left.appPrivateBookmarks)
+      : undefined,
   }) === stableSnapshotJson({
-    meta: comparableMeta(right),
-    bookmarkFolders: right.bookmarkFolders,
-    bookmarkItems: right.bookmarkItems,
-    bookmarkOrders: right.bookmarkOrders,
-    tombstones: right.tombstones,
-    appPrivateBookmarks: right.appPrivateBookmarks,
+    meta: { version: right.meta.version },
+    ...canonicalizeBookmarkDataSet(right),
+    appPrivateBookmarks: right.appPrivateBookmarks
+      ? canonicalizeBookmarkDataSet(right.appPrivateBookmarks)
+      : undefined,
+  });
+};
+
+const sameMaterializedBookmarkContent = (
+  left: LeafTabSyncSnapshot | null,
+  right: LeafTabSyncSnapshot | null,
+) => {
+  if (!left && !right) return true;
+  if (!left || !right) return false;
+  return stableSnapshotJson({
+    meta: { version: left.meta.version },
+    ...canonicalizeBookmarkDataSet(left),
+  }) === stableSnapshotJson({
+    meta: { version: right.meta.version },
+    ...canonicalizeBookmarkDataSet(right),
   });
 };
 
@@ -155,18 +202,26 @@ export class LeafTabSyncEngine {
 
   private async confirmRemoteCommit(
     expectedCommitId: string,
-    expectedSnapshot: LeafTabSyncSnapshot,
-    expectedHistory: LeafTabSyncHistoryDescriptor,
-  ): Promise<void> {
+  ): Promise<{
+    snapshot: LeafTabSyncSnapshot;
+    history: LeafTabSyncHistoryDescriptor;
+    commitId: string;
+  }> {
     let lastReadError: unknown;
     for (let attempt = 0; attempt <= REMOTE_CONFIRMATION_RETRY_DELAYS_MS.length; attempt += 1) {
       try {
         const confirmed = await this.config.remoteStore.readState();
-        const matches = confirmed.commitId === expectedCommitId
-          && Boolean(confirmed.history)
-          && this.config.historyLifecycle.sameHistory(confirmed.history!, expectedHistory)
-          && sameSnapshotContent(confirmed.snapshot, expectedSnapshot);
-        if (matches) return;
+        if (
+          confirmed.commitId === expectedCommitId
+          && confirmed.snapshot
+          && confirmed.history
+        ) {
+          return {
+            snapshot: confirmed.snapshot,
+            history: confirmed.history,
+            commitId: confirmed.commitId,
+          };
+        }
       } catch (error) {
         lastReadError = error;
       }
@@ -243,17 +298,26 @@ export class LeafTabSyncEngine {
         message: '正在写入远端数据',
       });
       const writeResult = await this.config.remoteStore.writeState({
-        snapshot: localSnapshot,
+        snapshot: canonicalizeSnapshotBookmarkUrls(localSnapshot),
         history: historyPlan.history,
         deviceId: this.config.deviceId,
         parentCommitId: null,
       });
-      await this.confirmRemoteCommit(writeResult.commitId, localSnapshot, historyPlan.history);
+      const confirmed = await this.confirmRemoteCommit(writeResult.commitId);
+      if (!sameMaterializedBookmarkContent(localSnapshot, confirmed.snapshot)) {
+        reportProgress(runOptions?.onProgress, {
+          stage: 'applying-local',
+          progress: 86,
+          message: '正在将最新结果写入本地',
+        });
+        await this.config.applyLocalSnapshot(cloneSnapshot(confirmed.snapshot));
+        await this.config.verifyLocalSnapshot(cloneSnapshot(confirmed.snapshot));
+      }
       await this.persistCompletedState(
         baseline,
-        localSnapshot,
-        historyPlan.history,
-        writeResult.commitId,
+        confirmed.snapshot,
+        confirmed.history,
+        confirmed.commitId,
         completedPendingLocalChangedAt,
       );
       reportProgress(runOptions?.onProgress, {
@@ -263,8 +327,8 @@ export class LeafTabSyncEngine {
       });
       return createSyncResult({
         kind: 'push',
-        remoteCommitId: writeResult.commitId,
-        snapshot: localSnapshot,
+        remoteCommitId: confirmed.commitId,
+        snapshot: confirmed.snapshot,
         summaryText: '远端为空，已用本地快照建立首次同步状态',
       });
     }
@@ -272,7 +336,7 @@ export class LeafTabSyncEngine {
     const remoteSnapshot = historyPlan.remoteSnapshot || this.config.createEmptySnapshot();
     if (!hasBaseline
       && !historyPlan.requiresRemoteHistoryWrite
-      && sameSnapshotContent(localSnapshot, remoteSnapshot)) {
+      && sameMaterializedBookmarkContent(localSnapshot, remoteSnapshot)) {
       reportProgress(runOptions?.onProgress, {
         stage: 'finalizing',
         progress: 92,
@@ -347,7 +411,7 @@ export class LeafTabSyncEngine {
           remoteSnapshot,
           { deviceId: this.config.deviceId },
         );
-    const finalSnapshot = mergeResult.snapshot;
+    const finalSnapshot = canonicalizeSnapshotBookmarkUrls(mergeResult.snapshot);
     const summary = summarizeLeafTabSyncMerge(baseSnapshot, mergeResult);
     const summaryText = formatLeafTabSyncSummaryText(summary);
 
@@ -369,7 +433,8 @@ export class LeafTabSyncEngine {
 
     const remoteNeedsWrite = historyPlan.requiresRemoteHistoryWrite
       || !sameSnapshotContent(remoteSnapshot, finalSnapshot);
-    const localNeedsApply = !sameSnapshotContent(localSnapshot, finalSnapshot);
+    let committedSnapshot = finalSnapshot;
+    let committedHistory = historyPlan.history;
     let committedId = remoteCommitId;
 
     if (remoteNeedsWrite) {
@@ -384,18 +449,20 @@ export class LeafTabSyncEngine {
         deviceId: this.config.deviceId,
         parentCommitId: remoteCommitId,
       });
-      committedId = writeResult.commitId;
-      await this.confirmRemoteCommit(committedId, finalSnapshot, historyPlan.history);
+      const confirmed = await this.confirmRemoteCommit(writeResult.commitId);
+      committedId = confirmed.commitId;
+      committedSnapshot = confirmed.snapshot;
+      committedHistory = confirmed.history;
     }
 
-    if (localNeedsApply) {
+    if (!sameMaterializedBookmarkContent(localSnapshot, committedSnapshot)) {
       reportProgress(runOptions?.onProgress, {
         stage: 'applying-local',
         progress: 86,
         message: '正在将最新结果写入本地',
       });
-      await this.config.applyLocalSnapshot(cloneSnapshot(finalSnapshot));
-      await this.config.verifyLocalSnapshot(cloneSnapshot(finalSnapshot));
+      await this.config.applyLocalSnapshot(cloneSnapshot(committedSnapshot));
+      await this.config.verifyLocalSnapshot(cloneSnapshot(committedSnapshot));
     }
 
     reportProgress(runOptions?.onProgress, {
@@ -405,8 +472,8 @@ export class LeafTabSyncEngine {
     });
     await this.persistCompletedState(
       baseline,
-      finalSnapshot,
-      historyPlan.history,
+      committedSnapshot,
+      committedHistory,
       committedId,
       completedPendingLocalChangedAt,
     );
@@ -416,13 +483,14 @@ export class LeafTabSyncEngine {
       message: '同步完成',
     });
 
+    const localNeedsApply = !sameMaterializedBookmarkContent(localSnapshot, committedSnapshot);
     const kind: LeafTabSyncEngineResult['kind'] = remoteNeedsWrite
       ? (localNeedsApply ? 'merge' : 'push')
       : (localNeedsApply ? 'pull' : 'noop');
     return createSyncResult({
       kind,
       remoteCommitId: committedId,
-      snapshot: finalSnapshot,
+      snapshot: committedSnapshot,
       mergeResult,
       summary,
       summaryText,

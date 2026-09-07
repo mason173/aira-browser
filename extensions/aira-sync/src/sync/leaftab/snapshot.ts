@@ -1,4 +1,5 @@
 import type { LeafTabBookmarkTreeDraft } from './bookmarks';
+import { normalizeChromeBookmarkUrl } from './chromeBookmarkUrl';
 import type {
   LeafTabSyncBookmarkDataSet,
   LeafTabSyncBookmarkFolderEntity,
@@ -523,7 +524,7 @@ export const assertLeafTabBookmarkTreeMatchesSnapshot = (
   const actualItems = Object.fromEntries(bookmarkTree.items.map((item) => [item.entityId, {
     parentId: item.parentId,
     title: item.title,
-    url: item.url,
+    url: normalizeChromeBookmarkUrl(item.url),
   }]));
   const actualOrders = Object.fromEntries(
     Object.entries(bookmarkTree.orderIdsByParent).map(([parentId, ids]) => [parentId, ids.slice()]),
@@ -535,7 +536,7 @@ export const assertLeafTabBookmarkTreeMatchesSnapshot = (
   const expectedItems = Object.fromEntries(Object.values(expected.bookmarkItems).map((item) => [item.id, {
     parentId: item.parentId,
     title: item.title,
-    url: item.url,
+    url: normalizeChromeBookmarkUrl(item.url),
   }]));
   const expectedOrders = Object.fromEntries(
     Object.entries(expected.bookmarkOrders).map(([key, order]) => [key, order.ids.slice()]),

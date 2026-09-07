@@ -6078,8 +6078,7 @@ struct BrowserShellPage {
           state: this.airaCloudBookmarkV4BootstrapState,
           onStart: (): void => this.startAiraCloudBookmarkV4Bootstrap(),
           onRetry: (): void => this.startAiraCloudBookmarkV4Bootstrap(),
-          onRestore: (): void => this.restoreAiraCloudBookmarkV4Backup(),
-          onKeepLocal: (): void => this.keepLocalBookmarksAndDisableAiraCloud()
+          onRestore: (): void => this.restoreAiraCloudBookmarkV4Backup()
         })
           .zIndex(10000)
       }
@@ -6352,7 +6351,7 @@ struct BrowserShellPage {
   }
 
   private startAiraCloudBookmarkV4Bootstrap(): void {
-    void sharedAiraCloudBookmarkV4BootstrapRuntime.start().catch((error: Error): void => {
+    void sharedAiraCloudBookmarkV4BootstrapRuntime.start(this.getAbilityContext()).catch((error: Error): void => {
       hilog.warn(LOG_DOMAIN, LOG_TAG, 'Aira Cloud Bookmark V4 bootstrap action failed: %{public}s',
         JSON.stringify(error));
       this.refreshAiraCloudBookmarkV4BootstrapState();
@@ -6362,14 +6361,6 @@ struct BrowserShellPage {
   private restoreAiraCloudBookmarkV4Backup(): void {
     void sharedAiraCloudBookmarkV4BootstrapRuntime.restoreBackupAndDisable().catch((error: Error): void => {
       hilog.warn(LOG_DOMAIN, LOG_TAG, 'Aira Cloud Bookmark V4 restore action failed: %{public}s',
-        JSON.stringify(error));
-      this.refreshAiraCloudBookmarkV4BootstrapState();
-    });
-  }
-
-  private keepLocalBookmarksAndDisableAiraCloud(): void {
-    void sharedAiraCloudBookmarkV4BootstrapRuntime.keepLocalAndDisable().catch((error: Error): void => {
-      hilog.warn(LOG_DOMAIN, LOG_TAG, 'Aira Cloud Bookmark V4 opt-out action failed: %{public}s',
         JSON.stringify(error));
       this.refreshAiraCloudBookmarkV4BootstrapState();
     });

@@ -31,7 +31,6 @@ export struct AiraCloudBookmarkV4BootstrapOverlay {
   onStart: () => void = (): void => {};
   onRetry: () => void = (): void => {};
   onRestore: () => void = (): void => {};
-  onKeepLocal: () => void = (): void => {};
 
   build() {
     Stack({ alignContent: Alignment.Top }) {
@@ -118,9 +117,9 @@ export struct AiraCloudBookmarkV4BootstrapOverlay {
   @Builder
   private buildPreparationDetails() {
     Column({ space: 12 }) {
-      this.buildDetailRow('1', '保存一份升级前的本机书签恢复点')
-      this.buildDetailRow('2', '读取并校验完整的 Aira 云书签')
-      this.buildDetailRow('3', '使用云端书签替换本机书签')
+      this.buildDetailRow('1', '导出本机书签备份到你选择的位置')
+      this.buildDetailRow('2', '清空本机书签')
+      this.buildDetailRow('3', '从云端同步一份完整书签')
     }
     .width('100%')
     .alignItems(HorizontalAlign.Start)
@@ -163,25 +162,6 @@ export struct AiraCloudBookmarkV4BootstrapOverlay {
         .borderRadius(8)
         .onClick((): void => this.handlePrimaryAction())
 
-      if (this.state.recoveryAvailable) {
-        Button('恢复升级前书签')
-          .width('100%')
-          .height(48)
-          .fontSize(15)
-          .fontColor(this.storedAccentColor)
-          .backgroundColor(this.storedSurfaceColor)
-          .borderRadius(8)
-          .onClick((): void => this.onRestore())
-      }
-
-      Button('保留本机书签并关闭 Aira 云同步')
-        .width('100%')
-        .height(48)
-        .fontSize(15)
-        .fontColor(this.storedSecondaryTextColor)
-        .backgroundColor(Color.Transparent)
-        .borderRadius(8)
-        .onClick((): void => this.onKeepLocal())
     }
     .width('100%')
     .margin({ top: 32 })
@@ -212,8 +192,8 @@ export struct AiraCloudBookmarkV4BootstrapOverlay {
       return '请保持 Aira 在前台。完成前不会启动自动书签同步。';
     }
     if (this.state.status === 'failed') {
-      return '本机恢复点仍然保留。你可以重试、恢复升级前书签，或保留当前本机书签并关闭 Aira 云同步。';
+      return '本机书签备份已经保存。请重试，用云端书签覆盖本机。';
     }
-    return '此版本使用全新的 Aira 云书签基线。更新前会先备份本机书签，然后以云端书签为准完成一次干净初始化。';
+    return '此版本使用全新的 Aira 云书签基线。请先把本机书签导出为本地备份；备份成功后会清空本机书签，再从云端同步一份。';
   }
 }

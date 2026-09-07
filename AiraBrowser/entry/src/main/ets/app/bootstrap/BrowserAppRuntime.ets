@@ -632,17 +632,18 @@ const sharedAiraCloudBookmarkV4BootstrapCoordinator: AiraCloudBookmarkV4Bootstra
     sharedAiraCloudBookmarkV4BootstrapStateStore,
     sharedSyncExperienceCoordinator
   );
+export const sharedLocalBackupCoordinator: LocalBackupCoordinator = new LocalBackupCoordinator(
+  sharedLocalBackupService,
+  sharedSyncExperienceCoordinator
+);
 export const sharedAiraCloudBookmarkV4BootstrapRuntime: AiraCloudBookmarkV4BootstrapRuntime =
   new AiraCloudBookmarkV4BootstrapRuntime(
     sharedSyncService,
     sharedMembershipFeature,
     sharedAiraCloudBookmarkV4BootstrapStateStore,
-    sharedAiraCloudBookmarkV4BootstrapCoordinator
+    sharedAiraCloudBookmarkV4BootstrapCoordinator,
+    sharedLocalBackupCoordinator
   );
-export const sharedLocalBackupCoordinator: LocalBackupCoordinator = new LocalBackupCoordinator(
-  sharedLocalBackupService,
-  sharedSyncExperienceCoordinator
-);
 export const sharedHuaweiAccountMutationCoordinator: HuaweiAccountMutationCoordinator =
   new HuaweiAccountMutationCoordinator(
     sharedSyncExperienceCoordinator,

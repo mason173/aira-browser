@@ -1252,6 +1252,8 @@ export function buildBrowserNewWindowTestHtml(): string {
 const flagsSource = fs.readFileSync(buildVariantFlags, 'utf8');
 const developmentDiagnosticsFlag = 'export const AIRA_ENABLE_DEVELOPMENT_DIAGNOSTICS: boolean = true;';
 const releaseDiagnosticsFlag = 'export const AIRA_ENABLE_DEVELOPMENT_DIAGNOSTICS: boolean = false;';
+const debugLegacyFlag = 'export const AIRA_DEBUG_TREAT_AIRACLOUD_AS_V4_LEGACY: boolean = true;';
+const releaseLegacyFlag = 'export const AIRA_DEBUG_TREAT_AIRACLOUD_AS_V4_LEGACY: boolean = false;';
 let nextFlagsSource = flagsSource;
 if (nextFlagsSource.includes(developmentDiagnosticsFlag)) {
   nextFlagsSource = nextFlagsSource.replace(
@@ -1261,9 +1263,35 @@ if (nextFlagsSource.includes(developmentDiagnosticsFlag)) {
 } else if (!nextFlagsSource.includes(releaseDiagnosticsFlag)) {
   throw new Error(`Could not find development diagnostics flag in ${buildVariantFlags}`);
 }
+if (nextFlagsSource.includes(debugLegacyFlag)) {
+  nextFlagsSource = nextFlagsSource.replace(debugLegacyFlag, releaseLegacyFlag);
+} else if (!nextFlagsSource.includes(releaseLegacyFlag)) {
+  throw new Error(`Could not find Aira Cloud V4 legacy debug flag in ${buildVariantFlags}`);
+}
 fs.writeFileSync(buildVariantFlags, nextFlagsSource);
 NODE
   echo "Using release source pruning: removed debug lab HTML and development diagnostics buttons."
+}
+
+
+apply_debug_aira_cloud_v4_legacy_flag() {
+  local build_variant_flags="${PROJECT_DIR}/entry/src/main/ets/common/config/BuildVariantFlags.ets"
+  backup_release_file "${build_variant_flags}"
+  "${NODE_BIN}" - "${build_variant_flags}" <<'NODE'
+const fs = require('fs');
+const buildVariantFlags = process.argv[2];
+const source = fs.readFileSync(buildVariantFlags, 'utf8');
+const debugLegacyFlag = 'export const AIRA_DEBUG_TREAT_AIRACLOUD_AS_V4_LEGACY: boolean = true;';
+const releaseLegacyFlag = 'export const AIRA_DEBUG_TREAT_AIRACLOUD_AS_V4_LEGACY: boolean = false;';
+if (source.includes(debugLegacyFlag)) {
+  process.exit(0);
+}
+if (!source.includes(releaseLegacyFlag)) {
+  throw new Error(`Could not find Aira Cloud V4 legacy debug flag in ${buildVariantFlags}`);
+}
+fs.writeFileSync(buildVariantFlags, source.replace(releaseLegacyFlag, debugLegacyFlag));
+NODE
+  echo "Using debug Aira Cloud V4 cutover candidate override."
 }
 
 read_signing_paths() {
@@ -1674,6 +1702,8 @@ fi
 if [ "${BUILD_VARIANT}" = "release" ]; then
   apply_release_page_pruning
   apply_release_source_pruning
+else
+  apply_debug_aira_cloud_v4_legacy_flag
 fi
 
 validate_effective_build_profile() {

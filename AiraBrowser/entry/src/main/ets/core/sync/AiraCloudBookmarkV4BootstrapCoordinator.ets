@@ -35,20 +35,6 @@ export class AiraCloudBookmarkV4BootstrapCoordinator {
     );
   }
 
-  keepLocalAndDisable(uid: string): Promise<AiraCloudBookmarkV4BootstrapRecord> {
-    return this.transitionDomain.runAiraCloudBookmarkV4Bootstrap(
-      async (): Promise<AiraCloudBookmarkV4BootstrapRecord> => {
-        const normalizedUid = this.requireUid(uid);
-        await this.domain.disableAiraCloudBookmarkSync();
-        const previous = await this.stateDomain.load(normalizedUid);
-        const record = this.buildRecord(normalizedUid, 'opted_out', 'opted_out', previous);
-        record.completedAt = this.nowProvider();
-        await this.stateDomain.save(record);
-        return record;
-      }
-    );
-  }
-
   restoreBackupAndDisable(uid: string): Promise<AiraCloudBookmarkV4BootstrapRecord> {
     return this.transitionDomain.runAiraCloudBookmarkV4Bootstrap(
       async (): Promise<AiraCloudBookmarkV4BootstrapRecord> => {
@@ -69,12 +55,11 @@ export class AiraCloudBookmarkV4BootstrapCoordinator {
             current.backupId,
             current.backupSha256
           );
-          await this.domain.disableAiraCloudBookmarkSync();
-          current.status = 'opted_out';
-          current.phase = 'opted_out';
+          current.status = 'failed';
+          current.phase = 'failed';
           current.errorMessage = '';
           current.updatedAt = this.nowProvider();
-          current.completedAt = current.updatedAt;
+          current.completedAt = 0;
           await this.stateDomain.save(current);
           return current;
         } catch (error) {
@@ -104,22 +89,7 @@ export class AiraCloudBookmarkV4BootstrapCoordinator {
       if (remoteCommitId.trim().length === 0) {
         throw new Error('Aira 云端没有可用于初始化的完整书签快照。');
       }
-      current.phase = 'creating_backup';
       current.remoteCommitId = remoteCommitId;
-      current.updatedAt = this.nowProvider();
-      await this.stateDomain.save(current);
-      if (current.backupId.length > 0 && current.backupSha256.length > 0) {
-        await this.recoveryDomain.verifyRecoveryPoint(
-          normalizedUid,
-          current.backupId,
-          current.backupSha256
-        );
-      } else {
-        const recoveryPoint = await this.recoveryDomain.createRecoveryPoint(normalizedUid, remoteCommitId);
-        current.backupId = recoveryPoint.backupId;
-        current.backupSha256 = recoveryPoint.sha256;
-      }
-      current.phase = 'reading_remote';
       current.updatedAt = this.nowProvider();
       await this.stateDomain.save(current);
 
@@ -142,26 +112,9 @@ export class AiraCloudBookmarkV4BootstrapCoordinator {
       await this.stateDomain.save(current);
       return current;
     } catch (error) {
-      const failureMessage = error instanceof Error ? error.message : JSON.stringify(error);
-      let recoveryFailureMessage = '';
-      if (current.backupId.length > 0 && current.backupSha256.length > 0) {
-        try {
-          await this.recoveryDomain.restoreRecoveryPoint(
-            normalizedUid,
-            current.backupId,
-            current.backupSha256
-          );
-        } catch (recoveryError) {
-          recoveryFailureMessage = recoveryError instanceof Error
-            ? recoveryError.message
-            : JSON.stringify(recoveryError);
-        }
-      }
       current.status = 'failed';
       current.phase = 'failed';
-      current.errorMessage = recoveryFailureMessage.length > 0
-        ? `${failureMessage}；自动恢复升级前书签失败：${recoveryFailureMessage}`
-        : failureMessage;
+      current.errorMessage = error instanceof Error ? error.message : JSON.stringify(error);
       current.updatedAt = this.nowProvider();
       current.completedAt = 0;
       await this.stateDomain.save(current);
@@ -180,7 +133,7 @@ export class AiraCloudBookmarkV4BootstrapCoordinator {
   private buildRecord(
     uid: string,
     status: 'running' | 'opted_out',
-    phase: 'reading_remote' | 'opted_out',
+    phase: 'creating_backup' | 'reading_remote' | 'opted_out',
     previous?: AiraCloudBookmarkV4BootstrapRecord
   ): AiraCloudBookmarkV4BootstrapRecord {
     const sameCutover = previous?.cutoverId === AIRA_CLOUD_BOOKMARK_V4_CUTOVER_ID;

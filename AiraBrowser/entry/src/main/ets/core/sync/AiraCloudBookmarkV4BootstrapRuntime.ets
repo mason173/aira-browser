@@ -1,6 +1,10 @@
+import { common } from '@kit.AbilityKit';
 import { AiraSyncSettings } from '../../common/models/AiraSyncModels';
 import { AiraMembershipState } from '../../common/models/MembershipModels';
 import { AiraCloudBookmarkV4BootstrapRecord } from '../../common/models/AiraCloudBookmarkV4BootstrapModels';
+import { BrowserBoundaryRouteState } from '../../common/utils/RouteParamUtils';
+import { LocalBackupSelection } from '../../features/backup/LocalBackupModels';
+import { LocalBackupCoordinator } from '../backup/LocalBackupCoordinator';
 import { AiraCloudBookmarkV4BootstrapStateStore } from '../../data/sync/AiraCloudBookmarkV4BootstrapStateStore';
 import { MembershipFeature } from '../../features/membership/MembershipFeature';
 import { SyncService } from '../../services/sync/SyncService';
@@ -14,11 +18,26 @@ import {
 export const AIRA_CLOUD_BOOKMARK_V4_BOOTSTRAP_REVISION_KEY: string =
   'aira.cloud.bookmark.v4.bootstrap.revision';
 
+const AIRA_CLOUD_V4_BOOKMARK_BACKUP_SELECTION: LocalBackupSelection = {
+  bookmarks: true,
+  history: false,
+  personalization: false,
+  userScripts: false,
+  userScriptValues: false
+};
+
+const AIRA_CLOUD_V4_BOOKMARK_BACKUP_BOUNDARY: BrowserBoundaryRouteState = {
+  dataScope: '',
+  privacyMode: '',
+  boundarySource: 'aira_cloud_v4_bootstrap'
+};
+
 export class AiraCloudBookmarkV4BootstrapRuntime {
   private readonly syncService: SyncService;
   private readonly membershipFeature: MembershipFeature;
   private readonly stateStore: AiraCloudBookmarkV4BootstrapStateStore;
   private readonly coordinator: AiraCloudBookmarkV4BootstrapCoordinator;
+  private readonly localBackupCoordinator: LocalBackupCoordinator;
   private readonly policy: AiraCloudBookmarkV4BootstrapPolicyService =
     new AiraCloudBookmarkV4BootstrapPolicyService();
   private readonly viewModel: AiraCloudBookmarkV4BootstrapViewModelService =
@@ -33,12 +52,14 @@ export class AiraCloudBookmarkV4BootstrapRuntime {
     syncService: SyncService,
     membershipFeature: MembershipFeature,
     stateStore: AiraCloudBookmarkV4BootstrapStateStore,
-    coordinator: AiraCloudBookmarkV4BootstrapCoordinator
+    coordinator: AiraCloudBookmarkV4BootstrapCoordinator,
+    localBackupCoordinator: LocalBackupCoordinator
   ) {
     this.syncService = syncService;
     this.membershipFeature = membershipFeature;
     this.stateStore = stateStore;
     this.coordinator = coordinator;
+    this.localBackupCoordinator = localBackupCoordinator;
     AppStorage.setOrCreate(AIRA_CLOUD_BOOKMARK_V4_BOOTSTRAP_REVISION_KEY, 0);
   }
 
@@ -84,32 +105,27 @@ export class AiraCloudBookmarkV4BootstrapRuntime {
       this.record.backupId.length > 0 && this.record.backupSha256.length > 0;
   }
 
-  async start(): Promise<void> {
+  async start(context: common.UIAbilityContext): Promise<void> {
     const uid = this.viewState.uid.trim();
     if (uid.length === 0 || this.viewState.status === 'running') {
+      return;
+    }
+    const exportOutcome = await this.localBackupCoordinator.exportBackup(
+      context,
+      AIRA_CLOUD_V4_BOOKMARK_BACKUP_SELECTION,
+      AIRA_CLOUD_V4_BOOKMARK_BACKUP_BOUNDARY
+    );
+    if (exportOutcome.status === 'cancelled') {
+      return;
+    }
+    if (exportOutcome.status === 'failed') {
+      this.publishFailure(uid, new Error(exportOutcome.message));
+      this.bump();
       return;
     }
     this.publishRunning(uid);
     try {
       const record = await this.coordinator.run(uid);
-      this.record = record;
-      this.viewState = this.viewModel.fromRecord(record);
-    } catch (error) {
-      this.publishFailure(uid, error as Error);
-    } finally {
-      this.operationRunning = false;
-      this.bump();
-    }
-  }
-
-  async keepLocalAndDisable(): Promise<void> {
-    const uid = this.viewState.uid.trim();
-    if (uid.length === 0 || this.viewState.status === 'running') {
-      return;
-    }
-    this.publishRunning(uid);
-    try {
-      const record = await this.coordinator.keepLocalAndDisable(uid);
       this.record = record;
       this.viewState = this.viewModel.fromRecord(record);
     } catch (error) {
@@ -159,10 +175,7 @@ export class AiraCloudBookmarkV4BootstrapRuntime {
 
   private isPotentialLegacyCandidate(settings: AiraSyncSettings,
     membership: AiraMembershipState): boolean {
-    const uid = settings.huaweiCloud.uid.trim();
-    return settings.remoteKind === 'aira_cloud' && settings.bookmarkSyncEnabled === true &&
-      (settings.bookmarkGenerationInitializedAt ?? 0) > 0 && membership.plan === 'pro' &&
-      uid.length > 0 && membership.userId.trim() === uid;
+    return this.policy.evaluate(settings, membership, this.record).required;
   }
 
   private hiddenState(): AiraCloudBookmarkV4BootstrapViewState {
