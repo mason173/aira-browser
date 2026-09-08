@@ -49,7 +49,7 @@ export struct BrowserTabletInterfaceModeSettingsContent {
     alignment: DialogAlignment.Center,
     autoCancel: false,
     customStyle: false,
-    systemMaterial: createCenteredDialogMaterial()
+    systemMaterial: createCenteredDialogMaterial(),
   });
 
   aboutToAppear(): void {

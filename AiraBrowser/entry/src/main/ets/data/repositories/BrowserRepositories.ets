@@ -1972,6 +1972,9 @@ export class RdbHistoryRepository implements HistoryRepository {
   }
 
   listVisits(limit?: number): HistoryVisit[] {
+    if (limit !== undefined && limit > 0 && this.isVisitsCacheNewestFirst()) {
+      return this.visitsCache.slice(0, Math.min(limit, this.visitsCache.length));
+    }
     const visits = this.visitsCache
       .slice()
       .sort((left: HistoryVisit, right: HistoryVisit) => right.visitedAt - left.visitedAt);
@@ -1979,6 +1982,15 @@ export class RdbHistoryRepository implements HistoryRepository {
       return visits;
     }
     return visits.slice(0, limit);
+  }
+
+  private isVisitsCacheNewestFirst(): boolean {
+    for (let index = 1; index < this.visitsCache.length; index += 1) {
+      if (this.visitsCache[index - 1].visitedAt < this.visitsCache[index].visitedAt) {
+        return false;
+      }
+    }
+    return true;
   }
 
   async initialize(): Promise<void> {

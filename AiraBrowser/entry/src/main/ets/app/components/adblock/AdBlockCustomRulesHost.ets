@@ -100,7 +100,7 @@ export struct AdBlockCustomRulesHost {
     autoCancel: true,
     alignment: DialogAlignment.Center,
     customStyle: false,
-    systemMaterial: createCenteredDialogMaterial()
+    systemMaterial: createCenteredDialogMaterial(),
   });
   private ruleImportDialogOpen: boolean = false;
   private ruleImportDialogController: CustomDialogController = new CustomDialogController({

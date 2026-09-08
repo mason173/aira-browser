@@ -217,7 +217,7 @@ struct SettingsDetailPage {
     alignment: DialogAlignment.Center,
     autoCancel: true,
     customStyle: false,
-    systemMaterial: createCenteredDialogMaterial()
+    systemMaterial: createCenteredDialogMaterial(),
   });
   private supportQqGroupDialogController: CustomDialogController = new CustomDialogController({
     builder: SupportQqGroupDialog({
@@ -229,7 +229,7 @@ struct SettingsDetailPage {
     alignment: DialogAlignment.Center,
     autoCancel: true,
     customStyle: false,
-    systemMaterial: createCenteredDialogMaterial()
+    systemMaterial: createCenteredDialogMaterial(),
   });
   private alwaysPrivateConfirmationDialogController: CustomDialogController = new CustomDialogController({
     builder: AlwaysPrivateModeConfirmationDialog({
@@ -246,7 +246,7 @@ struct SettingsDetailPage {
     alignment: DialogAlignment.Center,
     autoCancel: false,
     customStyle: false,
-    systemMaterial: createCenteredDialogMaterial()
+    systemMaterial: createCenteredDialogMaterial(),
   });
 
   aboutToAppear(): void {

@@ -136,6 +136,11 @@ export class AiraCloudBookmarkV4BootstrapRuntime {
     }
   }
 
+  async acknowledgeNativeV4Activation(uid: string, commitId: string): Promise<void> {
+    this.record = await this.coordinator.acknowledgeNativeV4Activation(uid, commitId);
+    await this.reconcile();
+  }
+
   async restoreBackupAndDisable(): Promise<void> {
     const uid = this.viewState.uid.trim();
     const recordUid = this.record?.uid.trim() ?? '';

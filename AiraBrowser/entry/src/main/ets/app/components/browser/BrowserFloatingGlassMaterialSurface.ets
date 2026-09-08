@@ -1,4 +1,3 @@
-import { uiMaterial } from '@kit.ArkUI';
 import {
   FLOATING_GLASS_MATERIAL_IMMERSIVE_STYLE,
   FLOATING_GLASS_MATERIAL_LIGHT_EFFECT_COLOR
@@ -13,7 +12,7 @@ export struct BrowserFloatingGlassMaterialSurface {
   @Prop surfaceRadius: number = 0;
   @Prop tintColor: ResourceColor = BROWSER_FLOATING_GLASS_MATERIAL_LIGHT_TINT;
   @Prop fallbackColor: ResourceColor = $r('app.color.surface_glass_background');
-  @Prop materialStyle: uiMaterial.ImmersiveStyle = FLOATING_GLASS_MATERIAL_IMMERSIVE_STYLE;
+  @Prop materialStyle: number = FLOATING_GLASS_MATERIAL_IMMERSIVE_STYLE;
   @Prop lightEffectColor: ResourceColor = FLOATING_GLASS_MATERIAL_LIGHT_EFFECT_COLOR;
   @Prop materialShadowEnabled: boolean = false;
   @Prop materialInteractive: boolean = true;

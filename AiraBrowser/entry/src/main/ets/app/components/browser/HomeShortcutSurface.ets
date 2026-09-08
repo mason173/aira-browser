@@ -29,7 +29,8 @@ import { AppEmptyState } from '../common/AppEmptyState';
 import { WebsiteIconView } from '../common/WebsiteIconView';
 import {
   createFloatingGlassMaterialIfAvailable,
-  resolveFloatingGlassMaterialBackgroundColor
+  resolveFloatingGlassMaterialBackgroundColor,
+  systemMaterialModifier
 } from '../common/FloatingGlassMaterialTokens';
 import { HOME_WALLPAPER_APPEARANCE_TRANSITION_MS } from '../../../core/wallpaper/HomeWallpaperPresentationTokens';
 import { BrowserFloatingGlassMaterialSurface } from './BrowserFloatingGlassMaterialSurface';
@@ -505,9 +506,9 @@ export struct HomeShortcutSurface {
     .backgroundColor(resolveFloatingGlassMaterialBackgroundColor(
       $r('app.color.surface_floating_background')
     ))
-    .systemMaterial(createFloatingGlassMaterialIfAvailable(
+    .attributeModifier(systemMaterialModifier(createFloatingGlassMaterialIfAvailable(
       resolveBrowserHomeShortcutMaterialTintForMode(this.storedResolvedThemeMode)
-    ))
+    )))
   }
 
   @Builder

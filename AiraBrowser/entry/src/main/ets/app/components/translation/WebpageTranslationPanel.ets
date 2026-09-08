@@ -18,7 +18,8 @@ import {
 import {
   createFloatingGlassMaterialIfAvailable,
   resolveFloatingGlassMaterialBackgroundColor,
-  resolveFloatingGlassMaterialTintForMode
+  resolveFloatingGlassMaterialTintForMode,
+  systemMaterialModifier
 } from '../common/FloatingGlassMaterialTokens';
 
 const WEBPAGE_TRANSLATION_DISPLAY_MODE_RADIO_GROUP: string = 'webpage-translation-display-mode';
@@ -133,9 +134,9 @@ export struct WebpageTranslationPanel {
     .backgroundColor(resolveFloatingGlassMaterialBackgroundColor(
       $r('app.color.surface_floating_background')
     ))
-    .systemMaterial(createFloatingGlassMaterialIfAvailable(
+    .attributeModifier(systemMaterialModifier(createFloatingGlassMaterialIfAvailable(
       resolveFloatingGlassMaterialTintForMode(this.storedResolvedThemeMode)
-    ))
+    )))
   }
 
   @Builder

@@ -1,8 +1,13 @@
-import { uiMaterial } from '@kit.ArkUI';
 import {
   FLOATING_GLASS_MATERIAL_THICK_STYLE,
   isFloatingGlassMaterialAvailable
 } from './FloatingGlassMaterialTokens';
+import {
+  applyCommonSystemMaterial,
+  assignDialogSystemMaterial,
+  createDialogImmersiveMaterial,
+  ImmersiveMaterialHandle
+} from './ArkUiMaterialAccess';
 
 export const CENTERED_DIALOG_HORIZONTAL_MARGIN_VP: number = 12;
 export const CENTERED_DIALOG_MAX_WIDTH_VP: number = 420;
@@ -22,15 +27,11 @@ const CENTERED_DIALOG_ALERT_WIDTH: Dimension = '90%';
 const CENTERED_DIALOG_TALL_HEIGHT: string = 'calc(100% - 48vp)';
 const CENTERED_DIALOG_TALL_MAX_HEIGHT_VP: number = 720;
 
-export function createCenteredDialogMaterial(): uiMaterial.ImmersiveMaterial | undefined {
+export function createCenteredDialogMaterial(): ImmersiveMaterialHandle | undefined {
   if (!isFloatingGlassMaterialAvailable()) {
     return undefined;
   }
-  return new uiMaterial.ImmersiveMaterial({
-    style: FLOATING_GLASS_MATERIAL_THICK_STYLE,
-    applyShadow: true,
-    interactive: false
-  });
+  return createDialogImmersiveMaterial(FLOATING_GLASS_MATERIAL_THICK_STYLE);
 }
 
 export type CenteredAlertDialogParams =
@@ -40,7 +41,7 @@ export type CenteredAlertDialogParams =
 export function configureCenteredAlertDialog(params: CenteredAlertDialogParams): CenteredAlertDialogParams {
   params.width = CENTERED_DIALOG_ALERT_WIDTH;
   params.cornerRadius = CENTERED_DIALOG_CORNER_RADIUS_VP;
-  params.systemMaterial = createCenteredDialogMaterial();
+  assignDialogSystemMaterial(params, createCenteredDialogMaterial());
   return params;
 }
 
@@ -100,10 +101,7 @@ class CenteredDialogSurfaceModifier implements AttributeModifier<CommonAttribute
       })
     }
     if (this.materialEnabled) {
-      const material = createCenteredDialogMaterial();
-      if (material !== undefined) {
-        instance.systemMaterial(material)
-      }
+      applyCommonSystemMaterial(instance, createCenteredDialogMaterial());
     }
   }
 }

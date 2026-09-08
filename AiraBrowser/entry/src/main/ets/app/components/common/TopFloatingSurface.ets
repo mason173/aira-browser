@@ -6,6 +6,8 @@ import { resolveFloatingGlassMaterialTintForMode } from './FloatingGlassMaterial
 const TOP_FLOATING_DEFAULT_HORIZONTAL_MARGIN: number = 14;
 const TOP_FLOATING_DEFAULT_RADIUS: number = 18;
 const TOP_FLOATING_DEFAULT_ANIMATION_MS: number = 520;
+const TOP_FLOATING_SURFACE_SHADOW_RADIUS: number = 28;
+const TOP_FLOATING_SURFACE_SHADOW_OFFSET_Y: number = 8;
 export const TOP_FLOATING_OVERLAY_ENTRY_CURVE: ICurve = curves.springMotion(0.5, 0.72);
 export const TOP_FLOATING_OVERLAY_EXIT_CURVE: Curve = Curve.EaseIn;
 const TOP_FLOATING_SWIPE_START_DISTANCE: number = 6;
@@ -289,7 +291,9 @@ export struct TopFloatingSurface {
         surfaceWidth: '100%',
         surfaceHeight: this.heightVp,
         surfaceRadius: this.radiusVp,
-        tintColor: resolveFloatingGlassMaterialTintForMode(this.storedResolvedThemeMode)
+        tintColor: resolveFloatingGlassMaterialTintForMode(this.storedResolvedThemeMode),
+        fallbackColor: $r('app.color.browser_bottom_toolbar_glass_background'),
+        backgroundBlurEnabled: true
       }) {
         Row() {
           this.content()
@@ -308,6 +312,12 @@ export struct TopFloatingSurface {
     .width('100%')
     .height(this.heightVp)
     .borderRadius(this.radiusVp)
+    .shadow({
+      radius: TOP_FLOATING_SURFACE_SHADOW_RADIUS,
+      color: $r('app.color.background_open_prompt_shadow'),
+      offsetX: 0,
+      offsetY: TOP_FLOATING_SURFACE_SHADOW_OFFSET_Y
+    })
   }
 
   @Builder

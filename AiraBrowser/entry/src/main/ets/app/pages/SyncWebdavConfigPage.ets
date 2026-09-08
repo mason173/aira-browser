@@ -153,7 +153,7 @@ struct SyncWebdavConfigPage {
     alignment: DialogAlignment.Center,
     autoCancel: true,
     customStyle: false,
-    systemMaterial: createCenteredDialogMaterial()
+    systemMaterial: createCenteredDialogMaterial(),
   });
   private syncResultDialogController: CustomDialogController = new CustomDialogController({
     builder: SyncResultDialog({
@@ -163,7 +163,7 @@ struct SyncWebdavConfigPage {
     alignment: DialogAlignment.Center,
     autoCancel: true,
     customStyle: false,
-    systemMaterial: createCenteredDialogMaterial()
+    systemMaterial: createCenteredDialogMaterial(),
   });
   private syncProgressDialogOpen: boolean = false;
   private syncProgressTipTimer: number = -1;

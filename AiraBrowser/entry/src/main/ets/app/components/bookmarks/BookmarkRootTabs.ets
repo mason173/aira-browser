@@ -1,5 +1,8 @@
 import { BookmarkStorageScope } from '../../../common/models/BrowserModels';
+import { BROWSER_THEME_STORAGE_RESOLVED_MODE_KEY } from '../../../core/theme/BrowserThemeStorageKeys';
 import { SegmentedTabOption, SegmentedTabs } from '../common/SegmentedTabs';
+import { FloatingGlassMaterialSurface } from '../common/FloatingGlassMaterialSurface';
+import { resolveFloatingGlassMaterialTintForMode } from '../common/FloatingGlassMaterialTokens';
 import {
   BOOKMARK_OTHER_ROOT_ID,
   BOOKMARK_TOOLBAR_ROOT_ID,
@@ -10,6 +13,7 @@ import {
 /** Shared root-folder tab chrome for the phone bookmark manager. */
 @Component
 export struct BookmarkRootTabs {
+  @StorageProp(BROWSER_THEME_STORAGE_RESOLVED_MODE_KEY) private storedResolvedThemeMode: string = 'light';
   @Prop scope: BookmarkStorageScope = 'regular';
   @Prop selectedId: string = '';
   @Prop tabsTopInset: number = 0;
@@ -20,21 +24,30 @@ export struct BookmarkRootTabs {
       this.content()
 
       Row() {
-        SegmentedTabs({
-          options: this.buildOptions(),
-          selectedId: this.selectedId,
-          barHeight: 36,
-          itemHeight: 30,
-          fontSize: 14,
-          barPadding: 3,
-          onSelect: (id: string): void => {
-            this.onSelect(id);
-          }
-        })
-        .width('100%')
-        .height(36)
-        .borderRadius(18)
-        .clip(true)
+        FloatingGlassMaterialSurface({
+          surfaceWidth: '100%',
+          surfaceHeight: 36,
+          surfaceRadius: 18,
+          tintColor: resolveFloatingGlassMaterialTintForMode(this.storedResolvedThemeMode),
+          fallbackColor: $r('app.color.browser_bottom_toolbar_glass_background'),
+          backgroundBlurEnabled: true
+        }) {
+          SegmentedTabs({
+            options: this.buildOptions(),
+            selectedId: this.selectedId,
+            barHeight: 36,
+            itemHeight: 30,
+            fontSize: 14,
+            barPadding: 3,
+            fallbackColor: $r('sys.color.ohos_id_color_background_transparent'),
+            barMaterialEnabled: false,
+            onSelect: (id: string): void => {
+              this.onSelect(id);
+            }
+          })
+            .width('100%')
+            .height(36)
+        }
       }
       .width('100%')
       .height(36)

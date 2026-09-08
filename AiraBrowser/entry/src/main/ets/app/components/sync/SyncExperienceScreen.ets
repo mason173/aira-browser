@@ -159,7 +159,7 @@ export struct SyncExperienceScreen {
     alignment: DialogAlignment.Center,
     autoCancel: false,
     customStyle: false,
-    systemMaterial: createCenteredDialogMaterial()
+    systemMaterial: createCenteredDialogMaterial(),
   });
 
   aboutToAppear(): void {

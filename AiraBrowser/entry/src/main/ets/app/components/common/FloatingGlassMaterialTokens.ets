@@ -1,19 +1,33 @@
-import { uiMaterial } from '@kit.ArkUI';
 import { deviceInfo } from '@kit.BasicServicesKit';
+import {
+  createImmersiveMaterial,
+  IMMERSIVE_STYLE_STANDARD,
+  IMMERSIVE_STYLE_THICK,
+  IMMERSIVE_STYLE_ULTRA_THICK,
+  isKitMaterialEnabled,
+  systemMaterialModifier as createSystemMaterialModifier,
+  ImmersiveMaterialHandle,
+  ImmersiveStyleHandle
+} from './ArkUiMaterialAccess';
+
+export function systemMaterialModifier(
+  material: ImmersiveMaterialHandle | undefined
+): AttributeModifier<CommonAttribute> {
+  return createSystemMaterialModifier(material);
+}
 
 export const IMMERSIVE_MATERIAL_MIN_API_VERSION: number = 26;
 export const FLOATING_GLASS_MATERIAL_BLUR_STYLE: BlurStyle = BlurStyle.COMPONENT_THIN;
+export const FLOATING_GLASS_MATERIAL_ADAPTIVE_OPTIONS: BackgroundBlurStyleOptions = {
+  adaptiveColor: AdaptiveColor.AVERAGE,
+  policy: BlurStyleActivePolicy.ALWAYS_ACTIVE
+};
 export const FLOATING_GLASS_MATERIAL_LIGHT_TINT: ResourceColor = '#18FFFFFF';
 export const FLOATING_GLASS_MATERIAL_DARK_TINT: ResourceColor = '#18000000';
 export const FLOATING_GLASS_MATERIAL_LIGHT_EFFECT_COLOR: ResourceColor = '#25FFFFFF';
-// ImmersiveStyle is unavailable on API 23-25. Keep the numeric enum values
-// module-safe; the constructor is still reached only after the API 26 gate.
-export const FLOATING_GLASS_MATERIAL_IMMERSIVE_STYLE: uiMaterial.ImmersiveStyle =
-  1 as uiMaterial.ImmersiveStyle;
-export const FLOATING_GLASS_MATERIAL_THICK_STYLE: uiMaterial.ImmersiveStyle =
-  3 as uiMaterial.ImmersiveStyle;
-export const FLOATING_GLASS_MATERIAL_ULTRA_THICK_STYLE: uiMaterial.ImmersiveStyle =
-  4 as uiMaterial.ImmersiveStyle;
+export const FLOATING_GLASS_MATERIAL_IMMERSIVE_STYLE: ImmersiveStyleHandle = IMMERSIVE_STYLE_STANDARD;
+export const FLOATING_GLASS_MATERIAL_THICK_STYLE: ImmersiveStyleHandle = IMMERSIVE_STYLE_THICK;
+export const FLOATING_GLASS_MATERIAL_ULTRA_THICK_STYLE: ImmersiveStyleHandle = IMMERSIVE_STYLE_ULTRA_THICK;
 
 let cachedFloatingGlassMaterialAvailable: boolean | undefined = undefined;
 
@@ -25,31 +39,21 @@ export function resolveFloatingGlassMaterialTintForMode(resolvedThemeMode: strin
 
 export function createFloatingGlassMaterial(
   tintColor: ResourceColor,
-  style: uiMaterial.ImmersiveStyle = FLOATING_GLASS_MATERIAL_IMMERSIVE_STYLE,
+  style: ImmersiveStyleHandle = FLOATING_GLASS_MATERIAL_IMMERSIVE_STYLE,
   lightEffectColor: ResourceColor | null = FLOATING_GLASS_MATERIAL_LIGHT_EFFECT_COLOR,
   applyShadow: boolean = true,
   interactive: boolean = true
-): uiMaterial.ImmersiveMaterial {
-  return new uiMaterial.ImmersiveMaterial({
-    style: style,
-    materialColor: tintColor,
-    // colorInvert is reserved for system resource colors. These tints are app colors.
-    colorInvert: false,
-    applyShadow: applyShadow,
-    interactive: interactive,
-    lightEffect: lightEffectColor === null ? null : {
-      color: lightEffectColor
-    }
-  });
+): ImmersiveMaterialHandle {
+  return createImmersiveMaterial(style, tintColor, lightEffectColor, applyShadow, interactive);
 }
 
 export function createFloatingGlassMaterialIfAvailable(
   tintColor: ResourceColor,
-  style: uiMaterial.ImmersiveStyle = FLOATING_GLASS_MATERIAL_IMMERSIVE_STYLE,
+  style: ImmersiveStyleHandle = FLOATING_GLASS_MATERIAL_IMMERSIVE_STYLE,
   lightEffectColor: ResourceColor | null = FLOATING_GLASS_MATERIAL_LIGHT_EFFECT_COLOR,
   applyShadow: boolean = true,
   interactive: boolean = true
-): uiMaterial.ImmersiveMaterial | undefined {
+): ImmersiveMaterialHandle | undefined {
   return isFloatingGlassMaterialAvailable() ?
     createFloatingGlassMaterial(tintColor, style, lightEffectColor, applyShadow, interactive) :
     undefined;
@@ -70,8 +74,7 @@ export function isFloatingGlassMaterialAvailable(): boolean {
       cachedFloatingGlassMaterialAvailable = false;
       return cachedFloatingGlassMaterialAvailable;
     }
-    const materialState = uiMaterial.getMaterialInfo().state;
-    cachedFloatingGlassMaterialAvailable = materialState !== uiMaterial.MaterialState.DISABLE;
+    cachedFloatingGlassMaterialAvailable = isKitMaterialEnabled();
   } catch (_error) {
     cachedFloatingGlassMaterialAvailable = false;
   }

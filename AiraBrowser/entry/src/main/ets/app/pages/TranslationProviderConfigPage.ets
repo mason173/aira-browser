@@ -81,7 +81,7 @@ struct TranslationProviderConfigPage {
     autoCancel: false,
     alignment: DialogAlignment.Center,
     customStyle: false,
-    systemMaterial: createCenteredDialogMaterial()
+    systemMaterial: createCenteredDialogMaterial(),
   });
   @State private draft: TranslationProviderEditDraft = this.editViewModel.buildInitialDraft('custom_http');
   @State private errorMessage: string = '';

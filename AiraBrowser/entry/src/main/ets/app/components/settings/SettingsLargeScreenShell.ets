@@ -212,7 +212,7 @@ export struct SettingsLargeScreenShell {
     alignment: DialogAlignment.Center,
     autoCancel: true,
     customStyle: false,
-    systemMaterial: createCenteredDialogMaterial()
+    systemMaterial: createCenteredDialogMaterial(),
   });
 
   build() {

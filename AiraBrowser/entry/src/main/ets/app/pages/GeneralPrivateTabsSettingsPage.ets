@@ -67,7 +67,7 @@ struct GeneralPrivateTabsSettingsPage {
     autoCancel: false,
     alignment: DialogAlignment.Center,
     customStyle: false,
-    systemMaterial: createCenteredDialogMaterial()
+    systemMaterial: createCenteredDialogMaterial(),
   });
 
   aboutToAppear(): void {

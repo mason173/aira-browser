@@ -18,7 +18,8 @@ import { FloatingGlassMaterialSurface } from './FloatingGlassMaterialSurface';
 import {
   createFloatingGlassMaterialIfAvailable,
   resolveFloatingGlassMaterialBackgroundColor,
-  resolveFloatingGlassMaterialTintForMode
+  resolveFloatingGlassMaterialTintForMode,
+  systemMaterialModifier
 } from './FloatingGlassMaterialTokens';
 
 export type ManagementHdsBackIconKind = 'close' | 'back';
@@ -407,9 +408,9 @@ export struct ManagementHdsScaffold {
     .backgroundColor(resolveFloatingGlassMaterialBackgroundColor(
       $r('app.color.surface_floating_background')
     ))
-    .systemMaterial(createFloatingGlassMaterialIfAvailable(
+    .attributeModifier(systemMaterialModifier(createFloatingGlassMaterialIfAvailable(
       resolveFloatingGlassMaterialTintForMode(this.storedResolvedThemeMode)
-    ))
+    )))
   }
 
   @Builder

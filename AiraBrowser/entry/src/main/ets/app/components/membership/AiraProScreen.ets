@@ -6,19 +6,13 @@ import {
   AiraProOverviewViewModel,
   AiraProOverviewViewState
 } from '../../../core/membership/AiraProOverviewViewModel';
-import {
-  AiraProEntryConfirmationViewModel,
-  AiraProEntryConfirmationViewState
-} from '../../../core/membership/AiraProEntryConfirmationViewModel';
 import { AiraProOverviewScreen } from './AiraProOverviewScreen';
-import { AiraProEntryConfirmationSheet } from './AiraProEntryConfirmationSheet';
 import {
   BrowserThemeViewState,
   BrowserThemeViewStateFactory
 } from '../../../core/theme/BrowserThemeViewState';
 import {
   BROWSER_THEME_STORAGE_FLOATING_SURFACE_KEY,
-  BROWSER_THEME_STORAGE_PAGE_BACKGROUND_KEY,
   BROWSER_THEME_STORAGE_RESOLVED_MODE_KEY
 } from '../../../core/theme/BrowserThemeStorageKeys';
 import {
@@ -49,15 +43,12 @@ import {
   sharedAiraSyncConfigStore,
   sharedHuaweiAccountMutationCoordinator,
   sharedMembershipFeature,
-  sharedPreferencesRepository,
-  sharedSettingsNoticeDismissalRepository
+  sharedPreferencesRepository
 } from '../../bootstrap/BrowserAppRuntime';
 import { AppServiceModeGateService } from '../../../services/settings/AppServiceModeGateService';
 import { MEMBERSHIP_REFRESH_ACCOUNT_VISIBLE_FRESH_MS } from '../../../services/membership/MembershipRefreshPolicyService';
-import { SETTINGS_NOTICE_AIRA_PRO_ENTRY_CONFIRMATION } from '../../../data/preferences/SettingsNoticeDismissalRepository';
-import { AIRA_DISTRIBUTION_CAPABILITY_OWNER } from '../../../common/config/AiraDistributionCapabilityOwner';
 
-type AiraProSheetKind = 'none' | 'entryConfirmation' | 'login' | 'desktopGuide' | 'legalDocument';
+type AiraProSheetKind = 'none' | 'login' | 'desktopGuide' | 'legalDocument';
 export type AiraProPresentationMode = 'page' | 'workspace';
 export type AiraProPageLayoutMode = 'phone' | 'large_screen';
 
@@ -76,7 +67,6 @@ export struct AiraProScreen {
   @Prop embeddedBoundarySource: string = '';
   onRequestClose: () => void = () => {};
   private viewModel: AiraProOverviewViewModel = new AiraProOverviewViewModel();
-  private entryConfirmationViewModel: AiraProEntryConfirmationViewModel = new AiraProEntryConfirmationViewModel();
   private purchaseCoordinator: AiraProPurchaseCoordinator = new AiraProPurchaseCoordinator(sharedMembershipFeature);
   private navigationCoordinator: SettingsNavigationCoordinator = new SettingsNavigationCoordinator();
   private themeViewStateFactory: BrowserThemeViewStateFactory = new BrowserThemeViewStateFactory();
@@ -95,7 +85,6 @@ export struct AiraProScreen {
       this.showToast(message);
     }
   );
-  private entryConfirmationLeaving: boolean = false;
   private huaweiLoginButtonController: loginComponentManager.LoginWithHuaweiIDButtonController =
     new loginComponentManager.LoginWithHuaweiIDButtonController()
       .onClickLoginWithHuaweiIDButton((
@@ -114,14 +103,6 @@ export struct AiraProScreen {
     this.dataScope,
     this.privacyMode
   );
-  @State private entryConfirmationState: AiraProEntryConfirmationViewState =
-    this.entryConfirmationViewModel.buildState();
-  @State private entryConfirmationAccepted: boolean =
-    sharedSettingsNoticeDismissalRepository.hasDismissed(SETTINGS_NOTICE_AIRA_PRO_ENTRY_CONFIRMATION);
-  @State private entryConfirmationFreeBrowsingAccepted: boolean = false;
-  @State private entryConfirmationOptionalSupportAccepted: boolean = false;
-  @State private entryConfirmationDeveloperChargeAccepted: boolean = false;
-  @State private entryConfirmationSubmitting: boolean = false;
   @State private activeSheetVisible: boolean = false;
   @State private activeSheetMounted: boolean = false;
   @State private activeSheetKind: AiraProSheetKind = 'none';
@@ -129,7 +110,6 @@ export struct AiraProScreen {
     resolveAiraLegalDocumentLink('user_service_agreement');
   @State private theme: BrowserThemeViewState =
     this.themeViewStateFactory.build(sharedPreferencesRepository.getPreferences());
-  @StorageProp(BROWSER_THEME_STORAGE_PAGE_BACKGROUND_KEY) private storedPageBackgroundColor: string = '#F2F3F5';
   @StorageProp(BROWSER_THEME_STORAGE_FLOATING_SURFACE_KEY) private storedFloatingSurfaceColor: string = '#FFFFFF';
   @StorageProp(BROWSER_THEME_STORAGE_RESOLVED_MODE_KEY) @Watch('handleStoredThemeChanged')
   private storedResolvedThemeMode: string = 'light';
@@ -185,7 +165,7 @@ export struct AiraProScreen {
     .bindSheet($$this.activeSheetVisible, this.buildActiveSheet(), {
       preferType: this.pageLayoutMode === 'large_screen' ? SheetType.CENTER : SheetType.BOTTOM,
       height: this.resolveActiveSheetHeight(),
-      dragBar: this.pageLayoutMode !== 'large_screen' && this.activeSheetKind !== 'entryConfirmation',
+      dragBar: this.pageLayoutMode !== 'large_screen',
       showClose: this.activeSheetKind === 'login',
       backgroundColor: this.resolveActiveSheetBackgroundColor(),
       onDisappear: () => {
@@ -236,42 +216,36 @@ export struct AiraProScreen {
 
   @Builder
   private buildAiraProContent() {
-    if (this.entryConfirmationAccepted) {
-      AiraProOverviewScreen({
-        state: this.state,
-        surfaceBackground: this.theme.surfaceBackground,
-        controlBackground: this.theme.controlBackground,
-        accentColor: this.theme.accent,
-        onAccentColor: this.theme.onAccent,
-        primaryTextColor: this.theme.textPrimary,
-        secondaryTextColor: this.theme.textSecondary,
-        dividerColor: this.theme.divider,
-        settingsIconBackgrounds: this.theme.settingsIconBackgrounds,
-        scroller: this.contentScroller,
-        onSubscribe: (planId: string) => {
-          this.openProPurchase(planId);
-        },
-        onOpenMembershipTerms: () => {
-          this.openMembershipTerms();
-        },
-        onOpenAutoRenewalNotice: () => {
-          this.openAutoRenewalNotice();
-        },
-        onManageSubscription: () => {
-          this.confirmLifetimeUpgradeSubscriptionCancellation();
-        },
-        onRestorePurchase: (planId: string) => {
-          this.restorePurchase(planId);
-        },
-        onOpenDesktopGuide: () => {
-          this.openDesktopGuide();
-        }
-      })
-    } else {
-      Column()
-        .width('100%')
-        .height('100%')
-    }
+    AiraProOverviewScreen({
+      state: this.state,
+      surfaceBackground: this.theme.surfaceBackground,
+      controlBackground: this.theme.controlBackground,
+      accentColor: this.theme.accent,
+      onAccentColor: this.theme.onAccent,
+      primaryTextColor: this.theme.textPrimary,
+      secondaryTextColor: this.theme.textSecondary,
+      dividerColor: this.theme.divider,
+      settingsIconBackgrounds: this.theme.settingsIconBackgrounds,
+      scroller: this.contentScroller,
+      onSubscribe: (planId: string) => {
+        this.openProPurchase(planId);
+      },
+      onOpenMembershipTerms: () => {
+        this.openMembershipTerms();
+      },
+      onOpenAutoRenewalNotice: () => {
+        this.openAutoRenewalNotice();
+      },
+      onManageSubscription: () => {
+        this.confirmLifetimeUpgradeSubscriptionCancellation();
+      },
+      onRestorePurchase: (planId: string) => {
+        this.restorePurchase(planId);
+      },
+      onOpenDesktopGuide: () => {
+        this.openDesktopGuide();
+      }
+    })
   }
 
   private resolveDesktopContentMaxWidth(): Length {
@@ -280,9 +254,7 @@ export struct AiraProScreen {
 
   @Builder
   private buildActiveSheet() {
-    if (this.activeSheetKind === 'entryConfirmation') {
-      this.buildEntryConfirmationSheet()
-    } else if (this.activeSheetKind === 'desktopGuide') {
+    if (this.activeSheetKind === 'desktopGuide') {
       SyncDesktopBookmarkGuideContent()
         .width('100%')
         .height('100%')
@@ -296,23 +268,6 @@ export struct AiraProScreen {
     } else {
       this.buildHuaweiLoginSheet()
     }
-  }
-
-  @Builder
-  private buildEntryConfirmationSheet() {
-    AiraProEntryConfirmationSheet({
-      state: this.entryConfirmationState,
-      confirming: this.entryConfirmationSubmitting,
-      freeBrowsingAccepted: $entryConfirmationFreeBrowsingAccepted,
-      optionalSupportAccepted: $entryConfirmationOptionalSupportAccepted,
-      developerChargeAccepted: $entryConfirmationDeveloperChargeAccepted,
-      onConfirm: () => {
-        this.confirmEntryConfirmation();
-      },
-      onCancel: () => {
-        this.cancelEntryConfirmation();
-      }
-    })
   }
 
   @Builder
@@ -353,7 +308,6 @@ export struct AiraProScreen {
     this.boundarySource = boundaryState.boundarySource;
     this.refreshThemeState();
     this.applyAiraProState();
-    this.refreshEntryConfirmationPresentation();
     sharedMembershipFeature.refreshStateForBoundary(this.buildAiraProDataBoundaryInput(), {
       minFreshMs: MEMBERSHIP_REFRESH_ACCOUNT_VISIBLE_FRESH_MS
     })
@@ -371,71 +325,6 @@ export struct AiraProScreen {
       this.dataScope,
       this.privacyMode
     );
-  }
-
-  private refreshEntryConfirmationPresentation(): void {
-    if (AIRA_DISTRIBUTION_CAPABILITY_OWNER.isCommunity()) {
-      this.entryConfirmationAccepted = true;
-      return;
-    }
-    sharedSettingsNoticeDismissalRepository.initialize()
-      .then(() => {
-        this.applyEntryConfirmationPresentation();
-      })
-      .catch((_error: Error) => {
-        this.applyEntryConfirmationPresentation();
-      });
-  }
-
-  private applyEntryConfirmationPresentation(): void {
-    if (this.entryConfirmationLeaving) {
-      return;
-    }
-    if (sharedSettingsNoticeDismissalRepository.hasDismissed(SETTINGS_NOTICE_AIRA_PRO_ENTRY_CONFIRMATION)) {
-      this.entryConfirmationAccepted = true;
-      return;
-    }
-    this.entryConfirmationAccepted = false;
-    if (this.activeSheetKind !== 'entryConfirmation') {
-      this.openActiveSheet('entryConfirmation');
-    }
-  }
-
-  private confirmEntryConfirmation(): void {
-    if (!this.canConfirmEntryConfirmation() || this.entryConfirmationSubmitting) {
-      this.showToast('请先勾选全部确认项');
-      return;
-    }
-    this.entryConfirmationSubmitting = true;
-    sharedSettingsNoticeDismissalRepository.dismiss(SETTINGS_NOTICE_AIRA_PRO_ENTRY_CONFIRMATION)
-      .then(() => {
-        this.entryConfirmationAccepted = true;
-        this.closeActiveSheet();
-      })
-      .catch((_error: Error) => {
-        this.showToast('确认状态保存失败，请稍后重试');
-      })
-      .finally(() => {
-        this.entryConfirmationSubmitting = false;
-      });
-  }
-
-  private cancelEntryConfirmation(): void {
-    this.entryConfirmationLeaving = true;
-    sharedSettingsNoticeDismissalRepository.dismiss(SETTINGS_NOTICE_AIRA_PRO_ENTRY_CONFIRMATION)
-      .finally(() => {
-        if (this.isDesktopPresentation()) {
-          this.onRequestClose();
-        } else {
-          this.navigationCoordinator.back();
-        }
-      });
-  }
-
-  private canConfirmEntryConfirmation(): boolean {
-    return this.entryConfirmationFreeBrowsingAccepted &&
-      this.entryConfirmationOptionalSupportAccepted &&
-      this.entryConfirmationDeveloperChargeAccepted;
   }
 
   private openProPurchase(planId: string = 'monthly'): void {
@@ -605,14 +494,8 @@ export struct AiraProScreen {
   }
 
   private handleActiveSheetDisappear(): void {
-    const dismissedKind = this.activeSheetKind;
     this.activeSheetVisible = false;
     this.activeSheetMounted = false;
-    if (dismissedKind === 'entryConfirmation' && !this.entryConfirmationAccepted && !this.entryConfirmationLeaving) {
-      this.activeSheetKind = 'none';
-      this.cancelEntryConfirmation();
-      return;
-    }
     this.activeSheetKind = 'none';
   }
 
@@ -621,9 +504,7 @@ export struct AiraProScreen {
   }
 
   private resolveActiveSheetBackgroundColor(): ResourceColor {
-    return this.activeSheetKind === 'entryConfirmation' ?
-      this.storedPageBackgroundColor :
-      this.storedFloatingSurfaceColor;
+    return this.storedFloatingSurfaceColor;
   }
 
   private resolveDesktopDialogTitle(): string {
@@ -649,9 +530,6 @@ export struct AiraProScreen {
     if (this.activeSheetKind === 'desktopGuide' ||
       this.activeSheetKind === 'legalDocument') {
       return '82%';
-    }
-    if (this.activeSheetKind === 'entryConfirmation') {
-      return 620;
     }
     return 500;
   }

@@ -113,6 +113,7 @@ export class SyncService implements AiraCloudBookmarkV4BootstrapDomain {
   private huaweiCloudRemoteStoreFactory: AiraHuaweiCloudRemoteStoreFactory;
   private huaweiSpaceRemoteStoreFactory: AiraHuaweiSpaceRemoteStoreFactory;
   private personalServerRemoteStoreFactory: AiraPersonalServerRemoteStoreFactory;
+  private nativeAiraCloudGenerationHandler?: (uid: string, commitId: string) => Promise<void>;
   constructor(
     bookmarkRepository: BookmarkRepository,
     preferencesRepository: PreferencesRepository,
@@ -145,6 +146,12 @@ export class SyncService implements AiraCloudBookmarkV4BootstrapDomain {
     this.personalServerRemoteStoreFactory = personalServerRemoteStoreFactory ?? ((settings: AiraSyncSettings) => {
       return AIRA_PERSONAL_SERVER_INSTANCE_SERVICE.createBookmarkStore(settings);
     });
+  }
+
+  setNativeAiraCloudGenerationHandler(
+    handler: (uid: string, commitId: string) => Promise<void>
+  ): void {
+    this.nativeAiraCloudGenerationHandler = handler;
   }
 
   buildFreshAiraBookmarkOverview(): Promise<AiraBookmarkOverview> {
@@ -1824,8 +1831,17 @@ export class SyncService implements AiraCloudBookmarkV4BootstrapDomain {
         providerId
       );
     }
+    const nativeAiraCloudGeneration = initializeBookmarkGeneration &&
+      remoteKind === 'aira_cloud' &&
+      (this.getAiraSyncSettings().bookmarkGenerationInitializedAt ?? 0) <= 0;
     if (initializeBookmarkGeneration) {
       await this.requireSyncConfigStore().markBookmarkGenerationInitialized();
+    }
+    if (nativeAiraCloudGeneration && this.nativeAiraCloudGenerationHandler !== undefined) {
+      const uid = this.getAiraSyncSettings().huaweiCloud.uid.trim();
+      if (uid.length > 0) {
+        await this.nativeAiraCloudGenerationHandler(uid, commitId);
+      }
     }
     if (runtimeDomain === 'bookmark') {
       await this.bookmarkHistoryService.confirm(history);

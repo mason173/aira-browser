@@ -10,7 +10,8 @@ import {
 import {
   createFloatingGlassMaterialIfAvailable,
   resolveFloatingGlassMaterialBackgroundColor,
-  resolveFloatingGlassMaterialTintForMode
+  resolveFloatingGlassMaterialTintForMode,
+  systemMaterialModifier
 } from './FloatingGlassMaterialTokens';
 import {
   DEFAULT_WEBSITE_ICON_CONTENT_RATIO,
@@ -312,9 +313,9 @@ export struct WebsiteRecordRow {
     .backgroundColor(resolveFloatingGlassMaterialBackgroundColor(
       $r('app.color.surface_floating_background')
     ))
-    .systemMaterial(createFloatingGlassMaterialIfAvailable(
+    .attributeModifier(systemMaterialModifier(createFloatingGlassMaterialIfAvailable(
       resolveFloatingGlassMaterialTintForMode(this.storedResolvedThemeMode)
-    ))
+    )))
   }
 
   private resolveDividerLeft(): number {

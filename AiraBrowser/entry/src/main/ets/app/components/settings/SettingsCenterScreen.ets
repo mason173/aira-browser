@@ -118,6 +118,7 @@ export class SettingsCenterScreenController {
 @Component
 export struct SettingsCenterScreen {
   controller: SettingsCenterScreenController = new SettingsCenterScreenController();
+  private enteredAtMs: number = 0;
   @Prop presentationMode: 'page' | 'native_tab' = 'page';
   @Prop embeddedDataScope: string = '';
   @Prop embeddedPrivacyMode: string = '';
@@ -253,6 +254,7 @@ export struct SettingsCenterScreen {
     this.bindThemePreferencesUpdates();
     this.refreshState();
     this.applyRequestedDestination();
+    this.enteredAtMs = Date.now();
   }
 
   aboutToDisappear(): void {
@@ -269,6 +271,10 @@ export struct SettingsCenterScreen {
   }
 
   private handlePageShow(): void {
+    if (this.enteredAtMs > 0 && Date.now() - this.enteredAtMs < 450) {
+      this.customHomepagePageBinding.notifyPageShow();
+      return;
+    }
     this.refreshState();
     this.customHomepagePageBinding.notifyPageShow();
   }

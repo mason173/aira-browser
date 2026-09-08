@@ -2,7 +2,6 @@ import { AiraMembershipState } from '../../common/models/MembershipModels';
 import {
   AiraSyncSettings
 } from '../../common/models/AiraSyncModels';
-import { AIRA_DEBUG_TREAT_AIRACLOUD_AS_V4_LEGACY } from '../../common/config/BuildVariantFlags';
 import {
   AIRA_CLOUD_BOOKMARK_V4_CUTOVER_ID,
   AIRA_CLOUD_BOOKMARK_V4_BOOTSTRAP_PROTOCOL,
@@ -12,12 +11,6 @@ import {
 } from '../../common/models/AiraCloudBookmarkV4BootstrapModels';
 
 export class AiraCloudBookmarkV4BootstrapPolicyService {
-  private readonly treatUninitializedAiraCloudAsLegacy: boolean;
-
-  constructor(treatUninitializedAiraCloudAsLegacy: boolean = AIRA_DEBUG_TREAT_AIRACLOUD_AS_V4_LEGACY) {
-    this.treatUninitializedAiraCloudAsLegacy = treatUninitializedAiraCloudAsLegacy;
-  }
-
   evaluate(
     settings: AiraSyncSettings,
     membership: AiraMembershipState,
@@ -27,7 +20,7 @@ export class AiraCloudBookmarkV4BootstrapPolicyService {
     if (settings.remoteKind !== 'aira_cloud') {
       return this.decision(false, uid, 'not_active_aira_cloud');
     }
-    if (!settings.bookmarkSyncEnabled && !this.treatUninitializedAiraCloudAsLegacy) {
+    if (!settings.bookmarkSyncEnabled) {
       return this.decision(false, uid, 'not_active_aira_cloud');
     }
     if (membership.plan !== 'pro') {
@@ -39,8 +32,7 @@ export class AiraCloudBookmarkV4BootstrapPolicyService {
     if (settings.pendingBookmarkProviderSwitchFrom !== 'none') {
       return this.decision(false, uid, 'provider_switch_in_progress');
     }
-    if ((settings.bookmarkGenerationInitializedAt ?? 0) <= 0 &&
-      !this.treatUninitializedAiraCloudAsLegacy) {
+    if ((settings.bookmarkGenerationInitializedAt ?? 0) <= 0) {
       return this.decision(false, uid, 'not_legacy_initialized');
     }
     if (record !== undefined && record.uid === uid &&

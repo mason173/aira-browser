@@ -39,7 +39,9 @@ export struct HistoryManagerHeader {
       surfaceWidth: '100%',
       surfaceHeight: 40,
       surfaceRadius: 20,
-      tintColor: resolveFloatingGlassMaterialTintForMode(this.storedResolvedThemeMode)
+      tintColor: resolveFloatingGlassMaterialTintForMode(this.storedResolvedThemeMode),
+      fallbackColor: $r('app.color.browser_bottom_toolbar_glass_background'),
+      backgroundBlurEnabled: true
     }) {
       Stack({ alignContent: Alignment.End }) {
         TextInput({ text: this.searchQuery, placeholder: '搜索历史记录' })
@@ -83,19 +85,30 @@ export struct HistoryManagerHeader {
 
   @Builder
   private buildViewModeBar() {
-    SegmentedTabs({
-      options: HISTORY_VIEW_MODE_OPTIONS,
-      selectedId: this.viewMode,
-      barHeight: 36,
-      itemHeight: 30,
-      fontSize: 14,
-      barPadding: 3,
-      onSelect: (id: string) => {
-        this.onChangeViewMode(id as HistoryViewMode);
-      }
-    })
-    .width('100%')
-    .height(36)
+    FloatingGlassMaterialSurface({
+      surfaceWidth: '100%',
+      surfaceHeight: 36,
+      surfaceRadius: 18,
+      tintColor: resolveFloatingGlassMaterialTintForMode(this.storedResolvedThemeMode),
+      fallbackColor: $r('app.color.browser_bottom_toolbar_glass_background'),
+      backgroundBlurEnabled: true
+    }) {
+      SegmentedTabs({
+        options: HISTORY_VIEW_MODE_OPTIONS,
+        selectedId: this.viewMode,
+        barHeight: 36,
+        itemHeight: 30,
+        fontSize: 14,
+        barPadding: 3,
+        fallbackColor: $r('sys.color.ohos_id_color_background_transparent'),
+        barMaterialEnabled: false,
+        onSelect: (id: string) => {
+          this.onChangeViewMode(id as HistoryViewMode);
+        }
+      })
+        .width('100%')
+        .height(36)
+    }
   }
 
 }

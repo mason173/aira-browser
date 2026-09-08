@@ -575,7 +575,17 @@ export class BrowserShellRouteCoordinator {
     this.host.resetTransientOverlayStateForRouteTransition();
     try {
       this.dependencies.resolveUIContext().postFrameCallback(new BrowserShellRouteIdleCallback((): void => {
-        this.commitRoute(runId, url, params, failurePrefix, onCommitted, onFailed);
+        if (runId !== this.routeTransitionRunId) {
+          onFailed?.();
+          return;
+        }
+        try {
+          this.dependencies.resolveUIContext().postFrameCallback(new BrowserShellRouteIdleCallback((): void => {
+            this.commitRoute(runId, url, params, failurePrefix, onCommitted, onFailed);
+          }));
+        } catch (_error) {
+          this.commitRoute(runId, url, params, failurePrefix, onCommitted, onFailed);
+        }
       }));
     } catch (error) {
       if (runId !== this.routeTransitionRunId) {

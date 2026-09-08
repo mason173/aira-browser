@@ -337,5 +337,56 @@ export default function airaCloudBookmarkV4BootstrapCoordinatorTest(): void {
       expect(rejected).assertTrue();
       expect(operations.length).assertEqual(0);
     });
+
+    it('marks a native V4 first activation as completed without replacing local bookmarks', 0, async () => {
+      const operations: string[] = [];
+      const state = new FixtureBootstrapStateDomain();
+      const coordinator = new AiraCloudBookmarkV4BootstrapCoordinator(
+        new FixtureBootstrapDomain(operations),
+        new FixtureRecoveryDomain(operations),
+        state,
+        new FixtureBootstrapTransitionDomain(),
+        (): number => 200
+      );
+
+      const result = await coordinator.acknowledgeNativeV4Activation('uid-a', 'commit-native');
+
+      expect(result.status).assertEqual('completed');
+      expect(result.phase).assertEqual('completed');
+      expect(result.remoteCommitId).assertEqual('commit-native');
+      expect(result.backupId).assertEqual('');
+      expect(JSON.stringify(operations)).assertEqual(JSON.stringify([]));
+    });
+
+    it('does not override a formal cutover that already has a recovery point', 0, async () => {
+      const operations: string[] = [];
+      const state = new FixtureBootstrapStateDomain();
+      await state.save({
+        uid: 'uid-a',
+        protocol: 'aira-cloud-bookmarks-v4',
+        cutoverId: AIRA_CLOUD_BOOKMARK_V4_CUTOVER_ID,
+        status: 'failed',
+        phase: 'failed',
+        backupId: 'backup-1',
+        backupSha256: 'sha256',
+        remoteCommitId: 'commit-7',
+        errorMessage: 'apply-failed',
+        updatedAt: 100,
+        completedAt: 0
+      });
+      const coordinator = new AiraCloudBookmarkV4BootstrapCoordinator(
+        new FixtureBootstrapDomain(operations),
+        new FixtureRecoveryDomain(operations),
+        state,
+        new FixtureBootstrapTransitionDomain()
+      );
+
+      const result = await coordinator.acknowledgeNativeV4Activation('uid-a', 'commit-native');
+
+      expect(result.status).assertEqual('failed');
+      expect(result.backupId).assertEqual('backup-1');
+      expect(result.remoteCommitId).assertEqual('commit-7');
+      expect(JSON.stringify(operations)).assertEqual(JSON.stringify([]));
+    });
   });
 }

@@ -34,7 +34,8 @@ import { SETTINGS_NOTICE_ADBLOCK_RULES } from '../../../data/preferences/Setting
 import {
   createFloatingGlassMaterialIfAvailable,
   resolveFloatingGlassMaterialBackgroundColor,
-  resolveFloatingGlassMaterialTintForMode
+  resolveFloatingGlassMaterialTintForMode,
+  systemMaterialModifier
 } from '../common/FloatingGlassMaterialTokens';
 import { CENTERED_DIALOG_SYSTEM_SURFACE_MODIFIER } from '../common/CenteredDialogSurface';
 import { BrowserSheetActionButton } from '../browser/BrowserModalBottomSheet';
@@ -380,9 +381,9 @@ export struct AdBlockCustomRulesScreen {
     .backgroundColor(resolveFloatingGlassMaterialBackgroundColor(
       $r('app.color.surface_floating_background')
     ))
-    .systemMaterial(createFloatingGlassMaterialIfAvailable(
+    .attributeModifier(systemMaterialModifier(createFloatingGlassMaterialIfAvailable(
       resolveFloatingGlassMaterialTintForMode(this.storedResolvedThemeMode)
-    ))
+    )))
   }
 
   private hasThirdPartyPresetSources(): boolean {

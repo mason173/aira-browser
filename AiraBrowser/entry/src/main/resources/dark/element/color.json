@@ -26,11 +26,11 @@
     },
     {
       "name": "glass_segment_selected_background",
-      "value": "#FFFFFFFF"
+      "value": "#FF202224"
     },
     {
       "name": "glass_segment_selected_text",
-      "value": "#FF111318"
+      "value": "#FFE5E5E5"
     },
     {
       "name": "surface_pressed_background",

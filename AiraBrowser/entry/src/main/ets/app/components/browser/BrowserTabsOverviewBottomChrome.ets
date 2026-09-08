@@ -23,7 +23,7 @@ import {
   resolveBrowserBottomNeutralSecondaryColor
 } from '../../../core/theme/BrowserBottomPanelNeutralTheme';
 import { AiraIcon } from '../common/AiraIcon';
-import { FloatingGlassMaterialSurface } from '../common/FloatingGlassMaterialSurface';
+import { BrowserBottomChromeImmersiveMaterialSurface } from './BrowserBottomChromeImmersiveMaterialSurface';
 import { resolveBrowserFloatingGlassMaterialTintForTone } from './BrowserFloatingGlassMaterialTokens';
 
 export const BROWSER_TABS_OVERVIEW_BOTTOM_CHROME_HEIGHT: number = 52;
@@ -83,12 +83,12 @@ export struct BrowserTabsOverviewBottomChrome {
   @Builder
   private buildOuterButton(target: string, iconId: AiraRenderableIconId, accessibilityText: string) {
     Stack({ alignContent: Alignment.Center }) {
-      FloatingGlassMaterialSurface({
+      BrowserBottomChromeImmersiveMaterialSurface({
         surfaceWidth: BROWSER_TABS_OVERVIEW_BOTTOM_CHROME_OUTER_SIZE,
         surfaceHeight: BROWSER_TABS_OVERVIEW_BOTTOM_CHROME_HEIGHT,
         surfaceRadius: BROWSER_TABS_OVERVIEW_BOTTOM_CHROME_HEIGHT / 2,
-        tintColor: this.resolveMaterialTint(),
-        materialEnabled: true
+        materialTint: this.resolveMaterialTint(),
+        fallbackColor: $r('app.color.browser_bottom_toolbar_glass_background')
       }) {
         Stack({ alignContent: Alignment.Center }) {
           AiraIcon({
@@ -130,28 +130,37 @@ export struct BrowserTabsOverviewBottomChrome {
   @Builder
   private buildSectionSwitcher() {
     Stack({ alignContent: Alignment.Center }) {
-      SegmentedTabs({
-        options: [
-          { id: 'tabs', title: this.regularTabsLabel },
-          { id: 'privacy', title: '隐私模式' }
-        ],
-        selectedId: this.selectedSection,
-        barHeight: BROWSER_TABS_OVERVIEW_BOTTOM_CHROME_HEIGHT,
-        itemHeight: BROWSER_TABS_OVERVIEW_BOTTOM_CHROME_HEIGHT -
-          BROWSER_TABS_OVERVIEW_BOTTOM_CHROME_SEGMENT_INSET * 2,
-        fontSize: BROWSER_BOTTOM_CHROME_TEXT_SIZE,
-        barPadding: BROWSER_TABS_OVERVIEW_BOTTOM_CHROME_SEGMENT_INSET,
-        indicatorBackgroundColor: this.storedAccentColor,
-        selectedTextColor: this.storedOnAccentColor,
-        secondaryTextColor: this.adaptiveForeground ? $r('sys.color.font_secondary') :
-          resolveBrowserBottomNeutralSecondaryColor(this.resolveMaterialMode()),
-        fallbackColor: $r('app.color.browser_bottom_toolbar_glass_background'),
-        onSelect: (id: string): void => {
-          this.dispatchSectionAction(id as BrowserTabsOverviewSection);
-        }
-      })
-        .width('100%')
-        .height(BROWSER_TABS_OVERVIEW_BOTTOM_CHROME_HEIGHT)
+      BrowserBottomChromeImmersiveMaterialSurface({
+        surfaceWidth: '100%',
+        surfaceHeight: BROWSER_TABS_OVERVIEW_BOTTOM_CHROME_HEIGHT,
+        surfaceRadius: BROWSER_TABS_OVERVIEW_BOTTOM_CHROME_HEIGHT / 2,
+        materialTint: this.resolveMaterialTint(),
+        fallbackColor: $r('app.color.browser_bottom_toolbar_glass_background')
+      }) {
+        SegmentedTabs({
+          options: [
+            { id: 'tabs', title: this.regularTabsLabel },
+            { id: 'privacy', title: '隐私模式' }
+          ],
+          selectedId: this.selectedSection,
+          barHeight: BROWSER_TABS_OVERVIEW_BOTTOM_CHROME_HEIGHT,
+          itemHeight: BROWSER_TABS_OVERVIEW_BOTTOM_CHROME_HEIGHT -
+            BROWSER_TABS_OVERVIEW_BOTTOM_CHROME_SEGMENT_INSET * 2,
+          fontSize: BROWSER_BOTTOM_CHROME_TEXT_SIZE,
+          barPadding: BROWSER_TABS_OVERVIEW_BOTTOM_CHROME_SEGMENT_INSET,
+          indicatorBackgroundColor: this.storedAccentColor,
+          selectedTextColor: this.storedOnAccentColor,
+          secondaryTextColor: this.adaptiveForeground ? $r('sys.color.font_secondary') :
+            resolveBrowserBottomNeutralSecondaryColor(this.resolveMaterialMode()),
+          fallbackColor: $r('sys.color.ohos_id_color_background_transparent'),
+          barMaterialEnabled: false,
+          onSelect: (id: string): void => {
+            this.dispatchSectionAction(id as BrowserTabsOverviewSection);
+          }
+        })
+          .width('100%')
+          .height(BROWSER_TABS_OVERVIEW_BOTTOM_CHROME_HEIGHT)
+      }
     }
     .layoutWeight(1)
     .constraintSize({ minWidth: 1 })

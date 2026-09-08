@@ -1,4 +1,3 @@
-import { BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY } from '../../../core/theme/BrowserThemeStorageKeys';
 import {
   BlurStrategy,
   HdsTabs,
@@ -14,7 +13,6 @@ export interface SegmentedTabOption {
 
 @Component
 export struct SegmentedTabs {
-  @StorageProp(BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY) private storedSecondaryTextColor: string = '#5F6875';
   @Prop options: SegmentedTabOption[] = [];
   @Prop
   @Watch('syncSelectedIndex')
@@ -23,10 +21,11 @@ export struct SegmentedTabs {
   @Prop itemHeight: number = 30;
   @Prop fontSize: number = 14;
   @Prop barPadding: number = 3;
-  @Prop indicatorBackgroundColor: ResourceColor = '';
-  @Prop selectedTextColor: ResourceColor = '';
-  @Prop secondaryTextColor: ResourceColor = '';
+  @Prop indicatorBackgroundColor: ResourceColor = $r('sys.color.comp_background_primary');
+  @Prop selectedTextColor: ResourceColor = $r('sys.color.font_primary');
+  @Prop secondaryTextColor: ResourceColor = $r('sys.color.font_secondary');
   @Prop fallbackColor: ResourceColor = $r('app.color.surface_glass_background');
+  @Prop barMaterialEnabled: boolean = true;
   @State private selectedIndex: number = 0;
   private tabsController: HdsTabsController = new HdsTabsController();
   private synchronizingController: boolean = false;
@@ -59,7 +58,7 @@ export struct SegmentedTabs {
     .barHeight(this.barHeight)
     .barBackgroundColor(this.resolveBarBackgroundColor())
     .barBackgroundBlurStyle(
-      this.isMaterialAvailable() ? BlurStyle.NONE : BlurStyle.COMPONENT_THIN
+      this.shouldApplyBarBackgroundBlur() ? BlurStyle.COMPONENT_THIN : BlurStyle.NONE
     )
     .blurStrategy(BlurStrategy.ADAPTIVE)
     .barFloatingStyle(this.resolveBarFloatingStyle())
@@ -74,24 +73,30 @@ export struct SegmentedTabs {
 
   @Builder
   private buildTabBar(option: SegmentedTabOption) {
-    Stack({ alignContent: Alignment.Center }) {
-      Text(option.title)
-        .fontSize(this.fontSize)
-        .fontWeight(this.isSelected(option.id) ? FontWeight.Medium : FontWeight.Regular)
-        .fontColor(this.isSelected(option.id)
-          ? this.resolveSelectedTextColor()
-          : this.resolveSecondaryTextColor())
-        .maxLines(1)
-        .textOverflow({ overflow: TextOverflow.Ellipsis })
-        .textAlign(TextAlign.Center)
-        .hitTestBehavior(HitTestMode.None)
+    Row() {
+      Stack({ alignContent: Alignment.Center }) {
+        Text(option.title)
+          .fontSize(this.fontSize)
+          .fontWeight(this.isSelected(option.id) ? FontWeight.Medium : FontWeight.Regular)
+          .fontColor(this.isSelected(option.id)
+            ? this.resolveSelectedTextColor()
+            : this.resolveSecondaryTextColor())
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+          .textAlign(TextAlign.Center)
+          .hitTestBehavior(HitTestMode.None)
+      }
+      .layoutWeight(1)
+      .height(this.itemHeight)
+      .backgroundColor(this.isSelected(option.id) ? this.resolveIndicatorBackgroundColor() :
+        $r('sys.color.ohos_id_color_background_transparent'))
+      .borderRadius(this.itemHeight / 2)
     }
     .width('100%')
-    .height(this.itemHeight)
+    .height(this.barHeight)
     .padding({ left: this.barPadding, right: this.barPadding })
-    .backgroundColor(this.isSelected(option.id) ? this.resolveIndicatorBackgroundColor() :
-      $r('sys.color.ohos_id_color_background_transparent'))
-    .borderRadius(this.itemHeight / 2)
+    .justifyContent(FlexAlign.Center)
+    .alignItems(VerticalAlign.Center)
   }
 
   private handleTabChange(index: number): void {
@@ -138,8 +143,19 @@ export struct SegmentedTabs {
     return this.cachedHdsMaterialAvailable;
   }
 
+  private shouldApplyBarMaterial(): boolean {
+    return this.barMaterialEnabled && this.isMaterialAvailable();
+  }
+
+  private shouldApplyBarBackgroundBlur(): boolean {
+    return this.barMaterialEnabled && !this.shouldApplyBarMaterial();
+  }
+
   private resolveBarBackgroundColor(): ResourceColor {
-    return this.isMaterialAvailable() ? Color.Transparent : this.fallbackColor;
+    if (!this.barMaterialEnabled) {
+      return $r('sys.color.ohos_id_color_background_transparent');
+    }
+    return this.shouldApplyBarMaterial() ? Color.Transparent : this.fallbackColor;
   }
 
   private resolveBarFloatingStyle(): HdsTabsFloatingStyle {
@@ -148,7 +164,7 @@ export struct SegmentedTabs {
       barBottomMargin: 0,
       barOpacity: 1
     };
-    if (this.isMaterialAvailable()) {
+    if (this.shouldApplyBarMaterial()) {
       style.systemMaterialEffect = {
         materialType: hdsMaterial.MaterialType.ADAPTIVE,
         materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE
@@ -158,18 +174,14 @@ export struct SegmentedTabs {
   }
 
   private resolveIndicatorBackgroundColor(): ResourceColor {
-    return `${this.indicatorBackgroundColor}`.length > 0
-      ? this.indicatorBackgroundColor
-      : $r('app.color.glass_segment_selected_background');
+    return this.indicatorBackgroundColor;
   }
 
   private resolveSecondaryTextColor(): ResourceColor {
-    return `${this.secondaryTextColor}`.length > 0 ? this.secondaryTextColor : this.storedSecondaryTextColor;
+    return this.secondaryTextColor;
   }
 
   private resolveSelectedTextColor(): ResourceColor {
-    return `${this.selectedTextColor}`.length > 0
-      ? this.selectedTextColor
-      : $r('app.color.glass_segment_selected_text');
+    return this.selectedTextColor;
   }
 }

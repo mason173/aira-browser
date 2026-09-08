@@ -37,7 +37,8 @@ import {
 } from './BrowserFloatingGlassMaterialTokens';
 import {
   createFloatingGlassMaterialIfAvailable,
-  resolveFloatingGlassMaterialBackgroundColor
+  resolveFloatingGlassMaterialBackgroundColor,
+  systemMaterialModifier
 } from '../common/FloatingGlassMaterialTokens';
 
 const BROWSER_BOTTOM_CHROME_RENDER_HEIGHT: number = 52;
@@ -756,7 +757,7 @@ export struct BrowserBottomChromeRenderer {
     .backgroundColor(resolveFloatingGlassMaterialBackgroundColor(
       $r('app.color.surface_floating_background')
     ))
-    .systemMaterial(createFloatingGlassMaterialIfAvailable(this.materialTint))
+    .attributeModifier(systemMaterialModifier(createFloatingGlassMaterialIfAvailable(this.materialTint)))
   }
 
   @Builder

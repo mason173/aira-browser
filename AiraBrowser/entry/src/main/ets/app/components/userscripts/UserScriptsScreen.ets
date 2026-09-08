@@ -31,7 +31,8 @@ import {
 import {
   createFloatingGlassMaterialIfAvailable,
   resolveFloatingGlassMaterialBackgroundColor,
-  resolveFloatingGlassMaterialTintForMode
+  resolveFloatingGlassMaterialTintForMode,
+  systemMaterialModifier
 } from '../common/FloatingGlassMaterialTokens';
 import { AiraRenderableIconId } from '../../../core/resources/GeneratedAiraIconCatalog';
 import { USER_SCRIPT_FEATURE_TITLE } from '../../../core/userscripts/UserScriptFeatureCopy';
@@ -440,9 +441,9 @@ export struct UserScriptsScreen {
     .backgroundColor(resolveFloatingGlassMaterialBackgroundColor(
       $r('app.color.surface_floating_background')
     ))
-    .systemMaterial(createFloatingGlassMaterialIfAvailable(
+    .attributeModifier(systemMaterialModifier(createFloatingGlassMaterialIfAvailable(
       resolveFloatingGlassMaterialTintForMode(this.storedResolvedThemeMode)
-    ))
+    )))
   }
 
   @Builder

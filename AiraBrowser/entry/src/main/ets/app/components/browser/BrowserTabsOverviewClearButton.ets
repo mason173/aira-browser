@@ -12,7 +12,7 @@ import {
   resolveBrowserBottomNeutralPrimaryColor
 } from '../../../core/theme/BrowserBottomPanelNeutralTheme';
 import { AiraIcon } from '../common/AiraIcon';
-import { FloatingGlassMaterialSurface } from '../common/FloatingGlassMaterialSurface';
+import { BrowserBottomChromeImmersiveMaterialSurface } from './BrowserBottomChromeImmersiveMaterialSurface';
 import { resolveBrowserFloatingGlassMaterialTintForTone } from './BrowserFloatingGlassMaterialTokens';
 
 export const BROWSER_TABS_OVERVIEW_CLEAR_BUTTON_SIZE: number = 52;
@@ -43,11 +43,12 @@ export struct BrowserTabsOverviewClearButton {
 
   build() {
     Stack({ alignContent: Alignment.Center }) {
-      FloatingGlassMaterialSurface({
+      BrowserBottomChromeImmersiveMaterialSurface({
         surfaceWidth: BROWSER_TABS_OVERVIEW_CLEAR_BUTTON_SIZE,
         surfaceHeight: BROWSER_TABS_OVERVIEW_CLEAR_BUTTON_SIZE,
         surfaceRadius: BROWSER_TABS_OVERVIEW_CLEAR_BUTTON_SIZE / 2,
-        tintColor: this.resolveMaterialTint()
+        materialTint: this.resolveMaterialTint(),
+        fallbackColor: $r('app.color.browser_bottom_toolbar_glass_background')
       }) {
         Stack({ alignContent: Alignment.Center }) {
           AiraIcon({

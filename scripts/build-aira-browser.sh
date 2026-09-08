@@ -62,6 +62,10 @@ DISTRIBUTION_CONFIGURED=0
 MAIN_PAGES_BACKUP=""
 RELEASE_PRUNE_BACKUP_DIR=""
 DISCOVERED_BUILD_PROFILE=""
+ARK_UI_MATERIAL_ACCESS="${PROJECT_DIR}/entry/src/main/ets/app/components/common/ArkUiMaterialAccess.ets"
+ARK_UI_MATERIAL_ACCESS_STUB="${REPO_ROOT}/scripts/harmony-api24-stubs/ArkUiMaterialAccess.ets"
+ARK_UI_MATERIAL_ACCESS_BACKUP=""
+DIALOG_SYSTEM_MATERIAL_BACKUP_DIR=""
 
 # DevEco's native build invokes Cargo through the Rust toolchain. On machines
 # where the global registry was initialized by root, keep dependency downloads
@@ -148,6 +152,18 @@ cleanup() {
   fi
   if [ -n "${DISCOVERED_BUILD_PROFILE}" ] && [ -f "${DISCOVERED_BUILD_PROFILE}" ]; then
     rm -f "${DISCOVERED_BUILD_PROFILE}"
+  fi
+  if [ -n "${ARK_UI_MATERIAL_ACCESS_BACKUP}" ] && [ -f "${ARK_UI_MATERIAL_ACCESS_BACKUP}" ]; then
+    cp "${ARK_UI_MATERIAL_ACCESS_BACKUP}" "${ARK_UI_MATERIAL_ACCESS}"
+    rm -f "${ARK_UI_MATERIAL_ACCESS_BACKUP}"
+  fi
+  if [ -n "${DIALOG_SYSTEM_MATERIAL_BACKUP_DIR}" ] && [ -d "${DIALOG_SYSTEM_MATERIAL_BACKUP_DIR}" ]; then
+    while IFS= read -r -d '' backup_file; do
+      local_path="${backup_file#${DIALOG_SYSTEM_MATERIAL_BACKUP_DIR}/}"
+      cp "${backup_file}" "${REPO_ROOT}/${local_path}"
+    done < <(find "${DIALOG_SYSTEM_MATERIAL_BACKUP_DIR}" -type f -print0)
+    rm -rf "${DIALOG_SYSTEM_MATERIAL_BACKUP_DIR}"
+    DIALOG_SYSTEM_MATERIAL_BACKUP_DIR=""
   fi
 }
 trap cleanup EXIT
@@ -1252,8 +1268,6 @@ export function buildBrowserNewWindowTestHtml(): string {
 const flagsSource = fs.readFileSync(buildVariantFlags, 'utf8');
 const developmentDiagnosticsFlag = 'export const AIRA_ENABLE_DEVELOPMENT_DIAGNOSTICS: boolean = true;';
 const releaseDiagnosticsFlag = 'export const AIRA_ENABLE_DEVELOPMENT_DIAGNOSTICS: boolean = false;';
-const debugLegacyFlag = 'export const AIRA_DEBUG_TREAT_AIRACLOUD_AS_V4_LEGACY: boolean = true;';
-const releaseLegacyFlag = 'export const AIRA_DEBUG_TREAT_AIRACLOUD_AS_V4_LEGACY: boolean = false;';
 let nextFlagsSource = flagsSource;
 if (nextFlagsSource.includes(developmentDiagnosticsFlag)) {
   nextFlagsSource = nextFlagsSource.replace(
@@ -1263,36 +1277,11 @@ if (nextFlagsSource.includes(developmentDiagnosticsFlag)) {
 } else if (!nextFlagsSource.includes(releaseDiagnosticsFlag)) {
   throw new Error(`Could not find development diagnostics flag in ${buildVariantFlags}`);
 }
-if (nextFlagsSource.includes(debugLegacyFlag)) {
-  nextFlagsSource = nextFlagsSource.replace(debugLegacyFlag, releaseLegacyFlag);
-} else if (!nextFlagsSource.includes(releaseLegacyFlag)) {
-  throw new Error(`Could not find Aira Cloud V4 legacy debug flag in ${buildVariantFlags}`);
-}
 fs.writeFileSync(buildVariantFlags, nextFlagsSource);
 NODE
   echo "Using release source pruning: removed debug lab HTML and development diagnostics buttons."
 }
 
-
-apply_debug_aira_cloud_v4_legacy_flag() {
-  local build_variant_flags="${PROJECT_DIR}/entry/src/main/ets/common/config/BuildVariantFlags.ets"
-  backup_release_file "${build_variant_flags}"
-  "${NODE_BIN}" - "${build_variant_flags}" <<'NODE'
-const fs = require('fs');
-const buildVariantFlags = process.argv[2];
-const source = fs.readFileSync(buildVariantFlags, 'utf8');
-const debugLegacyFlag = 'export const AIRA_DEBUG_TREAT_AIRACLOUD_AS_V4_LEGACY: boolean = true;';
-const releaseLegacyFlag = 'export const AIRA_DEBUG_TREAT_AIRACLOUD_AS_V4_LEGACY: boolean = false;';
-if (source.includes(debugLegacyFlag)) {
-  process.exit(0);
-}
-if (!source.includes(releaseLegacyFlag)) {
-  throw new Error(`Could not find Aira Cloud V4 legacy debug flag in ${buildVariantFlags}`);
-}
-fs.writeFileSync(buildVariantFlags, source.replace(releaseLegacyFlag, debugLegacyFlag));
-NODE
-  echo "Using debug Aira Cloud V4 cutover candidate override."
-}
 
 read_signing_paths() {
   "${NODE_BIN}" - "$1" "${2:-}" <<'NODE'
@@ -1702,8 +1691,6 @@ fi
 if [ "${BUILD_VARIANT}" = "release" ]; then
   apply_release_page_pruning
   apply_release_source_pruning
-else
-  apply_debug_aira_cloud_v4_legacy_flag
 fi
 
 validate_effective_build_profile() {
@@ -1817,7 +1804,42 @@ rm -f \
   "${PROJECT_DIR}/entry/build/default/outputs/default/entry-default-signed.hap" \
   "${PROJECT_DIR}/entry/build/default/outputs/default/entry-default-unsigned.hap"
 
+
+apply_arkui_material_access_for_sdk() {
+  local sdk_pkg="${SDK_HOME}/default/openharmony/ets/oh-uni-package.json"
+  local sdk_api=""
+  if [ ! -f "${sdk_pkg}" ] || [ ! -f "${ARK_UI_MATERIAL_ACCESS}" ] || [ ! -f "${ARK_UI_MATERIAL_ACCESS_STUB}" ]; then
+    return 0
+  fi
+  sdk_api="$("${NODE_BIN}" - "${sdk_pkg}" <<'NODE'
+const fs = require('fs');
+const source = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+process.stdout.write(String(source.apiVersion || ''));
+NODE
+)"
+  if [ -z "${sdk_api}" ]; then
+    return 0
+  fi
+  if [ "${sdk_api}" -lt 26 ]; then
+    ARK_UI_MATERIAL_ACCESS_BACKUP="$(mktemp "${TMPDIR:-/tmp}/aira-arkui-material-access-backup.XXXXXX")"
+    cp "${ARK_UI_MATERIAL_ACCESS}" "${ARK_UI_MATERIAL_ACCESS_BACKUP}"
+    cp "${ARK_UI_MATERIAL_ACCESS_STUB}" "${ARK_UI_MATERIAL_ACCESS}"
+    DIALOG_SYSTEM_MATERIAL_BACKUP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aira-dialog-system-material.XXXXXX")"
+    while IFS= read -r file; do
+      rel="${file#"${REPO_ROOT}"/}"
+      mkdir -p "${DIALOG_SYSTEM_MATERIAL_BACKUP_DIR}/$(dirname "${rel}")"
+      cp "${file}" "${DIALOG_SYSTEM_MATERIAL_BACKUP_DIR}/${rel}"
+      sed -i '' '/systemMaterial: createCenteredDialogMaterial(),/d' "${file}"
+    done < <(rg -l --fixed-strings 'systemMaterial: createCenteredDialogMaterial(),' \
+      "${PROJECT_DIR}/entry/src/main/ets" -g '*.ets' || true)
+    echo "SDK API ${sdk_api}: compiling with ArkUI material fallback stub. API 26 uiMaterial implementation remains in git."
+  else
+    echo "SDK API ${sdk_api}: compiling with ArkUI uiMaterial."
+  fi
+}
+
 cd "${PROJECT_DIR}"
+apply_arkui_material_access_for_sdk
 "${NODE_BIN}" "${HVIGOR_BIN}" --stop-daemon >/dev/null 2>&1 || true
 if [ "${BUILD_PACKAGE_FORMAT}" = "app" ]; then
   HVIGOR_TASK="assembleApp"

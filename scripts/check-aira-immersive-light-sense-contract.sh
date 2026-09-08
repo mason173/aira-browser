@@ -5,6 +5,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 COMPONENT_DIR="${REPO_ROOT}/AiraBrowser/entry/src/main/ets/app/components"
 TOKEN_FILE="${COMPONENT_DIR}/common/FloatingGlassMaterialTokens.ets"
+ACCESS_FILE="${COMPONENT_DIR}/common/ArkUiMaterialAccess.ets"
+ACCESS_STUB_FILE="${REPO_ROOT}/scripts/harmony-api24-stubs/ArkUiMaterialAccess.ets"
 SURFACE_FILE="${COMPONENT_DIR}/common/FloatingGlassMaterialSurface.ets"
 BROWSER_SURFACE_FILE="${COMPONENT_DIR}/browser/BrowserFloatingGlassMaterialSurface.ets"
 BOTTOM_SURFACE_FILE="${COMPONENT_DIR}/browser/BrowserBottomChromeImmersiveMaterialSurface.ets"
@@ -38,7 +40,7 @@ require_text() {
   rg -q --fixed-strings "$pattern" "$file" || fail "$message"
 }
 
-for file in "$TOKEN_FILE" "$SURFACE_FILE" "$BROWSER_SURFACE_FILE" "$BOTTOM_SURFACE_FILE" \
+for file in "$TOKEN_FILE" "$ACCESS_FILE" "$ACCESS_STUB_FILE" "$SURFACE_FILE" "$BROWSER_SURFACE_FILE" "$BOTTOM_SURFACE_FILE" \
   "$TABS_OVERLAY_FILE" "$VIDEO_OVERLAY_FILE" "$ADDRESS_PANEL_FILE" "$SETTINGS_HDS_FILE" \
   "$MANAGEMENT_HDS_FILE" "$SEGMENTED_TABS_FILE" "$CENTERED_DIALOG_FILE" \
   "$SYNC_PROGRESS_DIALOG_FILE"; do
@@ -49,8 +51,14 @@ require_text "$TOKEN_FILE" 'export const IMMERSIVE_MATERIAL_MIN_API_VERSION: num
   'component-level material must keep the API 26 compatibility gate.'
 require_text "$TOKEN_FILE" 'deviceInfo.sdkApiVersion < IMMERSIVE_MATERIAL_MIN_API_VERSION' \
   'material availability must check deviceInfo.sdkApiVersion before calling API 26 APIs.'
-require_text "$TOKEN_FILE" 'uiMaterial.getMaterialInfo().state' \
+require_text "$ACCESS_FILE" "import { uiMaterial } from '@kit.ArkUI';" \
+  'API 26 ArkUI material access must keep the uiMaterial kit import.'
+require_text "$ACCESS_FILE" 'uiMaterial.getMaterialInfo().state' \
   'material availability must honor the application MaterialState.'
+require_text "$ACCESS_STUB_FILE" 'export function isKitMaterialEnabled(): boolean {' \
+  'API 24 material stub must keep the kit-enabled gate.'
+require_text "$ACCESS_STUB_FILE" 'return false;' \
+  'API 24 material stub must not claim immersive material is available.'
 if rg -q --fixed-strings 'uiMaterial.ImmersiveStyle.' \
   "$TOKEN_FILE" "$COMPONENT_DIR/browser/BrowserFloatingGlassMaterialTokens.ets" \
   "$COMPONENT_DIR/browser/BrowserFloatingGlassMaterialSurface.ets" \
@@ -116,12 +124,14 @@ require_text "$MANAGEMENT_HDS_FILE" 'materialLevel: hdsMaterial.MaterialLevel.AD
   'Management HDS title bar must use ADAPTIVE material level.'
 require_text "$MANAGEMENT_HDS_FILE" 'materialEnabled: true' \
   'Management HDS title actions must explicitly opt into the API-gated material.'
-require_text "$CENTERED_DIALOG_FILE" 'const material = createCenteredDialogMaterial();' \
-  'custom dialog surfaces must resolve the API-gated material through the shared helper.'
-require_text "$CENTERED_DIALOG_FILE" 'instance.systemMaterial(material)' \
-  'custom dialog surfaces must apply systemMaterial after the shared layout attributes.'
+require_text "$CENTERED_DIALOG_FILE" 'applyCommonSystemMaterial(instance, createCenteredDialogMaterial());' \
+  'custom dialog surfaces must apply systemMaterial through the API-gated helper.'
 if rg -q 'CenteredDialogSurface|systemMaterial\(|ImmersiveMaterial' "$SYNC_PROGRESS_DIALOG_FILE"; then
   fail 'sync progress must use the CustomDialog system default surface instead of API 26 immersive material.'
+fi
+if rg -q --fixed-strings 'new CustomDialogController(withDialogSystemMaterial' \
+  "$COMPONENT_DIR" "${REPO_ROOT}/AiraBrowser/entry/src/main/ets/app/pages" -g '*.ets'; then
+  fail 'CustomDialogController must receive the options object literal directly so @CustomDialog builders keep new.'
 fi
 for file in "${SYNC_PROGRESS_HOST_FILES[@]}"; do
   require_text "$file" 'customStyle: false' \

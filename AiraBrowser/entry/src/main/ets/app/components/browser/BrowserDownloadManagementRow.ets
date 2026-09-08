@@ -17,7 +17,8 @@ import {
 import {
   createFloatingGlassMaterialIfAvailable,
   resolveFloatingGlassMaterialBackgroundColor,
-  resolveFloatingGlassMaterialTintForMode
+  resolveFloatingGlassMaterialTintForMode,
+  systemMaterialModifier
 } from '../common/FloatingGlassMaterialTokens';
 
 const DOWNLOAD_CARD_ACTION_VISUAL_SIZE: number = 36;
@@ -433,9 +434,9 @@ export struct BrowserDownloadManagementRow {
     .backgroundColor(resolveFloatingGlassMaterialBackgroundColor(
       $r('app.color.surface_floating_background')
     ))
-    .systemMaterial(createFloatingGlassMaterialIfAvailable(
+    .attributeModifier(systemMaterialModifier(createFloatingGlassMaterialIfAvailable(
       resolveFloatingGlassMaterialTintForMode(this.storedResolvedThemeMode)
-    ))
+    )))
   }
 
   private resolveActiveSubtitleText(): string {

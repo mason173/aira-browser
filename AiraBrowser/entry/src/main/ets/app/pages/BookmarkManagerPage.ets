@@ -65,6 +65,7 @@ import {
   SiteIconListTarget
 } from '../../core/siteicons/SiteIconListPresenter';
 import { requestOpenBrowserUrlWithRouteParams } from '../../core/navigation/BrowserNativeNavigationRequestCenter';
+import { DeferredEnterWork } from '../../common/utils/DeferredEnterWork';
 import {
   BrowserPrivateBoundaryNavigationService,
   BrowserPrivateBoundaryRouteParams
@@ -142,6 +143,7 @@ struct BookmarkManagerPage {
   private webPageShareService: WebPageShareService = new WebPageShareService();
   private privateBoundaryNavigationService: BrowserPrivateBoundaryNavigationService = new BrowserPrivateBoundaryNavigationService();
   private siteIconListPresenter: SiteIconListPresenter = new SiteIconListPresenter();
+  private deferredEnterWork: DeferredEnterWork = new DeferredEnterWork();
   private bookmarkScopeService: BrowserBookmarkScopeService = new BrowserBookmarkScopeService();
   private bookmarkFolderSelectionViewModel: BookmarkFolderSelectionViewModel = new BookmarkFolderSelectionViewModel();
   private bookmarkFolderCountViewModel: BookmarkFolderCountViewModel = new BookmarkFolderCountViewModel();
@@ -265,7 +267,7 @@ struct BookmarkManagerPage {
     alignment: DialogAlignment.Center,
     autoCancel: true,
     customStyle: false,
-    systemMaterial: createCenteredDialogMaterial()
+    systemMaterial: createCenteredDialogMaterial(),
   });
   private bookmarkTransferProgressController: SyncOperationProgressController = new SyncOperationProgressController(
     (state: SyncOperationProgressUiState): void => {
@@ -293,10 +295,16 @@ struct BookmarkManagerPage {
       (): SiteIconListTarget[] => this.buildVisibleBookmarkIconTargets(),
       (result: SiteIconListResolvedIcon): void => this.applyResolvedSiteIcon(result)
     );
-    this.resetAndReload();
+    this.applyBookmarkRouteContext();
+    this.deferredEnterWork.schedule((): void => {
+      this.prefillBookmarkNodesFromCache();
+      this.loadCachedFolderBookmarkCounts();
+      this.reloadNodes();
+    });
   }
 
   aboutToDisappear(): void {
+    this.deferredEnterWork.cancel();
     this.cancelScheduledFolderBookmarkCountsRefresh();
     this.cancelScheduledVisibleAuxRefresh();
     this.siteIconListPresenter.dispose();
@@ -661,7 +669,7 @@ struct BookmarkManagerPage {
     }
   }
 
-  private resetAndReload(): void {
+  private applyBookmarkRouteContext(): void {
     const params = router.getParams() as BookmarkManagerRouteParams | undefined;
     const boundaryParams: BrowserPrivateBoundaryRouteParams = {
       dataScope: params?.dataScope,
@@ -683,9 +691,6 @@ struct BookmarkManagerPage {
     this.isSelectionMode = false;
     this.selectedNodeIds = [];
     this.message = '';
-    this.prefillBookmarkNodesFromCache();
-    this.loadCachedFolderBookmarkCounts();
-    this.reloadNodes();
   }
 
   private reloadNodes(): void {

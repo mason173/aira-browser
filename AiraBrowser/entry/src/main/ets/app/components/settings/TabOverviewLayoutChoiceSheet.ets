@@ -67,19 +67,10 @@ export struct TabOverviewLayoutChoiceSheet {
         BrowserImmersiveSheetLayout({
           footerVisible: true,
           scrollContent: () => {
-            this.buildChoiceScroll(
-              BROWSER_IMMERSIVE_SHEET_HEADER_CONTENT_TOP_INSET,
-              BROWSER_SHEET_IMMERSIVE_FOOTER_CLEARANCE
-            )
+            this.buildPhoneScrollContent()
           },
           header: () => {
-            BrowserFeatureSheetHeader({
-              title: '标签页样式',
-              leadingAccessibilityLabel: '关闭标签页样式',
-              onLeadingAction: () => {
-                this.onCancel();
-              }
-            })
+            this.buildPhoneHeader()
           },
           footer: () => {
             this.buildActionFooter()
@@ -98,6 +89,28 @@ export struct TabOverviewLayoutChoiceSheet {
         this.onCancel();
       }
     })
+  }
+
+  @Builder
+  private buildPhoneHeader() {
+    // Keep this header in a @Builder. API 24 bindSheet crashes with
+    // "class constructor cannot called without 'new'" if BrowserFeatureSheetHeader
+    // is constructed directly inside a @BuilderParam arrow function.
+    BrowserFeatureSheetHeader({
+      title: '标签页样式',
+      leadingAccessibilityLabel: '关闭标签页样式',
+      onLeadingAction: () => {
+        this.onCancel();
+      }
+    })
+  }
+
+  @Builder
+  private buildPhoneScrollContent() {
+    this.buildChoiceScroll(
+      BROWSER_IMMERSIVE_SHEET_HEADER_CONTENT_TOP_INSET,
+      BROWSER_SHEET_IMMERSIVE_FOOTER_CLEARANCE
+    )
   }
 
   @Builder

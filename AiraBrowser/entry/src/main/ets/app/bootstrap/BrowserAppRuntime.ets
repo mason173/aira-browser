@@ -644,6 +644,11 @@ export const sharedAiraCloudBookmarkV4BootstrapRuntime: AiraCloudBookmarkV4Boots
     sharedAiraCloudBookmarkV4BootstrapCoordinator,
     sharedLocalBackupCoordinator
   );
+sharedSyncService.setNativeAiraCloudGenerationHandler(
+  (uid: string, commitId: string): Promise<void> => {
+    return sharedAiraCloudBookmarkV4BootstrapRuntime.acknowledgeNativeV4Activation(uid, commitId);
+  }
+);
 export const sharedHuaweiAccountMutationCoordinator: HuaweiAccountMutationCoordinator =
   new HuaweiAccountMutationCoordinator(
     sharedSyncExperienceCoordinator,

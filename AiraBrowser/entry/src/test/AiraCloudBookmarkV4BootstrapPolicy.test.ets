@@ -201,16 +201,15 @@ export default function airaCloudBookmarkV4BootstrapPolicyTest(): void {
       expect(result.reason).assertEqual('required');
     });
 
-    it('lets a debug package treat an Aira Cloud Pro login as a cutover candidate', 0, () => {
-      const debugPolicy = new AiraCloudBookmarkV4BootstrapPolicyService(true);
+    it('does not treat a fresh or disabled Aira Cloud login as a cutover candidate', 0, () => {
       const settings = createEligibleSettings();
       settings.bookmarkSyncEnabled = false;
       settings.bookmarkGenerationInitializedAt = 0;
 
-      const result = debugPolicy.evaluate(settings, createProMembership(), undefined);
+      const result = policy.evaluate(settings, createProMembership(), undefined);
 
-      expect(result.required).assertTrue();
-      expect(result.reason).assertEqual('required');
+      expect(result.required).assertFalse();
+      expect(result.reason).assertEqual('not_active_aira_cloud');
     });
   });
 }

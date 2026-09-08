@@ -35,6 +35,7 @@ import {
   HistoryTimelineDeletionTransaction,
   HistoryTimelineVisibleContent
 } from '../../../features/history/HistoryManagerScreenController';
+import { DeferredEnterWork } from '../../../common/utils/DeferredEnterWork';
 import {
   sharedBrowserDatabase,
   sharedBookmarkFolderSelectionPreparationCoordinator,
@@ -160,6 +161,7 @@ export struct HistoryManagerScreen {
   private homeShortcutToggleService: HomeShortcutToggleService = new HomeShortcutToggleService(sharedShortcutRepository);
   private webPageShareService: WebPageShareService = new WebPageShareService();
   private siteIconListPresenter: SiteIconListPresenter = new SiteIconListPresenter();
+  private deferredEnterWork: DeferredEnterWork = new DeferredEnterWork();
   private historyViewModel: HistoryViewModel = new HistoryViewModel();
   private historyTimelineDataSource: HistoryTimelineDataSource = new HistoryTimelineDataSource();
   private historySiteListDataSource: HistorySiteListDataSource = new HistorySiteListDataSource();
@@ -256,11 +258,14 @@ export struct HistoryManagerScreen {
       }
     );
     if (!this.seedStressHistoryIfRequested()) {
-      this.loadVisitsProgressively();
+      this.deferredEnterWork.schedule((): void => {
+        this.loadVisitsProgressively();
+      });
     }
   }
 
   aboutToDisappear(): void {
+    this.deferredEnterWork.cancel();
     this.controller.clearBackHandler();
     this.cancelVisibleIconResolve();
     this.siteIconListPresenter.dispose();

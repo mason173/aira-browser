@@ -122,6 +122,38 @@ export class AiraCloudBookmarkV4BootstrapCoordinator {
     }
   }
 
+  async acknowledgeNativeV4Activation(
+    uid: string,
+    commitId: string
+  ): Promise<AiraCloudBookmarkV4BootstrapRecord> {
+    const normalizedUid = this.requireUid(uid);
+    const current = await this.stateDomain.load(normalizedUid);
+    if (current !== undefined && current.cutoverId === AIRA_CLOUD_BOOKMARK_V4_CUTOVER_ID) {
+      if (current.status === 'completed' || current.status === 'opted_out') {
+        return current;
+      }
+      if (current.backupId.trim().length > 0) {
+        return current;
+      }
+    }
+    const now = this.nowProvider();
+    const record: AiraCloudBookmarkV4BootstrapRecord = {
+      uid: normalizedUid,
+      protocol: AIRA_CLOUD_BOOKMARK_V4_BOOTSTRAP_PROTOCOL,
+      cutoverId: AIRA_CLOUD_BOOKMARK_V4_CUTOVER_ID,
+      status: 'completed',
+      phase: 'completed',
+      backupId: '',
+      backupSha256: '',
+      remoteCommitId: commitId.trim(),
+      errorMessage: '',
+      updatedAt: now,
+      completedAt: now
+    };
+    await this.stateDomain.save(record);
+    return record;
+  }
+
   private requireUid(uid: string): string {
     const normalized = uid.trim();
     if (normalized.length === 0) {

@@ -1,10 +1,12 @@
-import { uiMaterial } from '@kit.ArkUI';
 import {
   createFloatingGlassMaterial,
+  FLOATING_GLASS_MATERIAL_ADAPTIVE_OPTIONS,
+  FLOATING_GLASS_MATERIAL_BLUR_STYLE,
   FLOATING_GLASS_MATERIAL_IMMERSIVE_STYLE,
   FLOATING_GLASS_MATERIAL_LIGHT_EFFECT_COLOR,
   FLOATING_GLASS_MATERIAL_LIGHT_TINT,
-  isFloatingGlassMaterialAvailable
+  isFloatingGlassMaterialAvailable,
+  systemMaterialModifier
 } from './FloatingGlassMaterialTokens';
 
 @Component
@@ -15,11 +17,12 @@ export struct FloatingGlassMaterialSurface {
   @Prop tintColor: ResourceColor = FLOATING_GLASS_MATERIAL_LIGHT_TINT;
   // Keep a visible glass-like surface when API 26 material is unavailable or opt-out.
   @Prop fallbackColor: ResourceColor = $r('app.color.surface_glass_background');
-  @Prop materialStyle: uiMaterial.ImmersiveStyle = FLOATING_GLASS_MATERIAL_IMMERSIVE_STYLE;
+  @Prop materialStyle: number = FLOATING_GLASS_MATERIAL_IMMERSIVE_STYLE;
   @Prop lightEffectColor: ResourceColor = FLOATING_GLASS_MATERIAL_LIGHT_EFFECT_COLOR;
   @Prop materialShadowEnabled: boolean = false;
   @Prop materialInteractive: boolean = true;
   @Prop materialEnabled: boolean = false;
+  @Prop backgroundBlurEnabled: boolean = false;
   @Prop overlayColor: ResourceColor | undefined = undefined;
   @Prop overlayOpacity: number = 0;
   @Prop materialBorderWidth: number = 0;
@@ -63,13 +66,17 @@ export struct FloatingGlassMaterialSurface {
     .height(this.surfaceHeight)
     .borderRadius(this.resolveSurfaceRadius())
     .clip(true)
-    .systemMaterial(this.shouldApplyMaterial() ? createFloatingGlassMaterial(
+    .backgroundBlurStyle(
+      this.shouldApplyBackgroundBlur() ? FLOATING_GLASS_MATERIAL_BLUR_STYLE : BlurStyle.NONE,
+      FLOATING_GLASS_MATERIAL_ADAPTIVE_OPTIONS
+    )
+    .attributeModifier(systemMaterialModifier(this.shouldApplyMaterial() ? createFloatingGlassMaterial(
       this.tintColor,
       this.materialStyle,
       this.lightEffectColor,
       this.materialShadowEnabled,
       this.materialInteractive
-    ) : undefined)
+    ) : undefined))
   }
 
   @Builder
@@ -93,5 +100,9 @@ export struct FloatingGlassMaterialSurface {
 
   private shouldApplyMaterial(): boolean {
     return this.materialEnabled && isFloatingGlassMaterialAvailable();
+  }
+
+  private shouldApplyBackgroundBlur(): boolean {
+    return this.backgroundBlurEnabled && !this.shouldApplyMaterial();
   }
 }

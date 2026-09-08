@@ -6,7 +6,8 @@ import { BROWSER_THEME_STORAGE_RESOLVED_MODE_KEY } from '../../../core/theme/Bro
 import {
   createFloatingGlassMaterialIfAvailable,
   resolveFloatingGlassMaterialBackgroundColor,
-  resolveFloatingGlassMaterialTintForMode
+  resolveFloatingGlassMaterialTintForMode,
+  systemMaterialModifier
 } from '../common/FloatingGlassMaterialTokens';
 
 const CUSTOM_HOMEPAGE_SYSTEM_ENTRY_BUTTON_SIZE: number = 48;
@@ -98,8 +99,8 @@ export struct CustomHomepageSystemEntryButton {
     .backgroundColor(resolveFloatingGlassMaterialBackgroundColor(
       $r('app.color.surface_floating_background')
     ))
-    .systemMaterial(createFloatingGlassMaterialIfAvailable(
+    .attributeModifier(systemMaterialModifier(createFloatingGlassMaterialIfAvailable(
       resolveFloatingGlassMaterialTintForMode(this.storedResolvedThemeMode)
-    ))
+    )))
   }
 }

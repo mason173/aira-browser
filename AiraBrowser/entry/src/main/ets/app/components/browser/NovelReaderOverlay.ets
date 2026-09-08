@@ -53,7 +53,8 @@ import {
 import { AiraIcon } from '../common/AiraIcon';
 import {
   createFloatingGlassMaterialIfAvailable,
-  resolveFloatingGlassMaterialBackgroundColor
+  resolveFloatingGlassMaterialBackgroundColor,
+  systemMaterialModifier
 } from '../common/FloatingGlassMaterialTokens';
 import { NovelBookCover } from '../novel/NovelBookCover';
 import { NovelComicImage } from '../novel/NovelComicImage';
@@ -1021,9 +1022,9 @@ export struct NovelReaderOverlay {
     .backgroundColor(resolveFloatingGlassMaterialBackgroundColor(
       $r('app.color.surface_floating_background')
     ))
-    .systemMaterial(createFloatingGlassMaterialIfAvailable(
+    .attributeModifier(systemMaterialModifier(createFloatingGlassMaterialIfAvailable(
       resolveBrowserBottomChromeMaterialTintForMode(this.storedResolvedThemeMode)
-    ))
+    )))
   }
 
   private onLayoutStateChanged(): void {

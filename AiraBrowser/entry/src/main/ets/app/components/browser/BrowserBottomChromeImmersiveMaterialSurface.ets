@@ -1,4 +1,3 @@
-import { uiMaterial } from '@kit.ArkUI';
 import {
   BROWSER_BOTTOM_CHROME_IMMERSIVE_LIGHT_EFFECT_COLOR,
   BROWSER_FLOATING_GLASS_MATERIAL_ADAPTIVE_OPTIONS,
@@ -8,7 +7,8 @@ import {
 import {
   createFloatingGlassMaterial,
   FLOATING_GLASS_MATERIAL_IMMERSIVE_STYLE,
-  isFloatingGlassMaterialAvailable
+  isFloatingGlassMaterialAvailable,
+  systemMaterialModifier
 } from '../common/FloatingGlassMaterialTokens';
 
 @Component
@@ -18,7 +18,7 @@ export struct BrowserBottomChromeImmersiveMaterialSurface {
   @Prop surfaceRadius: number = 0;
   @Prop materialTint: ResourceColor = BROWSER_FLOATING_GLASS_MATERIAL_LIGHT_TINT;
   @Prop fallbackColor: ResourceColor = $r('app.color.browser_bottom_toolbar_glass_background');
-  @Prop materialStyle: uiMaterial.ImmersiveStyle = FLOATING_GLASS_MATERIAL_IMMERSIVE_STYLE;
+  @Prop materialStyle: number = FLOATING_GLASS_MATERIAL_IMMERSIVE_STYLE;
   @Prop materialShadowEnabled: boolean = false;
   @Prop materialInteractive: boolean = true;
   @Prop materialLightEffectEnabled: boolean = true;
@@ -75,13 +75,13 @@ export struct BrowserBottomChromeImmersiveMaterialSurface {
       this.shouldApplyMaterial() ? BlurStyle.NONE : BROWSER_FLOATING_GLASS_MATERIAL_BLUR_STYLE,
       BROWSER_FLOATING_GLASS_MATERIAL_ADAPTIVE_OPTIONS
     )
-    .systemMaterial(this.shouldApplyMaterial() ? createFloatingGlassMaterial(
+    .attributeModifier(systemMaterialModifier(this.shouldApplyMaterial() ? createFloatingGlassMaterial(
       this.materialTint,
       this.materialStyle,
       this.materialLightEffectEnabled ? this.materialLightEffectColor : null,
       this.materialShadowEnabled,
       this.materialInteractive
-    ) : undefined)
+    ) : undefined))
   }
 
   @Builder

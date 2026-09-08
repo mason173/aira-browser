@@ -23,7 +23,8 @@ import { APP_STANDARD_HORIZONTAL_PADDING } from '../common/AppLayoutTokens';
 import { AiraIcon } from '../common/AiraIcon';
 import {
   createFloatingGlassMaterialIfAvailable,
-  resolveFloatingGlassMaterialBackgroundColor
+  resolveFloatingGlassMaterialBackgroundColor,
+  systemMaterialModifier
 } from '../common/FloatingGlassMaterialTokens';
 import {
   FLOATING_PROMPT_CARD_ANIMATION_MS,
@@ -519,9 +520,9 @@ export struct ElementInspectionOverlay {
     .backgroundColor(resolveFloatingGlassMaterialBackgroundColor(
       $r('app.color.surface_floating_background')
     ))
-    .systemMaterial(createFloatingGlassMaterialIfAvailable(
+    .attributeModifier(systemMaterialModifier(createFloatingGlassMaterialIfAvailable(
       resolveBrowserFloatingGlassMaterialTintForMode(this.storedResolvedThemeMode)
-    ))
+    )))
   }
 
   private shouldShowDetails(): boolean {

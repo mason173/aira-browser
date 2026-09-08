@@ -129,7 +129,9 @@ export struct FloatingPromptActionButton {
         surfaceWidth: FLOATING_PROMPT_CARD_ACTION_WIDTH,
         surfaceHeight: FLOATING_PROMPT_CARD_ACTION_HEIGHT,
         surfaceRadius: FLOATING_PROMPT_CARD_ACTION_HEIGHT / 2,
-        tintColor: resolveFloatingGlassMaterialTintForMode(this.storedResolvedThemeMode)
+        tintColor: resolveFloatingGlassMaterialTintForMode(this.storedResolvedThemeMode),
+        fallbackColor: $r('app.color.browser_bottom_toolbar_glass_background'),
+        backgroundBlurEnabled: true
       }) {
         Button(this.text)
           .width('100%')
@@ -168,7 +170,9 @@ export struct FloatingPromptMenuButton {
         surfaceWidth: FLOATING_PROMPT_CARD_ACTION_WIDTH,
         surfaceHeight: FLOATING_PROMPT_CARD_ACTION_HEIGHT,
         surfaceRadius: FLOATING_PROMPT_CARD_ACTION_HEIGHT / 2,
-        tintColor: resolveFloatingGlassMaterialTintForMode(this.storedResolvedThemeMode)
+        tintColor: resolveFloatingGlassMaterialTintForMode(this.storedResolvedThemeMode),
+        fallbackColor: $r('app.color.browser_bottom_toolbar_glass_background'),
+        backgroundBlurEnabled: true
       }) {
         Button(this.text)
           .width('100%')
@@ -204,7 +208,9 @@ export struct FloatingPromptCloseButton {
         surfaceWidth: FLOATING_PROMPT_CARD_ACTION_HEIGHT,
         surfaceHeight: FLOATING_PROMPT_CARD_ACTION_HEIGHT,
         surfaceRadius: FLOATING_PROMPT_CARD_ACTION_HEIGHT / 2,
-        tintColor: resolveFloatingGlassMaterialTintForMode(this.storedResolvedThemeMode)
+        tintColor: resolveFloatingGlassMaterialTintForMode(this.storedResolvedThemeMode),
+        fallbackColor: $r('app.color.browser_bottom_toolbar_glass_background'),
+        backgroundBlurEnabled: true
       }) {
         Button() {
           SymbolGlyph($r('sys.symbol.xmark'))
