@@ -55,6 +55,7 @@ export struct HistoryTimelineList {
   @Prop pressedVisitId: string = '';
   @Prop contextMenuVisitId: string = '';
   @Prop isSelectionMode: boolean = false;
+  @Prop allowMultiSelect: boolean = true;
   @Prop contentStartOffset: number = 4;
   private iconLookupSource: SiteIconListRenderState[] = [];
   private iconLookup: Record<string, SiteIconListRenderState | undefined> = {};
@@ -188,6 +189,7 @@ export struct HistoryTimelineList {
       addedToHome: this.isVisitAddedToHome(visit.id),
       selected: this.isVisitSelected(visit.id),
       selectionMode: this.isSelectionMode,
+      allowMultiSelect: this.allowMultiSelect,
       rowBorderRadius: this.resolveDefaultVisitRowRadius(),
       iconCornerRadiusRatio: this.storedSiteIconCornerRadiusRatio,
       host: visit.host,
@@ -355,6 +357,7 @@ struct HistoryTimelineRecordRow {
   @Prop addedToHome: boolean = false;
   @Prop selected: boolean = false;
   @Prop selectionMode: boolean = false;
+  @Prop allowMultiSelect: boolean = true;
   @Prop rowBorderRadius: BorderRadiuses = { topLeft: 0, topRight: 0, bottomLeft: 0, bottomRight: 0 };
   @Prop iconCornerRadiusRatio: number = 0.3;
   @Prop host: string = '';
@@ -382,6 +385,7 @@ struct HistoryTimelineRecordRow {
     this.addedToHome = params.addedToHome as boolean;
     this.selected = params.selected as boolean;
     this.selectionMode = params.selectionMode as boolean;
+    this.allowMultiSelect = params.allowMultiSelect as boolean;
     this.rowBorderRadius = params.rowBorderRadius as BorderRadiuses;
     this.iconCornerRadiusRatio = params.iconCornerRadiusRatio as number;
     this.host = params.host as string;
@@ -499,8 +503,11 @@ struct HistoryTimelineRecordRow {
   }
 
   private resolveContextActions(): string[] {
-    const actions: string[] = [
-      '多选',
+    const actions: string[] = [];
+    if (this.allowMultiSelect) {
+      actions.push('多选');
+    }
+    actions.push(
       this.addedToHome ? '从主页移除' : '添加到主页',
       this.bookmarked ? '取消书签' : '添加书签',
       '分享',
@@ -509,7 +516,7 @@ struct HistoryTimelineRecordRow {
       '打开',
       '新标签页打开',
       '后台打开'
-    ];
+    );
     if (this.host.length > 0) {
       actions.push('删除该站点记录');
     }

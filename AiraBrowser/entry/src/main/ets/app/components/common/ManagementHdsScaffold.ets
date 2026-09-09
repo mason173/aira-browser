@@ -247,9 +247,7 @@ export struct ManagementHdsScaffold {
       left: this.showBackButton
         ? MANAGEMENT_TITLE_ACTION_EDGE_INSET + MANAGEMENT_TITLE_ACTION_SIZE + MANAGEMENT_IMMERSIVE_TITLE_HORIZONTAL_GAP
         : MANAGEMENT_TITLE_ACTION_EDGE_INSET,
-      right: this.shouldShowTrailingActions()
-        ? MANAGEMENT_TITLE_ACTION_EDGE_INSET + MANAGEMENT_TITLE_ACTION_SIZE + MANAGEMENT_IMMERSIVE_TITLE_HORIZONTAL_GAP
-        : MANAGEMENT_TITLE_ACTION_EDGE_INSET
+      right: this.resolveImmersiveTitleEndInset()
     })
     .position({ x: 0, y: this.resolveTitleActionTop() })
     .alignItems(VerticalAlign.Center)
@@ -465,7 +463,29 @@ export struct ManagementHdsScaffold {
   }
 
   private shouldShowTrailingActions(): boolean {
-    return this.menuActions.length > 0 || this.showPrivateIndicator;
+    return this.resolveTrailingActionSlotCount() > 0;
+  }
+
+  private resolveTrailingActionSlotCount(): number {
+    let count = this.resolveDirectMenuActions().length;
+    if (this.resolveOverflowMenuActions().length > 0) {
+      count += 1;
+    }
+    if (this.showPrivateIndicator) {
+      count += 1;
+    }
+    return count;
+  }
+
+  private resolveImmersiveTitleEndInset(): number {
+    const slotCount = this.resolveTrailingActionSlotCount();
+    if (slotCount <= 0) {
+      return MANAGEMENT_TITLE_ACTION_EDGE_INSET;
+    }
+    return MANAGEMENT_TITLE_ACTION_EDGE_INSET +
+      slotCount * MANAGEMENT_TITLE_ACTION_SIZE +
+      (slotCount - 1) * MANAGEMENT_TITLE_ACTION_GAP +
+      MANAGEMENT_IMMERSIVE_TITLE_HORIZONTAL_GAP;
   }
 
   private resolveDirectMenuActions(): ManagementHdsMenuAction[] {

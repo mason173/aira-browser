@@ -64,6 +64,7 @@ import {
 } from '../../../services/shortcuts/HomeShortcutToggleService';
 import { WebPageShareService } from '../../../services/share/WebPageShareService';
 import { HistoryManagerHeader } from './HistoryManagerHeader';
+import { HistoryManagerSearchHeader } from './HistoryManagerSearchHeader';
 import { HistoryTimelineList } from './HistoryTimelineList';
 import { HistoryTimelineDataSource, HistoryTimelineIconTarget } from '../../../features/history/HistoryTimelineDataSource';
 import { HistorySiteIconTarget, HistorySiteListDataSource } from '../../../features/history/HistorySiteListDataSource';
@@ -116,8 +117,11 @@ const HISTORY_INITIAL_RENDER_LIMIT: number = 40;
 const HISTORY_RENDER_INCREMENT: number = 40;
 const HISTORY_RENDER_PREFETCH_REMAINING_ROWS: number = 8;
 const HISTORY_IMMERSIVE_TITLE_TO_HEADER_GAP: number = 12;
-const HISTORY_IMMERSIVE_HEADER_HEIGHT: number = 108;
+const HISTORY_IMMERSIVE_HEADER_HEIGHT: number = 44;
 const HISTORY_IMMERSIVE_HEADER_TO_CONTENT_GAP: number = 4;
+const HISTORY_IMMERSIVE_SEARCH_TOP_INSET: number = 8;
+const HISTORY_IMMERSIVE_SEARCH_HEADER_HEIGHT: number = 64;
+const HISTORY_IMMERSIVE_SEARCH_TO_CONTENT_GAP: number = 8;
 const HISTORY_IMMERSIVE_TOP_BLUR_RADIUS: number = 20;
 
 interface HistoryIconStateTarget {
@@ -172,6 +176,8 @@ export struct HistoryManagerScreen {
   @State visits: HistoryDisplayVisit[] = [];
   @State sites: HistorySiteGroup[] = [];
   @State searchQuery: string = '';
+  @State isSearchMode: boolean = false;
+  @State searchReturnMode: HistoryViewMode = 'timeline';
   @State viewMode: HistoryViewMode = 'timeline';
   @State isTimelineLoading: boolean = false;
   @State drilldownReturnQuery: string = '';
@@ -236,6 +242,10 @@ export struct HistoryManagerScreen {
         this.exitSelectionMode();
         return true;
       }
+      if (this.isSearchMode) {
+        this.exitSearchMode();
+        return true;
+      }
       if (this.canNavigateBack()) {
         this.navigateBack();
         return true;
@@ -281,7 +291,10 @@ export struct HistoryManagerScreen {
           primaryTextColor: this.storedPrimaryTextColor,
           dividerColor: this.storedDividerColor,
           showPrivateIndicator: this.isSessionEphemeral,
+          showTitleBar: !this.isSearchMode,
+          useTopSafeInset: !this.isSearchMode,
           menuActions: this.buildHeaderMenuActions(),
+          titleBarMenuMaxCount: 2,
           immersiveContent: true,
           topSafeInsetVpOverride: this.topSafeInsetVp,
           scrollers: [this.controller.getTimelineScroller(), this.historySiteScroller],
@@ -350,21 +363,24 @@ export struct HistoryManagerScreen {
 
   @Builder
   private buildHeader() {
-    HistoryManagerHeader({
-      searchQuery: this.searchQuery,
-      viewMode: this.viewMode,
-      onSearchQueryChange: (value: string) => {
-        this.searchQuery = value;
-        this.clearDrilldownIfQueryChanged();
-        this.loadCurrentModeFirstPage();
-      },
-      onClearSearch: () => {
-        this.clearSearchQuery();
-      },
-      onChangeViewMode: (mode: HistoryViewMode) => {
-        this.switchViewMode(mode);
-      }
-    })
+    if (this.isSearchMode) {
+      HistoryManagerSearchHeader({
+        query: this.searchQuery,
+        onQueryChange: (query: string) => {
+          this.updateSearchQuery(query);
+        },
+        onClose: () => {
+          this.exitSearchMode();
+        }
+      })
+    } else {
+      HistoryManagerHeader({
+        viewMode: this.viewMode,
+        onChangeViewMode: (mode: HistoryViewMode) => {
+          this.switchViewMode(mode);
+        }
+      })
+    }
   }
 
   private resolveBackIconKind(): 'close' | 'back' {
@@ -372,11 +388,18 @@ export struct HistoryManagerScreen {
   }
 
   private buildHeaderMenuActions(): ManagementHdsMenuAction[] {
-    if (this.isSelectionMode) {
+    if (this.isSelectionMode || this.isSearchMode) {
       return [];
     }
     const hasVisits = this.rawVisits.length > 0;
     const actions: ManagementHdsMenuAction[] = [
+      {
+        label: '搜索',
+        icon: $r('sys.symbol.magnifyingglass'),
+        action: () => {
+          this.enterSearchMode();
+        }
+      },
       {
         label: '编辑',
         icon: $r('sys.symbol.checkmark_circle_fill'),
@@ -534,10 +557,12 @@ export struct HistoryManagerScreen {
 
   @Builder
   private buildHistoryPage(mode: HistoryViewMode) {
-    if (mode === 'timeline') {
+    if (this.isSearchMode && this.searchQuery.trim().length === 0) {
+      this.buildIdleSearchList()
+    } else if (mode === 'timeline') {
       Stack({ alignContent: Alignment.Top }) {
         this.buildHistoryContent(mode)
-        if (this.isViewModeEmpty(mode) && !this.isTimelineLoading) {
+        if (this.shouldShowHistoryEmptyState(mode)) {
           this.buildEmptyState(mode)
         }
       }
@@ -546,31 +571,21 @@ export struct HistoryManagerScreen {
     } else if (!this.isViewModeEmpty(mode)) {
       this.buildHistoryContent(mode)
     } else {
-      Scroll(this.historySiteScroller) {
-        Column() {
-          if (this.isViewModeEmpty(mode)) {
-            this.buildEmptyState(mode)
-          } else {
-            this.buildHistoryContent(mode)
-          }
-        }
-        .width('100%')
-        .constraintSize({ minHeight: '100%' })
-        .padding({ left: 16, right: 16, top: this.resolveHistoryContentTopInset(), bottom: 4 })
-      }
-      .width('100%')
-      .height('100%')
-      .linearGradientBlur(HISTORY_IMMERSIVE_TOP_BLUR_RADIUS, {
-        fractionStops: [[1, 0], [1, 0.05], [0, 0.14], [0, 1]],
-        direction: GradientDirection.Bottom
-      })
-      .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
-      .scrollBar(BarState.Auto)
-      .expandSafeArea(
-        [SafeAreaType.SYSTEM, SafeAreaType.CUTOUT],
-        [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM]
-      )
+      this.buildEmptyState(mode)
     }
+  }
+
+  @Builder
+  private buildIdleSearchList() {
+    List() {
+    }
+    .width('100%')
+    .height('100%')
+    .padding({ left: 16, right: 16, bottom: 4 })
+    .contentStartOffset(this.resolveHistoryContentTopInset())
+    .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
+    .scrollBar(BarState.Off)
+    .backgroundColor(this.storedPageBackgroundColor)
   }
 
   @Builder
@@ -617,6 +632,7 @@ export struct HistoryManagerScreen {
         pressedVisitId: this.pressedVisitId,
         contextMenuVisitId: this.contextMenuVisitId,
         isSelectionMode: this.isSelectionMode,
+        allowMultiSelect: !this.isSearchMode,
         contentStartOffset: this.resolveHistoryContentTopInset(),
         onOpenVisit: (visit: HistoryDisplayVisit) => {
           this.openVisit(visit);
@@ -678,19 +694,36 @@ export struct HistoryManagerScreen {
 
   @Builder
   private buildEmptyState(mode: HistoryViewMode) {
-    AppEmptyState({
-      airaIconId: this.searchQuery.trim().length > 0 ? 'settings.search' : 'browser.shortcut.history',
-      title: this.getEmptyTitle(mode),
-      message: this.getEmptyMessage(mode)
-    })
+    Column() {
+      AppEmptyState({
+        airaIconId: this.isSearchMode || this.searchQuery.trim().length > 0
+          ? 'settings.search'
+          : 'browser.shortcut.history',
+        title: this.getEmptyTitle(mode),
+        message: this.getEmptyMessage(mode),
+        topPadding: 0,
+        bottomPadding: 0
+      })
+    }
+    .width('100%')
+    .height('100%')
+    .justifyContent(FlexAlign.Center)
+    .alignItems(HorizontalAlign.Center)
   }
 
   private resolveFloatingHeaderTopInset(): number {
+    if (this.isSearchMode) {
+      return Math.max(0, Math.ceil(this.topSafeInsetVp)) + HISTORY_IMMERSIVE_SEARCH_TOP_INSET;
+    }
     return resolveManagementImmersiveTitleBottomInset(this.topSafeInsetVp) +
       HISTORY_IMMERSIVE_TITLE_TO_HEADER_GAP;
   }
 
   private resolveHistoryContentTopInset(): number {
+    if (this.isSearchMode) {
+      return this.resolveFloatingHeaderTopInset() + HISTORY_IMMERSIVE_SEARCH_HEADER_HEIGHT +
+        HISTORY_IMMERSIVE_SEARCH_TO_CONTENT_GAP;
+    }
     return this.resolveFloatingHeaderTopInset() + HISTORY_IMMERSIVE_HEADER_HEIGHT +
       HISTORY_IMMERSIVE_HEADER_TO_CONTENT_GAP;
   }
@@ -763,6 +796,10 @@ export struct HistoryManagerScreen {
   }
 
   private loadCurrentModeFirstPage(): void {
+    if (this.shouldHoldEmptySearchResults()) {
+      this.clearHistoryViewState();
+      return;
+    }
     if (this.viewMode === 'sites') {
       this.loadSiteFirstPage();
       return;
@@ -773,6 +810,10 @@ export struct HistoryManagerScreen {
   private loadVisitsProgressively(): void {
     this.siteReloadSequence += 1;
     this.isLoadingMoreSites = false;
+    if (this.shouldHoldEmptySearchResults()) {
+      this.clearHistoryViewState();
+      return;
+    }
     const query = this.searchQuery.trim();
     if (query.length > 0) {
       this.applyHistoryViewState();
@@ -937,6 +978,10 @@ export struct HistoryManagerScreen {
       this.exitSelectionMode();
       return;
     }
+    if (this.isSearchMode) {
+      this.exitSearchMode();
+      return;
+    }
     if (this.canNavigateBack()) {
       this.navigateBack();
       return;
@@ -946,6 +991,9 @@ export struct HistoryManagerScreen {
 
   private handleContextAction(visit: HistoryDisplayVisit, title: string): void {
     if (title === '多选') {
+      if (this.isSearchMode) {
+        return;
+      }
       this.runAfterContextMenuDismiss(() => {
         this.enterSelectionMode(visit.id);
       });
@@ -1053,9 +1101,47 @@ export struct HistoryManagerScreen {
     this.loadVisitsProgressively();
   }
 
-  private clearSearchQuery(): void {
-    this.searchQuery = '';
+  private shouldHoldEmptySearchResults(): boolean {
+    return this.isSearchMode && this.searchQuery.trim().length === 0;
+  }
+
+  private shouldShowHistoryEmptyState(mode: HistoryViewMode): boolean {
+    if (this.shouldHoldEmptySearchResults()) {
+      return false;
+    }
+    if (mode === 'timeline' && this.isTimelineLoading) {
+      return false;
+    }
+    return this.isViewModeEmpty(mode);
+  }
+
+  private updateSearchQuery(query: string): void {
+    this.searchQuery = query;
+    this.clearDrilldownIfQueryChanged();
+    this.loadCurrentModeFirstPage();
+  }
+
+  private enterSearchMode(): void {
+    if (this.isSearchMode) {
+      return;
+    }
+    this.exitSelectionMode();
+    this.searchReturnMode = this.drilldownHost.length > 0 ? this.drilldownReturnMode : this.viewMode;
     this.clearDrilldownState();
+    this.searchQuery = '';
+    this.viewMode = 'timeline';
+    this.clearHistoryViewState();
+    this.isSearchMode = true;
+  }
+
+  private exitSearchMode(): void {
+    if (!this.isSearchMode) {
+      return;
+    }
+    this.isSearchMode = false;
+    this.searchQuery = '';
+    this.viewMode = this.searchReturnMode;
+    this.exitSelectionMode();
     this.loadCurrentModeFirstPage();
   }
 
@@ -1228,6 +1314,9 @@ export struct HistoryManagerScreen {
   }
 
   private enterSelectionMode(initialVisitId?: string): void {
+    if (this.isSearchMode) {
+      return;
+    }
     this.controller.closeTimelineSwipeActions();
     this.isSelectionMode = true;
     this.contextMenuVisitId = '';
@@ -1923,6 +2012,7 @@ export struct HistoryManagerScreen {
       return;
     }
     this.clearDrilldownState();
+    this.isSearchMode = false;
     this.searchQuery = '';
     this.viewMode = 'sites';
     this.loadSiteFirstPage();
@@ -1938,10 +2028,16 @@ export struct HistoryManagerScreen {
   }
 
   private getEmptyTitle(mode: HistoryViewMode = this.viewMode): string {
+    if (this.isSearchMode) {
+      return this.searchQuery.trim().length > 0 ? '没有匹配的历史记录' : '搜索历史记录';
+    }
     return this.searchQuery.trim().length > 0 ? '没有匹配的历史记录' : '还没有历史记录';
   }
 
   private getEmptyMessage(mode: HistoryViewMode = this.viewMode): string {
+    if (this.isSearchMode) {
+      return this.searchQuery.trim().length > 0 ? '换个关键词试试。' : '输入标题或网址开始搜索';
+    }
     return this.searchQuery.trim().length > 0 ? '换个关键词试试。' : '从搜索栏打开网页后，这里会自动记录。';
   }
 
