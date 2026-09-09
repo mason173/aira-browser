@@ -182,6 +182,7 @@ struct BookmarkManagerPage {
     this.bookmarkFolderCountViewModel.createInitialState();
   @State private bookmarkSearchState: BookmarkManagerSearchState =
     this.bookmarkManagerSearchViewModel.createInitialState();
+  @State titleActionsElevated: boolean = false;
   private bookmarkVisibleStartIndex: number = 0;
   private bookmarkVisibleEndIndex: number = 20;
   private homeShortcutCache: ShortcutRecord[] = [];
@@ -339,6 +340,7 @@ struct BookmarkManagerPage {
         topSafeInsetVpOverride: this.topSafeInsetVp,
         menuActions: this.buildHeaderMenuActions(),
         titleBarMenuMaxCount: 2,
+        elevateTitleActions: this.titleActionsElevated,
         scrollers: [this.bookmarkListScroller],
         onBack: () => {
           this.handleLeadingClick();
@@ -491,6 +493,9 @@ struct BookmarkManagerPage {
         },
         onScrollVisibleRange: (start: number, end: number) => {
           this.updateBookmarkVisibleRange(start, end);
+        },
+        onScrollOffsetChange: (offset: number) => {
+          this.titleActionsElevated = Number.isFinite(offset) && offset > 8;
         }
       })
     }
@@ -787,6 +792,7 @@ struct BookmarkManagerPage {
     this.selectedRootId = rootId;
     this.exitSelectionMode();
     this.message = '';
+    this.titleActionsElevated = false;
     this.prefillBookmarkNodesFromCache();
     this.reloadNodes();
   }
@@ -928,10 +934,12 @@ struct BookmarkManagerPage {
   }
 
   private enterBookmarkSearchMode(): void {
+    this.titleActionsElevated = false;
     this.applyBookmarkSearchResult(this.bookmarkManagerSearchViewModel.enterSearchMode());
   }
 
   private exitBookmarkSearchMode(): void {
+    this.titleActionsElevated = false;
     this.applyBookmarkSearchResult(this.bookmarkManagerSearchViewModel.exitSearchMode());
   }
 

@@ -28,8 +28,8 @@ export struct HistorySiteList {
   dataSource: HistorySiteListDataSource = new HistorySiteListDataSource();
   listScroller: Scroller = new Scroller();
   @Prop icons: SiteIconListRenderState[] = [];
-  @Prop selectedSiteKeys: string[] = [];
-  @Prop isSelectionMode: boolean = false;
+  @Prop @Watch('handleSelectionPresentationChanged') selectedSiteKeys: string[] = [];
+  @Prop @Watch('handleSelectionPresentationChanged') isSelectionMode: boolean = false;
   @Prop contentStartOffset: number = 4;
   @State private pressedSiteKey: string = '';
   @State private contextMenuSiteKey: string = '';
@@ -47,6 +47,7 @@ export struct HistorySiteList {
     sourceRevision: number
   ) => void = (_target: SiteIconListTarget, _currentUri: string, _sourceRevision: number) => {};
   onScrollVisibleRange: (start: number, end: number) => void = (_start: number, _end: number) => {};
+  onScrollOffsetChange: (offset: number) => void = (_offset: number) => {};
 
   build() {
     List({ scroller: this.listScroller, space: 0 }) {
@@ -55,7 +56,6 @@ export struct HistorySiteList {
           this.buildSiteCardRow(site, index)
         }
         .width('100%')
-        .reuseId('history_site_row')
       }, (site: HistorySiteGroup) => site.key)
     }
     .width('100%')
@@ -71,6 +71,9 @@ export struct HistorySiteList {
     .cachedCount(HISTORY_SITE_LIST_CACHE_COUNT)
     .onScrollIndex((start: number, end: number) => {
       this.onScrollVisibleRange(start, end);
+    })
+    .onDidScroll((_scrollDelta: number, _scrollState: ScrollState) => {
+      this.onScrollOffsetChange(this.listScroller.currentOffset().yOffset);
     })
     .expandSafeArea(
       [SafeAreaType.SYSTEM, SafeAreaType.CUTOUT],
@@ -220,6 +223,12 @@ export struct HistorySiteList {
       this.iconLookup = this.buildIconLookup(this.icons);
     }
     return this.iconLookup[siteKey];
+  }
+
+  private handleSelectionPresentationChanged(): void {
+    this.selectedSiteKeyLookupSource = this.selectedSiteKeys;
+    this.selectedSiteKeyLookup = this.buildIdLookup(this.selectedSiteKeys);
+    this.dataSource.notifyPresentationChanged();
   }
 
   private getSelectedSiteKeyLookup(): Record<string, boolean> {

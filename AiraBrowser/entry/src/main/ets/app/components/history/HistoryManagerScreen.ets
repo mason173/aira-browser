@@ -123,6 +123,7 @@ const HISTORY_IMMERSIVE_SEARCH_TOP_INSET: number = 8;
 const HISTORY_IMMERSIVE_SEARCH_HEADER_HEIGHT: number = 64;
 const HISTORY_IMMERSIVE_SEARCH_TO_CONTENT_GAP: number = 8;
 const HISTORY_IMMERSIVE_TOP_BLUR_RADIUS: number = 20;
+const HISTORY_TITLE_ACTION_ELEVATE_OFFSET: number = 8;
 
 interface HistoryIconStateTarget {
   id: string;
@@ -178,6 +179,7 @@ export struct HistoryManagerScreen {
   @State searchQuery: string = '';
   @State isSearchMode: boolean = false;
   @State searchReturnMode: HistoryViewMode = 'timeline';
+  @State titleActionsElevated: boolean = false;
   @State viewMode: HistoryViewMode = 'timeline';
   @State isTimelineLoading: boolean = false;
   @State drilldownReturnQuery: string = '';
@@ -295,6 +297,7 @@ export struct HistoryManagerScreen {
           useTopSafeInset: !this.isSearchMode,
           menuActions: this.buildHeaderMenuActions(),
           titleBarMenuMaxCount: 2,
+          elevateTitleActions: this.titleActionsElevated,
           immersiveContent: true,
           topSafeInsetVpOverride: this.topSafeInsetVp,
           scrollers: [this.controller.getTimelineScroller(), this.historySiteScroller],
@@ -619,6 +622,9 @@ export struct HistoryManagerScreen {
         },
         onScrollVisibleRange: (start: number, end: number) => {
           this.updateSiteVisibleRange(start, end);
+        },
+        onScrollOffsetChange: (offset: number) => {
+          this.updateTitleActionsElevationFromOffset(offset);
         }
       })
     } else {
@@ -677,6 +683,9 @@ export struct HistoryManagerScreen {
             endGroupIndex,
             endItemIndex
           );
+        },
+        onScrollOffsetChange: (offset: number) => {
+          this.updateTitleActionsElevationFromOffset(offset);
         },
         onReachEnd: () => {
           this.loadNextTimelinePage();
@@ -831,6 +840,7 @@ export struct HistoryManagerScreen {
     this.rawVisits = visits.slice();
     this.applyHistoryViewState();
     this.controller.scrollTimelineToStart();
+    this.resetTitleActionsElevation();
     this.pruneSelectedVisits();
     this.refreshBookmarkMarkers(this.visits);
     this.refreshHomeShortcutMarkers(this.visits);
@@ -905,6 +915,9 @@ export struct HistoryManagerScreen {
   }
 
   private applyLoadedSites(sites: HistorySiteAggregate[], hasLoadedAll: boolean, append: boolean): void {
+    if (!append) {
+      this.resetTitleActionsElevation();
+    }
     const siteGroups = this.historyViewModel.buildSiteGroupsFromAggregates(sites);
     this.sites = append ? this.mergeLoadedSites(siteGroups) : siteGroups;
     this.hasLoadedAllSites = hasLoadedAll;
@@ -1105,6 +1118,21 @@ export struct HistoryManagerScreen {
     return this.isSearchMode && this.searchQuery.trim().length === 0;
   }
 
+  private updateTitleActionsElevationFromOffset(offset: number): void {
+    const nextElevated = Number.isFinite(offset) && offset > HISTORY_TITLE_ACTION_ELEVATE_OFFSET;
+    if (this.titleActionsElevated === nextElevated) {
+      return;
+    }
+    this.titleActionsElevated = nextElevated;
+  }
+
+  private resetTitleActionsElevation(): void {
+    if (!this.titleActionsElevated) {
+      return;
+    }
+    this.titleActionsElevated = false;
+  }
+
   private shouldShowHistoryEmptyState(mode: HistoryViewMode): boolean {
     if (this.shouldHoldEmptySearchResults()) {
       return false;
@@ -1131,6 +1159,7 @@ export struct HistoryManagerScreen {
     this.searchQuery = '';
     this.viewMode = 'timeline';
     this.clearHistoryViewState();
+    this.resetTitleActionsElevation();
     this.isSearchMode = true;
   }
 
@@ -2049,6 +2078,7 @@ export struct HistoryManagerScreen {
     this.viewMode = mode;
     this.clearDrilldownState();
     this.exitSelectionMode();
+    this.resetTitleActionsElevation();
     this.loadCurrentModeFirstPage();
   }
 

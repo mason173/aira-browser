@@ -109,6 +109,7 @@ export struct BookmarkRecordList {
   onReorderApplied: (nodes: BookmarkNode[]) => void = (_nodes: BookmarkNode[]) => {};
   onReorderError: (error: Error) => void = (_error: Error) => {};
   onScrollVisibleRange: (start: number, end: number) => void = (_start: number, _end: number) => {};
+  onScrollOffsetChange: (offset: number) => void = (_offset: number) => {};
   onIconLoadError: (
     target: SiteIconListTarget,
     currentUri: string,
@@ -183,6 +184,9 @@ export struct BookmarkRecordList {
     .cachedCount(BOOKMARK_LIST_CACHE_COUNT, true)
     .onScrollIndex((start: number, end: number) => {
       this.onScrollVisibleRange(start, end);
+    })
+    .onDidScroll((_scrollDelta: number, _scrollState: ScrollState) => {
+      this.onScrollOffsetChange(this.scroller.currentOffset().yOffset);
     })
     .onAreaChange((_oldArea: Area, newArea: Area) => {
       this.listGlobalTop = Number(newArea.globalPosition.y);

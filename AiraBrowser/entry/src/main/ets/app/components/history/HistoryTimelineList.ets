@@ -90,6 +90,7 @@ export struct HistoryTimelineList {
     _endGroupIndex: number,
     _endItemIndex: number
   ) => {};
+  onScrollOffsetChange: (offset: number) => void = (_offset: number) => {};
   onReachEnd: () => void = () => {};
   onDeleteVisit: (visit: HistoryDisplayVisit) => void = (_visit: HistoryDisplayVisit) => {};
   onSwipeActionStateChange: (visitId: string, open: boolean) => void =
@@ -148,6 +149,9 @@ export struct HistoryTimelineList {
         end.index,
         end.itemIndexInGroup ?? -1
       );
+    })
+    .onDidScroll((_scrollDelta: number, _scrollState: ScrollState) => {
+      this.onScrollOffsetChange(this.listScroller.currentOffset().yOffset);
     })
     .onReachEnd(() => {
       this.onReachEnd();

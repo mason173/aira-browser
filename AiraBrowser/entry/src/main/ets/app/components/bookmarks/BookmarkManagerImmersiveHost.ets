@@ -2,8 +2,8 @@ import { BookmarkManagerSearchHeader } from './BookmarkManagerSearchHeader';
 import { resolveManagementImmersiveTitleBottomInset } from '../common/ManagementHdsScaffold';
 
 const BOOKMARK_IMMERSIVE_TITLE_TO_TABS_GAP: number = 12;
-const BOOKMARK_IMMERSIVE_TABS_HEIGHT: number = 36;
-const BOOKMARK_IMMERSIVE_TABS_TO_CONTENT_GAP: number = 16;
+const BOOKMARK_IMMERSIVE_TABS_HEIGHT: number = 44;
+const BOOKMARK_IMMERSIVE_TABS_TO_CONTENT_GAP: number = 4;
 const BOOKMARK_IMMERSIVE_TITLE_TO_CONTENT_GAP: number = 20;
 const BOOKMARK_IMMERSIVE_SEARCH_TOP_INSET: number = 8;
 const BOOKMARK_IMMERSIVE_SEARCH_HEADER_HEIGHT: number = 64;

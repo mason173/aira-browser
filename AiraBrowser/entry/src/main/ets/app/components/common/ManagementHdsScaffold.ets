@@ -39,6 +39,9 @@ const MANAGEMENT_TITLE_ACTION_TOP_INSET: number = 8;
 const MANAGEMENT_TITLE_ACTION_GAP: number = 8;
 const MANAGEMENT_IMMERSIVE_TITLE_HEIGHT: number = 40;
 const MANAGEMENT_IMMERSIVE_TITLE_HORIZONTAL_GAP: number = 12;
+const MANAGEMENT_TITLE_ACTION_SHADOW_RADIUS: number = 28;
+const MANAGEMENT_TITLE_ACTION_SHADOW_OFFSET_Y: number = 6;
+const MANAGEMENT_TITLE_ACTION_SHADOW_ANIMATION_MS: number = 220;
 
 export function resolveManagementImmersiveTitleBottomInset(topSafeInsetVp: number): number {
   return Math.max(0, Math.ceil(topSafeInsetVp)) + MANAGEMENT_TITLE_ACTION_TOP_INSET +
@@ -62,6 +65,7 @@ export struct ManagementHdsScaffold {
   @Prop immersiveContent: boolean = false;
   @Prop menuActions: ManagementHdsMenuAction[] = [];
   @Prop titleBarMenuMaxCount: number = MANAGEMENT_TITLE_BAR_OVERFLOW_ICON_COUNT;
+  @Prop elevateTitleActions: boolean = false;
   scrollers: Array<Scroller> = [];
   @State private topSafeInsetVp: number = 0;
   onBack: () => void = (): void => {};
@@ -268,6 +272,7 @@ export struct ManagementHdsScaffold {
   @Builder
   private buildGlassBackButton() {
     Stack({ alignContent: Alignment.Center }) {
+      this.buildTitleActionShadowCaster()
       FloatingGlassMaterialSurface({
         surfaceWidth: MANAGEMENT_TITLE_ACTION_SIZE,
         surfaceHeight: MANAGEMENT_TITLE_ACTION_SIZE,
@@ -334,60 +339,70 @@ export struct ManagementHdsScaffold {
 
   @Builder
   private buildGlassMenuAction(menuAction: ManagementHdsMenuAction) {
-    FloatingGlassMaterialSurface({
-      surfaceWidth: MANAGEMENT_TITLE_ACTION_SIZE,
-      surfaceHeight: MANAGEMENT_TITLE_ACTION_SIZE,
-      surfaceRadius: MANAGEMENT_TITLE_ACTION_SIZE / 2,
-      tintColor: resolveFloatingGlassMaterialTintForMode(this.storedResolvedThemeMode),
-      materialEnabled: true
-    }) {
-      Button() {
-        SymbolGlyph(this.resolveMenuActionIcon(menuAction))
-          .fontSize(MANAGEMENT_TITLE_ACTION_ICON_SIZE)
-          .fontWeight(FontWeight.Medium)
-          .fontColor([this.primaryTextColor])
-      }
-      .width('100%')
-      .height('100%')
-      .type(ButtonType.Normal)
-      .backgroundColor($r('sys.color.ohos_id_color_background_transparent'))
-      .borderRadius(MANAGEMENT_TITLE_ACTION_SIZE / 2)
-      .stateEffect(true)
-      .enabled(menuAction.enabled !== false)
-      .accessibilityText(menuAction.label)
-      .onClick(() => {
-        if (menuAction.enabled !== false) {
-          menuAction.action();
+    Stack({ alignContent: Alignment.Center }) {
+      this.buildTitleActionShadowCaster()
+      FloatingGlassMaterialSurface({
+        surfaceWidth: MANAGEMENT_TITLE_ACTION_SIZE,
+        surfaceHeight: MANAGEMENT_TITLE_ACTION_SIZE,
+        surfaceRadius: MANAGEMENT_TITLE_ACTION_SIZE / 2,
+        tintColor: resolveFloatingGlassMaterialTintForMode(this.storedResolvedThemeMode),
+        materialEnabled: true
+      }) {
+        Button() {
+          SymbolGlyph(this.resolveMenuActionIcon(menuAction))
+            .fontSize(MANAGEMENT_TITLE_ACTION_ICON_SIZE)
+            .fontWeight(FontWeight.Medium)
+            .fontColor([this.primaryTextColor])
         }
-      })
+        .width('100%')
+        .height('100%')
+        .type(ButtonType.Normal)
+        .backgroundColor($r('sys.color.ohos_id_color_background_transparent'))
+        .borderRadius(MANAGEMENT_TITLE_ACTION_SIZE / 2)
+        .stateEffect(true)
+        .enabled(menuAction.enabled !== false)
+        .accessibilityText(menuAction.label)
+        .onClick(() => {
+          if (menuAction.enabled !== false) {
+            menuAction.action();
+          }
+        })
+      }
     }
+    .width(MANAGEMENT_TITLE_ACTION_SIZE)
+    .height(MANAGEMENT_TITLE_ACTION_SIZE)
   }
 
   @Builder
   private buildGlassOverflowAction() {
-    FloatingGlassMaterialSurface({
-      surfaceWidth: MANAGEMENT_TITLE_ACTION_SIZE,
-      surfaceHeight: MANAGEMENT_TITLE_ACTION_SIZE,
-      surfaceRadius: MANAGEMENT_TITLE_ACTION_SIZE / 2,
-      tintColor: resolveFloatingGlassMaterialTintForMode(this.storedResolvedThemeMode),
-      materialEnabled: true
-    }) {
-      Button() {
-        AiraIcon({
-          airaIconId: 'browser.toolbar.more',
-          iconSize: MANAGEMENT_TITLE_ACTION_ICON_SIZE,
-          iconColor: this.primaryTextColor
-        })
+    Stack({ alignContent: Alignment.Center }) {
+      this.buildTitleActionShadowCaster()
+      FloatingGlassMaterialSurface({
+        surfaceWidth: MANAGEMENT_TITLE_ACTION_SIZE,
+        surfaceHeight: MANAGEMENT_TITLE_ACTION_SIZE,
+        surfaceRadius: MANAGEMENT_TITLE_ACTION_SIZE / 2,
+        tintColor: resolveFloatingGlassMaterialTintForMode(this.storedResolvedThemeMode),
+        materialEnabled: true
+      }) {
+        Button() {
+          AiraIcon({
+            airaIconId: 'browser.toolbar.more',
+            iconSize: MANAGEMENT_TITLE_ACTION_ICON_SIZE,
+            iconColor: this.primaryTextColor
+          })
+        }
+        .width('100%')
+        .height('100%')
+        .type(ButtonType.Normal)
+        .backgroundColor($r('sys.color.ohos_id_color_background_transparent'))
+        .borderRadius(MANAGEMENT_TITLE_ACTION_SIZE / 2)
+        .stateEffect(true)
+        .accessibilityText('更多操作')
+        .bindMenu(this.buildOverflowMenu())
       }
-      .width('100%')
-      .height('100%')
-      .type(ButtonType.Normal)
-      .backgroundColor($r('sys.color.ohos_id_color_background_transparent'))
-      .borderRadius(MANAGEMENT_TITLE_ACTION_SIZE / 2)
-      .stateEffect(true)
-      .accessibilityText('更多操作')
-      .bindMenu(this.buildOverflowMenu())
     }
+    .width(MANAGEMENT_TITLE_ACTION_SIZE)
+    .height(MANAGEMENT_TITLE_ACTION_SIZE)
   }
 
   @Builder
@@ -414,6 +429,7 @@ export struct ManagementHdsScaffold {
   @Builder
   private buildGlassPrivateIndicator() {
     Stack({ alignContent: Alignment.Center }) {
+      this.buildTitleActionShadowCaster()
       FloatingGlassMaterialSurface({
         surfaceWidth: MANAGEMENT_TITLE_ACTION_SIZE,
         surfaceHeight: MANAGEMENT_TITLE_ACTION_SIZE,
@@ -460,6 +476,35 @@ export struct ManagementHdsScaffold {
 
   private resolveTitleActionTop(): number {
     return (this.useTopSafeInset ? this.resolveTopSafeInset() : 0) + MANAGEMENT_TITLE_ACTION_TOP_INSET;
+  }
+
+  @Builder
+  private buildTitleActionShadowCaster() {
+    Stack()
+      .width(MANAGEMENT_TITLE_ACTION_SIZE)
+      .height(MANAGEMENT_TITLE_ACTION_SIZE)
+      .borderRadius(MANAGEMENT_TITLE_ACTION_SIZE / 2)
+      .backgroundColor(this.resolveTitleActionShadowFill())
+      .shadow(this.resolveTitleActionShadow())
+      .opacity(this.elevateTitleActions ? 1 : 0)
+      .animation({
+        duration: MANAGEMENT_TITLE_ACTION_SHADOW_ANIMATION_MS,
+        curve: Curve.EaseOut
+      })
+      .hitTestBehavior(HitTestMode.None)
+  }
+
+  private resolveTitleActionShadowFill(): ResourceColor {
+    return this.storedResolvedThemeMode === 'dark' ? '#F22C2C2C' : '#F7FFFFFF';
+  }
+
+  private resolveTitleActionShadow(): ShadowOptions {
+    return {
+      radius: MANAGEMENT_TITLE_ACTION_SHADOW_RADIUS,
+      color: this.storedResolvedThemeMode === 'dark' ? '#59000000' : '#2A000000',
+      offsetX: 0,
+      offsetY: MANAGEMENT_TITLE_ACTION_SHADOW_OFFSET_Y
+    };
   }
 
   private shouldShowTrailingActions(): boolean {
