@@ -16,9 +16,12 @@ import { AiraSyncWorkThrottleService } from '../../services/sync/AiraSyncWorkThr
 import { HuaweiSpaceCloudSyncCoordinator } from './HuaweiSpaceCloudSyncCoordinator';
 import {
   HuaweiSpaceHistoryRecordKind,
-  HuaweiSpaceHistoryRow
+  HuaweiSpaceHistoryRow,
+  huaweiHistoryPhysicalTable
 } from './HuaweiSpaceHistorySnapshotCodec';
 import {
+  HUAWEI_SPACE_HISTORY_BLOCK_TABLE,
+  HUAWEI_SPACE_HISTORY_HEAD_TABLE,
   HUAWEI_SPACE_HISTORY_TABLE,
   HuaweiSpaceRdbStoreOwner
 } from './HuaweiSpaceRdbStoreOwner';
@@ -63,9 +66,26 @@ export class HuaweiSpaceHistoryRemoteStore {
   async readState(): Promise<HuaweiSpaceHistorySyncState> {
     this.assertConfigured();
     const store = await this.getStore();
-    await this.runCloudSync(store, relationalStore.SyncMode.SYNC_MODE_CLOUD_FIRST, true);
-    const rows = await this.readRawRows(store);
-    const decoded: AiraHistoryRemoteStateDecode = await this.decodeRemoteState(rows);
+    await this.runCloudSync(
+      store,
+      relationalStore.SyncMode.SYNC_MODE_CLOUD_FIRST,
+      true,
+      [HUAWEI_SPACE_HISTORY_HEAD_TABLE]
+    );
+    let rows = await this.readAllPhysicalRows(store);
+    if (this.needsBlockCloudSync(rows)) {
+      rows = await this.syncBlocksAndReload(store);
+    }
+    let decoded: AiraHistoryRemoteStateDecode;
+    try {
+      decoded = await this.decodeRemoteState(rows);
+    } catch (error) {
+      if (!this.isIncompleteHistoryError(error)) {
+        throw error as Error;
+      }
+      rows = await this.syncBlocksAndReload(store);
+      decoded = await this.decodeRemoteState(rows);
+    }
     this.freshRows = rows;
     this.freshLegacyRowIds = decoded.legacyRowIds;
     return decoded.state;
@@ -75,27 +95,34 @@ export class HuaweiSpaceHistoryRemoteStore {
     return this.freshLegacyRowIds.length > 0;
   }
 
-  async writeState(state: HuaweiSpaceHistorySyncState): Promise<HuaweiSpaceHistoryWriteResult> {
+  async writeState(
+    state: HuaweiSpaceHistorySyncState,
+    skipCloudTransport: boolean = false
+  ): Promise<HuaweiSpaceHistoryWriteResult> {
     this.assertConfigured();
     const store = await this.getStore();
-    const currentRows = await this.consumeFreshRows(store);
+    const currentRows = await this.consumeFreshRows(store, skipCloudTransport);
     const writePlan: AiraHistoryRemoteWritePlan =
       await this.computeExecutor.planHuaweiHistoryRemoteWrite(this.uid, this.deviceId, currentRows, state);
     const projection = writePlan.projection;
     let changedRowCount = await this.stageProjection(store, projection);
-    if (changedRowCount > 0) {
-      await this.runCloudSync(store, relationalStore.SyncMode.SYNC_MODE_TIME_FIRST, true);
-      await this.runCloudSync(store, relationalStore.SyncMode.SYNC_MODE_CLOUD_FIRST, true);
+    if (changedRowCount > 0 && !skipCloudTransport) {
+      await this.runIncrementalCommitBarrier(store, this.changedCloudTables(projection));
+    } else if (changedRowCount > 0) {
+      await this.runCloudSync(
+        store,
+        relationalStore.SyncMode.SYNC_MODE_TIME_FIRST,
+        true,
+        this.changedCloudTables(projection)
+      );
     }
-    let confirmedRows = await this.readRawRows(store);
+    let confirmedRows = await this.readAllPhysicalRows(store);
     let confirmation = await this.assertProjectionAndDesiredStateConfirmed(confirmedRows, projection, state);
 
     const cleanedLegacyRows = await this.deleteConfirmedLegacyRows(store, projection);
     changedRowCount += cleanedLegacyRows;
     if (cleanedLegacyRows > 0) {
-      await this.runCloudSync(store, relationalStore.SyncMode.SYNC_MODE_TIME_FIRST, true);
-      await this.runCloudSync(store, relationalStore.SyncMode.SYNC_MODE_CLOUD_FIRST, true);
-      confirmedRows = await this.readRawRows(store);
+      confirmedRows = await this.readAllPhysicalRows(store);
       this.assertLegacyCleanupConfirmed(confirmedRows, projection);
       confirmation = await this.assertProjectionAndDesiredStateConfirmed(confirmedRows, projection, state);
     }
@@ -106,15 +133,36 @@ export class HuaweiSpaceHistoryRemoteStore {
     };
   }
 
-  private async consumeFreshRows(store: relationalStore.RdbStore): Promise<HuaweiSpaceHistoryRow[]> {
+  private async consumeFreshRows(
+    store: relationalStore.RdbStore,
+    skipCloudTransport: boolean = false
+  ): Promise<HuaweiSpaceHistoryRow[]> {
     const rows = this.freshRows;
     this.freshRows = undefined;
     this.freshLegacyRowIds = [];
     if (rows !== undefined) {
       return rows;
     }
-    await this.runCloudSync(store, relationalStore.SyncMode.SYNC_MODE_CLOUD_FIRST, true);
-    return this.readRawRows(store);
+    if (!skipCloudTransport) {
+      await this.runCloudSync(
+        store,
+        relationalStore.SyncMode.SYNC_MODE_CLOUD_FIRST,
+        true,
+        [HUAWEI_SPACE_HISTORY_HEAD_TABLE]
+      );
+      let loaded = await this.readAllPhysicalRows(store);
+      if (this.needsBlockCloudSync(loaded)) {
+        await this.runCloudSync(
+          store,
+          relationalStore.SyncMode.SYNC_MODE_CLOUD_FIRST,
+          true,
+          [HUAWEI_SPACE_HISTORY_BLOCK_TABLE]
+        );
+        loaded = await this.readAllPhysicalRows(store);
+      }
+      return loaded;
+    }
+    return this.readAllPhysicalRows(store);
   }
 
   private async assertProjectionAndDesiredStateConfirmed(
@@ -142,7 +190,7 @@ export class HuaweiSpaceHistoryRemoteStore {
     store: relationalStore.RdbStore,
     projection: AiraHistoryRemoteWriteProjection
   ): Promise<number> {
-    const existingRows = await this.readRawRows(store);
+    const existingRows = await this.readAllPhysicalRows(store);
     const existingById = new Map<string, HuaweiSpaceHistoryRow>();
     existingRows.forEach((row: HuaweiSpaceHistoryRow): void => {
       existingById.set(row.rowId, row);
@@ -158,7 +206,7 @@ export class HuaweiSpaceHistoryRemoteStore {
           continue;
         }
         await store.insert(
-          HUAWEI_SPACE_HISTORY_TABLE,
+          this.tableNameForKind(row.recordKind),
           {
             rowId: row.rowId,
             accountUid: this.uid,
@@ -172,8 +220,7 @@ export class HuaweiSpaceHistoryRemoteStore {
         changed += 1;
       }
       for (const rowId of projection.rowIdsToDeleteBeforePublish) {
-        const predicates = this.buildRowPredicates(rowId);
-        changed += await store.delete(predicates);
+        changed += await this.deletePhysicalRow(store, rowId);
       }
       store.commit();
       transactionStarted = false;
@@ -203,7 +250,7 @@ export class HuaweiSpaceHistoryRemoteStore {
       store.beginTransaction();
       transactionStarted = true;
       for (const rowId of projection.legacyRowIdsToDeleteAfterConfirmation) {
-        deleted += await store.delete(this.buildRowPredicates(rowId));
+        deleted += await this.deletePhysicalRow(store, rowId);
       }
       store.commit();
       transactionStarted = false;
@@ -220,11 +267,20 @@ export class HuaweiSpaceHistoryRemoteStore {
     }
   }
 
-  private buildRowPredicates(rowId: string): relationalStore.RdbPredicates {
-    const predicates = new relationalStore.RdbPredicates(HUAWEI_SPACE_HISTORY_TABLE);
-    predicates.equalTo('accountUid', this.uid);
-    predicates.equalTo('rowId', rowId);
-    return predicates;
+  private async deletePhysicalRow(store: relationalStore.RdbStore, rowId: string): Promise<number> {
+    const tables: string[] = [
+      HUAWEI_SPACE_HISTORY_HEAD_TABLE,
+      HUAWEI_SPACE_HISTORY_BLOCK_TABLE,
+      HUAWEI_SPACE_HISTORY_TABLE
+    ];
+    let deleted = 0;
+    for (const tableName of tables) {
+      const predicates = new relationalStore.RdbPredicates(tableName);
+      predicates.equalTo('accountUid', this.uid);
+      predicates.equalTo('rowId', rowId);
+      deleted += await store.delete(predicates);
+    }
+    return deleted;
   }
 
   private assertLegacyCleanupConfirmed(
@@ -263,8 +319,83 @@ export class HuaweiSpaceHistoryRemoteStore {
     throw new Error('华为云空间历史记录中存在无法解析的数据，已停止同步。');
   }
 
-  private async readRawRows(store: relationalStore.RdbStore): Promise<HuaweiSpaceHistoryRow[]> {
-    const predicates = new relationalStore.RdbPredicates(HUAWEI_SPACE_HISTORY_TABLE);
+  private async syncBlocksAndReload(store: relationalStore.RdbStore): Promise<HuaweiSpaceHistoryRow[]> {
+    await this.runCloudSync(
+      store,
+      relationalStore.SyncMode.SYNC_MODE_CLOUD_FIRST,
+      true,
+      [HUAWEI_SPACE_HISTORY_BLOCK_TABLE]
+    );
+    return this.readAllPhysicalRows(store);
+  }
+
+  private isIncompleteHistoryError(error: Object): boolean {
+    const message = error instanceof Error ? error.message : JSON.stringify(error);
+    return message.indexOf('incomplete') >= 0;
+  }
+
+  private needsBlockCloudSync(rows: HuaweiSpaceHistoryRow[]): boolean {
+    let headCount = 0;
+    let blockCount = 0;
+    rows.forEach((row: HuaweiSpaceHistoryRow): void => {
+      const table = huaweiHistoryPhysicalTable(row.recordKind);
+      if (table === 'head') {
+        headCount += 1;
+      }
+      if (table === 'block') {
+        blockCount += 1;
+      }
+    });
+    return headCount > 0 && blockCount <= 0;
+  }
+
+  private changedCloudTables(projection: AiraHistoryRemoteWriteProjection): string[] {
+    const tables: string[] = [];
+    let hasBlocks = false;
+    let hasHeads = false;
+    projection.rowsToUpsert.forEach((row: HuaweiSpaceHistoryRow): void => {
+      const table = huaweiHistoryPhysicalTable(row.recordKind);
+      if (table === 'block') {
+        hasBlocks = true;
+      }
+      if (table === 'head') {
+        hasHeads = true;
+      }
+    });
+    if (projection.rowIdsToDeleteBeforePublish.length > 0) {
+      hasBlocks = true;
+    }
+    if (hasBlocks) {
+      tables.push(HUAWEI_SPACE_HISTORY_BLOCK_TABLE);
+    }
+    if (hasHeads) {
+      tables.push(HUAWEI_SPACE_HISTORY_HEAD_TABLE);
+    }
+    return tables;
+  }
+
+  private tableNameForKind(recordKind: HuaweiSpaceHistoryRecordKind): string {
+    const table = huaweiHistoryPhysicalTable(recordKind);
+    if (table === 'head') {
+      return HUAWEI_SPACE_HISTORY_HEAD_TABLE;
+    }
+    if (table === 'block') {
+      return HUAWEI_SPACE_HISTORY_BLOCK_TABLE;
+    }
+    return HUAWEI_SPACE_HISTORY_TABLE;
+  }
+
+  private async readAllPhysicalRows(store: relationalStore.RdbStore): Promise<HuaweiSpaceHistoryRow[]> {
+    const heads = await this.readRawRows(store, HUAWEI_SPACE_HISTORY_HEAD_TABLE);
+    const blocks = await this.readRawRows(store, HUAWEI_SPACE_HISTORY_BLOCK_TABLE);
+    return heads.concat(blocks);
+  }
+
+  private async readRawRows(
+    store: relationalStore.RdbStore,
+    tableName: string = HUAWEI_SPACE_HISTORY_HEAD_TABLE
+  ): Promise<HuaweiSpaceHistoryRow[]> {
+    const predicates = new relationalStore.RdbPredicates(tableName);
     predicates.equalTo('accountUid', this.uid);
     const resultSet = await store.queryWithoutRowCount(predicates, [
       'rowId',
@@ -297,44 +428,28 @@ export class HuaweiSpaceHistoryRemoteStore {
     return rows;
   }
 
-  private async getStore(): Promise<relationalStore.RdbStore> {
-    if (this.store !== undefined) {
-      return this.store;
+  private async runIncrementalCommitBarrier(
+    store: relationalStore.RdbStore,
+    tableNames: string[]
+  ): Promise<void> {
+    if (tableNames.length <= 0) {
+      return;
     }
-    if (this.storePromise === undefined) {
-      this.storePromise = HuaweiSpaceRdbStoreOwner.getStore(this.resolveContext(), this.databaseName)
-        .then((store: relationalStore.RdbStore): relationalStore.RdbStore => {
-          this.store = store;
-          return store;
-        })
-        .catch((error: Error) => {
-          this.storePromise = undefined;
-          throw error;
-        });
-    }
-    return this.storePromise;
-  }
-
-  private resolveContext(): common.ApplicationContext | common.UIAbilityContext {
-    if (this.context !== undefined) {
-      return this.context;
-    }
-    if (AppRuntimeContext.hasUIAbilityContext()) {
-      return AppRuntimeContext.getUIAbilityContext();
-    }
-    return AppRuntimeContext.getApplicationContext();
+    await this.runCloudSync(store, relationalStore.SyncMode.SYNC_MODE_TIME_FIRST, true, tableNames);
+    await this.runCloudSync(store, relationalStore.SyncMode.SYNC_MODE_CLOUD_FIRST, true, tableNames);
   }
 
   private runCloudSync(
     store: relationalStore.RdbStore,
     syncMode: relationalStore.SyncMode,
-    requireFreshTask: boolean
+    requireFreshTask: boolean,
+    tableNames: string[]
   ): Promise<void> {
     return HuaweiSpaceCloudSyncCoordinator.run({
       uid: this.uid,
       databaseName: this.databaseName,
       store,
-      tableNames: [HUAWEI_SPACE_HISTORY_TABLE],
+      tableNames: tableNames,
       syncMode,
       timeoutMs: HUAWEI_SPACE_HISTORY_SYNC_TIMEOUT_MS,
       requireFreshTask,
@@ -370,6 +485,34 @@ export class HuaweiSpaceHistoryRemoteStore {
       return new Error('华为云空间历史记录同步被系统网络策略阻止。');
     }
     return new Error(`华为云空间历史记录同步未完成（进度码 ${progressCode}）。`);
+  }
+
+  private async getStore(): Promise<relationalStore.RdbStore> {
+    if (this.store !== undefined) {
+      return this.store;
+    }
+    if (this.storePromise === undefined) {
+      this.storePromise = HuaweiSpaceRdbStoreOwner.getStore(this.resolveContext(), this.databaseName)
+        .then((store: relationalStore.RdbStore): relationalStore.RdbStore => {
+          this.store = store;
+          return store;
+        })
+        .catch((error: Error) => {
+          this.storePromise = undefined;
+          throw error;
+        });
+    }
+    return this.storePromise;
+  }
+
+  private resolveContext(): common.ApplicationContext | common.UIAbilityContext {
+    if (this.context !== undefined) {
+      return this.context;
+    }
+    if (AppRuntimeContext.hasUIAbilityContext()) {
+      return AppRuntimeContext.getUIAbilityContext();
+    }
+    return AppRuntimeContext.getApplicationContext();
   }
 
   private assertConfigured(): void {

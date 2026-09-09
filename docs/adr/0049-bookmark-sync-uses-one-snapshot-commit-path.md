@@ -446,3 +446,17 @@ durable. A retry reuses the original verified recovery point; restore replaces l
 disables only Aira Cloud Bookmark Sync; keep-local disables only that Domain. Once resolved, all later synchronization
 uses the ordinary single capture/read/merge/conditional-write/apply/baseline path. WebDAV, Huawei Space, Personal Server,
 History, Personalization, tabs, and browsing are outside this exception.
+
+Amended 2026-09-09 after diagnosing slow ordinary Huawei Space no-op synchronization: an ordinary same-Provider
+Huawei Bookmark merge may finish as the existing successful local no-op when a confirmed Head identity still
+matches the durable provider baseline. The gate runs only after pending-write confirmation, only for
+`huawei_space` + `merge` + non-conservative merge, only when `pendingBookmarkSyncAt` is zero, and only when a
+complete baseline snapshot already exists. It synchronizes the G8 Heads table, compares the observed aggregate
+`commitId` with the baseline commit, and if the Head exposes a single-head summary also compares shared
+folder/item counts. A match reuses the already confirmed baseline snapshot, history, and commit; it does not
+reconstruct Blocks, capture a fresh local snapshot, merge, write, or locally re-apply. A mismatch, incomplete
+Head, empty remote, missing baseline, pending local mutation, Provider switch, or any other intent falls through
+to the unchanged complete capture/read/merge/conditional-write path. This is not a second merge algorithm and
+does not treat a Head as a snapshot: Head identity is only a pointer to a previously confirmed complete commit.
+Operation logs, outboxes, incremental replay, and delete-only/private-only fast paths remain outside the current
+Sync Generation.

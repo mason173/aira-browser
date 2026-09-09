@@ -46,6 +46,8 @@ const BOOKMARK_AUTO_SYNC_FOREGROUND_DELAY_MS: number = 30000;
 const BOOKMARK_NETWORK_RECOVERY_DELAY_MS: number = 1000;
 const BOOKMARK_PERIODIC_SYNC_STARTUP_DELAY_MS: number = 30000;
 const BOOKMARK_PERIODIC_SYNC_INTERVAL_MS: number = 180000;
+export const HUAWEI_SPACE_TRANSPORT_WARMUP_DELAY_MS: number = 2000;
+export const AUTOMATIC_DRAIN_YIELD_MS: number = 16;
 const BOOKMARK_WEBDAV_PERIODIC_SYNC_INTERVAL_MS: number = 15 * 60 * 1000;
 const BOOKMARK_RETRY_MAX_DELAY_MS: number = 30 * 60 * 1000;
 
@@ -108,6 +110,11 @@ export interface SyncExperienceAutomaticDomainSelection {
   runBookmarks: boolean;
   runPersonalization: boolean;
   runHistory: boolean;
+}
+
+export function isHuaweiSpaceTransportWarmupBeforePeriodicFreshness(): boolean {
+  return HUAWEI_SPACE_TRANSPORT_WARMUP_DELAY_MS > 0 &&
+    HUAWEI_SPACE_TRANSPORT_WARMUP_DELAY_MS < BOOKMARK_PERIODIC_SYNC_STARTUP_DELAY_MS;
 }
 
 export function resolveSyncExperienceAutomaticDomainSelection(
@@ -184,7 +191,10 @@ export class SyncExperienceAutomaticRuntime {
   private personalizationAutomaticNotBefore: number = 0;
   private historyAutomaticNotBefore: number = 0;
   private automaticDrainQueued: boolean = false;
+  private automaticDrainTimerId: number = -1;
   private automaticGeneration: number = 0;
+  private huaweiTransportWarmupTimerId: number = -1;
+  private huaweiTransportWarmupScheduled: boolean = false;
   private pendingBookmarkAutomaticRun: boolean = false;
   private pendingPersonalizationAutomaticRun: boolean = false;
   private pendingHistoryAutomaticRun: boolean = false;
@@ -489,6 +499,7 @@ export class SyncExperienceAutomaticRuntime {
   notifyAppContentReady(): void {
     this.appForeground = true;
     this.startNetworkRecovery();
+    this.scheduleHuaweiSpaceTransportWarmup();
     this.runPendingBookmarksOnForeground();
     this.scheduleBookmarkPeriodicSync();
     this.notifyPersonalizationForeground();
@@ -500,6 +511,7 @@ export class SyncExperienceAutomaticRuntime {
   notifyAppForeground(): void {
     this.appForeground = true;
     this.startNetworkRecovery();
+    this.scheduleHuaweiSpaceTransportWarmup();
     this.runPendingBookmarksOnForeground();
     this.scheduleBookmarkPeriodicSync();
     this.notifyPersonalizationForeground();
@@ -510,6 +522,9 @@ export class SyncExperienceAutomaticRuntime {
 
   notifyAppBackground(): void {
     this.appForeground = false;
+    this.cancelHuaweiSpaceTransportWarmupTimer();
+    this.cancelAutomaticDrainTimer();
+    this.automaticDrainQueued = false;
     this.cancelBookmarkAutomaticSync();
     this.cancelPersonalizationAutomaticSync();
     this.cancelHistoryAutomaticSync();
@@ -778,7 +793,7 @@ export class SyncExperienceAutomaticRuntime {
     )) {
       return result;
     }
-    if (runHistory && request.mode === 'sync' && this.isHistoryAutomaticSyncActive()) {
+    if (runHistory && request.mode === 'sync' && this.isHistoryDomainEnabled()) {
       this.consumeAutomaticIntentBeforeManualDomain(request, 'history');
       result.history = this.resolveAdoptedHistoryCompletion(request) ??
         await this.executeHistoryDomain(request.kind === 'automatic', historyReason);
@@ -1032,6 +1047,17 @@ export class SyncExperienceAutomaticRuntime {
     return identity.provider + '\n' + identity.accountUid + '\n' + identity.clientId;
   }
 
+  private requestUnifiedAutomaticFreshnessRun(): void {
+    this.requestAutomaticRun(
+      this.isBookmarkAutomaticSyncActive(),
+      this.personalizationRepositoriesReady && this.isPersonalizationAutomaticSyncActive(),
+      'periodic',
+      'periodic',
+      this.isHistoryAutomaticSyncActive(),
+      'periodic'
+    );
+  }
+
   private requestAutomaticRun(
     runBookmarks: boolean,
     runPersonalization: boolean,
@@ -1086,6 +1112,7 @@ export class SyncExperienceAutomaticRuntime {
   private invalidateQueuedAutomaticDrain(): void {
     this.automaticGeneration += 1;
     this.automaticDrainQueued = false;
+    this.cancelAutomaticDrainTimer();
   }
 
   private schedulePendingAutomaticDrain(): void {
@@ -1094,23 +1121,53 @@ export class SyncExperienceAutomaticRuntime {
       return;
     }
     this.automaticDrainQueued = true;
-    void this.enqueueExecution({
-      kind: 'automatic',
-      automaticGeneration: this.automaticGeneration,
-      mode: 'sync',
-      runBookmarks: false,
-      runPersonalization: false,
-      runHistory: false,
-      bookmarkExecutionScope: 'enabled-domain',
-      bookmarkReason: this.pendingBookmarkReason,
-      personalizationReason: this.pendingPersonalizationReason,
-      historyReason: this.pendingHistoryReason,
-      bookmarkCompletionSequenceAtEnqueue: this.bookmarkCompletionSequence,
-      personalizationCompletionSequenceAtEnqueue: this.personalizationCompletionSequence,
-      historyCompletionSequenceAtEnqueue: this.historyCompletionSequence
-    }).catch((error: Error): void => {
-      hilog.warn(DOMAIN, TAG, 'automatic sync queue failed: %{public}s', JSON.stringify(error));
-    });
+    this.automaticDrainTimerId = this.clock.setTimeout((): void => {
+      this.automaticDrainTimerId = -1;
+      void this.enqueueExecution({
+        kind: 'automatic',
+        automaticGeneration: this.automaticGeneration,
+        mode: 'sync',
+        runBookmarks: false,
+        runPersonalization: false,
+        runHistory: false,
+        bookmarkExecutionScope: 'enabled-domain',
+        bookmarkReason: this.pendingBookmarkReason,
+        personalizationReason: this.pendingPersonalizationReason,
+        historyReason: this.pendingHistoryReason,
+        bookmarkCompletionSequenceAtEnqueue: this.bookmarkCompletionSequence,
+        personalizationCompletionSequenceAtEnqueue: this.personalizationCompletionSequence,
+        historyCompletionSequenceAtEnqueue: this.historyCompletionSequence
+      }).catch((error: Error): void => {
+        hilog.warn(DOMAIN, TAG, 'automatic sync queue failed: %{public}s', JSON.stringify(error));
+      });
+    }, AUTOMATIC_DRAIN_YIELD_MS);
+  }
+
+  private cancelAutomaticDrainTimer(): void {
+    if (this.automaticDrainTimerId < 0) {
+      return;
+    }
+    this.clock.clearTimeout(this.automaticDrainTimerId);
+    this.automaticDrainTimerId = -1;
+  }
+
+  private scheduleHuaweiSpaceTransportWarmup(): void {
+    if (this.huaweiTransportWarmupScheduled || this.huaweiTransportWarmupTimerId >= 0) {
+      return;
+    }
+    this.huaweiTransportWarmupTimerId = this.clock.setTimeout((): void => {
+      this.huaweiTransportWarmupTimerId = -1;
+      this.huaweiTransportWarmupScheduled = true;
+      void this.syncService.warmupHuaweiSpaceTransport();
+    }, HUAWEI_SPACE_TRANSPORT_WARMUP_DELAY_MS);
+  }
+
+  private cancelHuaweiSpaceTransportWarmupTimer(): void {
+    if (this.huaweiTransportWarmupTimerId < 0) {
+      return;
+    }
+    this.clock.clearTimeout(this.huaweiTransportWarmupTimerId);
+    this.huaweiTransportWarmupTimerId = -1;
   }
 
   private async runPendingBookmarksOnForegroundAsync(): Promise<void> {
@@ -1239,11 +1296,13 @@ export class SyncExperienceAutomaticRuntime {
   }
 
   private runBookmarkPeriodicSyncNow(): void {
-    if (!this.isBookmarkAutomaticSyncActive()) {
+    if (!this.isBookmarkAutomaticSyncActive() &&
+      !(this.personalizationRepositoriesReady && this.isPersonalizationAutomaticSyncActive()) &&
+      !this.isHistoryAutomaticSyncActive()) {
       this.cancelBookmarkPeriodicSync();
       return;
     }
-    this.requestAutomaticRun(true, false, 'periodic', 'local_change');
+    this.requestUnifiedAutomaticFreshnessRun();
     const nextDelay = this.getActiveProviderKind() === 'webdav'
       ? BOOKMARK_WEBDAV_PERIODIC_SYNC_INTERVAL_MS
       : BOOKMARK_PERIODIC_SYNC_INTERVAL_MS;
@@ -1395,7 +1454,7 @@ export class SyncExperienceAutomaticRuntime {
       this.cancelPersonalizationPeriodicSync();
       return;
     }
-    this.requestAutomaticRun(false, true, 'delayed', 'periodic');
+    this.requestUnifiedAutomaticFreshnessRun();
     this.schedulePersonalizationPeriodicRun(PERSONALIZATION_PERIODIC_SYNC_INTERVAL_MS);
   }
 
@@ -1507,7 +1566,7 @@ export class SyncExperienceAutomaticRuntime {
       if (!this.isHistoryAutomaticSyncActive()) {
         return;
       }
-      this.requestAutomaticRun(false, false, 'periodic', 'periodic', true, 'periodic');
+      this.requestUnifiedAutomaticFreshnessRun();
       this.scheduleHistoryPeriodicRun(HISTORY_PERIODIC_INTERVAL_MS);
     }, delayMs);
   }
@@ -1517,16 +1576,20 @@ export class SyncExperienceAutomaticRuntime {
     return Math.min(HISTORY_RETRY_MAX_DELAY_MS, HISTORY_RETRY_START_DELAY_MS * Math.pow(2, exponent));
   }
 
-  private isHistoryAutomaticSyncActive(): boolean {
+  private isHistoryDomainEnabled(): boolean {
     const experienceState = this.experienceStateStore.getState();
     const provider = resolveHistorySyncProviderKind(this.syncConfigStore.getSettings().remoteKind);
-    if (!this.appForeground || experienceState.suspended || provider === undefined ||
-      experienceState.historySelected !== true ||
+    if (experienceState.historySelected !== true || provider === undefined ||
       (provider === 'aira_cloud' && this.membershipFeature.getState().plan !== 'pro')) {
       return false;
     }
     const identity = this.historySyncService.resolveCurrentIdentity();
     return identity !== undefined && identity.accountUid === experienceState.historyAccountUid;
+  }
+
+  private isHistoryAutomaticSyncActive(): boolean {
+    return this.appForeground && !this.experienceStateStore.getState().suspended &&
+      this.isHistoryDomainEnabled();
   }
 
   private cancelHistoryTimer(): void {

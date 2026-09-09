@@ -149,3 +149,40 @@ missing from the canonical table, batches a required backfill, and persists comp
 startup never performs that full scan, and later syncs in the same or a future process do not repeat it. True-device
 verification on 2,462 logical records reduced the Huawei physical mirror from about 2,462 rows to 226 rows; an unchanged
 full manual run read local canonical state in 42 ms and completed all enabled Domains in 6.778 seconds.
+
+Amended 2026-09-09 after true-device logs showed a 13-second ordinary Huawei History `CLOUD_FIRST` paging more than
+a thousand unchanged `AiraH1HistoryRecords` rows: automatic periodic freshness now enqueues the same enabled-domain set
+as manual `立即同步`, instead of a History-only full table pull. An ordinary Huawei History run that enrolled no new
+local visits and still matches the process-local confirmed state skips the cloud read and reports a successful no-op.
+Provider transitions, a new local enrollment, an account change, or the first ordinary run in a process still perform
+the existing fresh `CLOUD_FIRST` plus merge/write path. This is not a second History algorithm and does not treat
+mirror absence as deletion.
+
+Amended 2026-09-09 after true-device logs showed ordinary `立即同步` alternating between a 30-second
+adopted no-op and a 13-second full `AiraH1HistoryRecords` `CLOUD_FIRST` with zero changes: once an
+ordinary Huawei History run has a process-local confirmed remote for the same account, later ordinary
+runs reuse that remote instead of paging the whole table. Local enrollments still merge against the
+cached remote and upload with `TIME_FIRST`; they do not take a second full `CLOUD_FIRST` confirmation
+on that cache-hit path. Provider transitions, account changes, and the first ordinary run in a process
+keep the existing fresh `CLOUD_FIRST` plus `TIME_FIRST`/`CLOUD_FIRST` write confirmation. This does
+not treat mirror absence as deletion.
+
+Amended 2026-09-09 to follow the G8 Head/Blocks physical split: Huawei History format 2 remains the
+logical compact snapshot, but ordinary cloud transport uses two independently synchronized Record Types
+in `aira_huawei_space_bookmarks_g2`: `AiraH2HistoryHeads` and `AiraH2HistoryBlocks`. Both have
+`rowId`, `accountUid`, `recordKind`, `logicalId`, `data`, and `updatedAt`, with `rowId` as the endpoint
+dedup key. A read synchronizes Heads first and fetches Blocks only when the observed Heads cannot already
+be materialized from local content-addressed buckets/chunks. A write publishes Blocks before making a new
+Head visible. The retired `AiraH1HistoryRecords` table remains locally created and unread by the H2
+runtime; it is no longer registered for `DISTRIBUTED_CLOUD`. Client `setDistributedTables` still does not
+create cloud-side Record Types: the Container must declare both H2 types before H2 can complete. This is
+not a second merge algorithm.
+
+Amended 2026-09-09 after true-device logs showed vsync timeouts of 2.4–3.0s during the first
+automatic freshness run, with no `HuaweiSpaceCloud` `cloudSync start` lines: the stall is opening
+`aira_huawei_space_bookmarks_g2` and `setDistributedTables` on the UI thread before Head/Block
+`cloudSync`. Ordinary Huawei transport now opens that store once, registers distributed tables only
+on a version bump, and warms the store after content is ready instead of on the 30-second automatic
+timer while the user is scrolling. Automatic drain yields a frame before enqueueing so the timer turn
+can complete. Head/Block `cloudSync` remains the ordinary read/write path; this is not a second merge
+algorithm.

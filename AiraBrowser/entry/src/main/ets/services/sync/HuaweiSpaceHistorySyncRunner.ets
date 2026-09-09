@@ -1,4 +1,5 @@
-import { HistorySyncRunResult } from '../../common/models/HistorySyncModels';
+import { hilog } from '@kit.PerformanceAnalysisKit';
+import { HistorySyncRunResult, HuaweiSpaceHistorySyncState } from '../../common/models/HistorySyncModels';
 import { BrowserDatabase } from '../../data/database/BrowserDatabase';
 import {
   HuaweiSpaceHistoryRemoteStore,
@@ -8,6 +9,7 @@ import {
   AiraHistoryInitialMergePlan,
   AiraSyncComputeExecutor
 } from './AiraSyncComputeExecutor';
+import { HistorySyncMergeService } from './HistorySyncMergeService';
 
 const HISTORY_HUAWEI_ENROLLMENT_BATCH_SIZE: number = 500;
 const HISTORY_HUAWEI_MAX_ENROLLMENT_ROUNDS: number = 200;
@@ -23,10 +25,29 @@ export type HuaweiSpaceHistoryRemoteStoreFactory = (
   clientId: string
 ) => HuaweiSpaceHistoryRemoteStore;
 
+const HISTORY_HUAWEI_LOG_DOMAIN: number = 0x0000;
+const HISTORY_HUAWEI_LOG_TAG: string = 'HuaweiHistorySync';
+
+export function shouldUseCachedHuaweiHistoryRemote(
+  ordinaryRun: boolean,
+  accountUid: string,
+  lastConfirmedAccountUid: string,
+  lastConfirmed: HuaweiSpaceHistorySyncState | undefined
+): boolean {
+  if (!ordinaryRun || lastConfirmed === undefined) {
+    return false;
+  }
+  const normalizedAccount = accountUid.trim();
+  return normalizedAccount.length > 0 && normalizedAccount === lastConfirmedAccountUid.trim();
+}
+
 export class HuaweiSpaceHistorySyncRunner {
   private readonly database: BrowserDatabase;
   private readonly remoteStoreFactory: HuaweiSpaceHistoryRemoteStoreFactory;
   private readonly computeExecutor: AiraSyncComputeExecutor = new AiraSyncComputeExecutor();
+  private readonly mergeService: HistorySyncMergeService = new HistorySyncMergeService();
+  private lastConfirmedAccountUid: string = '';
+  private lastConfirmedState?: HuaweiSpaceHistorySyncState;
 
   constructor(
     database: BrowserDatabase,
@@ -46,9 +67,26 @@ export class HuaweiSpaceHistorySyncRunner {
     await this.database.initialize();
     let appliedChangeCount = await this.database.pruneHistorySyncProjection(identity.accountUid);
     await this.enrollLocalVisits(identity);
-    const remoteStore = this.remoteStoreFactory(identity.accountUid, identity.clientId);
-    const remote = await remoteStore.readState();
     const local = await this.database.readHuaweiSpaceHistorySyncState(identity.accountUid);
+    const useCachedRemote = shouldUseCachedHuaweiHistoryRemote(
+      clearOutboxAfterSuccess,
+      identity.accountUid,
+      this.lastConfirmedAccountUid,
+      this.lastConfirmedState
+    );
+    const remoteStore = this.remoteStoreFactory(identity.accountUid, identity.clientId);
+    const cachedRemote = this.lastConfirmedState;
+    let remote: HuaweiSpaceHistorySyncState;
+    if (useCachedRemote && cachedRemote !== undefined) {
+      hilog.info(
+        HISTORY_HUAWEI_LOG_DOMAIN,
+        HISTORY_HUAWEI_LOG_TAG,
+        'Huawei history used cached remote and skipped CLOUD_FIRST'
+      );
+      remote = cachedRemote;
+    } else {
+      remote = await remoteStore.readState();
+    }
     const initialPlan: AiraHistoryInitialMergePlan =
       await this.computeExecutor.planHuaweiHistoryInitialMerge(remote, local);
     const firstApplied = initialPlan.localApplyRequired
@@ -59,7 +97,7 @@ export class HuaweiSpaceHistorySyncRunner {
     const remoteMaintenanceRequired = remoteStore.requiresMaintenance();
     const remoteWriteRequired = initialPlan.remoteWriteRequired || remoteMaintenanceRequired;
     const writeResult: HuaweiSpaceHistoryWriteResult = remoteWriteRequired
-      ? await remoteStore.writeState(desired)
+      ? await remoteStore.writeState(desired, useCachedRemote)
       : { state: remote, changedRowCount: 0, localApplyRequired: false };
     const confirmedState = remoteWriteRequired ? writeResult.state : initialPlan.merged;
     const confirmedLocalApplyRequired = remoteWriteRequired && writeResult.localApplyRequired;
@@ -74,6 +112,8 @@ export class HuaweiSpaceHistorySyncRunner {
     if (clearOutboxAfterSuccess) {
       await this.database.clearHistorySyncOutbox(identity.accountUid);
     }
+    this.lastConfirmedAccountUid = identity.accountUid;
+    this.lastConfirmedState = this.mergeService.normalize(confirmedState);
     return {
       ok: true,
       appliedChangeCount,

@@ -27,6 +27,20 @@ export type HuaweiSpaceHistoryRecordKind =
   'snapshot_bucket' |
   'snapshot_chunk';
 
+export type HuaweiSpaceHistoryPhysicalTable = 'head' | 'block' | 'legacy';
+
+export function huaweiHistoryPhysicalTable(
+  recordKind: HuaweiSpaceHistoryRecordKind
+): HuaweiSpaceHistoryPhysicalTable {
+  if (recordKind === 'snapshot_head') {
+    return 'head';
+  }
+  if (recordKind === 'snapshot_bucket' || recordKind === 'snapshot_chunk') {
+    return 'block';
+  }
+  return 'legacy';
+}
+
 type HuaweiSpaceHistoryLegacyRecordKind =
   'visit' |
   'tombstone' |

@@ -31,6 +31,9 @@ import airaCloudBookmarkV4RecoveryPointStoreTest from './AiraCloudBookmarkV4Reco
 import airaCloudBookmarkV4BootstrapCoordinatorTest from './AiraCloudBookmarkV4BootstrapCoordinator.test';
 import airaCloudBookmarkV4BootstrapViewModelTest from './AiraCloudBookmarkV4BootstrapViewModel.test';
 import syncExperienceAutomaticDomainGateTest from './SyncExperienceAutomaticDomainGate.test';
+import airaBookmarkIdentityNoOpServiceTest from './AiraBookmarkIdentityNoOpService.test';
+import huaweiSpaceHistoryCloudReadGateTest from './HuaweiSpaceHistoryCloudReadGate.test';
+import huaweiSpaceTransportWarmupTest from './HuaweiSpaceTransportWarmup.test';
 
 export default function tests(): void {
   userScriptValueStateStoreTest();
@@ -64,4 +67,7 @@ export default function tests(): void {
   airaCloudBookmarkV4BootstrapCoordinatorTest();
   airaCloudBookmarkV4BootstrapViewModelTest();
   syncExperienceAutomaticDomainGateTest();
+  airaBookmarkIdentityNoOpServiceTest();
+  huaweiSpaceHistoryCloudReadGateTest();
+  huaweiSpaceTransportWarmupTest();
 }

@@ -64,31 +64,63 @@ if [ "${failures}" -eq 0 ]; then
     "HistorySyncProviderKind = 'aira_cloud' \| 'huawei_space'" \
     "History transports must remain limited to Aira Cloud and Huawei Space"
   require_pattern "${OWNER_REL}" \
-    "HUAWEI_SPACE_HISTORY_TABLE: string = 'AiraH1HistoryRecords'" \
-    "Huawei History must keep its dedicated H1 table"
+    "HUAWEI_SPACE_HISTORY_HEAD_TABLE: string = 'AiraH2HistoryHeads'" \
+    "Huawei History H2 must isolate Heads in AiraH2HistoryHeads"
+  require_pattern "${OWNER_REL}" \
+    "HUAWEI_SPACE_HISTORY_BLOCK_TABLE: string = 'AiraH2HistoryBlocks'" \
+    "Huawei History H2 must isolate Blocks in AiraH2HistoryBlocks"
   if ! sed -n "/private static async prepareDistributedTables/,/private static async hasAnyRows/p" \
-    "${REPO_ROOT}/${OWNER_REL}" | grep -Eq "HUAWEI_SPACE_HISTORY_TABLE"; then
-    fail "the shared Huawei RDB owner must register the History table"
+    "${REPO_ROOT}/${OWNER_REL}" | grep -Eq "HUAWEI_SPACE_HISTORY_HEAD_TABLE"; then
+    fail "the shared Huawei RDB owner must register the History Heads table"
   fi
+  if ! sed -n "/private static async prepareDistributedTables/,/private static async hasAnyRows/p" \
+    "${REPO_ROOT}/${OWNER_REL}" | grep -Eq "HUAWEI_SPACE_HISTORY_BLOCK_TABLE"; then
+    fail "the shared Huawei RDB owner must register the History Blocks table"
+  fi
+  if sed -n "/private static async prepareDistributedTables/,/private static async hasAnyRows/p" \
+    "${REPO_ROOT}/${OWNER_REL}" | grep -Eq "HUAWEI_SPACE_HISTORY_TABLE"; then
+    fail "H2 must not re-register the retired H1 History table for cloud sync"
+  fi
+  require_pattern "${OWNER_REL}" \
+    "rdbOpen start db=" \
+    "Huawei RDB open must log before native bind so cold-start stalls are visible"
+  require_pattern "${OWNER_REL}" \
+    "setDistributedTables start db=" \
+    "Huawei distributed-table registration must be logged separately from rdbOpen"
+  owner_open_count="$(grep -c "relationalStore.getRdbStore" "${REPO_ROOT}/${OWNER_REL}")"
+  if [ "${owner_open_count}" -ne 1 ]; then
+    fail "Huawei RDB owner must open the cloud store once per prepare, not bootstrap-close-reopen"
+  fi
+  require_pattern "${AUTOMATIC_REL}" \
+    "HUAWEI_SPACE_TRANSPORT_WARMUP_DELAY_MS" \
+    "ordinary Huawei transport must warm the store after content ready, not on the 30s scroll timer"
+  require_pattern "${AUTOMATIC_REL}" \
+    "warmupHuaweiSpaceTransport" \
+    "automatic runtime must warm Huawei transport before periodic freshness"
+  require_pattern "${AUTOMATIC_REL}" \
+    "AUTOMATIC_DRAIN_YIELD_MS" \
+    "automatic drain must yield a frame before touching Huawei RDB on the timer turn"
   remote_read_section="$(sed -n "/async readState(/,/async writeState(/p" \
     "${REPO_ROOT}/${REMOTE_REL}")"
+  if ! printf '%s\n' "${remote_read_section}" | grep -Eq "SYNC_MODE_CLOUD_FIRST"; then
+    fail "Huawei History reads must start with CLOUD_FIRST Heads"
+  fi
   remote_write_section="$(sed -n "/async writeState(/,/private async consumeFreshRows/p" \
     "${REPO_ROOT}/${REMOTE_REL}")"
-  initial_read_line="$(printf '%s\n' "${remote_read_section}" | awk \
-    '/runCloudSync.*SYNC_MODE_CLOUD_FIRST.*true/ { print NR; exit }')"
-  upload_line="$(printf '%s\n' "${remote_write_section}" | awk \
-    '/runCloudSync.*SYNC_MODE_TIME_FIRST.*true/ { print NR; exit }')"
-  confirmation_read_line="$(printf '%s\n' "${remote_write_section}" | awk -v after="${upload_line:-0}" \
-    'NR > after && /runCloudSync.*SYNC_MODE_CLOUD_FIRST.*true/ { print NR; exit }')"
-  confirmation_line="$(printf '%s\n' "${remote_write_section}" | awk \
-    '/assertProjectionAndDesiredStateConfirmed/ { print NR; exit }')"
-  if [ -z "${initial_read_line}" ] || [ -z "${upload_line}" ] || [ -z "${confirmation_read_line}" ] || \
-    [ -z "${confirmation_line}" ] || [ "${upload_line}" -ge "${confirmation_read_line}" ] || \
-    [ "${confirmation_read_line}" -ge "${confirmation_line}" ]; then
-    fail "Huawei History runs must read fresh CLOUD_FIRST, then write TIME_FIRST, CLOUD_FIRST, and confirm semantically"
+  if ! printf '%s\n' "${remote_write_section}" | grep -Eq "runIncrementalCommitBarrier"; then
+    fail "Huawei History writes must confirm dirty Head/Block tables with TIME_FIRST then CLOUD_FIRST"
+  fi
+  if ! printf '%s\n' "${remote_write_section}" | grep -Eq "assertProjectionAndDesiredStateConfirmed"; then
+    fail "Huawei History writes must confirm the compact snapshot semantically"
   fi
   require_pattern "${REMOTE_REL}" \
-    "const currentRows = await this\.consumeFreshRows\(store\)" \
+    "HUAWEI_SPACE_HISTORY_HEAD_TABLE" \
+    "Huawei History reads must synchronize Heads before Blocks"
+  require_pattern "${REMOTE_REL}" \
+    "needsBlockCloudSync" \
+    "Huawei History must fetch Blocks only when Heads cannot already be materialized"
+  require_pattern "${REMOTE_REL}" \
+    "const currentRows = await this\.consumeFreshRows\(store, skipCloudTransport\)" \
     "Huawei History writes must consume the fresh physical rows owned by the current run"
   require_pattern "${REMOTE_REL}" \
     "this\.computeExecutor\.decodeHuaweiHistoryRemoteState\(this\.uid, this\.deviceId, rows\)" \
@@ -332,6 +364,15 @@ if [ "${failures}" -eq 0 ]; then
   require_pattern "${RUNNER_REL}" \
     "if \(clearOutboxAfterSuccess\)" \
     "ordinary Huawei success may clear the Aira outbox only outside a Provider transition"
+  require_pattern "${RUNNER_REL}" \
+    "shouldUseCachedHuaweiHistoryRemote" \
+    "ordinary Huawei History may reuse the confirmed remote instead of repeating CLOUD_FIRST"
+  require_pattern "${AUTOMATIC_REL}" \
+    "requestUnifiedAutomaticFreshnessRun" \
+    "automatic periodic freshness must enqueue the same enabled-domain set"
+  require_pattern "${AUTOMATIC_REL}" \
+    "isHistoryDomainEnabled" \
+    "manual History execution must use domain enablement rather than the automatic foreground scheduler"
   require_pattern "${PROVIDER_REL}" \
     "runHistoryProviderTransitionWithinCurrentOperation" \
     "Primary Provider switching must carry supported History transitions"

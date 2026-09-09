@@ -1,16 +1,19 @@
 import { common } from '@kit.AbilityKit';
 import { relationalStore } from '@kit.ArkData';
+import { hilog } from '@kit.PerformanceAnalysisKit';
 
 export const HUAWEI_SPACE_BOOKMARK_HEAD_TABLE: string = 'AiraG8BookmarkHeads';
 export const HUAWEI_SPACE_BOOKMARK_BLOCK_TABLE: string = 'AiraG8BookmarkBlocks';
 export const HUAWEI_SPACE_PERSONALIZATION_COMMIT_TABLE: string = 'AiraG2PersonalizationCommits';
 export const HUAWEI_SPACE_NOVEL_BOOKSHELF_COMMIT_TABLE: string = 'AiraG2NovelBookshelfCommits';
 export const HUAWEI_SPACE_HISTORY_TABLE: string = 'AiraH1HistoryRecords';
+export const HUAWEI_SPACE_HISTORY_HEAD_TABLE: string = 'AiraH2HistoryHeads';
+export const HUAWEI_SPACE_HISTORY_BLOCK_TABLE: string = 'AiraH2HistoryBlocks';
 
 const HUAWEI_SPACE_DISTRIBUTED_REGISTRATION_TABLE: string =
   'AiraHuaweiSpaceDistributedRegistration';
 const HUAWEI_SPACE_DISTRIBUTED_REGISTRATION_ROW_ID: string = 'active-cloud-tables';
-const HUAWEI_SPACE_DISTRIBUTED_REGISTRATION_VERSION: number = 5;
+export const HUAWEI_SPACE_DISTRIBUTED_REGISTRATION_VERSION: number = 6;
 const HUAWEI_SPACE_PRE_NOVEL_REGISTRATION_VERSION: number = 1;
 
 const HUAWEI_SPACE_BOOKMARK_HEAD_SCHEMA: string =
@@ -86,12 +89,56 @@ const HUAWEI_SPACE_HISTORY_ACCOUNT_KIND_INDEX: string =
 const HUAWEI_SPACE_HISTORY_ACCOUNT_LOGICAL_INDEX: string =
   `CREATE INDEX IF NOT EXISTS idxAiraH1HistoryRecordsAccountLogical
     ON ${HUAWEI_SPACE_HISTORY_TABLE}(accountUid, recordKind, logicalId)`;
+const HUAWEI_SPACE_HISTORY_HEAD_SCHEMA: string =
+  `CREATE TABLE IF NOT EXISTS ${HUAWEI_SPACE_HISTORY_HEAD_TABLE} (
+    rowId TEXT PRIMARY KEY,
+    accountUid TEXT,
+    recordKind TEXT,
+    logicalId TEXT,
+    data TEXT,
+    updatedAt INTEGER
+  )`;
+const HUAWEI_SPACE_HISTORY_HEAD_ACCOUNT_KIND_INDEX: string =
+  `CREATE INDEX IF NOT EXISTS idxAiraH2HistoryHeadsAccountKind
+    ON ${HUAWEI_SPACE_HISTORY_HEAD_TABLE}(accountUid, recordKind, updatedAt)`;
+const HUAWEI_SPACE_HISTORY_HEAD_ACCOUNT_LOGICAL_INDEX: string =
+  `CREATE INDEX IF NOT EXISTS idxAiraH2HistoryHeadsAccountLogical
+    ON ${HUAWEI_SPACE_HISTORY_HEAD_TABLE}(accountUid, recordKind, logicalId)`;
+const HUAWEI_SPACE_HISTORY_BLOCK_SCHEMA: string =
+  `CREATE TABLE IF NOT EXISTS ${HUAWEI_SPACE_HISTORY_BLOCK_TABLE} (
+    rowId TEXT PRIMARY KEY,
+    accountUid TEXT,
+    recordKind TEXT,
+    logicalId TEXT,
+    data TEXT,
+    updatedAt INTEGER
+  )`;
+const HUAWEI_SPACE_HISTORY_BLOCK_ACCOUNT_KIND_INDEX: string =
+  `CREATE INDEX IF NOT EXISTS idxAiraH2HistoryBlocksAccountKind
+    ON ${HUAWEI_SPACE_HISTORY_BLOCK_TABLE}(accountUid, recordKind, updatedAt)`;
+const HUAWEI_SPACE_HISTORY_BLOCK_ACCOUNT_LOGICAL_INDEX: string =
+  `CREATE INDEX IF NOT EXISTS idxAiraH2HistoryBlocksAccountLogical
+    ON ${HUAWEI_SPACE_HISTORY_BLOCK_TABLE}(accountUid, recordKind, logicalId)`;
 const HUAWEI_SPACE_DISTRIBUTED_REGISTRATION_SCHEMA: string =
   `CREATE TABLE IF NOT EXISTS ${HUAWEI_SPACE_DISTRIBUTED_REGISTRATION_TABLE} (
     rowId TEXT PRIMARY KEY,
     registrationVersion INTEGER,
     updatedAt INTEGER
   )`;
+
+const HUAWEI_SPACE_RDB_LOG_DOMAIN: number = 0x0000;
+const HUAWEI_SPACE_RDB_LOG_TAG: string = 'HuaweiSpaceRdb';
+
+export function shouldRegisterHuaweiSpaceDistributedTables(
+  registrationVersion: number,
+  currentVersion: number = HUAWEI_SPACE_DISTRIBUTED_REGISTRATION_VERSION,
+  hasLegacyDistributedRows: boolean = false
+): boolean {
+  if (registrationVersion < currentVersion) {
+    return true;
+  }
+  return registrationVersion <= 0 && hasLegacyDistributedRows;
+}
 
 interface HuaweiSpaceRdbStoreState {
   store?: relationalStore.RdbStore;
@@ -140,70 +187,98 @@ export class HuaweiSpaceRdbStoreOwner {
       name: databaseName,
       securityLevel: relationalStore.SecurityLevel.S1
     };
-    const bootstrapStore = await relationalStore.getRdbStore(context, storeConfig);
-    let shouldRegisterDistributedTables = true;
+    const startedAt = Date.now();
+    hilog.info(
+      HUAWEI_SPACE_RDB_LOG_DOMAIN,
+      HUAWEI_SPACE_RDB_LOG_TAG,
+      'rdbOpen start db=%{public}s',
+      databaseName
+    );
+    const store = await relationalStore.getRdbStore(context, storeConfig);
     try {
       const bookmarkHeadTableHasRows = await HuaweiSpaceRdbStoreOwner.hasAnyRows(
-        bootstrapStore,
+        store,
         HUAWEI_SPACE_BOOKMARK_HEAD_TABLE
       );
       const personalizationTableHasRows = await HuaweiSpaceRdbStoreOwner.hasAnyRows(
-        bootstrapStore,
+        store,
         HUAWEI_SPACE_PERSONALIZATION_COMMIT_TABLE
       );
-      await bootstrapStore.executeSql(HUAWEI_SPACE_BOOKMARK_HEAD_SCHEMA);
+      await store.executeSql(HUAWEI_SPACE_BOOKMARK_HEAD_SCHEMA);
       await HuaweiSpaceRdbStoreOwner.ensureColumn(
-        bootstrapStore,
+        store,
         HUAWEI_SPACE_BOOKMARK_HEAD_TABLE,
         'storageEpoch',
         'INTEGER'
       );
-      await bootstrapStore.executeSql(HUAWEI_SPACE_BOOKMARK_HEAD_ACCOUNT_KIND_INDEX);
-      await bootstrapStore.executeSql(HUAWEI_SPACE_BOOKMARK_HEAD_ACCOUNT_LOGICAL_INDEX);
-      await bootstrapStore.executeSql(HUAWEI_SPACE_BOOKMARK_BLOCK_SCHEMA);
+      await store.executeSql(HUAWEI_SPACE_BOOKMARK_HEAD_ACCOUNT_KIND_INDEX);
+      await store.executeSql(HUAWEI_SPACE_BOOKMARK_HEAD_ACCOUNT_LOGICAL_INDEX);
+      await store.executeSql(HUAWEI_SPACE_BOOKMARK_BLOCK_SCHEMA);
       await HuaweiSpaceRdbStoreOwner.ensureColumn(
-        bootstrapStore,
+        store,
         HUAWEI_SPACE_BOOKMARK_BLOCK_TABLE,
         'storageEpoch',
         'INTEGER'
       );
-      await bootstrapStore.executeSql(HUAWEI_SPACE_BOOKMARK_BLOCK_ACCOUNT_KIND_INDEX);
-      await bootstrapStore.executeSql(HUAWEI_SPACE_BOOKMARK_BLOCK_ACCOUNT_LOGICAL_INDEX);
-      await bootstrapStore.executeSql(HUAWEI_SPACE_PERSONALIZATION_COMMIT_SCHEMA);
-      await bootstrapStore.executeSql(HUAWEI_SPACE_PERSONALIZATION_COMMIT_INDEX);
-      await bootstrapStore.executeSql(HUAWEI_SPACE_NOVEL_BOOKSHELF_COMMIT_SCHEMA);
-      await bootstrapStore.executeSql(HUAWEI_SPACE_NOVEL_BOOKSHELF_COMMIT_INDEX);
-      await bootstrapStore.executeSql(HUAWEI_SPACE_HISTORY_SCHEMA);
-      await bootstrapStore.executeSql(HUAWEI_SPACE_HISTORY_ACCOUNT_KIND_INDEX);
-      await bootstrapStore.executeSql(HUAWEI_SPACE_HISTORY_ACCOUNT_LOGICAL_INDEX);
-      await bootstrapStore.executeSql(HUAWEI_SPACE_DISTRIBUTED_REGISTRATION_SCHEMA);
+      await store.executeSql(HUAWEI_SPACE_BOOKMARK_BLOCK_ACCOUNT_KIND_INDEX);
+      await store.executeSql(HUAWEI_SPACE_BOOKMARK_BLOCK_ACCOUNT_LOGICAL_INDEX);
+      await store.executeSql(HUAWEI_SPACE_PERSONALIZATION_COMMIT_SCHEMA);
+      await store.executeSql(HUAWEI_SPACE_PERSONALIZATION_COMMIT_INDEX);
+      await store.executeSql(HUAWEI_SPACE_NOVEL_BOOKSHELF_COMMIT_SCHEMA);
+      await store.executeSql(HUAWEI_SPACE_NOVEL_BOOKSHELF_COMMIT_INDEX);
+      await store.executeSql(HUAWEI_SPACE_HISTORY_SCHEMA);
+      await store.executeSql(HUAWEI_SPACE_HISTORY_ACCOUNT_KIND_INDEX);
+      await store.executeSql(HUAWEI_SPACE_HISTORY_ACCOUNT_LOGICAL_INDEX);
+      await store.executeSql(HUAWEI_SPACE_HISTORY_HEAD_SCHEMA);
+      await store.executeSql(HUAWEI_SPACE_HISTORY_HEAD_ACCOUNT_KIND_INDEX);
+      await store.executeSql(HUAWEI_SPACE_HISTORY_HEAD_ACCOUNT_LOGICAL_INDEX);
+      await store.executeSql(HUAWEI_SPACE_HISTORY_BLOCK_SCHEMA);
+      await store.executeSql(HUAWEI_SPACE_HISTORY_BLOCK_ACCOUNT_KIND_INDEX);
+      await store.executeSql(HUAWEI_SPACE_HISTORY_BLOCK_ACCOUNT_LOGICAL_INDEX);
+      await store.executeSql(HUAWEI_SPACE_DISTRIBUTED_REGISTRATION_SCHEMA);
       const registrationVersion = await HuaweiSpaceRdbStoreOwner.readDistributedRegistrationVersion(
-        bootstrapStore
+        store
       );
-      shouldRegisterDistributedTables =
-        registrationVersion < HUAWEI_SPACE_DISTRIBUTED_REGISTRATION_VERSION;
-      if (registrationVersion <= 0 && (bookmarkHeadTableHasRows || personalizationTableHasRows)) {
+      const hasLegacyDistributedRows = bookmarkHeadTableHasRows || personalizationTableHasRows;
+      const shouldRegisterDistributedTables = shouldRegisterHuaweiSpaceDistributedTables(
+        registrationVersion,
+        HUAWEI_SPACE_DISTRIBUTED_REGISTRATION_VERSION,
+        hasLegacyDistributedRows
+      );
+      if (registrationVersion <= 0 && hasLegacyDistributedRows) {
         await HuaweiSpaceRdbStoreOwner.writeDistributedRegistrationVersion(
-          bootstrapStore,
+          store,
           HUAWEI_SPACE_PRE_NOVEL_REGISTRATION_VERSION
         );
-        shouldRegisterDistributedTables = true;
       }
-      await bootstrapStore.close();
-    } catch (error) {
-      try {
-        await bootstrapStore.close();
-      } catch (_closeError) {
-      }
-      const candidate = error as Error;
-      throw new Error(candidate.message ?? JSON.stringify(error));
-    }
-    const store = await relationalStore.getRdbStore(context, storeConfig);
-    try {
       if (shouldRegisterDistributedTables) {
+        const registerStartedAt = Date.now();
+        hilog.info(
+          HUAWEI_SPACE_RDB_LOG_DOMAIN,
+          HUAWEI_SPACE_RDB_LOG_TAG,
+          'setDistributedTables start db=%{public}s registrationVersion=%{public}d',
+          databaseName,
+          registrationVersion
+        );
         await HuaweiSpaceRdbStoreOwner.prepareDistributedTables(store);
         await HuaweiSpaceRdbStoreOwner.writeDistributedRegistrationVersion(store);
+        hilog.info(
+          HUAWEI_SPACE_RDB_LOG_DOMAIN,
+          HUAWEI_SPACE_RDB_LOG_TAG,
+          'setDistributedTables success db=%{public}s durationMs=%{public}d',
+          databaseName,
+          Date.now() - registerStartedAt
+        );
       }
+      hilog.info(
+        HUAWEI_SPACE_RDB_LOG_DOMAIN,
+        HUAWEI_SPACE_RDB_LOG_TAG,
+        'rdbOpen success db=%{public}s durationMs=%{public}d registrationVersion=%{public}d shouldRegister=%{public}d',
+        databaseName,
+        Date.now() - startedAt,
+        registrationVersion,
+        shouldRegisterDistributedTables ? 1 : 0
+      );
       return store;
     } catch (error) {
       try {
@@ -211,6 +286,14 @@ export class HuaweiSpaceRdbStoreOwner {
       } catch (_closeError) {
       }
       const candidate = error as Error;
+      hilog.error(
+        HUAWEI_SPACE_RDB_LOG_DOMAIN,
+        HUAWEI_SPACE_RDB_LOG_TAG,
+        'rdbOpen failed db=%{public}s durationMs=%{public}d message=%{public}s',
+        databaseName,
+        Date.now() - startedAt,
+        candidate.message ?? JSON.stringify(error)
+      );
       throw new Error(candidate.message ?? JSON.stringify(error));
     }
   }
@@ -222,7 +305,8 @@ export class HuaweiSpaceRdbStoreOwner {
         HUAWEI_SPACE_BOOKMARK_BLOCK_TABLE,
         HUAWEI_SPACE_PERSONALIZATION_COMMIT_TABLE,
         HUAWEI_SPACE_NOVEL_BOOKSHELF_COMMIT_TABLE,
-        HUAWEI_SPACE_HISTORY_TABLE
+        HUAWEI_SPACE_HISTORY_HEAD_TABLE,
+        HUAWEI_SPACE_HISTORY_BLOCK_TABLE
       ],
       relationalStore.DistributedType.DISTRIBUTED_CLOUD,
       {

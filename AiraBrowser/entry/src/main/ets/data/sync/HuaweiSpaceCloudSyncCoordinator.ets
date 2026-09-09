@@ -31,6 +31,7 @@ interface HuaweiSpaceCloudSyncTask {
   finalProgressCode: number;
   timeoutId: number;
   timedOut: boolean;
+  startedAt: number;
 }
 
 interface HuaweiSpaceCloudSyncQueueState {
@@ -92,7 +93,8 @@ export class HuaweiSpaceCloudSyncCoordinator {
       callbackCompleted: false,
       finalProgressCode: -1,
       timeoutId: -1,
-      timedOut: false
+      timedOut: false,
+      startedAt: 0
     };
   }
 
@@ -128,6 +130,16 @@ export class HuaweiSpaceCloudSyncCoordinator {
   ): void {
     const request = task.request;
     const syncMode = HuaweiSpaceCloudSyncCoordinator.resolveSyncMode(request);
+    task.startedAt = Date.now();
+    hilog.info(
+      HUAWEI_SPACE_CLOUD_SYNC_LOG_DOMAIN,
+      HUAWEI_SPACE_CLOUD_SYNC_LOG_TAG,
+      'cloudSync start uid=%{public}s tables=%{public}s mode=%{public}d timeoutMs=%{public}d',
+      HuaweiSpaceCloudSyncCoordinator.maskValue(request.uid),
+      request.tableNames.join(','),
+      syncMode,
+      request.timeoutMs
+    );
     task.timeoutId = setTimeout((): void => {
       HuaweiSpaceCloudSyncCoordinator.handleTimeout(transportKey, state, task);
     }, request.timeoutMs);
@@ -135,6 +147,7 @@ export class HuaweiSpaceCloudSyncCoordinator {
       if (task.released) {
         return;
       }
+      HuaweiSpaceCloudSyncCoordinator.logFinished(task, 'failed', task.finalProgressCode);
       hilog.error(
         HUAWEI_SPACE_CLOUD_SYNC_LOG_DOMAIN,
         HUAWEI_SPACE_CLOUD_SYNC_LOG_TAG,
@@ -154,6 +167,7 @@ export class HuaweiSpaceCloudSyncCoordinator {
         rejectAndRelease(request.buildProgressError(task.finalProgressCode));
         return;
       }
+      HuaweiSpaceCloudSyncCoordinator.logFinished(task, 'success', task.finalProgressCode);
       HuaweiSpaceCloudSyncCoordinator.resolveOnce(task);
       HuaweiSpaceCloudSyncCoordinator.releaseTask(transportKey, state, task);
     };
@@ -200,6 +214,7 @@ export class HuaweiSpaceCloudSyncCoordinator {
     if (task.released) {
       return;
     }
+    HuaweiSpaceCloudSyncCoordinator.logFinished(task, 'timeout', task.finalProgressCode);
     hilog.warn(
       HUAWEI_SPACE_CLOUD_SYNC_LOG_DOMAIN,
       HUAWEI_SPACE_CLOUD_SYNC_LOG_TAG,
@@ -282,6 +297,22 @@ export class HuaweiSpaceCloudSyncCoordinator {
 
   private static resolveSyncMode(request: HuaweiSpaceCloudSyncRequest): relationalStore.SyncMode {
     return request.syncMode ?? relationalStore.SyncMode.SYNC_MODE_TIME_FIRST;
+  }
+
+  private static logFinished(task: HuaweiSpaceCloudSyncTask, outcome: string, progressCode: number): void {
+    const durationMs = task.startedAt > 0 ? Date.now() - task.startedAt : -1;
+    const syncMode = HuaweiSpaceCloudSyncCoordinator.resolveSyncMode(task.request);
+    hilog.info(
+      HUAWEI_SPACE_CLOUD_SYNC_LOG_DOMAIN,
+      HUAWEI_SPACE_CLOUD_SYNC_LOG_TAG,
+      'cloudSync %{public}s uid=%{public}s tables=%{public}s mode=%{public}d durationMs=%{public}d code=%{public}d',
+      outcome,
+      HuaweiSpaceCloudSyncCoordinator.maskValue(task.request.uid),
+      task.request.tableNames.join(','),
+      syncMode,
+      durationMs,
+      progressCode
+    );
   }
 
   private static maskValue(value: string): string {

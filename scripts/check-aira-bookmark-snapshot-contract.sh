@@ -248,6 +248,15 @@ if [ "${failures}" -eq 0 ]; then
   require_pattern "${HUAWEI_STORE_REL}" \
     'readHead\(\)[\s\S]*getHeadCloudTableNames\(\)[\s\S]*readHeadSummaries[\s\S]*readAggregateAfterCloudFirst[\s\S]*getHeadCloudTableNames\(\)[\s\S]*if \(readResult\.needsBlockSync\)[\s\S]*getBlockCloudTableNames\(\)' \
     "Huawei G8 no-op discovery must synchronize Heads first and fetch Blocks only when materialization needs them"
+  require_pattern "${SYNC_REL}" \
+    'isEligible\(identityProbe\)[\s\S]*tryHuaweiBookmarkIdentityNoOp[\s\S]*readState' \
+    "Huawei ordinary no-op must probe confirmed Head identity before reconstructing a complete snapshot"
+  require_pattern "${SYNC_REL}" \
+    'matchesConfirmedHead\(probe, head\)[\s\S]*recordSuccessfulSync[\s\S]*本机和云端已经一致' \
+    "Huawei identity no-op must reuse the confirmed baseline and skip merge/write when Head identity matches"
+  require_pattern "${ADR_REL}" \
+    'ordinary same-Provider[\s\S]*confirmed Head identity[\s\S]*pendingBookmarkSyncAt[\s\S]*not a second merge algorithm' \
+    "ADR-0049 must record the confirmed-identity no-op gate"
   require_pattern "${HUAWEI_REPOSITORY_REL}" \
     'buildPhysicalGcPlan[\s\S]*hasStorageEpochClearedQuarantine\(storageEpoch\)[\s\S]*findHeadManifestIds[\s\S]*storageEpoch !== storageEpoch[\s\S]*supersededHeadRowIds' \
     "Huawei G8 physical GC must wait for quarantine and complete current-epoch Head coverage"

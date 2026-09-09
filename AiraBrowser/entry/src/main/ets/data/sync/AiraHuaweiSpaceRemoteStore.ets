@@ -224,6 +224,11 @@ export class AiraHuaweiSpaceRemoteStore implements AiraSyncRemoteStore {
     };
   }
 
+  async warmupTransport(): Promise<void> {
+    this.assertConfigured();
+    await this.getStore();
+  }
+
   async checkCapability(): Promise<void> {
     this.assertConfigured();
     const store = await this.getStore();

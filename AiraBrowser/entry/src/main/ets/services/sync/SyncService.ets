@@ -43,6 +43,11 @@ import {
   AiraBookmarkSyncIntent
 } from './AiraBookmarkSyncDecisionService';
 import {
+  AiraBookmarkIdentityNoOpProbe,
+  AiraBookmarkIdentityNoOpService
+} from './AiraBookmarkIdentityNoOpService';
+import { hilog } from '@kit.PerformanceAnalysisKit';
+import {
   AIRA_HUAWEI_SPACE_BOOKMARK_DATABASE_NAME,
   AiraSyncConfigStore
 } from './AiraSyncConfigStore';
@@ -108,6 +113,8 @@ export class SyncService implements AiraCloudBookmarkV4BootstrapDomain {
   private additionalBackupPolicyService: SyncAdditionalBackupPolicyService =
     new SyncAdditionalBackupPolicyService();
   private workThrottle: AiraSyncWorkThrottleService;
+  private bookmarkIdentityNoOpService: AiraBookmarkIdentityNoOpService =
+    new AiraBookmarkIdentityNoOpService();
   private syncConfigStore?: AiraSyncConfigStore;
   private webdavRemoteStoreFactory: AiraWebdavRemoteStoreFactory;
   private huaweiCloudRemoteStoreFactory: AiraHuaweiCloudRemoteStoreFactory;
@@ -287,6 +294,35 @@ export class SyncService implements AiraCloudBookmarkV4BootstrapDomain {
 
   deactivateCurrentSync(): Promise<AiraSyncSettings> {
     return this.requireSyncConfigStore().deactivateCurrentSync();
+  }
+
+  async warmupHuaweiSpaceTransport(): Promise<void> {
+    if (!AIRA_DISTRIBUTION_CAPABILITY_OWNER.isAvailable('huawei_space')) {
+      return;
+    }
+    try {
+      const settings = await this.initializeAiraSyncSettings();
+      if (settings.remoteKind !== 'huawei_space') {
+        return;
+      }
+      const uid = settings.huaweiSpace.uid.trim();
+      if (uid.length <= 0) {
+        return;
+      }
+      const databaseName = settings.huaweiSpace.databaseName.trim().length > 0
+        ? settings.huaweiSpace.databaseName.trim()
+        : AIRA_HUAWEI_SPACE_BOOKMARK_DATABASE_NAME;
+      const store = new AiraHuaweiSpaceRemoteStore(uid, databaseName);
+      await store.warmupTransport();
+    } catch (error) {
+      const candidate = error as Error;
+      hilog.warn(
+        0x0000,
+        'HuaweiSpaceRdb',
+        'transport warmup failed message=%{public}s',
+        candidate.message ?? JSON.stringify(error)
+      );
+    }
   }
 
   async checkHuaweiSpaceCapability(
@@ -1036,6 +1072,26 @@ export class SyncService implements AiraCloudBookmarkV4BootstrapDomain {
     await this.runBookmarkStage('remote_confirmation', (): Promise<void> => {
       return this.confirmPendingRemoteWrites(settings, store, remoteKind);
     });
+    const identityProbe = this.buildHuaweiBookmarkIdentityNoOpProbe(
+      remoteKind,
+      intent,
+      conservativeMerge,
+      settings,
+      baseline
+    );
+    if (this.bookmarkIdentityNoOpService.isEligible(identityProbe) &&
+      store.readHead !== undefined && baseline !== undefined) {
+      const identityNoOp = await this.tryHuaweiBookmarkIdentityNoOp(
+        store,
+        remoteKind,
+        identityProbe,
+        baseline,
+        settings.pendingBookmarkSyncAt ?? 0
+      );
+      if (identityNoOp !== undefined) {
+        return identityNoOp;
+      }
+    }
     let remoteState = await this.runBookmarkStage(
       'remote_read_validation',
       async (): Promise<AiraSyncRemoteState> => this.projectRemoteStateForBookmarkSync(await store.readState())
@@ -1242,6 +1298,78 @@ export class SyncService implements AiraCloudBookmarkV4BootstrapDomain {
       return false;
     }
     return this.stringifyError(error).indexOf(HUAWEI_SPACE_BOOKMARK_WRITE_CONFLICT_MESSAGE) === 0;
+  }
+
+  private buildHuaweiBookmarkIdentityNoOpProbe(
+    remoteKind: AiraSyncRemoteKind,
+    intent: AiraBookmarkSyncIntent,
+    conservativeMerge: boolean,
+    settings: AiraSyncSettings,
+    baseline?: AiraSyncBaselineRecord
+  ): AiraBookmarkIdentityNoOpProbe {
+    const snapshot = baseline?.snapshot ?? null;
+    return {
+      remoteKind: remoteKind,
+      intent: intent,
+      conservativeMerge: conservativeMerge,
+      pendingBookmarkSyncAt: settings.pendingBookmarkSyncAt ?? 0,
+      baselineCommitId: baseline?.commitId ?? '',
+      baselineFolderCount: snapshot === null ? 0 : snapshot.bookmarkFolders.length,
+      baselineItemCount: snapshot === null ? 0 : snapshot.bookmarkItems.length,
+      hasBaselineSnapshot: snapshot !== null
+    };
+  }
+
+  private async tryHuaweiBookmarkIdentityNoOp(
+    store: AiraSyncRemoteStore,
+    remoteKind: AiraSyncRemoteKind,
+    probe: AiraBookmarkIdentityNoOpProbe,
+    baseline: AiraSyncBaselineRecord,
+    completedPendingBookmarkSyncAt: number
+  ): Promise<AiraBookmarkMergeSyncResult | undefined> {
+    if (store.readHead === undefined || baseline.snapshot === null) {
+      return undefined;
+    }
+    const readHead = store.readHead;
+    let head: AiraSyncRemoteHead;
+    try {
+      head = await readHead();
+    } catch (_error) {
+      return undefined;
+    }
+    if (!this.bookmarkIdentityNoOpService.matchesConfirmedHead(probe, head)) {
+      return undefined;
+    }
+    const snapshot = baseline.snapshot;
+    const commitId = baseline.commitId;
+    await this.recordSuccessfulSync(
+      remoteKind,
+      snapshot,
+      baseline.history,
+      commitId,
+      true,
+      'bookmark',
+      completedPendingBookmarkSyncAt
+    );
+    hilog.info(
+      0x0000,
+      'AiraBookmarkSync',
+      'Huawei bookmark identity no-op commit=%{public}s folders=%{public}d items=%{public}d',
+      commitId,
+      probe.baselineFolderCount,
+      probe.baselineItemCount
+    );
+    return {
+      commitId: commitId,
+      merged: false,
+      blocked: false,
+      conflictCount: 0,
+      localChangeCount: 0,
+      remoteChangeCount: 0,
+      conflictDetails: [],
+      remoteObservation: this.buildBookmarkRemoteObservation(snapshot, commitId),
+      summary: '本机和云端已经一致，已确认本机内容可用。'
+    };
   }
 
   private async readRemoteHeadSafely(store: AiraSyncRemoteStore): Promise<AiraSyncRemoteHead | undefined> {
