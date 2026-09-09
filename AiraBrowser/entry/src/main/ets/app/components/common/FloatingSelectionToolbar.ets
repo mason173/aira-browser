@@ -1,14 +1,12 @@
 import {
   BROWSER_THEME_STORAGE_DIVIDER_KEY,
-  BROWSER_THEME_STORAGE_SURFACE_BACKGROUND_KEY,
+  BROWSER_THEME_STORAGE_RESOLVED_MODE_KEY,
   BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY
 } from '../../../core/theme/BrowserThemeStorageKeys';
-import {
-  withBrowserBottomPanelGlassTint
-} from '../../../core/theme/BrowserBottomPanelGlassTheme';
 import { AiraRenderableIconId } from '../../../core/resources/GeneratedAiraIconCatalog';
 import { AiraIcon } from './AiraIcon';
 import { FloatingGlassMaterialSurface } from './FloatingGlassMaterialSurface';
+import { resolveFloatingGlassMaterialTintForMode } from './FloatingGlassMaterialTokens';
 
 const FLOATING_SELECTION_TOOLBAR_HEIGHT: number = 60;
 const FLOATING_SELECTION_TOOLBAR_RADIUS: number = FLOATING_SELECTION_TOOLBAR_HEIGHT / 2;
@@ -33,7 +31,7 @@ export interface FloatingSelectionToolbarAction {
 @Component
 export struct FloatingSelectionToolbar {
   @StorageProp(BROWSER_THEME_STORAGE_DIVIDER_KEY) private storedDividerColor: string = '#E3E8EF';
-  @StorageProp(BROWSER_THEME_STORAGE_SURFACE_BACKGROUND_KEY) private storedSurfaceBackgroundColor: string = '#FFFFFF';
+  @StorageProp(BROWSER_THEME_STORAGE_RESOLVED_MODE_KEY) private storedResolvedThemeMode: string = 'light';
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY) private storedPrimaryTextColor: string = '#111318';
   actions: FloatingSelectionToolbarAction[] = [];
 
@@ -43,7 +41,9 @@ export struct FloatingSelectionToolbar {
         surfaceWidth: '100%',
         surfaceHeight: FLOATING_SELECTION_TOOLBAR_HEIGHT,
         surfaceRadius: FLOATING_SELECTION_TOOLBAR_RADIUS,
-        tintColor: withBrowserBottomPanelGlassTint(this.storedSurfaceBackgroundColor),
+        tintColor: resolveFloatingGlassMaterialTintForMode(this.storedResolvedThemeMode),
+        fallbackColor: $r('app.color.browser_bottom_toolbar_glass_background'),
+        backgroundBlurEnabled: true,
         materialBorderWidth: 0.5,
         materialBorderColor: this.storedDividerColor
       }) {

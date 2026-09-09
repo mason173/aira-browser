@@ -62,8 +62,8 @@ export struct HistoryLargeScreenHeader {
           surfaceHeight: 36,
           surfaceRadius: 18,
           tintColor: resolveFloatingGlassMaterialTintForMode(this.storedResolvedThemeMode),
-          fallbackColor: $r('app.color.browser_bottom_toolbar_glass_background'),
-          backgroundBlurEnabled: true
+          fallbackColor: this.storedControlBackgroundColor,
+          backgroundBlurEnabled: false
         }) {
           SegmentedTabs({
             options: HISTORY_VIEW_MODE_OPTIONS,
@@ -209,8 +209,8 @@ export struct HistoryLargeScreenHeader {
       surfaceHeight: 40,
       surfaceRadius: 20,
       tintColor: resolveFloatingGlassMaterialTintForMode(this.storedResolvedThemeMode),
-      fallbackColor: $r('app.color.browser_bottom_toolbar_glass_background'),
-      backgroundBlurEnabled: true
+      fallbackColor: this.storedControlBackgroundColor,
+      backgroundBlurEnabled: false
     }) {
       Row({ space: 8 }) {
         AiraIcon({

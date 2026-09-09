@@ -41,7 +41,6 @@ const MANAGEMENT_IMMERSIVE_TITLE_HEIGHT: number = 40;
 const MANAGEMENT_IMMERSIVE_TITLE_HORIZONTAL_GAP: number = 12;
 const MANAGEMENT_TITLE_ACTION_SHADOW_RADIUS: number = 28;
 const MANAGEMENT_TITLE_ACTION_SHADOW_OFFSET_Y: number = 6;
-const MANAGEMENT_TITLE_ACTION_SHADOW_ANIMATION_MS: number = 220;
 
 export function resolveManagementImmersiveTitleBottomInset(topSafeInsetVp: number): number {
   return Math.max(0, Math.ceil(topSafeInsetVp)) + MANAGEMENT_TITLE_ACTION_TOP_INSET +
@@ -480,18 +479,16 @@ export struct ManagementHdsScaffold {
 
   @Builder
   private buildTitleActionShadowCaster() {
-    Stack()
-      .width(MANAGEMENT_TITLE_ACTION_SIZE)
-      .height(MANAGEMENT_TITLE_ACTION_SIZE)
-      .borderRadius(MANAGEMENT_TITLE_ACTION_SIZE / 2)
-      .backgroundColor(this.resolveTitleActionShadowFill())
-      .shadow(this.resolveTitleActionShadow())
-      .opacity(this.elevateTitleActions ? 1 : 0)
-      .animation({
-        duration: MANAGEMENT_TITLE_ACTION_SHADOW_ANIMATION_MS,
-        curve: Curve.EaseOut
-      })
-      .hitTestBehavior(HitTestMode.None)
+    if (this.elevateTitleActions) {
+      Stack()
+        .width(MANAGEMENT_TITLE_ACTION_SIZE)
+        .height(MANAGEMENT_TITLE_ACTION_SIZE)
+        .borderRadius(MANAGEMENT_TITLE_ACTION_SIZE / 2)
+        .backgroundColor(this.resolveTitleActionShadowFill())
+        .shadow(this.resolveTitleActionShadow())
+        .position({ x: 0, y: 0 })
+        .hitTestBehavior(HitTestMode.None)
+    }
   }
 
   private resolveTitleActionShadowFill(): ResourceColor {

@@ -17,7 +17,11 @@ import {
   BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY,
   BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY
 } from '../../../core/theme/BrowserThemeStorageKeys';
-import { ManagementHdsMenuAction, ManagementHdsScaffold } from '../common/ManagementHdsScaffold';
+import {
+  ManagementHdsMenuAction,
+  ManagementHdsScaffold,
+  resolveManagementImmersiveTitleBottomInset
+} from '../common/ManagementHdsScaffold';
 import {
   BROWSER_MODAL_BOTTOM_SHEET_CORNER_RADIUS
 } from '../browser/BrowserModalBottomSheet';
@@ -336,6 +340,7 @@ struct BookmarkMoveFolderDestinationContent {
       showPrivateIndicator: false,
       showBackButton: true,
       useTopSafeInset: false,
+      immersiveContent: true,
       menuActions: this.buildHeaderMenuActions(),
       scrollers: [this.listScroller],
       onBack: () => {
@@ -350,6 +355,7 @@ struct BookmarkMoveFolderDestinationContent {
       }
       .width('100%')
       .height('100%')
+      .padding({ top: resolveManagementImmersiveTitleBottomInset(0) })
       .backgroundColor(this.pageBackgroundColor)
     }
   }
