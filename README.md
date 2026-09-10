@@ -8,9 +8,12 @@ Aira 是一套 GPL-3.0 的鸿蒙 NEXT 与桌面浏览器隐私浏览栈，源码
 
 真实界面截图：
 
-![手机界面](docs/screenshots/phone.webp)
-
-![PC 界面](docs/screenshots/desktop.webp)
+<p align="center">
+  <img src="docs/screenshots/phone.webp" alt="手机界面" width="720">
+</p>
+<p align="center">
+  <img src="docs/screenshots/desktop.webp" alt="PC 界面" width="720">
+</p>
 
 ## 仓库约定
 
