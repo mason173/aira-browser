@@ -11,7 +11,6 @@ import {
 import { SiteIconView } from '../common/SiteIconView';
 import { FloatingGlassMaterialSurface } from '../common/FloatingGlassMaterialSurface';
 import { resolveFloatingGlassMaterialTintForMode } from '../common/FloatingGlassMaterialTokens';
-import { BrowserSheetActionButton } from '../browser/BrowserModalBottomSheet';
 
 const HOMEPAGE_FULLSCREEN_PREVIEW_ENTER_DURATION_MS: number = 260;
 const HOMEPAGE_FULLSCREEN_PREVIEW_EXIT_DURATION_MS: number = 220;
@@ -67,8 +66,18 @@ export struct CustomHomepageFullscreenPreview {
   build() {
     Stack({ alignContent: Alignment.TopStart }) {
       this.buildPreviewSwiper()
-      this.buildTopBar()
-      this.buildBottomBar()
+      Column() {
+        this.buildTopBar()
+        Blank()
+          .width('100%')
+          .layoutWeight(1)
+          .hitTestBehavior(HitTestMode.None)
+        this.buildBottomBar()
+      }
+      .width('100%')
+      .height('100%')
+      .hitTestBehavior(HitTestMode.Transparent)
+      .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
     }
     .width('100%')
     .height('100%')
@@ -116,9 +125,6 @@ export struct CustomHomepageFullscreenPreview {
       top: HOMEPAGE_FULLSCREEN_PREVIEW_TOP_PADDING
     })
     .alignItems(VerticalAlign.Top)
-    .position({ x: 0, y: 0 })
-    .zIndex(10)
-    .hitTestBehavior(HitTestMode.Transparent)
   }
 
   @Builder
@@ -138,10 +144,6 @@ export struct CustomHomepageFullscreenPreview {
     })
     .justifyContent(FlexAlign.End)
     .alignItems(HorizontalAlign.Center)
-    .position({ x: 0, y: '100%' })
-    .translate({ y: -HOMEPAGE_FULLSCREEN_PREVIEW_BOTTOM_BAR_HEIGHT })
-    .zIndex(10)
-    .hitTestBehavior(HitTestMode.Transparent)
   }
 
   @Builder
@@ -360,27 +362,38 @@ export struct CustomHomepageFullscreenPreview {
       .hitTestBehavior(HitTestMode.None)
       .zIndex(2)
     } else {
-      Row() {
-        BrowserSheetActionButton({
-          label: '使用该主页',
-          emphasis: 'primary',
-          actionEnabled: !this.busy,
-          accentColor: this.storedAccentColor,
-          buttonHeight: HOMEPAGE_FULLSCREEN_PREVIEW_ACTION_HEIGHT,
-          onAction: () => {
-            const choice = this.resolveCurrentChoice();
-            if (choice !== undefined) {
-              this.onUse(choice);
-            }
-          }
-        })
+      Stack({ alignContent: Alignment.Center }) {
+        FloatingGlassMaterialSurface({
+          surfaceWidth: '100%',
+          surfaceHeight: HOMEPAGE_FULLSCREEN_PREVIEW_ACTION_HEIGHT,
+          surfaceRadius: HOMEPAGE_FULLSCREEN_PREVIEW_ACTION_RADIUS,
+          tintColor: resolveFloatingGlassMaterialTintForMode(this.storedResolvedThemeMode),
+          overlayColor: this.storedAccentColor,
+          overlayOpacity: 1
+        }) {
+          Text('使用该主页')
+            .fontSize(16)
+            .fontWeight(FontWeight.Medium)
+            .fontColor('#FFFFFF')
+            .hitTestBehavior(HitTestMode.None)
+        }
+
+        Button({ type: ButtonType.Capsule })
+          .width('100%')
+          .height('100%')
+          .backgroundColor($r('sys.color.ohos_id_color_background_transparent'))
+          .enabled(!this.busy)
+          .accessibilityText('使用该主页')
+          .hitTestBehavior(HitTestMode.Block)
+          .onClick(() => {
+            this.handleUseCurrentHomepage();
+          })
       }
-        .width('100%')
-        .constraintSize({ maxWidth: 360 })
-        .height(HOMEPAGE_FULLSCREEN_PREVIEW_ACTION_HEIGHT)
-        .opacity(this.busy ? 0.48 : 1)
-        .hitTestBehavior(HitTestMode.Block)
-        .zIndex(2)
+      .width('100%')
+      .constraintSize({ maxWidth: 360 })
+      .height(HOMEPAGE_FULLSCREEN_PREVIEW_ACTION_HEIGHT)
+      .borderRadius(HOMEPAGE_FULLSCREEN_PREVIEW_ACTION_RADIUS)
+      .opacity(this.busy ? 0.48 : 1)
     }
   }
 
@@ -393,6 +406,14 @@ export struct CustomHomepageFullscreenPreview {
       return 0;
     }
     return Math.max(0, Math.min(this.initialIndex, this.choices.length - 1));
+  }
+
+  private handleUseCurrentHomepage(): void {
+    const choice = this.resolveCurrentChoice();
+    if (choice === undefined || this.busy) {
+      return;
+    }
+    this.onUse(choice);
   }
 
   private resolveCurrentChoice(): CustomHomepageChoiceViewState | undefined {

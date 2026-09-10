@@ -13,7 +13,6 @@ import {
 import { APP_STANDARD_HORIZONTAL_PADDING } from '../common/AppLayoutTokens';
 import { SettingsGroupCard, SettingsGroupDivider } from '../settings/SettingsLayout';
 import {
-  BROWSER_SHEET_IMMERSIVE_TOP_BLUR_RADIUS,
   BrowserSheetActionButton
 } from '../browser/BrowserModalBottomSheet';
 import { CenteredDialogSurface } from '../common/CenteredDialogSurface';
@@ -77,10 +76,6 @@ export struct CustomHomepageInfoSheet {
       })
       .scrollBar(BarState.Auto)
       .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
-      .linearGradientBlur(BROWSER_SHEET_IMMERSIVE_TOP_BLUR_RADIUS, {
-        fractionStops: [[1, 0], [1, 0.05], [0, 0.14], [0, 1]],
-        direction: GradientDirection.Bottom
-      })
 
       if (this.actionLabel.length > 0) {
         Row() {
