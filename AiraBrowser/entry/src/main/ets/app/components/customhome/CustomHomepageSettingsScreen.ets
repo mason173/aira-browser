@@ -744,21 +744,21 @@ export struct CustomHomepageSettingsScreen {
   private buildHeaderActions(): SettingsHdsMenuAction[] {
     return [{
       label: '导入主页',
-      icon: $r('sys.symbol.plus'),
+      airaIconId: 'browser.tabs.add',
       enabled: !this.busy,
       action: () => {
         this.importHtmlFile();
       }
     }, {
       label: '添加网址',
-      icon: $r('sys.symbol.link'),
+      airaIconId: 'browser.toolbar.copyLink',
       enabled: !this.busy,
       action: () => {
         this.openRemoteHomepageDialog();
       }
     }, {
       label: '开发文档',
-      icon: $r('sys.symbol.doc_text_fill'),
+      airaIconId: 'browser.toolbar.savedPages',
       enabled: true,
       action: () => {
         this.openDeveloperGuide();

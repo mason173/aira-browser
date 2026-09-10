@@ -24,6 +24,7 @@ export type SettingsHdsBackIconKind = 'close' | 'back';
 export interface SettingsHdsMenuAction {
   label: string;
   icon?: Resource;
+  airaIconId?: AiraRenderableIconId;
   enabled?: boolean;
   action: () => void;
 }
@@ -288,10 +289,18 @@ export struct SettingsHdsScaffold {
   @Builder
   private buildGlassMenuAction(menuAction: SettingsHdsMenuAction) {
     Button() {
-      SymbolGlyph(this.resolveMenuActionIcon(menuAction.icon))
-        .fontSize(SETTINGS_TITLE_BAR_ACTION_ICON_SIZE)
-        .fontWeight(FontWeight.Medium)
-        .fontColor([this.resolveTitleActionIconColor()])
+      if (menuAction.airaIconId !== undefined) {
+        AiraIcon({
+          airaIconId: menuAction.airaIconId,
+          iconSize: SETTINGS_TITLE_BAR_ACTION_ICON_SIZE,
+          iconColor: this.resolveTitleActionIconColor()
+        })
+      } else {
+        SymbolGlyph(this.resolveMenuActionIcon(menuAction.icon))
+          .fontSize(SETTINGS_TITLE_BAR_ACTION_ICON_SIZE)
+          .fontWeight(FontWeight.Medium)
+          .fontColor([this.resolveTitleActionIconColor()])
+      }
     }
     .width(SETTINGS_TITLE_BAR_CUSTOM_MENU_BUTTON_SIZE)
     .height(SETTINGS_TITLE_BAR_CUSTOM_MENU_BUTTON_SIZE)

@@ -7,112 +7,112 @@
     {
       "glyph": "app-window",
       "sourceFile": "svg/app-window.svg",
-      "sourceSha256": "33d3079d3973c8755de40667f8888eea561c7aa9b29a8c99d3f569f8b5de2bd0",
+      "sourceSha256": "d1862537e51d7a05d001e643c508512fb6acc4fb953b1cf9deae5cc93d1ae461",
       "codePoint": 58842,
       "lucideSlug": "app-window"
     },
     {
       "glyph": "arrow-counter-clockwise",
       "sourceFile": "svg/arrow-counter-clockwise.svg",
-      "sourceSha256": "8f271410cd7edf4fbc7578c6830ec6afc064eaff84b9c35985a66d2a2cdde3f3",
+      "sourceSha256": "b238b19e96bbdf5f18bea32388f68c2a778c3b9bcf22956a96a8c553b88c8d59",
       "codePoint": 57400,
       "lucideSlug": "undo-2"
     },
     {
       "glyph": "arrow-left",
       "sourceFile": "svg/arrow-left.svg",
-      "sourceSha256": "32ebce2f0cf210c0724c91c8b25122e60a8028375f9a67eeb7e09e3da5f50414",
+      "sourceSha256": "06b5e3337916fc41d25003653ad95eb4a0d5a8f92f45075294ad85de0b7c8028",
       "codePoint": 57432,
       "lucideSlug": "arrow-left"
     },
     {
       "glyph": "arrow-square-out",
       "sourceFile": "svg/arrow-square-out.svg",
-      "sourceSha256": "82b7f7ddc482c567493ceb8fadd9bfc98fd34c051a9b2c8416fd6d9a1c8873a4",
+      "sourceSha256": "716e2e330b612b554e79f76e445411c4feaf339a4e9064e17b63612429e6219d",
       "codePoint": 58846,
       "lucideSlug": "external-link"
     },
     {
       "glyph": "arrow-up-left",
       "sourceFile": "svg/arrow-up-left.svg",
-      "sourceSha256": "bb7f4ade25cbfb2014ca798e8eb41ed4c0174bd724ba73b5e5349fe752405bfd",
+      "sourceSha256": "95bb378a53319b79e041fdae98d01643ccbcc9079d2a082d32feb74ecd411217",
       "codePoint": 57488,
       "lucideSlug": "arrow-up-left"
     },
     {
       "glyph": "arrows-clockwise",
       "sourceFile": "svg/arrows-clockwise.svg",
-      "sourceSha256": "0e8313eab44494b60fffa011ea86f0855a5049361ed186837a92f0cdba654874",
+      "sourceSha256": "6156e030807651924612ab863e97c23311324b342dfe94e3c119e9824fd86453",
       "codePoint": 57492,
       "lucideSlug": "refresh-cw"
     },
     {
       "glyph": "arrows-out-line-horizontal",
       "sourceFile": "svg/arrows-out-line-horizontal.svg",
-      "sourceSha256": "04a326e183172f672aea14f0fa1a0095ec2738343d19d1e0480b4730f169331f",
+      "sourceSha256": "0f112ef4786f12616860cd1e7dee3cda9f6fc6ccb56ecf8d6f7aa9774df53b7c",
       "codePoint": 58676,
       "lucideSlug": "move-horizontal"
     },
     {
       "glyph": "article",
       "sourceFile": "svg/article.svg",
-      "sourceSha256": "9098bd0830dc9536cdb6cb6565486e14f639cd8b809cb9b0cb87631e458b10dc",
+      "sourceSha256": "61a74f115d069a82c8742e0418beb508ddef060817c7c4ebe8f4f3f19fd89111",
       "codePoint": 57512,
       "lucideSlug": "newspaper"
     },
     {
       "glyph": "book-open-text",
       "sourceFile": "svg/book-open-text.svg",
-      "sourceSha256": "0a98a0fb536c4cb9d6c93c64b7b1d47a3d72789628ac50e2857034523f57ee9a",
+      "sourceSha256": "92df0bb66a2d30ff04e298a0e7aabb71da9bf2f7171cdcc50b116d5229e79003",
       "codePoint": 59634,
       "lucideSlug": "book-open-text"
     },
     {
       "glyph": "bookmark-simple",
       "sourceFile": "svg/bookmark-simple.svg",
-      "sourceSha256": "3fee556b1d4ee291b73da9ae639afb7acc496d3d4ff5cc561664ce9089c300c0",
+      "sourceSha256": "eb4996b2246f56e3a7e53d0ec9e85b21bd241fa6d073750d3ec3204d15685e8c",
       "codePoint": 57578,
       "lucideSlug": "bookmark"
     },
     {
       "glyph": "bookmarks",
       "sourceFile": "svg/bookmarks.svg",
-      "sourceSha256": "f5189e52aefa6ac9aa01a099f13ed0f3dcaa6570e4dffe28d9b170f2b58c2102",
+      "sourceSha256": "89e93c006acf1020afcdf1a601fb932319e0bc12e73464bb50366293b054e1cc",
       "codePoint": 57580,
       "lucideSlug": "book-marked"
     },
     {
       "glyph": "browser",
       "sourceFile": "svg/browser.svg",
-      "sourceSha256": "b503b947e0a3ce4cbd93d9bb9293f7513df0fdf3fa22c9dd2683ac3a23290dcc",
+      "sourceSha256": "19bae9b001fc3a96b49bb1bae8eb386614139bcf4f9a0182d3e2a5e7c6e8763f",
       "codePoint": 57588,
       "lucideSlug": "panel-top"
     },
     {
       "glyph": "camera",
       "sourceFile": "svg/camera.svg",
-      "sourceSha256": "ae6cbadc106eecd093c308ee7d5c7b9d7af1c9172fdb3f9bc5bffc95f7aafd09",
+      "sourceSha256": "3811ee82a304c3252b20d541de10e554f41d0b3d423030137e8f7682f4c4cc84",
       "codePoint": 57614,
       "lucideSlug": "camera"
     },
     {
       "glyph": "circles-three",
       "sourceFile": "svg/circles-three.svg",
-      "sourceSha256": "34344c4b30e26e361535eda7c76ef872caa8c35c757f3e7f3e54e49aa39c3773",
+      "sourceSha256": "4ff50320a4c6b066ec4fa8555d191b04e9e6d31d153eb81529e5756b84647d49",
       "codePoint": 57746,
       "lucideSlug": "palette"
     },
     {
       "glyph": "clipboard",
       "sourceFile": "svg/clipboard.svg",
-      "sourceSha256": "dcb99385586a257820cbe9fd2f1075a94f88db3807b447bf83bd54adc1464939",
+      "sourceSha256": "db372a80604fa52370b1bc11597c68523838983a3682a0ea89205c23f2f2ba46",
       "codePoint": 57750,
       "lucideSlug": "clipboard"
     },
     {
       "glyph": "clock",
       "sourceFile": "svg/clock.svg",
-      "sourceSha256": "aa468475abfcb0c583c0800f1414117190d95c2cf6a899e4912b82a41ce9f8ef",
+      "sourceSha256": "d5b35e2ee51badb9b9b2e56e4757e1ac217f636ccdfff2a3fa7a6b9a85670150",
       "codePoint": 57754,
       "lucideSlug": "clock"
     },
@@ -120,13 +120,13 @@
       "glyph": "clock-counter-clockwise",
       "sourceFile": "svg/clock-counter-clockwise.svg",
       "codePoint": 57760,
-      "sourceSha256": "dd11863f7f3d6f671078becc8151e1aa667289bf6e7d28c36b820450eadbd5fa",
+      "sourceSha256": "2d25942fda55c333e2424c8fc49b2ff6df640631c4b998c718c5cf19b5c9a684",
       "lucideSlug": "history"
     },
     {
       "glyph": "cloud",
       "sourceFile": "svg/cloud.svg",
-      "sourceSha256": "ccfe45f0d490b7ce4b8ac1a1cf430264f5a9afd2be50a7b3fae576666593cfd1",
+      "sourceSha256": "c4669df1970980f9550cfdb2aafc1b91a81a2a78d32cff17c1e9686ce6f328a8",
       "codePoint": 57770,
       "lucideSlug": "cloud"
     },
@@ -134,146 +134,146 @@
       "glyph": "code",
       "sourceFile": "svg/code.svg",
       "codePoint": 57788,
-      "sourceSha256": "befccb7b61ee477ffbfd5891715d297c717f994cf44f86cb2b0a20ffaa8c677a",
+      "sourceSha256": "ce51d3295b71d6c04b6ca1dfef6b7c8c6a5eb3729ddd889e41529f6c895e3a8c",
       "lucideSlug": "code"
     },
     {
       "glyph": "corners-out",
       "sourceFile": "svg/corners-out.svg",
       "codePoint": 57808,
-      "sourceSha256": "e977f5a7225c1d837d865fb983d2e690cdbe80a310b598d89985d06c24f848c9",
+      "sourceSha256": "57e4c9d926f77da8bf6e1f21b8feb32e1e67543098216a329f6ed873adac0ec0",
       "lucideSlug": "fullscreen"
     },
     {
       "glyph": "crown",
       "sourceFile": "svg/crown.svg",
-      "sourceSha256": "646cbc305af09e0d80c57999e52a34560af318a65b76533ed1c60fe71a860e1d",
+      "sourceSha256": "539da513a5c0e968f1aa5bb1ccc10247c15e04fc2c22de546ce84bf0aa85f460",
       "codePoint": 58900,
       "lucideSlug": "crown"
     },
     {
       "glyph": "cursor-text",
       "sourceFile": "svg/cursor-text.svg",
-      "sourceSha256": "b23fbc303ad4fc44fb46ce318930eb4851ee77ad5551d141fcb6f7554232cdc0",
+      "sourceSha256": "2753e8e864bb8a3b8fd6ca4f2d072ff0aa5ec3713d43170837bc0a9312ad2e43",
       "codePoint": 59352,
       "lucideSlug": "text-cursor-input"
     },
     {
       "glyph": "desktop",
       "sourceFile": "svg/desktop.svg",
-      "sourceSha256": "178c0210790184aef36cb77b0a3f8a19f7fc641dcf69096d0d24b614517bbe2f",
+      "sourceSha256": "cb20ac5be313375982ac2fcc224359ab91c93c5a259f41f6035a683eb50ce584",
       "codePoint": 58720,
       "lucideSlug": "monitor"
     },
     {
       "glyph": "device-mobile",
       "sourceFile": "svg/device-mobile.svg",
-      "sourceSha256": "243f58c756a96edf7b5e13faf1802499e8c797d402b595b32f58c7cb75a09c49",
+      "sourceSha256": "ea444911e4ea1eda57271141f2ff00e4e92884faf738c993a89ca74410107e55",
       "codePoint": 57824,
       "lucideSlug": "smartphone"
     },
     {
       "glyph": "device-rotate",
       "sourceFile": "svg/device-rotate.svg",
-      "sourceSha256": "fbf0969996c55401c60e342612726e37a7fb5d42cf75cc2cb2827e2c29b7702b",
+      "sourceSha256": "0825a0ba2699b57aebd68c420a4526c1bee7f10c22f82808c021445126962911",
       "codePoint": 60914,
       "lucideSlug": "rotate-cw"
     },
     {
       "glyph": "dots-three",
       "sourceFile": "svg/dots-three.svg",
-      "sourceSha256": "2ef9c5e11ddf6e4a018d075c4ce95a8967f5e4c63d62496a09f843ff9db38c25",
+      "sourceSha256": "279a75fec292ab3281bfea010adcc660516df88e8ca74ef833cd6a058dfa0997",
       "codePoint": 57854,
       "lucideSlug": "ellipsis"
     },
     {
       "glyph": "download-simple",
       "sourceFile": "svg/download-simple.svg",
-      "sourceSha256": "9cf483ee60ff018c95bc1896e8d24ddf50cea5b26ea23e584372dbce49d59938",
+      "sourceSha256": "1241f3544a2c80b61b52cdd3d895425f059d5168c7706393f4f6d471e2f24c39",
       "codePoint": 57868,
       "lucideSlug": "download"
     },
     {
       "glyph": "eraser",
       "sourceFile": "svg/eraser.svg",
-      "sourceSha256": "e716af5db6421179a3ce6626ebba846b899de04d5783bb121c5024fc7553f8f7",
+      "sourceSha256": "d1709c0ff42955ac26ab521f8e1ce554859bbd7b88227f620f5ed726a5963058",
       "codePoint": 57886,
       "lucideSlug": "eraser"
     },
     {
       "glyph": "fast-forward",
       "sourceFile": "svg/fast-forward.svg",
-      "sourceSha256": "70b5e6da0332b29e3355405ed97e4dfa1046caca29b0325fb185318de062ef92",
+      "sourceSha256": "de751db522eef09cac9aa9fe50e7d596c712eb0d8870f4e2bce17d32cdecc0b1",
       "codePoint": 59046,
       "lucideSlug": "fast-forward"
     },
     {
       "glyph": "flask",
       "sourceFile": "svg/flask.svg",
-      "sourceSha256": "161a782f99acec44af63da49d5f89e6163e41a9960160469a20469db346f1379",
+      "sourceSha256": "f28c8f2712be956d124e62ed052eea59664aed425530ff208ff72c13c9e094f0",
       "codePoint": 59294,
       "lucideSlug": "flask-conical"
     },
     {
       "glyph": "floppy-disk",
       "sourceFile": "svg/floppy-disk.svg",
-      "sourceSha256": "126b8e5a26afd68320731e3e4ac602b83697e0fa55909d72fd17bc86bd3e3730",
+      "sourceSha256": "c5ad754a7b9a25280d43d63403291446a7ce1fa4777b6c442d839cd659d32537",
       "codePoint": 57928,
       "lucideSlug": "save"
     },
     {
       "glyph": "folder-simple",
       "sourceFile": "svg/folder-simple.svg",
-      "sourceSha256": "6ea49f729db1ae4052757e9e985e9c08723acfc9b5cd00dd41c9c5d2b22b43b5",
+      "sourceSha256": "9df6e56ee1f8f42ab0666504bc09e70b108c0a02f87be2a0c938d5b431db9632",
       "codePoint": 57946,
       "lucideSlug": "folder"
     },
     {
       "glyph": "gauge",
       "sourceFile": "svg/gauge.svg",
-      "sourceSha256": "b59c34745e4c234bbad4a210ae236e75ba13c2197627076d33f683d986773801",
+      "sourceSha256": "b4ea2eb83acec910dd4bd48f2e05682f555fb4d6795ee6a9a6b953da93259d56",
       "codePoint": 58920,
       "lucideSlug": "gauge"
     },
     {
       "glyph": "gear-six",
       "sourceFile": "svg/gear-six.svg",
-      "sourceSha256": "008e2b3968efe6b156ffea63530142b596ffa79b5a09b471441108a87920b6b3",
+      "sourceSha256": "bcc796b82b5bd72d0f80c8f707ca901cabfa548ea3acdb59349f9a0a52fda491",
       "codePoint": 57970,
       "lucideSlug": "settings"
     },
     {
       "glyph": "gift",
       "sourceFile": "svg/gift.svg",
-      "sourceSha256": "367fc4cd336136bfbaf1981c9ae165e01f95a63376faf059233561a6aeddc088",
+      "sourceSha256": "11962dff8a005a1bef296d459d5f1975df3688765731bff36cce99745de25404",
       "codePoint": 57974,
       "lucideSlug": "gift"
     },
     {
       "glyph": "globe",
       "sourceFile": "svg/globe.svg",
-      "sourceSha256": "13f02a2ef40d69bc4917da7a5748db708eab8ca84a267ee7ddcf9ae9bdb7de89",
+      "sourceSha256": "d96d3d09dfbb9a31e033085ea796981c0cc41a4cbfe0ed3a3c50a9a3342dfbf3",
       "codePoint": 57992,
       "lucideSlug": "globe"
     },
     {
       "glyph": "globe-earth",
       "sourceFile": "svg/globe-earth.svg",
-      "sourceSha256": "d57e8b2a774983d4f8bae73682554ae54ccc84e20dd2da23258f52d6a9ee501d",
+      "sourceSha256": "38b0875bb58a78598342f78aac8f447d8c87cc359b6f15fc41fb19e8077fcc76",
       "codePoint": 60937,
       "lucideSlug": "earth"
     },
     {
       "glyph": "house",
       "sourceFile": "svg/house.svg",
-      "sourceSha256": "57974daadeda554d08b1bb23e026b98d54d39403a4ea940c3cf0405e27dc4613",
+      "sourceSha256": "cdfa8a3a1ba10df2522f96e98328be334709bae3051d03af465ace7bc1702fb6",
       "codePoint": 58050,
       "lucideSlug": "house"
     },
     {
       "glyph": "identification-card",
       "sourceFile": "svg/identification-card.svg",
-      "sourceSha256": "95d493ecf982ddfdae23d454bfd34539be67f9a3518f7db64429c8268b8ed9ed",
+      "sourceSha256": "89513dbd2b332b65723f40d95b7edf84ec9ca55a8fd29a968c2573e231bfb1f1",
       "codePoint": 58056,
       "lucideSlug": "contact"
     },
@@ -281,293 +281,293 @@
       "glyph": "info",
       "sourceFile": "svg/info.svg",
       "codePoint": 58062,
-      "sourceSha256": "901a95f685b2c5b24e58f3eb3164414d13446ce907e80dd596008737f85c7ff3",
+      "sourceSha256": "466a002cc823a490d4c722ece80c4d7f26063b9f594bb29e5928cfebea9d959e",
       "lucideSlug": "info"
     },
     {
       "glyph": "link-simple",
       "sourceFile": "svg/link-simple.svg",
-      "sourceSha256": "ea31a0f414f70c6ff9a11e11a5ffab5b219b83061a56d7b630b6648fb9a3801d",
+      "sourceSha256": "3b790f0ddc7b51081d95b0877af3f087a122524c3e172255b37652cb392fa990",
       "codePoint": 58086,
       "lucideSlug": "link"
     },
     {
       "glyph": "lock",
       "sourceFile": "svg/lock.svg",
-      "sourceSha256": "68d5b3be7179fadb39a471e87aa387f89484c9897dae886b2e6f64cd59c79321",
+      "sourceSha256": "a6363e6c955f3f71fd04c68b9bdbe0bd0e1eef0baaf35b9f6e31da89274c5d12",
       "codePoint": 58106,
       "lucideSlug": "lock"
     },
     {
       "glyph": "lock-key",
       "sourceFile": "svg/lock-key.svg",
-      "sourceSha256": "a8e22fb98e4e7c7b01c6cc46685e32df3b3c630e828405d7d604733d8f7cc465",
+      "sourceSha256": "541585ce15cd67207de9febe6953439c1ec61102843ff1c69a941403e38dd015",
       "codePoint": 58110,
       "lucideSlug": "shield-keyhole"
     },
     {
       "glyph": "lock-open",
       "sourceFile": "svg/lock-open.svg",
-      "sourceSha256": "40e08f2b89b789da33ca471d5efa20a734f4d8690edcb802dff12fc6d5a44bd3",
+      "sourceSha256": "3438cca096e412ec10f258d4599dcfa7eb6a80896c9e1e949c4c382240936843",
       "codePoint": 58118,
       "lucideSlug": "lock-open"
     },
     {
       "glyph": "magnifying-glass",
       "sourceFile": "svg/magnifying-glass.svg",
-      "sourceSha256": "764be5bec1175965338aedfe61095a79c7f2277d03e152d9758d3acb5fde1406",
+      "sourceSha256": "ca722c1ea8de7d479e1463b777f53d7806e2d4858dc56512453082cd7397bb69",
       "codePoint": 58124,
       "lucideSlug": "search"
     },
     {
       "glyph": "map-pin",
       "sourceFile": "svg/map-pin.svg",
-      "sourceSha256": "cd40273631d22ab891dfac72ba1e00d762c15ebf931fd332783dcb9f0793f353",
+      "sourceSha256": "11c354292ba00ea462b2454dcfd76423bd9497ecf85be3d23f43f8f6b13a16e7",
       "codePoint": 58134,
       "lucideSlug": "map-pin"
     },
     {
       "glyph": "mask-happy",
       "sourceFile": "svg/mask-happy.svg",
-      "sourceSha256": "543b2f28429e8a63a88c24d426f45fd949780a67d2462a9ed0864f5d543d642e",
+      "sourceSha256": "423dcf0b9ff684a94110132da80da7bbeb205832f48eff9435f486a7b1c8be6d",
       "codePoint": 59892,
       "lucideSlug": "venetian-mask"
     },
     {
       "glyph": "microphone",
       "sourceFile": "svg/microphone.svg",
-      "sourceSha256": "c22029aab3bb5b14b7dc3c33529bedb3574046a8da6c550a4824f1d543c91e7d",
+      "sourceSha256": "d8fb3a26a97e43798472af795a143ba363896b02b35021a0bf8c7efd521e5f08",
       "codePoint": 58150,
       "lucideSlug": "mic"
     },
     {
       "glyph": "moon",
       "sourceFile": "svg/moon.svg",
-      "sourceSha256": "a26ca4ca9cf2327e637ba68128f840d495897be16cb257cc2eaaf17966d084d2",
+      "sourceSha256": "2ddc6d2f0637b0cead06b48ee585038aec60898522e7c124fd17b1cbdf4e977b",
       "codePoint": 58160,
       "lucideSlug": "moon"
     },
     {
       "glyph": "palette",
       "sourceFile": "svg/palette.svg",
-      "sourceSha256": "34344c4b30e26e361535eda7c76ef872caa8c35c757f3e7f3e54e49aa39c3773",
+      "sourceSha256": "4171b3ae0bfdb228378c9d3e660fd99d1dff7d919ca1f4652db86033b70b58f9",
       "codePoint": 59080,
       "lucideSlug": "palette"
     },
     {
       "glyph": "paper-plane-tilt",
       "sourceFile": "svg/paper-plane-tilt.svg",
-      "sourceSha256": "851cc83756b760cf4b63e73a7f36a5d2132c0a25f44d8ab8bfa164e855b92933",
+      "sourceSha256": "5bb76b1097a9f0925fad1fbf9b0782b480142810d345948e95809ff6f69fa5ca",
       "codePoint": 58264,
       "lucideSlug": "send"
     },
     {
       "glyph": "password",
       "sourceFile": "svg/password.svg",
-      "sourceSha256": "141bdb665af9caaf227c1001838b3f6557670020520f65f1e88d4f6c1307cf34",
+      "sourceSha256": "32b8657939f4996b6920f9402ccd32419ba556118e0fa4fe85004431bc3bc74a",
       "codePoint": 59218,
       "lucideSlug": "key-round"
     },
     {
       "glyph": "pause",
       "sourceFile": "svg/pause.svg",
-      "sourceSha256": "4b86abd2215c3453d00dfd5f4405c4907dbe254dfd4cb57df2d78a333397fe93",
+      "sourceSha256": "4ad091d847c9ff26795db89863aaec55e4fb757348fcbfc2dee75af5d19caeed",
       "codePoint": 58270,
       "lucideSlug": "pause"
     },
     {
       "glyph": "pencil-simple",
       "sourceFile": "svg/pencil-simple.svg",
-      "sourceSha256": "dc7e4b6cf33a9d172eab8448bead5ec440e2e38316a2f97b92dffb970f3dc1d4",
+      "sourceSha256": "c2b9688adbea6a2b0b8001f9ad5dce8fa9cb154748ce3610936af7efc33a4092",
       "codePoint": 58292,
       "lucideSlug": "pencil"
     },
     {
       "glyph": "picture-in-picture",
       "sourceFile": "svg/picture-in-picture.svg",
-      "sourceSha256": "e338f31b6dae8405e687b8aa7a18773b88457ecbc38f44a426071a8ac5178ef1",
+      "sourceSha256": "a6e5caddf6336ccb4d36ec6108de4ddce14a7c25451911b860f59d643c422a76",
       "codePoint": 58956,
       "lucideSlug": "picture-in-picture"
     },
     {
       "glyph": "play",
       "sourceFile": "svg/play.svg",
-      "sourceSha256": "37491172f29be2d8f68448ec736b6107dee672c4b9b485353cb3c7c0d32eadd1",
+      "sourceSha256": "adabdee44647d50a40660aadd552a597717b6277e52cb890612fa2057ed2ab9b",
       "codePoint": 58320,
       "lucideSlug": "play"
     },
     {
       "glyph": "plus",
       "sourceFile": "svg/plus.svg",
-      "sourceSha256": "422560d6ef2a875a17c2e33b321549129b1155bbdda6a391412552314f5c3796",
+      "sourceSha256": "3109e157eda95e86ea7b33f0a0915c15d9ec036a014fc293dfd7ced5f4fa282e",
       "codePoint": 58324,
       "lucideSlug": "plus"
     },
     {
       "glyph": "printer",
       "sourceFile": "svg/printer.svg",
-      "sourceSha256": "ed43ba8162beb8354f2f6383ef27311b9cb4d6139a93e15dfe0fce129411f716",
+      "sourceSha256": "c117426c4f9484cfaba2cbf6aa502ddf60a89b557c45e4eabcba2058ba0272a0",
       "codePoint": 58332,
       "lucideSlug": "printer"
     },
     {
       "glyph": "qr-code",
       "sourceFile": "svg/qr-code.svg",
-      "sourceSha256": "fb91e404a63ff734d403a1bc355082676a4e71d669b872f3ffc174b15a9ecbc4",
+      "sourceSha256": "351e95ec8a5f69b2c7239b8a6629ae944da0f24796d613d7cb6299bccef2e6fa",
       "codePoint": 58342,
       "lucideSlug": "qr-code"
     },
     {
       "glyph": "receipt",
       "sourceFile": "svg/receipt.svg",
-      "sourceSha256": "13b2c13f35c01f78dc1777db8456421e26569a8b9996afb471be7595653b7bd5",
+      "sourceSha256": "a6ec4a0ddb0bcb2f0986137a3b7de0a76e8dc01b8a8a9710cf96344860f055cf",
       "codePoint": 58348,
       "lucideSlug": "receipt"
     },
     {
       "glyph": "resize",
       "sourceFile": "svg/resize.svg",
-      "sourceSha256": "84df02f1ac28494ae119ef036d99002d164703c5b62a3beddba1764ce35b61e4",
+      "sourceSha256": "cb37ee238a2c74dc63305bd4b4b28a4c82d89fae8ff25f685d03ee046ddec31a",
       "codePoint": 60782,
       "lucideSlug": "ratio"
     },
     {
       "glyph": "rewind",
       "sourceFile": "svg/rewind.svg",
-      "sourceSha256": "e1ee2e2703af9f7c01e57c500292b5f2ea4c70be3461ff452f0793140e6299f6",
+      "sourceSha256": "79d007baf2d48020bca9d898ff3e98759edfc4027d1bf7680fb8139133735581",
       "codePoint": 59048,
       "lucideSlug": "rewind"
     },
     {
       "glyph": "selection-all",
       "sourceFile": "svg/selection-all.svg",
-      "sourceSha256": "87f072b1f0c0f33e20aba12e8748965990fe66eb5786f917bbc422deead746de",
+      "sourceSha256": "4af55a24488bfa12e4157b137f01672ac0cd8a3fd1354e7c5fc6f732102c73f0",
       "codePoint": 59206,
       "lucideSlug": "box-select"
     },
     {
       "glyph": "share-network",
       "sourceFile": "svg/share-network.svg",
-      "sourceSha256": "9e442e4c2951b5c0847191f649bc52e3d4f469b515a3213f79a94fcf6350d361",
+      "sourceSha256": "5e338868e3d28dac707c0f38f99c0ebcd8554804979c1036ba457f09bfb3e142",
       "codePoint": 58376,
       "lucideSlug": "share-2"
     },
     {
       "glyph": "shield",
       "sourceFile": "svg/shield.svg",
-      "sourceSha256": "5c32342777b97e2a9401de3c38f46698d039f3348e76c6d8a3e7f79a1ab9fbec",
+      "sourceSha256": "394b2e00c359e1fd11d2352a80e47ced7d52e066abcc264b7dfad305dce6852f",
       "codePoint": 58378,
       "lucideSlug": "shield"
     },
     {
       "glyph": "shield-check",
       "sourceFile": "svg/shield-check.svg",
-      "sourceSha256": "ea3944c917c56670149dcc67dbc33ceea015c9b0d8f6005374c5322f889ac268",
+      "sourceSha256": "7791dceaa42f7dfe419afb45ffe2a65667c7f2170ccc70f712e8659d41ce8111",
       "codePoint": 58380,
       "lucideSlug": "shield-check"
     },
     {
       "glyph": "speaker-high",
       "sourceFile": "svg/speaker-high.svg",
-      "sourceSha256": "fdc86e1b7db165b3a6eb524baf999fe371669252dbb0a15b5678fffc9ecf9d87",
+      "sourceSha256": "23ff3349315dd8d646c393dcdf8462449d1ce20994494b4e8c162d1c73430c56",
       "codePoint": 58442,
       "lucideSlug": "volume-2"
     },
     {
       "glyph": "speaker-low",
       "sourceFile": "svg/speaker-low.svg",
-      "sourceSha256": "34c239b69b968df649cb132838a245f578845e011d256d80e8b31a274c24d7bd",
+      "sourceSha256": "7600ca598fcc63fa21cc3b9511325f17940b1ffb50b1ef47325318cc98af5182",
       "codePoint": 58444,
       "lucideSlug": "volume-1"
     },
     {
       "glyph": "speaker-simple-high",
       "sourceFile": "svg/speaker-simple-high.svg",
-      "sourceSha256": "2e107332ed9ff27c0ec890acdfd9bccc4365b4695efaad7bc232823e1e125c15",
+      "sourceSha256": "1355e2a6992a315bf7873bdda5f539e2c1053f1acf6652bc4db95934bb13e435",
       "codePoint": 58448,
       "lucideSlug": "volume"
     },
     {
       "glyph": "speaker-slash",
       "sourceFile": "svg/speaker-slash.svg",
-      "sourceSha256": "4c2ed048090803e55f7d33a2f459ecbc8ceacf32fb09f9098ee0ed72910c5b04",
+      "sourceSha256": "061a8ed161a1dc3f5912408097fdf26357b1e6532199a68409927334d478651f",
       "codePoint": 58458,
       "lucideSlug": "volume-x"
     },
     {
       "glyph": "stack",
       "sourceFile": "svg/stack.svg",
-      "sourceSha256": "c9f71edb5427308c4203f25fbb4debd2e163cf1ab8d16c39168f04800adb788b",
+      "sourceSha256": "41b4aa14dcef9bf3da0865a4a1fd302390670b8b8072053f72899c4a4d17d685",
       "codePoint": 58470,
       "lucideSlug": "layers-3"
     },
     {
       "glyph": "sun",
       "sourceFile": "svg/sun.svg",
-      "sourceSha256": "a8cce33f846b6f874fc0cc5927f34f58debfea04db6658c14859683bdf9ef863",
+      "sourceSha256": "598ff52e803002608457c879209fac72f88b11a87350e1db3fca9861a77a1676",
       "codePoint": 58482,
       "lucideSlug": "sun"
     },
     {
       "glyph": "tabs",
       "sourceFile": "svg/tabs.svg",
-      "sourceSha256": "b503b947e0a3ce4cbd93d9bb9293f7513df0fdf3fa22c9dd2683ac3a23290dcc",
+      "sourceSha256": "19bae9b001fc3a96b49bb1bae8eb386614139bcf4f9a0182d3e2a5e7c6e8763f",
       "codePoint": 59256,
       "lucideSlug": "panel-top"
     },
     {
       "glyph": "text-align-justify",
       "sourceFile": "svg/text-align-justify.svg",
-      "sourceSha256": "b50a3caf33a401d2525aff0d910d39b89b8d7c76ed2e7da5bed20971e8cb5875",
+      "sourceSha256": "ebae4dad852887c253b0682d4b250dec0d1cbb453f54ad297c23b1fddc94cac9",
       "codePoint": 58498,
       "lucideSlug": "text-align-justify"
     },
     {
       "glyph": "text-t",
       "sourceFile": "svg/text-t.svg",
-      "sourceSha256": "97a3204b6d12e290db78ea785ae76ef9254a88afe77ec840a0a2e79ce174d195",
+      "sourceSha256": "ba08e355b5a6a1e326f741bc2c9b641ae2b757493e68bbc040a6b03269bbad83",
       "codePoint": 58506,
       "lucideSlug": "type"
     },
     {
       "glyph": "text-t-slash",
       "sourceFile": "svg/text-t-slash.svg",
-      "sourceSha256": "bfaa6016f129fa1816b1aea4eebca70d050a64e554954c79d5024f61a0dfdfe4",
+      "sourceSha256": "594921c98962b93f013667c7ed10c1829660cab63bb9d2366de6763ac407f1aa",
       "codePoint": 58504,
       "lucideSlug": "a-large-small"
     },
     {
       "glyph": "translate",
       "sourceFile": "svg/translate.svg",
-      "sourceSha256": "35c16db9086633d3ac6b6e522b4c1a1ce30e8491d5950af8b1bcf543f6360b5f",
+      "sourceSha256": "15e543674aeac8dd361099058956ca5c9a6304b8ba235a52c6c2cc4ea2aff912",
       "codePoint": 58530,
       "lucideSlug": "languages"
     },
     {
       "glyph": "trash",
       "sourceFile": "svg/trash.svg",
-      "sourceSha256": "0fe384028bbaa410d803476cc2e2876fca77dae40034e9a2644720f56014e4e4",
+      "sourceSha256": "01f414d952c83e38e987f047caa7671d12c2c637c7d96f206370f4fb09ea6a2a",
       "codePoint": 58534,
       "lucideSlug": "trash"
     },
     {
       "glyph": "warning-octagon",
       "sourceFile": "svg/warning-octagon.svg",
-      "sourceSha256": "9719581b1f58fe88851d0ee85432187986602d9928a17046fb9e190f9060d3bd",
+      "sourceSha256": "2c061d9e537df64a9a1210cca57d0299d6eef9bbc7df57873925bb73248da641",
       "codePoint": 58596,
       "lucideSlug": "octagon-alert"
     },
     {
       "glyph": "waveform",
       "sourceFile": "svg/waveform.svg",
-      "sourceSha256": "7a2119e3386181bbedd00dfd3dfbfb7a9c0190b1a0b2756222404394afa77fd2",
+      "sourceSha256": "5a436274498d761fb180a2837452c26767e4cc0bc9229bab3cad6b7b61669d8f",
       "codePoint": 59394,
       "lucideSlug": "activity"
     },
     {
       "glyph": "x",
       "sourceFile": "svg/x.svg",
-      "sourceSha256": "7086672a221450908a2c1c8ad76f21edc6af32e474d540cd823ade94e30d55bc",
+      "sourceSha256": "5b744954ff14bed6d872e67c84400c9259000b8aa781ead7488190d98ec93ac6",
       "codePoint": 58614,
       "lucideSlug": "x"
     },
@@ -575,301 +575,301 @@
       "glyph": "activity-heatmap",
       "sourceFile": "svg/activity-heatmap.svg",
       "codePoint": 57344,
-      "sourceSha256": "7a2119e3386181bbedd00dfd3dfbfb7a9c0190b1a0b2756222404394afa77fd2",
+      "sourceSha256": "a5bdab53c64e93e62ab5480a2e95131f01a6057ed6392fc2904724d92f58bdbe",
       "lucideSlug": "activity"
     },
     {
       "glyph": "settings-sync",
       "sourceFile": "svg/settings-sync.svg",
       "codePoint": 57345,
-      "sourceSha256": "c325ee892a097ba84da6166a3cdb5a677fb3fa248df61af1fee5054cae76bdfe",
+      "sourceSha256": "6156e030807651924612ab863e97c23311324b342dfe94e3c119e9824fd86453",
       "lucideSlug": "cloud-sync"
     },
     {
       "glyph": "copy",
       "sourceFile": "svg/copy.svg",
       "codePoint": 57346,
-      "sourceSha256": "f87d5254289c774083cc6c8b7a260af37467a9c79b93776d9ccac89caeb1a4fa",
+      "sourceSha256": "9cd07ad9f14f4fcc84f40728b1961593a0f74df91cca910aac42126dfcd2fd93",
       "lucideSlug": "copy"
     },
     {
       "glyph": "ad-blocker",
       "sourceFile": "svg/ad-blocker.svg",
       "codePoint": 57347,
-      "sourceSha256": "643667febf975bb93b9ed64c391e6836cc507bcdb237f540adcabec4cdb10dfc",
+      "sourceSha256": "574dd5e728c29ae1b22aceae5ff58cec07f70a886ea2e89f30a4e696e08cb654",
       "lucideSlug": "shield-off"
     },
     {
       "glyph": "user-shield",
       "sourceFile": "svg/user-shield.svg",
       "codePoint": 57348,
-      "sourceSha256": "c00a3656bb4dde6fabed10104a513dea6ea052c71f0dce3140ed6664e4648cc7",
+      "sourceSha256": "0c1d5ca10fa747d01cd33a463a46b272a8c412ff495a0195fcf6a191c408d6f9",
       "lucideSlug": "user-shield"
     },
     {
       "glyph": "menu",
       "sourceFile": "svg/menu.svg",
       "codePoint": 60915,
-      "sourceSha256": "7b03abf789518d2c38da6ad99ced76cf3d89d7518592763caecdd17338a8560c",
+      "sourceSha256": "2632aa320288950a58a2678445a05e54425f8a004eedf5543b020ac5e0dac19d",
       "lucideSlug": "menu"
     },
     {
       "glyph": "browser-address-expanded-share",
       "sourceFile": "svg/browser-address-expanded-share.svg",
       "codePoint": 60916,
-      "sourceSha256": "9e442e4c2951b5c0847191f649bc52e3d4f469b515a3213f79a94fcf6350d361",
+      "sourceSha256": "5e338868e3d28dac707c0f38f99c0ebcd8554804979c1036ba457f09bfb3e142",
       "lucideSlug": "share-2"
     },
     {
       "glyph": "browser-address-expanded-edit",
       "sourceFile": "svg/browser-address-expanded-edit.svg",
       "codePoint": 60917,
-      "sourceSha256": "dc7e4b6cf33a9d172eab8448bead5ec440e2e38316a2f97b92dffb970f3dc1d4",
+      "sourceSha256": "c2b9688adbea6a2b0b8001f9ad5dce8fa9cb154748ce3610936af7efc33a4092",
       "lucideSlug": "pencil"
     },
     {
       "glyph": "browser-address-expanded-copy",
       "sourceFile": "svg/browser-address-expanded-copy.svg",
       "codePoint": 60918,
-      "sourceSha256": "f87d5254289c774083cc6c8b7a260af37467a9c79b93776d9ccac89caeb1a4fa",
+      "sourceSha256": "9cd07ad9f14f4fcc84f40728b1961593a0f74df91cca910aac42126dfcd2fd93",
       "lucideSlug": "copy"
     },
     {
       "glyph": "tabs-overview-new",
       "sourceFile": "svg/tabs-overview-new.svg",
       "codePoint": 60919,
-      "sourceSha256": "e12d2a37a9e97a636fdfdde41dad9750fdc8cc8a1dffc2adc2165b742f579d65",
+      "sourceSha256": "b5efe99ab4ec34798d7f40597c850aac4cf76cea28fc818a7b59ce92433abb44",
       "lucideSlug": "square-plus"
     },
     {
       "glyph": "tabs-overview-close-all",
       "sourceFile": "svg/tabs-overview-close-all.svg",
       "codePoint": 60920,
-      "sourceSha256": "7086672a221450908a2c1c8ad76f21edc6af32e474d540cd823ade94e30d55bc",
+      "sourceSha256": "7f62776bc7ba4e006173876c2eaf57dc5403173cfb45c86915474f695e59bb4d",
       "lucideSlug": "x"
     },
     {
       "glyph": "toolbar-scan",
       "sourceFile": "svg/toolbar-scan.svg",
       "codePoint": 60921,
-      "sourceSha256": "6b52d869f7e8289c79e2f277acae38cc4cbf9d35eb48c695f2732ad812b39dd9",
+      "sourceSha256": "0508d58fed0e0c88cb57e57e97a8a00f968938dac33bb77f8660a3c15d410c58",
       "lucideSlug": "scan-qr-code"
     },
     {
       "glyph": "toolbar-private-mode",
       "sourceFile": "svg/toolbar-private-mode.svg",
       "codePoint": 60922,
-      "sourceSha256": "543b2f28429e8a63a88c24d426f45fd949780a67d2462a9ed0864f5d543d642e",
+      "sourceSha256": "6f381223d2a4708d45549e98e5160cdd76e0f2a19dd82413694ef213e2d4be68",
       "lucideSlug": "venetian-mask"
     },
     {
       "glyph": "toolbar-copy-link",
       "sourceFile": "svg/toolbar-copy-link.svg",
       "codePoint": 60923,
-      "sourceSha256": "ea31a0f414f70c6ff9a11e11a5ffab5b219b83061a56d7b630b6648fb9a3801d",
+      "sourceSha256": "3b790f0ddc7b51081d95b0877af3f087a122524c3e172255b37652cb392fa990",
       "lucideSlug": "link"
     },
     {
       "glyph": "toolbar-translate",
       "sourceFile": "svg/toolbar-translate.svg",
       "codePoint": 60924,
-      "sourceSha256": "35c16db9086633d3ac6b6e522b4c1a1ce30e8491d5950af8b1bcf543f6360b5f",
+      "sourceSha256": "15e543674aeac8dd361099058956ca5c9a6304b8ba235a52c6c2cc4ea2aff912",
       "lucideSlug": "languages"
     },
     {
       "glyph": "video-assistant-fill-screen",
       "sourceFile": "svg/video-assistant-fill-screen.svg",
       "codePoint": 60925,
-      "sourceSha256": "e977f5a7225c1d837d865fb983d2e690cdbe80a310b598d89985d06c24f848c9",
+      "sourceSha256": "57e4c9d926f77da8bf6e1f21b8feb32e1e67543098216a329f6ed873adac0ec0",
       "lucideSlug": "fullscreen"
     },
     {
       "glyph": "video-assistant-playback-speed",
       "sourceFile": "svg/video-assistant-playback-speed.svg",
       "codePoint": 60926,
-      "sourceSha256": "b59c34745e4c234bbad4a210ae236e75ba13c2197627076d33f683d986773801",
+      "sourceSha256": "b4ea2eb83acec910dd4bd48f2e05682f555fb4d6795ee6a9a6b953da93259d56",
       "lucideSlug": "gauge"
     },
     {
       "glyph": "video-assistant-rotate",
       "sourceFile": "svg/video-assistant-rotate.svg",
       "codePoint": 60927,
-      "sourceSha256": "fbf0969996c55401c60e342612726e37a7fb5d42cf75cc2cb2827e2c29b7702b",
+      "sourceSha256": "10ca2b0e0471e381b4d4f5e36e4c8f588455fcb9e9d14fdbe48fd0b1f8d171f4",
       "lucideSlug": "rotate-cw"
     },
     {
       "glyph": "toolbar-element-inspection",
       "sourceFile": "svg/toolbar-element-inspection.svg",
       "codePoint": 60928,
-      "sourceSha256": "57dfbc1c90e85fe102c77e3862d8f449893a441f9f412fb0f059086db3e5e482",
+      "sourceSha256": "a223b6e274f4e674139b8fd2b2b50cc2e54ffe92aea8ab6f7bf2017497b525a3",
       "lucideSlug": "scan-search"
     },
     {
       "glyph": "settings-web-features",
       "sourceFile": "svg/settings-web-features.svg",
       "codePoint": 60929,
-      "sourceSha256": "e9bc9e480241cd6c76563d16b6271e246f032d555e1da5ca614f04ef6cb44247",
+      "sourceSha256": "16d18b7782910ab381f142ce65b83314c99c9b689ba323b79e3ac15cd7cd5f5f",
       "lucideSlug": "blocks"
     },
     {
       "glyph": "video-assistant-cast",
       "sourceFile": "svg/video-assistant-cast.svg",
       "codePoint": 60930,
-      "sourceSha256": "ace9414802613e3b5fd31e857cade0b46f34422f8c4d4794ff61833c3824e3cd",
+      "sourceSha256": "6606021323b90e0a5b82d1a3f8af76d8fc71278521629a4991d80ce5b13bfe60",
       "lucideSlug": "cast"
     },
     {
       "glyph": "element-inspection-reselect",
       "sourceFile": "svg/element-inspection-reselect.svg",
       "codePoint": 60931,
-      "sourceSha256": "0296fa170be9bf22cee0d8d45ea52c7502b4da6606da1d6c1da97fc4943f0e8e",
+      "sourceSha256": "ff21c5576916ef112ac7b167392936975b7bc70613f20a0ea49bb80c00b20432",
       "lucideSlug": "mouse-pointer-square-dashed"
     },
     {
       "glyph": "element-inspection-fullscreen",
       "sourceFile": "svg/element-inspection-fullscreen.svg",
       "codePoint": 60932,
-      "sourceSha256": "e977f5a7225c1d837d865fb983d2e690cdbe80a310b598d89985d06c24f848c9",
+      "sourceSha256": "9f0d0a273e81145ef4389f83adc519e0455b4db84a195c996bf9c6f0eb0e5625",
       "lucideSlug": "fullscreen"
     },
     {
       "glyph": "element-inspection-exit-fullscreen",
       "sourceFile": "svg/element-inspection-exit-fullscreen.svg",
       "codePoint": 60933,
-      "sourceSha256": "c5d7669c7f91a858cd5955411f25524b48dd95670f43d0cb185ca721f6c06925",
+      "sourceSha256": "b71b948c3779f2bfb0378683844e908d046a0818d9798a4ad4ae3ca551d09c50",
       "lucideSlug": "minimize"
     },
     {
       "glyph": "toolbar-expand-hint",
       "sourceFile": "svg/toolbar-expand-hint.svg",
       "codePoint": 60934,
-      "sourceSha256": "4317333dbb9cf421ea24375de399c1ccb9690695cceccf2b6a76e81eb93671ce",
+      "sourceSha256": "e49476344a4760189021f66c15ea7172691a9e6c402aad0b2fdfb00266e14edc",
       "lucideSlug": "chevron-up"
     },
     {
       "glyph": "toolbar-bookmark-add",
       "sourceFile": "svg/toolbar-bookmark-add.svg",
       "codePoint": 60935,
-      "sourceSha256": "9446dc3d446619515d809246819f8783fc8cc5bed48253b367b15b4dbe96b840",
+      "sourceSha256": "9ec01ad70d6d516e8e247cc14447d4ea969406db0b395c2a17d157113d15eb71",
       "lucideSlug": "bookmark-plus"
     },
     {
       "glyph": "toolbar-bookmark-selected",
       "sourceFile": "svg/toolbar-bookmark-selected.svg",
       "codePoint": 60936,
-      "sourceSha256": "d3df06828394aff780408d12331269fff4f13ad89e5a0b4d04bb02a8cbdb9435",
+      "sourceSha256": "eb4996b2246f56e3a7e53d0ec9e85b21bd241fa6d073750d3ec3204d15685e8c",
       "lucideSlug": "bookmark-check"
     },
     {
       "glyph": "toolbar-user-script",
       "sourceFile": "svg/toolbar-user-script.svg",
       "codePoint": 60938,
-      "sourceSha256": "4df0b205b2440590ad42fda6b2003a616eb01e3c92d6f14b2f583f78c96ec12e",
+      "sourceSha256": "46c0a5e0a70d95f76c6727d50838368a460a5309ff3161d9aacf284a11547656",
       "lucideSlug": "code-xml"
     },
     {
       "glyph": "novel-reader-catalog",
       "sourceFile": "svg/novel-reader-catalog.svg",
       "codePoint": 60939,
-      "sourceSha256": "c32aae1eb75d840f3828b8b38be15715e47ab1fcc27ea5a1f7f25b52a662cbbe",
+      "sourceSha256": "d1dee023b887aae9674447994acb90e7b384cfd023f378055563d6c22bbcc588",
       "lucideSlug": "list"
     },
     {
       "glyph": "novel-reader-text",
       "sourceFile": "svg/novel-reader-text.svg",
       "codePoint": 60940,
-      "sourceSha256": "97a3204b6d12e290db78ea785ae76ef9254a88afe77ec840a0a2e79ce174d195",
+      "sourceSha256": "4c897c797944c8fb67c3da38f60a9825d7c763cb03e97f6ed72357e83aad5856",
       "lucideSlug": "type"
     },
     {
       "glyph": "novel-reader-theme",
       "sourceFile": "svg/novel-reader-theme.svg",
       "codePoint": 60941,
-      "sourceSha256": "34344c4b30e26e361535eda7c76ef872caa8c35c757f3e7f3e54e49aa39c3773",
+      "sourceSha256": "4171b3ae0bfdb228378c9d3e660fd99d1dff7d919ca1f4652db86033b70b58f9",
       "lucideSlug": "palette"
     },
     {
       "glyph": "novel-reader-settings",
       "sourceFile": "svg/novel-reader-settings.svg",
       "codePoint": 60942,
-      "sourceSha256": "008e2b3968efe6b156ffea63530142b596ffa79b5a09b471441108a87920b6b3",
+      "sourceSha256": "bcc796b82b5bd72d0f80c8f707ca901cabfa548ea3acdb59349f9a0a52fda491",
       "lucideSlug": "settings"
     },
     {
       "glyph": "novel-reader-brightness-low",
       "sourceFile": "svg/novel-reader-brightness-low.svg",
       "codePoint": 60943,
-      "sourceSha256": "95ac5d4cb83d211c12125f1b527aa91383d9ca80c16e7bd3948be2fc7aa51536",
+      "sourceSha256": "92f33f56c282900da83d5c6f8d9581684755bb4eedfba5c7234b43330ac70c1f",
       "lucideSlug": "sun-dim"
     },
     {
       "glyph": "novel-reader-brightness-high",
       "sourceFile": "svg/novel-reader-brightness-high.svg",
       "codePoint": 60944,
-      "sourceSha256": "a8cce33f846b6f874fc0cc5927f34f58debfea04db6658c14859683bdf9ef863",
+      "sourceSha256": "93f181c4e6a7cc78ca59aeb1dd1ddb52a5ea05ecda1dbc32005656edbc86eebb",
       "lucideSlug": "sun"
     },
     {
       "glyph": "novel-reader-auto-slow",
       "sourceFile": "svg/novel-reader-auto-slow.svg",
       "codePoint": 60945,
-      "sourceSha256": "c2f75f48fbf262a7015c539d1764d99c16116f17bbcfe146da8e6ae9d5afcd48",
+      "sourceSha256": "d5c04c85e74e17d0fbcb78ad36ba24d4c1eb674f40208f8801be93b82d8e5d2e",
       "lucideSlug": "turtle"
     },
     {
       "glyph": "novel-reader-auto-fast",
       "sourceFile": "svg/novel-reader-auto-fast.svg",
       "codePoint": 60946,
-      "sourceSha256": "7271dc4f4bd09f218ff3890bdd6a3931b3eb3a25ef81299122b850033f8025aa",
+      "sourceSha256": "1c477034a1498e48e3bb298167ef9c4e22f7150de75c5c2bd42b1771564514e4",
       "lucideSlug": "rabbit"
     },
     {
       "glyph": "bookshelf",
       "sourceFile": "svg/bookshelf.svg",
       "codePoint": 60947,
-      "sourceSha256": "3d644ab9a0e7e2ec19521fde964ae7c9948625d2ca16010ca964a5e18a0028b0",
+      "sourceSha256": "072450d361e62daf808d07c27a804185843960ce3188a5762bb31c3338a976ba",
       "lucideSlug": "library"
     },
     {
       "glyph": "active-download",
       "sourceFile": "svg/active-download.svg",
       "codePoint": 60948,
-      "sourceSha256": "9ce0165298ec64403dfc5ca7dd1193347d328e42bda25688784f14cfc8e70764",
+      "sourceSha256": "1241f3544a2c80b61b52cdd3d895425f059d5168c7706393f4f6d471e2f24c39",
       "lucideSlug": "download-cloud"
     },
     {
       "glyph": "toolbar-slot-empty",
       "sourceFile": "svg/toolbar-slot-empty.svg",
       "codePoint": 60949,
-      "sourceSha256": "87f072b1f0c0f33e20aba12e8748965990fe66eb5786f917bbc422deead746de",
+      "sourceSha256": "0cc874c67555cf68b4ed5cc089d898ac447c28f3e417a350dab89781a6b01100",
       "lucideSlug": "square-dashed"
     },
     {
       "glyph": "bookmark-edit-drag-handle",
       "sourceFile": "svg/bookmark-edit-drag-handle.svg",
       "codePoint": 60950,
-      "sourceSha256": "2d817aa8c4447f85bf3cb6ee44e1353b5bf245c849099c77e4a2fef79a98ae94",
+      "sourceSha256": "d0df0622d0dd774152b2d906719fe179393a998ff5db9df881d2fbc0ce9a7e34",
       "lucideSlug": "grip-vertical"
     },
     {
       "glyph": "bookmark-edit-move",
       "sourceFile": "svg/bookmark-edit-move.svg",
       "codePoint": 60951,
-      "sourceSha256": "b3eeec8efcfcdc391ac92e2c75c031a41ec3eafde27cd31df09af89c28fdf1b4",
+      "sourceSha256": "ad714b859d95c7f968eb3778599dee7013812279263907012cff3b0bf32942b2",
       "lucideSlug": "move"
     },
     {
       "glyph": "bookmark-edit-select-all",
       "sourceFile": "svg/bookmark-edit-select-all.svg",
       "codePoint": 60952,
-      "sourceSha256": "87f072b1f0c0f33e20aba12e8748965990fe66eb5786f917bbc422deead746de",
+      "sourceSha256": "4af55a24488bfa12e4157b137f01672ac0cd8a3fd1354e7c5fc6f732102c73f0",
       "lucideSlug": "box-select"
     },
     {
       "glyph": "arrow-right",
       "sourceFile": "svg/arrow-right.svg",
       "codePoint": 60953,
-      "sourceSha256": "08ff52a27ca3118c4c47baa2900b8ad4e1917d928c2c082afdab79e967f0df0f",
+      "sourceSha256": "c19fe91bed5260057c6003c095184ed024d31c72e792863d1bc55d1c2e33be14",
       "lucideSlug": "arrow-right"
     }
   ],
