@@ -4,6 +4,14 @@ Aira 是一套 GPL-3.0 的鸿蒙 NEXT 与桌面浏览器隐私浏览栈，源码
 
 本文面向想要运行或改 Aira 的贡献者和开发者，说明公开源码边界，以及最短的本地开发路径。
 
+## 界面
+
+真实界面截图：
+
+![手机界面](docs/screenshots/phone.webp)
+
+![PC 界面](docs/screenshots/desktop.webp)
+
 ## 仓库约定
 
 - 浏览器和扩展从**同一提交**打出 **Community** 或 **Official** 两种发行版。
