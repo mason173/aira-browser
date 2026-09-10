@@ -15,6 +15,10 @@ Aira 是一套 GPL-3.0 的 **monorepo**，用来做鸿蒙 NEXT 与桌面浏览�
   <img src="docs/screenshots/desktop.webp" alt="PC 界面" width="720">
 </p>
 
+## 下载
+
+Community 未签名 HAP 发在 [GitHub Releases](https://github.com/mason173/aira-browser/releases)。包名是 `org.aira.browser`，需要你自己用对应签名材料签名后再侧载。这不是华为应用市场里的 Official 商店包。
+
 ## 仓库约定
 
 - 浏览器和扩展从**同一提交**打出 **Community** 或 **Official** 两种发行版。
