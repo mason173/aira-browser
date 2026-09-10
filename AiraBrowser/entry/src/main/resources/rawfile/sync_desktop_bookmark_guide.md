@@ -96,4 +96,4 @@ Aira 云同步、网页接力和跨设备标签页需要手机与电脑登录同
 
 如果使用 Community 发行版，或无法通过浏览器插件商店安装，可以下载 Aira-sync 本地安装包：
 
-- [从 GitHub Releases 下载 Community 安装包](https://github.com/mason173/aira/releases)
+- [从 GitHub Releases 下载 Community 安装包](https://github.com/mason173/aira-browser/releases)

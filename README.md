@@ -55,7 +55,7 @@ Start with these contracts before changing wire behavior:
 Clone the repository and run commands from its root unless a section says otherwise:
 
 ```bash
-git clone https://github.com/mason173/aira.git
+git clone https://github.com/mason173/aira-browser.git
 cd aira
 ```
 
