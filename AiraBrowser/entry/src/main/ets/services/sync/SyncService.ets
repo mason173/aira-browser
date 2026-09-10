@@ -1974,13 +1974,6 @@ export class SyncService implements AiraCloudBookmarkV4BootstrapDomain {
     if (nativeAiraCloudGeneration && this.nativeAiraCloudGenerationHandler !== undefined) {
       const uid = this.getAiraSyncSettings().huaweiCloud.uid.trim();
       if (uid.length > 0) {
-        hilog.info(
-          0x0000,
-          'AiraBookmarkSync',
-          'Aira Cloud V4 native activation acknowledged commit=%{public}s active=%{public}s',
-          commitId,
-          settingsForNativeActivation.remoteKind
-        );
         await this.nativeAiraCloudGenerationHandler(uid, commitId);
       }
     }
