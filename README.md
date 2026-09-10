@@ -166,3 +166,7 @@ Aira-authored source code is available under [GPL-3.0-only](LICENSE). Third-part
 see [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) and the notices in each component directory.
 
 The license does not grant rights to the Aira name, logos, or other trademarks. See [`TRADEMARKS.md`](TRADEMARKS.md).
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=mason173/aira-browser&type=Date)](https://star-history.com/#mason173/aira-browser&Date)
