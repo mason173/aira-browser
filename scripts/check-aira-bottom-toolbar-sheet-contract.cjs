@@ -128,6 +128,10 @@ assertContract(addressPanel.includes('BrowserBottomSheetSurface({') &&
 assertContract(toolbarSheetContent.includes('surfaceColor: this.storedPageBackgroundColor') &&
   !toolbarSheetContent.includes('resolveFloatingGlassMaterialBackgroundColor('),
   'Toolbar system Sheet must use the opaque themed surface instead of a transparent glass background.');
+assertContract(addressPanel.includes('backgroundColor: this.storedPageBackgroundColor') &&
+  addressPanel.includes('blurStyle: BlurStyle.NONE') &&
+  !addressPanel.includes('systemMaterial: createFloatingGlassMaterialIfAvailable('),
+  'Toolbar system Sheet must keep one opaque themed backplate and must not add a second glass blur.');
 assertContract(addressPanel.includes('const WEB_BOTTOM_TOOLBAR_SHEET_ACTION_CORNER_RADIUS: number = 16;') &&
   addressPanel.includes('cardCornerRadius: toolbarSystemSheetAction ?') &&
   addressPanel.includes('WEB_BOTTOM_TOOLBAR_SHEET_ACTION_CORNER_RADIUS : 0'),

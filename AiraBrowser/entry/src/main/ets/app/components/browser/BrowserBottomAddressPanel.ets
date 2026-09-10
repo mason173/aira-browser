@@ -709,6 +709,8 @@ export struct BrowserBottomAddressPanel {
       scrollSizeMode: ScrollSizeMode.CONTINUOUS,
       dragBar: true,
       showClose: false,
+      backgroundColor: this.storedPageBackgroundColor,
+      blurStyle: BlurStyle.NONE,
       onDisappear: (): void => {
         this.handleToolbarSystemSheetDisappear();
       }
