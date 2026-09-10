@@ -1,67 +1,60 @@
 # Aira
 
-Aira is a GPL-3.0 monorepo for building a privacy-focused browser stack on HarmonyOS NEXT and desktop browsers.
-It contains the browser client, the desktop extension, and the single-owner backend used for self-hosted sync.
+Aira 是一套 GPL-3.0 的鸿蒙 NEXT 与桌面浏览器隐私浏览栈，源码在同一份仓库里。包含鸿蒙客户端、桌面扩展，以及用于自建同步的单所有者服务。
 
-This README is for contributors, integrators, and developers who want to run or extend Aira. It describes the public
-source boundary and the shortest path to a working local development environment.
+本文面向想要运行或改 Aira 的贡献者和开发者，说明公开源码边界，以及最短的本地开发路径。
 
-## Repository Contract
+## 仓库约定
 
-- The browser and extension are built as **Community** or **Official** distributions from the same source commit.
-- Community builds do not require Aira production credentials or hosted-service access.
-- Personal Server is a single-owner, paired-device service. It has no registration, password accounts, organizations,
-  roles, membership, billing, referrals, or Huawei authentication.
-- Local data providers, WebDAV, and Personal Server are available without Aira membership.
-- Production Aira services, Admin tooling, Huawei project configuration, signing material, and deployment secrets are
-  outside this repository.
+- 浏览器和扩展从**同一提交**打出 **Community** 或 **Official** 两种发行版。
+- Community 构建不需要 Aira 生产凭证，也不依赖官方托管服务。
+- Personal Server 是单所有者、配对设备服务。没有注册、密码账号、组织、角色、会员、计费、推荐或华为登录。
+- 本地数据、WebDAV 和 Personal Server 不需要 Aira 会员。
+- Aira 生产服务、Admin、华为项目配置、签名材料和部署密钥不在本仓库。
 
-## Components
+## 组件
 
-| Component | Location | Developer responsibility |
+| 组件 | 位置 | 开发职责 |
 | --- | --- | --- |
-| HarmonyOS client | [`AiraBrowser/`](AiraBrowser/README.md) | ArkTS/ArkUI browser shell, local storage, and provider integration |
-| Desktop extension | [`extensions/aira-sync/`](extensions/aira-sync/README.md) | Chromium/Firefox UI, background runtime, and cross-device client |
-| Personal Server | [`services/personal-server/`](services/personal-server/README.md) | Node.js/Docker sync, pairing, Page Push, and tab-presence APIs |
-| Shared resources | [`resources/`](resources/) and [`docs/`](docs/) | Icons, notices, architecture decisions, and protocol documentation |
+| 鸿蒙客户端 | [`AiraBrowser/`](AiraBrowser/README.md) | ArkTS/ArkUI 浏览器壳、本地存储、Provider 接入 |
+| 桌面扩展 | [`extensions/aira-sync/`](extensions/aira-sync/README.md) | Chromium/Firefox 界面、后台运行时、跨端客户端 |
+| Personal Server | [`services/personal-server/`](services/personal-server/README.md) | Node.js/Docker 同步、配对、页面推送、标签在线 API |
+| 共享资源 | [`resources/`](resources/) 与 [`docs/`](docs/) | 图标、声明、架构决策、协议文档 |
 
-## Architecture At A Glance
+## 架构速览
 
-The clients keep their local browser state and select one remote provider for each supported sync domain. The public
-providers are WebDAV and Personal Server; Official builds can additionally use Aira Cloud and Huawei Cloud Space.
+客户端保存本地浏览状态，并在每个同步域上选择一个远程 Provider。公开可用的是 WebDAV 和 Personal Server；Official 构建还可以使用 Aira 云和华为云空间。
 
-Personal Server exposes discovery, one-time pairing, Bookmark, History, Personalization, Novel Bookshelf, Page Push,
-and Cross-device Tabs endpoints. It uses per-device bearer credentials, stores only credential hashes, and does not
-implement a user account system.
+Personal Server 提供发现、一次性配对、书签、历史、个性化、小说书架、页面推送和跨端标签接口。它使用按设备签发的 bearer 凭证，只存储凭证哈希，没有用户账号系统。
 
-Start with these contracts before changing wire behavior:
+改协议之前先读这些约定：
 
-- [Open-source distribution boundary](docs/open-source-distribution.md)
-- [Personal Server self-hosting](docs/self-hosting.md)
-- [Personal Server protocol](services/personal-server/docs/protocol.md)
-- [Personal Server operations](services/personal-server/docs/operations.md)
-- [Aira-sync development notes](extensions/aira-sync/README.md)
-- [HarmonyOS client development notes](AiraBrowser/README.md)
+- [开源发行边界](docs/open-source-distribution.md)
+- [Personal Server 自托管](docs/self-hosting.md)
+- [Personal Server 协议](services/personal-server/docs/protocol.md)
+- [Personal Server 运维](services/personal-server/docs/operations.md)
+- [Aira-sync 开发说明](extensions/aira-sync/README.md)
+- [鸿蒙客户端开发说明](AiraBrowser/README.md)
 
-## Development Prerequisites
+## 开发环境
 
-| Area | Requirement |
+| 范围 | 要求 |
 | --- | --- |
-| Repository scripts | Node.js `18.20.8` from `.node-version` / `.nvmrc` |
-| Aira-sync | Node.js 18.x and npm |
-| Personal Server | Node.js 20 or newer, or Docker with Compose |
-| HarmonyOS client | DevEco Studio, HarmonyOS NEXT SDK/API 23 or newer, and `ohpm` |
+| 仓库脚本 | `.node-version` / `.nvmrc` 中的 Node.js `18.20.8` |
+| Aira-sync | Node.js 18.x 和 npm |
+| Personal Server | Node.js 20 或更新，或带 Compose 的 Docker |
+| 鸿蒙客户端 | DevEco Studio、HarmonyOS NEXT SDK/API 23 或更新，以及 `ohpm` |
 
-Clone the repository and run commands from its root unless a section says otherwise:
+克隆后默认在仓库根目录执行命令，除非某节另有说明：
 
 ```bash
 git clone https://github.com/mason173/aira-browser.git
-cd aira
+cd aira-browser
 ```
 
-## Run Personal Server Locally
+## 本地运行 Personal Server
 
-The Node.js check is the fastest way to exercise the server without creating persistent data:
+不落持久数据、最快验证服务是否正常：
 
 ```bash
 cd services/personal-server
@@ -69,7 +62,7 @@ npm ci
 npm run check
 ```
 
-To run a persistent local instance with Docker:
+用 Docker 跑一份会持久化的本地实例：
 
 ```bash
 cd services/personal-server
@@ -78,11 +71,9 @@ docker compose up -d --build
 docker compose exec aira-server cat /data/setup-code
 ```
 
-Use the printed one-time code to pair a development client. The default Compose file binds `127.0.0.1:8787`; use a
-TLS reverse proxy before making an instance reachable outside a trusted local network. Backup, restore, upgrades,
-reverse proxy settings, and credential revocation are documented in the server README and operations guide.
+用打印出的一次性配对码连接开发客户端。默认 Compose 绑定 `127.0.0.1:8787`；要对外访问，先加 TLS 反代。备份、恢复、升级、反代和凭证吊销见服务 README 与运维文档。
 
-## Build Aira-sync
+## 构建 Aira-sync
 
 ```bash
 cd extensions/aira-sync
@@ -92,15 +83,13 @@ npm test
 npm run build:community
 ```
 
-The Community output is written to `build/community/` and can be loaded as an unpacked extension in a Chromium-based
-browser. The public Community manifest has the stable extension ID `efehgppkhnkjamcpbipclfmmofdildji`.
+Community 产物在 `build/community/`，可在 Chromium 内核浏览器里以未打包扩展加载。公开 Community 清单有固定扩展 ID `efehgppkhnkjamcpbipclfmmofdildji`。
 
-Official builds use private route configuration supplied through `AIRA_SYNC_OFFICIAL_API_ROUTES`; the repository does
-not contain production routes. See the extension README for the complete route schema and package commands.
+Official 构建通过 `AIRA_SYNC_OFFICIAL_API_ROUTES` 注入私有路由，本仓库不含生产地址。完整路由字段和打包命令见扩展 README。
 
-## Build The HarmonyOS Client
+## 构建鸿蒙客户端
 
-Open `AiraBrowser/` in DevEco Studio, or use the root build script:
+用 DevEco Studio 打开 `AiraBrowser/`，或使用根目录构建脚本：
 
 ```bash
 cd AiraBrowser
@@ -109,63 +98,53 @@ cd ..
 AIRA_DISTRIBUTION=community AIRA_ALLOW_UNSIGNED_BUILD=1 SKIP_INSTALL=1 ./scripts/build-aira-browser.sh
 ```
 
-This produces an unsigned Community HAP suitable for CI and source verification. Device installation requires a local
-signing profile for `org.aira.browser`. An Official build additionally requires private AGConnect input, production
-routes, and a signing profile for `com.aira.browser`:
+这会打出供 CI 和源码核验用的未签名 Community HAP。装到设备需要 `org.aira.browser` 的本地签名。Official 构建另外需要私有 AGConnect、生产路由，以及 `com.aira.browser` 的签名：
 
 ```bash
 AIRA_DISTRIBUTION=official SKIP_INSTALL=1 ./scripts/build-aira-browser.sh
 ```
 
-Do not commit `agconnect-services.json`, build profiles containing encrypted passwords, `.p12`/`.p7b` files, or any
-other signing material. Official signing and device-install wrappers are private packaging scripts, not this repository.
-See [`AiraBrowser/README.md`](AiraBrowser/README.md) for Community builds.
+不要提交 `agconnect-services.json`、带加密密码的 build-profile、`.p12` / `.p7b` 或其他签名材料。Official 签名和装机脚本是私有打包流程，不在本仓库。Community 构建见 [`AiraBrowser/README.md`](AiraBrowser/README.md)。
 
-## Community And Official
+## Community 与 Official
 
-The two distributions share source code and tests. Only build-time identity and private capability inputs differ:
+两种发行版共用源码和测试，差别只在构建时的身份和私有能力输入：
 
-| Capability | Community | Official |
+| 能力 | Community | Official |
 | --- | --- | --- |
-| Local browser features and local storage | Enabled | Enabled |
-| User-selected WebDAV | Enabled | Enabled |
-| Personal Server sync and Cross-device Tabs | Enabled | Enabled |
-| Huawei Account / Huawei Cloud Space | Not configured | Private Huawei project and approval |
-| Aira Cloud hosted services | Not configured | Private service routes and entitlement |
-| Huawei IAP / Aira Pro | Not configured | Private production service |
+| 本地浏览与本地存储 | 可用 | 可用 |
+| 用户自选 WebDAV | 可用 | 可用 |
+| Personal Server 同步与跨端标签 | 可用 | 可用 |
+| 华为账号 / 华为云空间 | 未配置 | 私有华为项目与审批 |
+| Aira 云托管服务 | 未配置 | 私有服务路由与权益 |
+| 华为 IAP / Aira Pro | 未配置 | 私有生产服务 |
 
-Read [`docs/open-source-distribution.md`](docs/open-source-distribution.md) before adding a provider or changing a
-distribution boundary. Do not create a long-lived Community fork or copy Official-only pages into a second source tree.
+增改 Provider 或发行边界前先读 [`docs/open-source-distribution.md`](docs/open-source-distribution.md)。不要长期分叉 Community，也不要把 Official 专用页面复制成第二套源码。
 
-## Contribution Workflow
+## 贡献流程
 
-Keep cross-component protocol changes in one pull request and run checks for every component you touch. Put policy,
-transport, persistence, and orchestration in their existing `core`, `services`, `data`, or `features` owners rather
-than adding behavior to native UI shells.
+跨组件协议改动放在同一个 pull request，改到的组件都要跑检查。策略、传输、持久化和编排放进现有的 `core`、`services`、`data` 或 `features`，不要堆进原生 UI 壳。
 
-Before opening a pull request:
+提 PR 前：
 
 ```bash
-# from the repository root
+# 仓库根目录
 git diff --check
 
-# for Aira-sync changes
+# Aira-sync 改动
 (cd extensions/aira-sync && npm run typecheck && npm test)
 
-# for Personal Server changes
+# Personal Server 改动
 (cd services/personal-server && npm run check)
 ```
 
-Read [`CONTRIBUTING.md`](CONTRIBUTING.md) for review expectations and [`SECURITY.md`](SECURITY.md) for private
-vulnerability reporting. Never include device data, credentials, tokens, databases, backups, browser profiles, or
-production configuration in an issue or pull request.
+评审要求见 [`CONTRIBUTING.md`](CONTRIBUTING.md)，漏洞私下报告见 [`SECURITY.md`](SECURITY.md)。不要在 issue 或 PR 里附带设备数据、凭证、token、数据库、备份、浏览器配置或生产配置。
 
-## License
+## 许可
 
-Aira-authored source code is available under [GPL-3.0-only](LICENSE). Third-party components retain their own licenses;
-see [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) and the notices in each component directory.
+Aira 原创源码按 [GPL-3.0-only](LICENSE) 提供。第三方组件保留各自许可，见 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) 及各组件目录中的声明。
 
-The license does not grant rights to the Aira name, logos, or other trademarks. See [`TRADEMARKS.md`](TRADEMARKS.md).
+许可不授予 Aira 名称、标识或其他商标权利。见 [`TRADEMARKS.md`](TRADEMARKS.md)。
 
 ## Star History
 
