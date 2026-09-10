@@ -41,7 +41,7 @@ Personal Server 提供发现、一次性配对、书签、历史、个性化、�
 | 范围 | 要求 |
 | --- | --- |
 | 仓库脚本 | `.node-version` / `.nvmrc` 中的 Node.js `18.20.8` |
-| Aira-sync | Node.js 18.x 和 npm |
+| Aira-sync | Node.js 24.x 和 npm（见 `extensions/aira-sync/.node-version`） |
 | Personal Server | Node.js 20 或更新，或带 Compose 的 Docker |
 | 鸿蒙客户端 | DevEco Studio、HarmonyOS NEXT SDK/API 23 或更新，以及 `ohpm` |
 
