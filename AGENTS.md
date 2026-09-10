@@ -2,12 +2,12 @@
 
 - This monorepo is the public open-source source of truth. Maintain only this tree. Do not ask the user to restate the
   public/private split.
-- Aira's production backend and Admin live in `aira-cloud-private`. They are not client packaging inputs.
-- Official AGConnect, signing material, API routes, and packaging wrappers live in the private repo
-  `aira-official-config`. They are packaging inputs, not a second client codebase.
+- Aira's production backend, Admin, AGConnect, signing material, Official API routes, and deployment secrets live in
+  separate private repositories. They are packaging inputs, not a second client codebase.
 - `scripts/` is not entirely private. Keep Community build, public CI contract checks, and icon generation in this tree.
-  Do not recreate Official packaging wrappers here. If the user asks to package Official, install to a phone, or set up
-  signing, run `aira-official-config` scripts against this checkout; they default `AIRA_OSS` to this tree.
+  Signing, device-install, and Official packaging wrappers stay private. Do not recreate them here. If the maintainer
+  asks to package Official, install to a phone, or set up signing, run those private scripts against this checkout; they
+  default `AIRA_OSS` to this tree.
 - This monorepo contains the HarmonyOS client at `AiraBrowser/`, Aira-sync at `extensions/aira-sync/`, and Personal
   Server at `services/personal-server/`.
 - Apply the nearest nested `AGENTS.md` in addition to these root rules. Aira-sync's frozen Sync contract remains in
