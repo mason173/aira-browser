@@ -1,7 +1,10 @@
 # Contributing
 
-Aira Browser, Aira-sync, and Personal Server are maintained in one monorepo. Keep cross-component protocol changes in
-one pull request so compatibility, documentation, and all affected clients can be reviewed together.
+Aira Browser, Aira-sync, and Personal Server are maintained in one public monorepo. Keep cross-component protocol
+changes in one pull request so compatibility, documentation, and all affected clients can be reviewed together.
+
+This repository is the only client source tree. Community is the committed default. Official packages are built from the
+same commit with private AGConnect, signing, and hosted-API inputs; those inputs stay outside Git.
 
 ## Component Checks
 

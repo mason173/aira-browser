@@ -2,16 +2,7 @@
   "module": {
     "name": "entry",
     "type": "entry",
-    "metadata": [
-      {
-        "name": "app_id",
-        "value": "6917606047264922088"
-      },
-      {
-        "name": "client_id",
-        "value": "6917606047264922088"
-      }
-    ],
+    "metadata": [],
     "requestPermissions": [
       {
         "name": "ohos.permission.INTERNET",

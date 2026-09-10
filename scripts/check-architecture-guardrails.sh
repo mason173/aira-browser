@@ -5071,6 +5071,10 @@ if ! "${REPO_ROOT}/scripts/check-novel-chapter-cache-contract.sh"; then
   report_failure "Novel Chapter Cache source contract must remain valid."
 fi
 
+if ! "${REPO_ROOT}/scripts/check-open-source-source-tree.sh"; then
+  report_failure "Committed source tree must remain Community; Official identity is a packaging input."
+fi
+
 if [ "${failures}" -gt 0 ]; then
   cat >&2 <<'EOF'
 

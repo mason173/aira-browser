@@ -177,7 +177,7 @@ case "${BUILD_VARIANT}" in
     ;;
 esac
 
-DISTRIBUTION="${AIRA_DISTRIBUTION:-official}"
+DISTRIBUTION="${AIRA_DISTRIBUTION:-community}"
 case "${DISTRIBUTION}" in
   community)
     EXPECTED_BUNDLE_NAME="${COMMUNITY_BUNDLE_NAME}"

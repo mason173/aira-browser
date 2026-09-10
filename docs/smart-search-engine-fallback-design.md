@@ -533,7 +533,7 @@ initializeBrowserRuntime()
 如果涉及可见 UI 或地址栏行为变更，构建成功后安装到手机：
 
 ```bash
-./scripts/install-aira-browser.sh
+./scripts/build-aira-browser.sh
 ```
 
 ### 手工验证矩阵

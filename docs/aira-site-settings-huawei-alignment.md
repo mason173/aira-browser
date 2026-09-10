@@ -739,5 +739,5 @@ git pull --ff-only origin main
 2. 如果某类设置实测必须 reload 才可靠生效，把判断放进 SiteCustomizationRuntimeRefreshCoordinator，不要放回 BrowserShellPage.ets。
 3. 继续保留 Aira 已做对的能力：私密会话 session-only 权限、剪贴板 document-start 脚本拦截、服务层/仓库层拆分。
 4. 如果碰 BrowserShellPage.ets，必须同时减少 touched area 的页面业务逻辑，并在最终说明里写清楚抽出了什么。
-5. 代码改完运行 ./scripts/build-aira-browser.sh；如果需要手机验证且有设备连接，运行 ./scripts/install-aira-browser.sh。
+5. 代码改完运行 ./scripts/build-aira-browser.sh。设备安装脚本不在本仓库。
 ```

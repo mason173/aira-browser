@@ -52,7 +52,7 @@
 如果改了行为并需要真机验证，先安装：
 
 ```bash
-./scripts/install-aira-browser.sh
+./scripts/build-aira-browser.sh
 ```
 
 调试真实视频网站前，先在 Aira 里打开：

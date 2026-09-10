@@ -120,67 +120,19 @@ AIRA_DISTRIBUTION=official SKIP_INSTALL=1 ./scripts/build-aira-browser.sh
 
 ## Signing
 
-Default installs use the fixed AppGallery debug signing config:
+Community device installs need a local signing profile for `org.aira.browser`. Public CI can build an unsigned,
+non-installable Community HAP with `AIRA_ALLOW_UNSIGNED_BUILD=1`. Do not commit `.p12`, `.p7b`, `.cer`, encrypted
+passwords, or `build-profile.local.json5`.
 
-```bash
-./scripts/install-aira-browser.sh
-```
-
-Both debug and release signing configs are generated into the ignored local build profile. Keep the signing files together on each machine, preferably in `~/AiraSigning`:
-
-- `debug/aira-debug-keystore.p12`
-- `debug/aira-debug-certificate.cer`
-- `debug/aira-debug-profile.p7b`
-- `debug/aira-debug-request.csr`
-- `debug/material/`
-- `release/aira-release-keystore.p12`
-- `release/aira-release-certificate.cer`
-- `release/aira-release-profile.p7b`
-- `release/aira-release-request.csr`
-- `release/material/`
-
-Then generate the local build profile:
-
-```bash
-AIRA_SIGNING_STORE_PASSWORD='...' ./scripts/setup-aira-signing.sh
-```
-
-If debug and release use different p12 passwords, pass `AIRA_DEBUG_STORE_PASSWORD='...'` and `AIRA_RELEASE_STORE_PASSWORD='...'` separately. If a key password differs from its p12 store password, also pass `AIRA_DEBUG_KEY_PASSWORD='...'` or `AIRA_RELEASE_KEY_PASSWORD='...'`. If the files are not in `~/AiraSigning`, pass `AIRA_SIGNING_DIR=/abs/path` or the individual `AIRA_DEBUG_*` and `AIRA_RELEASE_*` path overrides shown by `./scripts/setup-aira-signing.sh --help`.
-
-The setup script verifies the debug Profile is an AppGallery `debug` Profile and the release Profile is an AppGallery `release` Profile for the selected bundle name, auto-detects the p12 aliases, encrypts passwords for each local HarmonyOS signing `material/`, and writes the ignored `AiraBrowser/build-profile.local.json5`. Set `AIRA_DISTRIBUTION=community` while running it to prepare a Community signing profile.
-
-Build a store `.app` package with:
-
-```bash
-AIRA_BUILD_VARIANT=release AIRA_BUILD_PACKAGE_FORMAT=app SKIP_INSTALL=1 ./scripts/build-aira-browser.sh
-```
-
-To create a dedicated translation worktree, run this from the main repository:
-
-```bash
-./scripts/create-aira-worktree.sh
-```
-
-By default it creates a sibling `aira-browser-translation` worktree on branch `codex/translation-worktree` and preserves
-the shared app identity:
-
-- Bundle name: `com.aira.browser`
-- App name: `Aira`
-
-After creating the worktree, copy or regenerate `AiraBrowser/build-profile.local.json5` with `./scripts/setup-aira-signing.sh` if release packaging is needed there.
+Official signing, AppGallery profiles, worktrees, and device-install wrappers live in the private packaging scripts.
+They are not part of this repository. Official builds still use this tree's `./scripts/build-aira-browser.sh` with
+`AIRA_DISTRIBUTION=official` and private AGConnect/signing inputs.
 
 ## Running on a real device
 
-Open the repository's `AiraBrowser/` directory in DevEco Studio.
-
-For command-line builds across different computers, copy the signing files to the local signing directory and run `./scripts/setup-aira-signing.sh` once per machine, then use the repo script.
-
-To install directly to a connected phone:
+Open the repository's `AiraBrowser/` directory in DevEco Studio, or build from the repo root:
 
 ```bash
-./scripts/install-aira-browser.sh
+AIRA_DISTRIBUTION=community SKIP_INSTALL=1 ./scripts/build-aira-browser.sh
 ```
 
-- One connected phone: auto-install.
-- Multiple phones: `HDC_TARGET=<device-id> ./scripts/install-aira-browser.sh`
-- Build only (skip install): `SKIP_INSTALL=1 ./scripts/build-aira-browser.sh`

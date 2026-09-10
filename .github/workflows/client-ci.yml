@@ -35,6 +35,8 @@ jobs:
           else
             git diff --check
           fi
+      - name: Check open-source source tree
+        run: bash scripts/check-open-source-source-tree.sh
       - name: Check architecture guards
         run: bash scripts/check-architecture-guardrails.sh
       - name: Check icon catalog

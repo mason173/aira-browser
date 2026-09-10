@@ -108,14 +108,13 @@ git diff --check
 ```
 
 Review `git diff --name-only` and keep unrelated ADRs, Sync work, build-profile files, and other agents' planning folders
-out of the icon change. For user-visible app changes, build and install with:
+out of the icon change. For user-visible app changes, build with:
 
 ```bash
-./scripts/install-aira-browser.sh
+AIRA_DISTRIBUTION=community SKIP_INSTALL=1 ./scripts/build-aira-browser.sh
 ```
 
-The installer must report `install bundle successfully`. Do not launch or visually operate the user's device unless the
-user explicitly asks for that inspection.
+Do not launch or visually operate the user's device unless the user explicitly asks for that inspection.
 
 To verify generated resources are current:
 

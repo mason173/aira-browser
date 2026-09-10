@@ -118,8 +118,8 @@ AIRA_DISTRIBUTION=official SKIP_INSTALL=1 ./scripts/build-aira-browser.sh
 ```
 
 Do not commit `agconnect-services.json`, build profiles containing encrypted passwords, `.p12`/`.p7b` files, or any
-other signing material. See [`AiraBrowser/README.md`](AiraBrowser/README.md) for signing setup, release packaging, and
-device installation.
+other signing material. Official signing and device-install wrappers are private packaging scripts, not this repository.
+See [`AiraBrowser/README.md`](AiraBrowser/README.md) for Community builds.
 
 ## Community And Official
 
