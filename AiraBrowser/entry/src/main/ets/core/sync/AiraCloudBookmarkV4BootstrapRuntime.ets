@@ -1,4 +1,5 @@
 import { common } from '@kit.AbilityKit';
+import { hilog } from '@kit.PerformanceAnalysisKit';
 import { AiraSyncSettings } from '../../common/models/AiraSyncModels';
 import { AiraMembershipState } from '../../common/models/MembershipModels';
 import { AiraCloudBookmarkV4BootstrapRecord } from '../../common/models/AiraCloudBookmarkV4BootstrapModels';
@@ -166,8 +167,27 @@ export class AiraCloudBookmarkV4BootstrapRuntime {
     const membership = await this.membershipFeature.loadState();
     const uid = settings.huaweiCloud.uid.trim();
     this.record = uid.length > 0 ? await this.stateStore.load(uid) : undefined;
-    const decision = this.policy.evaluate(settings, membership, this.record);
+    let decision = this.policy.evaluate(settings, membership, this.record);
+    if (decision.reason === 'provider_switch_activation' && uid.length > 0 &&
+      (this.record === undefined || this.record.status !== 'completed')) {
+      this.record = await this.coordinator.acknowledgeNativeV4Activation(
+        uid,
+        this.record?.remoteCommitId ?? ''
+      );
+      decision = this.policy.evaluate(settings, membership, this.record);
+    }
     this.initialized = true;
+    hilog.info(
+      0x0000,
+      'AiraCloudBookmarkV4',
+      'bootstrap decision required=%{public}s reason=%{public}s remote=%{public}s gen=%{public}d pendingFrom=%{public}s record=%{public}s',
+      decision.required ? 'true' : 'false',
+      decision.reason,
+      settings.remoteKind,
+      settings.bookmarkGenerationInitializedAt ?? 0,
+      settings.pendingBookmarkProviderSwitchFrom,
+      this.record?.status ?? 'none'
+    );
     if (!decision.required) {
       this.viewState = this.hiddenState();
     } else if (this.record?.status === 'failed') {

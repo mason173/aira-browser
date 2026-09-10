@@ -34,6 +34,8 @@ import syncExperienceAutomaticDomainGateTest from './SyncExperienceAutomaticDoma
 import airaBookmarkIdentityNoOpServiceTest from './AiraBookmarkIdentityNoOpService.test';
 import huaweiSpaceHistoryCloudReadGateTest from './HuaweiSpaceHistoryCloudReadGate.test';
 import huaweiSpaceTransportWarmupTest from './HuaweiSpaceTransportWarmup.test';
+import historySelectionMoreMenuTest from './HistorySelectionMoreMenu.test';
+import huaweiIapProductCatalogTest from './HuaweiIapProductCatalog.test';
 
 export default function tests(): void {
   userScriptValueStateStoreTest();
@@ -70,4 +72,6 @@ export default function tests(): void {
   airaBookmarkIdentityNoOpServiceTest();
   huaweiSpaceHistoryCloudReadGateTest();
   huaweiSpaceTransportWarmupTest();
+  historySelectionMoreMenuTest();
+  huaweiIapProductCatalogTest();
 }

@@ -8,7 +8,8 @@ import {
 import { createDefaultAiraSyncSettings } from '../main/ets/services/sync/AiraSyncConfigStore';
 import {
   AIRA_CLOUD_BOOKMARK_V4_CUTOVER_ID,
-  AiraCloudBookmarkV4BootstrapRecord
+  AiraCloudBookmarkV4BootstrapRecord,
+  shouldAcknowledgeNativeAiraCloudBookmarkV4Activation
 } from '../main/ets/common/models/AiraCloudBookmarkV4BootstrapModels';
 import {
   AiraCloudBookmarkV4BootstrapPolicyService
@@ -157,6 +158,97 @@ export default function airaCloudBookmarkV4BootstrapPolicyTest(): void {
 
       expect(result.required).assertFalse();
       expect(result.reason).assertEqual('provider_switch_in_progress');
+    });
+
+    it('does not treat Huawei additional backup as a provider-switch activation', 0, () => {
+      const settings = createEligibleSettings();
+      const huaweiState = settings.providerStates.find((state: AiraSyncProviderRuntimeState): boolean => {
+        return state.remoteKind === 'huawei_space';
+      });
+      if (huaweiState !== undefined) {
+        huaweiState.bookmarkBackup.lastSuccessAt = 180;
+      }
+
+      const result = policy.evaluate(settings, createProMembership(), undefined);
+
+      expect(result.required).assertTrue();
+      expect(result.reason).assertEqual('required');
+    });
+
+    it('does not force V4 cutover after switching from Huawei Space onto Aira Cloud', 0, () => {
+      const settings = createEligibleSettings();
+      const huaweiState = settings.providerStates.find((state: AiraSyncProviderRuntimeState): boolean => {
+        return state.remoteKind === 'huawei_space';
+      });
+      const airaCloudState = settings.providerStates.find((state: AiraSyncProviderRuntimeState): boolean => {
+        return state.remoteKind === 'aira_cloud';
+      });
+      if (huaweiState !== undefined) {
+        huaweiState.bookmark.lastSuccessAt = 180;
+      }
+      if (airaCloudState !== undefined) {
+        airaCloudState.bookmark.lastSuccessAt = 220;
+      }
+
+      const result = policy.evaluate(settings, createProMembership(), undefined);
+
+      expect(result.required).assertFalse();
+      expect(result.reason).assertEqual('provider_switch_activation');
+    });
+
+    it('keeps an interrupted formal cutover required even after another provider succeeded', 0, () => {
+      const settings = createEligibleSettings();
+      const huaweiState = settings.providerStates.find((state: AiraSyncProviderRuntimeState): boolean => {
+        return state.remoteKind === 'huawei_space';
+      });
+      if (huaweiState !== undefined) {
+        huaweiState.bookmark.lastSuccessAt = 180;
+      }
+      const record: AiraCloudBookmarkV4BootstrapRecord = {
+        uid: UID,
+        protocol: 'aira-cloud-bookmarks-v4',
+        cutoverId: AIRA_CLOUD_BOOKMARK_V4_CUTOVER_ID,
+        status: 'failed',
+        phase: 'failed',
+        backupId: 'backup-1',
+        backupSha256: 'sha256',
+        remoteCommitId: 'commit-7',
+        errorMessage: 'apply-failed',
+        updatedAt: 160,
+        completedAt: 0
+      };
+
+      const result = policy.evaluate(settings, createProMembership(), record);
+
+      expect(result.required).assertTrue();
+      expect(result.reason).assertEqual('required');
+    });
+
+    it('acknowledges first Aira Cloud write while another provider is still active', 0, () => {
+      expect(shouldAcknowledgeNativeAiraCloudBookmarkV4Activation(
+        'aira_cloud',
+        'huawei_space',
+        100,
+        true
+      )).assertTrue();
+      expect(shouldAcknowledgeNativeAiraCloudBookmarkV4Activation(
+        'aira_cloud',
+        'aira_cloud',
+        100,
+        true
+      )).assertFalse();
+      expect(shouldAcknowledgeNativeAiraCloudBookmarkV4Activation(
+        'aira_cloud',
+        'aira_cloud',
+        0,
+        true
+      )).assertTrue();
+      expect(shouldAcknowledgeNativeAiraCloudBookmarkV4Activation(
+        'aira_cloud',
+        'huawei_space',
+        100,
+        false
+      )).assertFalse();
     });
 
     it('does not gate non-Pro users or another active provider', 0, () => {

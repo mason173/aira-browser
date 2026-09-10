@@ -871,6 +871,13 @@
       "codePoint": 60953,
       "sourceSha256": "c19fe91bed5260057c6003c095184ed024d31c72e792863d1bc55d1c2e33be14",
       "lucideSlug": "arrow-right"
+    },
+    {
+      "glyph": "tools",
+      "sourceFile": "svg/tools.svg",
+      "codePoint": 60954,
+      "sourceSha256": "9983dcb4377f7f9c3b774196e6750fd66ad697c471502fc9e20c8cbfe455e840",
+      "lucideSlug": "tools"
     }
   ],
   "package": "@tabler/icons",

@@ -86,6 +86,7 @@ export type AiraIconId =
   | "browser.toolbar.copyLink"
   | "browser.toolbar.actionCopyLink"
   | "settings.appearance"
+  | "settings.toolbar"
   | "browser.toolbar.themeMode"
   | "membership.benefit.appearance"
   | "site.setting.externalActions"
@@ -252,6 +253,7 @@ export type AiraRenderableIconId =
   | "browser.toolbar.copyLink"
   | "browser.toolbar.actionCopyLink"
   | "settings.appearance"
+  | "settings.toolbar"
   | "browser.toolbar.themeMode"
   | "membership.benefit.appearance"
   | "site.setting.externalActions"
@@ -422,6 +424,7 @@ export class GeneratedAiraIconCatalog {
       case "browser.toolbar.copyLink":
       case "browser.toolbar.actionCopyLink":
       case "settings.appearance":
+      case "settings.toolbar":
       case "browser.toolbar.themeMode":
       case "membership.benefit.appearance":
       case "site.setting.externalActions":
@@ -669,6 +672,8 @@ export class GeneratedAiraIconCatalog {
         return '\uEDFB';
       case "settings.appearance":
         return '\uE192';
+      case "settings.toolbar":
+        return '\uEE1A';
       case "browser.toolbar.themeMode":
         return '\uE192';
       case "membership.benefit.appearance":

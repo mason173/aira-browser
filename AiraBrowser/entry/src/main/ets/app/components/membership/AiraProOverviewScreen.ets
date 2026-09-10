@@ -62,7 +62,7 @@ export struct AiraProOverviewScreen {
   @Prop dividerColor: ResourceColor = '#E3E8EF';
   @Prop settingsIconBackgrounds: BrowserSettingsIconBackgroundTokenSet =
     DEFAULT_BROWSER_SETTINGS_ICON_BACKGROUND_TOKENS;
-  @State private selectedPlanId: string = 'one_time';
+  @State private selectedPlanId: string = 'yearly';
   @State private proTermsAccepted: boolean = false;
   scroller?: Scroller;
   onSubscribe?: (planId: string) => void;
@@ -574,7 +574,11 @@ export struct AiraProOverviewScreen {
   }
 
   private resolveSelectedPlan(): AiraProOverviewPlanState | undefined {
-    return this.state.plans.find((plan: AiraProOverviewPlanState) => plan.id === this.selectedPlanId);
+    const selected = this.state.plans.find((plan: AiraProOverviewPlanState) => plan.id === this.selectedPlanId);
+    if (selected !== undefined) {
+      return selected;
+    }
+    return this.state.plans.length > 0 ? this.state.plans[0] : undefined;
   }
 
   private resolveRowPosition(index: number, count: number): 'single' | 'first' | 'middle' | 'last' {

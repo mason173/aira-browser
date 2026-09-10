@@ -490,6 +490,10 @@
           "resourceFamily": "app_settings_appearance"
         },
         {
+          "title": "工具栏设置",
+          "resourceFamily": "app_settings_toolbar"
+        },
+        {
           "title": "自定义主页",
           "resourceFamily": "app_settings_custom_homepage"
         },
@@ -587,6 +591,10 @@
         {
           "title": "外观模式",
           "resourceFamily": "app_settings_appearance"
+        },
+        {
+          "title": "工具栏设置",
+          "resourceFamily": "app_settings_toolbar"
         },
         {
           "title": "自定义主页",

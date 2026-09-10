@@ -29,8 +29,10 @@ import {
   AiraSyncWriteStateResult
 } from '../../common/models/AiraSyncModels';
 import { SYNC_ADDITIONAL_BACKUP_MERGE_REQUIRED } from '../../common/constants/SyncFlowErrorCodes';
-import { AiraCloudBookmarkV4BootstrapDomain } from
-  '../../common/models/AiraCloudBookmarkV4BootstrapModels';
+import {
+  AiraCloudBookmarkV4BootstrapDomain,
+  shouldAcknowledgeNativeAiraCloudBookmarkV4Activation
+} from '../../common/models/AiraCloudBookmarkV4BootstrapModels';
 import { PreferencesRepository } from '../../data/preferences/PreferencesRepository';
 import { BookmarkRepository } from '../../data/repositories/BrowserRepositories';
 import { AiraBookmarkSnapshotService } from './AiraBookmarkSnapshotService';
@@ -1959,15 +1961,26 @@ export class SyncService implements AiraCloudBookmarkV4BootstrapDomain {
         providerId
       );
     }
-    const nativeAiraCloudGeneration = initializeBookmarkGeneration &&
-      remoteKind === 'aira_cloud' &&
-      (this.getAiraSyncSettings().bookmarkGenerationInitializedAt ?? 0) <= 0;
+    const settingsForNativeActivation = this.getAiraSyncSettings();
+    const nativeAiraCloudGeneration = shouldAcknowledgeNativeAiraCloudBookmarkV4Activation(
+      remoteKind,
+      settingsForNativeActivation.remoteKind,
+      settingsForNativeActivation.bookmarkGenerationInitializedAt ?? 0,
+      initializeBookmarkGeneration
+    );
     if (initializeBookmarkGeneration) {
       await this.requireSyncConfigStore().markBookmarkGenerationInitialized();
     }
     if (nativeAiraCloudGeneration && this.nativeAiraCloudGenerationHandler !== undefined) {
       const uid = this.getAiraSyncSettings().huaweiCloud.uid.trim();
       if (uid.length > 0) {
+        hilog.info(
+          0x0000,
+          'AiraBookmarkSync',
+          'Aira Cloud V4 native activation acknowledged commit=%{public}s active=%{public}s',
+          commitId,
+          settingsForNativeActivation.remoteKind
+        );
         await this.nativeAiraCloudGenerationHandler(uid, commitId);
       }
     }

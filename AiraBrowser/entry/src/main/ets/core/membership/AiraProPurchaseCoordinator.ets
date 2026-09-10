@@ -11,7 +11,8 @@ import {
 } from '../../services/membership/HuaweiIapVerificationFunctionService';
 import {
   AIRA_PRO_ONE_TIME_PRODUCT_ID,
-  isAiraProIapPlanId
+  isAiraProIapPlanId,
+  isAiraProSellablePlanId
 } from '../../services/membership/HuaweiIapProductCatalog';
 import {
   AiraProPlanPurchaseAction,
@@ -222,7 +223,7 @@ export class AiraProPurchaseCoordinator {
     period: string = 'monthly',
     uid: string = ''
   ): Promise<HuaweiIapOperationResult> {
-    if (!isAiraProIapPlanId(period)) {
+    if (!isAiraProSellablePlanId(period)) {
       return this.buildUnsupportedPlanResult(period, 'purchase_pro_monthly');
     }
     if (uid.trim().length <= 0) {

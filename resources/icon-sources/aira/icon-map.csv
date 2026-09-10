@@ -125,6 +125,7 @@ vendor/lucide/aira-operational-icons/svg/bookmark-edit-drag-handle.svg,Lucide 1.
 vendor/lucide/aira-operational-icons/svg/bookmark-edit-move.svg,Lucide 1.38.0 / move,app_bookmark_edit_move,app_bookmark_edit_move,Lucide Operational font source
 vendor/lucide/aira-operational-icons/svg/bookmark-edit-select-all.svg,Lucide 1.38.0 / box-select,app_bookmark_edit_select_all,app_bookmark_edit_select_all,Lucide Operational font source
 vendor/lucide/aira-operational-icons/svg/arrow-right.svg,Lucide 1.38.0 / arrow-right,app_toolbar_forward,app_toolbar_forward,Lucide Operational font source
+vendor/lucide/aira-operational-icons/svg/tools.svg,Lucide 1.38.0 / tools,app_settings_toolbar,app_settings_toolbar,Lucide Operational font source
 icons/app_widget_shortcut_history__user-provided.svg,user-provided/历史记录.svg,app_widget_shortcut_history,app_widget_shortcut_history,user-provided desktop-card-only source
 icons/app_widget_shortcut_bookmarks__user-provided.svg,user-provided/书签.svg,app_widget_shortcut_bookmarks,app_widget_shortcut_bookmarks,user-provided desktop-card-only source
 icons/app_widget_shortcut_downloads__user-provided.svg,user-provided/下载.svg,app_widget_shortcut_downloads,app_widget_shortcut_downloads,user-provided desktop-card-only source

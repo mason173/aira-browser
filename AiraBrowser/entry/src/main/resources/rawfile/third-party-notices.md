@@ -21,8 +21,9 @@ Personal Server 的运行时依赖和许可证，见源码中的 `services/perso
 
 ## 图标资源
 
-- Lucide 1.38.0 SVG 和 Aira Operational Icon 替换字体使用 ISC 许可证，许可证文本见
-  `resources/icon-sources/aira/vendor/lucide/review-2026-09/LICENSE`。
+- Tabler Icons 3.46.0 线框 SVG 和 Aira Operational Icon 字体使用 MIT 许可证。许可证文本见
+  `resources/icon-sources/aira/vendor/lucide/aira-operational-icons/LICENSE`。历史目录名 `lucide/` 仅保留路径兼容，运行时图形已不是 Lucide。
+- Gravity UI 2.20.0 图标使用 MIT 许可证，许可证文本见 `resources/icon-sources/aira/vendor/gravity-ui/2.20.0/LICENSE`。
 - Aira 为保持已有 ArkTS 代码点和语义 ID，保留了历史资源路径和映射字段名；这些兼容标识不代表旧图形仍在运行时使用。
 
 本页不替代各组件随附的完整许可证文本。修改或再分发 Aira 时，请保留对应版权声明、许可证文本和变更说明。

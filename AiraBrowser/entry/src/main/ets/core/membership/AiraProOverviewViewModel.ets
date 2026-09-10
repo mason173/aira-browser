@@ -1,8 +1,8 @@
 import { AiraMembershipState } from '../../common/models/MembershipModels';
 import {
-  AIRA_PRO_IAP_PLANS,
   AIRA_PRO_ONE_TIME_PLAN,
   AIRA_PRO_ONE_TIME_PRODUCT_ID,
+  AIRA_PRO_SELLABLE_IAP_PLANS,
   HuaweiIapProductPlan,
   findAiraProIapPlanByProductId
 } from '../../services/membership/HuaweiIapProductCatalog';
@@ -90,13 +90,10 @@ export class AiraProOverviewViewModel {
       dataScope,
       privacyMode
     );
-    const plans = this.membershipPresentationService.isLongTermMember(membershipState)
+    const plans: AiraProOverviewPlanState[] = this.membershipPresentationService.isLongTermMember(membershipState)
       ? []
-      : [
-        this.buildOneTimePlanState(membershipState, purchaseAllowed),
-        ...AIRA_PRO_IAP_PLANS.map((plan: HuaweiIapProductPlan) =>
-          this.buildSubscriptionPlanState(plan, membershipState, purchaseAllowed))
-      ];
+      : AIRA_PRO_SELLABLE_IAP_PLANS.map((plan: HuaweiIapProductPlan) =>
+        this.buildSubscriptionPlanState(plan, membershipState, purchaseAllowed));
     return {
       title: this.resolveHeroTitle(membershipState),
       subtitle: this.resolveHeroSubtitle(membershipState),

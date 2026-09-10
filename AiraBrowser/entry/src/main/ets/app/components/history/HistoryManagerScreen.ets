@@ -30,6 +30,12 @@ import {
   HistoryViewState
 } from '../../../features/history/HistoryViewModel';
 import {
+  HISTORY_SELECTION_MORE_EMPTY_MESSAGE,
+  HistorySelectionMoreActionId,
+  HistorySelectionMoreMenuItem,
+  planHistorySelectionMoreMenu
+} from '../../../features/history/HistorySelectionMoreMenu';
+import {
   HistoryManagerScreenController,
   HistoryTimelineDeletionCompletion,
   HistoryTimelineDeletionTransaction,
@@ -68,7 +74,10 @@ import { HistoryManagerSearchHeader } from './HistoryManagerSearchHeader';
 import { HistoryTimelineList } from './HistoryTimelineList';
 import { HistoryTimelineDataSource, HistoryTimelineIconTarget } from '../../../features/history/HistoryTimelineDataSource';
 import { HistorySiteIconTarget, HistorySiteListDataSource } from '../../../features/history/HistorySiteListDataSource';
-import { FloatingSelectionToolbar } from '../common/FloatingSelectionToolbar';
+import {
+  FloatingSelectionToolbar,
+  FloatingSelectionToolbarMenuItem
+} from '../common/FloatingSelectionToolbar';
 import { HistorySiteList } from './HistorySiteList';
 import { HistoryVisitDetailsSheet } from './HistoryVisitDetailsSheet';
 import { HistoryBookmarkFolderSelectionOverlay } from './HistoryBookmarkFolderSelectionOverlay';
@@ -758,9 +767,7 @@ export struct HistoryManagerScreen {
         {
           airaIconId: 'browser.toolbar.more',
           title: '更多',
-          action: () => {
-            this.showSelectionMoreMenu();
-          }
+          menu: this.buildHistorySelectionMoreMenuItems()
         }
       ]
     })
@@ -1659,9 +1666,55 @@ export struct HistoryManagerScreen {
       });
   }
 
+  private buildHistorySelectionMoreMenuItems(): FloatingSelectionToolbarMenuItem[] {
+    const includeRemoveBookmarks = this.viewMode === 'timeline';
+    const selectedCount = this.viewMode === 'sites' ? this.selectedSiteKeys.length : this.selectedVisitIds.length;
+    const plannedItems = planHistorySelectionMoreMenu(this.viewMode, selectedCount, includeRemoveBookmarks).items;
+    const menuItems: FloatingSelectionToolbarMenuItem[] = [];
+    plannedItems.forEach((item: HistorySelectionMoreMenuItem) => {
+      const actionId = item.id;
+      const title = item.title;
+      menuItems.push({
+        value: title,
+        action: (): void => {
+          this.runHistorySelectionMoreAction(actionId);
+        }
+      });
+    });
+    return menuItems;
+  }
+
+  private runHistorySelectionMoreAction(actionId: HistorySelectionMoreActionId): void {
+    const selectedCount = this.viewMode === 'sites' ? this.selectedSiteKeys.length : this.selectedVisitIds.length;
+    if (selectedCount <= 0) {
+      this.showNativeToast(HISTORY_SELECTION_MORE_EMPTY_MESSAGE);
+      return;
+    }
+    if (actionId === 'copy_links') {
+      this.copySelectedVisitUrls();
+      return;
+    }
+    if (actionId === 'add_bookmarks') {
+      this.addSelectedVisitsToBookmarks();
+      return;
+    }
+    if (actionId === 'remove_bookmarks') {
+      this.removeSelectedVisitsFromBookmarks();
+      return;
+    }
+    if (actionId === 'share_links') {
+      this.shareSelectedVisitUrls();
+      return;
+    }
+    if (actionId === 'delete_selected_sites') {
+      this.confirmDeleteSelectedVisits();
+    }
+  }
+
   private showSelectionMoreMenu(): void {
     const selectedCount = this.viewMode === 'sites' ? this.selectedSiteKeys.length : this.selectedVisitIds.length;
     if (selectedCount <= 0) {
+      this.showNativeToast(HISTORY_SELECTION_MORE_EMPTY_MESSAGE);
       return;
     }
     const sheets: HistorySelectionMoreAction[] = [];

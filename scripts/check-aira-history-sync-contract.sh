@@ -123,8 +123,8 @@ if [ "${failures}" -eq 0 ]; then
     "const currentRows = await this\.consumeFreshRows\(store, skipCloudTransport\)" \
     "Huawei History writes must consume the fresh physical rows owned by the current run"
   require_pattern "${REMOTE_REL}" \
-    "this\.computeExecutor\.decodeHuaweiHistoryRemoteState\(this\.uid, this\.deviceId, rows\)" \
-    "ordinary Huawei History remote reads must use the bounded off-main-thread state decoder"
+    "new HuaweiSpaceHistorySnapshotCodec\(this\.uid, this\.deviceId\)\.decodeRows\(rows\)" \
+    "ordinary Huawei History remote reads must decode once and retain the mirror for the write plan"
   require_pattern "${REMOTE_REL}" \
     "this\.freshRows = rows" \
     "ordinary Huawei History reads must retain raw rows locally instead of cloning a complete physical mirror"

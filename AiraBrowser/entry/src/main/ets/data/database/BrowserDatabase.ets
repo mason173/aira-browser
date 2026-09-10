@@ -1871,16 +1871,17 @@ export class BrowserDatabase {
     }
     const store = await this.getStore();
     const canonicalPayloads = new Map<string, string>();
-    const canonicalVisits = await this.readHistorySyncCanonicalVisits(store, normalizedUid);
-    canonicalVisits.forEach((visit: HistorySyncVisit): void => {
-      canonicalPayloads.set(visit.visitId, JSON.stringify(visit));
-    });
+    const existingTombstoneIds = await this.readHistoryTombstoneVisitIds(store, normalizedUid);
+    const existingSyncIds = await this.readHistoryEventSyncIds(store, normalizedUid);
     let transactionStarted = false;
     try {
       store.beginTransaction();
       transactionStarted = true;
       let applied = 0;
       for (const tombstone of state.tombstones) {
+        if (existingTombstoneIds.has(tombstone.visitId)) {
+          continue;
+        }
         await this.persistHistorySyncTombstone(store, normalizedUid, tombstone.visitId, tombstone.deletedAt);
         applied += await this.deleteHistoryVisitBySyncIdInStore(store, normalizedUid, tombstone.visitId);
       }
@@ -1898,6 +1899,9 @@ export class BrowserDatabase {
       );
       for (const visit of state.visits) {
         const replaceCanonical = canonicalPayloads.get(visit.visitId) !== JSON.stringify(visit);
+        if (canonicalPayloads.has(visit.visitId) || existingSyncIds.has(visit.visitId)) {
+          continue;
+        }
         applied += await this.applyHistorySyncVisitUpsert(store, normalizedUid, visit, replaceCanonical);
       }
       store.commit();
@@ -4441,12 +4445,19 @@ export class BrowserDatabase {
     visit: HistoryVisit | undefined,
     context?: HistorySyncOutboxContext
   ): Promise<void> {
-    if (visit === undefined || context === undefined || context.origin !== 'user_deletion') {
+    if (visit === undefined) {
       return;
     }
-    const syncId = (visit.syncId ?? '').trim();
-    const syncAccountUid = (visit.syncAccountUid ?? '').trim();
-    if (syncId.length <= 0 || syncAccountUid !== context.accountUid.trim()) {
+    if (context !== undefined && context.origin !== 'user_deletion') {
+      return;
+    }
+    const syncId = (visit.syncId ?? '').trim() || visit.id.trim();
+    const accountUid = (context?.accountUid ?? visit.syncAccountUid ?? '').trim();
+    if (syncId.length <= 0 || accountUid.length <= 0) {
+      return;
+    }
+    await this.persistHistorySyncTombstone(store, accountUid, syncId, Date.now());
+    if (context === undefined || context.clientId.trim().length <= 0) {
       return;
     }
     const mutation: HistorySyncMutation = {
@@ -4454,8 +4465,7 @@ export class BrowserDatabase {
       kind: 'delete_visit',
       visitId: syncId
     };
-    await this.persistHistorySyncTombstone(store, context.accountUid, syncId, Date.now());
-    await this.insertHistorySyncMutation(store, context.accountUid, mutation);
+    await this.insertHistorySyncMutation(store, accountUid, mutation);
   }
 
   private async enqueueHistoryClearBefore(
@@ -4550,35 +4560,6 @@ export class BrowserDatabase {
     }
     const existing = await this.findHistoryVisitEventBySyncId(store, accountUid, visit.visitId);
     if (existing !== undefined) {
-      // The first accepted visit row is canonical. Older clients can retry the
-      // same sync ID with different metadata; preserve local content and keep
-      // the cursor transaction moving instead of failing the whole exchange.
-      const updated: HistoryVisit = {
-        id: existing.id,
-        urlId: existing.urlId,
-        title: existing.title,
-        url: existing.url,
-        normalizedUrl: existing.normalizedUrl,
-        origin: existing.origin,
-        host: existing.host,
-        visitedAt: existing.visitedAt,
-        dayBucketLabel: existing.dayBucketLabel,
-        source: existing.source,
-        deviceId: existing.deviceId,
-        sessionId: existing.sessionId,
-        fromVisitId: existing.fromVisitId,
-        transition: existing.transition,
-        visitDurationMs: existing.visitDurationMs,
-        profileId: existing.profileId,
-        dataScope: existing.dataScope,
-        visitCount: existing.visitCount,
-        typedCount: existing.typedCount,
-        lastVisitAt: existing.lastVisitAt,
-        syncId: existing.syncId,
-        syncAccountUid: accountUid,
-        syncOrigin: existing.syncOrigin ?? 'local'
-      };
-      await store.update(this.toHistoryVisitValues(updated), this.createHistoryVisitIdPredicates(existing.id));
       return 0;
     }
     const remoteVisit: HistoryVisit = {
@@ -4789,6 +4770,51 @@ export class BrowserDatabase {
         updatedAt: 0
       }
     };
+  }
+
+  private async readHistoryTombstoneVisitIds(
+    store: relationalStore.RdbStore,
+    accountUid: string
+  ): Promise<Set<string>> {
+    const predicates = new relationalStore.RdbPredicates(HISTORY_SYNC_TOMBSTONES_TABLE);
+    predicates.equalTo('account_uid', accountUid);
+    const resultSet = await store.queryWithoutRowCount(predicates, ['visit_id']);
+    const ids = new Set<string>();
+    try {
+      const visitIdIndex = resultSet.getColumnIndex('visit_id');
+      while (resultSet.goToNextRow()) {
+        const visitId = resultSet.getString(visitIdIndex).trim();
+        if (visitId.length > 0) {
+          ids.add(visitId);
+        }
+      }
+    } finally {
+      resultSet.close();
+    }
+    return ids;
+  }
+
+  private async readHistoryEventSyncIds(
+    store: relationalStore.RdbStore,
+    accountUid: string
+  ): Promise<Set<string>> {
+    const predicates = new relationalStore.RdbPredicates(HISTORY_VISITS_TABLE);
+    predicates.equalTo('sync_account_uid', accountUid);
+    predicates.equalTo('data_scope', 'profile_persistent');
+    const resultSet = await store.queryWithoutRowCount(predicates, ['sync_id']);
+    const ids = new Set<string>();
+    try {
+      const syncIdIndex = resultSet.getColumnIndex('sync_id');
+      while (resultSet.goToNextRow()) {
+        const syncId = resultSet.getString(syncIdIndex).trim();
+        if (syncId.length > 0) {
+          ids.add(syncId);
+        }
+      }
+    } finally {
+      resultSet.close();
+    }
+    return ids;
   }
 
   private async persistHistorySyncCanonicalVisit(
@@ -5241,6 +5267,24 @@ export class BrowserDatabase {
   ): Promise<number> {
     if (frontier.cutoffAt <= 0 && frontier.boundaryVisitedAt <= 0) {
       return 0;
+    }
+    const threshold = Math.max(frontier.cutoffAt, frontier.boundaryVisitedAt);
+    if (threshold > 0) {
+      const probe = new relationalStore.RdbPredicates(HISTORY_VISITS_TABLE);
+      probe.equalTo('sync_account_uid', accountUid);
+      probe.equalTo('data_scope', 'profile_persistent');
+      probe.lessThanOrEqualTo('visited_at', threshold);
+      probe.limitAs(1);
+      const probeSet = await store.query(probe, ['id']);
+      let hasCandidate = false;
+      try {
+        hasCandidate = probeSet.goToNextRow();
+      } finally {
+        probeSet.close();
+      }
+      if (!hasCandidate) {
+        return 0;
+      }
     }
     const predicates = new relationalStore.RdbPredicates(HISTORY_VISITS_TABLE);
     predicates.equalTo('sync_account_uid', accountUid);

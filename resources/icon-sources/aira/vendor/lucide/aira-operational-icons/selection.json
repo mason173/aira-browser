@@ -687,6 +687,12 @@
     },
     {
       "properties": {
+        "name": "tools",
+        "code": 60954
+      }
+    },
+    {
+      "properties": {
         "name": "translate",
         "code": 58530
       }

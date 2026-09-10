@@ -134,7 +134,7 @@ export class AiraHuaweiSpaceRemoteStore implements AiraSyncRemoteStore {
     this.assertConfigured();
     const store = await this.getStore();
     await this.runIncrementalCommitBarrier(store, this.chunkRepository.getBlockCloudTableNames());
-    await this.runIncrementalCommitBarrier(store, this.chunkRepository.getHeadCloudTableNames());
+    await this.runIncrementalCommitBarrier(store, this.chunkRepository.getHeadCloudTableNames(), true);
   }
 
   async writeState(params: AiraSyncWriteStateParams): Promise<AiraSyncWriteStateResult> {
@@ -374,9 +374,35 @@ export class AiraHuaweiSpaceRemoteStore implements AiraSyncRemoteStore {
 
   private async runIncrementalCommitBarrier(
     store: relationalStore.RdbStore,
-    tableNames: string[]
+    tableNames: string[],
+    recoverUnknownHeadUpload: boolean = false
   ): Promise<void> {
-    await this.runManualCloudSync(store, relationalStore.SyncMode.SYNC_MODE_TIME_FIRST, tableNames, true);
+    const isHeadBarrier = tableNames.indexOf(this.chunkRepository.getHeadCloudTableNames()[0]) >= 0;
+    if (isHeadBarrier) {
+      hilog.info(
+        HUAWEI_SPACE_LOG_DOMAIN,
+        HUAWEI_SPACE_LOG_TAG,
+        'G8 head inventory uid=%{public}s phase=%{public}s summary=%{public}s',
+        this.maskUid(this.uid),
+        'before-head-barrier',
+        await this.chunkRepository.describeLocalHeadRows(store)
+      );
+    }
+    try {
+      await this.runManualCloudSync(store, relationalStore.SyncMode.SYNC_MODE_TIME_FIRST, tableNames, true);
+    } catch (error) {
+      const failed = error as Error;
+      if (!recoverUnknownHeadUpload || !isHeadBarrier || !this.isUnknownHeadUploadError(failed)) {
+        throw failed;
+      }
+      hilog.warn(
+        HUAWEI_SPACE_LOG_DOMAIN,
+        HUAWEI_SPACE_LOG_TAG,
+        'G8 head pending update rejected uid=%{public}s reason=%{public}s',
+        this.maskUid(this.uid),
+        this.stringifyError(failed)
+      );
+    }
     await this.runManualCloudSync(store, relationalStore.SyncMode.SYNC_MODE_CLOUD_FIRST, tableNames, true);
   }
 
@@ -432,6 +458,11 @@ export class AiraHuaweiSpaceRemoteStore implements AiraSyncRemoteStore {
         this.stringifyError(error as Error)
       );
     }
+  }
+
+  private isUnknownHeadUploadError(error: Error): boolean {
+    return isRetryableHuaweiSpaceBookmarkSyncError(error) &&
+      this.stringifyError(error).indexOf('进度码 1') >= 0;
   }
 
   private buildCloudProgressError(progressCode: number): Error {

@@ -32,7 +32,7 @@ export const AIRA_PRO_MONTHLY_PLAN: HuaweiIapProductPlan = {
   featurePlan: 'pro',
   period: 'monthly',
   title: '连续包月',
-  displayPrice: '¥3 / 月自动续费',
+  displayPrice: '¥1 / 月自动续费',
   description: '按月自动续费，可在订阅管理中取消',
   badgeText: ''
 };
@@ -52,9 +52,9 @@ export const AIRA_PRO_YEARLY_PLAN: HuaweiIapProductPlan = {
   featurePlan: 'pro',
   period: 'yearly',
   title: '连续包年',
-  displayPrice: '¥30 / 年自动续费',
+  displayPrice: '¥7.89 / 年自动续费',
   description: '按年自动续费，可在订阅管理中取消',
-  badgeText: ''
+  badgeText: '推荐'
 };
 
 export const AIRA_PRO_ONE_TIME_PLAN: HuaweiIapOneTimePlan = {
@@ -66,6 +66,11 @@ export const AIRA_PRO_ONE_TIME_PLAN: HuaweiIapOneTimePlan = {
   description: `早鸟价 ${AIRA_PRO_ONE_TIME_DISPLAY_PRICE} · 长期有效 · 不自动续费`,
   badgeText: '推荐'
 };
+
+export const AIRA_PRO_SELLABLE_IAP_PLANS: HuaweiIapProductPlan[] = [
+  AIRA_PRO_MONTHLY_PLAN,
+  AIRA_PRO_YEARLY_PLAN
+];
 
 export const AIRA_PRO_IAP_PLANS: HuaweiIapProductPlan[] = [
   AIRA_PRO_MONTHLY_PLAN,
@@ -91,6 +96,11 @@ export function findAiraProIapPlanByProductId(productId: string): HuaweiIapProdu
 export function isAiraProIapPlanId(planId: string): boolean {
   const normalizedPlanId = planId.trim().toLowerCase();
   return normalizedPlanId === AIRA_PRO_ONE_TIME_PLAN.planId || findAiraProIapPlan(normalizedPlanId) !== undefined;
+}
+
+export function isAiraProSellablePlanId(planId: string): boolean {
+  const normalizedPlanId = planId.trim().toLowerCase();
+  return AIRA_PRO_SELLABLE_IAP_PLANS.some((item: HuaweiIapProductPlan) => item.period === normalizedPlanId);
 }
 
 export function resolveAiraProProductId(planId: string): string {

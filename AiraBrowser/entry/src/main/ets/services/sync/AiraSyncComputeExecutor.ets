@@ -198,19 +198,32 @@ function confirmHuaweiHistoryRemoteWrite(
   try {
     const desired = AiraHistoryTaskpoolTransferCodec.decodeState(desiredBuffer);
     const mergeService = new HistorySyncMergeService();
+    const projectionConfirmed = new HuaweiSpaceHistorySnapshotCodec(uid, deviceId)
+      .isProjectionTargetConfirmed(
+        confirmedMirror,
+        projection.targetHeadRowId,
+        projection.targetDeviceId,
+        projection.targetGeneration,
+        projection.targetStateChecksum
+      );
+    if (projectionConfirmed) {
+      return {
+        confirmation: {
+          confirmed: confirmedMirror.state,
+          projectionConfirmed: true,
+          desiredStateConfirmed: true,
+          localApplyRequired: false
+        },
+        decodeErrorMessage: '',
+        computeErrorMessage: ''
+      };
+    }
     const confirmed = mergeService.merge(confirmedMirror.state, mergeService.emptyState(), now);
     const confirmedWithDesired = mergeService.merge(confirmedMirror.state, desired, now);
     return {
       confirmation: {
         confirmed,
-        projectionConfirmed: new HuaweiSpaceHistorySnapshotCodec(uid, deviceId)
-          .isProjectionTargetConfirmed(
-            confirmedMirror,
-            projection.targetHeadRowId,
-            projection.targetDeviceId,
-            projection.targetGeneration,
-            projection.targetStateChecksum
-          ),
+        projectionConfirmed: false,
         desiredStateConfirmed: mergeService.sameState(confirmed, confirmedWithDesired),
         localApplyRequired: !mergeService.sameState(confirmed, desired)
       },
@@ -533,6 +546,22 @@ export class AiraSyncComputeExecutor {
       throw new AiraHistoryMirrorDecodeError(candidate.message ?? JSON.stringify(error));
     }
     const mergeService = new HistorySyncMergeService();
+    const projectionConfirmed = new HuaweiSpaceHistorySnapshotCodec(uid, deviceId)
+      .isProjectionTargetConfirmed(
+        mirror,
+        projection.targetHeadRowId,
+        projection.targetDeviceId,
+        projection.targetGeneration,
+        projection.targetStateChecksum
+      );
+    if (projectionConfirmed) {
+      return {
+        confirmed: mirror.state,
+        projectionConfirmed: true,
+        desiredStateConfirmed: true,
+        localApplyRequired: false
+      };
+    }
     const confirmed = await mergeService.mergeCooperatively(
       mirror.state,
       mergeService.emptyState(),
@@ -547,14 +576,7 @@ export class AiraSyncComputeExecutor {
     );
     return {
       confirmed,
-      projectionConfirmed: new HuaweiSpaceHistorySnapshotCodec(uid, deviceId)
-        .isProjectionTargetConfirmed(
-          mirror,
-          projection.targetHeadRowId,
-          projection.targetDeviceId,
-          projection.targetGeneration,
-          projection.targetStateChecksum
-        ),
+      projectionConfirmed: false,
       desiredStateConfirmed: await mergeService.sameStateCooperatively(
         confirmed,
         confirmedWithDesired,

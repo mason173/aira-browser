@@ -235,7 +235,7 @@ export class SettingsCenterViewModel {
       case 'custom_homepage':
         return 'settings.customHomepage';
       case 'toolbar_customization':
-        return 'settings.appearance';
+        return 'settings.toolbar';
       case 'search':
         return 'settings.search';
       case 'privacy_security':

@@ -1,6 +1,7 @@
 import { common } from '@kit.AbilityKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { relationalStore } from '@kit.ArkData';
+import { hilog } from '@kit.PerformanceAnalysisKit';
 import { AppRuntimeContext } from '../../app/runtime/AppRuntimeContext';
 import { HuaweiSpaceHistorySyncState } from '../../common/models/HistorySyncModels';
 import { AIRA_HUAWEI_SPACE_BOOKMARK_DATABASE_NAME } from '../../services/sync/AiraSyncConfigStore';
@@ -11,12 +12,18 @@ import {
   AiraHistoryRemoteWritePlan,
   AiraSyncComputeExecutor
 } from '../../services/sync/AiraSyncComputeExecutor';
-import { AiraHistoryRemoteWriteProjection } from '../../services/sync/AiraHistoryTaskpoolTransferCodec';
+import {
+  AiraHistoryRemoteWriteProjection,
+  AiraHistoryTaskpoolTransferCodec
+} from '../../services/sync/AiraHistoryTaskpoolTransferCodec';
+import { HistorySyncMergeService } from '../../services/sync/HistorySyncMergeService';
 import { AiraSyncWorkThrottleService } from '../../services/sync/AiraSyncWorkThrottleService';
 import { HuaweiSpaceCloudSyncCoordinator } from './HuaweiSpaceCloudSyncCoordinator';
 import {
+  HuaweiSpaceHistoryPhysicalMirror,
   HuaweiSpaceHistoryRecordKind,
   HuaweiSpaceHistoryRow,
+  HuaweiSpaceHistorySnapshotCodec,
   huaweiHistoryPhysicalTable
 } from './HuaweiSpaceHistorySnapshotCodec';
 import {
@@ -26,7 +33,15 @@ import {
   HuaweiSpaceRdbStoreOwner
 } from './HuaweiSpaceRdbStoreOwner';
 
+interface HuaweiSpaceHistoryHeadChecksum {
+  deviceId: string;
+  generation: number;
+  stateChecksum: string;
+}
+
 const HUAWEI_SPACE_HISTORY_SYNC_TIMEOUT_MS: number = 45000;
+const HUAWEI_HISTORY_LOG_DOMAIN: number = 0x0000;
+const HUAWEI_HISTORY_LOG_TAG: string = 'HuaweiHistorySync';
 
 export interface HuaweiSpaceHistoryWriteResult {
   state: HuaweiSpaceHistorySyncState;
@@ -48,6 +63,7 @@ export class HuaweiSpaceHistoryRemoteStore {
   private storePromise?: Promise<relationalStore.RdbStore>;
   private freshRows?: HuaweiSpaceHistoryRow[];
   private freshLegacyRowIds: string[] = [];
+  private lastMirror?: HuaweiSpaceHistoryPhysicalMirror;
 
   constructor(
     uid: string,
@@ -66,17 +82,24 @@ export class HuaweiSpaceHistoryRemoteStore {
   async readState(): Promise<HuaweiSpaceHistorySyncState> {
     this.assertConfigured();
     const store = await this.getStore();
+    let stageStartedAt = Date.now();
     await this.runCloudSync(
       store,
       relationalStore.SyncMode.SYNC_MODE_CLOUD_FIRST,
       true,
       [HUAWEI_SPACE_HISTORY_HEAD_TABLE]
     );
+    this.logStage('read-cloud-heads', stageStartedAt);
+    stageStartedAt = Date.now();
     let rows = await this.readAllPhysicalRows(store);
+    this.logStage('read-rows-after-heads', stageStartedAt, `rows=${rows.length}`);
     if (this.needsBlockCloudSync(rows)) {
+      stageStartedAt = Date.now();
       rows = await this.syncBlocksAndReload(store);
+      this.logStage('read-cloud-blocks', stageStartedAt, `rows=${rows.length}`);
     }
     let decoded: AiraHistoryRemoteStateDecode;
+    stageStartedAt = Date.now();
     try {
       decoded = await this.decodeRemoteState(rows);
     } catch (error) {
@@ -86,6 +109,7 @@ export class HuaweiSpaceHistoryRemoteStore {
       rows = await this.syncBlocksAndReload(store);
       decoded = await this.decodeRemoteState(rows);
     }
+    this.logStage('read-decode', stageStartedAt, `rows=${rows.length} legacy=${decoded.legacyRowIds.length}`);
     this.freshRows = rows;
     this.freshLegacyRowIds = decoded.legacyRowIds;
     return decoded.state;
@@ -101,23 +125,44 @@ export class HuaweiSpaceHistoryRemoteStore {
   ): Promise<HuaweiSpaceHistoryWriteResult> {
     this.assertConfigured();
     const store = await this.getStore();
+    let stageStartedAt = Date.now();
+    const canReuseMirror = this.lastMirror !== undefined && this.freshRows !== undefined;
     const currentRows = await this.consumeFreshRows(store, skipCloudTransport);
-    const writePlan: AiraHistoryRemoteWritePlan =
-      await this.computeExecutor.planHuaweiHistoryRemoteWrite(this.uid, this.deviceId, currentRows, state);
+    this.logStage('write-load-rows', stageStartedAt, `rows=${currentRows.length} skipCloud=${skipCloudTransport ? 1 : 0}`);
+    stageStartedAt = Date.now();
+    const writePlan: AiraHistoryRemoteWritePlan = canReuseMirror && this.lastMirror !== undefined
+      ? this.planWriteFromMirror(this.lastMirror, state)
+      : await this.computeExecutor.planHuaweiHistoryRemoteWrite(this.uid, this.deviceId, currentRows, state);
     const projection = writePlan.projection;
+    this.logStage(
+      'write-plan',
+      stageStartedAt,
+      `upsert=${projection.rowsToUpsert.length} delete=${projection.rowIdsToDeleteBeforePublish.length}` +
+        ` reused=${canReuseMirror ? 1 : 0}`
+    );
+    stageStartedAt = Date.now();
     let changedRowCount = await this.stageProjection(store, projection);
+    this.logStage('write-stage', stageStartedAt, `changed=${changedRowCount}`);
     if (changedRowCount > 0 && !skipCloudTransport) {
+      stageStartedAt = Date.now();
       await this.runIncrementalCommitBarrier(store, this.changedCloudTables(projection));
+      this.logStage('write-barrier', stageStartedAt, 'mode=time+cloud');
     } else if (changedRowCount > 0) {
+      stageStartedAt = Date.now();
       await this.runCloudSync(
         store,
         relationalStore.SyncMode.SYNC_MODE_TIME_FIRST,
         true,
         this.changedCloudTables(projection)
       );
+      this.logStage('write-barrier', stageStartedAt, 'mode=time-only');
     }
+    stageStartedAt = Date.now();
     let confirmedRows = await this.readAllPhysicalRows(store);
+    this.logStage('write-reload', stageStartedAt, `rows=${confirmedRows.length}`);
+    stageStartedAt = Date.now();
     let confirmation = await this.assertProjectionAndDesiredStateConfirmed(confirmedRows, projection, state);
+    this.logStage('write-confirm', stageStartedAt, `ok=${confirmation.projectionConfirmed ? 1 : 0}`);
 
     const cleanedLegacyRows = await this.deleteConfirmedLegacyRows(store, projection);
     changedRowCount += cleanedLegacyRows;
@@ -170,6 +215,14 @@ export class HuaweiSpaceHistoryRemoteStore {
     projection: AiraHistoryRemoteWriteProjection,
     desired: HuaweiSpaceHistorySyncState
   ): Promise<AiraHistoryRemoteWriteConfirmation> {
+    if (this.isHeadChecksumConfirmed(confirmedRows, projection)) {
+      return {
+        confirmed: desired,
+        projectionConfirmed: true,
+        desiredStateConfirmed: true,
+        localApplyRequired: false
+      };
+    }
     const confirmation = await this.computeExecutor.confirmHuaweiHistoryRemoteWrite(
         this.uid,
         this.deviceId,
@@ -298,6 +351,38 @@ export class HuaweiSpaceHistoryRemoteStore {
     }
   }
 
+  private isHeadChecksumConfirmed(
+    rows: HuaweiSpaceHistoryRow[],
+    projection: AiraHistoryRemoteWriteProjection
+  ): boolean {
+    for (let index = 0; index < rows.length; index += 1) {
+      const row = rows[index];
+      if (row.rowId !== projection.targetHeadRowId || row.recordKind !== 'snapshot_head') {
+        continue;
+      }
+      try {
+        const parsed = JSON.parse(row.data) as HuaweiSpaceHistoryHeadChecksum;
+        return parsed.generation === projection.targetGeneration &&
+          parsed.stateChecksum === projection.targetStateChecksum &&
+          parsed.deviceId === projection.targetDeviceId;
+      } catch (_error) {
+        return false;
+      }
+    }
+    return false;
+  }
+
+  private logStage(stage: string, startedAt: number, extra: string = ''): void {
+    hilog.info(
+      HUAWEI_HISTORY_LOG_DOMAIN,
+      HUAWEI_HISTORY_LOG_TAG,
+      'Huawei history stage=%{public}s durationMs=%{public}d extra=%{public}s',
+      stage,
+      Date.now() - startedAt,
+      extra
+    );
+  }
+
   private samePhysicalRow(left: HuaweiSpaceHistoryRow, right: HuaweiSpaceHistoryRow): boolean {
     return left.rowId === right.rowId && left.recordKind === right.recordKind &&
       left.logicalId === right.logicalId && left.data === right.data && left.updatedAt === right.updatedAt;
@@ -305,10 +390,27 @@ export class HuaweiSpaceHistoryRemoteStore {
 
   private async decodeRemoteState(rows: HuaweiSpaceHistoryRow[]): Promise<AiraHistoryRemoteStateDecode> {
     try {
-      return await this.computeExecutor.decodeHuaweiHistoryRemoteState(this.uid, this.deviceId, rows);
+      const mirror = new HuaweiSpaceHistorySnapshotCodec(this.uid, this.deviceId).decodeRows(rows);
+      this.lastMirror = mirror;
+      return {
+        state: mirror.state,
+        legacyRowIds: mirror.legacyRowIds
+      };
     } catch (error) {
+      this.lastMirror = undefined;
       return this.rethrowDecodeError(error);
     }
+  }
+
+  private planWriteFromMirror(
+    mirror: HuaweiSpaceHistoryPhysicalMirror,
+    desired: HuaweiSpaceHistorySyncState
+  ): AiraHistoryRemoteWritePlan {
+    const codec = new HuaweiSpaceHistorySnapshotCodec(this.uid, this.deviceId);
+    const merged = new HistorySyncMergeService().merge(mirror.state, desired);
+    return {
+      projection: AiraHistoryTaskpoolTransferCodec.leanProjection(codec.buildProjection(merged, mirror))
+    };
   }
 
   private rethrowDecodeError<T>(error: Object): T {
@@ -411,6 +513,7 @@ export class HuaweiSpaceHistoryRemoteStore {
       const logicalIdIndex = resultSet.getColumnIndex('logicalId');
       const dataIndex = resultSet.getColumnIndex('data');
       const updatedAtIndex = resultSet.getColumnIndex('updatedAt');
+      const readStartedAt = Date.now();
       while (resultSet.goToNextRow()) {
         const row: HuaweiSpaceHistoryRow = {
           rowId: resultSet.getString(rowIdIndex).trim(),
@@ -422,6 +525,7 @@ export class HuaweiSpaceHistoryRemoteStore {
         rows.push(row);
         await this.rowReadThrottle.afterBatchItem(rows.length);
       }
+      this.logStage('read-rows', readStartedAt, `table=${tableName} rows=${rows.length}`);
     } finally {
       resultSet.close();
     }
@@ -436,7 +540,15 @@ export class HuaweiSpaceHistoryRemoteStore {
       return;
     }
     await this.runCloudSync(store, relationalStore.SyncMode.SYNC_MODE_TIME_FIRST, true, tableNames);
-    await this.runCloudSync(store, relationalStore.SyncMode.SYNC_MODE_CLOUD_FIRST, true, tableNames);
+    const headTables: string[] = [];
+    for (let index = 0; index < tableNames.length; index += 1) {
+      if (tableNames[index] === HUAWEI_SPACE_HISTORY_HEAD_TABLE) {
+        headTables.push(tableNames[index]);
+      }
+    }
+    if (headTables.length > 0) {
+      await this.runCloudSync(store, relationalStore.SyncMode.SYNC_MODE_CLOUD_FIRST, true, headTables);
+    }
   }
 
   private runCloudSync(

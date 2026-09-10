@@ -1,6 +1,7 @@
 import { cryptoFramework } from '@kit.CryptoArchitectureKit';
 import { relationalStore } from '@kit.ArkData';
 import { util } from '@kit.ArkTS';
+import { hilog } from '@kit.PerformanceAnalysisKit';
 import {
   AIRA_BOOKMARK_HISTORY_VERSION,
   AIRA_SYNC_SCHEMA_VERSION,
@@ -18,6 +19,9 @@ import {
   HUAWEI_SPACE_BOOKMARK_BLOCK_TABLE,
   HUAWEI_SPACE_BOOKMARK_HEAD_TABLE
 } from './HuaweiSpaceRdbStoreOwner';
+
+const HUAWEI_SPACE_G8_LOG_DOMAIN: number = 0x0000;
+const HUAWEI_SPACE_G8_LOG_TAG: string = 'AiraHuaweiSpace';
 
 type HuaweiSpaceBookmarkPartition = 'shared' | 'appPrivate';
 type HuaweiSpaceBookmarkRecordKind = 'folder' | 'item' | 'orderPart' | 'tombstone';
@@ -250,6 +254,46 @@ export class HuaweiSpaceBookmarkChunkRepository {
     return [HUAWEI_SPACE_BOOKMARK_HEAD_TABLE, HUAWEI_SPACE_BOOKMARK_BLOCK_TABLE];
   }
 
+  async describeLocalHeadRows(store: relationalStore.RdbStore): Promise<string> {
+    const predicates = new relationalStore.RdbPredicates(HUAWEI_SPACE_BOOKMARK_HEAD_TABLE);
+    predicates.equalTo('accountUid', this.uid);
+    const resultSet = await store.queryWithoutRowCount(
+      predicates,
+      ['recordKind', 'logicalId', 'storageEpoch', 'data', 'updatedAt']
+    );
+    const kinds: string[] = [];
+    const epochs: string[] = [];
+    const dataBytes: string[] = [];
+    let rowCount = 0;
+    let maxDataBytes = 0;
+    let emptyStorageEpochCount = 0;
+    try {
+      const kindIndex = resultSet.getColumnIndex('recordKind');
+      const logicalIdIndex = resultSet.getColumnIndex('logicalId');
+      const storageEpochIndex = resultSet.getColumnIndex('storageEpoch');
+      const dataIndex = resultSet.getColumnIndex('data');
+      while (resultSet.goToNextRow()) {
+        rowCount += 1;
+        const encoded = resultSet.getString(dataIndex) ?? '';
+        const bytes = this.byteCount(encoded);
+        maxDataBytes = Math.max(maxDataBytes, bytes);
+        const storageEpoch = resultSet.getLong(storageEpochIndex);
+        if (storageEpoch <= 0) {
+          emptyStorageEpochCount += 1;
+        }
+        if (kinds.length < 8) {
+          kinds.push((resultSet.getString(kindIndex) ?? '').trim() || 'empty');
+          epochs.push(String(storageEpoch));
+          dataBytes.push(`${bytes}b/${(resultSet.getString(logicalIdIndex) ?? '').trim().length}id`);
+        }
+      }
+    } finally {
+      resultSet.close();
+    }
+    return `rows=${rowCount} maxDataBytes=${maxDataBytes} emptyEpoch=${emptyStorageEpochCount}` +
+      ` kinds=${kinds.join(',') || 'none'} epochs=${epochs.join(',') || 'none'} data=${dataBytes.join(',') || 'none'}`;
+  }
+
   async readMaterializedHeads(store: relationalStore.RdbStore): Promise<HuaweiSpaceBookmarkChunkHeadReadResult> {
     const catalog = await this.readCatalog(store);
     const viableIds = new Set<string>(catalog.physicallyCompleteManifestIds);
@@ -430,7 +474,7 @@ export class HuaweiSpaceBookmarkChunkRepository {
     await store.insert(
       HUAWEI_SPACE_BOOKMARK_HEAD_TABLE,
       {
-        rowId: this.buildHeadRowId(publication.slotId),
+        rowId: this.buildPublicationHeadRowId(publication.slotId, publication.commitId),
         accountUid: this.uid,
         recordKind: 'head',
         logicalId: publication.commitId,
@@ -447,7 +491,7 @@ export class HuaweiSpaceBookmarkChunkRepository {
     publication: HuaweiSpaceBookmarkHeadPublication
   ): Promise<boolean> {
     const predicates = new relationalStore.RdbPredicates(HUAWEI_SPACE_BOOKMARK_HEAD_TABLE);
-    predicates.equalTo('rowId', this.buildHeadRowId(publication.slotId));
+    predicates.equalTo('rowId', this.buildPublicationHeadRowId(publication.slotId, publication.commitId));
     predicates.equalTo('accountUid', this.uid);
     predicates.equalTo('recordKind', 'head');
     const resultSet = await store.queryWithoutRowCount(
@@ -739,11 +783,22 @@ export class HuaweiSpaceBookmarkChunkRepository {
             resultSet.getLong(updatedAtIndex)
           );
           const rowStorageEpoch = resultSet.getLong(storageEpochIndex);
-          if (rowStorageEpoch !== manifest.storageEpoch ||
-            resultSet.getString(rowIdIndex) !== this.buildHeadRowId(this.buildHeadSlotId(manifest.deviceId))) {
+          const rowId = resultSet.getString(rowIdIndex);
+          if (rowStorageEpoch !== manifest.storageEpoch) {
             throw new Error('华为云空间书签 G8 Head 槽位标识不匹配。');
           }
-          manifest.headRowId = resultSet.getString(rowIdIndex);
+          if (!this.isRecognizedHeadRowId(rowId, manifest.deviceId, commitId)) {
+            hilog.warn(
+              HUAWEI_SPACE_G8_LOG_DOMAIN,
+              HUAWEI_SPACE_G8_LOG_TAG,
+              'G8 head rowId skipped uid=%{public}s commit=%{public}s rowId=%{public}s',
+              this.uid.substring(0, 8),
+              commitId,
+              rowId
+            );
+            continue;
+          }
+          manifest.headRowId = rowId;
           manifests.set(commitId, manifest);
         } catch (error) {
           if (this.declaresCurrentManifestFormat(encoded)) {
@@ -1789,8 +1844,19 @@ export class HuaweiSpaceBookmarkChunkRepository {
     return this.sha256Hex(this.requireString(deviceId, 'deviceId'));
   }
 
-  private buildHeadRowId(slotId: string): string {
+  private isRecognizedHeadRowId(rowId: string, deviceId: string, commitId: string): boolean {
+    const slotId = this.buildHeadSlotId(deviceId);
+    return rowId === this.buildPublicationHeadRowId(slotId, commitId) ||
+      rowId === this.buildReplaceableHeadRowId(slotId);
+  }
+
+  private buildReplaceableHeadRowId(slotId: string): string {
     return [this.uid, 'g8', 'head', this.requireHash(slotId, 'slotId')]
+      .map((value: string): string => `${value.length}:${value}`).join('|');
+  }
+
+  private buildPublicationHeadRowId(slotId: string, commitId: string): string {
+    return [this.uid, 'g8', 'head', this.requireHash(slotId, 'slotId'), this.requireString(commitId, 'commitId')]
       .map((value: string): string => `${value.length}:${value}`).join('|');
   }
 

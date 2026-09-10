@@ -64,10 +64,17 @@ export class HuaweiSpaceHistorySyncRunner {
     identity: HuaweiSpaceHistorySyncIdentity,
     clearOutboxAfterSuccess: boolean = true
   ): Promise<HistorySyncRunResult> {
+    const runStartedAt = Date.now();
     await this.database.initialize();
+    let stageStartedAt = Date.now();
     let appliedChangeCount = await this.database.pruneHistorySyncProjection(identity.accountUid);
-    await this.enrollLocalVisits(identity);
+    this.logStage('prune', stageStartedAt, `applied=${appliedChangeCount}`);
+    stageStartedAt = Date.now();
+    const enrolled = await this.enrollLocalVisits(identity);
+    this.logStage('enroll', stageStartedAt, `enrolled=${enrolled}`);
+    stageStartedAt = Date.now();
     const local = await this.database.readHuaweiSpaceHistorySyncState(identity.accountUid);
+    this.logStage('read-local', stageStartedAt);
     const useCachedRemote = shouldUseCachedHuaweiHistoryRemote(
       clearOutboxAfterSuccess,
       identity.accountUid,
@@ -77,6 +84,7 @@ export class HuaweiSpaceHistorySyncRunner {
     const remoteStore = this.remoteStoreFactory(identity.accountUid, identity.clientId);
     const cachedRemote = this.lastConfirmedState;
     let remote: HuaweiSpaceHistorySyncState;
+    stageStartedAt = Date.now();
     if (useCachedRemote && cachedRemote !== undefined) {
       hilog.info(
         HISTORY_HUAWEI_LOG_DOMAIN,
@@ -84,36 +92,61 @@ export class HuaweiSpaceHistorySyncRunner {
         'Huawei history used cached remote and skipped CLOUD_FIRST'
       );
       remote = cachedRemote;
+      this.logStage('read-remote', stageStartedAt, 'source=cache');
     } else {
       remote = await remoteStore.readState();
+      this.logStage('read-remote', stageStartedAt, 'source=cloud');
     }
+    stageStartedAt = Date.now();
     const initialPlan: AiraHistoryInitialMergePlan =
       await this.computeExecutor.planHuaweiHistoryInitialMerge(remote, local);
+    this.logStage(
+      'plan-merge',
+      stageStartedAt,
+      `write=${initialPlan.remoteWriteRequired ? 1 : 0} apply=${initialPlan.localApplyRequired ? 1 : 0}`
+    );
+    stageStartedAt = Date.now();
     const firstApplied = initialPlan.localApplyRequired
       ? await this.database.applyHuaweiSpaceHistorySyncState(identity.accountUid, initialPlan.merged)
       : 0;
     appliedChangeCount += firstApplied;
+    this.logStage('apply-local', stageStartedAt, `applied=${firstApplied}`);
     const desired = initialPlan.merged;
     const remoteMaintenanceRequired = remoteStore.requiresMaintenance();
     const remoteWriteRequired = initialPlan.remoteWriteRequired || remoteMaintenanceRequired;
+    stageStartedAt = Date.now();
     const writeResult: HuaweiSpaceHistoryWriteResult = remoteWriteRequired
       ? await remoteStore.writeState(desired, useCachedRemote)
       : { state: remote, changedRowCount: 0, localApplyRequired: false };
+    this.logStage(
+      'write-remote',
+      stageStartedAt,
+      `required=${remoteWriteRequired ? 1 : 0} changed=${writeResult.changedRowCount} cached=${useCachedRemote ? 1 : 0}`
+    );
     const confirmedState = remoteWriteRequired ? writeResult.state : initialPlan.merged;
     const confirmedLocalApplyRequired = remoteWriteRequired && writeResult.localApplyRequired;
+    stageStartedAt = Date.now();
     const confirmedApplied = confirmedLocalApplyRequired
       ? await this.database.applyHuaweiSpaceHistorySyncState(identity.accountUid, confirmedState)
       : 0;
     appliedChangeCount += confirmedApplied;
+    this.logStage('apply-confirmed', stageStartedAt, `applied=${confirmedApplied}`);
+    stageStartedAt = Date.now();
     const pruned = initialPlan.localApplyRequired || confirmedLocalApplyRequired
       ? await this.database.pruneHistorySyncProjection(identity.accountUid)
       : 0;
     appliedChangeCount += pruned;
+    this.logStage('prune-final', stageStartedAt, `pruned=${pruned}`);
     if (clearOutboxAfterSuccess) {
       await this.database.clearHistorySyncOutbox(identity.accountUid);
     }
     this.lastConfirmedAccountUid = identity.accountUid;
     this.lastConfirmedState = this.mergeService.normalize(confirmedState);
+    this.logStage(
+      'run-total',
+      runStartedAt,
+      `applied=${appliedChangeCount} uploaded=${writeResult.changedRowCount}`
+    );
     return {
       ok: true,
       appliedChangeCount,
@@ -122,6 +155,17 @@ export class HuaweiSpaceHistorySyncRunner {
         ? '历史记录已完成华为云空间增量同步。'
         : '历史记录已经是最新。'
     };
+  }
+
+  private logStage(stage: string, startedAt: number, extra: string = ''): void {
+    hilog.info(
+      HISTORY_HUAWEI_LOG_DOMAIN,
+      HISTORY_HUAWEI_LOG_TAG,
+      'Huawei history stage=%{public}s durationMs=%{public}d extra=%{public}s',
+      stage,
+      Date.now() - startedAt,
+      extra
+    );
   }
 
   private async enrollLocalVisits(identity: HuaweiSpaceHistorySyncIdentity): Promise<number> {

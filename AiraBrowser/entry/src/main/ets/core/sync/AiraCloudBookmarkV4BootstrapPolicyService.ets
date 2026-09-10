@@ -1,5 +1,6 @@
 import { AiraMembershipState } from '../../common/models/MembershipModels';
 import {
+  AiraSyncProviderRuntimeState,
   AiraSyncSettings
 } from '../../common/models/AiraSyncModels';
 import {
@@ -43,9 +44,22 @@ export class AiraCloudBookmarkV4BootstrapPolicyService {
       if (record.cutoverId === AIRA_CLOUD_BOOKMARK_V4_CUTOVER_ID && record.status === 'opted_out') {
         return this.decision(false, uid, 'opted_out');
       }
-      return this.decision(true, uid, 'required');
+    }
+    if (this.hasEstablishedOtherBookmarkProvider(settings) &&
+      !this.hasFormalCutoverRecoveryPoint(record)) {
+      return this.decision(false, uid, 'provider_switch_activation');
     }
     return this.decision(true, uid, 'required');
+  }
+
+  private hasEstablishedOtherBookmarkProvider(settings: AiraSyncSettings): boolean {
+    return settings.providerStates.some((state: AiraSyncProviderRuntimeState): boolean => {
+      return state.remoteKind !== 'aira_cloud' && state.bookmark.lastSuccessAt > 0;
+    });
+  }
+
+  private hasFormalCutoverRecoveryPoint(record?: AiraCloudBookmarkV4BootstrapRecord): boolean {
+    return record !== undefined && record.backupId.trim().length > 0;
   }
 
   private decision(

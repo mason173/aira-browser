@@ -1169,6 +1169,15 @@
     "note": "Lucide Operational font source"
   },
   {
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/tools.svg",
+    "originalSource": "Lucide 1.38.0 / tools",
+    "primaryResourceFamily": "app_settings_toolbar",
+    "resourceFamilies": [
+      "app_settings_toolbar"
+    ],
+    "note": "Lucide Operational font source"
+  },
+  {
     "exportedFile": "icons/app_widget_shortcut_history__user-provided.svg",
     "originalSource": "user-provided/历史记录.svg",
     "primaryResourceFamily": "app_widget_shortcut_history",

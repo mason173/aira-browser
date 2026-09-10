@@ -29,6 +29,7 @@ interface HuaweiSpaceCloudSyncTask {
   released: boolean;
   callbackCompleted: boolean;
   finalProgressCode: number;
+  tableDetails: string;
   timeoutId: number;
   timedOut: boolean;
   startedAt: number;
@@ -92,6 +93,7 @@ export class HuaweiSpaceCloudSyncCoordinator {
       released: false,
       callbackCompleted: false,
       finalProgressCode: -1,
+      tableDetails: '',
       timeoutId: -1,
       timedOut: false,
       startedAt: 0
@@ -151,9 +153,10 @@ export class HuaweiSpaceCloudSyncCoordinator {
       hilog.error(
         HUAWEI_SPACE_CLOUD_SYNC_LOG_DOMAIN,
         HUAWEI_SPACE_CLOUD_SYNC_LOG_TAG,
-        'cloudSync failed uid=%{public}s tables=%{public}s message=%{public}s',
+        'cloudSync failed uid=%{public}s tables=%{public}s details=%{public}s message=%{public}s',
         HuaweiSpaceCloudSyncCoordinator.maskValue(request.uid),
         request.tableNames.join(','),
+        task.tableDetails,
         error.message ?? JSON.stringify(error)
       );
       HuaweiSpaceCloudSyncCoordinator.rejectOnce(task, error);
@@ -183,6 +186,7 @@ export class HuaweiSpaceCloudSyncCoordinator {
             return;
           }
           task.finalProgressCode = progressDetails.code;
+          task.tableDetails = HuaweiSpaceCloudSyncCoordinator.formatTableDetails(progressDetails, request.tableNames);
           if (task.finalProgressCode !== relationalStore.ProgressCode.SUCCESS) {
             rejectAndRelease(request.buildProgressError(task.finalProgressCode));
             return;
@@ -305,14 +309,38 @@ export class HuaweiSpaceCloudSyncCoordinator {
     hilog.info(
       HUAWEI_SPACE_CLOUD_SYNC_LOG_DOMAIN,
       HUAWEI_SPACE_CLOUD_SYNC_LOG_TAG,
-      'cloudSync %{public}s uid=%{public}s tables=%{public}s mode=%{public}d durationMs=%{public}d code=%{public}d',
+      'cloudSync %{public}s uid=%{public}s tables=%{public}s mode=%{public}d durationMs=%{public}d code=%{public}d details=%{public}s',
       outcome,
       HuaweiSpaceCloudSyncCoordinator.maskValue(task.request.uid),
       task.request.tableNames.join(','),
       syncMode,
       durationMs,
-      progressCode
+      progressCode,
+      task.tableDetails
     );
+  }
+
+  private static formatTableDetails(
+    progressDetails: relationalStore.ProgressDetails,
+    tableNames: string[]
+  ): string {
+    const details = progressDetails.details;
+    if (details === undefined) {
+      return 'none';
+    }
+    const parts: string[] = [];
+    for (let index = 0; index < tableNames.length; index++) {
+      const tableName = tableNames[index];
+      const table = details[tableName];
+      if (table === undefined) {
+        continue;
+      }
+      parts.push(
+        `${tableName} up=${table.upload.total}/${table.upload.successful}/${table.upload.failed}/${table.upload.remained}` +
+          ` down=${table.download.total}/${table.download.successful}/${table.download.failed}/${table.download.remained}`
+      );
+    }
+    return parts.length > 0 ? parts.join(';') : 'none';
   }
 
   private static maskValue(value: string): string {

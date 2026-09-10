@@ -46,8 +46,24 @@ export type AiraCloudBookmarkV4BootstrapEligibilityReason =
   | 'account_mismatch'
   | 'not_legacy_initialized'
   | 'provider_switch_in_progress'
+  | 'provider_switch_activation'
   | 'completed'
   | 'opted_out';
+
+export function shouldAcknowledgeNativeAiraCloudBookmarkV4Activation(
+  writtenRemoteKind: string,
+  activeRemoteKind: string,
+  bookmarkGenerationInitializedAt: number,
+  initializeBookmarkGeneration: boolean
+): boolean {
+  if (initializeBookmarkGeneration !== true || writtenRemoteKind !== 'aira_cloud') {
+    return false;
+  }
+  if (bookmarkGenerationInitializedAt <= 0) {
+    return true;
+  }
+  return activeRemoteKind !== 'aira_cloud';
+}
 
 export interface AiraCloudBookmarkV4BootstrapEligibility {
   required: boolean;

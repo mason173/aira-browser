@@ -21,11 +21,17 @@ const FLOATING_SELECTION_TOOLBAR_BUTTON_RADIUS: number = FLOATING_SELECTION_TOOL
 const FLOATING_SELECTION_TOOLBAR_ICON_SIZE: number = 21;
 const FLOATING_SELECTION_TOOLBAR_TEXT_SIZE: number = 11;
 
+export interface FloatingSelectionToolbarMenuItem {
+  value: string;
+  action: () => void;
+}
+
 export interface FloatingSelectionToolbarAction {
   icon?: Resource;
   airaIconId?: AiraRenderableIconId;
   title: string;
-  action: () => void;
+  action?: () => void;
+  menu?: FloatingSelectionToolbarMenuItem[];
 }
 
 @Component
@@ -49,7 +55,11 @@ export struct FloatingSelectionToolbar {
       }) {
         Row({ space: FLOATING_SELECTION_TOOLBAR_ACTION_GAP }) {
           ForEach(this.actions, (item: FloatingSelectionToolbarAction) => {
-            this.buildSelectionAction(item)
+            if (item.menu !== undefined && item.menu.length > 0) {
+              this.buildSelectionMenuAction(item)
+            } else {
+              this.buildSelectionClickAction(item)
+            }
           }, (item: FloatingSelectionToolbarAction, index: number) => `${item.title}-${index}`)
         }
         .width('100%')
@@ -70,27 +80,32 @@ export struct FloatingSelectionToolbar {
   }
 
   @Builder
-  private buildSelectionAction(item: FloatingSelectionToolbarAction) {
-    Button() {
-      Column({ space: 3 }) {
-        if (item.airaIconId !== undefined) {
-          AiraIcon({
-            airaIconId: item.airaIconId,
-            iconSize: FLOATING_SELECTION_TOOLBAR_ICON_SIZE,
-            iconColor: this.storedPrimaryTextColor
-          })
-        } else if (item.icon !== undefined) {
-          Image(item.icon)
-            .width(FLOATING_SELECTION_TOOLBAR_ICON_SIZE)
-            .height(FLOATING_SELECTION_TOOLBAR_ICON_SIZE)
-            .objectFit(ImageFit.Contain)
-        }
-        Text(item.title)
-          .fontSize(FLOATING_SELECTION_TOOLBAR_TEXT_SIZE)
-          .fontColor(this.storedPrimaryTextColor)
-          .maxLines(1)
+  private buildSelectionActionContent(item: FloatingSelectionToolbarAction) {
+    Column({ space: 3 }) {
+      if (item.airaIconId !== undefined) {
+        AiraIcon({
+          airaIconId: item.airaIconId,
+          iconSize: FLOATING_SELECTION_TOOLBAR_ICON_SIZE,
+          iconColor: this.storedPrimaryTextColor
+        })
+      } else if (item.icon !== undefined) {
+        Image(item.icon)
+          .width(FLOATING_SELECTION_TOOLBAR_ICON_SIZE)
+          .height(FLOATING_SELECTION_TOOLBAR_ICON_SIZE)
+          .objectFit(ImageFit.Contain)
       }
-      .alignItems(HorizontalAlign.Center)
+      Text(item.title)
+        .fontSize(FLOATING_SELECTION_TOOLBAR_TEXT_SIZE)
+        .fontColor(this.storedPrimaryTextColor)
+        .maxLines(1)
+    }
+    .alignItems(HorizontalAlign.Center)
+  }
+
+  @Builder
+  private buildSelectionClickAction(item: FloatingSelectionToolbarAction) {
+    Button() {
+      this.buildSelectionActionContent(item)
     }
     .width(this.resolveActionWidth(item.title))
     .height(FLOATING_SELECTION_TOOLBAR_BUTTON_HEIGHT)
@@ -99,7 +114,30 @@ export struct FloatingSelectionToolbar {
     .backgroundColor($r('sys.color.ohos_id_color_background_transparent'))
     .borderRadius(FLOATING_SELECTION_TOOLBAR_BUTTON_RADIUS)
     .stateEffect(true)
-    .onClick(item.action)
+    .accessibilityText(item.title)
+    .onClick(() => {
+      if (item.action !== undefined) {
+        item.action();
+      }
+    })
+  }
+
+  @Builder
+  private buildSelectionMenuAction(item: FloatingSelectionToolbarAction) {
+    Button() {
+      this.buildSelectionActionContent(item)
+    }
+    .width(this.resolveActionWidth(item.title))
+    .height(FLOATING_SELECTION_TOOLBAR_BUTTON_HEIGHT)
+    .type(ButtonType.Normal)
+    .padding(0)
+    .backgroundColor($r('sys.color.ohos_id_color_background_transparent'))
+    .borderRadius(FLOATING_SELECTION_TOOLBAR_BUTTON_RADIUS)
+    .stateEffect(true)
+    .accessibilityText(item.title)
+    .bindMenu(item.menu !== undefined ? item.menu : [], {
+      placement: Placement.Top
+    })
   }
 
   private resolveToolbarWidth(): number {
