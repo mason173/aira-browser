@@ -5,7 +5,7 @@ This folder contains the Canonical Aira Icon Catalog and its source inputs. The 
 be edited by hand.
 
 - `icon-catalog.json` is the sole authority for Aira Operational Icon identities, groups, legacy resource aliases,
-  Lucide glyph mappings, the five Form SVG exceptions, and the small deterministic compatibility-output inventory.
+  glyph mappings, the five Form SVG exceptions, and the small deterministic compatibility-output inventory.
 - `image-assets.json` is the separate owner manifest for brand/third-party image sources, their compatibility export
   group, and the explicit packaged-SVG exception inventory. Entries here are not Operational Icons.
 - `icons/` contains the five Form-only Operational SVG sources plus approved brand/third-party image assets. Ordinary
@@ -15,14 +15,14 @@ be edited by hand.
   They combine Operational Icon projections from the catalog with image-owned compatibility entries from the image
   manifest. The catalog group `bottom-toolbar-customizable` is the authority for the Settings > Bottom toolbar draggable
   action icons.
-- `vendor/lucide/aira-operational-icons/` contains the vendored Lucide 124-SVG source set, a checksum-pinned append-only
-  codepoint manifest, and the generated permanent Operational font.
+- `vendor/lucide/aira-operational-icons/` contains the vendored Tabler 124-SVG source set (directory name is historical),
+  a checksum-pinned append-only codepoint manifest, and the generated permanent Operational font.
 - The generator packages the single Operational font under `rawfile/fonts/aira/` and derives
   `core/resources/GeneratedAiraIconCatalog.ets`. App code consumes semantic icon IDs from that generated catalog; it does
   not hand-maintain codepoints, font families, rawfile paths, or legacy Resource switches.
 - `legacyResourceFamily` remains compatibility metadata for action catalogs and design exports. Old custom Operational
-  SVGs are not retained after their Lucide glyph is adopted.
-- Six frozen settings/Sync `Resource` consumers receive compatibility SVGs generated from the same Lucide source pack;
+  SVGs are not retained after their Operational glyph is adopted.
+- Six frozen settings/Sync `Resource` consumers receive compatibility SVGs generated from the same Operational source pack;
   these are not a second icon design source. The colored tile background remains owned by `SettingsRows.ets`.
 - Official raster brand assets are copied without recoloring. Their source URLs and any lossless format conversion are
   recorded in `image-assets.json` and projected into `icon-map.csv` and `icon-map.json`.
@@ -39,14 +39,14 @@ new Operational Icon:
 - **Visual replacement:** keep the existing semantic Catalog ID, manifest `glyph`, `sourceFile`, and BMP private-use
   `codePoint`. Replace only the licensed SVG bytes; do not append a second glyph or change consumers.
 - **New icon:** append one entry to `vendor/lucide/aira-operational-icons/source-manifest.json` with a new unique glyph
-  name, the next unused BMP private-use `codePoint`, Lucide slug, and `svg/<filename>`, then add the semantic mapping to the
+  name, the next unused BMP private-use `codePoint`, historical Lucide slug, and `svg/<filename>`, then add the semantic mapping to the
   human-maintained `icon-catalog.json`. Existing codepoints are immutable.
 
 Brand logos, third-party app/provider icons, favicons, launcher artwork, and other identity-bearing or dynamic images do
 not enter this font. Keep them image-owned. Do not hand-edit `icon-map.csv`, `icon-map.json`, `icon-groups.json`,
 `GeneratedAiraIconCatalog.ets`, or packaged `media` outputs; they are generated artifacts.
 
-### 1. Validate and collect the Lucide source
+### 1. Validate and collect the licensed SVG source
 
 The importer accepts only SVGs with `viewBox="0 0 30 30"`, at least one non-empty `<path>` or `<polygon>` outline, and no
 executable/external SVG content.

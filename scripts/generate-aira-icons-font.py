@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate Aira's Operational Icon font from Lucide SVG sources.
+"""Generate Aira's Operational Icon font from licensed Operational SVG sources.
 
 Run through FontForge's Python runtime:
 
@@ -187,7 +187,7 @@ def build_font(entries):
         font.weight = "Regular"
         font.os2_weight = 400
         font.version = "1.0"
-        font.copyright = "Lucide 1.38.0; ISC licensed"
+        font.copyright = "Tabler Icons 3.46.0; MIT licensed"
         font.comment = (
             "Aira Operational Icon subset generated from user-provided licensed SVG sources."
         )

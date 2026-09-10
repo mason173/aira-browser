@@ -94,5 +94,5 @@ Before making the monorepo public, all of the following must be true:
 5. Production backend/Admin history and credentials have been separated from the public repository history.
 6. The Personal Server protocol, deployment package, backup/restore, upgrade, pairing, and revocation behavior pass the
    documented acceptance matrix.
-7. The vendored Lucide 1.38.0 source and its ISC license notice are present and included in the intended public source
-   and binary distribution.
+7. The vendored Tabler Icons 3.46.0 outline source and its MIT license notice are present and included in the intended
+   public source and binary distribution.

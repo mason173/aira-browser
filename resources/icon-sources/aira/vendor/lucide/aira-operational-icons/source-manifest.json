@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "authority": "aira-lucide-operational-source-pack",
-  "family": "Lucide Operational Icons",
-  "sourceKind": "vendored-lucide-static-1.38.0",
+  "family": "Aira Operational Icons",
+  "sourceKind": "vendored-tabler-icons-outline-3.46.0",
   "glyphs": [
     {
       "glyph": "app-window",
@@ -873,8 +873,8 @@
       "lucideSlug": "arrow-right"
     }
   ],
-  "package": "lucide-static",
-  "version": "1.38.0",
-  "license": "ISC",
-  "repository": "https://github.com/lucide-icons/lucide"
+  "package": "@tabler/icons",
+  "version": "3.46.0",
+  "license": "MIT",
+  "repository": "https://github.com/tabler/tabler-icons"
 }
