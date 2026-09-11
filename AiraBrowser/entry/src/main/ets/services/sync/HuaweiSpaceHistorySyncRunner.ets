@@ -12,7 +12,7 @@ import {
   HuaweiHistoryReplicaPackedOutcome
 } from './AiraSyncComputeExecutor';
 import { HistorySyncMergeService } from './HistorySyncMergeService';
-import { AiraHistoryTaskpoolTransferCodec } from './AiraHistoryTaskpoolTransferCodec';
+import { AiraHistoryTaskpoolTransferCodec, AiraHistoryRemoteWriteProjection } from './AiraHistoryTaskpoolTransferCodec';
 import { AiraSyncJankProbe } from '../../common/debug/AiraSyncJankProbe';
 
 const HISTORY_HUAWEI_ENROLLMENT_BATCH_SIZE: number = 500;
@@ -140,6 +140,34 @@ export class HuaweiSpaceHistorySyncRunner {
       this.lastConfirmedState
     );
     let remote: HuaweiSpaceHistorySyncState | undefined = undefined;
+    const confirmedRemoteCache = this.lastConfirmedState;
+    const hasPotentialLocalWork = enrolled > 0 || hasOutbox || hasRecentTombstones;
+    if (useCachedRemote && confirmedRemoteCache !== undefined && hasPotentialLocalWork) {
+      stageStartedAt = Date.now();
+      const cachedPeekedChecksum = await remoteStore.peekHeadChecksum();
+      const cachedHeadMatches = knownChecksum.length > 0 && knownChecksum === cachedPeekedChecksum;
+      const cachedLiteReady = cachedHeadMatches && await remoteStore.preparePackedReplicaRows();
+      AiraSyncJankProbe.markExtra(
+        'history_read_plan',
+        `plan=cached-lite eligible=${cachedLiteReady ? 1 : 0} headMatches=${cachedHeadMatches ? 1 : 0}` +
+          ` enrolled=${enrolled} outbox=${hasOutbox ? 1 : 0} tombstones=${hasRecentTombstones ? 1 : 0}`
+      );
+      if (cachedLiteReady) {
+        const cachedLite = await this.tryLiteReplicaWrite(
+          identity,
+          remoteStore,
+          knownHead.updatedAt,
+          clearOutboxAfterSuccess,
+          appliedChangeCount,
+          runStartedAt
+        );
+        if (cachedLite !== undefined) {
+          this.logStage('read-remote', stageStartedAt, 'source=cached-head-lite');
+          return cachedLite;
+        }
+      }
+      this.logStage('read-remote', stageStartedAt, `source=cache-probe ready=${cachedLiteReady ? 1 : 0}`);
+    }
     if (!useCachedRemote) {
       stageStartedAt = Date.now();
       const peekedChecksum = await remoteStore.peekHeadChecksum();
@@ -196,8 +224,8 @@ export class HuaweiSpaceHistorySyncRunner {
           if (lite !== undefined) {
             return lite;
           }
-          const packedRows = remoteStore.takePackedReplicaRows();
-          if (packedRows !== undefined) {
+          const packedRows = remoteStore.takePackedReplicaRows() ?? remoteStore.repackFreshReplicaRows();
+          if (packedRows !== undefined && packedRows.byteLength > 0) {
             return await this.runPackedReplica(
               identity,
               remoteStore,
@@ -315,9 +343,11 @@ export class HuaweiSpaceHistorySyncRunner {
     this.logStage('read-local', stageStartedAt);
     const outbox = await this.database.listHistorySyncOutbox(identity.accountUid, 32);
     const outboxVisitIds: string[] = [];
+    const mutationKinds: string[] = [];
     let hasRangeOrClear = false;
     for (let index = 0; index < outbox.length; index += 1) {
       const mutation: HistorySyncMutation = outbox[index];
+      mutationKinds.push(mutation.kind);
       if (mutation.kind === 'delete_range' || mutation.kind === 'clear_before') {
         hasRangeOrClear = true;
         break;
@@ -330,17 +360,41 @@ export class HuaweiSpaceHistorySyncRunner {
     const codec = new HuaweiSpaceHistorySnapshotCodec(identity.accountUid, identity.clientId);
     const dirty = codec.collectDirtyBucketIndexes(local, knownHeadUpdatedAt, outboxVisitIds, hasRangeOrClear);
     if (dirty === undefined) {
+      AiraSyncJankProbe.markExtra(
+        'history_replica_lite_skip',
+        `reason=no-dirty outbox=${outbox.length} kinds=${mutationKinds.join(',')}` +
+          ` rangeOrClear=${hasRangeOrClear ? 1 : 0}` +
+          ` outboxVisitIds=${outboxVisitIds.length} tombstones=${local.tombstones.length}` +
+          ` frontierUpdatedAt=${local.retentionFrontier.updatedAt} headUpdatedAt=${knownHeadUpdatedAt}`
+      );
       return undefined;
     }
     stageStartedAt = Date.now();
     try {
-      const projection = AiraHistoryTaskpoolTransferCodec.leanProjection(
-        codec.buildProjectionReusingHead(local, rawRows, dirty)
-      );
+      const packedRows = remoteStore.takePackedReplicaRows();
+      let projection: AiraHistoryRemoteWriteProjection | undefined = undefined;
+      if (packedRows !== undefined) {
+        projection = await this.computeExecutor.planHuaweiHistoryReplicaLitePacked(
+          identity.accountUid,
+          identity.clientId,
+          packedRows,
+          local,
+          dirty
+        );
+        if (projection === undefined) {
+          remoteStore.repackFreshReplicaRows();
+          return undefined;
+        }
+      } else {
+        projection = AiraHistoryTaskpoolTransferCodec.leanProjection(
+          codec.buildProjectionReusingHead(local, rawRows, dirty)
+        );
+      }
       AiraSyncJankProbe.endExtra(
         'history_replica_lite',
         stageStartedAt,
-        `dirty=${dirty.length} upsert=${projection.rowsToUpsert.length} delete=${projection.rowIdsToDeleteBeforePublish.length}`
+        `dirty=${dirty.length} upsert=${projection.rowsToUpsert.length}` +
+          ` delete=${projection.rowIdsToDeleteBeforePublish.length} taskpool=${packedRows !== undefined ? 1 : 0}`
       );
       this.logStage(
         'plan-merge',

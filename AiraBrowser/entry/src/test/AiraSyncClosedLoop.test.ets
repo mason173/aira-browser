@@ -17,7 +17,8 @@ import {
 } from '../main/ets/services/sync/HuaweiSpaceHistorySyncRunner';
 import { PersonalizationSyncCollectionMergeService } from
   '../main/ets/services/sync/PersonalizationSyncCollectionMergeService';
-import { HuaweiSpaceHistoryRow } from '../main/ets/data/sync/HuaweiSpaceHistorySnapshotCodec';
+import { HuaweiSpaceHistoryRow, HuaweiSpaceHistorySnapshotCodec } from
+  '../main/ets/data/sync/HuaweiSpaceHistorySnapshotCodec';
 
 const NOW: number = Date.now();
 const ROOT_ID: string = 'browser_root_toolbar';
@@ -158,6 +159,115 @@ export default function airaSyncClosedLoopTest(): void {
       expect(merged.visits.length).assertEqual(1);
       expect(merged.visits[0].visitId).assertEqual(keep.visitId);
       expect(merged.tombstones.length).assertEqual(1);
+    });
+
+    it('partitions compact History chunks deterministically and round-trips them', 0, () => {
+      const codec = new HuaweiSpaceHistorySnapshotCodec('uid-a', 'phone-a');
+      const visits: HistorySyncVisit[] = [];
+      const longTitle = 't'.repeat(600);
+      for (let index = 0; index < 400; index += 1) {
+        const visit = historyVisit(`bulk-${index}`, `https://example.com/bulk/${index}`, NOW - index);
+        visit.title = `${longTitle}-${index}`;
+        visits.push(visit);
+      }
+      const state = historyState(visits);
+      const mirror = codec.decodeRows([]);
+      const first = codec.buildProjection(state, mirror);
+      const second = codec.buildProjection(state, mirror);
+      const chunkRows = first.rowsToUpsert.filter((row: HuaweiSpaceHistoryRow): boolean => {
+        return row.recordKind === 'snapshot_chunk';
+      });
+      const secondChunkRows = second.rowsToUpsert.filter((row: HuaweiSpaceHistoryRow): boolean => {
+        return row.recordKind === 'snapshot_chunk';
+      });
+      expect(chunkRows.length > 0).assertTrue();
+      expect(chunkRows.length).assertEqual(secondChunkRows.length);
+      for (let index = 0; index < chunkRows.length; index += 1) {
+        expect(chunkRows[index].rowId).assertEqual(secondChunkRows[index].rowId);
+        expect(chunkRows[index].data).assertEqual(secondChunkRows[index].data);
+      }
+      const decoded = codec.decodeRows(first.rowsToUpsert);
+      expect(decoded.selectedHeads.length).assertEqual(1);
+      expect(decoded.state.visits.length).assertEqual(visits.length);
+    });
+
+    it('reuses unchanged dirty buckets when the lite projection is built', 0, () => {
+      const codec = new HuaweiSpaceHistorySnapshotCodec('uid-a', 'phone-a');
+      const visits: HistorySyncVisit[] = [];
+      for (let index = 0; index < 200; index += 1) {
+        visits.push(historyVisit(`lite-${index}`, `https://example.com/lite/${index}`, NOW - index * 1000));
+      }
+      const state = historyState(visits);
+      const initial = codec.buildProjection(state, codec.decodeRows([]));
+      const initialChunks = initial.rowsToUpsert.filter((row: HuaweiSpaceHistoryRow): boolean => {
+        return row.recordKind === 'snapshot_chunk';
+      });
+      expect(initialChunks.length > 0).assertTrue();
+
+      const decoded = codec.decodeRows(initial.rowsToUpsert);
+      const allBuckets: number[] = [];
+      for (let index = 0; index < 64; index += 1) {
+        allBuckets.push(index);
+      }
+      const unchangedLite = codec.buildProjectionReusingHead(state, initial.rowsToUpsert, allBuckets);
+      const unchangedChunks = unchangedLite.rowsToUpsert.filter((row: HuaweiSpaceHistoryRow): boolean => {
+        return row.recordKind === 'snapshot_chunk';
+      });
+      expect(unchangedChunks.length).assertEqual(0);
+      expect(unchangedLite.rowIdsToDeleteBeforePublish.length).assertEqual(0);
+
+      const deleted = visits[0];
+      const nextState = historyState(
+        visits.slice(1),
+        [{ visitId: deleted.visitId, deletedAt: NOW + 1000 }]
+      );
+      const dirty = codec.collectDirtyBucketIndexes(nextState, NOW + 500, [], false);
+      expect(dirty === undefined).assertFalse();
+      const dirtyBuckets = dirty === undefined ? [] : dirty;
+      expect(dirtyBuckets.length > 0).assertTrue();
+      const lite = codec.buildProjectionReusingHead(nextState, initial.rowsToUpsert, dirtyBuckets);
+      const liteChunks = lite.rowsToUpsert.filter((row: HuaweiSpaceHistoryRow): boolean => {
+        return row.recordKind === 'snapshot_chunk';
+      });
+      expect(liteChunks.length > 0).assertTrue();
+      expect(liteChunks.length < initialChunks.length).assertTrue();
+      const deletedRowIds = new Set<string>(lite.rowIdsToDeleteBeforePublish);
+      const mergedRows = initial.rowsToUpsert
+        .filter((row: HuaweiSpaceHistoryRow): boolean => !deletedRowIds.has(row.rowId))
+        .concat(lite.rowsToUpsert);
+      const liteDecoded = codec.decodeRows(mergedRows);
+      expect(liteDecoded.selectedHeads.length).assertEqual(1);
+      expect(liteDecoded.state.visits.length).assertEqual(visits.length - 1);
+      expect(liteDecoded.state.tombstones.length).assertEqual(1);
+      expect(decoded.selectedHeads.length).assertEqual(1);
+    });
+
+    it('detects an incomplete compact replica when a Head references missing Buckets', 0, () => {
+      const codec = new HuaweiSpaceHistorySnapshotCodec('uid-a', 'phone-a');
+      const visits: HistorySyncVisit[] = [];
+      for (let index = 0; index < 120; index += 1) {
+        visits.push(historyVisit(`repair-${index}`, `https://example.com/repair/${index}`, NOW - index));
+      }
+      const projection = codec.buildProjection(historyState(visits), codec.decodeRows([]));
+      const headRow = projection.rowsToUpsert.find((row: HuaweiSpaceHistoryRow): boolean => {
+        return row.recordKind === 'snapshot_head';
+      });
+      const bucketRows = projection.rowsToUpsert.filter((row: HuaweiSpaceHistoryRow): boolean => {
+        return row.recordKind === 'snapshot_bucket';
+      });
+      const chunkRows = projection.rowsToUpsert.filter((row: HuaweiSpaceHistoryRow): boolean => {
+        return row.recordKind === 'snapshot_chunk';
+      });
+      expect(headRow === undefined).assertFalse();
+      expect(codec.needsBlockCloudSync(projection.rowsToUpsert)).assertFalse();
+      const headOnly = headRow === undefined ? [] : [headRow];
+      expect(codec.needsBlockCloudSync(headOnly)).assertTrue();
+      expect(codec.needsBlockCloudSync(headOnly.concat(chunkRows))).assertTrue();
+      const missingOneBucket = headOnly
+        .concat(bucketRows.slice(0, bucketRows.length - 1))
+        .concat(chunkRows);
+      expect(codec.needsBlockCloudSync(missingOneBucket)).assertTrue();
+      expect(codec.needsBlockCloudSync([])).assertFalse();
     });
 
     it('round-trips History state and rows through the TaskPool codec', 0, () => {

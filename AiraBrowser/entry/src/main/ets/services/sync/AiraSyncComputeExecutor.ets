@@ -94,6 +94,37 @@ export interface HuaweiHistoryReplicaPackedOutcome {
   errorMessage: string;
 }
 
+interface AiraHistoryReplicaLitePackedOutcome {
+  projection?: AiraHistoryRemoteWriteProjection;
+  errorMessage: string;
+}
+
+@Concurrent
+function planHuaweiHistoryReplicaLitePacked(
+  uid: string,
+  deviceId: string,
+  rowBuffer: ArrayBuffer,
+  localBuffer: ArrayBuffer,
+  dirtyBucketIndexes: number[],
+  now: number
+): AiraHistoryReplicaLitePackedOutcome {
+  try {
+    const rows = AiraHistoryTaskpoolTransferCodec.decodeRows(rowBuffer);
+    const local = AiraHistoryTaskpoolTransferCodec.decodeState(localBuffer);
+    const projection = new HuaweiSpaceHistorySnapshotCodec(uid, deviceId)
+      .buildProjectionReusingHead(local, rows, dirtyBucketIndexes, now);
+    return {
+      projection: AiraHistoryTaskpoolTransferCodec.leanProjection(projection),
+      errorMessage: ''
+    };
+  } catch (error) {
+    const candidate = error as Error;
+    return {
+      errorMessage: candidate.message ?? JSON.stringify(error)
+    };
+  }
+}
+
 
 interface AiraHistoryInitialMergePackedOutcome {
   localApplyRequired: boolean;
@@ -487,6 +518,48 @@ export class AiraSyncComputeExecutor {
   }
 
 
+  async planHuaweiHistoryReplicaLitePacked(
+    uid: string,
+    deviceId: string,
+    rowBuffer: ArrayBuffer,
+    local: HuaweiSpaceHistorySyncState,
+    dirtyBucketIndexes: number[]
+  ): Promise<AiraHistoryRemoteWriteProjection | undefined> {
+    const localBuffer = await this.packHuaweiHistoryStateForTransfer(local);
+    if (!fitsTaskpoolTransferBudget(rowBuffer.byteLength + localBuffer.byteLength)) {
+      return undefined;
+    }
+    const dirtyBuffer = dirtyBucketIndexes.slice();
+    const task = new taskpool.Task(
+      'aira-sync-history-replica-lite-packed',
+      planHuaweiHistoryReplicaLitePacked,
+      uid,
+      deviceId,
+      rowBuffer,
+      localBuffer,
+      dirtyBuffer,
+      Date.now()
+    );
+    task.setTransferList([rowBuffer, localBuffer]);
+    const startedAt = Date.now();
+    let outcome: AiraHistoryReplicaLitePackedOutcome;
+    try {
+      outcome = await taskpool.execute(task, taskpool.Priority.LOW) as AiraHistoryReplicaLitePackedOutcome;
+    } catch (_error) {
+      AiraSyncJankProbe.endExtra('history_replica_lite_taskpool', startedAt, 'error=throw');
+      return undefined;
+    }
+    AiraSyncJankProbe.endExtra(
+      'history_replica_lite_taskpool',
+      startedAt,
+      `error=${outcome.errorMessage.length > 0 ? 1 : 0} dirty=${dirtyBuffer.length}`
+    );
+    if (outcome.errorMessage.length > 0 || outcome.projection === undefined) {
+      return undefined;
+    }
+    return outcome.projection;
+  }
+
   async planHuaweiHistoryReplicaPacked(
     uid: string,
     deviceId: string,
@@ -616,8 +689,14 @@ export class AiraSyncComputeExecutor {
     desired: HuaweiSpaceHistorySyncState,
     packedRows: ArrayBuffer | undefined = undefined
   ): Promise<AiraHistoryRemoteWritePlan> {
+    const packStartedAt = Date.now();
     const rowBuffer = packedRows !== undefined ? packedRows : await this.packHuaweiHistoryRowsForTransfer(rows);
     const desiredBuffer = await this.packHuaweiHistoryStateForTransfer(desired);
+    AiraSyncJankProbe.endExtra(
+      'history_write_plan_pack',
+      packStartedAt,
+      `rows=${rows.length} bytes=${rowBuffer.byteLength + desiredBuffer.byteLength} reused=${packedRows !== undefined ? 1 : 0}`
+    );
     const transferBytes = rowBuffer.byteLength + desiredBuffer.byteLength;
     if (!fitsTaskpoolTransferBudget(transferBytes)) {
       return this.planHuaweiHistoryRemoteWriteCooperatively(uid, deviceId, rows, desired);
@@ -633,11 +712,19 @@ export class AiraSyncComputeExecutor {
     );
     task.setTransferList([rowBuffer, desiredBuffer]);
     let outcome: AiraHistoryRemoteWritePlanOutcome;
+    const taskpoolStartedAt = Date.now();
     try {
       outcome = await taskpool.execute(task, taskpool.Priority.LOW) as AiraHistoryRemoteWritePlanOutcome;
     } catch (_error) {
+      AiraSyncJankProbe.endExtra('history_write_plan_taskpool', taskpoolStartedAt, 'error=throw');
       return this.planHuaweiHistoryRemoteWriteCooperatively(uid, deviceId, rows, desired);
     }
+    AiraSyncJankProbe.endExtra(
+      'history_write_plan_taskpool',
+      taskpoolStartedAt,
+      `decodeError=${outcome.decodeErrorMessage.length > 0 ? 1 : 0}` +
+        ` computeError=${outcome.computeErrorMessage.length > 0 ? 1 : 0}`
+    );
     return resolveHuaweiHistoryRemoteWritePlanOutcome(outcome);
   }
 

@@ -2294,6 +2294,9 @@ export class BrowserDatabase {
     try {
       store.beginTransaction();
       transactionStarted = true;
+      const roundedCutoff = Math.floor(Math.max(0, cutoff) / HISTORY_SYNC_RETENTION_FRONTIER_GRANULARITY_MS) *
+        HISTORY_SYNC_RETENTION_FRONTIER_GRANULARITY_MS;
+      await this.pruneExpiredHistorySyncDeletions(store, normalizedUid, roundedCutoff);
       if (!(await this.hasHistorySyncProjectionVictims(store, normalizedUid, cutoff))) {
         store.commit();
         transactionStarted = false;
@@ -5297,6 +5300,35 @@ export class BrowserDatabase {
       boundary_visit_id: merged.boundaryVisitId,
       updated_at: merged.updatedAt
     }, relationalStore.ConflictResolution.ON_CONFLICT_REPLACE);
+  }
+
+  private async pruneExpiredHistorySyncDeletions(
+    store: relationalStore.RdbStore,
+    accountUid: string,
+    roundedCutoff: number
+  ): Promise<number> {
+    if (roundedCutoff <= 0) {
+      return 0;
+    }
+    const tombstonePredicates = new relationalStore.RdbPredicates(HISTORY_SYNC_TOMBSTONES_TABLE);
+    tombstonePredicates.equalTo('account_uid', accountUid);
+    tombstonePredicates.lessThan('deleted_at', roundedCutoff);
+    const prunedTombstones = await store.delete(tombstonePredicates);
+    const rangePredicates = new relationalStore.RdbPredicates(HISTORY_SYNC_DELETE_RANGES_TABLE);
+    rangePredicates.equalTo('account_uid', accountUid);
+    rangePredicates.lessThan('ended_at', roundedCutoff);
+    const prunedRanges = await store.delete(rangePredicates);
+    const prunedTotal = prunedTombstones + prunedRanges;
+    if (prunedTotal > 0) {
+      hilog.info(
+        DOMAIN,
+        TAG,
+        'Pruned expired History sync deletions tombstones=%{public}d ranges=%{public}d',
+        prunedTombstones,
+        prunedRanges
+      );
+    }
+    return prunedTotal;
   }
 
   private async advanceHistorySyncRetentionForVictims(

@@ -176,9 +176,27 @@ export class HuaweiSpaceHistoryRemoteStore {
     this.assertConfigured();
     const store = await this.getStore();
     const headRows = this.peekedHeadRows ?? await this.readRawRows(store, HUAWEI_SPACE_HISTORY_HEAD_TABLE);
-    const rows = headRows.concat(await this.readRawRows(store, HUAWEI_SPACE_HISTORY_BLOCK_TABLE));
-    if (this.needsBlockCloudSync(rows)) {
-      return false;
+    let rows = headRows.concat(await this.readRawRows(store, HUAWEI_SPACE_HISTORY_BLOCK_TABLE));
+    if (this.needsOwnHeadComplete(rows)) {
+      const repairStartedAt = Date.now();
+      await this.runCloudSync(
+        store,
+        relationalStore.SyncMode.SYNC_MODE_CLOUD_FIRST,
+        true,
+        [HUAWEI_SPACE_HISTORY_BLOCK_TABLE]
+      );
+      const repairedHeads = await this.readRawRows(store, HUAWEI_SPACE_HISTORY_HEAD_TABLE);
+      rows = repairedHeads.concat(await this.readRawRows(store, HUAWEI_SPACE_HISTORY_BLOCK_TABLE));
+      const stillIncomplete = this.needsOwnHeadComplete(rows);
+      this.logStage('replica-repair', repairStartedAt, `complete=${stillIncomplete ? 0 : 1}`);
+      if (stillIncomplete) {
+        return false;
+      }
+    } else if (this.needsBlockCloudSync(rows)) {
+      AiraSyncJankProbe.markExtra(
+        'history_replica_partial',
+        `scope=self ownHeadComplete=1 otherDevicesIncomplete=1 rows=${rows.length}`
+      );
     }
     const packStartedAt = Date.now();
     const packed = AiraHistoryTaskpoolTransferCodec.encodeRows(rows);
@@ -195,6 +213,16 @@ export class HuaweiSpaceHistoryRemoteStore {
   takePackedReplicaRows(): ArrayBuffer | undefined {
     const packed = this.lastPackedRows;
     this.lastPackedRows = undefined;
+    return packed;
+  }
+
+  repackFreshReplicaRows(): ArrayBuffer | undefined {
+    const rows = this.freshRows;
+    if (rows === undefined) {
+      return undefined;
+    }
+    const packed = AiraHistoryTaskpoolTransferCodec.encodeRows(rows);
+    this.lastPackedRows = packed;
     return packed;
   }
 
@@ -276,7 +304,7 @@ export class HuaweiSpaceHistoryRemoteStore {
         ` reused=${canReuseMirror ? 1 : 0}`
     );
     stageStartedAt = Date.now();
-    let changedRowCount = await this.stageProjection(store, projection);
+    let changedRowCount = await this.stageProjection(store, projection, currentRows);
     this.logStage('write-stage', stageStartedAt, `changed=${changedRowCount}`);
     if (changedRowCount > 0 && !skipCloudTransport) {
       stageStartedAt = Date.now();
@@ -377,9 +405,10 @@ export class HuaweiSpaceHistoryRemoteStore {
 
   private async stageProjection(
     store: relationalStore.RdbStore,
-    projection: AiraHistoryRemoteWriteProjection
+    projection: AiraHistoryRemoteWriteProjection,
+    knownRows?: HuaweiSpaceHistoryRow[]
   ): Promise<number> {
-    const existingRows = await this.readAllPhysicalRows(store);
+    const existingRows = knownRows ?? await this.readAllPhysicalRows(store);
     const existingById = new Map<string, HuaweiSpaceHistoryRow>();
     existingRows.forEach((row: HuaweiSpaceHistoryRow): void => {
       existingById.set(row.rowId, row);
@@ -606,18 +635,18 @@ export class HuaweiSpaceHistoryRemoteStore {
   }
 
   private needsBlockCloudSync(rows: HuaweiSpaceHistoryRow[]): boolean {
-    let headCount = 0;
-    let blockCount = 0;
-    rows.forEach((row: HuaweiSpaceHistoryRow): void => {
-      const table = huaweiHistoryPhysicalTable(row.recordKind);
-      if (table === 'head') {
-        headCount += 1;
-      }
-      if (table === 'block') {
-        blockCount += 1;
-      }
-    });
-    return headCount > 0 && blockCount <= 0;
+    if (rows.length <= 0) {
+      return false;
+    }
+    return new HuaweiSpaceHistorySnapshotCodec(this.uid, this.deviceId).needsBlockCloudSync(rows);
+  }
+
+  private needsOwnHeadComplete(rows: HuaweiSpaceHistoryRow[]): boolean {
+    if (rows.length <= 0) {
+      return true;
+    }
+    return new HuaweiSpaceHistorySnapshotCodec(this.uid, this.deviceId)
+      .needsBlockCloudSync(rows, this.deviceId);
   }
 
   private changedCloudTables(projection: AiraHistoryRemoteWriteProjection): string[] {

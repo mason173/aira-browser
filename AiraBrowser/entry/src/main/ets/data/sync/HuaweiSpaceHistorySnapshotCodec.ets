@@ -9,6 +9,7 @@ import {
 } from '../../common/models/HistorySyncModels';
 import { AiraSyncCooperativeThrottle } from '../../services/sync/AiraSyncWorkThrottleService';
 import { HistorySyncMergeService } from '../../services/sync/HistorySyncMergeService';
+import { AiraSyncJankProbe } from '../../common/debug/AiraSyncJankProbe';
 
 const HUAWEI_SPACE_HISTORY_SNAPSHOT_FORMAT_VERSION: number = 2;
 const HUAWEI_SPACE_HISTORY_BUCKET_COUNT: number = 64;
@@ -172,6 +173,12 @@ export class HuaweiSpaceHistorySnapshotCodec {
   private readonly deviceId: string;
   private readonly mergeService: HistorySyncMergeService = new HistorySyncMergeService();
   private readonly encoder: util.TextEncoder = new util.TextEncoder();
+  private decodeSelectedHeads: number = 0;
+  private decodeMaterializeAttempts: number = 0;
+  private decodeMaterializeFailures: number = 0;
+  private decodeFragmentCounts: string = '';
+  private lastMaterializeFailure: string = '';
+  private decodeSelfHeads: string = '';
 
   constructor(uid: string, deviceId: string) {
     this.uid = uid.trim();
@@ -221,6 +228,14 @@ export class HuaweiSpaceHistorySnapshotCodec {
 
     const completeHeads = this.materializeHeads(heads, bucketsByRowId, chunksByRowId);
     const selectedHeads = this.selectNewestHeadPerDevice(completeHeads);
+    this.logDecodeDiagnostics(
+      rows.length,
+      legacyRowIds.length,
+      chunksByRowId.size,
+      bucketsByRowId.size,
+      heads.length,
+      selectedHeads.length
+    );
     if (compactRowCount > 0 && selectedHeads.length <= 0 && legacyRowIds.length <= 0) {
       throw new Error('Huawei History compact snapshot is incomplete.');
     }
@@ -292,12 +307,113 @@ export class HuaweiSpaceHistorySnapshotCodec {
     }
     const state = await this.mergeService.mergeCooperatively(compactState, legacyState, throttle, now);
     const sortedLegacyRowIds = await this.sortStringsCooperatively(legacyRowIds, throttle);
+    this.logDecodeDiagnostics(
+      rows.length,
+      legacyRowIds.length,
+      chunksByRowId.size,
+      bucketsByRowId.size,
+      heads.length,
+      selectedHeads.length
+    );
     return {
       state,
       rows: rows.slice(),
       legacyRowIds: sortedLegacyRowIds,
       selectedHeads
     };
+  }
+
+  private logDecodeDiagnostics(
+    rowCount: number,
+    legacyCount: number,
+    chunkCount: number,
+    bucketCount: number,
+    headCount: number,
+    selectedHeadCount: number
+  ): void {
+    AiraSyncJankProbe.markExtra(
+      'history_decode_diag',
+      `rows=${rowCount} legacy=${legacyCount} chunks=${chunkCount} buckets=${bucketCount}` +
+        ` heads=${headCount} selected=${selectedHeadCount}` +
+        ` materialized=${this.decodeMaterializeAttempts - this.decodeMaterializeFailures}/${this.decodeMaterializeAttempts}` +
+        ` self=[${this.decodeSelfHeads}] fragments=${this.decodeFragmentCounts}`
+    );
+    this.decodeMaterializeAttempts = 0;
+    this.decodeMaterializeFailures = 0;
+    this.decodeFragmentCounts = '';
+    this.lastMaterializeFailure = '';
+    this.decodeSelfHeads = '';
+  }
+
+  needsBlockCloudSync(rows: HuaweiSpaceHistoryRow[], requiredDeviceId: string = ''): boolean {
+    const scopedDeviceId = requiredDeviceId.trim();
+    const newestHeadByDevice = new Map<string, HuaweiSpaceHistoryHeadData>();
+    const bucketLogicalIds = new Set<string>();
+    const bucketChunksByLogicalId = new Map<string, HuaweiSpaceHistoryChunkReference[]>();
+    const chunkLogicalIds = new Set<string>();
+    for (let index = 0; index < rows.length; index += 1) {
+      const row = rows[index];
+      if (row.recordKind === 'snapshot_head') {
+        let head: HuaweiSpaceHistoryHeadData;
+        try {
+          head = JSON.parse(row.data) as HuaweiSpaceHistoryHeadData;
+        } catch (_error) {
+          return true;
+        }
+        if (typeof head.deviceId !== 'string' || !Array.isArray(head.buckets)) {
+          return true;
+        }
+        const existing = newestHeadByDevice.get(head.deviceId);
+        if (existing === undefined || head.generation > existing.generation ||
+          (head.generation === existing.generation && head.headSlot > existing.headSlot)) {
+          newestHeadByDevice.set(head.deviceId, head);
+        }
+      } else if (row.recordKind === 'snapshot_bucket') {
+        bucketLogicalIds.add(row.logicalId);
+        try {
+          const bucket = JSON.parse(row.data) as HuaweiSpaceHistoryBucketData;
+          bucketChunksByLogicalId.set(row.logicalId, Array.isArray(bucket.chunks) ? bucket.chunks : []);
+        } catch (_error) {
+          bucketChunksByLogicalId.set(row.logicalId, []);
+        }
+      } else if (row.recordKind === 'snapshot_chunk') {
+        chunkLogicalIds.add(row.logicalId);
+      }
+    }
+    if (newestHeadByDevice.size <= 0) {
+      return scopedDeviceId.length > 0;
+    }
+    if (scopedDeviceId.length > 0 && !newestHeadByDevice.has(scopedDeviceId)) {
+      return true;
+    }
+    if (bucketLogicalIds.size <= 0) {
+      return true;
+    }
+    for (const head of newestHeadByDevice.values()) {
+      if (scopedDeviceId.length > 0 && head.deviceId !== scopedDeviceId) {
+        continue;
+      }
+      for (let index = 0; index < head.buckets.length; index += 1) {
+        const reference = head.buckets[index];
+        const bucketLogicalId = this.buildBucketLogicalId(head.deviceId, reference.bucketIndex, reference.bucketSlot);
+        if (!bucketLogicalIds.has(bucketLogicalId)) {
+          return true;
+        }
+        const chunks = bucketChunksByLogicalId.get(bucketLogicalId) ?? [];
+        for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex += 1) {
+          const chunkLogicalId = this.buildChunkLogicalId(
+            head.deviceId,
+            reference.bucketIndex,
+            reference.bucketSlot,
+            chunks[chunkIndex].segmentIndex
+          );
+          if (!chunkLogicalIds.has(chunkLogicalId)) {
+            return true;
+          }
+        }
+      }
+    }
+    return false;
   }
 
   buildProjection(
@@ -329,10 +445,15 @@ export class HuaweiSpaceHistorySnapshotCodec {
       throw new Error('Huawei History snapshot generation is exhausted.');
     }
     const headSlot = ownHead === undefined ? 0 : 1 - ownHead.value.headSlot;
+    const bucketsStartedAt = Date.now();
     const desiredBuckets = this.buildBucketRecords(normalized);
+    const buildBucketsDurationMs = Date.now() - bucketsStartedAt;
     const bucketReferences: HuaweiSpaceHistoryBucketReference[] = [];
     const rowsToUpsert: HuaweiSpaceHistoryRow[] = [];
     const rowIdsToDeleteBeforePublish: string[] = [];
+    const chunkRowIdsByPrefix = this.buildChunkRowIdsByPrefix(mirror.rows);
+    let changedBucketCount = 0;
+    const buildStartedAt = Date.now();
 
     for (let bucketIndex = 0; bucketIndex < HUAWEI_SPACE_HISTORY_BUCKET_COUNT; bucketIndex += 1) {
       const desiredRecords = desiredBuckets.get(bucketIndex) ?? [];
@@ -342,6 +463,7 @@ export class HuaweiSpaceHistorySnapshotCodec {
         bucketReferences.push(currentReference);
         continue;
       }
+      changedBucketCount += 1;
       const bucketSlot = currentReference === undefined ? 0 : 1 - currentReference.bucketSlot;
       const built = this.buildBucket(
         bucketIndex,
@@ -352,19 +474,30 @@ export class HuaweiSpaceHistorySnapshotCodec {
       );
       rowsToUpsert.push(...built.rows);
       bucketReferences.push(built.reference);
-      mirror.rows.forEach((row: HuaweiSpaceHistoryRow): void => {
-        if (row.recordKind !== 'snapshot_chunk') {
-          return;
-        }
-        const expectedPrefix = this.buildChunkLogicalPrefix(this.deviceId, bucketIndex, bucketSlot);
-        if (row.logicalId.startsWith(expectedPrefix) &&
-          built.rows.find((candidate: HuaweiSpaceHistoryRow): boolean => candidate.rowId === row.rowId) === undefined) {
-          rowIdsToDeleteBeforePublish.push(row.rowId);
-        }
+      const expectedPrefix = this.buildChunkLogicalPrefix(this.deviceId, bucketIndex, bucketSlot);
+      const candidateRowIds = chunkRowIdsByPrefix.get(expectedPrefix) ?? [];
+      const builtRowIds = new Set<string>();
+      built.rows.forEach((candidate: HuaweiSpaceHistoryRow): void => {
+        builtRowIds.add(candidate.rowId);
       });
+      for (let candidateIndex = 0; candidateIndex < candidateRowIds.length; candidateIndex += 1) {
+        if (!builtRowIds.has(candidateRowIds[candidateIndex])) {
+          rowIdsToDeleteBeforePublish.push(candidateRowIds[candidateIndex]);
+        }
+      }
     }
 
+    const buildDurationMs = Date.now() - buildStartedAt;
+    const checksumStartedAt = Date.now();
     const stateChecksum = this.sha256Hex(JSON.stringify(normalized));
+    AiraSyncJankProbe.endExtra(
+      'history_projection',
+      bucketsStartedAt,
+      `ownHead=${ownHead === undefined ? 'none' : `gen${ownHead.value.generation}`}` +
+        ` headSlot=${headSlot} changed=${changedBucketCount}` +
+        ` buckets=${buildBucketsDurationMs} build=${buildDurationMs} checksum=${Date.now() - checksumStartedAt}` +
+        ` upsert=${rowsToUpsert.length} delete=${rowIdsToDeleteBeforePublish.length}`
+    );
     const head = this.buildHead(
       headSlot,
       generation,
@@ -415,7 +548,7 @@ export class HuaweiSpaceHistorySnapshotCodec {
       }
       dirty.add(this.resolveBucketIndex(`v:${visitId}`));
     }
-    if (dirty.size <= 0 || dirty.size > 8) {
+    if (dirty.size <= 0) {
       return undefined;
     }
     return Array.from(dirty).sort((left: number, right: number): number => left - right);
@@ -458,8 +591,19 @@ export class HuaweiSpaceHistorySnapshotCodec {
       throw new Error('Huawei History snapshot generation is exhausted.');
     }
     const headSlot = 1 - ownHead.headSlot;
-    const desiredBuckets = this.buildBucketRecords(normalized);
     const dirty = new Set<number>(dirtyBucketIndexes);
+    const desiredBuckets = this.buildDirtyBucketRecords(normalized, dirty);
+    const bucketRowByLogicalId = new Map<string, HuaweiSpaceHistoryRow>();
+    const chunkRowByLogicalId = new Map<string, HuaweiSpaceHistoryRow>();
+    for (let index = 0; index < rows.length; index += 1) {
+      const row = rows[index];
+      if (row.recordKind === 'snapshot_bucket') {
+        bucketRowByLogicalId.set(row.logicalId, row);
+      } else if (row.recordKind === 'snapshot_chunk') {
+        chunkRowByLogicalId.set(row.logicalId, row);
+      }
+    }
+    const chunkRowIdsByPrefix = this.buildChunkRowIdsByPrefix(rows);
     const bucketReferences: HuaweiSpaceHistoryBucketReference[] = [];
     const rowsToUpsert: HuaweiSpaceHistoryRow[] = [];
     const rowIdsToDeleteBeforePublish: string[] = [];
@@ -469,6 +613,18 @@ export class HuaweiSpaceHistorySnapshotCodec {
       if (!dirty.has(bucketIndex) && currentReference !== undefined) {
         bucketReferences.push(currentReference);
         continue;
+      }
+      if (currentReference !== undefined) {
+        const currentRecords = this.materializeOwnBucketRecords(
+          bucketRowByLogicalId,
+          chunkRowByLogicalId,
+          bucketIndex,
+          currentReference
+        );
+        if (currentRecords !== undefined && this.sameRecords(currentRecords, desiredRecords)) {
+          bucketReferences.push(currentReference);
+          continue;
+        }
       }
       const bucketSlot = currentReference === undefined ? 0 : 1 - currentReference.bucketSlot;
       const built = this.buildBucket(
@@ -480,15 +636,15 @@ export class HuaweiSpaceHistorySnapshotCodec {
       );
       rowsToUpsert.push(...built.rows);
       bucketReferences.push(built.reference);
-      for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
-        const row = rows[rowIndex];
-        if (row.recordKind !== 'snapshot_chunk') {
-          continue;
-        }
-        const expectedPrefix = this.buildChunkLogicalPrefix(this.deviceId, bucketIndex, bucketSlot);
-        if (row.logicalId.startsWith(expectedPrefix) &&
-          built.rows.find((candidate: HuaweiSpaceHistoryRow): boolean => candidate.rowId === row.rowId) === undefined) {
-          rowIdsToDeleteBeforePublish.push(row.rowId);
+      const expectedPrefix = this.buildChunkLogicalPrefix(this.deviceId, bucketIndex, bucketSlot);
+      const candidateRowIds = chunkRowIdsByPrefix.get(expectedPrefix) ?? [];
+      const builtRowIds = new Set<string>();
+      built.rows.forEach((candidate: HuaweiSpaceHistoryRow): void => {
+        builtRowIds.add(candidate.rowId);
+      });
+      for (let candidateIndex = 0; candidateIndex < candidateRowIds.length; candidateIndex += 1) {
+        if (!builtRowIds.has(candidateRowIds[candidateIndex])) {
+          rowIdsToDeleteBeforePublish.push(candidateRowIds[candidateIndex]);
         }
       }
     }
@@ -512,6 +668,56 @@ export class HuaweiSpaceHistorySnapshotCodec {
       targetGeneration: generation,
       targetStateChecksum: stateChecksum
     };
+  }
+
+  private materializeOwnBucketRecords(
+    bucketRowByLogicalId: Map<string, HuaweiSpaceHistoryRow>,
+    chunkRowByLogicalId: Map<string, HuaweiSpaceHistoryRow>,
+    bucketIndex: number,
+    reference: HuaweiSpaceHistoryBucketReference
+  ): HuaweiSpaceHistorySnapshotRecord[] | undefined {
+    const bucketLogicalId = this.buildBucketLogicalId(this.deviceId, bucketIndex, reference.bucketSlot);
+    const bucketRow = bucketRowByLogicalId.get(bucketLogicalId);
+    if (bucketRow === undefined) {
+      return undefined;
+    }
+    let bucket: HuaweiSpaceHistoryBucket;
+    try {
+      bucket = this.parseBucket(bucketRow);
+    } catch (_error) {
+      return undefined;
+    }
+    const records: HuaweiSpaceHistorySnapshotRecord[] = [];
+    for (let index = 0; index < bucket.value.chunks.length; index += 1) {
+      const chunkReference = bucket.value.chunks[index];
+      const chunkLogicalId = this.buildChunkLogicalId(
+        this.deviceId,
+        bucketIndex,
+        reference.bucketSlot,
+        chunkReference.segmentIndex
+      );
+      const chunkRow = chunkRowByLogicalId.get(chunkLogicalId);
+      if (chunkRow === undefined) {
+        return undefined;
+      }
+      let chunk: HuaweiSpaceHistoryChunk;
+      try {
+        chunk = this.parseChunk(chunkRow);
+      } catch (_error) {
+        return undefined;
+      }
+      if (chunk.hash !== chunkReference.hash ||
+        chunk.value.records.length !== chunkReference.recordCount) {
+        return undefined;
+      }
+      for (let recordIndex = 0; recordIndex < chunk.value.records.length; recordIndex += 1) {
+        records.push(chunk.value.records[recordIndex]);
+      }
+    }
+    if (records.length !== reference.recordCount) {
+      return undefined;
+    }
+    return records;
   }
 
   async buildProjectionCooperatively(
@@ -741,6 +947,59 @@ export class HuaweiSpaceHistorySnapshotCodec {
     return buckets;
   }
 
+  private buildDirtyBucketRecords(
+    state: HuaweiSpaceHistorySyncState,
+    dirtyBucketIndexes: Set<number>
+  ): Map<number, HuaweiSpaceHistorySnapshotRecord[]> {
+    const buckets = new Map<number, HuaweiSpaceHistorySnapshotRecord[]>();
+    dirtyBucketIndexes.forEach((bucketIndex: number): void => {
+      buckets.set(bucketIndex, []);
+    });
+    state.visits.forEach((value: HistorySyncVisit): void => {
+      if (!dirtyBucketIndexes.has(this.resolveBucketIndex(`v:${value.visitId}`))) {
+        return;
+      }
+      this.appendSnapshotRecord(buckets, this.buildVisitRecord(value));
+    });
+    state.tombstones.forEach((value: HistorySyncExactTombstone): void => {
+      if (!dirtyBucketIndexes.has(this.resolveBucketIndex(`t:${value.visitId}`))) {
+        return;
+      }
+      this.appendSnapshotRecord(buckets, this.buildTombstoneRecord(value));
+    });
+    state.deleteRanges.forEach((value: HistorySyncDeleteRange): void => {
+      if (!dirtyBucketIndexes.has(this.resolveBucketIndex(`d:${value.rangeId}`))) {
+        return;
+      }
+      this.appendSnapshotRecord(buckets, this.buildDeleteRangeRecord(value));
+    });
+    if (state.clearBefore > 0 && dirtyBucketIndexes.has(this.resolveBucketIndex(`c:${state.clearBefore}`))) {
+      const payload: HuaweiSpaceHistoryClearBeforePayload = { clearBefore: state.clearBefore };
+      this.appendSnapshotRecord(buckets, {
+        kind: 'c',
+        logicalId: String(state.clearBefore),
+        updatedAt: state.clearBefore,
+        data: payload
+      });
+    }
+    const frontier = state.retentionFrontier;
+    if ((frontier.cutoffAt > 0 || frontier.boundaryVisitedAt > 0) &&
+      dirtyBucketIndexes.has(this.resolveBucketIndex(`r:${this.buildRetentionFrontierLogicalId(frontier)}`))) {
+      this.appendSnapshotRecord(buckets, {
+        kind: 'r',
+        logicalId: this.buildRetentionFrontierLogicalId(frontier),
+        updatedAt: frontier.updatedAt,
+        data: frontier
+      });
+    }
+    buckets.forEach((records: HuaweiSpaceHistorySnapshotRecord[]): void => {
+      records.sort((left: HuaweiSpaceHistorySnapshotRecord, right: HuaweiSpaceHistorySnapshotRecord): number => {
+        return this.buildSnapshotRecordKey(left).localeCompare(this.buildSnapshotRecordKey(right));
+      });
+    });
+    return buckets;
+  }
+
   private async buildBucketRecordsCooperatively(
     state: HuaweiSpaceHistorySyncState,
     throttle: AiraSyncCooperativeThrottle
@@ -812,6 +1071,7 @@ export class HuaweiSpaceHistorySnapshotCodec {
     const rows: HuaweiSpaceHistoryRow[] = [];
     const chunkReferences: HuaweiSpaceHistoryChunkReference[] = [];
     let pending: HuaweiSpaceHistorySnapshotRecord[] = [];
+    let pendingRecordBytes = 0;
     const flush = (): void => {
       const segmentIndex = chunkReferences.length;
       const chunk = this.buildChunk(
@@ -825,38 +1085,40 @@ export class HuaweiSpaceHistorySnapshotCodec {
       rows.push(chunk.row);
       chunkReferences.push(chunk.reference);
       pending = [];
+      pendingRecordBytes = 0;
     };
     records.forEach((record: HuaweiSpaceHistorySnapshotRecord): void => {
-      const candidate = pending.concat([record]);
-      const candidateData = this.buildChunkData(
+      const recordBytes = this.byteLength(JSON.stringify(record));
+      const envelopeBytes = this.buildChunkEnvelopeBytes(
         bucketIndex,
         bucketSlot,
         chunkReferences.length,
         generation,
-        generatedAt,
-        candidate
+        generatedAt
       );
-      const candidateJson = JSON.stringify(candidateData);
-      if (this.byteLength(candidateJson) <= HUAWEI_SPACE_HISTORY_CHUNK_TARGET_BYTES) {
-        pending = candidate;
+      const recordCount = pending.length + 1;
+      const candidateBytes = envelopeBytes + 2 + pendingRecordBytes + recordBytes + (recordCount - 1);
+      if (candidateBytes <= HUAWEI_SPACE_HISTORY_CHUNK_TARGET_BYTES) {
+        pending.push(record);
+        pendingRecordBytes += recordBytes;
         return;
       }
       if (pending.length <= 0) {
         throw new Error('One Huawei History record exceeds the compact chunk row limit.');
       }
       flush();
-      const singleData = this.buildChunkData(
+      const singleEnvelopeBytes = this.buildChunkEnvelopeBytes(
         bucketIndex,
         bucketSlot,
         chunkReferences.length,
         generation,
-        generatedAt,
-        [record]
+        generatedAt
       );
-      if (this.byteLength(JSON.stringify(singleData)) > HUAWEI_SPACE_HISTORY_CHUNK_TARGET_BYTES) {
+      if (singleEnvelopeBytes + 2 + recordBytes > HUAWEI_SPACE_HISTORY_CHUNK_TARGET_BYTES) {
         throw new Error('One Huawei History record exceeds the compact chunk row limit.');
       }
       pending = [record];
+      pendingRecordBytes = recordBytes;
     });
     if (pending.length > 0) {
       flush();
@@ -907,19 +1169,21 @@ export class HuaweiSpaceHistorySnapshotCodec {
     const rows: HuaweiSpaceHistoryRow[] = [];
     const chunkReferences: HuaweiSpaceHistoryChunkReference[] = [];
     let pending: HuaweiSpaceHistorySnapshotRecord[] = [];
+    let pendingRecordBytes = 0;
     for (let index = 0; index < records.length; index += 1) {
       const record = records[index];
-      const candidate = pending.concat([record]);
-      const candidateData = this.buildChunkData(
+      const recordBytes = this.byteLength(JSON.stringify(record));
+      const envelopeBytes = this.buildChunkEnvelopeBytes(
         bucketIndex,
         bucketSlot,
         chunkReferences.length,
         generation,
-        generatedAt,
-        candidate
+        generatedAt
       );
-      if (this.byteLength(JSON.stringify(candidateData)) <= HUAWEI_SPACE_HISTORY_CHUNK_TARGET_BYTES) {
-        pending = candidate;
+      const candidateBytes = envelopeBytes + 2 + pendingRecordBytes + recordBytes + pending.length;
+      if (candidateBytes <= HUAWEI_SPACE_HISTORY_CHUNK_TARGET_BYTES) {
+        pending.push(record);
+        pendingRecordBytes += recordBytes;
       } else {
         if (pending.length <= 0) {
           throw new Error('One Huawei History record exceeds the compact chunk row limit.');
@@ -934,18 +1198,18 @@ export class HuaweiSpaceHistorySnapshotCodec {
         );
         rows.push(chunk.row);
         chunkReferences.push(chunk.reference);
-        const singleData = this.buildChunkData(
+        const singleEnvelopeBytes = this.buildChunkEnvelopeBytes(
           bucketIndex,
           bucketSlot,
           chunkReferences.length,
           generation,
-          generatedAt,
-          [record]
+          generatedAt
         );
-        if (this.byteLength(JSON.stringify(singleData)) > HUAWEI_SPACE_HISTORY_CHUNK_TARGET_BYTES) {
+        if (singleEnvelopeBytes + 2 + recordBytes > HUAWEI_SPACE_HISTORY_CHUNK_TARGET_BYTES) {
           throw new Error('One Huawei History record exceeds the compact chunk row limit.');
         }
         pending = [record];
+        pendingRecordBytes = recordBytes;
       }
       await throttle.afterBatchItem(index + 1);
     }
@@ -1046,6 +1310,17 @@ export class HuaweiSpaceHistorySnapshotCodec {
       generatedAt,
       records
     };
+  }
+
+  private buildChunkEnvelopeBytes(
+    bucketIndex: number,
+    bucketSlot: number,
+    segmentIndex: number,
+    generation: number,
+    generatedAt: number
+  ): number {
+    const empty = this.buildChunkData(bucketIndex, bucketSlot, segmentIndex, generation, generatedAt, []);
+    return this.byteLength(JSON.stringify(empty)) - 2;
   }
 
   private buildHead(
@@ -1191,13 +1466,63 @@ export class HuaweiSpaceHistorySnapshotCodec {
     chunksByRowId: Map<string, HuaweiSpaceHistoryChunk>
   ): HuaweiSpaceHistoryHead[] {
     const complete: HuaweiSpaceHistoryHead[] = [];
+    const headSummaries: string[] = [];
     heads.forEach((head: HuaweiSpaceHistoryHeadData): void => {
+      this.decodeMaterializeAttempts += 1;
       const materialized = this.materializeHead(head, bucketsByRowId, chunksByRowId);
+      const isSelf = head.deviceId === this.deviceId ? 1 : 0;
       if (materialized !== undefined) {
         complete.push(materialized);
+        if (isSelf === 1) {
+          headSummaries.push(`self:g${head.generation}=ok`);
+        }
+        return;
+      }
+      this.decodeMaterializeFailures += 1;
+      const fragments = this.describeHeadFragments(head, bucketsByRowId, chunksByRowId);
+      if (isSelf === 1) {
+        headSummaries.push(`self:g${head.generation}=FAIL(${this.lastMaterializeFailure},${fragments})`);
+      }
+      if (this.decodeFragmentCounts.length <= 0) {
+        this.decodeFragmentCounts = `${fragments}|${this.lastMaterializeFailure}`;
       }
     });
+    this.decodeSelfHeads = headSummaries.length > 0 ? headSummaries.join(';') : 'none';
     return complete;
+  }
+
+  private describeHeadFragments(
+    head: HuaweiSpaceHistoryHeadData,
+    bucketsByRowId: Map<string, HuaweiSpaceHistoryBucket>,
+    chunksByRowId: Map<string, HuaweiSpaceHistoryChunk>
+  ): string {
+    let presentBuckets = 0;
+    let expectedChunks = 0;
+    let presentChunks = 0;
+    for (let index = 0; index < head.buckets.length; index += 1) {
+      const reference = head.buckets[index];
+      const bucketLogicalId = this.buildBucketLogicalId(head.deviceId, reference.bucketIndex, reference.bucketSlot);
+      const bucket = bucketsByRowId.get(this.buildCompactRowId('snapshot_bucket', bucketLogicalId));
+      if (bucket === undefined) {
+        continue;
+      }
+      presentBuckets += 1;
+      for (let chunkIndex = 0; chunkIndex < bucket.value.chunks.length; chunkIndex += 1) {
+        const chunkReference = bucket.value.chunks[chunkIndex];
+        expectedChunks += 1;
+        const chunkLogicalId = this.buildChunkLogicalId(
+          head.deviceId,
+          reference.bucketIndex,
+          reference.bucketSlot,
+          chunkReference.segmentIndex
+        );
+        if (chunksByRowId.has(this.buildCompactRowId('snapshot_chunk', chunkLogicalId))) {
+          presentChunks += 1;
+        }
+      }
+    }
+    return `refs=${head.buckets.length} presentBuckets=${presentBuckets}` +
+      ` expectedChunks=${expectedChunks} presentChunks=${presentChunks}`;
   }
 
   private async materializeHeadsCooperatively(
@@ -1235,6 +1560,7 @@ export class HuaweiSpaceHistorySnapshotCodec {
       const rowId = this.buildCompactRowId('snapshot_bucket', logicalId);
       const bucket = bucketsByRowId.get(rowId);
       if (bucket === undefined || bucket.hash !== reference.hash) {
+        this.lastMaterializeFailure = `bucket${reference.bucketIndex}${bucket === undefined ? '=missing' : '=hash'}`;
         return undefined;
       }
       const materializedBucket: HuaweiSpaceHistorySnapshotRecord[] = [];
@@ -1250,12 +1576,18 @@ export class HuaweiSpaceHistorySnapshotCodec {
         const chunk = chunksByRowId.get(chunkRowId);
         if (chunk === undefined || chunk.hash !== chunkReference.hash ||
           chunk.value.records.length !== chunkReference.recordCount) {
+          this.lastMaterializeFailure =
+            `chunk${reference.bucketIndex}.${chunkReference.segmentIndex}` +
+            `${chunk === undefined ? '=missing' : (chunk.hash !== chunkReference.hash ? '=hash' : '=count')}`;
           return undefined;
         }
         materializedBucket.push(...chunk.value.records);
       }
       if (materializedBucket.length !== reference.recordCount ||
         !this.isCanonicalBucket(reference.bucketIndex, materializedBucket)) {
+        this.lastMaterializeFailure =
+          `bucket${reference.bucketIndex}` +
+          `${materializedBucket.length !== reference.recordCount ? '=recordCount' : '=notCanonical'}`;
         return undefined;
       }
       bucketRecords.set(reference.bucketIndex, materializedBucket);
@@ -1264,6 +1596,7 @@ export class HuaweiSpaceHistorySnapshotCodec {
     const state = this.stateFromRecords(records);
     if (!this.sameCounts(this.countState(state), head.counts) ||
       this.sha256Hex(JSON.stringify(state)) !== head.stateChecksum) {
+      this.lastMaterializeFailure = 'head=checksum';
       return undefined;
     }
     const logicalId = this.buildHeadLogicalId(head.deviceId, head.headSlot);
@@ -1882,6 +2215,32 @@ export class HuaweiSpaceHistorySnapshotCodec {
 
   private resolveBucketIndex(key: string): number {
     return Number.parseInt(this.sha256Hex(key).slice(0, 8), 16) % HUAWEI_SPACE_HISTORY_BUCKET_COUNT;
+  }
+
+  private buildChunkRowIdsByPrefix(rows: HuaweiSpaceHistoryRow[]): Map<string, string[]> {
+    const byPrefix = new Map<string, string[]>();
+    for (let index = 0; index < rows.length; index += 1) {
+      const row = rows[index];
+      if (row.recordKind !== 'snapshot_chunk') {
+        continue;
+      }
+      const prefix = this.chunkLogicalPrefixOf(row.logicalId);
+      if (prefix.length <= 0) {
+        continue;
+      }
+      const bucket = byPrefix.get(prefix) ?? [];
+      bucket.push(row.rowId);
+      byPrefix.set(prefix, bucket);
+    }
+    return byPrefix;
+  }
+
+  private chunkLogicalPrefixOf(logicalId: string): string {
+    const lastSeparator = logicalId.lastIndexOf(':');
+    if (lastSeparator <= 0) {
+      return '';
+    }
+    return logicalId.slice(0, lastSeparator + 1);
   }
 
   private buildHeadLogicalId(deviceId: string, headSlot: number): string {
