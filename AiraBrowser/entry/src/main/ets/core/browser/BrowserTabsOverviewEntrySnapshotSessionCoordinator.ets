@@ -67,6 +67,18 @@ export class BrowserTabsOverviewEntrySnapshotSessionCoordinator {
       `${state.width}x${state.height}`,
       state.transitionSource?.captureSource ?? 'none');
     const freshImageUri = this.resolveFreshPersistedImageUri(state, persistedState);
+    // The persisted copy of this same capture is written a few ms after the entry
+    // session was installed, so its timestamp is later. Publishing the session time
+    // verbatim made the thumbnail store treat the fresh capture as stale and reject
+    // it on every render. The entry capture is the newest content, so keep the newer
+    // timestamp for the shared snapshot.
+    const persistedCapturedAt = Math.max(0, Math.floor(
+      persistedState?.transitionCapturedAt ?? persistedState?.capturedAt ?? 0
+    ));
+    const capturedTimestamp = Math.max(
+      state.capturedAt > 0 ? state.capturedAt : capturedAt,
+      persistedCapturedAt
+    );
     return {
       tabId: state.tabId,
       sharedSnapshotImageUri: freshImageUri,
@@ -74,12 +86,12 @@ export class BrowserTabsOverviewEntrySnapshotSessionCoordinator {
       sharedSnapshotImageHeight: Math.max(1, state.height || persistedState?.sharedSnapshotImageHeight || 1),
       sharedSnapshotPixelMap: state.pixelMap,
       transitionReady: true,
-      transitionCapturedAt: state.capturedAt > 0 ? state.capturedAt : capturedAt,
+      transitionCapturedAt: capturedTimestamp,
       transitionSource: state.transitionSource,
       lockedForTransition: true,
       favicon: persistedState?.favicon,
       faviconRevision: persistedState?.faviconRevision,
-      capturedAt: state.capturedAt > 0 ? state.capturedAt : capturedAt,
+      capturedAt: capturedTimestamp,
       failureReason: '',
       captureSource: state.transitionSource?.captureSource ?? 'none'
     };

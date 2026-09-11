@@ -340,10 +340,13 @@ export class BrowserTabPreviewCoordinator {
         await this.waitForHydrateBatchDelay(batchDelayMs);
       }
     }
-    const stats = await this.cacheStore.captureCacheDirectoryStats();
+    // The directory walk behind captureCacheDirectoryStats only feeds debug metrics,
+    // but awaiting it here kept the whole hydrate (and its caller) busy through a
+    // per-file size read on every tabs-overview open. Record it in the background.
+    this.captureCacheDirectoryStatsInBackground();
     hilog.info(LOG_DOMAIN, LOG_TAG,
-      'persisted preview hydrate done tabs=%{public}d changed=%{public}s sharedFiles=%{public}d sharedBytes=%{public}d',
-      hydratableTabs.length, `${changed}`, stats.sharedFiles, stats.sharedBytes);
+      'persisted preview hydrate done tabs=%{public}d changed=%{public}s',
+      hydratableTabs.length, `${changed}`);
     return changed;
   }
 
