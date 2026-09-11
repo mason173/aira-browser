@@ -6398,3 +6398,11 @@ export class BrowserDatabase {
     return `${visitedDate.getFullYear()}-${month}-${day}`;
   }
 }
+
+/**
+ * Process-wide database instance. Every persistence owner must share this
+ * instance so the first relational-store open (and its schema check) is paid
+ * once instead of on whichever feature happens to query the database first.
+ */
+export const sharedBrowserDatabase: BrowserDatabase = new BrowserDatabase();
+

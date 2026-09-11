@@ -156,6 +156,7 @@ export struct BrowserTabsFloatingOverlay {
   @State private entryDisplacementProgress: number = 1;
   @State private closeAllExitActive: boolean = false;
   @State private siteIconStates: SiteIconListRenderState[] = [];
+  @State private chromeMounted: boolean = false;
 
   private scroller: Scroller = new Scroller();
   private bottomScrollTimer: number = 0;
@@ -163,6 +164,7 @@ export struct BrowserTabsFloatingOverlay {
   private lateMountEntryAnimationTimer: number = 0;
   private closeAllCommitTimer: number = 0;
   private entryTargetReadyTimer: number = 0;
+  private chromeMountTimer: number = 0;
   private entryDisplacementTargetId: string = '';
   private entryReturnTabId: string = '';
   private handledCloseAllRequestVersion: number = 0;
@@ -224,9 +226,20 @@ export struct BrowserTabsFloatingOverlay {
         this.siteIconStates = states;
       }
     );
-    this.syncSiteIcons();
     this.syncEntryDisplacementFromProps();
     this.prepareBottomEntryAnimation();
+    // The entry frame already builds the card grid plus the shared-snapshot layer.
+    // HDS segmented tabs, the blurred material bar and the corner buttons add a
+    // large native subtree on top of that, and resolving identity icons publishes a
+    // @State that re-renders the grid; both push the first frame past the point
+    // where the entry animation can start on time. Mount/resolve them on the next
+    // frame instead: the first frame blocks the main thread, so this timer only
+    // runs once the grid has been laid out.
+    this.chromeMountTimer = setTimeout(() => {
+      this.chromeMountTimer = 0;
+      this.chromeMounted = true;
+      this.syncSiteIcons();
+    }, 0);
   }
 
   aboutToDisappear(): void {
@@ -235,6 +248,10 @@ export struct BrowserTabsFloatingOverlay {
     this.clearLateMountEntryAnimationTimer();
     this.clearCloseAllCommitTimer();
     this.clearEntryTargetReadyTimer();
+    if (this.chromeMountTimer > 0) {
+      clearTimeout(this.chromeMountTimer);
+      this.chromeMountTimer = 0;
+    }
     this.overlayViewModel.disposeIdentityIcons();
   }
 
@@ -266,58 +283,60 @@ export struct BrowserTabsFloatingOverlay {
         })
       }
 
-      BrowserTabsOverviewClearButton({
-        selectedSection: this.selectedSection,
-        viewportWidth: this.resolveRootWidth(),
-        topSafeInsetVp: this.topSafeInsetVp,
-        surfaceOpacity: this.resolveClearButtonOpacity(),
-        interactionEnabled: this.interactionEnabled && !this.exiting && !this.closeAllExitActive,
-        regularChromeIconTone: this.regularChromeIconTone,
-        adaptiveForeground: true,
-        onClearAll: () => {
-          this.onRequestCloseAll();
-        }
-      })
-      .zIndex(FLOATING_TABS_CLEAR_BUTTON_Z_INDEX)
-
-      if (this.selectedSection === 'tabs') {
-        BrowserTabsOverviewDeviceButton({
+      if (this.chromeMounted) {
+        BrowserTabsOverviewClearButton({
+          selectedSection: this.selectedSection,
+          viewportWidth: this.resolveRootWidth(),
           topSafeInsetVp: this.topSafeInsetVp,
           surfaceOpacity: this.resolveClearButtonOpacity(),
           interactionEnabled: this.interactionEnabled && !this.exiting && !this.closeAllExitActive,
           regularChromeIconTone: this.regularChromeIconTone,
           adaptiveForeground: true,
-          onOpenDeviceTabs: () => {
-            this.onOpenDeviceTabs();
+          onClearAll: () => {
+            this.onRequestCloseAll();
           }
         })
-        .zIndex(FLOATING_TABS_DEVICE_BUTTON_Z_INDEX)
-      }
+        .zIndex(FLOATING_TABS_CLEAR_BUTTON_Z_INDEX)
 
-      if (this.shouldShowBottomChrome()) {
-        BrowserTabsOverviewBottomChrome({
-          selectedSection: this.selectedSection,
-          regularTabsLabel: this.buildBottomChromeState().regularTabsLabel,
-          viewportWidth: this.resolveRootWidth(),
-          viewportHeight: this.resolveRootHeight(),
-          surfaceOpacity: this.resolveBottomChromeOpacity(),
-          chromeInteractionEnabled: this.interactionEnabled && !this.exiting && !this.closeAllExitActive,
-          regularChromeIconTone: this.regularChromeIconTone,
-          adaptiveForeground: true,
-          onReturn: () => {
-            this.returnToEntryTab();
-          },
-          onCreateHome: () => {
-            this.onCreateTab();
-          },
-          onSwitchToTabs: () => {
-            this.switchSection('tabs');
-          },
-          onSwitchToPrivacy: () => {
-            this.switchSection('privacy');
-          }
-        })
-        .zIndex(FLOATING_TABS_BOTTOM_CHROME_Z_INDEX)
+        if (this.selectedSection === 'tabs') {
+          BrowserTabsOverviewDeviceButton({
+            topSafeInsetVp: this.topSafeInsetVp,
+            surfaceOpacity: this.resolveClearButtonOpacity(),
+            interactionEnabled: this.interactionEnabled && !this.exiting && !this.closeAllExitActive,
+            regularChromeIconTone: this.regularChromeIconTone,
+            adaptiveForeground: true,
+            onOpenDeviceTabs: () => {
+              this.onOpenDeviceTabs();
+            }
+          })
+          .zIndex(FLOATING_TABS_DEVICE_BUTTON_Z_INDEX)
+        }
+
+        if (this.shouldShowBottomChrome()) {
+          BrowserTabsOverviewBottomChrome({
+            selectedSection: this.selectedSection,
+            regularTabsLabel: this.buildBottomChromeState().regularTabsLabel,
+            viewportWidth: this.resolveRootWidth(),
+            viewportHeight: this.resolveRootHeight(),
+            surfaceOpacity: this.resolveBottomChromeOpacity(),
+            chromeInteractionEnabled: this.interactionEnabled && !this.exiting && !this.closeAllExitActive,
+            regularChromeIconTone: this.regularChromeIconTone,
+            adaptiveForeground: true,
+            onReturn: () => {
+              this.returnToEntryTab();
+            },
+            onCreateHome: () => {
+              this.onCreateTab();
+            },
+            onSwitchToTabs: () => {
+              this.switchSection('tabs');
+            },
+            onSwitchToPrivacy: () => {
+              this.switchSection('privacy');
+            }
+          })
+          .zIndex(FLOATING_TABS_BOTTOM_CHROME_Z_INDEX)
+        }
       }
     }
     .width(this.resolveRootWidth())

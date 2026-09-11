@@ -1,7 +1,7 @@
 import { common, ConfigurationConstant } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { AppRuntimeContext } from '../runtime/AppRuntimeContext';
-import { BrowserDatabase } from '../../data/database/BrowserDatabase';
+import { BrowserDatabase, sharedBrowserDatabase as sharedBrowserDatabaseInstance } from '../../data/database/BrowserDatabase';
 import { ArkAiraSyncConfigStorageAdapter } from '../../data/preferences/ArkAiraSyncConfigStorageAdapter';
 import { ArkPreferencesStorageAdapter } from '../../data/preferences/ArkPreferencesStorageAdapter';
 import { BrowserMigrationRepository } from '../../data/preferences/BrowserMigrationRepository';
@@ -212,7 +212,7 @@ interface BrowserRuntimeIdleWarmupTask {
   run: () => Promise<void>;
 }
 
-export const sharedBrowserDatabase: BrowserDatabase = new BrowserDatabase();
+export const sharedBrowserDatabase: BrowserDatabase = sharedBrowserDatabaseInstance;
 export const sharedPersonalizationSyncConfigStore: PersonalizationSyncConfigStore =
   new PersonalizationSyncConfigStore();
 export const sharedPreferencesRepository: PreferencesRepository =
@@ -926,6 +926,9 @@ export function initializeBrowserAppRuntime(abilityContext: common.UIAbilityCont
 
 function buildBrowserRuntimeIdleWarmupTasks(): BrowserRuntimeIdleWarmupTask[] {
   return [{
+    id: 'browser_database_open',
+    run: () => sharedBrowserDatabase.initialize()
+  }, {
     id: 'app_review_prompt_runtime',
     run: () => initializeAppReviewPromptRuntimeSafely()
   }, {

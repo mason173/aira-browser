@@ -10,7 +10,7 @@ import {
   SiteIconCandidateSource,
   SiteIconMetadataRecord
 } from '../../common/models/SiteIconModels';
-import { BrowserDatabase } from '../database/BrowserDatabase';
+import { BrowserDatabase, sharedBrowserDatabase } from '../database/BrowserDatabase';
 
 const SITE_ICON_CACHE_DIR_NAME: string = 'site-icons';
 const SITE_ICON_CACHE_VERSION: string = 'v2';
@@ -36,7 +36,7 @@ export class SiteIconCacheStore {
   private textDecoder: util.TextDecoder = util.TextDecoder.create('utf-8');
   private database: BrowserDatabase;
 
-  constructor(database: BrowserDatabase = new BrowserDatabase()) {
+  constructor(database: BrowserDatabase = sharedBrowserDatabase) {
     this.database = database;
   }
 
