@@ -141,13 +141,18 @@ export class AiraWebdavRemoteStore implements AiraSyncRemoteStore {
     const conditionalWriteSupport = await this.ensureConditionalWriteSupport();
     const createMode = conditionalWriteSupport.createMode;
     const current = await this.readSnapshotFile();
-    const expectedParentCommitId = params.parentCommitId ?? null;
-    this.assertExactParent(current.file, expectedParentCommitId);
-    if (current.file !== null && !this.historyService.sameHistory(
-      this.historyService.selectNewerHistory(current.file.history, history),
-      history
-    )) {
-      throw new Error('WebDAV 书签墓碑历史边界不能回退。');
+    const overwriteExisting = params.overwriteExisting === true;
+    const expectedParentCommitId = overwriteExisting
+      ? (current.file?.commitId ?? null)
+      : (params.parentCommitId ?? null);
+    if (!overwriteExisting) {
+      this.assertExactParent(current.file, expectedParentCommitId);
+      if (current.file !== null && !this.historyService.sameHistory(
+        this.historyService.selectNewerHistory(current.file.history, history),
+        history
+      )) {
+        throw new Error('WebDAV 书签墓碑历史边界不能回退。');
+      }
     }
     const createdAt = params.createdAt ?? snapshot.meta.generatedAt;
     const nextFile: AiraWebdavBookmarkSnapshotFile = {

@@ -1,6 +1,5 @@
 import {
-  NOVEL_BOOKSHELF_SYNC_WRITE_CONFLICT,
-  SYNC_ADDITIONAL_BACKUP_MERGE_REQUIRED
+  NOVEL_BOOKSHELF_SYNC_WRITE_CONFLICT
 } from '../../common/constants/SyncFlowErrorCodes';
 import {
   AiraSyncProviderKind,
@@ -189,9 +188,6 @@ export class NovelBookshelfSyncModule {
       remoteStore,
       '附加备份位置'
     );
-    if (remoteState.snapshot !== null && !this.hasKnownLineage(remoteKind, settings, remoteState)) {
-      throw new Error(SYNC_ADDITIONAL_BACKUP_MERGE_REQUIRED);
-    }
     if (remoteState.snapshot !== null && this.snapshotService.sameContent(remoteState.snapshot, snapshot)) {
       await this.stateStore.saveLineage(
         remoteKind,
@@ -272,23 +268,6 @@ export class NovelBookshelfSyncModule {
       revision: revision,
       headSnapshots: state.headSnapshots
     };
-  }
-
-  private hasKnownLineage(
-    remoteKind: AiraSyncProviderKind,
-    settings: AiraSyncSettings,
-    remoteState: NovelBookshelfSyncRemoteState
-  ): boolean {
-    const providerIdentity: string = this.buildProviderIdentity(remoteKind, settings);
-    const roles: NovelBookshelfSyncLineageRole[] = ['backup', 'active'];
-    return roles.some((role: NovelBookshelfSyncLineageRole): boolean => {
-      const lineage: NovelBookshelfSyncLineageState | undefined = this.stateStore.findLineage(
-        remoteKind,
-        role,
-        providerIdentity
-      );
-      return lineage !== undefined && lineage.revision === remoteState.revision;
-    });
   }
 
   private buildProviderIdentity(remoteKind: AiraSyncProviderKind, settings: AiraSyncSettings): string {

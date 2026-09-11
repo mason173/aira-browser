@@ -2,7 +2,6 @@ import {
   AIRA_FEATURE_CLOUD_SYNC,
   AIRA_FEATURE_WEBDAV_SYNC
 } from '../../common/constants/MembershipFeatureKeys';
-import { SYNC_ADDITIONAL_BACKUP_MERGE_REQUIRED } from '../../common/constants/SyncFlowErrorCodes';
 import { EntitlementDecision } from '../../common/models/MembershipModels';
 import {
   AiraBookmarkMergeSyncResult,
@@ -33,7 +32,6 @@ export type SyncExperienceProviderOutcomeType =
   | 'provider-selection-blocked'
   | 'additional-backup-enabled'
   | 'additional-backup-disabled'
-  | 'additional-backup-merge-required'
   | 'bookmark-domain-enabled'
   | 'bookmark-domain-disabled'
   | 'bookmark-domain-blocked'
@@ -338,17 +336,10 @@ export class SyncExperienceProviderOperations {
       return this.outcome(
         'additional-backup-enabled',
         remoteKind,
-        `${this.resolveProviderLabel(remoteKind)}会在普通同步成功后接收附加备份。`
+        `${this.resolveProviderLabel(remoteKind)}会在普通同步成功后接收本机书签和常用设置的附加备份，并以本机内容覆盖该位置已有副本。`
       );
     } catch (error) {
       const message = this.stringifyError(error as Error);
-      if (message === SYNC_ADDITIONAL_BACKUP_MERGE_REQUIRED) {
-        return this.outcome(
-          'additional-backup-merge-required',
-          remoteKind,
-          `${this.resolveProviderLabel(remoteKind)}中已有数据。为避免覆盖，请先把它选为当前同步方式完成非破坏合并，再回来开启附加备份。`
-        );
-      }
       return this.failure(remoteKind, enabled ? '开启附加备份' : '关闭附加备份', new Error(message));
     }
   }
@@ -661,13 +652,6 @@ export class SyncExperienceProviderOperations {
       return {
         type: 'additional-backup-enabled',
         title: 'WebDAV 备份已开启',
-        message: outcome.message
-      };
-    }
-    if (outcome.type === 'additional-backup-merge-required') {
-      return {
-        type: 'failed',
-        title: 'WebDAV 附加备份未开启',
         message: outcome.message
       };
     }

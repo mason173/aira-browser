@@ -1,6 +1,5 @@
 import {
-  PERSONALIZATION_SYNC_WRITE_CONFLICT,
-  SYNC_ADDITIONAL_BACKUP_MERGE_REQUIRED
+  PERSONALIZATION_SYNC_WRITE_CONFLICT
 } from '../../common/constants/SyncFlowErrorCodes';
 import {
   PERSONALIZATION_SYNC_ITEM_IDS,
@@ -266,10 +265,6 @@ export class PersonalizationSyncService {
     const activeRemoteState = await this.readValidatedRemoteState(activeRemoteStore, '当前同步方式');
     const remoteStore = this.remoteStoreFactory(remoteKind, currentSettings);
     const remoteState = await this.readValidatedRemoteState(remoteStore, '附加备份位置');
-    const existingSnapshot = remoteState.snapshot;
-    if (existingSnapshot !== null && !this.hasKnownBackupLineage(currentSettings, remoteKind, remoteState)) {
-      throw new Error(SYNC_ADDITIONAL_BACKUP_MERGE_REQUIRED);
-    }
     const config = this.configStore.getConfig();
     const deviceId = this.buildDeviceId(currentSettings);
     const localSnapshot = this.buildActiveProviderSnapshot(await this.snapshotService.buildLocalSnapshot(
@@ -280,7 +275,7 @@ export class PersonalizationSyncService {
     ));
     const activeMergeResult = await this.mergeRemoteHeads(localSnapshot, activeRemoteState, config);
     const snapshot = this.snapshotValidationService.validate(
-      this.buildBackupSnapshot(activeMergeResult.snapshot, remoteState, config),
+      this.buildActiveProviderSnapshot(activeMergeResult.snapshot),
       '待写入附加备份的'
     );
     try {
@@ -804,11 +799,8 @@ export class PersonalizationSyncService {
         const currentSettings = this.syncConfigStore.getSettings();
         const store = this.remoteStoreFactory(remoteKind, currentSettings);
         const remoteState = await this.readValidatedRemoteState(store, '附加备份位置');
-        if (remoteState.snapshot !== null && !this.hasKnownBackupLineage(currentSettings, remoteKind, remoteState)) {
-          throw new Error(SYNC_ADDITIONAL_BACKUP_MERGE_REQUIRED);
-        }
         const backupSnapshot = this.snapshotValidationService.validate(
-          this.buildBackupSnapshot(snapshot, remoteState, config),
+          this.buildActiveProviderSnapshot(snapshot),
           '待写入附加备份的'
         );
         const writeResult = await store.writeSnapshot(
@@ -888,28 +880,6 @@ export class PersonalizationSyncService {
     return error.message === PERSONALIZATION_SYNC_WRITE_CONFLICT;
   }
 
-  private hasKnownBackupLineage(
-    settings: AiraSyncSettings,
-    remoteKind: AiraSyncProviderKind,
-    remoteState: PersonalizationSyncRemoteState
-  ): boolean {
-    const snapshot = remoteState.snapshot;
-    if (snapshot === null) {
-      return false;
-    }
-    const providerIdentity = this.syncConfigStore.getProviderRuntimeIdentity(remoteKind, 'personalization');
-    const backupState = resolveAiraSyncDomainRuntimeState(settings, remoteKind, 'personalization_backup');
-    const activeState = resolveAiraSyncDomainRuntimeState(settings, remoteKind, 'personalization');
-    const candidates = [backupState, activeState];
-    return candidates.some((runtimeState): boolean => {
-      if (runtimeState.lastSuccessAt <= 0 || runtimeState.providerIdentity !== providerIdentity) {
-        return false;
-      }
-      const knownRevision = runtimeState.revision.trim();
-      return knownRevision.length > 0 && knownRevision === remoteState.revision;
-    });
-  }
-
   private async readValidatedRemoteState(
     store: PersonalizationSyncRemoteStore,
     sourceLabel: string
@@ -965,43 +935,6 @@ export class PersonalizationSyncService {
     });
     return {
       meta: snapshot.meta,
-      sections: sections,
-      checksum: JSON.stringify(sections)
-    };
-  }
-
-  private buildBackupSnapshot(
-    snapshot: PersonalizationSyncSnapshot,
-    remoteState: PersonalizationSyncRemoteState,
-    config: PersonalizationSyncConfig
-  ): PersonalizationSyncSnapshot {
-    const activeSnapshot = this.buildActiveProviderSnapshot(snapshot);
-    const sections: Record<string, PersonalizationSyncSection> = {};
-    PERSONALIZATION_SYNC_ITEM_IDS.forEach((id: PersonalizationSyncItemId): void => {
-      const section = activeSnapshot.sections[id];
-      if (section !== undefined) {
-        sections[id] = section;
-      }
-    });
-    const remoteHeads = Array.isArray(remoteState.headSnapshots) && remoteState.headSnapshots.length > 0
-      ? remoteState.headSnapshots
-      : (remoteState.snapshot === null ? [] : [remoteState.snapshot]);
-    remoteHeads.forEach((remoteSnapshot: PersonalizationSyncSnapshot): void => {
-      const activeRemoteSnapshot = this.buildActiveProviderSnapshot(remoteSnapshot);
-      PERSONALIZATION_SYNC_ITEM_IDS.forEach((id: PersonalizationSyncItemId): void => {
-        const localSection = sections[id];
-        const remoteSection = activeRemoteSnapshot.sections[id];
-        if (this.isItemSelected(config, id) || remoteSection === undefined) {
-          return;
-        }
-        const preservedSection = this.preserveUnselectedSection(id, localSection, remoteSection);
-        if (preservedSection !== undefined) {
-          sections[id] = preservedSection;
-        }
-      });
-    });
-    return {
-      meta: activeSnapshot.meta,
       sections: sections,
       checksum: JSON.stringify(sections)
     };

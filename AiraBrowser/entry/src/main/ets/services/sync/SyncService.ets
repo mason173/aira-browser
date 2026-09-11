@@ -28,7 +28,6 @@ import {
   resolveAiraSyncProviderRuntimeState,
   AiraSyncWriteStateResult
 } from '../../common/models/AiraSyncModels';
-import { SYNC_ADDITIONAL_BACKUP_MERGE_REQUIRED } from '../../common/constants/SyncFlowErrorCodes';
 import {
   AiraCloudBookmarkV4BootstrapDomain,
   shouldAcknowledgeNativeAiraCloudBookmarkV4Activation
@@ -387,35 +386,11 @@ export class SyncService implements AiraCloudBookmarkV4BootstrapDomain {
       if (!this.isRemoteKindConfigured(settings, remoteKind)) {
         throw new Error('请先配置对应的附加备份位置。');
       }
-      const providerId = this.resolveProviderId(remoteKind);
-      const baseline = await this.requireSyncConfigStore().readBaseline(providerId);
       const store = this.createRemoteStoreForKind(settings, remoteKind);
-      if (store.readHead === undefined) {
-        throw new Error(SYNC_ADDITIONAL_BACKUP_MERGE_REQUIRED);
-      }
-      const remoteHead = await store.readHead();
-      const canResumeKnownLineage = baseline !== undefined && baseline.commitId.length > 0 &&
-        remoteHead.commitId === baseline.commitId;
-      if (remoteHead.commitId !== null && !canResumeKnownLineage) {
-        throw new Error(SYNC_ADDITIONAL_BACKUP_MERGE_REQUIRED);
-      }
       const history = await this.bookmarkHistoryService.readConfirmedHistory();
-      if (baseline !== undefined &&
-        !this.bookmarkHistoryService.sameHistory(
-          this.bookmarkHistoryService.selectNewerHistory(history, baseline.history),
-          history
-        )) {
-        throw new Error(SYNC_ADDITIONAL_BACKUP_MERGE_REQUIRED);
-      }
       const localSnapshot = await this.buildFreshAiraBookmarkSnapshot();
       const snapshot = this.bookmarkHistoryService.projectSnapshot(localSnapshot, history).snapshot;
-      const writeResult = await store.writeState({
-        snapshot: snapshot,
-        history: history,
-        deviceId: snapshot.meta.deviceId,
-        parentCommitId: remoteHead.commitId,
-        createdAt: snapshot.meta.generatedAt
-      });
+      const writeResult = await this.writeBookmarkBackupOverwrite(store, snapshot, history);
       await this.confirmRemoteBookmarkCommit(
         store,
         remoteKind,
@@ -864,31 +839,18 @@ export class SyncService implements AiraCloudBookmarkV4BootstrapDomain {
       if (remoteKind === activeProvider) {
         continue;
       }
-      let failureStage: AiraBookmarkSyncFailureStage = 'merge';
+      let failureStage: AiraBookmarkSyncFailureStage = 'remote_commit';
       try {
         const providerId = this.resolveProviderId(remoteKind);
         const baseline = await this.requireSyncConfigStore().readBaseline(providerId);
-        if (baseline === undefined || baseline.snapshot === null || baseline.commitId.length <= 0) {
-          throw new Error('附加备份位置尚未完成初始化。');
-        }
-        if (!this.bookmarkHistoryService.sameHistory(
-          this.bookmarkHistoryService.selectNewerHistory(history, baseline.history),
-          history
-        )) {
-          throw new Error('附加备份历史已变化，请先将该位置设为当前同步方式完成合并。');
-        }
         const store = this.createRemoteStoreForKind(this.getAiraSyncSettings(), remoteKind);
         const providerSnapshot = this.bookmarkHistoryService.projectSnapshot(
           snapshot,
           history
         ).snapshot;
-        failureStage = 'remote_read_validation';
-        const remoteHead = await this.readRemoteHeadSafely(store);
-        if (remoteHead === undefined || remoteHead.commitId !== baseline.commitId) {
-          throw new Error('附加备份历史已变化，请先将该位置设为当前同步方式完成合并。');
-        }
-        const baselineSnapshot = this.projectSnapshotForChromeSync(baseline.snapshot);
-        const historyMatches = this.bookmarkHistoryService.sameHistory(baseline.history, history);
+        const baselineSnapshot = baseline === undefined ? null : this.projectSnapshotForChromeSync(baseline.snapshot);
+        const historyMatches = baseline !== undefined &&
+          this.bookmarkHistoryService.sameHistory(baseline.history, history);
         if (baselineSnapshot !== null && historyMatches &&
           this.bookmarkMergeService.sameSnapshotContent(providerSnapshot, baselineSnapshot)) {
           await this.requireSyncConfigStore().saveProviderRuntimeState(
@@ -901,14 +863,7 @@ export class SyncService implements AiraCloudBookmarkV4BootstrapDomain {
           summaries.push(`${this.resolveRemoteLabel(remoteKind)}备份已是最新。`);
           continue;
         }
-        failureStage = 'remote_commit';
-        const writeResult = await store.writeState({
-          snapshot: providerSnapshot,
-          history: history,
-          deviceId: providerSnapshot.meta.deviceId,
-          parentCommitId: baseline.commitId,
-          createdAt: providerSnapshot.meta.generatedAt
-        });
+        const writeResult = await this.writeBookmarkBackupOverwrite(store, providerSnapshot, history);
         failureStage = 'remote_confirmation';
         await this.confirmRemoteBookmarkCommit(
           store,
@@ -1403,6 +1358,22 @@ export class SyncService implements AiraCloudBookmarkV4BootstrapDomain {
     } catch (_error) {
       return undefined;
     }
+  }
+
+  private async writeBookmarkBackupOverwrite(
+    store: AiraSyncRemoteStore,
+    snapshot: AiraSyncSnapshot,
+    history: AiraBookmarkHistoryDescriptor
+  ): Promise<AiraSyncWriteStateResult> {
+    const remoteHead = store.readHead === undefined ? undefined : await store.readHead();
+    return store.writeState({
+      snapshot: snapshot,
+      history: history,
+      deviceId: snapshot.meta.deviceId,
+      parentCommitId: remoteHead?.commitId ?? null,
+      createdAt: snapshot.meta.generatedAt,
+      overwriteExisting: true
+    });
   }
 
   private async resolveLocalSnapshotForMerge(

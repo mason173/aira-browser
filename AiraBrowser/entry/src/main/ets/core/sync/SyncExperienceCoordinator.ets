@@ -1050,7 +1050,7 @@ export class SyncExperienceCoordinator implements AiraCloudBookmarkV4BootstrapTr
             failure: bookmarkOutcome.failure
           });
         } else {
-          messages.push(isBackup ? '书签已备份。' : '书签已完成。');
+          messages.push(isBackup ? '当前同步方式的书签已备份。' : '书签已完成。');
         }
       }
       if (context.settings.personalizationSyncEnabled === true && runResult.personalization !== undefined) {
@@ -1062,7 +1062,7 @@ export class SyncExperienceCoordinator implements AiraCloudBookmarkV4BootstrapTr
             message: personalizationOutcome.message
           });
         } else {
-          messages.push(isBackup ? '主页收藏、小说书架和常用设置已备份。' : '主页收藏、小说书架和常用设置已完成。');
+          messages.push(isBackup ? '当前同步方式的主页收藏、小说书架和常用设置已备份。' : '主页收藏、小说书架和常用设置已完成。');
         }
       }
       if (!isBackup && context.experienceState.historySelected && runResult.history !== undefined) {
@@ -1907,14 +1907,14 @@ export class SyncExperienceCoordinator implements AiraCloudBookmarkV4BootstrapTr
         const runtime = resolveAiraSyncDomainRuntimeState(settings, remoteKind, 'bookmark_backup');
         messages.push(this.syncFailurePresentationService.buildBookmarkFailureMessage({
           remoteKind: remoteKind,
-          operationName: '书签备份',
+          operationName: `${providerLabel}额外书签副本`,
           failure: this.resolveRuntimeBookmarkFailure(runtime)
         }));
       }
       if (settings.personalizationSyncEnabled === true && this.isAdditionalBackupDomainUnhealthy(
         resolveAiraSyncDomainRuntimeState(settings, remoteKind, 'personalization_backup')
       )) {
-        messages.push(`${providerLabel}的主页收藏、小说书架和常用设置备份未完成。`);
+        messages.push(`${providerLabel}的主页收藏、小说书架和常用设置额外副本未完成。`);
       }
     }
     return messages;

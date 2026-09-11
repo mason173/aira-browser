@@ -613,10 +613,6 @@ export struct SyncAdditionalBackupHost {
       );
       return;
     }
-    if (outcome.type === 'additional-backup-merge-required') {
-      this.showDialog('附加备份未开启', outcome.message);
-      return;
-    }
     if (outcome.type === 'membership-required' && outcome.membershipDecision !== undefined) {
       this.showMembershipDecision(outcome.membershipDecision);
       return;

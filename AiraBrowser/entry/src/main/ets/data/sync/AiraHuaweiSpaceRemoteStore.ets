@@ -185,7 +185,8 @@ export class AiraHuaweiSpaceRemoteStore implements AiraSyncRemoteStore {
         '本机书签未被覆盖，请稍后重试。'
       );
     }
-    if (params.parentCommitId !== undefined && current.commitId !== null &&
+    if (params.overwriteExisting !== true &&
+      params.parentCommitId !== undefined && current.commitId !== null &&
       params.parentCommitId !== current.commitId) {
       throw new Error(`华为云空间远端已更新，请先重新拉取后再同步。当前远端 commit=${current.commitId ?? ''}`);
     }

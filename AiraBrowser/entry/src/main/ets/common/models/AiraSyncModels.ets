@@ -187,6 +187,7 @@ export interface AiraSyncWriteStateParams {
   deviceId: string;
   parentCommitId?: string | null;
   createdAt?: string;
+  overwriteExisting?: boolean;
 }
 
 export interface AiraSyncWriteStateResult {
