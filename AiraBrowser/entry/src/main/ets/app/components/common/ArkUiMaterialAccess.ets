@@ -66,10 +66,12 @@ export function systemMaterialModifier(
 export function dialogSystemMaterialField(
   material: ImmersiveMaterialHandle | undefined
 ): Record<string, ImmersiveMaterialHandle | undefined> {
-  if (material === undefined) {
-    return {};
+  const fields: Record<string, ImmersiveMaterialHandle | undefined> =
+    new Object() as Record<string, ImmersiveMaterialHandle | undefined>;
+  if (material !== undefined) {
+    fields.systemMaterial = material;
   }
-  return { systemMaterial: material };
+  return fields;
 }
 
 export function assignDialogSystemMaterial(
