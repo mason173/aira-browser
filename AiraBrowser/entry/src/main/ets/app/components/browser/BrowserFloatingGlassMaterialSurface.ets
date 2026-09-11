@@ -17,6 +17,7 @@ export struct BrowserFloatingGlassMaterialSurface {
   @Prop materialShadowEnabled: boolean = false;
   @Prop materialInteractive: boolean = true;
   @Prop materialEnabled: boolean = false;
+  @Prop backgroundBlurEnabled: boolean = true;
   @Prop overlayColor: ResourceColor | undefined = undefined;
   @Prop overlayOpacity: number = 0;
   @Prop materialBorderWidth: number = 0;
@@ -36,6 +37,7 @@ export struct BrowserFloatingGlassMaterialSurface {
         materialShadowEnabled: this.materialShadowEnabled,
         materialInteractive: this.materialInteractive,
         materialEnabled: this.materialEnabled,
+        backgroundBlurEnabled: this.backgroundBlurEnabled,
         overlayColor: this.overlayColor,
         overlayOpacity: this.overlayOpacity,
         materialBorderWidth: this.materialBorderWidth,
