@@ -15,17 +15,6 @@ import {
   SearchEngineId,
   SearchSuggestion
 } from '../../../common/models/BrowserModels';
-import {
-  BrowserBottomToolbarLabelContrastCoordinator,
-  BrowserBottomToolbarLabelContrastRequest,
-  BrowserBottomToolbarLabelTone,
-  BrowserBottomToolbarLabelToneApplier
-} from '../../../core/browser/BrowserBottomToolbarLabelContrastCoordinator';
-import {
-  BrowserForegroundPresentation,
-  BrowserForegroundPresentationViewModel,
-  createDefaultBrowserForegroundPresentation
-} from '../../../core/browser/BrowserForegroundPresentationViewModel';
 import { HomeSearchPanelDetent } from '../../../core/browser/HomeSearchPanelDetentViewModel';
 import {
   BrowserSearchChromeSurfaceState,
@@ -99,8 +88,6 @@ import { DEFAULT_THEME_PALETTE } from '../../../features/theme/palettes/DefaultT
 import {
   BROWSER_BOTTOM_NEUTRAL_ICON_DISABLED_OPACITY,
   BROWSER_BOTTOM_NEUTRAL_ICON_ENABLED_OPACITY,
-  resolveBrowserBottomAdaptiveQuickActionBackgroundColor,
-  resolveBrowserBottomAdaptiveQuickActionIconColor,
   resolveBrowserBottomExpandedToolbarActionColor,
   resolveBrowserBottomExpandedToolbarActionIconColor,
   resolveBrowserBottomFloatingHeaderGrayProgress,
@@ -297,7 +284,6 @@ export struct BrowserBottomAddressPanel {
   @State private reliableHeaderActionEnabled: boolean = true;
   @State private toolbarExpansionStage: BrowserBottomToolbarExpansionStage = 'preview';
   @State private panelDragHeight: number = 0;
-  @State private quickActionLabelTone: BrowserBottomToolbarLabelTone = 'dark';
   @State private quickActionReorderActive: boolean = false;
   @State private liveQuickActionOrderIds: BrowserBottomAddressPanelActionId[] = [];
   @State private floatingActionSurfacePrepared: boolean = false;
@@ -314,12 +300,8 @@ export struct BrowserBottomAddressPanel {
     new BrowserBottomAddressPanelActionVisualViewModel();
   private searchChromeSurfaceViewModel: BrowserSearchChromeSurfaceViewModel =
     new BrowserSearchChromeSurfaceViewModel();
-  private browserForegroundPresentationViewModel: BrowserForegroundPresentationViewModel =
-    new BrowserForegroundPresentationViewModel();
   private externalAppSearchService: ExternalAppSearchService = new ExternalAppSearchService();
   private addressInputController: TextInputController = new TextInputController();
-  private quickActionLabelContrastCoordinator: BrowserBottomToolbarLabelContrastCoordinator =
-    new BrowserBottomToolbarLabelContrastCoordinator();
   private toolbarExpansionViewModel: BrowserBottomToolbarExpansionViewModel =
     new BrowserBottomToolbarExpansionViewModel();
   private toolbarCustomizationCoordinator: BrowserToolbarCustomizationCoordinator =
@@ -404,13 +386,6 @@ export struct BrowserBottomAddressPanel {
   @Prop primaryActionOverrides?: BrowserBottomAddressPanelAction[] = undefined;
   @Prop secondaryActionOverrides?: BrowserBottomAddressPanelAction[] = undefined;
   @Prop quickActionOverrides?: BrowserBottomAddressPanelAction[] = undefined;
-  @Prop quickActionLabelSnapshotId: string = '';
-  @Prop quickActionLabelTabId: string = '';
-  @Prop quickActionLabelBackdropRevision: string = '';
-  @Prop quickActionLabelWebPageVisible: boolean = false;
-  @Prop quickActionLabelControllerAttached: boolean = false;
-  @Prop homeForegroundPresentation: BrowserForegroundPresentation =
-    createDefaultBrowserForegroundPresentation();
   @Prop @Watch('invalidateToolbarPresentationSnapshot') quickActionsOnly: boolean = false;
   @Prop responsiveState: BrowserBottomPanelResponsiveState = DEFAULT_BROWSER_BOTTOM_PANEL_RESPONSIVE_STATE;
   @Prop toolbarActionRevision: number = 0;
@@ -505,7 +480,6 @@ export struct BrowserBottomAddressPanel {
     this.floatingActionContentSettled = false;
     this.floatingActionContentGestureRevealed = false;
     this.floatingHeaderTracksPanelMotion = false;
-    this.quickActionLabelContrastCoordinator.dispose();
     this.homeDismissAfterLowSettlePending = false;
     this.releaseAddressFocusSessionIfOwned(ownsLivePresentation);
   }
@@ -537,7 +511,7 @@ export struct BrowserBottomAddressPanel {
           this.resolveFloatingExpandedHeaderHorizontalInset(),
         floatingTopContentVisible: this.shouldReserveFloatingSuggestionPanelHeight(),
         floatingTopContentHeight: this.resolveFloatingSuggestionPanelHeight(),
-        floatingContentRenderKey: this.buildAdaptiveForegroundRenderKey(),
+        floatingContentRenderKey: this.liveBottomChromePresentation.contentPresentation,
         floatingTopSurfaceChromeVisible: false,
         floatingHeaderChromeVisible: !this.shouldUseThreeBlockBottomChrome(),
         floatingHeaderPresentationOpacity: this.resolveFloatingHeaderPresentationOpacity(),
@@ -1325,7 +1299,7 @@ export struct BrowserBottomAddressPanel {
               AiraIcon({
                 airaIconId: WEB_BOTTOM_TOOLBAR_EXPANSION_HINT_ICON_ID,
                 iconSize: BROWSER_BOTTOM_TOOLBAR_EXPANSION_HINT_ICON_SIZE,
-                iconColor: this.resolveQuickActionLabelColor(true)
+                iconColor: this.resolveItemTextColor(true)
               })
                 .rotate({ angle: this.resolveToolbarExpansionHintRotationAngle() })
                 .animation({
@@ -1367,19 +1341,19 @@ export struct BrowserBottomAddressPanel {
         AiraIcon({
           airaIconId: 'browser.toolbar.reader',
           iconSize: WEB_BOTTOM_READING_CONTINUATION_ICON_SIZE,
-          iconColor: this.resolveQuickActionLabelColor(true)
+          iconColor: this.resolveItemTextColor(true)
         })
 
         Column({ space: 2 }) {
           Text('继续阅读')
             .fontSize(15)
             .fontWeight(FontWeight.Medium)
-            .fontColor(this.resolveQuickActionLabelColor(true))
+            .fontColor(this.resolveItemTextColor(true))
             .maxLines(1)
 
           Text(this.liveReadingContinuation.title)
             .fontSize(13)
-            .fontColor(this.resolveQuickActionLabelColor(false))
+            .fontColor(this.resolveItemTextColor(false))
             .maxLines(1)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
         }
@@ -1390,12 +1364,12 @@ export struct BrowserBottomAddressPanel {
           LoadingProgress()
             .width(WEB_BOTTOM_READING_CONTINUATION_TRAILING_ICON_SIZE)
             .height(WEB_BOTTOM_READING_CONTINUATION_TRAILING_ICON_SIZE)
-            .color(this.resolveQuickActionLabelColor(false))
+            .color(this.resolveItemTextColor(false))
         } else {
           AiraIcon({
             airaIconId: 'browser.toolbar.back',
             iconSize: WEB_BOTTOM_READING_CONTINUATION_TRAILING_ICON_SIZE,
-            iconColor: this.resolveQuickActionLabelColor(false)
+            iconColor: this.resolveItemTextColor(false)
           })
             .rotate({ angle: 180 })
         }
@@ -1513,8 +1487,7 @@ export struct BrowserBottomAddressPanel {
           heightBreakpoint: this.responsiveState.heightBreakpoint,
           aspectBreakpoint: this.responsiveState.aspectBreakpoint
         },
-        pressedBackgroundColor: this.resolvePressedBackgroundColor(),
-        foreground: this.resolveSearchForegroundPresentation()
+        pressedBackgroundColor: this.resolvePressedBackgroundColor()
       },
       onIntent: (intent: BrowserSearchListSurfaceIntent) => {
         this.handleSearchListSurfaceIntent(intent);
@@ -1578,8 +1551,7 @@ export struct BrowserBottomAddressPanel {
         cardEnabled: item.enabled,
         cardImageFillColor: toolbarSystemSheetAction ?
           this.resolveToolbarSystemSheetActionIconColor(item) : this.resolveQuickActionCardImageFillColor(item),
-        cardLabelColor: toolbarSystemSheetAction ?
-          this.resolveItemTextColor(item.enabled) : this.resolveQuickActionLabelColor(item.enabled),
+        cardLabelColor: this.resolveItemTextColor(item.enabled),
         cardBackgroundColor: toolbarSystemSheetAction ?
           this.resolveToolbarSystemSheetActionBackgroundColor(item) : this.resolveQuickActionCardBackgroundColor(item),
         cardDisabledOpacity: 1,
@@ -2101,11 +2073,6 @@ export struct BrowserBottomAddressPanel {
     if (actionBackgroundColor !== undefined) {
       return actionBackgroundColor;
     }
-    if (this.isHomeContentMode() || this.isWebContentMode()) {
-      return resolveBrowserBottomAdaptiveQuickActionBackgroundColor(
-        this.resolveSearchForegroundPresentation().tone
-      );
-    }
     return resolveBrowserBottomExpandedToolbarActionColor(this.resolveNeutralThemeMode());
   }
 
@@ -2113,11 +2080,6 @@ export struct BrowserBottomAddressPanel {
     const actionColor = this.buildQuickActionVisualState(item).imageFillColor;
     if (actionColor !== undefined) {
       return actionColor;
-    }
-    if (this.isHomeContentMode() || this.isWebContentMode()) {
-      return resolveBrowserBottomAdaptiveQuickActionIconColor(
-        this.resolveSearchForegroundPresentation().tone
-      );
     }
     return resolveBrowserBottomExpandedToolbarActionIconColor(this.resolveNeutralThemeMode());
   }
@@ -2627,9 +2589,6 @@ export struct BrowserBottomAddressPanel {
     if (contentChanged) {
       this.resetToolbarExpansionStage();
     }
-    if (contentChanged && this.isExpandedPanelDetent(this.panelDetent)) {
-      this.syncQuickActionLabelContrast(this.panelDetent, this.panelDetent, true);
-    }
     if (!headerChanged && !contentChanged) {
       return;
     }
@@ -2987,7 +2946,6 @@ export struct BrowserBottomAddressPanel {
       return;
     }
     this.panelDetent = nextDetent;
-    this.syncQuickActionLabelContrast(nextDetent, previousDetent);
     if (!this.isExpandedPanelDetent(nextDetent)) {
       this.floatingActionContentSettled = false;
       this.resetQuickActionReorderState();
@@ -3761,91 +3719,8 @@ export struct BrowserBottomAddressPanel {
     return enabled ? this.resolvePrimaryTextColor() : this.resolveSecondaryTextColor();
   }
 
-  private resolveQuickActionLabelColor(enabled: boolean): ResourceColor {
-    if (this.isHomeContentMode() || this.isWebContentMode()) {
-      const foreground = this.resolveSearchForegroundPresentation();
-      return enabled ? foreground.primaryTextColor : foreground.secondaryTextColor;
-    }
-    return this.resolveItemTextColor(enabled);
-  }
-
-  private buildAdaptiveForegroundRenderKey(): string {
-    if (!this.supportsAdaptiveSearchSuggestionForeground()) {
-      return this.liveBottomChromePresentation.contentPresentation;
-    }
-    const foreground = this.resolveSearchForegroundPresentation();
-    return `${this.liveBottomChromePresentation.contentPresentation}:${foreground.freshnessKey}`;
-  }
-
-  private syncQuickActionLabelContrast(
-    nextDetent: HomeSearchPanelDetent,
-    previousDetent: HomeSearchPanelDetent,
-    forceRefresh: boolean = false
-  ): void {
-    const expanded = this.isExpandedPanelDetent(nextDetent);
-    if (this.isHomeContentMode()) {
-      this.quickActionLabelContrastCoordinator.dispose();
-      this.quickActionLabelTone = this.homeForegroundPresentation.tone;
-      return;
-    }
-    const request: BrowserBottomToolbarLabelContrastRequest = {
-      uiContext: this.getUIContext(),
-      componentSnapshotId: this.resolveAdaptiveBackdropSnapshotId(),
-      sessionId: this.resolveAdaptiveBackdropSessionId(),
-      backdropRevision: this.resolveAdaptiveBackdropFreshnessKey(),
-      currentTone: this.quickActionLabelTone,
-      expanded: expanded,
-      backdropAvailable: this.isAdaptiveBackdropAvailable()
-    };
-    const applyTone: BrowserBottomToolbarLabelToneApplier = (tone: BrowserBottomToolbarLabelTone): void => {
-      this.quickActionLabelTone = tone;
-    };
-    this.quickActionLabelContrastCoordinator.updateExpansion(
-      request,
-      forceRefresh || (expanded && !this.isExpandedPanelDetent(previousDetent)),
-      applyTone
-    );
-  }
-
-  private supportsAdaptiveSearchSuggestionForeground(): boolean {
-    return this.isHomeContentMode() || this.isWebContentMode();
-  }
-
-  private resolveAdaptiveBackdropSnapshotId(): string {
-    return this.isWebContentMode() ? this.quickActionLabelSnapshotId : '';
-  }
-
-  private resolveAdaptiveBackdropSessionId(): string {
-    return this.isWebContentMode() ? this.quickActionLabelTabId : '';
-  }
-
-  private resolveAdaptiveBackdropFreshnessKey(): string {
-    if (this.isHomeContentMode()) {
-      return this.homeForegroundPresentation.freshnessKey;
-    }
-    return `${this.quickActionLabelBackdropRevision}:${this.liveAddressDisplayText}`;
-  }
-
-  private isAdaptiveBackdropAvailable(): boolean {
-    if (this.isHomeContentMode()) {
-      return true;
-    }
-    return this.isWebContentMode() && this.quickActionLabelWebPageVisible &&
-      this.quickActionLabelControllerAttached;
-  }
-
   private isWebContentMode(): boolean {
     return this.liveBottomChromePresentation.contentPresentation === 'web';
-  }
-
-  private resolveSearchForegroundPresentation(): BrowserForegroundPresentation {
-    if (this.isHomeContentMode()) {
-      return this.homeForegroundPresentation;
-    }
-    return this.browserForegroundPresentationViewModel.resolveWebPresentation(
-      this.quickActionLabelTone,
-      this.resolveAdaptiveBackdropFreshnessKey()
-    );
   }
 
   private resolvePrimaryTextColor(): ResourceColor {

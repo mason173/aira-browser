@@ -5,9 +5,9 @@ import {
   BROWSER_THEME_STORAGE_RESOLVED_MODE_KEY
 } from '../../../core/theme/BrowserThemeStorageKeys';
 import {
-  BrowserForegroundPresentation,
-  createDefaultBrowserForegroundPresentation
-} from '../../../core/browser/BrowserForegroundPresentationViewModel';
+  resolveBrowserBottomNeutralPrimaryColor,
+  resolveBrowserBottomNeutralSecondaryColor
+} from '../../../core/theme/BrowserBottomPanelNeutralTheme';
 import { AiraRenderableIconId } from '../../../core/resources/GeneratedAiraIconCatalog';
 import { AiraIcon } from '../common/AiraIcon';
 import {
@@ -86,7 +86,6 @@ export struct BrowserSearchSuggestionsPanel {
   blankAreaBackEnabled: boolean = false;
   @Prop
   currentTabSuggestionRefId: string = '';
-  @Prop foreground: BrowserForegroundPresentation = createDefaultBrowserForegroundPresentation();
   onOpenSuggestion: (suggestion: SearchSuggestion) => void = (_suggestion: SearchSuggestion) => {};
   onDeleteHistorySuggestion: (suggestion: SearchSuggestion) => void = (_suggestion: SearchSuggestion) => {};
   onCurrentSuggestionShare: (suggestion: SearchSuggestion) => void = (_suggestion: SearchSuggestion) => {};
@@ -208,7 +207,6 @@ export struct BrowserSearchSuggestionsPanel {
       useNativeStateEffect: this.useNativeStateEffect,
       horizontalPadding: this.regularCardHorizontalPadding,
       currentTabSuggestionRefId: this.currentTabSuggestionRefId,
-      foreground: this.foreground,
       rowHeight: this.resolveRegularRowHeight(),
       rowContentFrameHeight: this.resolveRegularRowContentFrameHeight(),
       compactContent: this.resolveColumnCount() > 1,
@@ -239,7 +237,6 @@ export struct BrowserSearchSuggestionsPanel {
         pressedBackgroundColor: this.resolvePressedBackgroundColor(),
         useNativeStateEffect: this.useNativeStateEffect,
         currentTabSuggestionRefId: this.currentTabSuggestionRefId,
-        foreground: this.foreground,
         onOpenSuggestion: (nextSuggestion: SearchSuggestion) => {
           this.onOpenSuggestion(nextSuggestion);
         },
@@ -431,7 +428,6 @@ struct BrowserSearchSuggestionCard {
   horizontalPadding: number = SUGGESTION_MULTI_COLUMN_CARD_HORIZONTAL_PADDING;
   @Prop
   currentTabSuggestionRefId: string = '';
-  @Prop foreground: BrowserForegroundPresentation = createDefaultBrowserForegroundPresentation();
   @Prop rowHeight: number = BROWSER_SEARCH_LIST_DEFAULT_ROW_HEIGHT;
   @Prop rowContentFrameHeight: number = BROWSER_SEARCH_LIST_ROW_CONTENT_FRAME_HEIGHT;
   @Prop compactContent: boolean = false;
@@ -708,7 +704,7 @@ struct BrowserSearchSuggestionCard {
         AiraIcon({
           airaIconId: iconId,
           iconSize: CURRENT_SUGGESTION_ACTION_ICON_SIZE,
-          iconColor: this.foreground.iconColor
+          iconColor: this.resolvePrimaryTextColor()
         })
 
         Text(label)
@@ -764,11 +760,11 @@ struct BrowserSearchSuggestionCard {
   }
 
   private resolvePrimaryTextColor(): ResourceColor {
-    return this.foreground.primaryTextColor;
+    return resolveBrowserBottomNeutralPrimaryColor(this.storedResolvedThemeMode);
   }
 
   private resolveSecondaryTextColor(): ResourceColor {
-    return this.foreground.secondaryTextColor;
+    return resolveBrowserBottomNeutralSecondaryColor(this.storedResolvedThemeMode);
   }
 
   private resolveRowContentFrameHeight(): number {

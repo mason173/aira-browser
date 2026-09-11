@@ -512,16 +512,6 @@ export class BrowserTabHomeCoordinator {
     });
   }
 
-  buildWebForegroundBackdropRevision(tabId: string): string {
-    const normalizedTabId = tabId.trim();
-    const state = this.shell.readState();
-    const tab = state.tabs.find((candidate: BrowserTabState) => candidate.id === normalizedTabId);
-    if (tab === undefined) {
-      return `${normalizedTabId}:missing`;
-    }
-    return `${tab.id}:${tab.url}:${tab.title}:${tab.navigationIndex}:${tab.lastLoadedAt}:${tab.webStateUpdatedAt}`;
-  }
-
   buildHomeSurfaceProfile(homeVisibleOverride?: boolean): BrowserHomeSurfaceProfile {
     const state = this.shell.readState();
     return this.homeSurfaceProfileViewModel.buildProfile({

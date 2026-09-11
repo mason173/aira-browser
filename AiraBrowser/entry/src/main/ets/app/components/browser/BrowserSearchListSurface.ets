@@ -4,10 +4,6 @@ import {
   BrowserSearchListSurfaceLayoutViewModel,
   BrowserSearchListSurfaceLayoutState
 } from '../../../core/browser/BrowserSearchListSurfaceLayoutViewModel';
-import {
-  BrowserForegroundPresentation,
-  createDefaultBrowserForegroundPresentation
-} from '../../../core/browser/BrowserForegroundPresentationViewModel';
 import { ExternalAppSearchTarget } from '../../../services/search/ExternalAppSearchService';
 import { BrowserSearchSuggestionsPanel } from './BrowserSearchSuggestionsPanel';
 import { ExternalAppSearchStrip } from './ExternalAppSearchStrip';
@@ -46,7 +42,6 @@ export interface BrowserSearchListSurfacePresentation {
   currentTabSuggestionRefId: string;
   hostLayout: BrowserSearchListSurfaceHostLayout;
   pressedBackgroundColor: ResourceColor | undefined;
-  foreground: BrowserForegroundPresentation;
 }
 
 function buildDefaultBrowserSearchListSurfacePresentation(): BrowserSearchListSurfacePresentation {
@@ -63,8 +58,7 @@ function buildDefaultBrowserSearchListSurfacePresentation(): BrowserSearchListSu
       heightBreakpoint: 'regular',
       aspectBreakpoint: 'tall'
     },
-    pressedBackgroundColor: undefined,
-    foreground: createDefaultBrowserForegroundPresentation()
+    pressedBackgroundColor: undefined
   };
 }
 
@@ -98,7 +92,6 @@ export struct BrowserSearchListSurface {
           regularCardHorizontalPadding: 0,
           blankAreaBackEnabled: this.presentation.blankAreaBackEnabled,
           currentTabSuggestionRefId: this.presentation.currentTabSuggestionRefId,
-          foreground: this.presentation.foreground,
           onOpenSuggestion: (suggestion: SearchSuggestion) => {
             this.emitSuggestionIntent('open_suggestion', suggestion);
           },
@@ -118,7 +111,6 @@ export struct BrowserSearchListSurface {
         ExternalAppSearchStrip({
           targets: this.presentation.externalTargets,
           query: this.presentation.query,
-          labelColor: this.presentation.foreground.primaryTextColor,
           stripHeight: layout.externalStripHeight,
           itemWidth: layout.externalItemWidth,
           actionSize: layout.externalActionSize,

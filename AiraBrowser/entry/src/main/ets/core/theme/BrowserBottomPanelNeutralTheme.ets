@@ -15,10 +15,6 @@ const BROWSER_BOTTOM_EXPANDED_TOOLBAR_ACTION_DARK: string = '#14FFFFFF';
 const BROWSER_BOTTOM_TOOLBAR_SHEET_ACTION_LIGHT: string = '#FFFFFFFF';
 const BROWSER_BOTTOM_EXPANDED_TOOLBAR_ACTION_ICON_LIGHT: string = '#BF000000';
 const BROWSER_BOTTOM_EXPANDED_TOOLBAR_ACTION_ICON_DARK: string = '#E6FFFFFF';
-const BROWSER_BOTTOM_ADAPTIVE_QUICK_ACTION_DARK_TEXT_BACKGROUND: string = '#14000000';
-const BROWSER_BOTTOM_ADAPTIVE_QUICK_ACTION_LIGHT_TEXT_BACKGROUND: string = '#1FFFFFFF';
-const BROWSER_BOTTOM_ADAPTIVE_QUICK_ACTION_DARK_TEXT_ICON: string = '#FF000000';
-const BROWSER_BOTTOM_ADAPTIVE_QUICK_ACTION_LIGHT_TEXT_ICON: string = '#FFFFFFFF';
 const BROWSER_BOTTOM_FLOATING_HEADER_GRAY_START_PROGRESS: number = 0.45;
 const BROWSER_BOTTOM_FLOATING_HEADER_GRAY_END_PROGRESS: number = 1;
 const BROWSER_BOTTOM_FLOATING_HEADER_DEFAULT_LIGHT_BACKGROUND: string = '#F5FFFFFF';
@@ -71,20 +67,6 @@ export function resolveBrowserBottomExpandedToolbarActionIconColor(
 ): ResourceColor {
   return isBrowserBottomNeutralDarkMode(mode) ? BROWSER_BOTTOM_EXPANDED_TOOLBAR_ACTION_ICON_DARK :
     BROWSER_BOTTOM_EXPANDED_TOOLBAR_ACTION_ICON_LIGHT;
-}
-
-export function resolveBrowserBottomAdaptiveQuickActionBackgroundColor(
-  foregroundTone: 'light' | 'dark'
-): ResourceColor {
-  return foregroundTone === 'light' ? BROWSER_BOTTOM_ADAPTIVE_QUICK_ACTION_LIGHT_TEXT_BACKGROUND :
-    BROWSER_BOTTOM_ADAPTIVE_QUICK_ACTION_DARK_TEXT_BACKGROUND;
-}
-
-export function resolveBrowserBottomAdaptiveQuickActionIconColor(
-  foregroundTone: 'light' | 'dark'
-): ResourceColor {
-  return foregroundTone === 'light' ? BROWSER_BOTTOM_ADAPTIVE_QUICK_ACTION_LIGHT_TEXT_ICON :
-    BROWSER_BOTTOM_ADAPTIVE_QUICK_ACTION_DARK_TEXT_ICON;
 }
 
 export function resolveBrowserBottomNeutralPressedColor(mode: BrowserResolvedThemeMode | string): ResourceColor {

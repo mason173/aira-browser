@@ -24,8 +24,10 @@ import {
 } from '../../../domain/download/DownloadTypes';
 import { DownloadV2Status } from '../../../domain/downloadv2/DownloadV2Types';
 import {
+  BROWSER_THEME_STORAGE_CONTROL_BACKGROUND_KEY,
   BROWSER_THEME_STORAGE_DIVIDER_KEY,
   BROWSER_THEME_STORAGE_PAGE_BACKGROUND_KEY,
+  BROWSER_THEME_STORAGE_RESOLVED_MODE_KEY,
   BROWSER_THEME_STORAGE_SURFACE_BACKGROUND_KEY,
   BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY,
   BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY
@@ -44,6 +46,8 @@ import {
   ManagementHdsScaffold
 } from '../common/ManagementHdsScaffold';
 import { SegmentedTabOption, SegmentedTabs } from '../common/SegmentedTabs';
+import { FloatingGlassMaterialSurface } from '../common/FloatingGlassMaterialSurface';
+import { resolveFloatingGlassMaterialTintForMode } from '../common/FloatingGlassMaterialTokens';
 import { AppWindowModalLayoutService } from '../../../services/layout/AppWindowModalLayoutService';
 import { BROWSER_WINDOW_SAFE_TOP_INSET_STORAGE_KEY } from '../../../core/browser/BrowserWindowAvoidAreaCoordinator';
 
@@ -84,6 +88,9 @@ export struct BrowserDownloadManagementScreen {
   @StorageProp(BROWSER_THEME_STORAGE_DIVIDER_KEY) private storedDividerColor: string = '#E3E8EF';
   @StorageProp(BROWSER_THEME_STORAGE_PAGE_BACKGROUND_KEY) private storedPageBackgroundColor: string = DEFAULT_THEME_PALETTE.light.pageBackground;
   @StorageProp(BROWSER_THEME_STORAGE_SURFACE_BACKGROUND_KEY) private storedSurfaceBackgroundColor: string = '#FFFFFF';
+  @StorageProp(BROWSER_THEME_STORAGE_CONTROL_BACKGROUND_KEY)
+  private storedControlBackgroundColor: string = DEFAULT_THEME_PALETTE.light.controlBackground;
+  @StorageProp(BROWSER_THEME_STORAGE_RESOLVED_MODE_KEY) private storedResolvedThemeMode: string = 'light';
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY) private storedPrimaryTextColor: string = '#111318';
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY) private storedSecondaryTextColor: string = '#5F6875';
   @Prop presentationMode: 'page' | 'native_tab' = 'page';
@@ -240,18 +247,30 @@ export struct BrowserDownloadManagementScreen {
   @Builder
   private buildPinnedGroupFilters() {
     Row({ space: 12 }) {
-      SegmentedTabs({
-        options: this.buildGroupTabOptions(),
-        selectedId: this.selectedGroup,
-        barHeight: 36,
-        itemHeight: 30,
-        fontSize: 13,
-        barPadding: 3,
-        onSelect: (id: string) => {
-          this.selectGroup(id as DownloadQueryGroup);
-        }
-      })
-      .width(this.resolveGroupFilterWidth())
+      FloatingGlassMaterialSurface({
+        surfaceWidth: this.resolveGroupFilterWidth(),
+        surfaceHeight: 36,
+        surfaceRadius: 18,
+        tintColor: resolveFloatingGlassMaterialTintForMode(this.storedResolvedThemeMode),
+        fallbackColor: this.storedControlBackgroundColor,
+        backgroundBlurEnabled: false
+      }) {
+        SegmentedTabs({
+          options: this.buildGroupTabOptions(),
+          selectedId: this.selectedGroup,
+          barHeight: 36,
+          itemHeight: 30,
+          fontSize: 14,
+          barPadding: 3,
+          fallbackColor: $r('sys.color.ohos_id_color_background_transparent'),
+          barMaterialEnabled: false,
+          onSelect: (id: string) => {
+            this.selectGroup(id as DownloadQueryGroup);
+          }
+        })
+          .width('100%')
+          .height(36)
+      }
 
       if (this.shouldShowLargeScreenDownloadSettings()) {
         Blank()

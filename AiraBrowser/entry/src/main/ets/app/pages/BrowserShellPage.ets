@@ -1147,8 +1147,7 @@ import { BrowserShellPrimarySurfaceHost } from '../components/browser/BrowserShe
 import {
   BrowserTabPreviewWebViewportSize,
   buildBrowserTabPreviewVisibleSurfaceSnapshotId,
-  buildBrowserTabPreviewVisibleSnapshotId,
-  buildBrowserTabWebComponentSnapshotId
+  buildBrowserTabPreviewVisibleSnapshotId
 } from '../../services/web/BrowserTabPreviewCaptureService';
 import {
   BrowserSystemSheetType,
@@ -6673,21 +6672,6 @@ struct BrowserShellPage {
       homeSuggestions: this.browserSearchSuggestionSnapshot.searchSuggestions,
       homeSuggestionsVisible: this.browserSearchSuggestionSnapshot.showSearchSuggestions,
       currentTabSuggestionRefId: this.activeTabId,
-      quickActionLabelSnapshotId: buildBrowserTabWebComponentSnapshotId(this.activeTabId),
-      quickActionLabelTabId: this.activeTabId,
-      quickActionLabelBackdropRevision:
-        this.browserTabHomeCoordinator.buildWebForegroundBackdropRevision(this.activeTabId),
-      quickActionLabelWebPageVisible: this.isWebPageVisible(),
-      quickActionLabelControllerAttached: this.controllerAttached,
-      homeForegroundPresentation: this.browserTabHomeCoordinator.buildForegroundPresentation({
-        wallpaperState: this.resolveHomeWallpaperPresentationState(),
-        themeBackgroundColor: this.themedHomeBackground,
-        themedPrimaryTextColor: this.themedHomeTextPrimaryColor,
-        themedSecondaryTextColor: this.themedHomeTextSecondaryColor,
-        themedPressedBackgroundColor: this.themedHomePressedBackground,
-        controlBackgroundColor: this.themedHomeControlBackground,
-        accentColor: this.themedHomeAccentColor
-      }),
       responsiveState: renderContext.responsiveState,
       onPanelDetentChange: (detent: HomeSearchPanelDetent) => {
         this.applyRootBottomPanelDetent(detent);
