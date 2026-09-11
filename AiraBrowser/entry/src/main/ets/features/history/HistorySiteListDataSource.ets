@@ -52,10 +52,6 @@ export class HistorySiteListDataSource implements IDataSource {
     this.notifyDataReload();
   }
 
-  notifyPresentationChanged(): void {
-    this.notifyDataReload();
-  }
-
   getIconTargetsAround(startIndex: number, endIndex: number, bufferRows: number): HistorySiteIconTarget[] {
     const safeStart = Math.max(0, Math.min(startIndex, endIndex) - bufferRows);
     const safeEnd = Math.min(this.sites.length - 1, Math.max(startIndex, endIndex) + bufferRows);

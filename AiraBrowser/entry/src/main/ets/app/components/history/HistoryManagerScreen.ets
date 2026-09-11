@@ -564,26 +564,28 @@ export struct HistoryManagerScreen {
 
   @Builder
   private buildHistoryList() {
-    this.buildHistoryPage(this.viewMode)
-    }
+    this.buildHistoryPage()
+  }
 
+  // Read this.viewMode inside the observed builder bodies (not as a by-value
+  // parameter) so ArkUI subscribes the list subtree to the view-mode state.
   @Builder
-  private buildHistoryPage(mode: HistoryViewMode) {
+  private buildHistoryPage() {
     if (this.isSearchMode && this.searchQuery.trim().length === 0) {
       this.buildIdleSearchList()
-    } else if (mode === 'timeline') {
+    } else if (this.viewMode === 'timeline') {
       Stack({ alignContent: Alignment.Top }) {
-        this.buildHistoryContent(mode)
-        if (this.shouldShowHistoryEmptyState(mode)) {
-          this.buildEmptyState(mode)
+        this.buildHistoryContent()
+        if (this.shouldShowHistoryEmptyState(this.viewMode)) {
+          this.buildEmptyState(this.viewMode)
         }
       }
       .width('100%')
       .height('100%')
-    } else if (!this.isViewModeEmpty(mode)) {
-      this.buildHistoryContent(mode)
+    } else if (!this.isViewModeEmpty(this.viewMode)) {
+      this.buildHistoryContent()
     } else {
-      this.buildEmptyState(mode)
+      this.buildEmptyState(this.viewMode)
     }
   }
 
@@ -601,8 +603,8 @@ export struct HistoryManagerScreen {
   }
 
   @Builder
-  private buildHistoryContent(mode: HistoryViewMode) {
-    if (mode === 'sites') {
+  private buildHistoryContent() {
+    if (this.viewMode === 'sites') {
       HistorySiteList({
         dataSource: this.historySiteListDataSource,
         listScroller: this.historySiteScroller,

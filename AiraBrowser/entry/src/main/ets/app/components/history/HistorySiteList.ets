@@ -2,7 +2,14 @@ import { image } from '@kit.ImageKit';
 import { HistorySiteGroup } from '../../../features/history/HistoryViewModel';
 import { HistorySiteListDataSource } from '../../../features/history/HistorySiteListDataSource';
 import { resolveSiteIconFallbackLabel } from '../../../common/utils/SiteIconFallbackUtils';
-import { RECORD_LIST_CARD_RADIUS } from '../common/RecordListTokens';
+import {
+  RECORD_LIST_CARD_RADIUS,
+  RECORD_LIST_ROW_FAVICON_CONTENT_RATIO,
+  RECORD_LIST_ROW_FAVICON_SIZE,
+  RECORD_LIST_ROW_FAVICON_SLOT_SIZE,
+  RECORD_LIST_ROW_FALLBACK_FONT_SIZE,
+  RECORD_LIST_ROW_HORIZONTAL_INSET
+} from '../common/RecordListTokens';
 import { WebsiteRecordRow } from '../common/WebsiteRecordRow';
 import {
   BROWSER_APPEARANCE_STORAGE_SITE_ICON_CORNER_RATIO_KEY,
@@ -18,18 +25,17 @@ import {
 const HISTORY_SITE_LIST_CACHE_COUNT: number = 8;
 const HISTORY_SITE_LIST_GROUP_PADDING: number = 4;
 const HISTORY_SITE_LIST_TOP_BLUR_RADIUS: number = 20;
+const HISTORY_SITE_ROW_HEIGHT: number = 68;
 
 @Component
 export struct HistorySiteList {
   @StorageProp(BROWSER_APPEARANCE_STORAGE_SITE_ICON_CORNER_RATIO_KEY) private storedSiteIconCornerRadiusRatio: number = 0.3;
-  @StorageProp(BROWSER_THEME_STORAGE_ACCENT_KEY) private storedAccentColor: string = '#0A59F7';
   @StorageProp(BROWSER_THEME_STORAGE_SURFACE_BACKGROUND_KEY) private storedSurfaceBackgroundColor: string = '#FFFFFF';
-  @StorageProp(BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY) private storedSecondaryTextColor: string = '#5F6875';
   dataSource: HistorySiteListDataSource = new HistorySiteListDataSource();
   listScroller: Scroller = new Scroller();
   @Prop icons: SiteIconListRenderState[] = [];
-  @Prop @Watch('handleSelectionPresentationChanged') selectedSiteKeys: string[] = [];
-  @Prop @Watch('handleSelectionPresentationChanged') isSelectionMode: boolean = false;
+  @Prop selectedSiteKeys: string[] = [];
+  @Prop isSelectionMode: boolean = false;
   @Prop contentStartOffset: number = 4;
   @State private pressedSiteKey: string = '';
   @State private contextMenuSiteKey: string = '';
@@ -56,6 +62,7 @@ export struct HistorySiteList {
           this.buildSiteCardRow(site, index)
         }
         .width('100%')
+        .reuseId('history_site_row')
       }, (site: HistorySiteGroup) => site.key)
     }
     .width('100%')
@@ -100,7 +107,7 @@ export struct HistorySiteList {
 
   @Builder
   private buildSiteRow(site: HistorySiteGroup) {
-    WebsiteRecordRow({
+    HistorySiteRecordRow({
       iconUri: this.getIconPathById(site.key),
       iconPixelMap: this.getIconPixelMap(site.key),
       fallbackLabel: resolveSiteIconFallbackLabel(site.title, site.host),
@@ -108,9 +115,9 @@ export struct HistorySiteList {
       subtitle: `${site.visitCount} 次访问 · ${site.uniqueUrlCount} 个页面 · 最近 ${site.latestTitle}`,
       pressed: this.pressedSiteKey === site.key,
       menuVisible: !this.isSelectionMode && this.contextMenuSiteKey === site.key,
-      rowHeight: 68,
+      selected: this.isSiteSelected(site.key),
+      selectionMode: this.isSelectionMode,
       iconCornerRadiusRatio: this.storedSiteIconCornerRadiusRatio,
-      preferPixelMap: this.getIconPixelMap(site.key) !== undefined,
       sourceRevision: this.getIconSourceRevision(site.key),
       onIconLoadError: (iconUri: string, sourceRevision: number) => {
         this.onIconLoadError({
@@ -135,13 +142,17 @@ export struct HistorySiteList {
       onMenuDisappear: () => {
         this.contextMenuSiteKey = '';
       },
-      trailing: () => {
-        this.buildTrailing(site)
+      onSelectedChange: (selected: boolean) => {
+        this.onSetSiteSelected(site.key, selected);
       },
-      menuContent: () => {
-        this.buildMenuItems(site)
+      onOpenSite: () => {
+        this.onOpenSite(site);
+      },
+      onDeleteSite: () => {
+        this.onDeleteSite(site);
       }
     })
+      .reuseId('history_site_record_row')
   }
 
   private resolveSiteCardRadius(index: number): BorderRadiuses {
@@ -151,36 +162,6 @@ export struct HistorySiteList {
       bottomLeft: index >= this.dataSource.totalCount() - 1 ? RECORD_LIST_CARD_RADIUS : 0,
       bottomRight: index >= this.dataSource.totalCount() - 1 ? RECORD_LIST_CARD_RADIUS : 0
     };
-  }
-
-  @Builder
-  private buildTrailing(site: HistorySiteGroup) {
-    if (this.isSelectionMode) {
-      Checkbox()
-        .select(this.isSiteSelected(site.key))
-        .selectedColor(this.storedAccentColor)
-        .onChange((isSelected: boolean) => {
-          this.onSetSiteSelected(site.key, isSelected);
-        })
-    } else {
-      SymbolGlyph($r('sys.symbol.chevron_right'))
-        .fontSize(18)
-        .fontWeight(FontWeight.Bold)
-        .fontColor([this.storedSecondaryTextColor])
-    }
-  }
-
-  @Builder
-  private buildMenuItems(site: HistorySiteGroup) {
-    MenuItem({ content: '查看记录' })
-      .onClick(() => {
-        this.onOpenSite(site);
-      })
-
-    MenuItem({ content: '删除该站点记录' })
-      .onClick(() => {
-        this.onDeleteSite(site);
-      })
   }
 
   private updatePressedSite(siteKey: string, type: TouchType): void {
@@ -225,12 +206,6 @@ export struct HistorySiteList {
     return this.iconLookup[siteKey];
   }
 
-  private handleSelectionPresentationChanged(): void {
-    this.selectedSiteKeyLookupSource = this.selectedSiteKeys;
-    this.selectedSiteKeyLookup = this.buildIdLookup(this.selectedSiteKeys);
-    this.dataSource.notifyPresentationChanged();
-  }
-
   private getSelectedSiteKeyLookup(): Record<string, boolean> {
     if (this.selectedSiteKeyLookupSource !== this.selectedSiteKeys) {
       this.selectedSiteKeyLookupSource = this.selectedSiteKeys;
@@ -253,5 +228,130 @@ export struct HistorySiteList {
       lookup[id] = true;
     });
     return lookup;
+  }
+}
+
+@Reusable
+@Component
+struct HistorySiteRecordRow {
+  @StorageProp(BROWSER_THEME_STORAGE_ACCENT_KEY) private storedAccentColor: string = '#0A59F7';
+  @StorageProp(BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY) private storedSecondaryTextColor: string = '#5F6875';
+  @Prop iconUri: string = '';
+  @Prop iconPixelMap: image.PixelMap | undefined = undefined;
+  @Prop fallbackLabel: string = '#';
+  @Prop title: string = '';
+  @Prop subtitle: string = '';
+  @Prop pressed: boolean = false;
+  @Prop menuVisible: boolean = false;
+  @Prop selected: boolean = false;
+  @Prop selectionMode: boolean = false;
+  @Prop iconCornerRadiusRatio: number = 0.3;
+  @Prop sourceRevision: number = 0;
+  onTouchAction: (type: TouchType) => void = (_type: TouchType) => {};
+  onOpenMenu: () => void = () => {};
+  onRowClick: () => void = () => {};
+  onMenuDisappear: () => void = () => {};
+  onSelectedChange: (selected: boolean) => void = (_selected: boolean) => {};
+  onOpenSite: () => void = () => {};
+  onDeleteSite: () => void = () => {};
+  onIconLoadError: (iconUri: string, sourceRevision: number) => void =
+    (_iconUri: string, _sourceRevision: number) => {};
+
+  aboutToReuse(params: Record<string, Object>): void {
+    this.iconUri = params.iconUri as string;
+    this.iconPixelMap = params.iconPixelMap as image.PixelMap | undefined;
+    this.fallbackLabel = params.fallbackLabel as string;
+    this.title = params.title as string;
+    this.subtitle = params.subtitle as string;
+    this.pressed = params.pressed as boolean;
+    this.menuVisible = params.menuVisible as boolean;
+    this.selected = params.selected as boolean;
+    this.selectionMode = params.selectionMode as boolean;
+    this.iconCornerRadiusRatio = params.iconCornerRadiusRatio as number;
+    this.sourceRevision = params.sourceRevision as number;
+    this.onTouchAction = params.onTouchAction as (type: TouchType) => void;
+    this.onOpenMenu = params.onOpenMenu as () => void;
+    this.onRowClick = params.onRowClick as () => void;
+    this.onMenuDisappear = params.onMenuDisappear as () => void;
+    this.onSelectedChange = params.onSelectedChange as (selected: boolean) => void;
+    this.onOpenSite = params.onOpenSite as () => void;
+    this.onDeleteSite = params.onDeleteSite as () => void;
+    this.onIconLoadError = params.onIconLoadError as (iconUri: string, sourceRevision: number) => void;
+  }
+
+  build() {
+    WebsiteRecordRow({
+      iconUri: this.iconUri,
+      iconPixelMap: this.iconPixelMap,
+      fallbackLabel: this.fallbackLabel,
+      title: this.title,
+      subtitle: this.subtitle,
+      pressed: this.pressed,
+      menuVisible: this.menuVisible,
+      rowHeight: HISTORY_SITE_ROW_HEIGHT,
+      leftInset: RECORD_LIST_ROW_HORIZONTAL_INSET,
+      rightInset: RECORD_LIST_ROW_HORIZONTAL_INSET,
+      iconSize: RECORD_LIST_ROW_FAVICON_SIZE,
+      iconSlotSize: RECORD_LIST_ROW_FAVICON_SLOT_SIZE,
+      iconContentRatio: RECORD_LIST_ROW_FAVICON_CONTENT_RATIO,
+      iconCornerRadiusRatio: this.iconCornerRadiusRatio,
+      fallbackFontSize: RECORD_LIST_ROW_FALLBACK_FONT_SIZE,
+      preferPixelMap: this.iconPixelMap !== undefined,
+      sourceRevision: this.sourceRevision,
+      onIconLoadError: (iconUri: string, sourceRevision: number) => {
+        this.onIconLoadError(iconUri, sourceRevision);
+      },
+      onTouchAction: (type: TouchType) => {
+        this.onTouchAction(type);
+      },
+      onOpenMenu: () => {
+        this.onOpenMenu();
+      },
+      onRowClick: () => {
+        this.onRowClick();
+      },
+      onMenuDisappear: () => {
+        this.onMenuDisappear();
+      },
+      trailing: () => {
+        this.buildTrailing()
+      },
+      menuContent: () => {
+        this.buildMenuItems()
+      }
+    })
+  }
+
+  @Builder
+  private buildTrailing() {
+    if (this.selectionMode) {
+      Checkbox()
+        .width(20)
+        .height(20)
+        .shape(CheckBoxShape.CIRCLE)
+        .select(this.selected)
+        .selectedColor(this.storedAccentColor)
+        .onChange((isSelected: boolean) => {
+          this.onSelectedChange(isSelected);
+        })
+    } else {
+      SymbolGlyph($r('sys.symbol.chevron_right'))
+        .fontSize(18)
+        .fontWeight(FontWeight.Bold)
+        .fontColor([this.storedSecondaryTextColor])
+    }
+  }
+
+  @Builder
+  private buildMenuItems() {
+    MenuItem({ content: '查看记录' })
+      .onClick(() => {
+        this.onOpenSite();
+      })
+
+    MenuItem({ content: '删除该站点记录' })
+      .onClick(() => {
+        this.onDeleteSite();
+      })
   }
 }
