@@ -53,6 +53,8 @@ import {
 import { AiraIcon } from '../common/AiraIcon';
 import {
   createFloatingGlassMaterialIfAvailable,
+  FLOATING_GLASS_MATERIAL_ADAPTIVE_OPTIONS,
+  FLOATING_GLASS_MATERIAL_BLUR_STYLE,
   resolveFloatingGlassMaterialBackgroundColor,
   systemMaterialModifier
 } from '../common/FloatingGlassMaterialTokens';
@@ -878,17 +880,15 @@ export struct NovelReaderOverlay {
   @Builder
   buildBookActionBar() {
     Column() {
-      BrowserFloatingGlassMaterialSurface({
-        surfaceWidth: '100%',
-        surfaceHeight: NOVEL_BOOK_ACTION_SURFACE_HEIGHT,
-        surfaceRadius: 0,
-        tintColor: this.resolveBookGlassTintColor()
-      }) {
-        this.buildBookActionContent(this.layoutState.bookSurfaceWidth)
-      }
+      this.buildBookActionContent(this.layoutState.bookSurfaceWidth)
     }
     .width('100%')
     .height(NOVEL_BOOK_ACTION_SURFACE_HEIGHT)
+    .backgroundColor($r('app.color.surface_glass_background'))
+    .backgroundBlurStyle(
+      FLOATING_GLASS_MATERIAL_BLUR_STYLE,
+      FLOATING_GLASS_MATERIAL_ADAPTIVE_OPTIONS
+    )
     .shadow({
       radius: 6,
       color: resolveBrowserBottomFloatingMaterialShadowColor(this.storedResolvedThemeMode),
@@ -1462,11 +1462,6 @@ export struct NovelReaderOverlay {
 
   private resolveBookDividerColor(): ResourceColor {
     return this.resolveActiveBookPalette()?.dividerColor ?? this.storedDividerColor;
-  }
-
-  private resolveBookGlassTintColor(): ResourceColor {
-    return this.resolveActiveBookPalette()?.glassTintColor ??
-      resolveBrowserBottomChromeMaterialTintForMode(this.storedResolvedThemeMode);
   }
 
   private resolveActiveBookPalette(): NovelBookCoverPalette | undefined {
