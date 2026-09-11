@@ -40,7 +40,7 @@ export class BookmarkRecordActionViewModel {
         { id: 'move', title: '移动', role: 'normal' }
       ];
       if (context.canSelect) {
-        actions.unshift({ id: 'enter_edit_mode', title: '编辑', role: 'normal' });
+        actions.unshift({ id: 'enter_edit_mode', title: '多选', role: 'normal' });
       }
       actions.push({ id: 'delete', title: '删除', role: 'destructive' });
       return actions;
@@ -63,7 +63,7 @@ export class BookmarkRecordActionViewModel {
       });
     }
     if (context.canSelect) {
-      actions.unshift({ id: 'enter_edit_mode', title: '编辑', role: 'normal' });
+      actions.unshift({ id: 'enter_edit_mode', title: '多选', role: 'normal' });
     }
     return actions;
   }

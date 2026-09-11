@@ -45,7 +45,7 @@ export class BookmarkManagerHeaderActionViewModel {
     }
     if (context.canEnterSelectionMode) {
       actions.push({
-        label: '编辑',
+        label: '多选',
         icon: $r('sys.symbol.checkmark_circle_fill'),
         action: handlers.enterSelectionMode
       });
