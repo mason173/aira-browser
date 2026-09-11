@@ -77,6 +77,7 @@ import { AppServiceModeGateService } from '../../services/settings/AppServiceMod
 import { SiteCustomizationFocusCapability } from '../../core/sitecontrols/SiteControlsNavigationDecision';
 import { requestOpenBrowserUrlWithRouteParams } from '../../core/navigation/BrowserNativeNavigationRequestCenter';
 import { AIRA_DISTRIBUTION_CAPABILITY_OWNER } from '../../common/config/AiraDistributionCapabilityOwner';
+import { WEB_DAV_TARGET_ROLE_KEY } from '../../core/sync/WebdavProviderCatalog';
 
 export interface SettingsRouteParams extends BrowserBoundaryRouteState {
   sectionId?: string;
@@ -611,9 +612,10 @@ export class SettingsNavigationCoordinator {
     if (!this.canOpenOptionalServiceRoute()) {
       return;
     }
+    AppStorage.setOrCreate(WEB_DAV_TARGET_ROLE_KEY, targetRole);
     const params = this.buildParams(boundary);
     params.syncTargetRole = targetRole;
-    params.syncActivateExperience = activateExperience ? 'true' : 'false';
+    params.syncActivateExperience = activateExperience && targetRole === 'active' ? 'true' : 'false';
     this.pushUrl(SYNC_WEBDAV_CONFIG_ROUTE, params);
   }
 

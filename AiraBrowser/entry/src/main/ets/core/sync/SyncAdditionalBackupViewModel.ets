@@ -22,9 +22,9 @@ export function createDefaultSyncAdditionalBackupViewState(): SyncAdditionalBack
     intervalDays: 7,
     intervalLabel: '7 天一次',
     providerCards: [],
-    providerSummary: '未选择',
+    providerSummary: '未设置',
     lastBackupLabel: '尚未完成备份',
-    statusMessage: '选择备份位置后，可以按设定频率保存额外副本。',
+    statusMessage: '额外备份只会覆盖写入你的 WebDAV，不会改成当前同步方式。',
     canBackupNow: false
   };
 }
@@ -36,32 +36,60 @@ export class SyncAdditionalBackupViewModel {
     settings: AiraSyncSettings,
     providerCards: SyncSettingsProviderCardViewState[]
   ): SyncAdditionalBackupViewState {
-    const selectedProviderCount = providerCards.filter((card: SyncSettingsProviderCardViewState): boolean => {
-      return card.role === 'additional_backup';
-    }).length;
+    const destinationCard = this.resolveWebdavDestination(providerCards);
+    const destinationReady = destinationCard !== undefined && destinationCard.role === 'additional_backup';
     const enabled = this.policyService.isEnabled(settings);
     const lastBackupAt = this.policyService.resolveLastCompleteBackupAt(settings);
     return {
       enabled: enabled,
       intervalDays: this.policyService.resolveIntervalDays(settings),
       intervalLabel: this.policyService.resolveIntervalLabel(settings),
-      providerCards: providerCards,
-      providerSummary: selectedProviderCount > 0 ? `${selectedProviderCount} 个位置` : '未选择',
+      providerCards: destinationCard === undefined ? [] : [destinationCard],
+      providerSummary: this.resolveProviderSummary(destinationCard, settings),
       lastBackupLabel: this.formatTimestamp(lastBackupAt),
-      statusMessage: this.resolveStatusMessage(enabled, selectedProviderCount),
-      canBackupNow: enabled && selectedProviderCount > 0 &&
+      statusMessage: this.resolveStatusMessage(enabled, destinationReady, destinationCard),
+      canBackupNow: enabled && destinationReady &&
         (settings.bookmarkSyncEnabled === true || settings.personalizationSyncEnabled === true)
     };
   }
 
-  private resolveStatusMessage(enabled: boolean, selectedProviderCount: number): string {
-    if (selectedProviderCount <= 0) {
-      return '请选择至少一个备份位置。额外备份不会自动变成当前同步方式。';
+  private resolveWebdavDestination(
+    providerCards: SyncSettingsProviderCardViewState[]
+  ): SyncSettingsProviderCardViewState | undefined {
+    return providerCards.find((card: SyncSettingsProviderCardViewState): boolean => {
+      return card.id === 'webdav';
+    });
+  }
+
+  private resolveProviderSummary(
+    destinationCard: SyncSettingsProviderCardViewState | undefined,
+    settings: AiraSyncSettings
+  ): string {
+    if (destinationCard === undefined) {
+      return settings.remoteKind === 'webdav' ? '当前同步已是 WebDAV' : '不可用';
+    }
+    if (destinationCard.role === 'additional_backup') {
+      const endpoint = settings.webdav.endpoint.trim();
+      return endpoint.length > 0 ? endpoint : 'WebDAV 已开启';
+    }
+    return destinationCard.isConfigured ? '已填写，未开启' : '未设置';
+  }
+
+  private resolveStatusMessage(
+    enabled: boolean,
+    destinationReady: boolean,
+    destinationCard: SyncSettingsProviderCardViewState | undefined
+  ): string {
+    if (destinationCard === undefined) {
+      return '当前同步方式已经是 WebDAV 时，无需再设额外备份。';
+    }
+    if (!destinationReady) {
+      return '额外备份只会覆盖写入你的 WebDAV，不会改成当前同步方式。';
     }
     if (!enabled) {
-      return '备份位置已保留，重新开启后会按设定频率继续。';
+      return 'WebDAV 备份位置已保留，重新开启后会按设定频率继续覆盖写入。';
     }
-    return '当前同步完成后，仅在达到设定间隔时更新额外副本。';
+    return '当前同步完成后，仅在达到设定间隔时用本机内容覆盖 WebDAV 上的额外副本。';
   }
 
   private formatTimestamp(timestamp: number): string {

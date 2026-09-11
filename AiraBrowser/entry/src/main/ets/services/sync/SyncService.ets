@@ -380,11 +380,14 @@ export class SyncService implements AiraCloudBookmarkV4BootstrapDomain {
     return this.runSerializedBookmarkTask<AiraSyncWriteStateResult>(async () => {
       const settings = this.getAiraSyncSettings();
       const activeProvider = this.resolveActiveProviderForSync(settings);
+      if (remoteKind !== 'webdav') {
+        throw new Error('额外备份只能使用 WebDAV。');
+      }
       if (remoteKind === activeProvider) {
-        throw new Error('当前同步方式不能同时作为附加备份位置。');
+        throw new Error('当前同步方式不能同时作为额外备份位置。');
       }
       if (!this.isRemoteKindConfigured(settings, remoteKind)) {
-        throw new Error('请先配置对应的附加备份位置。');
+                throw new Error('请先配置对应的额外备份位置。');
       }
       const store = this.createRemoteStoreForKind(settings, remoteKind);
       const history = await this.bookmarkHistoryService.readConfirmedHistory();
@@ -2062,7 +2065,8 @@ export class SyncService implements AiraCloudBookmarkV4BootstrapDomain {
     const result: AiraSyncProviderKind[] = [];
     const backups = settings.additionalBackupRemoteKinds ?? [];
     backups.forEach((kind: AiraSyncProviderKind) => {
-      if (kind !== settings.remoteKind && this.isRemoteKindEnabled(settings, kind) && result.indexOf(kind) < 0) {
+      if (kind === 'webdav' && kind !== settings.remoteKind && this.isRemoteKindEnabled(settings, kind) &&
+        result.indexOf(kind) < 0) {
         result.push(kind);
       }
     });

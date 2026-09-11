@@ -59,11 +59,13 @@ export class SyncSettingsCenterViewModel {
 
     const activeProvider = this.resolveActiveProvider(input.settings);
     const activeKinds = this.resolveActiveKinds(input.settings, activeProvider);
-    const providerCards = this.buildProviderCards(input, activeProvider, activeKinds, iconBackgrounds);
     return {
-      additionalBackupProviderCards: activeProvider === 'none'
-        ? []
-        : providerCards.filter((card: SyncSettingsProviderCardViewState) => card.role !== 'active'),
+      additionalBackupProviderCards: this.buildAdditionalBackupCards(
+        input,
+        activeProvider,
+        activeKinds,
+        iconBackgrounds
+      ),
       hasActiveSync: input.settings.bookmarkSyncEnabled === true &&
         activeProvider !== 'none' && this.isRemoteKindActive(input.settings, activeProvider)
     };
@@ -93,135 +95,24 @@ export class SyncSettingsCenterViewModel {
     return result;
   }
 
-  private buildProviderCards(
+  private buildAdditionalBackupCards(
     input: SyncSettingsCenterViewModelInput,
     activeProvider: AiraSyncRemoteKind,
     activeKinds: AiraSyncRemoteKind[],
     iconBackgrounds: BrowserSyncProviderIconBackgroundTokenSet
   ): SyncSettingsProviderCardViewState[] {
-    const huaweiSpaceCard = this.buildHuaweiSpaceCard(
-      this.resolveProviderRole('huawei_space', activeProvider, activeKinds),
-      input.hasHuaweiSpaceConfig,
-      input.huaweiSpaceReadiness,
-      iconBackgrounds
-    );
-    const webdavCard = this.buildWebdavCard(
+    if (activeProvider === 'none' || activeProvider === 'webdav') {
+      return [];
+    }
+    return [this.buildWebdavBackupCard(
       this.resolveProviderRole('webdav', activeProvider, activeKinds),
       input.settings,
       input.hasWebdavConfig,
       iconBackgrounds
-    );
-    const cards: SyncSettingsProviderCardViewState[] = [];
-    if (AIRA_DISTRIBUTION_CAPABILITY_OWNER.isAvailable('huawei_space')) {
-      cards.push(huaweiSpaceCard);
-    }
-    cards.push(webdavCard);
-    if (AIRA_DISTRIBUTION_CAPABILITY_OWNER.isAvailable('aira_cloud')) {
-      cards.push(this.buildCloudCard(
-        this.resolveProviderRole('aira_cloud', activeProvider, activeKinds),
-        input.hasCloudConfig,
-        iconBackgrounds
-      ));
-    }
-    return cards;
+    )];
   }
 
-  private buildHuaweiSpaceCard(
-    role: 'active' | 'additional_backup' | 'available',
-    hasHuaweiSpaceConfig: boolean,
-    readiness: SyncHuaweiSpaceReadinessState,
-    iconBackgrounds: BrowserSyncProviderIconBackgroundTokenSet
-  ): SyncSettingsProviderCardViewState {
-    return {
-      id: 'huawei_space',
-      role: role,
-      title: '华为云空间同步',
-      subtitle: this.resolveHuaweiSpaceSubtitle(role, hasHuaweiSpaceConfig, readiness),
-      status: this.resolveHuaweiSpaceStatus(role, readiness),
-      icon: $r('sys.symbol.icloud_fill'),
-      imageIcon: SettingsColoredTileIconResources.foregroundIcon('sync'),
-      iconBackgroundColor: iconBackgrounds.cloud,
-      isActive: role === 'active',
-      isEnabled: role !== 'available',
-      isConfigured: hasHuaweiSpaceConfig,
-      requiresPro: false
-    };
-  }
-
-  private resolveHuaweiSpaceSubtitle(
-    role: 'active' | 'additional_backup' | 'available',
-    hasHuaweiSpaceConfig: boolean,
-    readiness: SyncHuaweiSpaceReadinessState
-  ): string {
-    if (role === 'active' && readiness === 'unavailable') {
-      return '已选为当前同步方式，但系统云空间同步暂不可用';
-    }
-    if (role === 'active') {
-      return '正在使用用户自己的华为云空间同步书签';
-    }
-    if (role === 'additional_backup') {
-      return readiness === 'unavailable' ? '附加备份位置暂不可用' : '普通同步成功后写入华为云空间';
-    }
-    if (readiness === 'checking') {
-      return '正在检查账号、系统云空间同步和本机能力';
-    }
-    if (readiness === 'unavailable') {
-      return '当前账号或系统云空间同步未通过能力检查';
-    }
-    if (hasHuaweiSpaceConfig && readiness === 'ready') {
-      return '已通过能力检查，可设为当前同步方式';
-    }
-    if (hasHuaweiSpaceConfig) {
-      return '已登录华为账号，需要先完成能力检查';
-    }
-    return '登录华为账号并检查系统云空间同步后可开启';
-  }
-
-  private resolveHuaweiSpaceStatus(
-    role: 'active' | 'additional_backup' | 'available',
-    readiness: SyncHuaweiSpaceReadinessState
-  ): string {
-    if (readiness === 'checking') {
-      return '检查中';
-    }
-    if (readiness === 'unavailable') {
-      return role === 'active' ? '当前同步方式暂不可用' : '暂不可用';
-    }
-    if (readiness === 'needs_account') {
-      return '需登录';
-    }
-    if (role === 'active') {
-      return '当前同步方式';
-    }
-    return role === 'additional_backup' ? '附加备份已开启' : '未开启';
-  }
-
-  private buildCloudCard(
-    role: 'active' | 'additional_backup' | 'available',
-    hasCloudConfig: boolean,
-    iconBackgrounds: BrowserSyncProviderIconBackgroundTokenSet
-  ): SyncSettingsProviderCardViewState {
-    return {
-      id: 'aira_cloud',
-      role: role,
-      title: 'Aira 云同步',
-      subtitle: role === 'active'
-        ? '可配合浏览器插件跨系统同步书签'
-        : (role === 'additional_backup'
-          ? '普通同步成功后写入 Aira 云端'
-          : (hasCloudConfig ? '已登录华为账号，可作为同步来源' : 'Aira Pro 提供官方托管的跨系统书签同步')),
-      status: role === 'active' ? '当前同步方式' : (role === 'additional_backup' ? '附加备份已开启' : '未开启'),
-      icon: $r('sys.symbol.icloud_fill'),
-      imageIcon: SettingsColoredTileIconResources.foregroundIcon('sync'),
-      iconBackgroundColor: iconBackgrounds.cloud,
-      isActive: role === 'active',
-      isEnabled: role !== 'available',
-      isConfigured: hasCloudConfig,
-      requiresPro: true
-    };
-  }
-
-  private buildWebdavCard(
+  private buildWebdavBackupCard(
     role: 'active' | 'additional_backup' | 'available',
     settings: AiraSyncSettings,
     hasWebdavConfig: boolean,
@@ -231,18 +122,16 @@ export class SyncSettingsCenterViewModel {
     return {
       id: 'webdav',
       role: role,
-      title: 'WebDAV 同步',
-      subtitle: role === 'active'
-        ? (endpoint.length > 0 ? endpoint : '自定义服务')
-        : (role === 'additional_backup'
-          ? '普通同步成功后写入你的 WebDAV'
-          : (hasWebdavConfig ? '已保存配置，可作为同步来源' : '免费使用自己的 WebDAV 服务同步书签')),
-      status: role === 'active' ? '当前同步方式' : (role === 'additional_backup' ? '附加备份已开启' : '未开启'),
+      title: 'WebDAV',
+      subtitle: role === 'additional_backup'
+        ? (endpoint.length > 0 ? `普通同步成功后覆盖写入 ${endpoint}` : '普通同步成功后覆盖写入你的 WebDAV')
+        : (hasWebdavConfig ? '已保存配置，可开启为额外备份' : '填写 WebDAV 地址后即可开启额外备份'),
+      status: role === 'additional_backup' ? '额外备份已开启' : '未开启',
       icon: $r('sys.symbol.folder_fill'),
       imageIcon: SettingsColoredTileIconResources.foregroundIcon('webdav'),
       iconBackgroundColor: iconBackgrounds.webdav,
-      isActive: role === 'active',
-      isEnabled: role !== 'available',
+      isActive: false,
+      isEnabled: role === 'additional_backup',
       isConfigured: hasWebdavConfig,
       requiresPro: false
     };

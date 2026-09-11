@@ -9,6 +9,7 @@ export interface WebdavProviderTemplate {
 export const WEB_DAV_PROVIDER_SELECTION_KEY: string = 'aira.sync.webdav.selectedProviderId';
 export const WEB_DAV_PROVIDER_ENDPOINT_KEY: string = 'aira.sync.webdav.selectedEndpoint';
 export const WEB_DAV_PROVIDER_SELECTION_REVISION_KEY: string = 'aira.sync.webdav.selectedRevision';
+export const WEB_DAV_TARGET_ROLE_KEY: string = 'aira.sync.webdav.targetRole';
 
 export class WebdavProviderCatalog {
   listProviders(): WebdavProviderTemplate[] {

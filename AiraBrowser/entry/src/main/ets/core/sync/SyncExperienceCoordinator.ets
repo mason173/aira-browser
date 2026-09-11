@@ -959,8 +959,8 @@ export class SyncExperienceCoordinator implements AiraCloudBookmarkV4BootstrapTr
       if (enabled && backupKinds.length <= 0) {
         return {
           type: 'blocked',
-          title: '请先选择备份位置',
-          message: '至少选择一个额外备份位置后再开启。',
+          title: '请先设置 WebDAV 备份',
+          message: '额外备份只会覆盖写入你的 WebDAV，请先填写并开启后再试。',
           requiresOptions: true
         };
       }
@@ -1329,8 +1329,7 @@ export class SyncExperienceCoordinator implements AiraCloudBookmarkV4BootstrapTr
     const startedAt = Date.now();
     AiraSyncJankProbe.mark('upgrade_prep_start');
     const settings = await this.syncService.initializeAiraSyncSettings();
-    const huaweiBookmarkSelected = settings.remoteKind === 'huawei_space' ||
-      (settings.additionalBackupRemoteKinds ?? []).indexOf('huawei_space') >= 0;
+    const huaweiBookmarkSelected = settings.remoteKind === 'huawei_space';
     const affectedLegacySelection = huaweiBookmarkSelected && settings.bookmarkSyncEnabled === true &&
       settings.huaweiSpace.uid.trim().length > 0;
     const upgradeState = await this.huaweiSpaceBookmarkUpgradeStore.prepareCurrentVersion(
@@ -1372,9 +1371,7 @@ export class SyncExperienceCoordinator implements AiraCloudBookmarkV4BootstrapTr
     const settings = this.syncService.getAiraSyncSettings();
     const activeHuaweiBookmark = settings.remoteKind === 'huawei_space' &&
       settings.bookmarkSyncEnabled === true;
-    const huaweiBookmarkBackup = settings.bookmarkSyncEnabled === true &&
-      (settings.additionalBackupRemoteKinds ?? []).indexOf('huawei_space') >= 0;
-    if (!activeHuaweiBookmark && !huaweiBookmarkBackup) {
+    if (!activeHuaweiBookmark) {
       return;
     }
     const bookmarkRuntime = resolveAiraSyncDomainRuntimeState(settings, 'huawei_space', 'bookmark');
@@ -1877,8 +1874,8 @@ export class SyncExperienceCoordinator implements AiraCloudBookmarkV4BootstrapTr
     if ((settings.additionalBackupRemoteKinds ?? []).length <= 0) {
       return {
         type: 'blocked',
-        title: '请先选择备份位置',
-        message: '至少选择一个备份位置后再试。',
+        title: '请先设置 WebDAV 备份',
+        message: '额外备份只会覆盖写入你的 WebDAV，请先填写并开启后再试。',
         requiresOptions: true
       };
     }

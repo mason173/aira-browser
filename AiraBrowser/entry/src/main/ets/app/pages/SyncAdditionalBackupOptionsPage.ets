@@ -5,7 +5,7 @@ import { SyncAdditionalBackupHost } from '../components/sync/SyncAdditionalBacku
 struct SyncAdditionalBackupOptionsPage {
   build() {
     Column() {
-      SyncAdditionalBackupHost({ mode: 'options' })
+      SyncAdditionalBackupHost()
         .width('100%')
         .height('100%')
     }

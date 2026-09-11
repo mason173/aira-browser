@@ -472,18 +472,20 @@ export class SyncExperienceViewModel {
   }
 
   private resolveAdditionalBackupSummary(settings: AiraSyncSettings): string {
-    const count = (settings.additionalBackupRemoteKinds ?? []).length;
-    if (count <= 0) {
-      return '未设置';
+    const backupKinds = (settings.additionalBackupRemoteKinds ?? []).filter(
+      (kind: AiraSyncProviderKind): boolean => kind === 'webdav'
+    );
+    if (backupKinds.length <= 0) {
+      return settings.remoteKind === 'webdav' ? '当前同步已是 WebDAV' : '未设置';
     }
     if (settings.additionalBackupEnabled !== true) {
-      return `${count} 个位置 · 已暂停`;
+      return 'WebDAV · 已暂停';
     }
     const days = settings.additionalBackupIntervalDays === 1 || settings.additionalBackupIntervalDays === 3
       ? settings.additionalBackupIntervalDays
       : 7;
     const intervalLabel = days === 1 ? '每天一次' : `每 ${days} 天一次`;
-    return `${count} 个位置 · ${intervalLabel}`;
+    return `WebDAV · ${intervalLabel}`;
   }
 
   private findRuntimeState(

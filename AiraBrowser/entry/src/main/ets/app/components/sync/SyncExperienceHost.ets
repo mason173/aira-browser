@@ -153,7 +153,6 @@ export struct SyncExperienceHost {
     Column() {
       if (this.desktopPresentation && this.syncWorkspaceView === 'additional_backup') {
         SyncAdditionalBackupHost({
-          mode: 'overview',
           desktopPresentation: true,
           dataScope: this.boundary.dataScope,
           privacyMode: this.boundary.privacyMode,
@@ -161,9 +160,6 @@ export struct SyncExperienceHost {
           onBack: () => {
             this.syncWorkspaceView = 'overview';
             this.refreshState(true);
-          },
-          onOpenAiraPro: () => {
-            this.onOpenAiraPro?.();
           }
         })
           .width('100%')

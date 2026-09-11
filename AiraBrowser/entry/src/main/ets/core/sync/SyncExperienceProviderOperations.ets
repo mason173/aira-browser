@@ -302,7 +302,10 @@ export class SyncExperienceProviderOperations {
     enabled: boolean
   ): Promise<SyncExperienceProviderOutcome> {
     try {
-      const distributionOutcome = this.checkDistributionAccess(remoteKind, enabled ? '开启附加备份' : '关闭附加备份');
+      if (enabled && remoteKind !== 'webdav') {
+        return this.outcome('no-action', remoteKind, '额外备份只能使用 WebDAV。');
+      }
+      const distributionOutcome = this.checkDistributionAccess(remoteKind, enabled ? '开启额外备份' : '关闭额外备份');
       if (distributionOutcome !== undefined && enabled) {
         return distributionOutcome;
       }
@@ -310,37 +313,31 @@ export class SyncExperienceProviderOperations {
       const settings = this.syncService.getAiraSyncSettings();
       if (!enabled) {
         await this.syncService.setAdditionalBackupProviderEnabled(remoteKind, false);
-        return this.outcome('additional-backup-disabled', remoteKind, '已停止向此位置写入附加备份。');
+        return this.outcome('additional-backup-disabled', remoteKind, '已停止向 WebDAV 覆盖写入额外备份。');
       }
       if (settings.remoteKind === 'none') {
         return this.outcome('configuration-required', remoteKind, '请先选择当前设备使用的同步方式。');
       }
       if (settings.remoteKind === remoteKind) {
-        return this.outcome('no-action', remoteKind, '当前同步方式不需要重复设置为附加备份。');
+        return this.outcome('no-action', remoteKind, '当前同步方式已经是 WebDAV，无需再设额外备份。');
       }
       if (!this.isProviderConfigured(settings, remoteKind)) {
-        return this.outcome('configuration-required', remoteKind, '请先完成附加备份位置配置。');
+        return this.outcome('configuration-required', remoteKind, '请先填写 WebDAV 地址和账号。');
       }
-      const accessOutcome = await this.checkProviderAccess(remoteKind, '开启附加备份');
+      const accessOutcome = await this.checkProviderAccess(remoteKind, '开启额外备份');
       if (accessOutcome !== undefined) {
         return accessOutcome;
       }
-      if (remoteKind === 'huawei_space') {
-        await this.syncService.checkHuaweiSpaceCapability();
-      }
       await this.initializeAdditionalBackup(remoteKind);
       await this.syncService.setAdditionalBackupProviderEnabled(remoteKind, true);
-      if (remoteKind === 'aira_cloud') {
-        await this.membershipFeature.recordUsage(AIRA_FEATURE_CLOUD_SYNC);
-      }
       return this.outcome(
         'additional-backup-enabled',
         remoteKind,
-        `${this.resolveProviderLabel(remoteKind)}会在普通同步成功后接收本机书签和常用设置的附加备份，并以本机内容覆盖该位置已有副本。`
+        'WebDAV 会在普通同步成功后接收本机书签和常用设置的额外副本，并以本机内容覆盖该位置已有数据。当前同步方式不会改变。'
       );
     } catch (error) {
       const message = this.stringifyError(error as Error);
-      return this.failure(remoteKind, enabled ? '开启附加备份' : '关闭附加备份', new Error(message));
+      return this.failure(remoteKind, enabled ? '开启额外备份' : '关闭额外备份', new Error(message));
     }
   }
 
@@ -549,14 +546,14 @@ export class SyncExperienceProviderOperations {
       if (!restored) {
         return {
           type: 'failed',
-          title: '附加备份位置未更新',
+          title: '额外备份位置未更新',
           message: '新的 WebDAV 备份位置没有完成初始化，请重新打开设置确认当前配置。'
         };
       }
       return {
         type: outcome.type,
-        title: '附加备份位置未更改',
-        message: `${outcome.message} 当前仍继续使用原来的 WebDAV 附加备份位置。`,
+        title: '额外备份位置未更改',
+        message: `${outcome.message} 当前仍继续使用原来的 WebDAV 额外备份位置。`,
         membershipDecision: outcome.membershipDecision
       };
     }
@@ -573,8 +570,14 @@ export class SyncExperienceProviderOperations {
   deactivateWebdav(): Promise<SyncWebdavActivationOutcome> {
     return this.runProviderTransition(async (): Promise<SyncWebdavActivationOutcome> => {
       const outcome = await this.deactivateProviderWithinTransition('webdav');
-      if (outcome.type === 'additional-backup-disabled' || outcome.type === 'bookmark-domain-disabled' ||
-        outcome.type === 'no-action') {
+      if (outcome.type === 'additional-backup-disabled') {
+        return {
+          type: 'deactivated',
+          title: 'WebDAV 额外备份已关闭',
+          message: outcome.message
+        };
+      }
+      if (outcome.type === 'bookmark-domain-disabled' || outcome.type === 'no-action') {
         return {
           type: 'deactivated',
           title: 'WebDAV 同步已关闭',
@@ -651,7 +654,7 @@ export class SyncExperienceProviderOperations {
     if (outcome.type === 'additional-backup-enabled') {
       return {
         type: 'additional-backup-enabled',
-        title: 'WebDAV 备份已开启',
+        title: 'WebDAV 额外备份已开启',
         message: outcome.message
       };
     }

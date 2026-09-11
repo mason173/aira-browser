@@ -1,19 +1,14 @@
-import {
-  AiraAdditionalBackupIntervalDays,
-  AiraSyncProviderKind
-} from '../../../common/models/AiraSyncModels';
+import { AiraAdditionalBackupIntervalDays } from '../../../common/models/AiraSyncModels';
 import {
   createCenteredDialogMaterial,
   showCenteredAlertDialog
 } from '../common/CenteredDialogSurface';
-import { EntitlementDecision } from '../../../common/models/MembershipModels';
 import {
   BrowserBoundaryRouteState,
   readBrowserBoundaryRouteState
 } from '../../../common/utils/RouteParamUtils';
 import {
-  SyncAdditionalBackupActionOutcome,
-  SyncExperienceProviderSelectionOutcome
+  SyncAdditionalBackupActionOutcome
 } from '../../../core/sync/SyncExperienceCoordinator';
 import {
   createDefaultSyncAdditionalBackupViewState,
@@ -23,7 +18,6 @@ import {
   SyncOperationProgressController,
   SyncOperationProgressUiState
 } from '../../../core/sync/SyncOperationProgressController';
-import { SyncSettingsProviderCardViewState } from '../../../core/sync/SyncSettingsCenterViewModel';
 import { SettingsColoredTileIconResources } from '../../../core/resources/SettingsColoredTileIconResources';
 import {
   BROWSER_THEME_STORAGE_ACCENT_KEY,
@@ -53,7 +47,6 @@ import {
   SettingsGroupCard,
   SettingsGroupDivider,
   SettingsPresentationScrollBody,
-  SettingsScrollBody,
   SettingsSection
 } from '../settings/SettingsLayout';
 import {
@@ -63,7 +56,6 @@ import {
   SettingsSwitchRow
 } from '../settings/SettingsRows';
 import { SyncOperationProgressDialog } from './SyncOperationProgressDialog';
-import { SyncSettingsBackupSourceSection } from './SyncSettingsSections';
 import { SettingsDesktopWorkspaceHeader } from '../settings/SettingsDesktopWorkspaceHeader';
 import {
   BROWSER_IMMERSIVE_SHEET_HEADER_CONTENT_TOP_INSET,
@@ -73,8 +65,6 @@ import {
   BrowserImmersiveSheetLayout
 } from '../browser/BrowserModalBottomSheet';
 import { CenteredDialogSurface } from '../common/CenteredDialogSurface';
-
-export type SyncAdditionalBackupHostMode = 'overview' | 'options';
 
 interface SyncAdditionalBackupIntervalOption {
   days: AiraAdditionalBackupIntervalDays;
@@ -107,13 +97,11 @@ export struct SyncAdditionalBackupHost {
     DEFAULT_THEME_PALETTE.light.textPrimary;
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY) private storedSecondaryTextColor: string =
     DEFAULT_THEME_PALETTE.light.textSecondary;
-  @Prop mode: SyncAdditionalBackupHostMode = 'overview';
   @Prop desktopPresentation: boolean = false;
   @Prop dataScope: string = '';
   @Prop privacyMode: string = '';
   @Prop boundarySource: string = '';
   onBack?: () => void;
-  onOpenAiraPro?: () => void;
   @Prop settingsIconBackgrounds: BrowserSettingsIconBackgroundTokenSet =
     DEFAULT_BROWSER_SETTINGS_ICON_BACKGROUND_TOKENS;
   private navigationCoordinator: SettingsNavigationCoordinator = new SettingsNavigationCoordinator();
@@ -127,8 +115,6 @@ export struct SyncAdditionalBackupHost {
   @State private state: SyncAdditionalBackupViewState = DEFAULT_ADDITIONAL_BACKUP_STATE;
   @State private isBusy: boolean = false;
   @State private frequencySheetVisible: boolean = false;
-  @State private providerRenderVersion: number = 0;
-  @State private activeMode: SyncAdditionalBackupHostMode = 'overview';
   @State private progressTitle: string = '';
   @State private progressSubtitle: string = '';
   @State private progressValue: number = 0;
@@ -178,7 +164,6 @@ export struct SyncAdditionalBackupHost {
   );
 
   aboutToAppear(): void {
-    this.activeMode = this.mode;
     this.refreshState();
   }
 
@@ -198,7 +183,7 @@ export struct SyncAdditionalBackupHost {
     Column() {
       if (this.desktopPresentation) {
         SettingsDesktopWorkspaceHeader({
-          title: this.activeMode === 'options' ? '备份选项' : '额外备份',
+          title: '额外备份',
           showBackButton: true,
           primaryTextColor: this.storedPrimaryTextColor,
           iconColor: this.storedSecondaryTextColor,
@@ -210,7 +195,7 @@ export struct SyncAdditionalBackupHost {
         this.buildContentScroll()
       } else {
         SettingsHdsScaffold({
-          title: this.mode === 'options' ? '备份选项' : '额外备份',
+          title: '额外备份',
           backIconKind: 'back',
           pageBackground: this.storedPageBackgroundColor,
           headerButtonBackground: this.storedPressedBackgroundColor,
@@ -244,11 +229,7 @@ export struct SyncAdditionalBackupHost {
       topPadding: 8,
       bottomPadding: 28
     }) {
-      if (this.activeMode === 'options') {
-        this.buildOptionsContent()
-      } else {
-        this.buildOverviewContent()
-      }
+      this.buildOverviewContent()
     }
   }
 
@@ -295,7 +276,7 @@ export struct SyncAdditionalBackupHost {
         })
         SettingsGroupDivider({ dividerColor: this.storedDividerColor })
         SettingsNavigationRow({
-          title: '备份选项',
+          title: '备份位置',
           desktopPresentation: this.desktopPresentation,
           value: this.state.providerSummary,
           icon: $r('sys.symbol.folder_fill'),
@@ -303,12 +284,12 @@ export struct SyncAdditionalBackupHost {
           iconBackgroundColor: this.settingsIconBackgrounds.sync,
           iconColor: this.storedSettingsIconForegroundColor,
           rowPosition: 'last',
-          isEnabled: !this.isPrivateSession() && !this.isBusy,
+          isEnabled: !this.isPrivateSession() && !this.isBusy && this.canConfigureWebdavBackup(),
           primaryTextColor: this.storedPrimaryTextColor,
           secondaryTextColor: this.storedSecondaryTextColor,
           pressedBackgroundColor: this.storedPressedBackgroundColor,
           onAction: () => {
-            this.openBackupOptions();
+            this.openWebdavBackupDestination();
           }
         })
       }
@@ -339,27 +320,6 @@ export struct SyncAdditionalBackupHost {
   }
 
   @Builder
-  private buildOptionsContent() {
-    SyncSettingsBackupSourceSection({
-      providerCards: this.state.providerCards,
-      isBusy: this.isBusy,
-      isPrivateSession: this.isPrivateSession(),
-      renderVersion: this.providerRenderVersion,
-      sectionTitle: '备份位置',
-      desktopPresentation: this.desktopPresentation,
-      onProviderChange: (card: SyncSettingsProviderCardViewState, enabled: boolean) => {
-        this.changeProvider(card, enabled);
-      }
-    })
-    SettingsFooterText({
-      text: this.state.providerCards.length > 0
-        ? '额外备份只保存副本，不会把备份位置自动改成当前同步方式。'
-        : '请先返回同步页面选择同步方式。',
-      secondaryTextColor: this.storedSecondaryTextColor
-    })
-  }
-
-  @Builder
   private buildFrequencySheet() {
     if (this.desktopPresentation) {
       CenteredDialogSurface() {
@@ -378,17 +338,25 @@ export struct SyncAdditionalBackupHost {
             this.buildFrequencyPhoneScrollContent()
           },
           header: () => {
-            BrowserFeatureSheetHeader({
-              title: '备份频率',
-              leadingAccessibilityLabel: '关闭',
-              onLeadingAction: () => {
-                this.frequencySheetVisible = false;
-              }
-            })
+            this.buildFrequencyPhoneHeader()
           }
         })
       }
     }
+  }
+
+  @Builder
+  private buildFrequencyPhoneHeader() {
+    // Keep this header in a @Builder. API 24 bindSheet crashes with
+    // "class constructor cannot called without 'new'" if BrowserFeatureSheetHeader
+    // is constructed directly inside a @BuilderParam arrow function.
+    BrowserFeatureSheetHeader({
+      title: '备份频率',
+      leadingAccessibilityLabel: '关闭',
+      onLeadingAction: () => {
+        this.frequencySheetVisible = false;
+      }
+    })
   }
 
   @Builder
@@ -495,7 +463,6 @@ export struct SyncAdditionalBackupHost {
           return;
         }
         this.state = state;
-        this.providerRenderVersion += 1;
       })
       .catch((_error: Error) => {
         if (revision !== this.stateRevision) {
@@ -572,104 +539,42 @@ export struct SyncAdditionalBackupHost {
       });
   }
 
-  private changeProvider(
-    card: SyncSettingsProviderCardViewState,
-    enabled: boolean
-  ): void {
-    if (this.isBusy || this.isPrivateSession() || card.id === 'none') {
-      return;
-    }
-    const remoteKind = card.id as AiraSyncProviderKind;
-    this.isBusy = true;
-    this.progressController.begin(
-      enabled ? '正在开启备份位置' : '正在关闭备份位置',
-      `${card.title}正在处理`
-    );
-    sharedSyncExperienceCoordinator.setAdditionalBackupProviderEnabled(remoteKind, enabled)
-      .then((outcome: SyncExperienceProviderSelectionOutcome) => {
-        this.renderProviderOutcome(outcome);
-      })
-      .finally(() => {
-        this.isBusy = false;
-        this.refreshState();
-      });
-  }
-
-  private renderProviderOutcome(outcome: SyncExperienceProviderSelectionOutcome): void {
-    if (outcome.type === 'additional-backup-enabled' || outcome.type === 'additional-backup-disabled') {
-      this.progressController.finish(
-        outcome.type === 'additional-backup-enabled' ? '备份位置已开启' : '备份位置已关闭',
-        outcome.message,
-        undefined,
-        false
-      );
-      return;
-    }
-    this.progressController.complete();
-    if (outcome.type === 'configuration-required' && outcome.remoteKind === 'webdav') {
-      this.navigationCoordinator.openSyncWebdavConfig(
-        this.buildBoundary('sync_additional_backup_options'),
-        'additional_backup'
-      );
-      return;
-    }
-    if (outcome.type === 'membership-required' && outcome.membershipDecision !== undefined) {
-      this.showMembershipDecision(outcome.membershipDecision);
-      return;
-    }
-    this.showDialog(outcome.title, '当前备份位置未更改，请稍后再试。');
-  }
-
-  private showMembershipDecision(decision: EntitlementDecision): void {
-    showCenteredAlertDialog({
-      title: decision.title.length > 0 ? decision.title : '需要 Aira Pro',
-      message: decision.message,
-      autoCancel: true,
-      primaryButton: { value: '稍后', action: () => {} },
-      secondaryButton: {
-        value: decision.primaryAction === 'open_pro' ? '查看 Aira Pro' : '查看权益',
-        action: () => {
-          if (this.desktopPresentation && this.onOpenAiraPro !== undefined) {
-            this.onOpenAiraPro();
-            return;
-          }
-          this.navigationCoordinator.openAiraPro(this.buildBoundary('sync_additional_backup_membership'));
-        }
-      }
-    });
-  }
-
   private showOptionsRequiredDialog(title: string, message: string): void {
+    if (!this.canConfigureWebdavBackup()) {
+      this.showDialog(title, message);
+      return;
+    }
     showCenteredAlertDialog({
       title: title,
       message: message,
       autoCancel: true,
       primaryButton: { value: '稍后', action: () => {} },
       secondaryButton: {
-        value: '选择位置',
+        value: '设置 WebDAV',
         action: () => {
-          this.openBackupOptions();
+          this.openWebdavBackupDestination();
         }
       }
     });
   }
 
-  private openBackupOptions(): void {
-    if (this.desktopPresentation) {
-      this.activeMode = 'options';
+  private openWebdavBackupDestination(): void {
+    if (!this.canConfigureWebdavBackup()) {
+      this.showDialog('无法设置额外备份', '当前同步方式已经是 WebDAV，无需再设额外备份。');
       return;
     }
-    this.navigationCoordinator.openSyncAdditionalBackupOptions(
-      this.buildBoundary('sync_additional_backup')
+    this.navigationCoordinator.openSyncWebdavConfig(
+      this.buildBoundary('sync_additional_backup'),
+      'additional_backup'
     );
+  }
+
+  private canConfigureWebdavBackup(): boolean {
+    return this.state.providerCards.length > 0;
   }
 
   private handleBack(): void {
     if (this.desktopPresentation) {
-      if (this.activeMode === 'options') {
-        this.activeMode = 'overview';
-        return;
-      }
       this.onBack?.();
       return;
     }

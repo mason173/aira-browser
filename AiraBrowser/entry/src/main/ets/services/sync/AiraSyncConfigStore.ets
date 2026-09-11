@@ -391,11 +391,14 @@ export class AiraSyncConfigStore {
     enabled: boolean
   ): Promise<AiraSyncSettings> {
     return this.mutateSettings((settings: AiraSyncSettings): AiraSyncSettings => {
+      if (enabled && remoteKind !== 'webdav') {
+        throw new Error('额外备份只能使用 WebDAV。');
+      }
       if (remoteKind === settings.remoteKind) {
-        throw new Error('当前同步方式不能重复设置为附加备份。');
+        throw new Error('当前同步方式不能重复设置为额外备份。');
       }
       if (enabled && !this.isRemoteKindConfigured(settings, remoteKind)) {
-        throw new Error('请先配置对应的附加备份位置。');
+        throw new Error('请先配置对应的额外备份位置。');
       }
       const backupRemoteKinds = enabled
         ? this.appendBackupKind(settings.additionalBackupRemoteKinds ?? [], remoteKind)
@@ -1128,10 +1131,7 @@ export class AiraSyncConfigStore {
     const additionalBackupRemoteKinds = this.normalizeAdditionalBackupRemoteKinds(
       settings.additionalBackupRemoteKinds,
       remoteKind,
-      webdavConfigured,
-      airaCloudConfigured,
-      huaweiSpaceConfigured,
-      selfHostedConfigured
+      webdavConfigured
     );
     const bookmarkSyncEnabled = remoteKind !== 'none' && settings.bookmarkSyncEnabled === true;
     const personalizationSyncEnabled = remoteKind !== 'none' && settings.personalizationSyncEnabled === true;
@@ -1381,23 +1381,14 @@ export class AiraSyncConfigStore {
   private normalizeAdditionalBackupRemoteKinds(
     values: AiraSyncProviderKind[] | undefined,
     activeRemoteKind: AiraSyncRemoteKind,
-    webdavConfigured: boolean,
-    airaCloudConfigured: boolean,
-    huaweiSpaceConfigured: boolean,
-    selfHostedConfigured: boolean
+    webdavConfigured: boolean
   ): AiraSyncProviderKind[] {
     const result: AiraSyncProviderKind[] = [];
     const rawValues = Array.isArray(values) ? values : [];
     rawValues.forEach((value: AiraSyncProviderKind) => {
       const remoteKind = this.normalizeProviderKindValue(value);
-      if (remoteKind === undefined || remoteKind === activeRemoteKind || result.indexOf(remoteKind) >= 0 ||
-        !this.isConfiguredKindValue(
-          remoteKind,
-          webdavConfigured,
-          airaCloudConfigured,
-          huaweiSpaceConfigured,
-          selfHostedConfigured
-        )) {
+      if (remoteKind !== 'webdav' || remoteKind === activeRemoteKind || result.indexOf(remoteKind) >= 0 ||
+        !webdavConfigured) {
         return;
       }
       result.push(remoteKind);

@@ -11,6 +11,7 @@ import {
   WEB_DAV_PROVIDER_ENDPOINT_KEY,
   WEB_DAV_PROVIDER_SELECTION_REVISION_KEY,
   WEB_DAV_PROVIDER_SELECTION_KEY,
+  WEB_DAV_TARGET_ROLE_KEY,
   WebdavProviderCatalog,
   WebdavProviderTemplate
 } from '../../core/sync/WebdavProviderCatalog';
@@ -385,9 +386,9 @@ struct SyncWebdavConfigPage {
 
   @Builder
   private buildDisableSection() {
-    if (this.syncTargetRole === 'active' && this.webdavViewState.showDisableAction) {
+    if (this.webdavViewState.showDisableAction) {
       SettingsActionButton({
-        title: '关闭 WebDAV 同步',
+        title: this.syncTargetRole === 'additional_backup' ? '关闭 WebDAV 额外备份' : '关闭 WebDAV 同步',
         emphasis: 'danger',
         isEnabled: this.webdavViewState.disableActionEnabled,
         pressedBackgroundColor: this.storedPressedBackgroundColor,
@@ -437,8 +438,11 @@ struct SyncWebdavConfigPage {
 
   private refreshSyncTargetRole(): void {
     const params = router.getParams() as Record<string, string | undefined> | undefined;
-    this.syncTargetRole = this.syncWebdavConfigViewModel.resolveTargetRole(params);
-    this.activateExperienceAfterSave = params?.syncActivateExperience === 'true';
+    const storedRole = AppStorage.get<string>(WEB_DAV_TARGET_ROLE_KEY);
+    this.syncTargetRole = this.syncWebdavConfigViewModel.resolveTargetRole(params, storedRole);
+    AppStorage.setOrCreate(WEB_DAV_TARGET_ROLE_KEY, this.syncTargetRole);
+    this.activateExperienceAfterSave = this.syncTargetRole === 'active' &&
+      params?.syncActivateExperience === 'true';
   }
 
   private applySharedProviderSelection(): void {
@@ -493,6 +497,7 @@ struct SyncWebdavConfigPage {
     }
     AppStorage.setOrCreate(WEB_DAV_PROVIDER_SELECTION_KEY, this.providerId);
     AppStorage.setOrCreate(WEB_DAV_PROVIDER_ENDPOINT_KEY, this.endpoint);
+    AppStorage.setOrCreate(WEB_DAV_TARGET_ROLE_KEY, this.syncTargetRole);
     this.navigationCoordinator.openSyncWebdavProvider();
   }
 
@@ -508,9 +513,14 @@ struct SyncWebdavConfigPage {
 
   private async saveConfigThroughCoordinator(): Promise<void> {
     const shouldActivate = this.syncWebdavConfigViewModel.shouldActivateOnSave(this.syncTargetRole);
+    const isBackup = this.syncTargetRole === 'additional_backup';
     this.webdavOperation = this.webdavViewState.isEnabled ? 'syncing' : 'enabling';
-    const progressTitle = this.webdavViewState.isEnabled ? '正在同步 WebDAV' : '正在启用 WebDAV 同步';
-    const progressFirstTip = this.webdavViewState.isEnabled ? '正在准备本机和云端数据' : '正在保存配置并检查连接';
+    const progressTitle = isBackup
+      ? (this.webdavViewState.isEnabled ? '正在更新 WebDAV 备份' : '正在开启 WebDAV 额外备份')
+      : (this.webdavViewState.isEnabled ? '正在同步 WebDAV' : '正在启用 WebDAV 同步');
+    const progressFirstTip = isBackup
+      ? '正在保存配置，并用本机内容覆盖 WebDAV'
+      : (this.webdavViewState.isEnabled ? '正在准备本机和云端数据' : '正在保存配置并检查连接');
     this.rebuildWebdavViewState();
     if (shouldActivate || this.syncTargetRole === 'additional_backup') {
       this.beginSyncFloatingOperation(progressTitle, progressFirstTip);
@@ -520,7 +530,7 @@ struct SyncWebdavConfigPage {
       username: this.username,
       password: this.password
     };
-    if (this.activateExperienceAfterSave) {
+    if (this.activateExperienceAfterSave && this.syncTargetRole === 'active') {
       this.updateSyncFloatingStep('正在开启同步', '正在保存配置并开启书签和全部常用设置', 72);
       sharedSyncExperienceCoordinator.configureWebdavAndActivate(configuration)
         .then((outcome: SyncExperienceActionOutcome) => {
@@ -543,13 +553,23 @@ struct SyncWebdavConfigPage {
     })
       .then((outcome: SyncExperienceWebdavActivationOutcome) => {
         if (shouldActivate || this.syncTargetRole === 'additional_backup') {
-          this.updateSyncFloatingStep(progressTitle, '正在处理 WebDAV 同步状态', 72);
+          this.updateSyncFloatingStep(
+            progressTitle,
+            isBackup ? '正在覆盖写入 WebDAV 额外备份' : '正在处理 WebDAV 同步状态',
+            72
+          );
         }
         this.renderWebdavActivationOutcome(outcome);
       })
       .catch((error: Error) => {
         this.completeSyncProgressDialog();
-        this.showSyncFailureDialog(this.webdavViewState.isEnabled ? 'WebDAV 同步' : '启用 WebDAV 同步', 'WebDAV', error);
+        this.showSyncFailureDialog(
+          isBackup
+            ? (this.webdavViewState.isEnabled ? 'WebDAV 额外备份' : '开启 WebDAV 额外备份')
+            : (this.webdavViewState.isEnabled ? 'WebDAV 同步' : '启用 WebDAV 同步'),
+          'WebDAV',
+          error
+        );
       })
       .finally(() => {
         this.webdavOperation = '';
@@ -562,8 +582,10 @@ struct SyncWebdavConfigPage {
       return;
     }
     showCenteredAlertDialog({
-      title: '关闭 WebDAV 同步吗',
-      message: '关闭后会停止通过 WebDAV 同步书签，本机书签和已填写的 WebDAV 配置不会删除。',
+      title: this.syncTargetRole === 'additional_backup' ? '关闭 WebDAV 额外备份吗' : '关闭 WebDAV 同步吗',
+      message: this.syncTargetRole === 'additional_backup'
+        ? '关闭后会停止向 WebDAV 覆盖写入额外副本，当前同步方式和已填写的 WebDAV 配置都不会删除。'
+        : '关闭后会停止通过 WebDAV 同步书签，本机书签和已填写的 WebDAV 配置不会删除。',
       autoCancel: true,
       primaryButton: {
         value: '取消',
@@ -596,7 +618,12 @@ struct SyncWebdavConfigPage {
         this.showDialog(outcome.title, outcome.message);
       })
       .catch((_error: Error) => {
-        this.showDialog('关闭失败', '暂时没能关闭 WebDAV 同步，请检查网络后再试。');
+        this.showDialog(
+          '关闭失败',
+          this.syncTargetRole === 'additional_backup'
+            ? '暂时没能关闭 WebDAV 额外备份，请稍后再试。'
+            : '暂时没能关闭 WebDAV 同步，请检查网络后再试。'
+        );
       })
       .finally(() => {
         this.webdavOperation = '';

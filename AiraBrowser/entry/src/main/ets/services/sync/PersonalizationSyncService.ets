@@ -248,6 +248,9 @@ export class PersonalizationSyncService {
     if (settings.personalizationSyncEnabled !== true) {
       return;
     }
+    if (remoteKind !== 'webdav') {
+      throw new Error('额外备份只能使用 WebDAV。');
+    }
     if (!this.isProviderConfigured(settings, remoteKind)) {
       throw new Error('目标同步方式尚未完成个性化同步配置。');
     }
@@ -783,7 +786,9 @@ export class PersonalizationSyncService {
     forceBackupWrites: boolean = false,
     bookshelfSnapshot?: NovelBookshelfSyncSnapshot
   ): Promise<number> {
-    const backupKinds = settings.additionalBackupRemoteKinds ?? [];
+    const backupKinds = (settings.additionalBackupRemoteKinds ?? []).filter(
+      (kind: AiraSyncProviderKind): boolean => kind === 'webdav'
+    );
     if (!this.additionalBackupPolicyService.shouldWriteBackups(
       settings,
       'personalization',

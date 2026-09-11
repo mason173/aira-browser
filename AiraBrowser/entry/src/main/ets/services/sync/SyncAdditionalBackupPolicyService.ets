@@ -89,6 +89,8 @@ export class SyncAdditionalBackupPolicyService {
   }
 
   private resolveBackupKinds(settings: AiraSyncSettings): AiraSyncProviderKind[] {
-    return (settings.additionalBackupRemoteKinds ?? []).slice();
+    return (settings.additionalBackupRemoteKinds ?? []).filter((kind: AiraSyncProviderKind): boolean => {
+      return kind === 'webdav';
+    });
   }
 }
