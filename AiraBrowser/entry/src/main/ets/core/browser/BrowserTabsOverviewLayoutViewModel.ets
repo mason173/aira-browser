@@ -41,6 +41,22 @@ export interface BrowserTabsOverviewLayoutState {
   horizontalContentInset: number;
 }
 
+export function isSameTabsOverviewLayoutState(
+  current: BrowserTabsOverviewLayoutState,
+  next: BrowserTabsOverviewLayoutState
+): boolean {
+  return current.layoutStyle === next.layoutStyle &&
+    current.columnCount === next.columnCount &&
+    current.columnsTemplate === next.columnsTemplate &&
+    current.gridGap === next.gridGap &&
+    current.cardWidth === next.cardWidth &&
+    current.previewHeight === next.previewHeight &&
+    current.identityHeaderHeight === next.identityHeaderHeight &&
+    current.identityPreviewGap === next.identityPreviewGap &&
+    current.itemHeight === next.itemHeight &&
+    current.horizontalContentInset === next.horizontalContentInset;
+}
+
 interface BrowserTabsOverviewLayoutBaseState {
   layoutStyle: BrowserTabsOverviewLayoutStyle;
   columnCount: number;

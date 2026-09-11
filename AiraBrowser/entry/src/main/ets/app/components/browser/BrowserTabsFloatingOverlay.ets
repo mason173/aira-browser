@@ -9,7 +9,8 @@ import {
 import {
   BrowserTabsOverviewHorizontalCardFrame,
   BrowserTabsOverviewLayoutState,
-  BrowserTabsOverviewLayoutViewModel
+  BrowserTabsOverviewLayoutViewModel,
+  isSameTabsOverviewLayoutState
 } from '../../../core/browser/BrowserTabsOverviewLayoutViewModel';
 import {
   BrowserTabsOverviewIdentityMotionState,
@@ -1070,12 +1071,19 @@ export struct BrowserTabsFloatingOverlay {
   private syncLayoutState(): void {
     const width = this.resolveRootWidth();
     const height = this.resolveRootHeight();
-    this.layoutState = this.layoutViewModel.buildState({
+    const nextState = this.layoutViewModel.buildState({
       gridWidth: Math.max(1, width - FLOATING_TABS_HORIZONTAL_PADDING * 2),
       sheetWidth: width,
       sheetHeight: height,
       layoutStyle: this.storedTabsOverviewLayoutStyle
     });
+    // onAreaChange calls this on every layout pass. Re-assigning an equal @State
+    // object forces another grid re-render, so keep the current object when the
+    // resolved geometry is unchanged.
+    if (isSameTabsOverviewLayoutState(this.layoutState, nextState)) {
+      return;
+    }
+    this.layoutState = nextState;
   }
 
   private handleStoredTabsOverviewLayoutStyleChanged(): void {

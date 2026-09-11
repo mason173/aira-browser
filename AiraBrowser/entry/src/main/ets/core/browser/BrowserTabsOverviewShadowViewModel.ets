@@ -14,9 +14,13 @@ export class BrowserTabsOverviewShadowViewModel {
     tabs: BrowserTabState[]
   ): BrowserTabsOverviewLocalRemovalState {
     const activeIds = this.buildActiveTabIdMap(tabs);
-    return {
-      locallyRemovedTabIds: state.locallyRemovedTabIds.filter((tabId: string) => activeIds[tabId] === true)
-    };
+    const retainedTabIds = state.locallyRemovedTabIds.filter((tabId: string) => activeIds[tabId] === true);
+    // Returning the same object when nothing changed keeps this @State out of the
+    // render loop it is called from (tabs change -> reconcile -> re-render).
+    if (retainedTabIds.length === state.locallyRemovedTabIds.length) {
+      return state;
+    }
+    return { locallyRemovedTabIds: retainedTabIds };
   }
 
   markLocalRemoval(
