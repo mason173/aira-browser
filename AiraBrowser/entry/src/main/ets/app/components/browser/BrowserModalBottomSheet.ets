@@ -1,8 +1,10 @@
 import {
   BROWSER_THEME_STORAGE_FLOATING_SURFACE_KEY,
   BROWSER_THEME_STORAGE_ON_PRIMARY_KEY,
+  BROWSER_THEME_STORAGE_PRESSED_BACKGROUND_KEY,
   BROWSER_THEME_STORAGE_RESOLVED_MODE_KEY,
-  BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY
+  BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY,
+  BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY
 } from '../../../core/theme/BrowserThemeStorageKeys';
 import { AiraRenderableIconId } from '../../../core/resources/GeneratedAiraIconCatalog';
 import { APP_STANDARD_HORIZONTAL_PADDING } from '../common/AppLayoutTokens';
@@ -282,7 +284,9 @@ export struct BrowserImmersiveSheetLayout {
 export struct BrowserSheetActionButton {
   @StorageProp(BROWSER_THEME_STORAGE_ON_PRIMARY_KEY) private storedOnPrimaryColor: string = '#FFFFFF';
   @StorageProp(BROWSER_THEME_STORAGE_RESOLVED_MODE_KEY) private storedResolvedThemeMode: string = 'light';
+  @StorageProp(BROWSER_THEME_STORAGE_PRESSED_BACKGROUND_KEY) private storedPressedBackgroundColor: string = '#DDE4EC';
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY) private storedPrimaryTextColor: string = '#111318';
+  @StorageProp(BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY) private storedSecondaryTextColor: string = '#5F6875';
   @Prop label: string = '';
   @Prop emphasis: 'primary' | 'secondary' = 'secondary';
   @Prop actionEnabled: boolean = true;
@@ -302,7 +306,7 @@ export struct BrowserSheetActionButton {
         surfaceHeight: this.buttonHeight,
         surfaceRadius: this.buttonHeight / 2,
         tintColor: resolveFloatingGlassMaterialTintForMode(this.storedResolvedThemeMode),
-        overlayColor: this.resolvePrimaryBackgroundColor(),
+        overlayColor: this.resolveOverlayColor(),
         overlayOpacity: this.emphasis === 'primary' ? 1 : 0
       }) {
         Button() {
@@ -338,14 +342,37 @@ export struct BrowserSheetActionButton {
     .width(this.fillAvailableWidth ? '100%' : this.buttonWidth)
     .height(this.buttonHeight)
     .layoutWeight(this.fillAvailableWidth ? 1 : 0)
-    .opacity(this.actionEnabled ? 1 : 0.42)
+    .opacity(this.resolveStackOpacity())
   }
 
   private resolveTextColor(): ResourceColor {
+    if (this.isPrimaryDisabled()) {
+      return this.storedSecondaryTextColor;
+    }
     if (`${this.textColor}`.length > 0) {
       return this.textColor;
     }
     return this.emphasis === 'primary' ? this.storedOnPrimaryColor : this.storedPrimaryTextColor;
+  }
+
+  private resolveOverlayColor(): ResourceColor {
+    if (this.isPrimaryDisabled()) {
+      // Keep the disabled primary surface neutral so the label stays legible;
+      // fading the whole control leaves white text on washed-out brand blue.
+      return this.storedPressedBackgroundColor;
+    }
+    return this.resolvePrimaryBackgroundColor();
+  }
+
+  private resolveStackOpacity(): number {
+    if (this.actionEnabled) {
+      return 1;
+    }
+    return this.emphasis === 'primary' ? 1 : 0.42;
+  }
+
+  private isPrimaryDisabled(): boolean {
+    return !this.actionEnabled && this.emphasis === 'primary';
   }
 
   private resolvePrimaryBackgroundColor(): ResourceColor {
