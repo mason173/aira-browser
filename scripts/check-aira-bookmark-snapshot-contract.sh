@@ -243,17 +243,26 @@ if [ "${failures}" -eq 0 ]; then
     'AiraG7BookmarkRecords' \
     "the active G8 RDB owner must not recreate or re-register the retired G7 table"
   require_pattern "${HUAWEI_STORE_REL}" \
-    'writeSnapshotBlocks[\s\S]*runIncrementalCommitBarrier\(store, this\.chunkRepository\.getBlockCloudTableNames\(\)\)[\s\S]*confirmPublicationBlocks[\s\S]*publishHead[\s\S]*runIncrementalCommitBarrier\(store, this\.chunkRepository\.getHeadCloudTableNames\(\)\)[\s\S]*hasPublishedHead' \
-    "Huawei G8 must confirm Blocks before publishing and confirming Head"
+    'writeSnapshotBlocks[\s\S]*SYNC_MODE_TIME_FIRST[\s\S]*getBlockCloudTableNames\(\)[\s\S]*confirmPublicationBlocks[\s\S]*publishHead[\s\S]*SYNC_MODE_TIME_FIRST[\s\S]*getHeadCloudTableNames\(\)[\s\S]*hasPublishedHead' \
+    "Huawei G8 must upload Blocks then Head with TIME_FIRST after local confirmation, without a full CLOUD_FIRST reread"
   require_pattern "${HUAWEI_STORE_REL}" \
     'readHead\(\)[\s\S]*getHeadCloudTableNames\(\)[\s\S]*readHeadSummaries[\s\S]*readAggregateAfterCloudFirst[\s\S]*getHeadCloudTableNames\(\)[\s\S]*if \(readResult\.needsBlockSync\)[\s\S]*getBlockCloudTableNames\(\)' \
     "Huawei G8 no-op discovery must synchronize Heads first and fetch Blocks only when materialization needs them"
+  require_pattern "${HUAWEI_STORE_REL}" \
+    'async writeState\([\s\S]*readWriteParentsAfterHeadsCloudFirst[\s\S]*heads-only=1' \
+    "Huawei G8 writes must take parent commits from Heads only and must not CLOUD_FIRST Blocks"
+  require_pattern "${SYNC_REL}" \
+    'resolveBookmarkRemoteStateForMerge[\s\S]*bookmark_baseline_remote[\s\S]*hit=1[\s\S]*baseline.snapshot' \
+    "pending Huawei Bookmark local work must reuse the confirmed baseline when Head matches"
   require_pattern "${SYNC_REL}" \
     'isEligible\(identityProbe\)[\s\S]*tryHuaweiBookmarkIdentityNoOp[\s\S]*readState' \
     "Huawei ordinary no-op must probe confirmed Head identity before reconstructing a complete snapshot"
   require_pattern "${SYNC_REL}" \
     'matchesConfirmedHead\(probe, head\)[\s\S]*recordSuccessfulSync[\s\S]*本机和云端已经一致' \
-    "Huawei identity no-op must reuse the confirmed baseline and skip merge/write when Head identity matches"
+    "Huawei ordinary no-op must accept a matching Head commit without reconstructing snapshots"
+  require_pattern "${SYNC_REL}" \
+    'remoteKind === .huawei_space.[\s\S]*write-already-confirmed' \
+    "Huawei G8 write confirmation must not CLOUD_FIRST the whole snapshot after writeState already confirmed"
   require_pattern "${ADR_REL}" \
     'ordinary same-Provider[\s\S]*confirmed Head identity[\s\S]*pendingBookmarkSyncAt[\s\S]*not a second merge algorithm' \
     "ADR-0049 must record the confirmed-identity no-op gate"

@@ -22,6 +22,7 @@ import {
   HuaweiSpaceBookmarkHeadSummary,
   HuaweiSpaceBookmarkChunkRepository
 } from './HuaweiSpaceBookmarkChunkRepository';
+import { AiraSyncJankProbe } from '../../common/debug/AiraSyncJankProbe';
 import { HuaweiSpaceCloudSyncCoordinator } from './HuaweiSpaceCloudSyncCoordinator';
 import { HuaweiSpaceRdbStoreOwner } from './HuaweiSpaceRdbStoreOwner';
 
@@ -35,6 +36,11 @@ interface HuaweiSpaceBookmarkAggregate {
   history: AiraBookmarkHistoryDescriptor | null;
   headCommitIds: string[];
   updatedAt: number;
+}
+
+interface HuaweiSpaceBookmarkWriteParents {
+  commitId: string | null;
+  headCommitIds: string[];
 }
 
 export class HuaweiSpaceBookmarkSyncError extends Error {
@@ -62,6 +68,8 @@ export class AiraHuaweiSpaceRemoteStore implements AiraSyncRemoteStore {
   private snapshotValidationService: AiraBookmarkSnapshotValidationService =
     new AiraBookmarkSnapshotValidationService();
   private chunkRepository: HuaweiSpaceBookmarkChunkRepository;
+  private lastHeadParents?: HuaweiSpaceBookmarkWriteParents;
+  private gcTimer: number = -1;
 
   constructor(
     uid: string,
@@ -108,8 +116,13 @@ export class AiraHuaweiSpaceRemoteStore implements AiraSyncRemoteStore {
         return row.commitId;
       }).sort();
       const singleHead = readResult.heads.length === 1 ? readResult.heads[0] : undefined;
-      return {
+      const parents: HuaweiSpaceBookmarkWriteParents = {
         commitId: commitIds.length > 0 ? this.buildAggregateCommitId(commitIds) : null,
+        headCommitIds: commitIds
+      };
+      this.lastHeadParents = parents;
+      return {
+        commitId: parents.commitId,
         updatedAt: readResult.heads.reduce((latest: number, row: HuaweiSpaceBookmarkHeadSummary): number => {
           return Math.max(latest, row.updatedAt);
         }, 0),
@@ -133,8 +146,18 @@ export class AiraHuaweiSpaceRemoteStore implements AiraSyncRemoteStore {
   async confirmPendingWrites(): Promise<void> {
     this.assertConfigured();
     const store = await this.getStore();
-    await this.runIncrementalCommitBarrier(store, this.chunkRepository.getBlockCloudTableNames());
-    await this.runIncrementalCommitBarrier(store, this.chunkRepository.getHeadCloudTableNames(), true);
+    await this.runManualCloudSync(
+      store,
+      relationalStore.SyncMode.SYNC_MODE_TIME_FIRST,
+      this.chunkRepository.getBlockCloudTableNames(),
+      true
+    );
+    await this.runManualCloudSync(
+      store,
+      relationalStore.SyncMode.SYNC_MODE_TIME_FIRST,
+      this.chunkRepository.getHeadCloudTableNames(),
+      true
+    );
   }
 
   async writeState(params: AiraSyncWriteStateParams): Promise<AiraSyncWriteStateResult> {
@@ -146,13 +169,8 @@ export class AiraHuaweiSpaceRemoteStore implements AiraSyncRemoteStore {
     );
     this.historyService.assertSnapshotWithinHistory(snapshot, history, '华为云空间');
     const store = await this.getStore();
-    const current = await this.readAggregateAfterCloudFirst(store);
-    if (current.history !== null && !this.historyService.sameHistory(
-      this.historyService.selectNewerHistory(current.history, history),
-      history
-    )) {
-      throw new Error('华为云空间书签墓碑历史边界不能回退。');
-    }
+    const current = await this.readWriteParentsAfterHeadsCloudFirst(store);
+    AiraSyncJankProbe.markExtra('bookmark_write_parents', 'heads-only=1');
     if (current.commitId === null &&
       this.buildFallbackParentCommitIds(params.parentCommitId).length <= 0 &&
       this.isEmptyInitialSnapshot(snapshot)) {
@@ -190,7 +208,12 @@ export class AiraHuaweiSpaceRemoteStore implements AiraSyncRemoteStore {
         generatedAt,
         updatedAt
       });
-      await this.runIncrementalCommitBarrier(store, this.chunkRepository.getBlockCloudTableNames());
+      await this.runManualCloudSync(
+        store,
+        relationalStore.SyncMode.SYNC_MODE_TIME_FIRST,
+        this.chunkRepository.getBlockCloudTableNames(),
+        true
+      );
       if (!await this.chunkRepository.confirmPublicationBlocks(store, writeResult.publication)) {
         throw new HuaweiSpaceBookmarkSyncError(
           '华为云空间未确认完整的 G8 书签 Blocks，请稍后重试。',
@@ -198,7 +221,12 @@ export class AiraHuaweiSpaceRemoteStore implements AiraSyncRemoteStore {
         );
       }
       await this.chunkRepository.publishHead(store, writeResult.publication);
-      await this.runIncrementalCommitBarrier(store, this.chunkRepository.getHeadCloudTableNames());
+      await this.runManualCloudSync(
+        store,
+        relationalStore.SyncMode.SYNC_MODE_TIME_FIRST,
+        this.chunkRepository.getHeadCloudTableNames(),
+        true
+      );
       if (!await this.chunkRepository.hasPublishedHead(store, writeResult.publication)) {
         throw new HuaweiSpaceBookmarkSyncError(
           '华为云空间未确认完整的 G8 书签 Head，请稍后重试。',
@@ -279,6 +307,30 @@ export class AiraHuaweiSpaceRemoteStore implements AiraSyncRemoteStore {
       updatedAt: heads.reduce((latest: number, row: HuaweiSpaceBookmarkChunkGeneration): number => {
         return Math.max(latest, row.updatedAt);
       }, 0)
+    };
+  }
+
+  private async readWriteParentsAfterHeadsCloudFirst(
+    store: relationalStore.RdbStore
+  ): Promise<HuaweiSpaceBookmarkWriteParents> {
+    if (this.lastHeadParents !== undefined && this.lastHeadParents.commitId !== null) {
+      const cached = this.lastHeadParents;
+      this.lastHeadParents = undefined;
+      AiraSyncJankProbe.markExtra('bookmark_write_parents', 'heads-only=1 reused=1');
+      return cached;
+    }
+    await this.runManualCloudSync(
+      store,
+      relationalStore.SyncMode.SYNC_MODE_CLOUD_FIRST,
+      this.chunkRepository.getHeadCloudTableNames()
+    );
+    const readResult = await this.chunkRepository.readHeadSummaries(store);
+    const commitIds = readResult.heads.map((row: HuaweiSpaceBookmarkHeadSummary): string => {
+      return row.commitId;
+    }).sort();
+    return {
+      commitId: commitIds.length > 0 ? this.buildAggregateCommitId(commitIds) : null,
+      headCommitIds: commitIds
     };
   }
 
@@ -407,6 +459,16 @@ export class AiraHuaweiSpaceRemoteStore implements AiraSyncRemoteStore {
   }
 
   private async runPhysicalGcSafely(store: relationalStore.RdbStore): Promise<void> {
+    if (this.gcTimer >= 0) {
+      return;
+    }
+    this.gcTimer = setTimeout((): void => {
+      this.gcTimer = -1;
+      void this.runPhysicalGcNow(store);
+    }, 30000);
+  }
+
+  private async runPhysicalGcNow(store: relationalStore.RdbStore): Promise<void> {
     try {
       await this.runManualCloudSync(
         store,

@@ -1,9 +1,11 @@
 import { BusinessError } from '@kit.BasicServicesKit';
 import { relationalStore } from '@kit.ArkData';
 import { hilog } from '@kit.PerformanceAnalysisKit';
+import { AiraSyncJankProbe } from '../../common/debug/AiraSyncJankProbe';
 
 const HUAWEI_SPACE_CLOUD_SYNC_LOG_DOMAIN: number = 0x0000;
 const HUAWEI_SPACE_CLOUD_SYNC_LOG_TAG: string = 'HuaweiSpaceCloud';
+const CLOUD_SYNC_UI_YIELD_MS: number = 16;
 
 export interface HuaweiSpaceCloudSyncRequest {
   uid: string;
@@ -39,6 +41,7 @@ interface HuaweiSpaceCloudSyncQueueState {
   active?: HuaweiSpaceCloudSyncTask;
   pending: HuaweiSpaceCloudSyncTask[];
   latestByRequestKey: Map<string, HuaweiSpaceCloudSyncTask>;
+  yieldTimerId: number;
 }
 
 export class HuaweiSpaceCloudSyncCoordinator {
@@ -107,14 +110,15 @@ export class HuaweiSpaceCloudSyncCoordinator {
     }
     const created: HuaweiSpaceCloudSyncQueueState = {
       pending: [],
-      latestByRequestKey: new Map<string, HuaweiSpaceCloudSyncTask>()
+      latestByRequestKey: new Map<string, HuaweiSpaceCloudSyncTask>(),
+      yieldTimerId: -1
     };
     HuaweiSpaceCloudSyncCoordinator.states.set(transportKey, created);
     return created;
   }
 
   private static startNext(transportKey: string, state: HuaweiSpaceCloudSyncQueueState): void {
-    if (state.active !== undefined || state.pending.length <= 0) {
+    if (state.yieldTimerId >= 0 || state.active !== undefined || state.pending.length <= 0) {
       return;
     }
     const task = state.pending.shift();
@@ -282,8 +286,17 @@ export class HuaweiSpaceCloudSyncCoordinator {
     if (state.latestByRequestKey.get(task.requestKey) === task) {
       state.latestByRequestKey.delete(task.requestKey);
     }
-    HuaweiSpaceCloudSyncCoordinator.startNext(transportKey, state);
-    if (state.active === undefined && state.pending.length <= 0 && state.latestByRequestKey.size <= 0) {
+    if (state.pending.length > 0) {
+      if (state.yieldTimerId >= 0) {
+        clearTimeout(state.yieldTimerId);
+      }
+      state.yieldTimerId = setTimeout((): void => {
+        state.yieldTimerId = -1;
+        HuaweiSpaceCloudSyncCoordinator.startNext(transportKey, state);
+      }, CLOUD_SYNC_UI_YIELD_MS);
+      return;
+    }
+    if (state.active === undefined && state.latestByRequestKey.size <= 0) {
       HuaweiSpaceCloudSyncCoordinator.states.delete(transportKey);
     }
   }
@@ -317,6 +330,11 @@ export class HuaweiSpaceCloudSyncCoordinator {
       durationMs,
       progressCode,
       task.tableDetails
+    );
+    AiraSyncJankProbe.endExtra(
+      'cloud_sync',
+      task.startedAt > 0 ? task.startedAt : Date.now(),
+      `outcome=${outcome} tables=${task.request.tableNames.join(',')} code=${progressCode}`
     );
   }
 

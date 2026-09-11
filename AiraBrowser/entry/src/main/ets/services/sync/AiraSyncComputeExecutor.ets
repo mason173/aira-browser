@@ -1,6 +1,5 @@
-import { taskpool, util } from '@kit.ArkTS';
+import { taskpool } from '@kit.ArkTS';
 import {
-  HistorySyncRetentionFrontier,
   HuaweiSpaceHistorySyncState
 } from '../../common/models/HistorySyncModels';
 import {
@@ -14,15 +13,10 @@ import {
   AiraHistoryTaskpoolTransferCodec
 } from './AiraHistoryTaskpoolTransferCodec';
 import { AiraSyncWorkThrottleService } from './AiraSyncWorkThrottleService';
+import { AiraSyncJankProbe } from '../../common/debug/AiraSyncJankProbe';
 
 const AIRA_SYNC_TASKPOOL_TRANSFER_BUDGET_BYTES: number = 8 * 1024 * 1024;
 const AIRA_SYNC_TASKPOOL_PACK_PREFLIGHT_BUDGET_BYTES: number = 16 * 1024 * 1024;
-const AIRA_SYNC_HISTORY_ROW_LENGTH_BYTES: number = 4;
-const AIRA_SYNC_HISTORY_STATE_FRAME_HEADER_BYTES: number = 5;
-const AIRA_SYNC_HISTORY_STATE_FRAME_METADATA: number = 0;
-const AIRA_SYNC_HISTORY_STATE_FRAME_VISIT: number = 1;
-const AIRA_SYNC_HISTORY_STATE_FRAME_TOMBSTONE: number = 2;
-const AIRA_SYNC_HISTORY_STATE_FRAME_DELETE_RANGE: number = 3;
 
 export interface AiraHistoryInitialMergePlan {
   merged: HuaweiSpaceHistorySyncState;
@@ -63,16 +57,6 @@ interface AiraHistoryRemoteWriteConfirmationOutcome {
   computeErrorMessage: string;
 }
 
-interface AiraHistoryStateMetadata {
-  clearBefore: number;
-  retentionFrontier: HistorySyncRetentionFrontier;
-}
-
-interface AiraHistoryTransferFrame {
-  kind: number;
-  bytes: Uint8Array;
-}
-
 export class AiraHistoryMirrorDecodeError extends Error {
 }
 
@@ -84,27 +68,7 @@ function decodeHuaweiHistoryRemoteState(
   now: number
 ): AiraHistoryRemoteStateDecodeOutcome {
   try {
-    const rowLengthBytes = 4;
-    const decoder = util.TextDecoder.create('utf-8');
-    const bytes = new Uint8Array(rowBuffer);
-    const rows: HuaweiSpaceHistoryRow[] = [];
-    let offset = 0;
-    while (offset < bytes.byteLength) {
-      if (offset + rowLengthBytes > bytes.byteLength) {
-        throw new Error('Huawei History TaskPool row frame is truncated.');
-      }
-      const rowLength = (bytes[offset] << 24) |
-        (bytes[offset + 1] << 16) |
-        (bytes[offset + 2] << 8) |
-        bytes[offset + 3];
-      offset += rowLengthBytes;
-      if (rowLength <= 0 || offset + rowLength > bytes.byteLength) {
-        throw new Error('Huawei History TaskPool row frame length is invalid.');
-      }
-      const rowBytes = bytes.subarray(offset, offset + rowLength);
-      rows.push(JSON.parse(decoder.decodeToString(rowBytes)) as HuaweiSpaceHistoryRow);
-      offset += rowLength;
-    }
+    const rows = AiraHistoryTaskpoolTransferCodec.decodeRows(rowBuffer);
     const mirror = new HuaweiSpaceHistorySnapshotCodec(uid, deviceId).decodeRows(rows, now);
     return {
       decoded: {
@@ -116,6 +80,124 @@ function decodeHuaweiHistoryRemoteState(
   } catch (error) {
     const candidate = error as Error;
     return {
+      errorMessage: candidate.message ?? JSON.stringify(error)
+    };
+  }
+}
+
+
+export interface HuaweiHistoryReplicaPackedOutcome {
+  localApplyRequired: boolean;
+  remoteWriteRequired: boolean;
+  mergedBuffer: ArrayBuffer;
+  projection: AiraHistoryRemoteWriteProjection;
+  errorMessage: string;
+}
+
+
+interface AiraHistoryInitialMergePackedOutcome {
+  localApplyRequired: boolean;
+  remoteWriteRequired: boolean;
+  mergedBuffer: ArrayBuffer;
+  errorMessage: string;
+}
+
+@Concurrent
+function planHuaweiHistoryInitialMergePacked(
+  remoteBuffer: ArrayBuffer,
+  localBuffer: ArrayBuffer,
+  now: number
+): AiraHistoryInitialMergePackedOutcome {
+  try {
+    const remote = AiraHistoryTaskpoolTransferCodec.decodeState(remoteBuffer);
+    const local = AiraHistoryTaskpoolTransferCodec.decodeState(localBuffer);
+    const mergeService = new HistorySyncMergeService();
+    const merged = mergeService.mergeKeepingPreferredVisits(remote, local, now);
+    const localApplyRequired = !mergeService.sameState(merged, local);
+    const remoteWriteRequired = !mergeService.sameState(merged, remote);
+    if (!localApplyRequired && !remoteWriteRequired) {
+      return {
+        localApplyRequired: false,
+        remoteWriteRequired: false,
+        mergedBuffer: new ArrayBuffer(0),
+        errorMessage: ''
+      };
+    }
+    return {
+      localApplyRequired: localApplyRequired,
+      remoteWriteRequired: remoteWriteRequired,
+      mergedBuffer: AiraHistoryTaskpoolTransferCodec.encodeState(merged),
+      errorMessage: ''
+    };
+  } catch (error) {
+    const candidate = error as Error;
+    return {
+      localApplyRequired: false,
+      remoteWriteRequired: false,
+      mergedBuffer: new ArrayBuffer(0),
+      errorMessage: candidate.message ?? JSON.stringify(error)
+    };
+  }
+}
+
+
+@Concurrent
+function planHuaweiHistoryReplicaPacked(
+  uid: string,
+  deviceId: string,
+  rowBuffer: ArrayBuffer,
+  localBuffer: ArrayBuffer,
+  now: number
+): HuaweiHistoryReplicaPackedOutcome {
+  try {
+    const current = new HuaweiSpaceHistorySnapshotCodec(uid, deviceId)
+      .decodeRows(AiraHistoryTaskpoolTransferCodec.decodeRows(rowBuffer), now);
+    const local = AiraHistoryTaskpoolTransferCodec.decodeState(localBuffer);
+    const mergeService = new HistorySyncMergeService();
+    const merged = mergeService.mergeKeepingPreferredVisits(current.state, local, now);
+    const localApplyRequired = !mergeService.sameState(merged, local);
+    const remoteWriteRequired = !mergeService.sameState(merged, current.state);
+    if (!localApplyRequired && !remoteWriteRequired) {
+      return {
+        localApplyRequired: false,
+        remoteWriteRequired: false,
+        mergedBuffer: new ArrayBuffer(0),
+        projection: {
+          rowsToUpsert: [],
+          rowIdsToDeleteBeforePublish: [],
+          legacyRowIdsToDeleteAfterConfirmation: [],
+          targetHeadRowId: '',
+          targetDeviceId: '',
+          targetGeneration: 0,
+          targetStateChecksum: ''
+        },
+        errorMessage: ''
+      };
+    }
+    const projection = new HuaweiSpaceHistorySnapshotCodec(uid, deviceId)
+      .buildProjection(merged, current, now);
+    return {
+      localApplyRequired: localApplyRequired,
+      remoteWriteRequired: remoteWriteRequired,
+      mergedBuffer: AiraHistoryTaskpoolTransferCodec.encodeState(merged),
+      projection: AiraHistoryTaskpoolTransferCodec.leanProjection(projection),
+      errorMessage: ''
+    };
+  } catch (error) {
+    const candidate = error as Error;
+    return {
+      localApplyRequired: false,
+      remoteWriteRequired: false,
+      mergedBuffer: new ArrayBuffer(0),
+      projection: {
+        rowsToUpsert: [],
+        rowIdsToDeleteBeforePublish: [],
+        legacyRowIdsToDeleteAfterConfirmation: [],
+        targetHeadRowId: '',
+        targetDeviceId: '',
+        targetGeneration: 0,
+        targetStateChecksum: ''
+      },
       errorMessage: candidate.message ?? JSON.stringify(error)
     };
   }
@@ -157,10 +239,8 @@ function planHuaweiHistoryRemoteWrite(
   }
   try {
     const desired = AiraHistoryTaskpoolTransferCodec.decodeState(desiredBuffer);
-    const mergeService = new HistorySyncMergeService();
-    const merged = mergeService.merge(current.state, desired, generatedAt);
     const projection = new HuaweiSpaceHistorySnapshotCodec(uid, deviceId)
-      .buildProjection(merged, current, generatedAt);
+      .buildProjection(desired, current, generatedAt);
     return {
       plan: { projection: AiraHistoryTaskpoolTransferCodec.leanProjection(projection) },
       decodeErrorMessage: '',
@@ -263,21 +343,6 @@ function resolveHuaweiHistoryRemoteWriteConfirmationOutcome(
   return outcome.confirmation;
 }
 
-function writeHuaweiHistoryTransferFrame(
-  target: Uint8Array,
-  offset: number,
-  frame: AiraHistoryTransferFrame
-): number {
-  const frameLength = frame.bytes.byteLength;
-  target[offset] = frame.kind;
-  target[offset + 1] = (frameLength >>> 24) & 0xff;
-  target[offset + 2] = (frameLength >>> 16) & 0xff;
-  target[offset + 3] = (frameLength >>> 8) & 0xff;
-  target[offset + 4] = frameLength & 0xff;
-  target.set(frame.bytes, offset + AIRA_SYNC_HISTORY_STATE_FRAME_HEADER_BYTES);
-  return offset + AIRA_SYNC_HISTORY_STATE_FRAME_HEADER_BYTES + frameLength;
-}
-
 function estimateTransferStringBytes(value: string): number {
   return value.length * 2 + 32;
 }
@@ -337,7 +402,7 @@ function resolveHuaweiHistoryRemoteStateDecodeOutcome(
 export class AiraSyncComputeExecutor {
   private readonly cooperativeThrottle: AiraSyncWorkThrottleService = new AiraSyncWorkThrottleService(
     undefined,
-    { batchSize: 16, batchPauseMs: 0, stagePauseMs: 4 }
+    { batchSize: 250, batchPauseMs: 16, stagePauseMs: 16 }
   );
 
   async decodeHuaweiHistoryRemoteState(
@@ -388,6 +453,67 @@ export class AiraSyncComputeExecutor {
     return resolveHuaweiHistoryRemoteStateDecodeOutcome(outcome);
   }
 
+  async decodePackedHuaweiHistoryRemoteState(
+    uid: string,
+    deviceId: string,
+    rowBuffer: ArrayBuffer
+  ): Promise<AiraHistoryRemoteStateDecode> {
+    const now = Date.now();
+    if (!fitsTaskpoolTransferBudget(rowBuffer.byteLength)) {
+      const rows = AiraHistoryTaskpoolTransferCodec.decodeRows(rowBuffer);
+      try {
+        const mirror = await new HuaweiSpaceHistorySnapshotCodec(uid, deviceId)
+          .decodeRowsCooperatively(rows, this.cooperativeThrottle, now);
+        return {
+          state: mirror.state,
+          legacyRowIds: mirror.legacyRowIds
+        };
+      } catch (error) {
+        const candidate = error as Error;
+        throw new AiraHistoryMirrorDecodeError(candidate.message ?? JSON.stringify(error));
+      }
+    }
+    const task = new taskpool.Task(
+      'aira-sync-history-decode-state',
+      decodeHuaweiHistoryRemoteState,
+      uid,
+      deviceId,
+      rowBuffer,
+      now
+    );
+    task.setTransferList([rowBuffer]);
+    const outcome = await taskpool.execute(task, taskpool.Priority.LOW) as AiraHistoryRemoteStateDecodeOutcome;
+    return resolveHuaweiHistoryRemoteStateDecodeOutcome(outcome);
+  }
+
+
+  async planHuaweiHistoryReplicaPacked(
+    uid: string,
+    deviceId: string,
+    rowBuffer: ArrayBuffer,
+    local: HuaweiSpaceHistorySyncState
+  ): Promise<HuaweiHistoryReplicaPackedOutcome> {
+    const localBuffer = await this.packHuaweiHistoryStateForTransfer(local);
+    const task = new taskpool.Task(
+      'aira-sync-history-replica-packed',
+      planHuaweiHistoryReplicaPacked,
+      uid,
+      deviceId,
+      rowBuffer,
+      localBuffer,
+      Date.now()
+    );
+    task.setTransferList([rowBuffer, localBuffer]);
+    const startedAt = Date.now();
+    const outcome = await taskpool.execute(task, taskpool.Priority.LOW) as HuaweiHistoryReplicaPackedOutcome;
+    AiraSyncJankProbe.endExtra(
+      'history_replica_packed',
+      startedAt,
+      `error=${outcome.errorMessage.length > 0 ? 1 : 0} write=${outcome.remoteWriteRequired ? 1 : 0}`
+    );
+    return outcome;
+  }
+
   async planHuaweiHistoryInitialMerge(
     remote: HuaweiSpaceHistorySyncState,
     local: HuaweiSpaceHistorySyncState
@@ -395,45 +521,102 @@ export class AiraSyncComputeExecutor {
     const estimatedBytes = estimateHuaweiHistoryStateTransferBytes(remote) +
       estimateHuaweiHistoryStateTransferBytes(local);
     if (!fitsTaskpoolTransferBudget(estimatedBytes)) {
-      const now = Date.now();
-      const mergeService = new HistorySyncMergeService();
-      const merged = await mergeService.mergeKeepingPreferredVisitsCooperatively(
-        remote,
-        local,
-        this.cooperativeThrottle,
-        now
-      );
-      return {
-        merged,
-        localApplyRequired: !(await mergeService.sameStateCooperatively(
-          merged,
-          local,
-          this.cooperativeThrottle
-        )),
-        remoteWriteRequired: !(await mergeService.sameStateCooperatively(
-          merged,
-          remote,
-          this.cooperativeThrottle
-        ))
-      };
+      return this.planHuaweiHistoryInitialMergeCooperatively(remote, local);
+    }
+    const packStartedAt = Date.now();
+    const remoteBuffer = await this.packHuaweiHistoryStateForTransfer(remote);
+    const localBuffer = await this.packHuaweiHistoryStateForTransfer(local);
+    AiraSyncJankProbe.endExtra(
+      'history_merge_pack',
+      packStartedAt,
+      `bytes=${remoteBuffer.byteLength + localBuffer.byteLength}`
+    );
+    if (!fitsTaskpoolTransferBudget(remoteBuffer.byteLength + localBuffer.byteLength)) {
+      AiraSyncJankProbe.mark('history_merge_fallback_budget');
+      return this.planHuaweiHistoryInitialMergeCooperatively(remote, local);
     }
     const task = new taskpool.Task(
-      'aira-sync-history-initial-merge',
-      planHuaweiHistoryInitialMerge,
-      remote,
-      local,
+      'aira-sync-history-initial-merge-packed',
+      planHuaweiHistoryInitialMergePacked,
+      remoteBuffer,
+      localBuffer,
       Date.now()
     );
-    return await taskpool.execute(task, taskpool.Priority.LOW) as AiraHistoryInitialMergePlan;
+    task.setTransferList([remoteBuffer, localBuffer]);
+    const taskStartedAt = Date.now();
+    let outcome: AiraHistoryInitialMergePackedOutcome;
+    try {
+      outcome = await taskpool.execute(task, taskpool.Priority.LOW) as AiraHistoryInitialMergePackedOutcome;
+    } catch (_error) {
+      AiraSyncJankProbe.endExtra('history_merge_taskpool', taskStartedAt, 'error=throw');
+      return this.planHuaweiHistoryInitialMergeCooperatively(remote, local);
+    }
+    AiraSyncJankProbe.endExtra(
+      'history_merge_taskpool',
+      taskStartedAt,
+      `error=${outcome.errorMessage.length > 0 ? 1 : 0}`
+    );
+    if (outcome.errorMessage.length > 0) {
+      AiraSyncJankProbe.markExtra('history_merge_fallback_cooperative', outcome.errorMessage);
+      return this.planHuaweiHistoryInitialMergeCooperatively(remote, local);
+    }
+    if (!outcome.localApplyRequired && !outcome.remoteWriteRequired) {
+      return {
+        merged: remote,
+        localApplyRequired: false,
+        remoteWriteRequired: false
+      };
+    }
+    const unpackStartedAt = Date.now();
+    const merged = AiraHistoryTaskpoolTransferCodec.decodeState(outcome.mergedBuffer);
+    AiraSyncJankProbe.endExtra(
+      'history_merge_unpack',
+      unpackStartedAt,
+      `apply=${outcome.localApplyRequired ? 1 : 0} write=${outcome.remoteWriteRequired ? 1 : 0}`
+    );
+    await this.cooperativeThrottle.afterStage();
+    return {
+      merged: merged,
+      localApplyRequired: outcome.localApplyRequired,
+      remoteWriteRequired: outcome.remoteWriteRequired
+    };
+  }
+
+  private async planHuaweiHistoryInitialMergeCooperatively(
+    remote: HuaweiSpaceHistorySyncState,
+    local: HuaweiSpaceHistorySyncState
+  ): Promise<AiraHistoryInitialMergePlan> {
+    const now = Date.now();
+    const mergeService = new HistorySyncMergeService();
+    const merged = await mergeService.mergeKeepingPreferredVisitsCooperatively(
+      remote,
+      local,
+      this.cooperativeThrottle,
+      now
+    );
+    return {
+      merged,
+      localApplyRequired: !(await mergeService.sameStateCooperatively(
+        merged,
+        local,
+        this.cooperativeThrottle
+      )),
+      remoteWriteRequired: !(await mergeService.sameStateCooperatively(
+        merged,
+        remote,
+        this.cooperativeThrottle
+      ))
+    };
   }
 
   async planHuaweiHistoryRemoteWrite(
     uid: string,
     deviceId: string,
     rows: HuaweiSpaceHistoryRow[],
-    desired: HuaweiSpaceHistorySyncState
+    desired: HuaweiSpaceHistorySyncState,
+    packedRows: ArrayBuffer | undefined = undefined
   ): Promise<AiraHistoryRemoteWritePlan> {
-    const rowBuffer = await this.packHuaweiHistoryRowsForTransfer(rows);
+    const rowBuffer = packedRows !== undefined ? packedRows : await this.packHuaweiHistoryRowsForTransfer(rows);
     const desiredBuffer = await this.packHuaweiHistoryStateForTransfer(desired);
     const transferBytes = rowBuffer.byteLength + desiredBuffer.byteLength;
     if (!fitsTaskpoolTransferBudget(transferBytes)) {
@@ -518,14 +701,8 @@ export class AiraSyncComputeExecutor {
       const candidate = error as Error;
       throw new AiraHistoryMirrorDecodeError(candidate.message ?? JSON.stringify(error));
     }
-    const merged = await new HistorySyncMergeService().mergeCooperatively(
-      current.state,
-      desired,
-      this.cooperativeThrottle,
-      now
-    );
     const projection = await new HuaweiSpaceHistorySnapshotCodec(uid, deviceId)
-      .buildProjectionCooperatively(merged, current, this.cooperativeThrottle, now);
+      .buildProjectionCooperatively(desired, current, this.cooperativeThrottle, now);
     return { projection: AiraHistoryTaskpoolTransferCodec.leanProjection(projection) };
   }
 
@@ -593,72 +770,16 @@ export class AiraSyncComputeExecutor {
   private async packHuaweiHistoryRowsForTransfer(
     rows: HuaweiSpaceHistoryRow[]
   ): Promise<ArrayBuffer> {
-    const encoder = util.TextEncoder.create('utf-8');
-    const encodedRows: Uint8Array[] = [];
-    let packedByteLength = 0;
-    for (let index = 0; index < rows.length; index += 1) {
-      const encoded = encoder.encodeInto(JSON.stringify(rows[index]));
-      encodedRows.push(encoded);
-      packedByteLength += AIRA_SYNC_HISTORY_ROW_LENGTH_BYTES + encoded.byteLength;
-      await this.cooperativeThrottle.afterBatchItem(index + 1);
-    }
-    const packed = new ArrayBuffer(packedByteLength);
-    const packedBytes = new Uint8Array(packed);
-    let offset = 0;
-    for (let index = 0; index < encodedRows.length; index += 1) {
-      const encoded = encodedRows[index];
-      const rowLength = encoded.byteLength;
-      packedBytes[offset] = (rowLength >>> 24) & 0xff;
-      packedBytes[offset + 1] = (rowLength >>> 16) & 0xff;
-      packedBytes[offset + 2] = (rowLength >>> 8) & 0xff;
-      packedBytes[offset + 3] = rowLength & 0xff;
-      offset += AIRA_SYNC_HISTORY_ROW_LENGTH_BYTES;
-      packedBytes.set(encoded, offset);
-      offset += rowLength;
-      await this.cooperativeThrottle.afterBatchItem(index + 1);
-    }
+    const packed = AiraHistoryTaskpoolTransferCodec.encodeRows(rows);
+    await this.cooperativeThrottle.afterStage();
     return packed;
   }
 
   private async packHuaweiHistoryStateForTransfer(
     state: HuaweiSpaceHistorySyncState
   ): Promise<ArrayBuffer> {
-    const encoder = util.TextEncoder.create('utf-8');
-    const frames: AiraHistoryTransferFrame[] = [];
-    let packedByteLength = 0;
-    const append = (kind: number, value: Object): void => {
-      const bytes = encoder.encodeInto(JSON.stringify(value));
-      frames.push({ kind, bytes });
-      packedByteLength += AIRA_SYNC_HISTORY_STATE_FRAME_HEADER_BYTES + bytes.byteLength;
-    };
-    const metadata: AiraHistoryStateMetadata = {
-      clearBefore: state.clearBefore,
-      retentionFrontier: state.retentionFrontier
-    };
-    append(AIRA_SYNC_HISTORY_STATE_FRAME_METADATA, metadata);
-    let processed = 0;
-    for (let index = 0; index < state.visits.length; index += 1) {
-      append(AIRA_SYNC_HISTORY_STATE_FRAME_VISIT, state.visits[index]);
-      processed += 1;
-      await this.cooperativeThrottle.afterBatchItem(processed);
-    }
-    for (let index = 0; index < state.tombstones.length; index += 1) {
-      append(AIRA_SYNC_HISTORY_STATE_FRAME_TOMBSTONE, state.tombstones[index]);
-      processed += 1;
-      await this.cooperativeThrottle.afterBatchItem(processed);
-    }
-    for (let index = 0; index < state.deleteRanges.length; index += 1) {
-      append(AIRA_SYNC_HISTORY_STATE_FRAME_DELETE_RANGE, state.deleteRanges[index]);
-      processed += 1;
-      await this.cooperativeThrottle.afterBatchItem(processed);
-    }
-    const packed = new ArrayBuffer(packedByteLength);
-    const packedBytes = new Uint8Array(packed);
-    let offset = 0;
-    for (let index = 0; index < frames.length; index += 1) {
-      offset = writeHuaweiHistoryTransferFrame(packedBytes, offset, frames[index]);
-      await this.cooperativeThrottle.afterBatchItem(index + 1);
-    }
+    const packed = AiraHistoryTaskpoolTransferCodec.encodeState(state);
+    await this.cooperativeThrottle.afterStage();
     return packed;
   }
 

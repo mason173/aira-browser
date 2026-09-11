@@ -31,6 +31,7 @@ import {
 import { WebdavPersonalizationSyncStore } from '../../data/sync/WebdavPersonalizationSyncStore';
 import { HuaweiSpacePersonalizationSyncStore } from '../../data/sync/HuaweiSpacePersonalizationSyncStore';
 import { AiraSyncWorkThrottleService } from './AiraSyncWorkThrottleService';
+import { AiraSyncJankProbe } from '../../common/debug/AiraSyncJankProbe';
 import { SyncAdditionalBackupPolicyService } from './SyncAdditionalBackupPolicyService';
 import { PersonalizationSyncSnapshotValidationService } from './PersonalizationSyncSnapshotValidationService';
 import {
@@ -689,6 +690,8 @@ export class PersonalizationSyncService {
     snapshot: PersonalizationSyncSnapshot,
     itemIds: PersonalizationSyncItemId[]
   ): Promise<void> {
+    const startedAt = Date.now();
+    AiraSyncJankProbe.markExtra('personalization_local_apply_start', `items=${itemIds.length}`);
     for (let index = 0; index < itemIds.length; index += 1) {
       const id = itemIds[index];
       const section = this.activatePortableSection(id, snapshot.sections[id]);
@@ -696,6 +699,7 @@ export class PersonalizationSyncService {
         await this.applyRemoteSection(id, section);
       }
     }
+    AiraSyncJankProbe.endExtra('personalization_local_apply', startedAt, `items=${itemIds.length}`);
   }
 
   private buildLocalApplyItemIds(

@@ -72,8 +72,7 @@ export class HuaweiSpaceConditionalSnapshotStore<T extends Object> {
       false,
       relationalStore.SyncMode.SYNC_MODE_CLOUD_FIRST
     );
-    let aggregate = await this.readAggregate(store);
-    aggregate = await this.compactObservedAncestorsBestEffort(store, aggregate);
+    const aggregate = await this.readAggregate(store);
     return {
       snapshot: aggregate.snapshot,
       revision: aggregate.revision,
@@ -88,7 +87,6 @@ export class HuaweiSpaceConditionalSnapshotStore<T extends Object> {
   ): Promise<string> {
     this.assertConfigured();
     const store = await this.getStore();
-    await this.runManualCloudSync(store);
     const current = await this.readAggregate(store);
     if (current.revision !== expectedRevision.trim()) {
       throw new Error(this.options.writeConflictError);
@@ -183,7 +181,9 @@ export class HuaweiSpaceConditionalSnapshotStore<T extends Object> {
     if (!await this.hasCommit(store, commitId)) {
       throw new Error(this.options.writeConflictError);
     }
-    await this.compactObservedAncestorsBestEffort(store, confirmed, commitId);
+    if (confirmed.ancestorCommitIds.length > 16) {
+      await this.compactObservedAncestorsBestEffort(store, confirmed, commitId);
+    }
   }
 
   private async compactObservedAncestorsBestEffort(
@@ -237,11 +237,6 @@ export class HuaweiSpaceConditionalSnapshotStore<T extends Object> {
       store,
       true,
       relationalStore.SyncMode.SYNC_MODE_TIME_FIRST
-    );
-    await this.runManualCloudSync(
-      store,
-      true,
-      relationalStore.SyncMode.SYNC_MODE_CLOUD_FIRST
     );
     const refreshed = await this.readAggregate(store);
     if ((protectedCommitId.length > 0 && !await this.hasCommit(store, protectedCommitId)) ||

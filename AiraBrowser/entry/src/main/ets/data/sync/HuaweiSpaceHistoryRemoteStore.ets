@@ -16,8 +16,8 @@ import {
   AiraHistoryRemoteWriteProjection,
   AiraHistoryTaskpoolTransferCodec
 } from '../../services/sync/AiraHistoryTaskpoolTransferCodec';
-import { HistorySyncMergeService } from '../../services/sync/HistorySyncMergeService';
 import { AiraSyncWorkThrottleService } from '../../services/sync/AiraSyncWorkThrottleService';
+import { AiraSyncJankProbe } from '../../common/debug/AiraSyncJankProbe';
 import { HuaweiSpaceCloudSyncCoordinator } from './HuaweiSpaceCloudSyncCoordinator';
 import {
   HuaweiSpaceHistoryPhysicalMirror,
@@ -57,13 +57,16 @@ export class HuaweiSpaceHistoryRemoteStore {
   private readonly computeExecutor: AiraSyncComputeExecutor = new AiraSyncComputeExecutor();
   private readonly rowReadThrottle: AiraSyncWorkThrottleService = new AiraSyncWorkThrottleService(
     undefined,
-    { batchSize: 16, batchPauseMs: 0, stagePauseMs: 0 }
+    { batchSize: 100000, batchPauseMs: 16, stagePauseMs: 16 }
   );
   private store?: relationalStore.RdbStore;
   private storePromise?: Promise<relationalStore.RdbStore>;
   private freshRows?: HuaweiSpaceHistoryRow[];
   private freshLegacyRowIds: string[] = [];
   private lastMirror?: HuaweiSpaceHistoryPhysicalMirror;
+  private lastHeadChecksum: string = '';
+  private peekedHeadRows?: HuaweiSpaceHistoryRow[];
+  private lastPackedRows?: ArrayBuffer;
 
   constructor(
     uid: string,
@@ -80,9 +83,21 @@ export class HuaweiSpaceHistoryRemoteStore {
   }
 
   async readState(): Promise<HuaweiSpaceHistorySyncState> {
+    const state = await this.readStateUnlessHeadMatches('');
+    if (state === undefined) {
+      throw new Error('华为云空间历史记录读取失败。');
+    }
+    return state;
+  }
+
+  consumeLastHeadChecksum(): string {
+    return this.lastHeadChecksum.trim();
+  }
+
+  async peekHeadChecksum(): Promise<string> {
     this.assertConfigured();
     const store = await this.getStore();
-    let stageStartedAt = Date.now();
+    const stageStartedAt = Date.now();
     await this.runCloudSync(
       store,
       relationalStore.SyncMode.SYNC_MODE_CLOUD_FIRST,
@@ -90,33 +105,145 @@ export class HuaweiSpaceHistoryRemoteStore {
       [HUAWEI_SPACE_HISTORY_HEAD_TABLE]
     );
     this.logStage('read-cloud-heads', stageStartedAt);
-    stageStartedAt = Date.now();
-    let rows = await this.readAllPhysicalRows(store);
-    this.logStage('read-rows-after-heads', stageStartedAt, `rows=${rows.length}`);
-    if (this.needsBlockCloudSync(rows)) {
-      stageStartedAt = Date.now();
-      rows = await this.syncBlocksAndReload(store);
-      this.logStage('read-cloud-blocks', stageStartedAt, `rows=${rows.length}`);
+    const headStartedAt = Date.now();
+    this.peekedHeadRows = await this.readRawRows(store, HUAWEI_SPACE_HISTORY_HEAD_TABLE);
+    this.lastHeadChecksum = this.extractHeadChecksum(this.peekedHeadRows);
+    this.logStage(
+      'read-head-checksum',
+      headStartedAt,
+      `checksum=${this.lastHeadChecksum.length > 0 ? 1 : 0}`
+    );
+    return this.lastHeadChecksum;
+  }
+
+  async tryReadLocalReplicaMatchingHead(
+    expectedChecksum: string
+  ): Promise<HuaweiSpaceHistorySyncState | undefined> {
+    const expected = expectedChecksum.trim();
+    if (expected.length <= 0) {
+      return undefined;
     }
-    let decoded: AiraHistoryRemoteStateDecode;
-    stageStartedAt = Date.now();
+    this.assertConfigured();
+    const store = await this.getStore();
+    const headRows = this.peekedHeadRows ?? await this.readRawRows(store, HUAWEI_SPACE_HISTORY_HEAD_TABLE);
+    const rows = headRows.concat(await this.readRawRows(store, HUAWEI_SPACE_HISTORY_BLOCK_TABLE));
+    if (this.needsBlockCloudSync(rows) || this.extractHeadChecksum(rows) !== expected) {
+      return undefined;
+    }
     try {
-      decoded = await this.decodeRemoteState(rows);
-    } catch (error) {
-      if (!this.isIncompleteHistoryError(error)) {
-        throw error as Error;
-      }
-      rows = await this.syncBlocksAndReload(store);
-      decoded = await this.decodeRemoteState(rows);
+      const decoded = await this.decodeRemoteState(rows);
+      this.freshRows = rows;
+      this.freshLegacyRowIds = decoded.legacyRowIds;
+      return decoded.state;
+    } catch (_error) {
+      this.lastMirror = undefined;
+      this.freshRows = undefined;
+      this.freshLegacyRowIds = [];
+      return undefined;
     }
-    this.logStage('read-decode', stageStartedAt, `rows=${rows.length} legacy=${decoded.legacyRowIds.length}`);
+  }
+
+  async readCloudBlocksAndDecode(): Promise<HuaweiSpaceHistorySyncState> {
+    this.assertConfigured();
+    const store = await this.getStore();
+    const stageStartedAt = Date.now();
+    const rows = await this.syncBlocksAndReload(store);
+    this.logStage('read-cloud-blocks', stageStartedAt, `rows=${rows.length}`);
+    const decoded = await this.decodeRemoteState(rows);
     this.freshRows = rows;
     this.freshLegacyRowIds = decoded.legacyRowIds;
+    this.peekedHeadRows = undefined;
+    this.lastHeadChecksum = this.extractHeadChecksum(rows);
     return decoded.state;
+  }
+
+  async readStateUnlessHeadMatches(knownChecksum: string): Promise<HuaweiSpaceHistorySyncState | undefined> {
+    const peekedChecksum = await this.peekHeadChecksum();
+    const expected = knownChecksum.trim();
+    if (expected.length > 0 && peekedChecksum === expected) {
+      this.logStage('read-head-unchanged', Date.now(), 'skip=1');
+      return undefined;
+    }
+    const replica = await this.tryReadLocalReplicaMatchingHead(peekedChecksum);
+    if (replica !== undefined) {
+      return replica;
+    }
+    return this.readCloudBlocksAndDecode();
+  }
+
+
+  async preparePackedReplicaRows(): Promise<boolean> {
+    this.assertConfigured();
+    const store = await this.getStore();
+    const headRows = this.peekedHeadRows ?? await this.readRawRows(store, HUAWEI_SPACE_HISTORY_HEAD_TABLE);
+    const rows = headRows.concat(await this.readRawRows(store, HUAWEI_SPACE_HISTORY_BLOCK_TABLE));
+    if (this.needsBlockCloudSync(rows)) {
+      return false;
+    }
+    const packStartedAt = Date.now();
+    const packed = AiraHistoryTaskpoolTransferCodec.encodeRows(rows);
+    AiraSyncJankProbe.endExtra(
+      'history_row_pack',
+      packStartedAt,
+      `bytes=${packed.byteLength} rows=${rows.length}`
+    );
+    this.freshRows = rows;
+    this.lastPackedRows = packed;
+    return true;
+  }
+
+  takePackedReplicaRows(): ArrayBuffer | undefined {
+    const packed = this.lastPackedRows;
+    this.lastPackedRows = undefined;
+    return packed;
+  }
+
+  peekFreshReplicaRows(): HuaweiSpaceHistoryRow[] | undefined {
+    return this.freshRows;
+  }
+
+  async writePreparedProjection(
+    projection: AiraHistoryRemoteWriteProjection,
+    desired: HuaweiSpaceHistorySyncState
+  ): Promise<HuaweiSpaceHistoryWriteResult> {
+    this.assertConfigured();
+    const store = await this.getStore();
+    let changedRowCount = await this.stageProjection(store, projection);
+    if (changedRowCount > 0) {
+      await this.runIncrementalCommitBarrier(store, this.changedCloudTables(projection));
+    }
+    let confirmedRows = await this.readAllPhysicalRows(store);
+    let confirmation = await this.assertProjectionAndDesiredStateConfirmed(confirmedRows, projection, desired);
+    const cleanedLegacyRows = await this.deleteConfirmedLegacyRows(store, projection);
+    changedRowCount += cleanedLegacyRows;
+    if (cleanedLegacyRows > 0) {
+      confirmedRows = await this.readAllPhysicalRows(store);
+      this.assertLegacyCleanupConfirmed(confirmedRows, projection);
+      confirmation = await this.assertProjectionAndDesiredStateConfirmed(confirmedRows, projection, desired);
+    }
+    this.lastHeadChecksum = this.extractHeadChecksum(confirmedRows);
+    return {
+      state: confirmation.confirmed,
+      changedRowCount,
+      localApplyRequired: confirmation.localApplyRequired
+    };
   }
 
   requiresMaintenance(): boolean {
     return this.freshLegacyRowIds.length > 0;
+  }
+
+  async readLocalReplicaState(): Promise<HuaweiSpaceHistorySyncState> {
+    this.assertConfigured();
+    const store = await this.getStore();
+    const rows = await this.readAllPhysicalRows(store);
+    if (rows.length <= 0) {
+      throw new Error('Huawei History local replica is empty.');
+    }
+    const decoded = await this.decodeRemoteState(rows);
+    this.freshRows = rows;
+    this.freshLegacyRowIds = decoded.legacyRowIds;
+    return decoded.state;
   }
 
   async writeState(
@@ -130,9 +257,17 @@ export class HuaweiSpaceHistoryRemoteStore {
     const currentRows = await this.consumeFreshRows(store, skipCloudTransport);
     this.logStage('write-load-rows', stageStartedAt, `rows=${currentRows.length} skipCloud=${skipCloudTransport ? 1 : 0}`);
     stageStartedAt = Date.now();
+    const packedRows = this.lastPackedRows;
+    this.lastPackedRows = undefined;
     const writePlan: AiraHistoryRemoteWritePlan = canReuseMirror && this.lastMirror !== undefined
       ? this.planWriteFromMirror(this.lastMirror, state)
-      : await this.computeExecutor.planHuaweiHistoryRemoteWrite(this.uid, this.deviceId, currentRows, state);
+      : await this.computeExecutor.planHuaweiHistoryRemoteWrite(
+        this.uid,
+        this.deviceId,
+        currentRows,
+        state,
+        packedRows
+      );
     const projection = writePlan.projection;
     this.logStage(
       'write-plan',
@@ -171,6 +306,7 @@ export class HuaweiSpaceHistoryRemoteStore {
       this.assertLegacyCleanupConfirmed(confirmedRows, projection);
       confirmation = await this.assertProjectionAndDesiredStateConfirmed(confirmedRows, projection, state);
     }
+    this.lastHeadChecksum = this.extractHeadChecksum(confirmedRows);
     return {
       state: confirmation.confirmed,
       changedRowCount,
@@ -351,6 +487,27 @@ export class HuaweiSpaceHistoryRemoteStore {
     }
   }
 
+  private extractHeadChecksum(rows: HuaweiSpaceHistoryRow[]): string {
+    let bestChecksum = '';
+    let bestUpdatedAt = -1;
+    for (let index = 0; index < rows.length; index += 1) {
+      const row = rows[index];
+      if (row.recordKind !== 'snapshot_head') {
+        continue;
+      }
+      try {
+        const parsed = JSON.parse(row.data) as HuaweiSpaceHistoryHeadChecksum;
+        const checksum = parsed.stateChecksum.trim();
+        if (checksum.length > 0 && row.updatedAt >= bestUpdatedAt) {
+          bestUpdatedAt = row.updatedAt;
+          bestChecksum = checksum;
+        }
+      } catch (_error) {
+      }
+    }
+    return bestChecksum;
+  }
+
   private isHeadChecksumConfirmed(
     rows: HuaweiSpaceHistoryRow[],
     projection: AiraHistoryRemoteWriteProjection
@@ -389,15 +546,28 @@ export class HuaweiSpaceHistoryRemoteStore {
   }
 
   private async decodeRemoteState(rows: HuaweiSpaceHistoryRow[]): Promise<AiraHistoryRemoteStateDecode> {
+    const startedAt = Date.now();
     try {
-      const mirror = new HuaweiSpaceHistorySnapshotCodec(this.uid, this.deviceId).decodeRows(rows);
-      this.lastMirror = mirror;
-      return {
-        state: mirror.state,
-        legacyRowIds: mirror.legacyRowIds
-      };
+      const packStartedAt = Date.now();
+      const packed = AiraHistoryTaskpoolTransferCodec.encodeRows(rows);
+      AiraSyncJankProbe.endExtra(
+        'history_row_pack',
+        packStartedAt,
+        `bytes=${packed.byteLength} rows=${rows.length}`
+      );
+      this.lastPackedRows = AiraHistoryTaskpoolTransferCodec.copyBuffer(packed);
+      const decoded = await this.computeExecutor.decodePackedHuaweiHistoryRemoteState(
+        this.uid,
+        this.deviceId,
+        packed
+      );
+      this.lastMirror = undefined;
+      AiraSyncJankProbe.endExtra('history_decode', startedAt, `rows=${rows.length} taskpool=1`);
+      return decoded;
     } catch (error) {
       this.lastMirror = undefined;
+      this.lastPackedRows = undefined;
+      AiraSyncJankProbe.endExtra('history_decode', startedAt, `rows=${rows.length} taskpool=0`);
       return this.rethrowDecodeError(error);
     }
   }
@@ -407,9 +577,8 @@ export class HuaweiSpaceHistoryRemoteStore {
     desired: HuaweiSpaceHistorySyncState
   ): AiraHistoryRemoteWritePlan {
     const codec = new HuaweiSpaceHistorySnapshotCodec(this.uid, this.deviceId);
-    const merged = new HistorySyncMergeService().merge(mirror.state, desired);
     return {
-      projection: AiraHistoryTaskpoolTransferCodec.leanProjection(codec.buildProjection(merged, mirror))
+      projection: AiraHistoryTaskpoolTransferCodec.leanProjection(codec.buildProjection(desired, mirror))
     };
   }
 

@@ -100,12 +100,16 @@ export default function airaBookmarkIdentityNoOpServiceTest(): void {
       ))).assertFalse();
     });
 
-    it('falls through when the confirmed Head identity or counts differ', 0, () => {
+    it('falls through when the confirmed Head identity differs', 0, () => {
       const probe = createProbe();
       expect(service.matchesConfirmedHead(probe, createHead('cmt_other'))).assertFalse();
       expect(service.matchesConfirmedHead(probe, createHead(null))).assertFalse();
-      expect(service.matchesConfirmedHead(probe, createHead('cmt_device_a', 3, 11))).assertFalse();
-      expect(service.matchesConfirmedHead(probe, createHead('cmt_device_a', 2, 12))).assertFalse();
+    });
+
+    it('treats a matching Head commit as unchanged even when summary counts differ', 0, () => {
+      const probe = createProbe();
+      expect(service.matchesConfirmedHead(probe, createHead('cmt_device_a', 3, 11))).assertTrue();
+      expect(service.matchesConfirmedHead(probe, createHead('cmt_device_a', 2, 12))).assertTrue();
     });
   });
 }

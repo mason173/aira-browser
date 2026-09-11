@@ -14,8 +14,9 @@ export interface AiraSyncWorkThrottleOptions {
 }
 
 const DEFAULT_BATCH_SIZE: number = 250;
-const DEFAULT_BATCH_PAUSE_MS: number = 0;
-const DEFAULT_STAGE_PAUSE_MS: number = 4;
+export const AIRA_SYNC_UI_YIELD_MS: number = 16;
+const DEFAULT_BATCH_PAUSE_MS: number = AIRA_SYNC_UI_YIELD_MS;
+const DEFAULT_STAGE_PAUSE_MS: number = AIRA_SYNC_UI_YIELD_MS;
 
 class DefaultAiraSyncWorkThrottleClock implements AiraSyncWorkThrottleClock {
   sleep(delayMs: number): Promise<void> {

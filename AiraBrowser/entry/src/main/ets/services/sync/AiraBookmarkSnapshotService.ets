@@ -27,6 +27,7 @@ import {
 } from '../../data/repositories/BookmarkRepositoryCore';
 import { AiraBookmarkSnapshotValidationService } from './AiraBookmarkSnapshotValidationService';
 import { AiraSyncWorkThrottleService } from './AiraSyncWorkThrottleService';
+import { AiraSyncJankProbe } from '../../common/debug/AiraSyncJankProbe';
 
 const DEFAULT_DEVICE_ID = 'aira-browser-local';
 const AIRA_TOOLBAR_ROOT_ID = 'browser_root_toolbar';
@@ -147,6 +148,8 @@ export class AiraBookmarkSnapshotService {
   }
 
   async applyBookmarkSnapshotToLocalDb(snapshot: AiraSyncSnapshot): Promise<AiraBookmarkSyncApplyResult> {
+    const startedAt = Date.now();
+    AiraSyncJankProbe.mark('bookmark_local_apply_start');
     this.snapshotValidationService.validate(snapshot, '合并结果');
     await this.bookmarkRepository.initialize();
     const regularResult = await this.applyBookmarkDataSetToLocalDb(
@@ -169,6 +172,11 @@ export class AiraBookmarkSnapshotService {
     const upsertedBookmarkCount = regularResult.upsertedBookmarkCount + privateResult.upsertedBookmarkCount;
     const deletedNodeCount = regularResult.deletedNodeCount + privateResult.deletedNodeCount;
     const skippedNodeCount = regularResult.skippedNodeCount + privateResult.skippedNodeCount;
+    AiraSyncJankProbe.endExtra(
+      'bookmark_local_apply',
+      startedAt,
+      `folders=${upsertedFolderCount} bookmarks=${upsertedBookmarkCount} deleted=${deletedNodeCount}`
+    );
     return {
       upsertedFolderCount: upsertedFolderCount,
       upsertedBookmarkCount: upsertedBookmarkCount,
@@ -707,6 +715,7 @@ export class AiraBookmarkSnapshotService {
     if (nodes.length === 0) {
       return;
     }
+    const startedAt = Date.now();
     await this.workThrottle.beforeMainThreadWrite();
     await this.bookmarkRepository.upsertSyncNodes(nodes, {
       databaseBatchSize: AIRA_SYNC_LOCAL_DB_UPSERT_BATCH_SIZE,
@@ -718,6 +727,7 @@ export class AiraBookmarkSnapshotService {
       }
     });
     await this.workThrottle.afterStage();
+    AiraSyncJankProbe.endExtra('bookmark_db_upsert', startedAt, `count=${nodes.length}`);
   }
 
   private toAiraParentId(parentId: string | null, localIdsByEntityId: Map<string, string>): string | undefined {

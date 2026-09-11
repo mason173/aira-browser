@@ -27,13 +27,6 @@ export class AiraBookmarkIdentityNoOpService {
 
   matchesConfirmedHead(probe: AiraBookmarkIdentityNoOpProbe, head: AiraSyncRemoteHead): boolean {
     const commitId = head.commitId?.trim() ?? '';
-    if (commitId.length <= 0 || commitId !== probe.baselineCommitId.trim()) {
-      return false;
-    }
-    if (!head.hasBookmarkSummary) {
-      return true;
-    }
-    return head.bookmarkFolders === probe.baselineFolderCount &&
-      head.bookmarkItems === probe.baselineItemCount;
+    return commitId.length > 0 && commitId === probe.baselineCommitId.trim();
   }
 }

@@ -36,6 +36,7 @@ import {
   SyncPersonalizationDomainRunOutcome
 } from './SyncPersonalizationDomain';
 import { SyncSettingsRefreshSignal } from './SyncSettingsRefreshSignal';
+import { AiraSyncJankProbe } from '../../common/debug/AiraSyncJankProbe';
 
 const DOMAIN = 0x0000;
 const TAG = 'SyncExperienceAuto';
@@ -64,6 +65,19 @@ const PERSONALIZATION_RETRY_MAX_DELAY_MS: number = 30 * 60 * 1000;
 
 const HISTORY_LOCAL_CHANGE_DEBOUNCE_MS: number = 5000;
 const HISTORY_FOREGROUND_DELAY_MS: number = 5000;
+export const HISTORY_STARTUP_QUIET_MS: number = 30000;
+
+export function resolveHistoryStartupQuietDelayMs(
+  reason: string,
+  delayMs: number,
+  quietUntil: number,
+  now: number
+): number {
+  if (reason !== 'account' && reason !== 'foreground' && reason !== 'membership') {
+    return delayMs;
+  }
+  return Math.max(delayMs, Math.max(0, quietUntil - now));
+}
 const HISTORY_NETWORK_RECOVERY_DELAY_MS: number = 1000;
 const HISTORY_PERIODIC_STARTUP_DELAY_MS: number = 30000;
 const HISTORY_PERIODIC_INTERVAL_MS: number = 3 * 60 * 1000;
@@ -126,6 +140,48 @@ export function resolveSyncExperienceAutomaticDomainSelection(
     runPersonalization: requested.runPersonalization,
     runHistory: requested.runHistory
   };
+}
+
+export interface SyncExperienceAutomaticDomainTurn {
+  current: SyncExperienceAutomaticDomainSelection;
+  remainder: SyncExperienceAutomaticDomainSelection;
+}
+
+export function splitAutomaticDomainTurn(
+  requested: SyncExperienceAutomaticDomainSelection
+): SyncExperienceAutomaticDomainTurn {
+  if (requested.runBookmarks) {
+    return {
+      current: { runBookmarks: true, runPersonalization: false, runHistory: false },
+      remainder: {
+        runBookmarks: false,
+        runPersonalization: requested.runPersonalization,
+        runHistory: requested.runHistory
+      }
+    };
+  }
+  if (requested.runPersonalization) {
+    return {
+      current: { runBookmarks: false, runPersonalization: true, runHistory: false },
+      remainder: {
+        runBookmarks: false,
+        runPersonalization: false,
+        runHistory: requested.runHistory
+      }
+    };
+  }
+  return {
+    current: {
+      runBookmarks: false,
+      runPersonalization: false,
+      runHistory: requested.runHistory
+    },
+    remainder: { runBookmarks: false, runPersonalization: false, runHistory: false }
+  };
+}
+
+export function hasAutomaticDomainRemainder(selection: SyncExperienceAutomaticDomainSelection): boolean {
+  return selection.runBookmarks || selection.runPersonalization || selection.runHistory;
 }
 
 interface SyncExperienceAutomaticClock {
@@ -234,6 +290,7 @@ export class SyncExperienceAutomaticRuntime {
   private corePreferencesFingerprint: string = '';
   private historyTimerId: number = -1;
   private historyPeriodicTimerId: number = -1;
+  private historyStartupQuietUntil: number = 0;
   private historyConsecutiveFailureCount: number = 0;
   private historyChangeRevision: number = 0;
   private historyCompletionSequence: number = 0;
@@ -497,7 +554,11 @@ export class SyncExperienceAutomaticRuntime {
   }
 
   notifyAppContentReady(): void {
+    AiraSyncJankProbe.mark('content_ready');
     this.appForeground = true;
+    if (this.historyStartupQuietUntil <= 0) {
+      this.historyStartupQuietUntil = this.clock.now() + HISTORY_STARTUP_QUIET_MS;
+    }
     this.startNetworkRecovery();
     this.scheduleHuaweiSpaceTransportWarmup();
     this.runPendingBookmarksOnForeground();
@@ -509,6 +570,7 @@ export class SyncExperienceAutomaticRuntime {
   }
 
   notifyAppForeground(): void {
+    AiraSyncJankProbe.mark('app_foreground');
     this.appForeground = true;
     this.startNetworkRecovery();
     this.scheduleHuaweiSpaceTransportWarmup();
@@ -703,6 +765,12 @@ export class SyncExperienceAutomaticRuntime {
     if (request.kind === 'automatic' && request.automaticGeneration !== this.automaticGeneration) {
       return {};
     }
+    const executeStartedAt = Date.now();
+    let remainderPersonalization = false;
+    let remainderHistory = false;
+    let remainderPersonalizationReason: SyncExperiencePersonalizationAutomaticReason = request.personalizationReason;
+    let remainderHistoryReason: SyncExperienceHistoryAutomaticReason = request.historyReason;
+    try {
     let runBookmarks = request.runBookmarks;
     let runPersonalization = request.runPersonalization;
     let runHistory = request.runHistory;
@@ -731,6 +799,10 @@ export class SyncExperienceAutomaticRuntime {
     }
 
     const settings = await this.syncService.initializeAiraSyncSettings();
+    AiraSyncJankProbe.markExtra(
+      'execute_request_domains',
+      `kind=${request.kind} bookmarks=${runBookmarks ? 1 : 0} personalization=${runPersonalization ? 1 : 0} history=${runHistory ? 1 : 0} bookmarkReason=${bookmarkReason} personalizationReason=${personalizationReason} historyReason=${historyReason}`
+    );
     const result: SyncExperienceRuntimeRunResult = {};
     if (this.yieldStaleAutomaticRemainder(
       request,
@@ -742,6 +814,26 @@ export class SyncExperienceAutomaticRuntime {
       historyReason
     )) {
       return result;
+    }
+    if (request.kind === 'automatic') {
+      const turn = splitAutomaticDomainTurn({
+        runBookmarks: runBookmarks,
+        runPersonalization: runPersonalization,
+        runHistory: runHistory
+      });
+      runBookmarks = turn.current.runBookmarks;
+      runPersonalization = turn.current.runPersonalization;
+      runHistory = turn.current.runHistory;
+      remainderPersonalization = turn.remainder.runPersonalization;
+      remainderHistory = turn.remainder.runHistory;
+      remainderPersonalizationReason = personalizationReason;
+      remainderHistoryReason = historyReason;
+      if (hasAutomaticDomainRemainder(turn.remainder)) {
+        AiraSyncJankProbe.markExtra(
+          'automatic_domain_split',
+          `keep_bookmarks=${runBookmarks ? 1 : 0} keep_personalization=${runPersonalization ? 1 : 0} keep_history=${runHistory ? 1 : 0} remainder_personalization=${remainderPersonalization ? 1 : 0} remainder_history=${remainderHistory ? 1 : 0}`
+        );
+      }
     }
     const bookmarkReady = settings.bookmarkSyncEnabled === true ||
       request.bookmarkExecutionScope === 'configured-provider';
@@ -799,6 +891,19 @@ export class SyncExperienceAutomaticRuntime {
         await this.executeHistoryDomain(request.kind === 'automatic', historyReason);
     }
     return result;
+    } finally {
+      if (request.kind === 'automatic' && (remainderPersonalization || remainderHistory)) {
+        this.requestAutomaticRun(
+          false,
+          remainderPersonalization,
+          request.bookmarkReason,
+          remainderPersonalizationReason,
+          remainderHistory,
+          remainderHistoryReason
+        );
+      }
+      AiraSyncJankProbe.endExtra('execute_request', executeStartedAt, `kind=${request.kind}`);
+    }
   }
 
   private resolveAdoptedBookmarkCompletion(
@@ -887,12 +992,15 @@ export class SyncExperienceAutomaticRuntime {
     }
     const startRevision = this.bookmarkChangeRevision;
     const providerIdentity = this.resolveDomainProviderIdentity('bookmark');
+    const domainStartedAt = Date.now();
+    AiraSyncJankProbe.markExtra('bookmark_domain_start', `automatic=${automatic ? 1 : 0} reason=${reason}`);
     const outcome = await this.bookmarkDomain.runImmediateSync(
       undefined,
       mode === 'backup',
       executionScope === 'configured-provider' ? 'configured-provider-maintenance' : 'enabled-domain',
       automatic
     );
+    AiraSyncJankProbe.endExtra('bookmark_domain', domainStartedAt, `type=${outcome.type} reason=${reason}`);
     if (outcome.type === 'completed') {
       this.bookmarkConsecutiveFailureCount = 0;
       if (mode === 'sync' && executionScope === 'enabled-domain') {
@@ -949,7 +1057,10 @@ export class SyncExperienceAutomaticRuntime {
     this.personalizationLastAttemptAt = this.clock.now();
     const startRevision = this.personalizationChangeRevision;
     const providerIdentity = this.resolveDomainProviderIdentity('personalization');
+    const domainStartedAt = Date.now();
+    AiraSyncJankProbe.markExtra('personalization_domain_start', `automatic=${automatic ? 1 : 0} reason=${reason}`);
     const outcome = await this.personalizationDomain.syncDomainNow(mode === 'backup');
+    AiraSyncJankProbe.endExtra('personalization_domain', domainStartedAt, `type=${outcome.type} reason=${reason}`);
     if (outcome.type === 'sync-completed') {
       this.personalizationConsecutiveFailureCount = 0;
       if (mode === 'sync') {
@@ -994,7 +1105,14 @@ export class SyncExperienceAutomaticRuntime {
   ): Promise<HistorySyncRunResult> {
     const startRevision = this.historyChangeRevision;
     const providerIdentity = this.resolveHistoryProviderIdentity();
+    const domainStartedAt = Date.now();
+    AiraSyncJankProbe.markExtra('history_domain_start', `automatic=${automatic ? 1 : 0} reason=${reason}`);
     const result = await this.historySyncService.runNow();
+    AiraSyncJankProbe.endExtra(
+      'history_domain',
+      domainStartedAt,
+      `ok=${result.ok ? 1 : 0} applied=${result.appliedChangeCount} uploaded=${result.uploadedMutationCount} reason=${reason}`
+    );
     if (result.ok) {
       this.historyConsecutiveFailureCount = 0;
       this.historyCompletionSequence += 1;
@@ -1045,17 +1163,6 @@ export class SyncExperienceAutomaticRuntime {
       return '';
     }
     return identity.provider + '\n' + identity.accountUid + '\n' + identity.clientId;
-  }
-
-  private requestUnifiedAutomaticFreshnessRun(): void {
-    this.requestAutomaticRun(
-      this.isBookmarkAutomaticSyncActive(),
-      this.personalizationRepositoriesReady && this.isPersonalizationAutomaticSyncActive(),
-      'periodic',
-      'periodic',
-      this.isHistoryAutomaticSyncActive(),
-      'periodic'
-    );
   }
 
   private requestAutomaticRun(
@@ -1158,6 +1265,7 @@ export class SyncExperienceAutomaticRuntime {
     this.huaweiTransportWarmupTimerId = this.clock.setTimeout((): void => {
       this.huaweiTransportWarmupTimerId = -1;
       this.huaweiTransportWarmupScheduled = true;
+      AiraSyncJankProbe.mark('warmup_timer_fire');
       void this.syncService.warmupHuaweiSpaceTransport();
     }, HUAWEI_SPACE_TRANSPORT_WARMUP_DELAY_MS);
   }
@@ -1296,13 +1404,16 @@ export class SyncExperienceAutomaticRuntime {
   }
 
   private runBookmarkPeriodicSyncNow(): void {
-    if (!this.isBookmarkAutomaticSyncActive() &&
-      !(this.personalizationRepositoriesReady && this.isPersonalizationAutomaticSyncActive()) &&
-      !this.isHistoryAutomaticSyncActive()) {
+    if (!this.isBookmarkAutomaticSyncActive()) {
       this.cancelBookmarkPeriodicSync();
       return;
     }
-    this.requestUnifiedAutomaticFreshnessRun();
+    const waitMs = this.remainingAutomaticDelay(this.bookmarkAutomaticNotBefore);
+    if (waitMs > 0) {
+      this.scheduleBookmarkPeriodicRun(waitMs);
+      return;
+    }
+    this.requestAutomaticRun(true, false, 'periodic', 'periodic', false, 'periodic');
     const nextDelay = this.getActiveProviderKind() === 'webdav'
       ? BOOKMARK_WEBDAV_PERIODIC_SYNC_INTERVAL_MS
       : BOOKMARK_PERIODIC_SYNC_INTERVAL_MS;
@@ -1346,6 +1457,10 @@ export class SyncExperienceAutomaticRuntime {
       if (!snapshot.reliable || !snapshot.available) {
         return;
       }
+      AiraSyncJankProbe.markExtra(
+        'network_recovery',
+        `available=${snapshot.available ? 1 : 0} reliable=${snapshot.reliable ? 1 : 0}`
+      );
       this.scheduleBookmarkNetworkRecovery();
       if (this.personalizationRepositoriesReady) {
         this.schedulePersonalizationIfActive('network_recovery', PERSONALIZATION_NETWORK_RECOVERY_DELAY_MS);
@@ -1454,7 +1569,12 @@ export class SyncExperienceAutomaticRuntime {
       this.cancelPersonalizationPeriodicSync();
       return;
     }
-    this.requestUnifiedAutomaticFreshnessRun();
+    const waitMs = this.remainingAutomaticDelay(this.personalizationAutomaticNotBefore);
+    if (waitMs > 0) {
+      this.schedulePersonalizationPeriodicRun(waitMs);
+      return;
+    }
+    this.requestAutomaticRun(false, true, 'periodic', 'periodic', false, 'periodic');
     this.schedulePersonalizationPeriodicRun(PERSONALIZATION_PERIODIC_SYNC_INTERVAL_MS);
   }
 
@@ -1535,9 +1655,15 @@ export class SyncExperienceAutomaticRuntime {
     if (this.manualHistoryCoverageCount > 0 && reason !== 'local_change') {
       return;
     }
+    const quietDelay = resolveHistoryStartupQuietDelayMs(
+      reason,
+      delayMs,
+      this.historyStartupQuietUntil,
+      this.clock.now()
+    );
     const effectiveDelay = reason === 'local_change'
-      ? delayMs
-      : Math.max(delayMs, this.remainingAutomaticDelay(this.historyAutomaticNotBefore));
+      ? quietDelay
+      : Math.max(quietDelay, this.remainingAutomaticDelay(this.historyAutomaticNotBefore));
     this.cancelHistoryTimer();
     this.historyTimerId = this.clock.setTimeout(() => {
       this.historyTimerId = -1;
@@ -1566,7 +1692,12 @@ export class SyncExperienceAutomaticRuntime {
       if (!this.isHistoryAutomaticSyncActive()) {
         return;
       }
-      this.requestUnifiedAutomaticFreshnessRun();
+      const waitMs = this.remainingAutomaticDelay(this.historyAutomaticNotBefore);
+      if (waitMs > 0) {
+        this.scheduleHistoryPeriodicRun(waitMs);
+        return;
+      }
+      this.requestAutomaticRun(false, false, 'periodic', 'periodic', true, 'periodic');
       this.scheduleHistoryPeriodicRun(HISTORY_PERIODIC_INTERVAL_MS);
     }, delayMs);
   }

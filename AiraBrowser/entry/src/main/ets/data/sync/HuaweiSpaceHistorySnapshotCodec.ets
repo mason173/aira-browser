@@ -386,6 +386,134 @@ export class HuaweiSpaceHistorySnapshotCodec {
     };
   }
 
+  collectDirtyBucketIndexes(
+    local: HuaweiSpaceHistorySyncState,
+    sinceMs: number,
+    outboxVisitIds: string[],
+    hasRangeOrClear: boolean
+  ): number[] | undefined {
+    if (hasRangeOrClear) {
+      return undefined;
+    }
+    if (local.retentionFrontier.updatedAt > sinceMs &&
+      (local.retentionFrontier.cutoffAt > 0 || local.retentionFrontier.boundaryVisitedAt > 0)) {
+      return undefined;
+    }
+    const dirty = new Set<number>();
+    for (let index = 0; index < local.tombstones.length; index += 1) {
+      const tombstone = local.tombstones[index];
+      if (tombstone.deletedAt < sinceMs) {
+        continue;
+      }
+      dirty.add(this.resolveBucketIndex(`v:${tombstone.visitId}`));
+      dirty.add(this.resolveBucketIndex(`t:${tombstone.visitId}`));
+    }
+    for (let index = 0; index < outboxVisitIds.length; index += 1) {
+      const visitId = outboxVisitIds[index].trim();
+      if (visitId.length <= 0) {
+        continue;
+      }
+      dirty.add(this.resolveBucketIndex(`v:${visitId}`));
+    }
+    if (dirty.size <= 0 || dirty.size > 8) {
+      return undefined;
+    }
+    return Array.from(dirty).sort((left: number, right: number): number => left - right);
+  }
+
+  buildProjectionReusingHead(
+    state: HuaweiSpaceHistorySyncState,
+    rows: HuaweiSpaceHistoryRow[],
+    dirtyBucketIndexes: number[],
+    generatedAt: number = Date.now()
+  ): HuaweiSpaceHistoryProjection {
+    const normalized = this.mergeService.normalize(state);
+    let ownHeadRow: HuaweiSpaceHistoryRow | undefined = undefined;
+    let ownHead: HuaweiSpaceHistoryHeadData | undefined = undefined;
+    const legacyRowIds: string[] = [];
+    for (let index = 0; index < rows.length; index += 1) {
+      const row = rows[index];
+      if (this.isLegacyRecordKind(row.recordKind)) {
+        legacyRowIds.push(row.rowId);
+        continue;
+      }
+      if (row.recordKind !== 'snapshot_head') {
+        continue;
+      }
+      const parsed = this.parseHead(row);
+      if (parsed.deviceId !== this.deviceId) {
+        continue;
+      }
+      if (ownHead === undefined || parsed.generation >= ownHead.generation) {
+        ownHeadRow = row;
+        ownHead = parsed;
+      }
+    }
+    if (ownHead === undefined || ownHeadRow === undefined) {
+      throw new Error('Huawei History lite projection needs a local Head replica.');
+    }
+    const timestamp = this.requireTimestamp(generatedAt, 'generatedAt');
+    const generation = ownHead.generation + 1;
+    if (!Number.isSafeInteger(generation) || generation <= 0) {
+      throw new Error('Huawei History snapshot generation is exhausted.');
+    }
+    const headSlot = 1 - ownHead.headSlot;
+    const desiredBuckets = this.buildBucketRecords(normalized);
+    const dirty = new Set<number>(dirtyBucketIndexes);
+    const bucketReferences: HuaweiSpaceHistoryBucketReference[] = [];
+    const rowsToUpsert: HuaweiSpaceHistoryRow[] = [];
+    const rowIdsToDeleteBeforePublish: string[] = [];
+    for (let bucketIndex = 0; bucketIndex < HUAWEI_SPACE_HISTORY_BUCKET_COUNT; bucketIndex += 1) {
+      const desiredRecords = desiredBuckets.get(bucketIndex) ?? [];
+      const currentReference = ownHead.buckets[bucketIndex];
+      if (!dirty.has(bucketIndex) && currentReference !== undefined) {
+        bucketReferences.push(currentReference);
+        continue;
+      }
+      const bucketSlot = currentReference === undefined ? 0 : 1 - currentReference.bucketSlot;
+      const built = this.buildBucket(
+        bucketIndex,
+        bucketSlot,
+        generation,
+        timestamp,
+        desiredRecords
+      );
+      rowsToUpsert.push(...built.rows);
+      bucketReferences.push(built.reference);
+      for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
+        const row = rows[rowIndex];
+        if (row.recordKind !== 'snapshot_chunk') {
+          continue;
+        }
+        const expectedPrefix = this.buildChunkLogicalPrefix(this.deviceId, bucketIndex, bucketSlot);
+        if (row.logicalId.startsWith(expectedPrefix) &&
+          built.rows.find((candidate: HuaweiSpaceHistoryRow): boolean => candidate.rowId === row.rowId) === undefined) {
+          rowIdsToDeleteBeforePublish.push(row.rowId);
+        }
+      }
+    }
+    const stateChecksum = this.sha256Hex(JSON.stringify(normalized));
+    const head = this.buildHead(
+      headSlot,
+      generation,
+      timestamp,
+      bucketReferences,
+      normalized,
+      stateChecksum
+    );
+    rowsToUpsert.push(head);
+    return {
+      state: normalized,
+      rowsToUpsert,
+      rowIdsToDeleteBeforePublish: Array.from(new Set<string>(rowIdsToDeleteBeforePublish)).sort(),
+      legacyRowIdsToDeleteAfterConfirmation: legacyRowIds.sort(),
+      targetHeadRowId: head.rowId,
+      targetDeviceId: this.deviceId,
+      targetGeneration: generation,
+      targetStateChecksum: stateChecksum
+    };
+  }
+
   async buildProjectionCooperatively(
     state: HuaweiSpaceHistorySyncState,
     mirror: HuaweiSpaceHistoryPhysicalMirror,
@@ -1622,7 +1750,38 @@ export class HuaweiSpaceHistorySnapshotCodec {
     left: HuaweiSpaceHistorySnapshotRecord[],
     right: HuaweiSpaceHistorySnapshotRecord[]
   ): boolean {
-    return JSON.stringify(left) === JSON.stringify(right);
+    if (left.length !== right.length) {
+      return false;
+    }
+    for (let index = 0; index < left.length; index += 1) {
+      if (!this.sameSnapshotRecord(left[index], right[index])) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  private sameSnapshotRecord(
+    left: HuaweiSpaceHistorySnapshotRecord,
+    right: HuaweiSpaceHistorySnapshotRecord
+  ): boolean {
+    if (left.kind !== right.kind || left.logicalId !== right.logicalId || left.updatedAt !== right.updatedAt) {
+      return false;
+    }
+    if (left.kind === 'v') {
+      const a = left.data as HistorySyncVisit;
+      const b = right.data as HistorySyncVisit;
+      return a.visitId === b.visitId && a.url === b.url && a.title === b.title &&
+        a.visitedAt === b.visitedAt && a.clientId === b.clientId &&
+        a.nativeVisitId === b.nativeVisitId && a.deviceName === b.deviceName &&
+        a.source === b.source && a.transition === b.transition && a.referrer === b.referrer;
+    }
+    if (left.kind === 't') {
+      const a = left.data as HistorySyncExactTombstone;
+      const b = right.data as HistorySyncExactTombstone;
+      return a.visitId === b.visitId && a.deletedAt === b.deletedAt;
+    }
+    return JSON.stringify(left.data) === JSON.stringify(right.data);
   }
 
   private async sameRecordsCooperatively(

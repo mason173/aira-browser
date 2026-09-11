@@ -32,6 +32,7 @@ MODEL_REL="AiraBrowser/entry/src/main/ets/common/models/HistorySyncModels.ets"
 DATABASE_REL="AiraBrowser/entry/src/main/ets/data/database/BrowserDatabase.ets"
 OWNER_REL="AiraBrowser/entry/src/main/ets/data/sync/HuaweiSpaceRdbStoreOwner.ets"
 REMOTE_REL="AiraBrowser/entry/src/main/ets/data/sync/HuaweiSpaceHistoryRemoteStore.ets"
+CLOUD_REL="AiraBrowser/entry/src/main/ets/data/sync/HuaweiSpaceCloudSyncCoordinator.ets"
 SNAPSHOT_CODEC_REL="AiraBrowser/entry/src/main/ets/data/sync/HuaweiSpaceHistorySnapshotCodec.ets"
 COMPUTE_REL="AiraBrowser/entry/src/main/ets/services/sync/AiraSyncComputeExecutor.ets"
 TRANSFER_REL="AiraBrowser/entry/src/main/ets/services/sync/AiraHistoryTaskpoolTransferCodec.ets"
@@ -47,7 +48,7 @@ VIEW_MODEL_REL="AiraBrowser/entry/src/main/ets/core/sync/SyncExperienceViewModel
 SCREEN_REL="AiraBrowser/entry/src/main/ets/app/components/sync/SyncExperienceScreen.ets"
 FIRST_ITEMS_REL="AiraBrowser/entry/src/main/ets/core/sync/SyncFirstActivationItemsCoordinator.ets"
 RUNTIME_REL="AiraBrowser/entry/src/main/ets/app/bootstrap/BrowserAppRuntime.ets"
-for rel_path in "${MODEL_REL}" "${DATABASE_REL}" "${OWNER_REL}" "${REMOTE_REL}" \
+for rel_path in "${MODEL_REL}" "${DATABASE_REL}" "${OWNER_REL}" "${REMOTE_REL}" "${CLOUD_REL}" \
   "${SNAPSHOT_CODEC_REL}" "${COMPUTE_REL}" \
   "${TRANSFER_REL}" \
   "${THROTTLE_REL}" \
@@ -123,8 +124,14 @@ if [ "${failures}" -eq 0 ]; then
     "const currentRows = await this\.consumeFreshRows\(store, skipCloudTransport\)" \
     "Huawei History writes must consume the fresh physical rows owned by the current run"
   require_pattern "${REMOTE_REL}" \
-    "new HuaweiSpaceHistorySnapshotCodec\(this\.uid, this\.deviceId\)\.decodeRows\(rows\)" \
-    "ordinary Huawei History remote reads must decode once and retain the mirror for the write plan"
+    "this\.computeExecutor\.decodePackedHuaweiHistoryRemoteState" \
+    "ordinary Huawei History remote reads must decode a binary-packed replica on TaskPool"
+  require_pattern "${REMOTE_REL}" \
+    "this.lastPackedRows" \
+    "History writes must reuse the already packed replica buffer instead of JSON-stringifying rows again"
+  require_pattern "${TRANSFER_REL}" \
+    "writeU32\(target, 0, rows.length\)" \
+    "History physical rows must pack as length-prefixed binary instead of JSON.stringify(rows)"
   require_pattern "${REMOTE_REL}" \
     "this\.freshRows = rows" \
     "ordinary Huawei History reads must retain raw rows locally instead of cloning a complete physical mirror"
@@ -144,8 +151,8 @@ if [ "${failures}" -eq 0 ]; then
     "task\.setTransferList\(\[rowBuffer\]\)" \
     "bounded H1 rows must enter TaskPool through one zero-copy transferable buffer"
   require_pattern "${COMPUTE_REL}" \
-    "afterBatchItem\(index \+ 1\)" \
-    "H1 transferable-buffer packing must yield between bounded row batches"
+    "AiraHistoryTaskpoolTransferCodec\.encodeRows\(rows\)" \
+    "H1 transferable-buffer packing must encode all rows in one JSON transfer"
   require_pattern "${REMOTE_REL}" \
     "afterBatchItem\(rows\.length\)" \
     "H1 RDB row materialization must yield between bounded batches"
@@ -201,7 +208,7 @@ if [ "${failures}" -eq 0 ]; then
     "sameStateCooperatively\(" \
     "oversized Huawei History confirmations must compare logical state cooperatively"
   require_pattern "${COMPUTE_REL}" \
-    "batchSize: 16" \
+    "batchSize: 250" \
     "oversized Huawei History work must keep a frame-conscious cooperative batch size"
   require_pattern "${THROTTLE_REL}" \
     "interface AiraSyncCooperativeThrottle" \
@@ -261,11 +268,14 @@ if [ "${failures}" -eq 0 ]; then
     "history_sync_retention_v1" \
     "History retention must keep a stale-device resurrection frontier"
   require_pattern "${DATABASE_REL}" \
-    "CURRENT_BROWSER_DATABASE_SCHEMA_VERSION = 5" \
-    "Huawei History tables must advance the local browser database schema to version 5"
+    "CURRENT_BROWSER_DATABASE_SCHEMA_VERSION = 6" \
+    "Huawei History tables must advance the local browser database schema to version 6"
   require_pattern "${DATABASE_REL}" \
-    "schemaVersion < 5" \
-    "version-4 browser databases must run the idempotent History schema migration"
+    "schemaVersion < 6" \
+    "version-5 browser databases must run the idempotent History schema migration"
+  require_pattern "${DATABASE_REL}" \
+    "huawei_history_remote_head_v1" \
+    "Huawei History must persist the last confirmed remote head checksum"
   require_pattern "${DATABASE_REL}" \
     "HISTORY_SYNC_CANONICAL_BACKFILL_STATE_PREFIX" \
     "History canonical backfill completion must remain durable per account"
@@ -298,6 +308,18 @@ if [ "${failures}" -eq 0 ]; then
   require_pattern "${RUNNER_REL}" \
     "this\.computeExecutor\.planHuaweiHistoryInitialMerge\(remote, local\)" \
     "Huawei History merge planning must run through the off-main-thread compute executor"
+  require_pattern "${COMPUTE_REL}" \
+    "planHuaweiHistoryInitialMergePacked" \
+    "Huawei History merge must pack states into transferable buffers instead of cloning objects on the UI thread"
+  require_pattern "${COMPUTE_REL}" \
+    "aira-sync-history-initial-merge-packed" \
+    "Huawei History packed merge must execute on TaskPool"
+  require_pattern "${COMPUTE_REL}" \
+    "batchPauseMs: 16" \
+    "History compute packing must yield a frame between batches"
+  require_pattern "${CLOUD_REL}" \
+    "CLOUD_SYNC_UI_YIELD_MS" \
+    "consecutive Huawei cloudSync tasks must yield the UI thread"
   require_pattern "${COMPUTE_REL}" \
     "mergeKeepingPreferredVisits\(remote, local, now\)" \
     "Huawei History must prefer the freshly confirmed remote mirror over stale local canonical metadata"
@@ -367,9 +389,51 @@ if [ "${failures}" -eq 0 ]; then
   require_pattern "${RUNNER_REL}" \
     "shouldUseCachedHuaweiHistoryRemote" \
     "ordinary Huawei History may reuse the confirmed remote instead of repeating CLOUD_FIRST"
+  require_pattern "${RUNNER_REL}" \
+    "shouldSkipUnchangedHuaweiHistoryRemote" \
+    "ordinary Huawei History must skip decode and merge when persisted heads are unchanged"
+  require_pattern "${RUNNER_REL}" \
+    "shouldLoadUnchangedHuaweiHistoryReplica" \
+    "local History mutations against an unchanged Head must reuse the local replica"
+  require_pattern "${RUNNER_REL}" \
+    "resolveHuaweiHistoryRemoteReadPlan" \
+    "History cloud reads must plan skip/replica/cloud from Head and replica readiness"
+  require_pattern "${RUNNER_REL}" \
+    "hasHuaweiHistoryLocalWork" \
+    "stale History tombstones must not count as local work after a Head mismatch"
+  require_pattern "${REMOTE_REL}" \
+    "readStateUnlessHeadMatches" \
+    "Huawei History reads must peek Heads before decoding blocks"
+  require_pattern "${REMOTE_REL}" \
+    "peekHeadChecksum" \
+    "Huawei History must peek Heads without decoding Blocks"
+  require_pattern "${REMOTE_REL}" \
+    "tryReadLocalReplicaMatchingHead" \
+    "unchanged or stale-known History Heads must reuse a complete local replica"
+  require_pattern "${REMOTE_REL}" \
+    "readLocalReplicaState" \
+    "unchanged History Heads must decode the local replica instead of CLOUD_FIRST Blocks"
   require_pattern "${AUTOMATIC_REL}" \
+    "HISTORY_STARTUP_QUIET_MS" \
+    "automatic History must keep a startup quiet window after first content"
+  require_pattern "${AUTOMATIC_REL}" \
+    "resolveHistoryStartupQuietDelayMs" \
+    "account and foreground History must wait for the startup quiet window"
+  require_pattern "${AUTOMATIC_REL}" \
+    "splitAutomaticDomainTurn" \
+    "automatic execution must run one domain per turn and defer the rest"
+  require_pattern "${AUTOMATIC_REL}" \
+    "this.requestAutomaticRun\(true, false, 'periodic', 'periodic', false, 'periodic'\)" \
+    "bookmark periodic freshness must enqueue only the bookmark domain"
+  require_pattern "${AUTOMATIC_REL}" \
+    "this.requestAutomaticRun\(false, true, 'periodic', 'periodic', false, 'periodic'\)" \
+    "personalization periodic freshness must enqueue only the personalization domain"
+  require_pattern "${AUTOMATIC_REL}" \
+    "this.requestAutomaticRun\(false, false, 'periodic', 'periodic', true, 'periodic'\)" \
+    "History periodic freshness must enqueue only the History domain"
+  reject_pattern "${AUTOMATIC_REL}" \
     "requestUnifiedAutomaticFreshnessRun" \
-    "automatic periodic freshness must enqueue the same enabled-domain set"
+    "automatic periodic freshness must not enqueue every enabled domain together"
   require_pattern "${AUTOMATIC_REL}" \
     "isHistoryDomainEnabled" \
     "manual History execution must use domain enablement rather than the automatic foreground scheduler"
@@ -522,6 +586,33 @@ if [ "${failures}" -eq 0 ]; then
   reject_pattern "${REMOTE_REL}" \
     "AiraG7BookmarkRecords|HuaweiSpaceBookmarkChunkRepository|manifest|index shard" \
     "Huawei History must not reuse the Bookmark G7 logical format"
+  require_pattern "${RUNNER_REL}" \
+    "preparePackedReplicaRows" \
+    "matching-head History local work must pack the replica without a full cloud decode"
+  require_pattern "${RUNNER_REL}" \
+    "runPackedReplica" \
+    "matching-head History local work must stay on runPackedReplica"
+  require_pattern "${RUNNER_REL}" \
+    "writePreparedProjection\\(packed\\.projection, desired\\)" \
+    "History replica writes must publish the TaskPool projection without a second 994-row decode"
+  require_pattern "${REMOTE_REL}" \
+    "async preparePackedReplicaRows" \
+    "History remote store must pack the matching-head replica without decoding it first"
+  require_pattern "${REMOTE_REL}" \
+    "async writePreparedProjection" \
+    "History remote store must write a prepared projection without decoding 994 rows again"
+  require_pattern "${COMPUTE_REL}" \
+    "function planHuaweiHistoryReplicaPacked" \
+    "History packed replica must run as one TaskPool job"
+  require_pattern "${COMPUTE_REL}" \
+    "buildProjection\\(merged, current, now\\)" \
+    "History packed replica must build the write projection in the same TaskPool job"
+  require_pattern "${RUNNER_REL}" \
+    "tryLiteReplicaWrite" \
+    "matching-head History local deletes must try the dirty-bucket lite write before decoding 994 rows"
+  require_pattern "${SNAPSHOT_CODEC_REL}" \
+    "buildProjectionReusingHead" \
+    "History lite writes must reuse unchanged Head bucket references"
 fi
 
 if [ "${failures}" -gt 0 ]; then

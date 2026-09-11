@@ -64,6 +64,7 @@ import {
   isRetryableHuaweiSpaceBookmarkSyncError
 } from '../../data/sync/AiraHuaweiSpaceRemoteStore';
 import { AiraSyncWorkThrottleService } from './AiraSyncWorkThrottleService';
+import { AiraSyncJankProbe } from '../../common/debug/AiraSyncJankProbe';
 import { AiraBookmarkTombstoneLifecycleService } from './AiraBookmarkTombstoneLifecycleService';
 import { AIRA_DISTRIBUTION_CAPABILITY_OWNER } from '../../common/config/AiraDistributionCapabilityOwner';
 import { AIRA_PERSONAL_SERVER_INSTANCE_SERVICE } from './AiraPersonalServerInstanceService';
@@ -302,13 +303,17 @@ export class SyncService implements AiraCloudBookmarkV4BootstrapDomain {
     if (!AIRA_DISTRIBUTION_CAPABILITY_OWNER.isAvailable('huawei_space')) {
       return;
     }
+    const startedAt = Date.now();
+    AiraSyncJankProbe.mark('warmup_start');
     try {
       const settings = await this.initializeAiraSyncSettings();
       if (settings.remoteKind !== 'huawei_space') {
+        AiraSyncJankProbe.endExtra('warmup', startedAt, 'skip=not_huawei_space');
         return;
       }
       const uid = settings.huaweiSpace.uid.trim();
       if (uid.length <= 0) {
+        AiraSyncJankProbe.endExtra('warmup', startedAt, 'skip=no_uid');
         return;
       }
       const databaseName = settings.huaweiSpace.databaseName.trim().length > 0
@@ -316,8 +321,10 @@ export class SyncService implements AiraCloudBookmarkV4BootstrapDomain {
         : AIRA_HUAWEI_SPACE_BOOKMARK_DATABASE_NAME;
       const store = new AiraHuaweiSpaceRemoteStore(uid, databaseName);
       await store.warmupTransport();
+      AiraSyncJankProbe.end('warmup', startedAt);
     } catch (error) {
       const candidate = error as Error;
+      AiraSyncJankProbe.endExtra('warmup', startedAt, 'failed');
       hilog.warn(
         0x0000,
         'HuaweiSpaceRdb',
@@ -1094,16 +1101,24 @@ export class SyncService implements AiraCloudBookmarkV4BootstrapDomain {
         return identityNoOp;
       }
     }
-    let remoteState = await this.runBookmarkStage(
+    const loadedRemoteState: AiraSyncRemoteState = await this.runBookmarkStage(
       'remote_read_validation',
-      async (): Promise<AiraSyncRemoteState> => this.projectRemoteStateForBookmarkSync(await store.readState())
+      (): Promise<AiraSyncRemoteState> => this.resolveBookmarkRemoteStateForMerge(
+        store,
+        remoteKind,
+        identityProbe,
+        baseline
+      )
     );
     await this.workThrottle.afterStage();
     const recoveredHuaweiRemoteFromBaseline = remoteKind === 'huawei_space' && baseline !== undefined &&
-      remoteState.snapshot === null && remoteState.commitId === null;
-    remoteState = await this.runBookmarkStage('remote_read_validation', async (): Promise<AiraSyncRemoteState> => {
-      return this.reconcileRemoteStateForMerge(remoteKind, baseline, remoteState);
-    });
+      loadedRemoteState.snapshot === null && loadedRemoteState.commitId === null;
+    const remoteState: AiraSyncRemoteState = await this.runBookmarkStage(
+      'remote_read_validation',
+      async (): Promise<AiraSyncRemoteState> => {
+        return this.reconcileRemoteStateForMerge(remoteKind, baseline, loadedRemoteState);
+      }
+    );
     const completedPendingBookmarkSyncAt = settings.pendingBookmarkSyncAt ?? 0;
     const localSnapshot = await this.runBookmarkStage(
       'local_snapshot',
@@ -1340,8 +1355,13 @@ export class SyncService implements AiraCloudBookmarkV4BootstrapDomain {
       return undefined;
     }
     if (!this.bookmarkIdentityNoOpService.matchesConfirmedHead(probe, head)) {
+      AiraSyncJankProbe.markExtra(
+        'bookmark_identity_noop',
+        `hit=0 commit=${head.commitId ?? ''} baseline=${probe.baselineCommitId}`
+      );
       return undefined;
     }
+    AiraSyncJankProbe.markExtra('bookmark_identity_noop', `hit=1 commit=${probe.baselineCommitId}`);
     const snapshot = baseline.snapshot;
     const commitId = baseline.commitId;
     await this.recordSuccessfulSync(
@@ -1402,6 +1422,10 @@ export class SyncService implements AiraCloudBookmarkV4BootstrapDomain {
     expectedSnapshot: AiraSyncSnapshot,
     expectedHistory: AiraBookmarkHistoryDescriptor
   ): Promise<void> {
+    if (remoteKind === 'huawei_space') {
+      AiraSyncJankProbe.markExtra('bookmark_confirm', 'mode=write-already-confirmed');
+      return;
+    }
     const confirmed = this.projectRemoteStateForBookmarkSync(await store.readState());
     if (confirmed.snapshot === null || confirmed.commitId !== expectedCommitId || confirmed.history === null ||
       !this.bookmarkHistoryService.sameHistory(confirmed.history, expectedHistory) ||
@@ -1420,7 +1444,7 @@ export class SyncService implements AiraCloudBookmarkV4BootstrapDomain {
       (settings.pendingBookmarkSyncAt ?? 0) <= 0 || store.confirmPendingWrites === undefined) {
       return;
     }
-    await store.confirmPendingWrites();
+    AiraSyncJankProbe.markExtra('bookmark_confirm_pending', 'skip=write-will-time-first');
     await this.workThrottle.afterStage();
   }
 
@@ -1455,6 +1479,31 @@ export class SyncService implements AiraCloudBookmarkV4BootstrapDomain {
       return `已保存到华为云空间同步库，等待系统云空间同步：${detail}`;
     }
     return `同步完成：${detail}`;
+  }
+
+  private async resolveBookmarkRemoteStateForMerge(
+    store: AiraSyncRemoteStore,
+    remoteKind: AiraSyncRemoteKind,
+    identityProbe: AiraBookmarkIdentityNoOpProbe,
+    baseline: AiraSyncBaselineRecord | undefined
+  ): Promise<AiraSyncRemoteState> {
+    if (remoteKind === 'huawei_space' && store.readHead !== undefined && baseline !== undefined &&
+      baseline.snapshot !== null && baseline.commitId.trim().length > 0) {
+      try {
+        const head = await store.readHead();
+        if (this.bookmarkIdentityNoOpService.matchesConfirmedHead(identityProbe, head)) {
+          AiraSyncJankProbe.markExtra('bookmark_baseline_remote', 'hit=1');
+          return {
+            snapshot: baseline.snapshot,
+            commitId: baseline.commitId,
+            history: baseline.history
+          };
+        }
+      } catch (_error) {
+      }
+    }
+    AiraSyncJankProbe.markExtra('bookmark_baseline_remote', 'hit=0');
+    return this.projectRemoteStateForBookmarkSync(await store.readState());
   }
 
   private reconcileRemoteStateForMerge(

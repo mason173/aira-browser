@@ -26,6 +26,7 @@ import {
 } from './HuaweiSpaceHistorySyncRunner';
 import { AIRA_DISTRIBUTION_CAPABILITY_OWNER } from '../../common/config/AiraDistributionCapabilityOwner';
 import { AIRA_PERSONAL_SERVER_INSTANCE_SERVICE } from './AiraPersonalServerInstanceService';
+import { AiraSyncJankProbe } from '../../common/debug/AiraSyncJankProbe';
 
 const DOMAIN: number = 0x0000;
 const TAG: string = 'HistorySyncService';
@@ -169,6 +170,8 @@ export class HistorySyncService {
     generation: number,
     runMode: HistorySyncProviderRunMode
   ): Promise<HistorySyncRunResult> {
+    const startedAt = Date.now();
+    AiraSyncJankProbe.markExtra('history_run_start', `provider=${identity.provider} mode=${runMode}`);
     if (identity.provider === 'huawei_space' &&
       !AIRA_DISTRIBUTION_CAPABILITY_OWNER.isAvailable('huawei_space')) {
       throw new Error(AIRA_DISTRIBUTION_CAPABILITY_OWNER.resolveUnavailableReason('huawei_space'));
@@ -183,9 +186,20 @@ export class HistorySyncService {
       const result = await this.huaweiSpaceRunner.run(huaweiIdentity, runMode === 'ordinary');
       this.assertRunIdentity(identity, generation);
       await this.refreshProjectionIfNeeded(result.appliedChangeCount);
+      AiraSyncJankProbe.endExtra(
+        'history_run',
+        startedAt,
+        `provider=huawei_space applied=${result.appliedChangeCount} uploaded=${result.uploadedMutationCount}`
+      );
       return result;
     }
-    return this.runAiraCloud(identity, generation, runMode);
+    const cloudResult = await this.runAiraCloud(identity, generation, runMode);
+    AiraSyncJankProbe.endExtra(
+      'history_run',
+      startedAt,
+      `provider=${identity.provider} applied=${cloudResult.appliedChangeCount} uploaded=${cloudResult.uploadedMutationCount}`
+    );
+    return cloudResult;
   }
 
   private async runAiraCloud(

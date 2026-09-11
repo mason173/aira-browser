@@ -1,6 +1,7 @@
 import { common } from '@kit.AbilityKit';
 import { relationalStore } from '@kit.ArkData';
 import { hilog } from '@kit.PerformanceAnalysisKit';
+import { AiraSyncJankProbe } from '../../common/debug/AiraSyncJankProbe';
 
 export const HUAWEI_SPACE_BOOKMARK_HEAD_TABLE: string = 'AiraG8BookmarkHeads';
 export const HUAWEI_SPACE_BOOKMARK_BLOCK_TABLE: string = 'AiraG8BookmarkBlocks';
@@ -188,6 +189,7 @@ export class HuaweiSpaceRdbStoreOwner {
       securityLevel: relationalStore.SecurityLevel.S1
     };
     const startedAt = Date.now();
+    AiraSyncJankProbe.markExtra('rdb_open_start', databaseName);
     hilog.info(
       HUAWEI_SPACE_RDB_LOG_DOMAIN,
       HUAWEI_SPACE_RDB_LOG_TAG,
@@ -253,6 +255,7 @@ export class HuaweiSpaceRdbStoreOwner {
       }
       if (shouldRegisterDistributedTables) {
         const registerStartedAt = Date.now();
+        AiraSyncJankProbe.markExtra('rdb_setDistributedTables_start', databaseName);
         hilog.info(
           HUAWEI_SPACE_RDB_LOG_DOMAIN,
           HUAWEI_SPACE_RDB_LOG_TAG,
@@ -262,6 +265,7 @@ export class HuaweiSpaceRdbStoreOwner {
         );
         await HuaweiSpaceRdbStoreOwner.prepareDistributedTables(store);
         await HuaweiSpaceRdbStoreOwner.writeDistributedRegistrationVersion(store);
+        AiraSyncJankProbe.endExtra('rdb_setDistributedTables', registerStartedAt, databaseName);
         hilog.info(
           HUAWEI_SPACE_RDB_LOG_DOMAIN,
           HUAWEI_SPACE_RDB_LOG_TAG,
@@ -270,6 +274,11 @@ export class HuaweiSpaceRdbStoreOwner {
           Date.now() - registerStartedAt
         );
       }
+      AiraSyncJankProbe.endExtra(
+        'rdb_open',
+        startedAt,
+        `db=${databaseName} shouldRegister=${shouldRegisterDistributedTables ? 1 : 0}`
+      );
       hilog.info(
         HUAWEI_SPACE_RDB_LOG_DOMAIN,
         HUAWEI_SPACE_RDB_LOG_TAG,

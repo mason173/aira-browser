@@ -42,6 +42,7 @@ import {
   resolveHistorySyncProviderKind
 } from '../../services/sync/HistorySyncService';
 import { SyncService } from '../../services/sync/SyncService';
+import { AiraSyncJankProbe } from '../../common/debug/AiraSyncJankProbe';
 import {
   SyncExperienceAutomaticRuntime,
   SyncExperienceRuntimeRunResult
@@ -280,6 +281,7 @@ export class SyncExperienceCoordinator implements AiraCloudBookmarkV4BootstrapTr
   }
 
   notifyAppContentReady(): void {
+    AiraSyncJankProbe.mark('content_ready_requested');
     this.runAfterHuaweiSpaceBookmarkUpgradePreparation((): void => {
       this.automaticRuntime.notifyAppContentReady();
     });
@@ -1324,6 +1326,8 @@ export class SyncExperienceCoordinator implements AiraCloudBookmarkV4BootstrapTr
   }
 
   private async runHuaweiSpaceBookmarkUpgradePreparation(): Promise<void> {
+    const startedAt = Date.now();
+    AiraSyncJankProbe.mark('upgrade_prep_start');
     const settings = await this.syncService.initializeAiraSyncSettings();
     const huaweiBookmarkSelected = settings.remoteKind === 'huawei_space' ||
       (settings.additionalBackupRemoteKinds ?? []).indexOf('huawei_space') >= 0;
@@ -1333,6 +1337,7 @@ export class SyncExperienceCoordinator implements AiraCloudBookmarkV4BootstrapTr
       affectedLegacySelection
     );
     if (upgradeState.requiredVersion <= 0) {
+      AiraSyncJankProbe.end('upgrade_prep', startedAt);
       return;
     }
     await this.automaticRuntime.runProviderTransition(async (): Promise<void> => {
@@ -1341,6 +1346,7 @@ export class SyncExperienceCoordinator implements AiraCloudBookmarkV4BootstrapTr
         this.automaticRuntime.cancelBookmarkAutomaticSync();
       }
     });
+    AiraSyncJankProbe.endExtra('upgrade_prep', startedAt, 'reenable');
   }
 
   private runAfterHuaweiSpaceBookmarkUpgradePreparation(action: () => void): void {

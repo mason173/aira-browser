@@ -1,6 +1,7 @@
 import { common } from '@kit.AbilityKit';
 import { relationalStore } from '@kit.ArkData';
 import { hilog } from '@kit.PerformanceAnalysisKit';
+import { AiraSyncJankProbe } from '../../common/debug/AiraSyncJankProbe';
 import urlUtils from '@ohos.url';
 import {
   BookmarkImportBatchRecord,
@@ -57,10 +58,15 @@ interface DatabaseErrorLike {
   name?: string;
 }
 
+interface HuaweiHistoryRemoteHeadRecord {
+  checksum: string;
+  updatedAt: number;
+}
+
 const DOMAIN = 0x0000;
 const TAG = 'BrowserDatabase';
 const DATABASE_NAME = 'aira_browser.db';
-const CURRENT_BROWSER_DATABASE_SCHEMA_VERSION = 5;
+const CURRENT_BROWSER_DATABASE_SCHEMA_VERSION = 6;
 const INITIAL_BROWSER_DATABASE_SCHEMA_VERSION = 1;
 const BROWSER_SCHEMA_STATE_TABLE = 'browser_schema_state';
 const BROWSER_SCHEMA_STATE_CURRENT_KEY = 'current';
@@ -327,6 +333,7 @@ const HISTORY_SYNC_FRONTIERS_TABLE = 'history_sync_frontiers_v1';
 const HISTORY_SYNC_CANONICAL_VISITS_TABLE = 'history_sync_canonical_visits_v1';
 const HISTORY_SYNC_TOMBSTONES_TABLE = 'history_sync_tombstones_v1';
 const HISTORY_SYNC_RETENTION_TABLE = 'history_sync_retention_v1';
+const HUAWEI_HISTORY_REMOTE_HEAD_TABLE = 'huawei_history_remote_head_v1';
 const HISTORY_SYNC_CANONICAL_BACKFILL_BATCH_SIZE: number = 200;
 const HISTORY_SYNC_CANONICAL_READ_BATCH_SIZE: number = 128;
 const HISTORY_SYNC_CANONICAL_BACKFILL_STATE_PREFIX: string = 'history_canonical_backfill:';
@@ -392,6 +399,11 @@ const HISTORY_SYNC_SCHEMA_SQL: string[] = [
     cutoff_at INTEGER NOT NULL DEFAULT 0,
     boundary_visited_at INTEGER NOT NULL DEFAULT 0,
     boundary_visit_id TEXT NOT NULL DEFAULT '',
+    updated_at INTEGER NOT NULL DEFAULT 0
+  )`,
+  `CREATE TABLE IF NOT EXISTS ${HUAWEI_HISTORY_REMOTE_HEAD_TABLE} (
+    account_uid TEXT PRIMARY KEY,
+    head_checksum TEXT NOT NULL,
     updated_at INTEGER NOT NULL DEFAULT 0
   )`
 ];
@@ -1845,6 +1857,75 @@ export class BrowserDatabase {
     }
   }
 
+  async readHuaweiHistoryRemoteHeadChecksum(accountUid: string): Promise<string> {
+    const record = await this.readHuaweiHistoryRemoteHead(accountUid);
+    return record.checksum;
+  }
+
+  async readHuaweiHistoryRemoteHead(accountUid: string): Promise<HuaweiHistoryRemoteHeadRecord> {
+    const normalizedUid = accountUid.trim();
+    if (normalizedUid.length <= 0) {
+      return { checksum: '', updatedAt: 0 };
+    }
+    const store = await this.getStore();
+    const predicates = new relationalStore.RdbPredicates(HUAWEI_HISTORY_REMOTE_HEAD_TABLE);
+    predicates.equalTo('account_uid', normalizedUid);
+    predicates.limitAs(1);
+    const resultSet = await store.query(predicates, ['head_checksum', 'updated_at']);
+    try {
+      if (!resultSet.goToNextRow()) {
+        return { checksum: '', updatedAt: 0 };
+      }
+      return {
+        checksum: resultSet.getString(resultSet.getColumnIndex('head_checksum')).trim(),
+        updatedAt: resultSet.getLong(resultSet.getColumnIndex('updated_at'))
+      };
+    } finally {
+      resultSet.close();
+    }
+  }
+
+  async hasHistorySyncOutbox(accountUid: string): Promise<boolean> {
+    const mutations = await this.listHistorySyncOutbox(accountUid, 1);
+    return mutations.length > 0;
+  }
+
+  async hasHistorySyncTombstonesSince(accountUid: string, sinceMs: number): Promise<boolean> {
+    const normalizedUid = accountUid.trim();
+    if (normalizedUid.length <= 0) {
+      return false;
+    }
+    const store = await this.getStore();
+    const predicates = new relationalStore.RdbPredicates(HISTORY_SYNC_TOMBSTONES_TABLE);
+    predicates.equalTo('account_uid', normalizedUid);
+    predicates.greaterThan('deleted_at', Math.max(0, sinceMs) - 1);
+    predicates.limitAs(1);
+    const resultSet = await store.query(predicates, ['visit_id']);
+    try {
+      return resultSet.goToNextRow();
+    } finally {
+      resultSet.close();
+    }
+  }
+
+  async writeHuaweiHistoryRemoteHeadChecksum(accountUid: string, headChecksum: string): Promise<void> {
+    const normalizedUid = accountUid.trim();
+    const checksum = headChecksum.trim();
+    if (normalizedUid.length <= 0 || checksum.length <= 0) {
+      return;
+    }
+    const store = await this.getStore();
+    await store.batchInsertWithConflictResolution(
+      HUAWEI_HISTORY_REMOTE_HEAD_TABLE,
+      [{
+        account_uid: normalizedUid,
+        head_checksum: checksum,
+        updated_at: Date.now()
+      }],
+      relationalStore.ConflictResolution.ON_CONFLICT_REPLACE
+    );
+  }
+
   async readHuaweiSpaceHistorySyncState(accountUid: string): Promise<HuaweiSpaceHistorySyncState> {
     const normalizedUid = accountUid.trim();
     if (normalizedUid.length <= 0) {
@@ -1869,6 +1950,8 @@ export class BrowserDatabase {
     if (normalizedUid.length <= 0) {
       return 0;
     }
+    const startedAt = Date.now();
+    AiraSyncJankProbe.mark('history_local_apply_huawei_start');
     const store = await this.getStore();
     const canonicalPayloads = new Map<string, string>();
     const existingTombstoneIds = await this.readHistoryTombstoneVisitIds(store, normalizedUid);
@@ -1906,9 +1989,11 @@ export class BrowserDatabase {
       }
       store.commit();
       transactionStarted = false;
+      AiraSyncJankProbe.endExtra('history_local_apply_huawei', startedAt, `applied=${applied}`);
       return applied;
     } catch (error) {
       this.rollbackHistoryTransaction(store, transactionStarted);
+      AiraSyncJankProbe.endExtra('history_local_apply_huawei', startedAt, 'failed');
       hilog.error(DOMAIN, TAG, 'Failed to apply Huawei Space history state: %{public}s', this.describeError(error));
       throw new Error('Failed to apply Huawei Space synchronized history.');
     }
@@ -2072,6 +2157,8 @@ export class BrowserDatabase {
     response: HistorySyncExchangeResponse,
     removeAcknowledgedMutations: boolean = true
   ): Promise<number> {
+    const startedAt = Date.now();
+    AiraSyncJankProbe.mark('history_local_apply_exchange_start');
     const store = await this.getStore();
     let transactionStarted = false;
     try {
@@ -2098,9 +2185,11 @@ export class BrowserDatabase {
       });
       store.commit();
       transactionStarted = false;
+      AiraSyncJankProbe.endExtra('history_local_apply_exchange', startedAt, `applied=${applied}`);
       return applied;
     } catch (error) {
       this.rollbackHistoryTransaction(store, transactionStarted);
+      AiraSyncJankProbe.endExtra('history_local_apply_exchange', startedAt, 'failed');
       hilog.error(DOMAIN, TAG, 'Failed to apply history exchange: %{public}s', this.describeError(error));
       throw new Error('Failed to apply synchronized history changes.');
     }
@@ -2112,6 +2201,8 @@ export class BrowserDatabase {
     response: HistorySyncBootstrapResponse,
     resetRemoteProjection: boolean
   ): Promise<number> {
+    const startedAt = Date.now();
+    AiraSyncJankProbe.mark('history_local_apply_bootstrap_start');
     const store = await this.getStore();
     let transactionStarted = false;
     try {
@@ -2164,9 +2255,11 @@ export class BrowserDatabase {
       });
       store.commit();
       transactionStarted = false;
+      AiraSyncJankProbe.endExtra('history_local_apply_bootstrap', startedAt, `applied=${applied}`);
       return applied;
     } catch (error) {
       this.rollbackHistoryTransaction(store, transactionStarted);
+      AiraSyncJankProbe.endExtra('history_local_apply_bootstrap', startedAt, 'failed');
       hilog.error(DOMAIN, TAG, 'Failed to apply history bootstrap: %{public}s', this.describeError(error));
       throw new Error('Failed to initialize synchronized history.');
     }
@@ -2721,10 +2814,13 @@ export class BrowserDatabase {
     }
 
     if (this.storePromise === undefined) {
+      const startedAt = Date.now();
+      AiraSyncJankProbe.mark('browser_db_open_start');
       this.storePromise = this.openStore()
         .then(async (store: relationalStore.RdbStore) => {
           await this.ensureSchema(store);
           this.store = store;
+          AiraSyncJankProbe.end('browser_db_open', startedAt);
           return store;
         })
         .catch((error: Error) => {
@@ -2770,7 +2866,7 @@ export class BrowserDatabase {
       if (schemaVersion >= INITIAL_BROWSER_DATABASE_SCHEMA_VERSION && schemaVersion < 3) {
         await this.ensureBookmarkSyncLinkSchema(store);
       }
-      if (schemaVersion < 5) {
+      if (schemaVersion < 6) {
         await this.ensureHistorySyncSchema(store);
       }
       await this.writeSchemaVersion(store, CURRENT_BROWSER_DATABASE_SCHEMA_VERSION);
