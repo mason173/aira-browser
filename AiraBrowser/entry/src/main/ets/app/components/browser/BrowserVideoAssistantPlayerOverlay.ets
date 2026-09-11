@@ -22,77 +22,77 @@ import {
 } from './BrowserFloatingGlassMaterialTokens';
 import { BrowserFloatingGlassMaterialSurface } from './BrowserFloatingGlassMaterialSurface';
 
-const SAMSUNG_PLAYER_TITLE_HEIGHT: number = 64;
-const SAMSUNG_PLAYER_TITLE_HORIZONTAL_INSET: number = 24;
-const SAMSUNG_PLAYER_TITLE_TEXT_SIZE: number = 21;
-const SAMSUNG_PLAYER_TITLE_MIN_TOP_INSET: number = 16;
-const SAMSUNG_PLAYER_TITLE_SAFE_TOP_GAP: number = 4;
-const SAMSUNG_PLAYER_TITLE_BUTTON_GAP: number = 8;
-const SAMSUNG_PLAYER_BACK_BUTTON_SIZE: number = 40;
-const SAMSUNG_PLAYER_BACK_ICON_SIZE: number = 22;
-const SAMSUNG_PLAYER_CENTER_PLAY_SIZE: number = 54;
-const SAMSUNG_PLAYER_SEEK_BUTTON_SIZE: number = 36;
-const SAMSUNG_PLAYER_CENTER_CONTROL_GAP: number = 35;
-const SAMSUNG_PLAYER_PORTRAIT_PROGRESS_HEIGHT: number = 72;
-const SAMSUNG_PLAYER_LANDSCAPE_PROGRESS_HEIGHT: number = 48;
-const SAMSUNG_PLAYER_PORTRAIT_FEATURE_HEIGHT: number = 64;
-const SAMSUNG_PLAYER_LANDSCAPE_FEATURE_HEIGHT: number = 52;
-const SAMSUNG_PLAYER_PORTRAIT_BOTTOM_INSET: number = 12;
-const SAMSUNG_PLAYER_LANDSCAPE_BOTTOM_INSET: number = 8;
-const SAMSUNG_PLAYER_PORTRAIT_SECTION_GAP: number = 16;
-const SAMSUNG_PLAYER_LANDSCAPE_SECTION_GAP: number = 10;
-const SAMSUNG_PLAYER_PROGRESS_HORIZONTAL_INSET: number = 28;
-const SAMSUNG_PLAYER_FEATURE_BUTTON_SIZE: number = 24;
-const SAMSUNG_PLAYER_FEATURE_TOUCH_SIZE: number = 40;
-const SAMSUNG_PLAYER_SPEED_DIALOG_MAX_WIDTH: number = 280;
-const SAMSUNG_PLAYER_SPEED_DIALOG_MAX_HEIGHT: number = 336;
-const SAMSUNG_PLAYER_SPEED_DIALOG_EDGE_INSET: number = 24;
-const SAMSUNG_PLAYER_SPEED_DIALOG_HEADER_HEIGHT: number = 50;
-const SAMSUNG_PLAYER_SPEED_DIALOG_ROW_HEIGHT: number = 48;
-const SAMSUNG_PLAYER_SPEED_DIALOG_CORNER_RADIUS: number = 20;
-const SAMSUNG_PLAYER_SYSTEM_CONTROL_WIDTH: number = 64;
-const SAMSUNG_PLAYER_SYSTEM_CONTROL_MAX_HEIGHT: number = 190;
-const SAMSUNG_PLAYER_SYSTEM_CONTROL_MIN_HEIGHT: number = 132;
-const SAMSUNG_PLAYER_SYSTEM_CONTROL_CENTER_GAP: number = 24;
-const SAMSUNG_PLAYER_SYSTEM_CONTROL_VERTICAL_INSET: number = 32;
-const SAMSUNG_PLAYER_SYSTEM_CONTROL_RADIUS: number = 32;
-const SAMSUNG_PLAYER_SYSTEM_CONTROL_ICON_SIZE: number = 24;
-const SAMSUNG_PLAYER_SYSTEM_CONTROL_ICON_BOTTOM_INSET: number = 15;
-const SAMSUNG_PLAYER_SURFACE_PAN_DISTANCE: number = 8;
-const SAMSUNG_PLAYER_SYSTEM_CONTROL_DRAG_RANGE: number = 360;
-const SAMSUNG_PLAYER_SYSTEM_CONTROL_APPLY_INTERVAL_MS: number = 48;
-const SAMSUNG_PLAYER_SYSTEM_CONTROL_DISMISS_MS: number = 720;
-const SAMSUNG_PLAYER_SYSTEM_CONTROL_ROTATION_DEGREES: number = 360;
-const SAMSUNG_PLAYER_SYSTEM_CONTROL_HAPTIC_STEP_COUNT: number = 20;
-const SAMSUNG_PLAYER_SYSTEM_CONTROL_HAPTIC_DURATION_MS: number = 8;
-const SAMSUNG_PLAYER_SYSTEM_CONTROL_HAPTIC_MIN_INTERVAL_MS: number = 42;
-const SAMSUNG_PLAYER_CONTROLS_AUTO_HIDE_MS: number = 3000;
-const SAMSUNG_PLAYER_LOADING_INDICATOR_DELAY_MS: number = 150;
-const SAMSUNG_PLAYER_MOUSE_POKE_THROTTLE_MS: number = 400;
-const SAMSUNG_PLAYER_MOUSE_MOVE_MIN_DISTANCE: number = 3;
-const SAMSUNG_PLAYER_SEEK_STEP_SECONDS: number = 10;
-const SAMSUNG_PLAYER_CENTER_PLAY_ICON_SIZE: number = 42;
-const SAMSUNG_PLAYER_SEEK_ICON_SIZE: number = 32;
-const SAMSUNG_PLAYER_SEEK_GESTURE_MIN_RANGE_SECONDS: number = 60;
-const SAMSUNG_PLAYER_SEEK_GESTURE_MAX_RANGE_SECONDS: number = 300;
-const SAMSUNG_PLAYER_SEEK_GESTURE_DURATION_FACTOR: number = 0.25;
-const SAMSUNG_PLAYER_SEEK_GESTURE_INDICATOR_WIDTH: number = 236;
-const SAMSUNG_PLAYER_SEEK_GESTURE_INDICATOR_HEIGHT: number = 60;
-const SAMSUNG_PLAYER_TEMPORARY_FAST_PLAYBACK_LONG_PRESS_MS: number = 450;
-const SAMSUNG_PLAYER_TEMPORARY_FAST_PLAYBACK_MAX_RATE: number = 10;
-const SAMSUNG_PLAYER_TEMPORARY_FAST_PLAYBACK_MIN_RATE: number = 0.25;
-const SAMSUNG_PLAYER_TEMPORARY_FAST_PLAYBACK_RATE_STEP: number = 0.1;
-const SAMSUNG_PLAYER_TEMPORARY_FAST_PLAYBACK_RATE_STEP_DISTANCE: number = 24;
-const SAMSUNG_PLAYER_TEMPORARY_FAST_PLAYBACK_INDICATOR_WIDTH: number = 220;
-const SAMSUNG_PLAYER_TEMPORARY_FAST_PLAYBACK_INDICATOR_HEIGHT: number = 58;
-const SAMSUNG_PLAYER_TEMPORARY_FAST_PLAYBACK_INDICATOR_TOP_INSET: number = 24;
-const SAMSUNG_PLAYER_TEMPORARY_FAST_PLAYBACK_INDICATOR_RADIUS: number = 29;
-const SAMSUNG_PLAYER_SPEED_OPTIONS: number[] = [
+const VIDEO_ASSISTANT_PLAYER_TITLE_HEIGHT: number = 64;
+const VIDEO_ASSISTANT_PLAYER_TITLE_HORIZONTAL_INSET: number = 24;
+const VIDEO_ASSISTANT_PLAYER_TITLE_TEXT_SIZE: number = 21;
+const VIDEO_ASSISTANT_PLAYER_TITLE_MIN_TOP_INSET: number = 16;
+const VIDEO_ASSISTANT_PLAYER_TITLE_SAFE_TOP_GAP: number = 4;
+const VIDEO_ASSISTANT_PLAYER_TITLE_BUTTON_GAP: number = 8;
+const VIDEO_ASSISTANT_PLAYER_BACK_BUTTON_SIZE: number = 40;
+const VIDEO_ASSISTANT_PLAYER_BACK_ICON_SIZE: number = 22;
+const VIDEO_ASSISTANT_PLAYER_CENTER_PLAY_SIZE: number = 54;
+const VIDEO_ASSISTANT_PLAYER_SEEK_BUTTON_SIZE: number = 36;
+const VIDEO_ASSISTANT_PLAYER_CENTER_CONTROL_GAP: number = 35;
+const VIDEO_ASSISTANT_PLAYER_PORTRAIT_PROGRESS_HEIGHT: number = 72;
+const VIDEO_ASSISTANT_PLAYER_LANDSCAPE_PROGRESS_HEIGHT: number = 48;
+const VIDEO_ASSISTANT_PLAYER_PORTRAIT_FEATURE_HEIGHT: number = 64;
+const VIDEO_ASSISTANT_PLAYER_LANDSCAPE_FEATURE_HEIGHT: number = 52;
+const VIDEO_ASSISTANT_PLAYER_PORTRAIT_BOTTOM_INSET: number = 12;
+const VIDEO_ASSISTANT_PLAYER_LANDSCAPE_BOTTOM_INSET: number = 8;
+const VIDEO_ASSISTANT_PLAYER_PORTRAIT_SECTION_GAP: number = 16;
+const VIDEO_ASSISTANT_PLAYER_LANDSCAPE_SECTION_GAP: number = 10;
+const VIDEO_ASSISTANT_PLAYER_PROGRESS_HORIZONTAL_INSET: number = 28;
+const VIDEO_ASSISTANT_PLAYER_FEATURE_BUTTON_SIZE: number = 24;
+const VIDEO_ASSISTANT_PLAYER_FEATURE_TOUCH_SIZE: number = 40;
+const VIDEO_ASSISTANT_PLAYER_SPEED_DIALOG_MAX_WIDTH: number = 280;
+const VIDEO_ASSISTANT_PLAYER_SPEED_DIALOG_MAX_HEIGHT: number = 336;
+const VIDEO_ASSISTANT_PLAYER_SPEED_DIALOG_EDGE_INSET: number = 24;
+const VIDEO_ASSISTANT_PLAYER_SPEED_DIALOG_HEADER_HEIGHT: number = 50;
+const VIDEO_ASSISTANT_PLAYER_SPEED_DIALOG_ROW_HEIGHT: number = 48;
+const VIDEO_ASSISTANT_PLAYER_SPEED_DIALOG_CORNER_RADIUS: number = 20;
+const VIDEO_ASSISTANT_PLAYER_SYSTEM_CONTROL_WIDTH: number = 64;
+const VIDEO_ASSISTANT_PLAYER_SYSTEM_CONTROL_MAX_HEIGHT: number = 190;
+const VIDEO_ASSISTANT_PLAYER_SYSTEM_CONTROL_MIN_HEIGHT: number = 132;
+const VIDEO_ASSISTANT_PLAYER_SYSTEM_CONTROL_CENTER_GAP: number = 24;
+const VIDEO_ASSISTANT_PLAYER_SYSTEM_CONTROL_VERTICAL_INSET: number = 32;
+const VIDEO_ASSISTANT_PLAYER_SYSTEM_CONTROL_RADIUS: number = 32;
+const VIDEO_ASSISTANT_PLAYER_SYSTEM_CONTROL_ICON_SIZE: number = 24;
+const VIDEO_ASSISTANT_PLAYER_SYSTEM_CONTROL_ICON_BOTTOM_INSET: number = 15;
+const VIDEO_ASSISTANT_PLAYER_SURFACE_PAN_DISTANCE: number = 8;
+const VIDEO_ASSISTANT_PLAYER_SYSTEM_CONTROL_DRAG_RANGE: number = 360;
+const VIDEO_ASSISTANT_PLAYER_SYSTEM_CONTROL_APPLY_INTERVAL_MS: number = 48;
+const VIDEO_ASSISTANT_PLAYER_SYSTEM_CONTROL_DISMISS_MS: number = 720;
+const VIDEO_ASSISTANT_PLAYER_SYSTEM_CONTROL_ROTATION_DEGREES: number = 360;
+const VIDEO_ASSISTANT_PLAYER_SYSTEM_CONTROL_HAPTIC_STEP_COUNT: number = 20;
+const VIDEO_ASSISTANT_PLAYER_SYSTEM_CONTROL_HAPTIC_DURATION_MS: number = 8;
+const VIDEO_ASSISTANT_PLAYER_SYSTEM_CONTROL_HAPTIC_MIN_INTERVAL_MS: number = 42;
+const VIDEO_ASSISTANT_PLAYER_CONTROLS_AUTO_HIDE_MS: number = 3000;
+const VIDEO_ASSISTANT_PLAYER_LOADING_INDICATOR_DELAY_MS: number = 150;
+const VIDEO_ASSISTANT_PLAYER_MOUSE_POKE_THROTTLE_MS: number = 400;
+const VIDEO_ASSISTANT_PLAYER_MOUSE_MOVE_MIN_DISTANCE: number = 3;
+const VIDEO_ASSISTANT_PLAYER_SEEK_STEP_SECONDS: number = 10;
+const VIDEO_ASSISTANT_PLAYER_CENTER_PLAY_ICON_SIZE: number = 42;
+const VIDEO_ASSISTANT_PLAYER_SEEK_ICON_SIZE: number = 32;
+const VIDEO_ASSISTANT_PLAYER_SEEK_GESTURE_MIN_RANGE_SECONDS: number = 60;
+const VIDEO_ASSISTANT_PLAYER_SEEK_GESTURE_MAX_RANGE_SECONDS: number = 300;
+const VIDEO_ASSISTANT_PLAYER_SEEK_GESTURE_DURATION_FACTOR: number = 0.25;
+const VIDEO_ASSISTANT_PLAYER_SEEK_GESTURE_INDICATOR_WIDTH: number = 236;
+const VIDEO_ASSISTANT_PLAYER_SEEK_GESTURE_INDICATOR_HEIGHT: number = 60;
+const VIDEO_ASSISTANT_PLAYER_TEMPORARY_FAST_PLAYBACK_LONG_PRESS_MS: number = 450;
+const VIDEO_ASSISTANT_PLAYER_TEMPORARY_FAST_PLAYBACK_MAX_RATE: number = 10;
+const VIDEO_ASSISTANT_PLAYER_TEMPORARY_FAST_PLAYBACK_MIN_RATE: number = 0.25;
+const VIDEO_ASSISTANT_PLAYER_TEMPORARY_FAST_PLAYBACK_RATE_STEP: number = 0.1;
+const VIDEO_ASSISTANT_PLAYER_TEMPORARY_FAST_PLAYBACK_RATE_STEP_DISTANCE: number = 24;
+const VIDEO_ASSISTANT_PLAYER_TEMPORARY_FAST_PLAYBACK_INDICATOR_WIDTH: number = 220;
+const VIDEO_ASSISTANT_PLAYER_TEMPORARY_FAST_PLAYBACK_INDICATOR_HEIGHT: number = 58;
+const VIDEO_ASSISTANT_PLAYER_TEMPORARY_FAST_PLAYBACK_INDICATOR_TOP_INSET: number = 24;
+const VIDEO_ASSISTANT_PLAYER_TEMPORARY_FAST_PLAYBACK_INDICATOR_RADIUS: number = 29;
+const VIDEO_ASSISTANT_PLAYER_SPEED_OPTIONS: number[] = [
   0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0, 4.0, 5.0
 ];
 
 @Component
-export struct BrowserSamsungVideoAssistantPlayerOverlay {
+export struct BrowserVideoAssistantPlayerOverlay {
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY) private storedSpeedDialogTextColor: string = '#111318';
   @LocalStorageProp(BROWSER_WINDOW_SAFE_TOP_INSET_STORAGE_KEY) private storedTopSafeInsetVp: number = 0;
   @Prop @Watch('handlePlayerStateChange') playerState: VideoAssistantState =
@@ -240,7 +240,7 @@ export struct BrowserSamsungVideoAssistantPlayerOverlay {
           GestureMode.Parallel,
           PanGesture({
             direction: PanDirection.All,
-            distance: SAMSUNG_PLAYER_SURFACE_PAN_DISTANCE
+            distance: VIDEO_ASSISTANT_PLAYER_SURFACE_PAN_DISTANCE
           })
             .onActionStart(() => {
               this.beginSurfacePanGesture();
@@ -257,7 +257,7 @@ export struct BrowserSamsungVideoAssistantPlayerOverlay {
           LongPressGesture({
             fingers: 1,
             repeat: false,
-            duration: SAMSUNG_PLAYER_TEMPORARY_FAST_PLAYBACK_LONG_PRESS_MS
+            duration: VIDEO_ASSISTANT_PLAYER_TEMPORARY_FAST_PLAYBACK_LONG_PRESS_MS
           })
             .onAction(() => {
               this.beginTemporaryFastPlayback();
@@ -289,9 +289,9 @@ export struct BrowserSamsungVideoAssistantPlayerOverlay {
   private buildSystemControlIndicator() {
     Stack() {
       BrowserFloatingGlassMaterialSurface({
-        surfaceWidth: SAMSUNG_PLAYER_SYSTEM_CONTROL_WIDTH,
+        surfaceWidth: VIDEO_ASSISTANT_PLAYER_SYSTEM_CONTROL_WIDTH,
         surfaceHeight: this.resolveSystemControlIndicatorHeight(),
-        surfaceRadius: SAMSUNG_PLAYER_SYSTEM_CONTROL_RADIUS,
+        surfaceRadius: VIDEO_ASSISTANT_PLAYER_SYSTEM_CONTROL_RADIUS,
         tintColor: BROWSER_FLOATING_GLASS_MATERIAL_DARK_TINT
       }) {
         Stack({ alignContent: Alignment.Bottom }) {
@@ -304,17 +304,17 @@ export struct BrowserSamsungVideoAssistantPlayerOverlay {
           Stack({ alignContent: Alignment.Center }) {
             AiraIcon({
               airaIconId: this.resolveSystemControlIcon(),
-              iconSize: SAMSUNG_PLAYER_SYSTEM_CONTROL_ICON_SIZE,
+              iconSize: VIDEO_ASSISTANT_PLAYER_SYSTEM_CONTROL_ICON_SIZE,
               iconColor: $r('app.color.browser_video_assistant_system_control_icon')
             })
           }
-          .width(SAMSUNG_PLAYER_SYSTEM_CONTROL_ICON_SIZE)
-          .height(SAMSUNG_PLAYER_SYSTEM_CONTROL_ICON_SIZE)
+          .width(VIDEO_ASSISTANT_PLAYER_SYSTEM_CONTROL_ICON_SIZE)
+          .height(VIDEO_ASSISTANT_PLAYER_SYSTEM_CONTROL_ICON_SIZE)
           .rotate({ angle: this.resolveSystemControlIconRotationAngle() })
           .position({
-            x: (SAMSUNG_PLAYER_SYSTEM_CONTROL_WIDTH - SAMSUNG_PLAYER_SYSTEM_CONTROL_ICON_SIZE) / 2,
-            y: this.resolveSystemControlIndicatorHeight() - SAMSUNG_PLAYER_SYSTEM_CONTROL_ICON_SIZE -
-              SAMSUNG_PLAYER_SYSTEM_CONTROL_ICON_BOTTOM_INSET
+            x: (VIDEO_ASSISTANT_PLAYER_SYSTEM_CONTROL_WIDTH - VIDEO_ASSISTANT_PLAYER_SYSTEM_CONTROL_ICON_SIZE) / 2,
+            y: this.resolveSystemControlIndicatorHeight() - VIDEO_ASSISTANT_PLAYER_SYSTEM_CONTROL_ICON_SIZE -
+              VIDEO_ASSISTANT_PLAYER_SYSTEM_CONTROL_ICON_BOTTOM_INSET
           })
           .hitTestBehavior(HitTestMode.None)
         }
@@ -322,9 +322,9 @@ export struct BrowserSamsungVideoAssistantPlayerOverlay {
         .height('100%')
       }
     }
-    .width(SAMSUNG_PLAYER_SYSTEM_CONTROL_WIDTH)
+    .width(VIDEO_ASSISTANT_PLAYER_SYSTEM_CONTROL_WIDTH)
     .height(this.resolveSystemControlIndicatorHeight())
-    .borderRadius(SAMSUNG_PLAYER_SYSTEM_CONTROL_RADIUS)
+    .borderRadius(VIDEO_ASSISTANT_PLAYER_SYSTEM_CONTROL_RADIUS)
     .position({
       x: this.resolveSystemControlIndicatorLeft(),
       y: Math.max(0, (this.stageHeight - this.resolveSystemControlIndicatorHeight()) / 2)
@@ -340,13 +340,13 @@ export struct BrowserSamsungVideoAssistantPlayerOverlay {
       .fontWeight(FontWeight.Bold)
       .fontColor(this.playerControlColor)
       .maxLines(1)
-    .width(SAMSUNG_PLAYER_SEEK_GESTURE_INDICATOR_WIDTH)
-    .height(SAMSUNG_PLAYER_SEEK_GESTURE_INDICATOR_HEIGHT)
+    .width(VIDEO_ASSISTANT_PLAYER_SEEK_GESTURE_INDICATOR_WIDTH)
+    .height(VIDEO_ASSISTANT_PLAYER_SEEK_GESTURE_INDICATOR_HEIGHT)
     .textAlign(TextAlign.Center)
     .textVerticalAlign(TextVerticalAlign.CENTER)
     .position({
-      x: Math.max(0, (this.stageWidth - SAMSUNG_PLAYER_SEEK_GESTURE_INDICATOR_WIDTH) / 2),
-      y: Math.max(0, (this.stageHeight - SAMSUNG_PLAYER_SEEK_GESTURE_INDICATOR_HEIGHT) / 2)
+      x: Math.max(0, (this.stageWidth - VIDEO_ASSISTANT_PLAYER_SEEK_GESTURE_INDICATOR_WIDTH) / 2),
+      y: Math.max(0, (this.stageHeight - VIDEO_ASSISTANT_PLAYER_SEEK_GESTURE_INDICATOR_HEIGHT) / 2)
     })
     .hitTestBehavior(HitTestMode.None)
     .zIndex(13)
@@ -356,9 +356,9 @@ export struct BrowserSamsungVideoAssistantPlayerOverlay {
   private buildTemporaryFastPlaybackIndicator() {
     Stack() {
       BrowserFloatingGlassMaterialSurface({
-        surfaceWidth: SAMSUNG_PLAYER_TEMPORARY_FAST_PLAYBACK_INDICATOR_WIDTH,
-        surfaceHeight: SAMSUNG_PLAYER_TEMPORARY_FAST_PLAYBACK_INDICATOR_HEIGHT,
-        surfaceRadius: SAMSUNG_PLAYER_TEMPORARY_FAST_PLAYBACK_INDICATOR_RADIUS,
+        surfaceWidth: VIDEO_ASSISTANT_PLAYER_TEMPORARY_FAST_PLAYBACK_INDICATOR_WIDTH,
+        surfaceHeight: VIDEO_ASSISTANT_PLAYER_TEMPORARY_FAST_PLAYBACK_INDICATOR_HEIGHT,
+        surfaceRadius: VIDEO_ASSISTANT_PLAYER_TEMPORARY_FAST_PLAYBACK_INDICATOR_RADIUS,
         tintColor: BROWSER_FLOATING_GLASS_MATERIAL_DARK_TINT
       }) {
         Column({ space: 2 }) {
@@ -382,12 +382,12 @@ export struct BrowserSamsungVideoAssistantPlayerOverlay {
         .justifyContent(FlexAlign.Center)
       }
     }
-    .width(SAMSUNG_PLAYER_TEMPORARY_FAST_PLAYBACK_INDICATOR_WIDTH)
-    .height(SAMSUNG_PLAYER_TEMPORARY_FAST_PLAYBACK_INDICATOR_HEIGHT)
-    .borderRadius(SAMSUNG_PLAYER_TEMPORARY_FAST_PLAYBACK_INDICATOR_RADIUS)
+    .width(VIDEO_ASSISTANT_PLAYER_TEMPORARY_FAST_PLAYBACK_INDICATOR_WIDTH)
+    .height(VIDEO_ASSISTANT_PLAYER_TEMPORARY_FAST_PLAYBACK_INDICATOR_HEIGHT)
+    .borderRadius(VIDEO_ASSISTANT_PLAYER_TEMPORARY_FAST_PLAYBACK_INDICATOR_RADIUS)
     .position({
-      x: Math.max(0, (this.stageWidth - SAMSUNG_PLAYER_TEMPORARY_FAST_PLAYBACK_INDICATOR_WIDTH) / 2),
-      y: SAMSUNG_PLAYER_TEMPORARY_FAST_PLAYBACK_INDICATOR_TOP_INSET
+      x: Math.max(0, (this.stageWidth - VIDEO_ASSISTANT_PLAYER_TEMPORARY_FAST_PLAYBACK_INDICATOR_WIDTH) / 2),
+      y: VIDEO_ASSISTANT_PLAYER_TEMPORARY_FAST_PLAYBACK_INDICATOR_TOP_INSET
     })
     .hitTestBehavior(HitTestMode.None)
     .zIndex(14)
@@ -410,11 +410,11 @@ export struct BrowserSamsungVideoAssistantPlayerOverlay {
 
   @Builder
   private buildTopFeatureLayer() {
-    Row({ space: SAMSUNG_PLAYER_TITLE_BUTTON_GAP }) {
+    Row({ space: VIDEO_ASSISTANT_PLAYER_TITLE_BUTTON_GAP }) {
       this.buildPlayerGlassIconButton(
         'browser.toolbar.back',
-        SAMSUNG_PLAYER_BACK_ICON_SIZE,
-        SAMSUNG_PLAYER_BACK_BUTTON_SIZE,
+        VIDEO_ASSISTANT_PLAYER_BACK_ICON_SIZE,
+        VIDEO_ASSISTANT_PLAYER_BACK_BUTTON_SIZE,
         '返回网页',
         () => {
         this.closePlayer();
@@ -422,7 +422,7 @@ export struct BrowserSamsungVideoAssistantPlayerOverlay {
       )
 
       Text(this.resolvePlayerTitle())
-        .fontSize(SAMSUNG_PLAYER_TITLE_TEXT_SIZE)
+        .fontSize(VIDEO_ASSISTANT_PLAYER_TITLE_TEXT_SIZE)
         .fontWeight(FontWeight.Bold)
         .fontColor(this.playerControlColor)
         .maxLines(1)
@@ -432,7 +432,7 @@ export struct BrowserSamsungVideoAssistantPlayerOverlay {
     .width('100%')
     .height(this.resolveTopFeatureLayerHeight())
     .padding({
-      left: SAMSUNG_PLAYER_TITLE_HORIZONTAL_INSET,
+      left: VIDEO_ASSISTANT_PLAYER_TITLE_HORIZONTAL_INSET,
       right: 20,
       top: this.resolveTitleTopInset()
     })
@@ -447,13 +447,13 @@ export struct BrowserSamsungVideoAssistantPlayerOverlay {
 
   @Builder
   private buildCenterMediaControls() {
-    Row({ space: SAMSUNG_PLAYER_CENTER_CONTROL_GAP }) {
+    Row({ space: VIDEO_ASSISTANT_PLAYER_CENTER_CONTROL_GAP }) {
       this.buildTenSecondSeekButton(false)
 
       this.buildPlayerGlassIconButton(
         this.isPlaying() ? 'videoAssistant.pause' : 'videoAssistant.play',
-        SAMSUNG_PLAYER_CENTER_PLAY_ICON_SIZE,
-        SAMSUNG_PLAYER_CENTER_PLAY_SIZE,
+        VIDEO_ASSISTANT_PLAYER_CENTER_PLAY_ICON_SIZE,
+        VIDEO_ASSISTANT_PLAYER_CENTER_PLAY_SIZE,
         this.isPlaying() ? '暂停' : '播放',
         () => {
           this.togglePlayback();
@@ -474,11 +474,11 @@ export struct BrowserSamsungVideoAssistantPlayerOverlay {
   private buildTenSecondSeekButton(forward: boolean) {
     this.buildPlayerGlassIconButton(
       forward ? 'videoAssistant.seekForward10' : 'videoAssistant.seekBackward10',
-      SAMSUNG_PLAYER_SEEK_ICON_SIZE,
-      SAMSUNG_PLAYER_SEEK_BUTTON_SIZE,
+      VIDEO_ASSISTANT_PLAYER_SEEK_ICON_SIZE,
+      VIDEO_ASSISTANT_PLAYER_SEEK_BUTTON_SIZE,
       forward ? '快进 10 秒' : '后退 10 秒',
       () => {
-        this.seekBySeconds(forward ? SAMSUNG_PLAYER_SEEK_STEP_SECONDS : -SAMSUNG_PLAYER_SEEK_STEP_SECONDS);
+        this.seekBySeconds(forward ? VIDEO_ASSISTANT_PLAYER_SEEK_STEP_SECONDS : -VIDEO_ASSISTANT_PLAYER_SEEK_STEP_SECONDS);
       }
     )
   }
@@ -502,10 +502,10 @@ export struct BrowserSamsungVideoAssistantPlayerOverlay {
           .maxLines(1)
       }
       .width('100%')
-      .height(SAMSUNG_PLAYER_LANDSCAPE_PROGRESS_HEIGHT)
+      .height(VIDEO_ASSISTANT_PLAYER_LANDSCAPE_PROGRESS_HEIGHT)
       .padding({
-        left: SAMSUNG_PLAYER_PROGRESS_HORIZONTAL_INSET,
-        right: SAMSUNG_PLAYER_PROGRESS_HORIZONTAL_INSET,
+        left: VIDEO_ASSISTANT_PLAYER_PROGRESS_HORIZONTAL_INSET,
+        right: VIDEO_ASSISTANT_PLAYER_PROGRESS_HORIZONTAL_INSET,
         top: 4,
         bottom: 4
       })
@@ -530,10 +530,10 @@ export struct BrowserSamsungVideoAssistantPlayerOverlay {
         this.buildTimeline()
       }
       .width('100%')
-      .height(SAMSUNG_PLAYER_PORTRAIT_PROGRESS_HEIGHT)
+      .height(VIDEO_ASSISTANT_PLAYER_PORTRAIT_PROGRESS_HEIGHT)
       .padding({
-        left: SAMSUNG_PLAYER_PROGRESS_HORIZONTAL_INSET,
-        right: SAMSUNG_PLAYER_PROGRESS_HORIZONTAL_INSET,
+        left: VIDEO_ASSISTANT_PLAYER_PROGRESS_HORIZONTAL_INSET,
+        right: VIDEO_ASSISTANT_PLAYER_PROGRESS_HORIZONTAL_INSET,
         top: 4,
         bottom: 4
       })
@@ -566,8 +566,8 @@ export struct BrowserSamsungVideoAssistantPlayerOverlay {
     Row() {
       this.buildPlayerGlassIconButton(
         'videoAssistant.control.aspectRatio',
-        SAMSUNG_PLAYER_FEATURE_BUTTON_SIZE,
-        SAMSUNG_PLAYER_FEATURE_TOUCH_SIZE,
+        VIDEO_ASSISTANT_PLAYER_FEATURE_BUTTON_SIZE,
+        VIDEO_ASSISTANT_PLAYER_FEATURE_TOUCH_SIZE,
         '切换画面比例',
         () => {
           this.cycleVideoScaleMode();
@@ -576,8 +576,8 @@ export struct BrowserSamsungVideoAssistantPlayerOverlay {
 
       this.buildPlayerGlassIconButton(
         'settings.downloads',
-        SAMSUNG_PLAYER_FEATURE_BUTTON_SIZE,
-        SAMSUNG_PLAYER_FEATURE_TOUCH_SIZE,
+        VIDEO_ASSISTANT_PLAYER_FEATURE_BUTTON_SIZE,
+        VIDEO_ASSISTANT_PLAYER_FEATURE_TOUCH_SIZE,
         '下载当前视频',
         () => {
           this.speedPanelVisible = false;
@@ -588,8 +588,8 @@ export struct BrowserSamsungVideoAssistantPlayerOverlay {
 
       this.buildPlayerGlassIconButton(
         'videoAssistant.control.playbackSpeed',
-        SAMSUNG_PLAYER_FEATURE_BUTTON_SIZE,
-        SAMSUNG_PLAYER_FEATURE_TOUCH_SIZE,
+        VIDEO_ASSISTANT_PLAYER_FEATURE_BUTTON_SIZE,
+        VIDEO_ASSISTANT_PLAYER_FEATURE_TOUCH_SIZE,
         '播放速度',
         () => {
           this.togglePlaybackSpeedPanel();
@@ -598,8 +598,8 @@ export struct BrowserSamsungVideoAssistantPlayerOverlay {
 
       this.buildPlayerGlassIconButton(
         'videoAssistant.control.rotate',
-        SAMSUNG_PLAYER_FEATURE_BUTTON_SIZE,
-        SAMSUNG_PLAYER_FEATURE_TOUCH_SIZE,
+        VIDEO_ASSISTANT_PLAYER_FEATURE_BUTTON_SIZE,
+        VIDEO_ASSISTANT_PLAYER_FEATURE_TOUCH_SIZE,
         '旋转画面',
         () => {
           this.requestRotate();
@@ -608,8 +608,8 @@ export struct BrowserSamsungVideoAssistantPlayerOverlay {
 
       this.buildPlayerGlassIconButton(
         'videoAssistant.unlock',
-        SAMSUNG_PLAYER_FEATURE_BUTTON_SIZE,
-        SAMSUNG_PLAYER_FEATURE_TOUCH_SIZE,
+        VIDEO_ASSISTANT_PLAYER_FEATURE_BUTTON_SIZE,
+        VIDEO_ASSISTANT_PLAYER_FEATURE_TOUCH_SIZE,
         '锁定播放器控制',
         () => {
           this.controlsLocked = true;
@@ -686,7 +686,7 @@ export struct BrowserSamsungVideoAssistantPlayerOverlay {
       BrowserFloatingGlassMaterialSurface({
         surfaceWidth: this.resolvePlaybackSpeedPanelWidth(),
         surfaceHeight: this.resolvePlaybackSpeedPanelHeight(),
-        surfaceRadius: SAMSUNG_PLAYER_SPEED_DIALOG_CORNER_RADIUS,
+        surfaceRadius: VIDEO_ASSISTANT_PLAYER_SPEED_DIALOG_CORNER_RADIUS,
         tintColor: BROWSER_FLOATING_GLASS_MATERIAL_DARK_TINT
       }) {
         Column() {
@@ -697,13 +697,13 @@ export struct BrowserSamsungVideoAssistantPlayerOverlay {
               .fontColor(this.storedSpeedDialogTextColor)
           }
           .width('100%')
-          .height(SAMSUNG_PLAYER_SPEED_DIALOG_HEADER_HEIGHT)
+          .height(VIDEO_ASSISTANT_PLAYER_SPEED_DIALOG_HEADER_HEIGHT)
           .padding({ left: 20, right: 20 })
           .alignItems(VerticalAlign.Center)
 
           Scroll() {
             Column() {
-              ForEach(SAMSUNG_PLAYER_SPEED_OPTIONS, (rate: number) => {
+              ForEach(VIDEO_ASSISTANT_PLAYER_SPEED_OPTIONS, (rate: number) => {
                 this.buildPlaybackSpeedChoiceRow(rate)
               }, (rate: number) => rate.toString())
             }
@@ -720,7 +720,7 @@ export struct BrowserSamsungVideoAssistantPlayerOverlay {
     }
     .width(this.resolvePlaybackSpeedPanelWidth())
     .height(this.resolvePlaybackSpeedPanelHeight())
-    .borderRadius(SAMSUNG_PLAYER_SPEED_DIALOG_CORNER_RADIUS)
+    .borderRadius(VIDEO_ASSISTANT_PLAYER_SPEED_DIALOG_CORNER_RADIUS)
     .position({
       x: this.resolvePlaybackSpeedPanelLeft(),
       y: this.resolvePlaybackSpeedPanelTop()
@@ -746,7 +746,7 @@ export struct BrowserSamsungVideoAssistantPlayerOverlay {
       }
     }
     .width('100%')
-    .height(SAMSUNG_PLAYER_SPEED_DIALOG_ROW_HEIGHT)
+    .height(VIDEO_ASSISTANT_PLAYER_SPEED_DIALOG_ROW_HEIGHT)
     .padding({ left: 20, right: 16 })
     .alignItems(VerticalAlign.Center)
     .backgroundColor(this.playerTransparentColor)
@@ -760,8 +760,8 @@ export struct BrowserSamsungVideoAssistantPlayerOverlay {
     Stack() {
       this.buildPlayerGlassIconButton(
         'videoAssistant.lock',
-        SAMSUNG_PLAYER_FEATURE_BUTTON_SIZE,
-        SAMSUNG_PLAYER_FEATURE_TOUCH_SIZE,
+        VIDEO_ASSISTANT_PLAYER_FEATURE_BUTTON_SIZE,
+        VIDEO_ASSISTANT_PLAYER_FEATURE_TOUCH_SIZE,
         '解锁播放器控制',
         () => {
           this.controlsLocked = false;
@@ -769,12 +769,12 @@ export struct BrowserSamsungVideoAssistantPlayerOverlay {
         }
       )
     }
-    .width(SAMSUNG_PLAYER_FEATURE_TOUCH_SIZE)
-    .height(SAMSUNG_PLAYER_FEATURE_TOUCH_SIZE)
+    .width(VIDEO_ASSISTANT_PLAYER_FEATURE_TOUCH_SIZE)
+    .height(VIDEO_ASSISTANT_PLAYER_FEATURE_TOUCH_SIZE)
     .position({
-      x: Math.max(0, this.stageWidth - SAMSUNG_PLAYER_FEATURE_TOUCH_SIZE - this.resolveBottomFeatureInset()),
+      x: Math.max(0, this.stageWidth - VIDEO_ASSISTANT_PLAYER_FEATURE_TOUCH_SIZE - this.resolveBottomFeatureInset()),
       y: Math.max(0, this.resolveBottomControlRegionTop() +
-        (this.resolveBottomControlRegionHeight() - SAMSUNG_PLAYER_FEATURE_TOUCH_SIZE) / 2)
+        (this.resolveBottomControlRegionHeight() - VIDEO_ASSISTANT_PLAYER_FEATURE_TOUCH_SIZE) / 2)
     })
     .zIndex(8)
   }
@@ -1029,10 +1029,10 @@ export struct BrowserSamsungVideoAssistantPlayerOverlay {
     return Math.min(
       duration,
       Math.max(
-        SAMSUNG_PLAYER_SEEK_GESTURE_MIN_RANGE_SECONDS,
+        VIDEO_ASSISTANT_PLAYER_SEEK_GESTURE_MIN_RANGE_SECONDS,
         Math.min(
-          SAMSUNG_PLAYER_SEEK_GESTURE_MAX_RANGE_SECONDS,
-          duration * SAMSUNG_PLAYER_SEEK_GESTURE_DURATION_FACTOR
+          VIDEO_ASSISTANT_PLAYER_SEEK_GESTURE_MAX_RANGE_SECONDS,
+          duration * VIDEO_ASSISTANT_PLAYER_SEEK_GESTURE_DURATION_FACTOR
         )
       )
     );
@@ -1078,7 +1078,7 @@ export struct BrowserSamsungVideoAssistantPlayerOverlay {
       return;
     }
     const nextValue = this.clampSystemControlValue(
-      this.systemControlDragStartValue - offsetY / SAMSUNG_PLAYER_SYSTEM_CONTROL_DRAG_RANGE
+      this.systemControlDragStartValue - offsetY / VIDEO_ASSISTANT_PLAYER_SYSTEM_CONTROL_DRAG_RANGE
     );
     this.updateSystemControlGestureFeedback(nextValue);
     this.systemControlGestureValue = nextValue;
@@ -1092,7 +1092,7 @@ export struct BrowserSamsungVideoAssistantPlayerOverlay {
     const offsetY = Number(event.offsetY);
     if (Number.isFinite(offsetY)) {
       const finalValue = this.clampSystemControlValue(
-        this.systemControlDragStartValue - offsetY / SAMSUNG_PLAYER_SYSTEM_CONTROL_DRAG_RANGE
+        this.systemControlDragStartValue - offsetY / VIDEO_ASSISTANT_PLAYER_SYSTEM_CONTROL_DRAG_RANGE
       );
       this.updateSystemControlGestureFeedback(finalValue);
       this.systemControlGestureValue = finalValue;
@@ -1121,7 +1121,7 @@ export struct BrowserSamsungVideoAssistantPlayerOverlay {
       return;
     }
     const now = Date.now();
-    if (!force && now - this.systemControlLastAppliedAt < SAMSUNG_PLAYER_SYSTEM_CONTROL_APPLY_INTERVAL_MS) {
+    if (!force && now - this.systemControlLastAppliedAt < VIDEO_ASSISTANT_PLAYER_SYSTEM_CONTROL_APPLY_INTERVAL_MS) {
       return;
     }
     this.systemControlLastAppliedAt = now;
@@ -1138,7 +1138,7 @@ export struct BrowserSamsungVideoAssistantPlayerOverlay {
       }
       this.systemControlGestureKind = '';
       this.systemControlDismissTimer = -1;
-    }, SAMSUNG_PLAYER_SYSTEM_CONTROL_DISMISS_MS);
+    }, VIDEO_ASSISTANT_PLAYER_SYSTEM_CONTROL_DISMISS_MS);
   }
 
   private clearSystemControlDismissTimer(): void {
@@ -1164,7 +1164,7 @@ export struct BrowserSamsungVideoAssistantPlayerOverlay {
     if (this.systemControlGestureKind === 'brightness') {
       this.systemControlIconRotationAngle =
         (normalizedValue - this.systemControlDragStartValue) *
-        SAMSUNG_PLAYER_SYSTEM_CONTROL_ROTATION_DEGREES;
+        VIDEO_ASSISTANT_PLAYER_SYSTEM_CONTROL_ROTATION_DEGREES;
     }
     const nextStep = this.resolveSystemControlHapticStep(normalizedValue);
     if (nextStep === this.systemControlLastHapticStep) {
@@ -1172,13 +1172,13 @@ export struct BrowserSamsungVideoAssistantPlayerOverlay {
     }
     this.systemControlLastHapticStep = nextStep;
     const now = Date.now();
-    if (now - this.systemControlLastHapticAt < SAMSUNG_PLAYER_SYSTEM_CONTROL_HAPTIC_MIN_INTERVAL_MS) {
+    if (now - this.systemControlLastHapticAt < VIDEO_ASSISTANT_PLAYER_SYSTEM_CONTROL_HAPTIC_MIN_INTERVAL_MS) {
       return;
     }
     this.systemControlLastHapticAt = now;
     vibrator.startVibration({
       type: 'time',
-      duration: SAMSUNG_PLAYER_SYSTEM_CONTROL_HAPTIC_DURATION_MS
+      duration: VIDEO_ASSISTANT_PLAYER_SYSTEM_CONTROL_HAPTIC_DURATION_MS
     }, {
       usage: 'touch'
     }).catch((_error: Error) => {
@@ -1187,16 +1187,16 @@ export struct BrowserSamsungVideoAssistantPlayerOverlay {
 
   private resolveSystemControlHapticStep(value: number): number {
     return Math.floor(
-      this.clampSystemControlValue(value) * SAMSUNG_PLAYER_SYSTEM_CONTROL_HAPTIC_STEP_COUNT + 0.000001
+      this.clampSystemControlValue(value) * VIDEO_ASSISTANT_PLAYER_SYSTEM_CONTROL_HAPTIC_STEP_COUNT + 0.000001
     );
   }
 
   private resolveSystemControlIndicatorHeight(): number {
     return Math.max(
-      SAMSUNG_PLAYER_SYSTEM_CONTROL_MIN_HEIGHT,
+      VIDEO_ASSISTANT_PLAYER_SYSTEM_CONTROL_MIN_HEIGHT,
       Math.min(
-        SAMSUNG_PLAYER_SYSTEM_CONTROL_MAX_HEIGHT,
-        this.stageHeight - SAMSUNG_PLAYER_SYSTEM_CONTROL_VERTICAL_INSET * 2
+        VIDEO_ASSISTANT_PLAYER_SYSTEM_CONTROL_MAX_HEIGHT,
+        this.stageHeight - VIDEO_ASSISTANT_PLAYER_SYSTEM_CONTROL_VERTICAL_INSET * 2
       )
     );
   }
@@ -1211,14 +1211,14 @@ export struct BrowserSamsungVideoAssistantPlayerOverlay {
     if (this.systemControlGestureKind === 'brightness') {
       return Math.max(
         0,
-        centerX - SAMSUNG_PLAYER_SYSTEM_CONTROL_CENTER_GAP - SAMSUNG_PLAYER_SYSTEM_CONTROL_WIDTH
+        centerX - VIDEO_ASSISTANT_PLAYER_SYSTEM_CONTROL_CENTER_GAP - VIDEO_ASSISTANT_PLAYER_SYSTEM_CONTROL_WIDTH
       );
     }
     return Math.max(
       0,
       Math.min(
-        this.stageWidth - SAMSUNG_PLAYER_SYSTEM_CONTROL_WIDTH,
-        centerX + SAMSUNG_PLAYER_SYSTEM_CONTROL_CENTER_GAP
+        this.stageWidth - VIDEO_ASSISTANT_PLAYER_SYSTEM_CONTROL_WIDTH,
+        centerX + VIDEO_ASSISTANT_PLAYER_SYSTEM_CONTROL_CENTER_GAP
       )
     );
   }
@@ -1260,12 +1260,12 @@ export struct BrowserSamsungVideoAssistantPlayerOverlay {
       this.webLiveTransitionPending) {
       return;
     }
-    const restoreRate = Math.max(SAMSUNG_PLAYER_TEMPORARY_FAST_PLAYBACK_MIN_RATE, Math.min(
-      SAMSUNG_PLAYER_TEMPORARY_FAST_PLAYBACK_MAX_RATE,
+    const restoreRate = Math.max(VIDEO_ASSISTANT_PLAYER_TEMPORARY_FAST_PLAYBACK_MIN_RATE, Math.min(
+      VIDEO_ASSISTANT_PLAYER_TEMPORARY_FAST_PLAYBACK_MAX_RATE,
       this.playbackSpeedRate
     ));
-    const temporaryRate = Math.max(SAMSUNG_PLAYER_TEMPORARY_FAST_PLAYBACK_MIN_RATE, Math.min(
-      SAMSUNG_PLAYER_TEMPORARY_FAST_PLAYBACK_MAX_RATE,
+    const temporaryRate = Math.max(VIDEO_ASSISTANT_PLAYER_TEMPORARY_FAST_PLAYBACK_MIN_RATE, Math.min(
+      VIDEO_ASSISTANT_PLAYER_TEMPORARY_FAST_PLAYBACK_MAX_RATE,
       restoreRate * 2
     ));
     this.temporaryFastPlaybackRestoreRate = restoreRate;
@@ -1297,9 +1297,9 @@ export struct BrowserSamsungVideoAssistantPlayerOverlay {
     if (!Number.isFinite(offsetX)) {
       return;
     }
-    const steps = Math.round(offsetX / SAMSUNG_PLAYER_TEMPORARY_FAST_PLAYBACK_RATE_STEP_DISTANCE);
+    const steps = Math.round(offsetX / VIDEO_ASSISTANT_PLAYER_TEMPORARY_FAST_PLAYBACK_RATE_STEP_DISTANCE);
     const nextRate = this.normalizeTemporaryFastPlaybackRate(
-      this.temporaryFastPlaybackDragStartRate + steps * SAMSUNG_PLAYER_TEMPORARY_FAST_PLAYBACK_RATE_STEP
+      this.temporaryFastPlaybackDragStartRate + steps * VIDEO_ASSISTANT_PLAYER_TEMPORARY_FAST_PLAYBACK_RATE_STEP
     );
     if (Math.abs(nextRate - this.temporaryFastPlaybackRate) < 0.001) {
       return;
@@ -1310,14 +1310,14 @@ export struct BrowserSamsungVideoAssistantPlayerOverlay {
 
   private normalizeTemporaryFastPlaybackRate(rate: number): number {
     if (!Number.isFinite(rate)) {
-      return SAMSUNG_PLAYER_TEMPORARY_FAST_PLAYBACK_MIN_RATE;
+      return VIDEO_ASSISTANT_PLAYER_TEMPORARY_FAST_PLAYBACK_MIN_RATE;
     }
     const clampedRate = Math.max(
-      SAMSUNG_PLAYER_TEMPORARY_FAST_PLAYBACK_MIN_RATE,
-      Math.min(SAMSUNG_PLAYER_TEMPORARY_FAST_PLAYBACK_MAX_RATE, rate)
+      VIDEO_ASSISTANT_PLAYER_TEMPORARY_FAST_PLAYBACK_MIN_RATE,
+      Math.min(VIDEO_ASSISTANT_PLAYER_TEMPORARY_FAST_PLAYBACK_MAX_RATE, rate)
     );
-    return Math.round(clampedRate / SAMSUNG_PLAYER_TEMPORARY_FAST_PLAYBACK_RATE_STEP) *
-      SAMSUNG_PLAYER_TEMPORARY_FAST_PLAYBACK_RATE_STEP;
+    return Math.round(clampedRate / VIDEO_ASSISTANT_PLAYER_TEMPORARY_FAST_PLAYBACK_RATE_STEP) *
+      VIDEO_ASSISTANT_PLAYER_TEMPORARY_FAST_PLAYBACK_RATE_STEP;
   }
 
   private seekBySeconds(deltaSeconds: number): void {
@@ -1412,12 +1412,12 @@ export struct BrowserSamsungVideoAssistantPlayerOverlay {
       this.mouseMoveAnchorY = nextY;
       return;
     }
-    if (Math.abs(nextX - this.mouseMoveAnchorX) < SAMSUNG_PLAYER_MOUSE_MOVE_MIN_DISTANCE &&
-      Math.abs(nextY - this.mouseMoveAnchorY) < SAMSUNG_PLAYER_MOUSE_MOVE_MIN_DISTANCE) {
+    if (Math.abs(nextX - this.mouseMoveAnchorX) < VIDEO_ASSISTANT_PLAYER_MOUSE_MOVE_MIN_DISTANCE &&
+      Math.abs(nextY - this.mouseMoveAnchorY) < VIDEO_ASSISTANT_PLAYER_MOUSE_MOVE_MIN_DISTANCE) {
       return;
     }
     const now = Date.now();
-    if (this.controlsVisible && now - this.mouseControlsPokeAt < SAMSUNG_PLAYER_MOUSE_POKE_THROTTLE_MS) {
+    if (this.controlsVisible && now - this.mouseControlsPokeAt < VIDEO_ASSISTANT_PLAYER_MOUSE_POKE_THROTTLE_MS) {
       return;
     }
     this.mouseMoveAnchorX = nextX;
@@ -1474,7 +1474,7 @@ export struct BrowserSamsungVideoAssistantPlayerOverlay {
       }
       this.controlsVisible = false;
       this.controlsHideTimer = -1;
-    }, SAMSUNG_PLAYER_CONTROLS_AUTO_HIDE_MS);
+    }, VIDEO_ASSISTANT_PLAYER_CONTROLS_AUTO_HIDE_MS);
   }
 
   private clearControlsHideTimer(): void {
@@ -1501,7 +1501,7 @@ export struct BrowserSamsungVideoAssistantPlayerOverlay {
       }
       this.loadingIndicatorTimer = -1;
       this.loadingIndicatorVisible = true;
-    }, SAMSUNG_PLAYER_LOADING_INDICATOR_DELAY_MS);
+    }, VIDEO_ASSISTANT_PLAYER_LOADING_INDICATOR_DELAY_MS);
   }
 
   private clearLoadingIndicatorTimer(): void {
@@ -1542,27 +1542,27 @@ export struct BrowserSamsungVideoAssistantPlayerOverlay {
   }
 
   private resolveTopFeatureLayerHeight(): number {
-    return this.resolveTitleTopInset() + SAMSUNG_PLAYER_TITLE_HEIGHT;
+    return this.resolveTitleTopInset() + VIDEO_ASSISTANT_PLAYER_TITLE_HEIGHT;
   }
 
   private resolveTitleTopInset(): number {
     const safeInset = Math.max(0, Math.ceil(this.storedTopSafeInsetVp));
-    return Math.max(SAMSUNG_PLAYER_TITLE_MIN_TOP_INSET, safeInset + SAMSUNG_PLAYER_TITLE_SAFE_TOP_GAP);
+    return Math.max(VIDEO_ASSISTANT_PLAYER_TITLE_MIN_TOP_INSET, safeInset + VIDEO_ASSISTANT_PLAYER_TITLE_SAFE_TOP_GAP);
   }
 
   private resolveCenterControlsLeft(): number {
-    const width = SAMSUNG_PLAYER_SEEK_BUTTON_SIZE * 2 + SAMSUNG_PLAYER_CENTER_PLAY_SIZE +
-      SAMSUNG_PLAYER_CENTER_CONTROL_GAP * 2;
+    const width = VIDEO_ASSISTANT_PLAYER_SEEK_BUTTON_SIZE * 2 + VIDEO_ASSISTANT_PLAYER_CENTER_PLAY_SIZE +
+      VIDEO_ASSISTANT_PLAYER_CENTER_CONTROL_GAP * 2;
     return Math.max(0, (this.stageWidth - width) / 2);
   }
 
   private resolveCenterControlsTop(): number {
-    return Math.max(0, (this.stageHeight - SAMSUNG_PLAYER_CENTER_PLAY_SIZE) / 2);
+    return Math.max(0, (this.stageHeight - VIDEO_ASSISTANT_PLAYER_CENTER_PLAY_SIZE) / 2);
   }
 
   private resolveBottomControlRegionHeight(): number {
-    return this.isLandscape() ? SAMSUNG_PLAYER_LANDSCAPE_FEATURE_HEIGHT :
-      SAMSUNG_PLAYER_PORTRAIT_FEATURE_HEIGHT;
+    return this.isLandscape() ? VIDEO_ASSISTANT_PLAYER_LANDSCAPE_FEATURE_HEIGHT :
+      VIDEO_ASSISTANT_PLAYER_PORTRAIT_FEATURE_HEIGHT;
   }
 
   private resolveBottomControlRegionTop(): number {
@@ -1574,13 +1574,13 @@ export struct BrowserSamsungVideoAssistantPlayerOverlay {
   }
 
   private resolveBottomInset(): number {
-    return this.isLandscape() ? SAMSUNG_PLAYER_LANDSCAPE_BOTTOM_INSET :
-      SAMSUNG_PLAYER_PORTRAIT_BOTTOM_INSET;
+    return this.isLandscape() ? VIDEO_ASSISTANT_PLAYER_LANDSCAPE_BOTTOM_INSET :
+      VIDEO_ASSISTANT_PLAYER_PORTRAIT_BOTTOM_INSET;
   }
 
   private resolveBottomSectionGap(): number {
-    return this.isLandscape() ? SAMSUNG_PLAYER_LANDSCAPE_SECTION_GAP :
-      SAMSUNG_PLAYER_PORTRAIT_SECTION_GAP;
+    return this.isLandscape() ? VIDEO_ASSISTANT_PLAYER_LANDSCAPE_SECTION_GAP :
+      VIDEO_ASSISTANT_PLAYER_PORTRAIT_SECTION_GAP;
   }
 
   private resolvePlaybackSpeedPanelLeft(): number {
@@ -1593,15 +1593,15 @@ export struct BrowserSamsungVideoAssistantPlayerOverlay {
 
   private resolvePlaybackSpeedPanelWidth(): number {
     return Math.min(
-      SAMSUNG_PLAYER_SPEED_DIALOG_MAX_WIDTH,
-      Math.max(240, this.stageWidth - SAMSUNG_PLAYER_SPEED_DIALOG_EDGE_INSET * 2)
+      VIDEO_ASSISTANT_PLAYER_SPEED_DIALOG_MAX_WIDTH,
+      Math.max(240, this.stageWidth - VIDEO_ASSISTANT_PLAYER_SPEED_DIALOG_EDGE_INSET * 2)
     );
   }
 
   private resolvePlaybackSpeedPanelHeight(): number {
     return Math.min(
-      SAMSUNG_PLAYER_SPEED_DIALOG_MAX_HEIGHT,
-      Math.max(220, this.stageHeight - SAMSUNG_PLAYER_SPEED_DIALOG_EDGE_INSET * 2)
+      VIDEO_ASSISTANT_PLAYER_SPEED_DIALOG_MAX_HEIGHT,
+      Math.max(220, this.stageHeight - VIDEO_ASSISTANT_PLAYER_SPEED_DIALOG_EDGE_INSET * 2)
     );
   }
 
@@ -1637,8 +1637,8 @@ export struct BrowserSamsungVideoAssistantPlayerOverlay {
   }
 
   private resolveProgressLayerTop(): number {
-    const height = this.isLandscape() ? SAMSUNG_PLAYER_LANDSCAPE_PROGRESS_HEIGHT :
-      SAMSUNG_PLAYER_PORTRAIT_PROGRESS_HEIGHT;
+    const height = this.isLandscape() ? VIDEO_ASSISTANT_PLAYER_LANDSCAPE_PROGRESS_HEIGHT :
+      VIDEO_ASSISTANT_PLAYER_PORTRAIT_PROGRESS_HEIGHT;
     return Math.max(0, this.resolveBottomControlRegionTop() - this.resolveBottomSectionGap() - height);
   }
 

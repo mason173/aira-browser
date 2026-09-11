@@ -501,8 +501,8 @@ WEB_PAGE_TOOLS_COORDINATOR_REL="AiraBrowser/entry/src/main/ets/core/browser/Brow
 WEB_PAGE_TOOLS_COORDINATOR="${REPO_ROOT}/${WEB_PAGE_TOOLS_COORDINATOR_REL}"
 WEB_PAGE_TOOLS_OVERLAY_HOST_REL="AiraBrowser/entry/src/main/ets/app/components/browser/BrowserWebPageToolsOverlayHost.ets"
 WEB_PAGE_TOOLS_OVERLAY_HOST="${REPO_ROOT}/${WEB_PAGE_TOOLS_OVERLAY_HOST_REL}"
-SAMSUNG_VIDEO_ASSISTANT_PLAYER_OVERLAY_REL="AiraBrowser/entry/src/main/ets/app/components/browser/BrowserSamsungVideoAssistantPlayerOverlay.ets"
-SAMSUNG_VIDEO_ASSISTANT_PLAYER_OVERLAY="${REPO_ROOT}/${SAMSUNG_VIDEO_ASSISTANT_PLAYER_OVERLAY_REL}"
+VIDEO_ASSISTANT_PLAYER_OVERLAY_REL="AiraBrowser/entry/src/main/ets/app/components/browser/BrowserVideoAssistantPlayerOverlay.ets"
+VIDEO_ASSISTANT_PLAYER_OVERLAY="${REPO_ROOT}/${VIDEO_ASSISTANT_PLAYER_OVERLAY_REL}"
 ARK_WEB_MEDIA_TAKEOVER_COORDINATOR_REL="AiraBrowser/entry/src/main/ets/core/browser/media/BrowserArkWebMediaTakeoverCoordinator.ets"
 ARK_WEB_MEDIA_TAKEOVER_COORDINATOR="${REPO_ROOT}/${ARK_WEB_MEDIA_TAKEOVER_COORDINATOR_REL}"
 WEB_ERROR_LAYER_REL="AiraBrowser/entry/src/main/ets/app/components/browser/BrowserWebErrorLayer.ets"
@@ -4711,18 +4711,18 @@ check_file_not_contains_rule "${SHELL_PAGE}" "${SHELL_PAGE_REL}" \
   "BrowserShellPage must forward Web Page Tools Overlay actions through one owner entry."
 check_file_contains_rule "${ARK_WEB_MEDIA_TAKEOVER_COORDINATOR}" "${ARK_WEB_MEDIA_TAKEOVER_COORDINATOR_REL}" \
   'handleAssistantPlayerAction\(' \
-  "Samsung Video Assistant actions must enter through the ArkWeb Media Takeover owner."
-check_file_contains_rule "${SAMSUNG_VIDEO_ASSISTANT_PLAYER_OVERLAY}" \
-  "${SAMSUNG_VIDEO_ASSISTANT_PLAYER_OVERLAY_REL}" \
+  "Video Assistant actions must enter through the ArkWeb Media Takeover owner."
+check_file_contains_rule "${VIDEO_ASSISTANT_PLAYER_OVERLAY}" \
+  "${VIDEO_ASSISTANT_PLAYER_OVERLAY_REL}" \
   'onAction: \(action: BrowserArkWebMediaAssistantPlayerAction\)' \
-  "Samsung Video Assistant Overlay must emit one typed owner action callback."
-check_file_not_contains_rule "${SAMSUNG_VIDEO_ASSISTANT_PLAYER_OVERLAY}" \
-  "${SAMSUNG_VIDEO_ASSISTANT_PLAYER_OVERLAY_REL}" \
+  "Video Assistant Overlay must emit one typed owner action callback."
+check_file_not_contains_rule "${VIDEO_ASSISTANT_PLAYER_OVERLAY}" \
+  "${VIDEO_ASSISTANT_PLAYER_OVERLAY_REL}" \
   '^  (onClosePlayer|onRequestRotate|onWebLiveCommand):' \
-  "Samsung Video Assistant Overlay must not regain peer player callbacks."
+  "Video Assistant Overlay must not regain peer player callbacks."
 check_file_not_contains_rule "${SHELL_PAGE}" "${SHELL_PAGE_REL}" \
   'arkWebMediaTakeoverCoordinator\.(closeAssistantPlayer|requestAssistantOrientation|executeWebLiveCommand)\(' \
-  "BrowserShellPage must forward Samsung Video Assistant actions through one owner entry."
+  "BrowserShellPage must forward Video Assistant actions through one owner entry."
 check_file_contains_rule "${WEB_PAGE_LIFECYCLE_COORDINATOR}" "${WEB_PAGE_LIFECYCLE_COORDINATOR_REL}" \
   'handleActiveLoadErrorSurfaceAction\(action: BrowserWebLoadErrorSurfaceAction\): void' \
   "Web Error surface actions must enter through the Web Page Lifecycle owner."

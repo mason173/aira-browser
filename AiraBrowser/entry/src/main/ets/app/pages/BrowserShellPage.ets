@@ -360,8 +360,8 @@ import {
 } from '../components/browser/BrowserToolbarSystemSheetContent';
 import { BrowserHlsTakeoverOverlay } from '../components/browser/BrowserHlsTakeoverSheet';
 import {
-  BrowserSamsungVideoAssistantPlayerOverlay
-} from '../components/browser/BrowserSamsungVideoAssistantPlayerOverlay';
+  BrowserVideoAssistantPlayerOverlay
+} from '../components/browser/BrowserVideoAssistantPlayerOverlay';
 import {
   BrowserWindowOpenApplicationCoordinator,
   BrowserWindowOpenApplicationHost
@@ -6069,7 +6069,7 @@ struct BrowserShellPage {
       }
 
       if (this.isAssistantVideoTakeoverActive()) {
-        this.buildSamsungVideoAssistantPlayerOverlay()
+        this.buildVideoAssistantPlayerOverlay()
       }
 
       if (this.airaCloudBookmarkV4BootstrapState.visible) {
@@ -7501,8 +7501,8 @@ struct BrowserShellPage {
   }
 
   @Builder
-  private buildSamsungVideoAssistantPlayerOverlay() {
-    BrowserSamsungVideoAssistantPlayerOverlay({
+  private buildVideoAssistantPlayerOverlay() {
+    BrowserVideoAssistantPlayerOverlay({
       playerState: this.arkWebMediaTakeoverCoordinator.getAssistantPlayerState(this.arkWebMediaTakeoverRevision),
       webLiveTransitionPending: this.arkWebMediaTakeoverCoordinator.isWebLiveAssistantTransitionPending(
         this.arkWebMediaTakeoverRevision
