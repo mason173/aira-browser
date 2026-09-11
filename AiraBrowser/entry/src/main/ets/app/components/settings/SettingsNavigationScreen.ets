@@ -134,38 +134,42 @@ export struct SettingsNavigationScreen {
         this.onClose?.();
       }
     }) {
-      Row() {
-        HdsNavigation(this.navigationProjection.pathStack) {
-          this.buildDirectoryPanel()
+      if (this.isTwoPaneMode()) {
+        Row() {
+          HdsNavigation(this.navigationProjection.pathStack) {
+            this.buildDirectoryPanel()
+          }
+          .width('100%')
+          .height('100%')
+          .mode(this.resolveNavigationMode())
+          .hideTitleBar(true)
+          .hideToolBar(true)
+          .hideBackButton(true)
+          .hideNavBar(false)
+          .navBarWidth(this.resolveNavigationBarWidth())
+          .navBarWidthRange({
+            minWidth: this.resolveNavigationBarWidth(),
+            maxWidth: this.resolveNavigationBarWidth()
+          })
+          .divider(null)
+          .enableDragBar(false)
+          .enableModeChangeAnimation(false)
+          .recoverable(false)
+          .navDestination(this.buildNavigationDestination)
         }
         .width('100%')
         .height('100%')
-        .mode(this.resolveNavigationMode())
-        .hideTitleBar(true)
-        .hideToolBar(true)
-        .hideBackButton(true)
-        .hideNavBar(false)
-        .navBarWidth(this.resolveNavigationBarWidth())
-        .navBarWidthRange({
-          minWidth: this.resolveNavigationBarWidth(),
-          maxWidth: this.resolveNavigationBarWidth()
+        .padding({
+          left: this.resolveShellHorizontalInset(),
+          right: this.resolveShellHorizontalInset(),
+          bottom: this.resolveShellBottomInset()
         })
-        .divider(null)
-        .enableDragBar(false)
-        .enableModeChangeAnimation(false)
-        .recoverable(false)
-        .navDestination(this.buildNavigationDestination)
+        .justifyContent(FlexAlign.Center)
+        .alignItems(VerticalAlign.Top)
+        .zIndex(0)
+      } else {
+        this.buildDirectoryPanel()
       }
-      .width('100%')
-      .height('100%')
-      .padding({
-        left: this.resolveShellHorizontalInset(),
-        right: this.resolveShellHorizontalInset(),
-        bottom: this.resolveShellBottomInset()
-      })
-      .justifyContent(FlexAlign.Center)
-      .alignItems(VerticalAlign.Top)
-      .zIndex(0)
     }
   }
 
