@@ -83,6 +83,7 @@ import {
 } from './SyncFirstActivationItemsCoordinator';
 import { SyncWebdavProviderRole } from './SyncWebdavConfigViewModel';
 import { SyncFailurePresentationService } from './SyncFailurePresentationService';
+import { WebNetworkAvailabilityService } from '../../services/web/WebNetworkAvailabilityService';
 
 export type SyncExperienceActionOutcomeType =
   | 'completed'
@@ -172,6 +173,7 @@ interface SyncExperienceContext {
 
 export class SyncExperienceCoordinator implements AiraCloudBookmarkV4BootstrapTransitionDomain {
   private syncFailurePresentationService: SyncFailurePresentationService = new SyncFailurePresentationService();
+  private networkAvailabilityService: WebNetworkAvailabilityService = new WebNetworkAvailabilityService();
   private syncService: SyncService;
   private syncConfigStore: AiraSyncConfigStore;
   private personalizationConfigStore: PersonalizationSyncConfigStore;
@@ -1035,6 +1037,16 @@ export class SyncExperienceCoordinator implements AiraCloudBookmarkV4BootstrapTr
           type: 'blocked',
           title: '同步已暂停',
           message: '重新开启同步后再试。'
+        };
+      }
+      const networkSnapshot = this.networkAvailabilityService.refresh();
+      if (networkSnapshot.reliable && !networkSnapshot.available) {
+        return {
+          type: 'blocked',
+          title: '当前没有网络连接',
+          message: isBackup
+            ? '设备当前没有可用的网络连接，本次备份没有执行。请连接网络后再试。'
+            : '设备当前没有可用的网络连接，本次同步没有执行。请连接网络后再试。'
         };
       }
       const messages: string[] = [];
