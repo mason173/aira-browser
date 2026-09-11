@@ -2107,7 +2107,7 @@ struct BrowserShellPage {
         tabSequence: this.tabSequence,
         tabsOverviewMounted: this.showTabsSheet,
         homeSurfaceVisible: this.showHomePage,
-        keepHomeResident: this.shouldKeepCustomHomepageWebResident(),
+        keepHomeResident: this.shouldKeepCustomHomepageWebResident() || this.homeSurfacePaintedOnce,
         currentTabPrivate: this.tabScopedEventContextCoordinator.isCurrentBoundaryPrivate(),
         activeTabId: this.activeTabId,
         homeUrl: HOME_TAB_URL,
@@ -5210,6 +5210,11 @@ struct BrowserShellPage {
   @State @Watch('reconcileShellTabPresentation') showHomePage: boolean = true;
   @State coldStartDeferredSurfaceContentMounted: boolean = false;
   private coldStartDeferredContentMountGeneration: number = 0;
+  // Once the Home surface has painted, keep it resident behind web tabs so opening
+  // the tabs overview never rebuilds it (that rebuild is ~100ms on the entry frame).
+  // Deferring until the first Home paint avoids adding that cost to a cold start
+  // that restores straight into a web tab.
+  private homeSurfacePaintedOnce: boolean = false;
   @State homeWallpaperState: HomeWallpaperPresentationState = DEFAULT_HOME_WALLPAPER_PRESENTATION_STATE;
   @State @Watch('syncRootBottomPanelBackAvailability') canGoBack: boolean = false;
   @State canGoForward: boolean = false;
@@ -6287,6 +6292,9 @@ struct BrowserShellPage {
   }
 
   private reconcileShellTabPresentation(): void {
+    if (this.showHomePage) {
+      this.homeSurfacePaintedOnce = true;
+    }
     const presentation = this.browserShellPresentationOperations?.reconcileTabs(this.tabs, this.activeTabId);
     this.browserShellRouteCoordinator.reconcilePhoneNativeTabHandoff(
       presentation?.surface,
