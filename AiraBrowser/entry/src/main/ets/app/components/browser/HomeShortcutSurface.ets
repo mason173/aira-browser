@@ -304,7 +304,8 @@ export struct HomeShortcutSurface {
       surfaceWidth: size,
       surfaceHeight: size,
       surfaceRadius: this.resolveShortcutMaterialRadius(size),
-      tintColor: resolveBrowserHomeShortcutMaterialTintForMode(this.storedResolvedThemeMode),
+      fallbackColor: this.resolveShortcutTileColor(),
+      backgroundBlurEnabled: false,
       materialBorderWidth: HOME_SHORTCUT_ICON_BORDER_WIDTH,
       materialBorderColor: this.storedOutlineColor
     }) {
@@ -372,7 +373,8 @@ export struct HomeShortcutSurface {
       surfaceWidth: size,
       surfaceHeight: size,
       surfaceRadius: this.resolveShortcutMaterialRadius(size),
-      tintColor: resolveBrowserHomeShortcutMaterialTintForMode(this.storedResolvedThemeMode),
+      fallbackColor: this.resolveShortcutTileColor(),
+      backgroundBlurEnabled: false,
       materialBorderWidth: HOME_SHORTCUT_ICON_BORDER_WIDTH,
       materialBorderColor: this.storedOutlineColor
     }) {
@@ -390,7 +392,8 @@ export struct HomeShortcutSurface {
       surfaceWidth: size,
       surfaceHeight: size,
       surfaceRadius: this.resolveShortcutMaterialRadius(size),
-      tintColor: resolveBrowserHomeShortcutMaterialTintForMode(this.storedResolvedThemeMode),
+      fallbackColor: this.resolveShortcutTileColor(),
+      backgroundBlurEnabled: false,
       materialBorderWidth: HOME_SHORTCUT_ICON_BORDER_WIDTH,
       materialBorderColor: this.storedOutlineColor
     }) {
@@ -661,6 +664,13 @@ export struct HomeShortcutSurface {
 
   private resolveShortcutMaterialRadius(size: number): number {
     return Math.max(0, Math.round(size * this.storedSiteIconCornerRadiusRatio));
+  }
+
+  // Home grid tiles are opaque solid surfaces, not blurred glass: the wallpaper
+  // shows through neither the tile nor a per-icon backdrop blur, which keeps a
+  // whole grid of icons off the scroll path's blur cost.
+  private resolveShortcutTileColor(): ResourceColor {
+    return this.storedFloatingSurfaceColor;
   }
 
   private runAfterContextMenuDismiss(action: () => void): void {
