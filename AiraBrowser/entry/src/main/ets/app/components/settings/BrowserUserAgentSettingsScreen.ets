@@ -425,13 +425,7 @@ export struct BrowserUserAgentSettingsScreen {
             this.buildCustomUserAgentScrollContent(BROWSER_IMMERSIVE_SHEET_HEADER_CONTENT_TOP_INSET)
           },
           header: () => {
-            BrowserFeatureSheetHeader({
-              title: '自定义 UA',
-              leadingAccessibilityLabel: '关闭',
-              onLeadingAction: () => {
-                this.customUserAgentSheetVisible = false;
-              }
-            })
+            this.buildCustomUserAgentSheetHeader()
           },
           footer: () => {
             this.buildCustomUserAgentActionButton()
@@ -439,6 +433,20 @@ export struct BrowserUserAgentSettingsScreen {
         })
       }
     }
+  }
+
+  @Builder
+  private buildCustomUserAgentSheetHeader() {
+    // Keep this header in a @Builder. API 24 bindSheet crashes with
+    // "class constructor cannot called without 'new'" if BrowserFeatureSheetHeader
+    // is constructed directly inside a @BuilderParam arrow function.
+    BrowserFeatureSheetHeader({
+      title: '自定义 UA',
+      leadingAccessibilityLabel: '关闭',
+      onLeadingAction: () => {
+        this.customUserAgentSheetVisible = false;
+      }
+    })
   }
 
   @Builder
@@ -501,6 +509,9 @@ export struct BrowserUserAgentSettingsScreen {
       }
     }
     .width('100%')
+    .constraintSize({ minHeight: '100%' })
+    .alignItems(HorizontalAlign.Start)
+    .justifyContent(FlexAlign.Start)
     .padding({ left: 16, right: 16, top: topPadding, bottom: BROWSER_SHEET_IMMERSIVE_BOTTOM_PADDING })
   }
 
