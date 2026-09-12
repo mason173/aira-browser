@@ -273,7 +273,11 @@ export class BrowserTabsOverlayViewModel {
     if (previewState?.favicon !== undefined) {
       return {
         label: label,
-        iconUri: '',
+        // Keep the durable cached icon as a URI fallback. The favicon PixelMap
+        // comes from the web engine and can be unrenderable by the time the card
+        // grid paints (cold start), and a failed PixelMap with no URI falls all
+        // the way through to the letter badge even though the site icon is on disk.
+        iconUri: cachedIconState?.path ?? '',
         iconPixelMap: previewState.favicon,
         fallbackLabel: resolveSiteIconFallbackLabel(label, identityUrl),
         sourceRevision: Math.max(1, Math.floor(previewState.faviconRevision ?? 1))

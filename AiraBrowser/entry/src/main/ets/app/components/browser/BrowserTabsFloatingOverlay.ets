@@ -1,5 +1,4 @@
 import { DEFAULT_THEME_PALETTE } from '../../../features/theme/palettes/DefaultThemePalette';
-import { hilog } from '@kit.PerformanceAnalysisKit';
 import { BrowserTabPreviewState } from '../../../core/browser/BrowserTabPreviewCoordinator';
 import {
   BrowserTabOverviewItemPresentation,
@@ -68,8 +67,6 @@ import { AppChromeIconTone } from '../../../core/resources/AppIconResources';
 import { BrowserWindowRuntime } from '../../runtime/BrowserWindowRuntime';
 import { SiteIconListRenderState } from '../../../core/siteicons/SiteIconListPresenter';
 
-const TABS_OVERLAY_LOG_DOMAIN: number = 0x0000;
-const TABS_OVERLAY_LOG_TAG: string = 'TabsOverview';
 const FLOATING_TABS_HORIZONTAL_PADDING: number = 16;
 const FLOATING_TABS_TOP_PADDING: number = 28;
 const FLOATING_TABS_GRID_GAP: number = 16;
@@ -900,17 +897,6 @@ export struct BrowserTabsFloatingOverlay {
         this.siteIconStates = states;
       }
     );
-    // Memory-cached icons resolve synchronously inside syncIdentityIcons, so this
-    // count reflects what the first grid build will actually see. If it trails the
-    // number of visible cards on a cold start, the card favicons will fall back.
-    hilog.info(TABS_OVERLAY_LOG_DOMAIN, TABS_OVERLAY_LOG_TAG,
-      'identity icons ready_at_build resolved=%{public}d visible=%{public}d',
-      this.countResolvedSiteIcons(), this.resolveVisibleItems().length);
-  }
-
-  private countResolvedSiteIcons(): number {
-    return this.siteIconStates.filter((state: SiteIconListRenderState): boolean =>
-      state.path.trim().length > 0 || state.pixelMap !== undefined).length;
   }
 
   private buildIdentityIconSnapshot(): BrowserTabsOverviewIdentityIconSnapshot {
