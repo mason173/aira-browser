@@ -229,17 +229,17 @@ export struct BrowserTabsFloatingOverlay {
     );
     this.syncEntryDisplacementFromProps();
     this.prepareBottomEntryAnimation();
-    // The entry frame already builds the card grid plus the shared-snapshot layer.
-    // HDS segmented tabs, the blurred material bar and the corner buttons add a
-    // large native subtree on top of that, and resolving identity icons publishes a
-    // @State that re-renders the grid; both push the first frame past the point
-    // where the entry animation can start on time. Mount/resolve them on the next
-    // frame instead: the first frame blocks the main thread, so this timer only
-    // runs once the grid has been laid out.
+    // Resolve identity icons before the grid is first built. The grid is keyed by tab
+    // id, so a later @State update would not repaint already-built cards and every
+    // favicon would stay on its letter fallback.
+    this.syncSiteIcons();
+    // HDS segmented tabs, the blurred material bar and the corner buttons add a large
+    // native subtree on top of the grid. Mount them on the next frame so the first
+    // frame stays cheap: it blocks the main thread, so this timer only runs once the
+    // grid has been laid out.
     this.chromeMountTimer = setTimeout(() => {
       this.chromeMountTimer = 0;
       this.chromeMounted = true;
-      this.syncSiteIcons();
     }, 0);
   }
 
