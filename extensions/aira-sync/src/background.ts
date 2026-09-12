@@ -43,6 +43,7 @@ import { LEAFTAB_SELECTED_SYNC_SOURCE_KEY } from '@/features/sync/app/leafTabSyn
 import { parseLeafTabSyncRemoteKind } from '@/sync/leaftab/source';
 
 const WEBDAV_PROXY_MESSAGE_TYPE = 'LEAFTAB_WEBDAV_PROXY';
+const AIRA_OPEN_HISTORY_COMMAND = 'open-aira-history';
 const PHONE_PAGE_PUSH_POLL_ALARM_NAME = 'aira.phone-page-push.poll';
 const BACKGROUND_KEEPALIVE_INTERVAL_MS = 20_000;
 const PHONE_PAGE_PUSH_FALLBACK_TITLE = 'Aira';
@@ -157,6 +158,10 @@ function getStorageApi() {
 
 function getIdleApi() {
   return globalThis.chrome?.idle;
+}
+
+function getCommandsApi() {
+  return globalThis.chrome?.commands;
 }
 
 function startBackgroundKeepAlive(): { stop: () => void } {
@@ -701,10 +706,28 @@ function bindHistoryMessageListener(): void {
   });
 }
 
+function openAiraHistoryTab(): void {
+  const historyUrl = globalThis.chrome?.runtime?.getURL?.('history.html');
+  const tabs = globalThis.chrome?.tabs;
+  if (!historyUrl || !tabs?.create) {
+    return;
+  }
+  void tabs.create({ url: historyUrl, active: true }).catch(() => undefined);
+}
+
+function bindAiraHistoryCommandListener(): void {
+  getCommandsApi()?.onCommand?.addListener?.((command) => {
+    if (command === AIRA_OPEN_HISTORY_COMMAND) {
+      openAiraHistoryTab();
+    }
+  });
+}
+
 bindWebdavProxyMessageListener();
 bindLeafTabSyncDeviceIdMessageListener();
 bindPhonePagePushMessageListener();
 bindHistoryMessageListener();
+bindAiraHistoryCommandListener();
 bindAlarmListeners();
 bindLifecycleListeners();
 bookmarkBackgroundSyncRuntime.initialize();

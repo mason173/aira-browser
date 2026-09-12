@@ -6,5 +6,9 @@
   "appDescription": {
     "message": "通过个人服务器连接 Aira 浏览器，同步书签、历史记录、网页推送和跨设备标签页。",
     "description": "The description of the application"
+  },
+  "commandOpenHistory": {
+    "message": "打开 Aira 历史记录",
+    "description": "Keyboard shortcut that opens Aira's merged history page"
   }
 }

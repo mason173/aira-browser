@@ -6,5 +6,9 @@
   "appDescription": {
     "message": "Self-hosted bookmark, history, page push, and cross-device tab integration for Aira Browser.",
     "description": "The description of the application"
+  },
+  "commandOpenHistory": {
+    "message": "Open Aira history",
+    "description": "Keyboard shortcut that opens Aira's merged history page"
   }
 }

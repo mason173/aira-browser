@@ -93,7 +93,9 @@ but preserves local browser data and inactive Provider baselines. See [docs/pers
   only.
 - Aira-sync captures only locally originated regular HTTP(S) history visits. Remote visits are shown in Aira-sync's History
   projection and are never written into the browser's native history database.
-- The extension overrides the browser History page so the merged projection opens from the normal History command.
+- The browser's native History page and its History command are left untouched. The merged Aira projection opens from the
+  extension's History entry, or from the optional `open-aira-history` shortcut, which is unassigned by default and can be
+  set at `chrome://extensions/shortcuts`.
 - First sync and ordinary differences merge automatically. A real two-sided Bookmark conflict asks which side to keep.
 - Personal Server tokens and WebDAV credentials stay in extension storage and are sent only to the selected endpoint.
 - Do not commit credentials, tokens, production environment files, generated builds, browser profiles, databases, or

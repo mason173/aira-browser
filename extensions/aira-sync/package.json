@@ -1,6 +1,6 @@
 {
       "name": "aira-sync",
-      "version": "0.2.16",
+      "version": "0.2.20",
       "private": true,
       "dependencies": {
             "@radix-ui/react-dialog": "^1.1.6",

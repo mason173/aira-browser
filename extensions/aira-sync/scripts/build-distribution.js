@@ -52,12 +52,20 @@ const localeMessages = distribution === 'community'
           message: 'Self-hosted bookmark, history, page push, and cross-device tab integration for Aira Browser.',
           description: 'The description of the application',
         },
+        commandOpenHistory: {
+          message: 'Open Aira history',
+          description: "Keyboard shortcut that opens Aira's merged history page",
+        },
       },
       zh_CN: {
         appTitle: { message: 'Aira-sync', description: 'The title of the application' },
         appDescription: {
           message: '通过个人服务器连接 Aira 浏览器，同步书签、历史记录、网页推送和跨设备标签页。',
           description: 'The description of the application',
+        },
+        commandOpenHistory: {
+          message: '打开 Aira 历史记录',
+          description: "Keyboard shortcut that opens Aira's merged history page",
         },
       },
     }
@@ -68,12 +76,20 @@ const localeMessages = distribution === 'community'
           message: 'Connect Aira Browser on HarmonyOS to sync bookmarks and browsing history on desktop, and receive pages sent from your phone.',
           description: 'The description of the application',
         },
+        commandOpenHistory: {
+          message: 'Open Aira history',
+          description: "Keyboard shortcut that opens Aira's merged history page",
+        },
       },
       zh_CN: {
         appTitle: { message: 'Aira-sync', description: 'The title of the application' },
         appDescription: {
           message: '连接鸿蒙手机上的 Aira 浏览器，在电脑浏览器同步书签和历史记录，并接收手机推送的当前网页。',
           description: 'The description of the application',
+        },
+        commandOpenHistory: {
+          message: '打开 Aira 历史记录',
+          description: "Keyboard shortcut that opens Aira's merged history page",
         },
       },
     };
