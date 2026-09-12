@@ -7359,8 +7359,12 @@ struct BrowserShellPage {
     // Hidden while resident-but-closed (overlayOpacity is 1 after a close reset
     // because the old design unmounted the layer; residency must mask it here).
     .opacity(this.resolveTabsOverlayLayerOpacity())
-    .hitTestBehavior(this.buildTabsOverviewSceneRenderState().cardsLayerMounted ?
-      HitTestMode.Default : HitTestMode.None)
+    // opacity(0) does NOT disable hit-testing in ArkUI, and HitTestMode.None on a
+    // container only disables the container itself (children still hit-test). A
+    // resident-but-closed overlay therefore kept swallowing taps meant for the shell
+    // beneath it, which read as the app freezing. enabled(false) disables the whole
+    // subtree's interaction while keeping it mounted.
+    .enabled(this.buildTabsOverviewSceneRenderState().cardsLayerMounted)
     .zIndex(TABS_OVERVIEW_OVERLAY_Z_INDEX)
   }
 
