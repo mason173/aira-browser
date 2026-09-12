@@ -8379,14 +8379,6 @@ struct BrowserShellPage {
       this.tabs,
       capturedAt
     );
-    const withUri = this.tabsOverviewPreviewStates.filter(
-      (s: BrowserTabPreviewState): boolean => (s.sharedSnapshotImageUri?.trim().length ?? 0) > 0).length;
-    const withPm = this.tabsOverviewPreviewStates.filter(
-      (s: BrowserTabPreviewState): boolean => s.sharedSnapshotPixelMap !== undefined).length;
-    hilog.info(0x0000, 'CardDiag',
-      'refresh states=%{public}d withUri=%{public}d withPm=%{public}d sessionTab=%{public}s',
-      this.tabsOverviewPreviewStates.length, withUri, withPm,
-      this.tabsOverviewSnapshotPipelineState.session.tabId);
   }
 
   // The entry capture installs its fresh pixel map into the snapshot pipeline, and

@@ -1,5 +1,4 @@
 import { DEFAULT_THEME_PALETTE } from '../../../features/theme/palettes/DefaultThemePalette';
-import { hilog } from '@kit.PerformanceAnalysisKit';
 import { BrowserTabPreviewState } from '../../../core/browser/BrowserTabPreviewCoordinator';
 import {
   BrowserTabOverviewItemPresentation,
@@ -897,13 +896,6 @@ export struct BrowserTabsFloatingOverlay {
         ),
         index: items.length
       });
-    }
-    for (const item of items) {
-      hilog.info(0x0000, 'CardDiag',
-        'item tab=%{public}s kind=%{public}s uriLen=%{public}d hasPm=%{public}s',
-        item.tab.id, item.presentation.preview.previewKind,
-        item.presentation.preview.sharedSnapshotImageUri.trim().length,
-        `${item.presentation.preview.sharedSnapshotPixelMap !== undefined}`);
     }
     return items;
   }
