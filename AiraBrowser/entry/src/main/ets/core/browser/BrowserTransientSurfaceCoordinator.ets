@@ -282,7 +282,11 @@ export class BrowserTransientSurfaceCoordinator {
       effect = 'clear_release_notice';
     } else if (!suppressDisappearEffect && disappearingType === 'desktopLoginConfirm' && !desktopLoginConfirming) {
       effect = 'clear_desktop_login';
-    } else if (!suppressDisappearEffect && disappearingType === 'homeShortcutSelection') {
+    } else if (!suppressDisappearEffect && disappearingType === 'homeShortcutSelection' &&
+      this.pendingSystemSheetType !== 'homeShortcutSelection') {
+      // Reopening the sheet while it is still dismissing must keep the state the
+      // new session just published. Resetting here wiped it, so the reopened
+      // sheet mounted with an empty system-entry list.
       effect = 'reset_home_shortcut_selection';
     }
     this.systemSheetVisible = false;

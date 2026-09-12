@@ -46,6 +46,8 @@ import {
 } from './BrowserModalBottomSheet';
 import { BrowserFloatingGlassMaterialSurface } from './BrowserFloatingGlassMaterialSurface';
 import { resolveBrowserFloatingGlassMaterialTintForMode } from './BrowserFloatingGlassMaterialTokens';
+import { FloatingGlassMaterialSurface } from '../common/FloatingGlassMaterialSurface';
+import { resolveFloatingGlassMaterialTintForMode } from '../common/FloatingGlassMaterialTokens';
 
 const HOME_SHORTCUT_SELECTION_TABS: SegmentedTabOption[] = [
   { id: 'system', title: '系统入口' },
@@ -227,14 +229,32 @@ export struct HomeShortcutSelectionContent {
         }
       })
 
-      SegmentedTabs({
-        options: HOME_SHORTCUT_SELECTION_TABS,
-        selectedId: this.state.activeTab,
-        secondaryTextColor: this.storedSecondaryTextColor,
-        onSelect: (id: string) => {
-          this.selectNavigationTab(id);
-        }
-      })
+      // Same segmented-tab treatment as the history page: a glass bar surface
+      // wrapping SegmentedTabs instead of the bare control.
+      FloatingGlassMaterialSurface({
+        surfaceWidth: '100%',
+        surfaceHeight: 36,
+        surfaceRadius: 18,
+        tintColor: resolveFloatingGlassMaterialTintForMode(this.storedResolvedThemeMode),
+        fallbackColor: this.storedControlBackgroundColor,
+        backgroundBlurEnabled: false
+      }) {
+        SegmentedTabs({
+          options: HOME_SHORTCUT_SELECTION_TABS,
+          selectedId: this.state.activeTab,
+          barHeight: 36,
+          itemHeight: 30,
+          fontSize: 14,
+          barPadding: 3,
+          fallbackColor: $r('sys.color.ohos_id_color_background_transparent'),
+          barMaterialEnabled: false,
+          onSelect: (id: string) => {
+            this.selectNavigationTab(id);
+          }
+        })
+          .width('100%')
+          .height(36)
+      }
     }
     .width('100%')
   }
@@ -591,7 +611,11 @@ export struct HomeShortcutSelectionContent {
         surfaceWidth: HOME_SHORTCUT_SELECTION_ACTION_SIZE,
         surfaceHeight: HOME_SHORTCUT_SELECTION_ACTION_SIZE,
         surfaceRadius: HOME_SHORTCUT_SELECTION_ACTION_SIZE / 2,
-        tintColor: resolveBrowserFloatingGlassMaterialTintForMode(this.storedResolvedThemeMode)
+        tintColor: resolveBrowserFloatingGlassMaterialTintForMode(this.storedResolvedThemeMode),
+        // One backdrop blur per row made opening this sheet janky. The home
+        // shortcut tiles opt out for the same reason; the glass fallback color
+        // keeps the same look.
+        backgroundBlurEnabled: false
       }) {
         if (busy) {
           LoadingProgress()
