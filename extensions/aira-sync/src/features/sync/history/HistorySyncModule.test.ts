@@ -297,4 +297,91 @@ describe('HistorySyncModule native capture', () => {
     const page = await module.listTimeline(projectionSession.uid);
     expect(page.visits[0]).toMatchObject({ title: 'Local title', visitedAt: visitTime });
   });
+
+  test('groups reinstalled devices under one display name', async () => {
+    const uid = 'history-test-account-device-group';
+    const now = Date.now();
+    const module = new HistorySyncModule();
+    await module.initialize();
+    const database = (module as unknown as {
+      database: {
+        applyExchange(accountUid: string, clientId: string, response: unknown, now: number): Promise<number>;
+      };
+    }).database;
+
+    const remoteVisit = (
+      clientId: string,
+      nativeId: string,
+      visitedAt: number,
+      deviceName: string,
+    ) => ({
+      seq: 1,
+      kind: 'upsert_visit',
+      visitId: `h1:${clientId}:${encodeURIComponent(nativeId)}`,
+      visit: {
+        visitId: `h1:${clientId}:${encodeURIComponent(nativeId)}`,
+        clientId,
+        nativeVisitId: encodeURIComponent(nativeId),
+        url: 'https://example.com/',
+        title: 'Example',
+        visitedAt,
+        transition: 'link',
+        referrer: '',
+        deviceName,
+        source: 'airatab_native',
+      },
+    });
+
+    // Two reinstalls of the same phone, and two Chrome versions of the same Mac.
+    await database.applyExchange(uid, 'client-old', {
+      acknowledgements: [],
+      changes: [remoteVisit('client-old', 'visit-old', now - 3_000, 'Aira HarmonyOS')],
+      nextCursor: 1,
+      headCursor: 1,
+      hasMore: false,
+    }, Date.now());
+    await database.applyExchange(uid, 'client-new', {
+      acknowledgements: [],
+      changes: [remoteVisit('client-new', 'visit-new', now - 2_000, 'Aira HarmonyOS')],
+      nextCursor: 1,
+      headCursor: 1,
+      hasMore: false,
+    }, Date.now());
+    await database.applyExchange(uid, 'chrome-150', {
+      acknowledgements: [],
+      changes: [remoteVisit(
+        'chrome-150',
+        'visit-150',
+        now - 1_000,
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36',
+      )],
+      nextCursor: 1,
+      headCursor: 1,
+      hasMore: false,
+    }, Date.now());
+    await database.applyExchange(uid, 'chrome-152', {
+      acknowledgements: [],
+      changes: [remoteVisit(
+        'chrome-152',
+        'visit-152',
+        now,
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36',
+      )],
+      nextCursor: 1,
+      headCursor: 1,
+      hasMore: false,
+    }, Date.now());
+
+    const page = await module.listTimeline(uid);
+    expect(page.total).toBe(4);
+    expect(page.devices).toEqual([
+      { id: 'Aira HarmonyOS', name: 'Aira HarmonyOS' },
+      { id: 'Chrome · macOS', name: 'Chrome · macOS' },
+    ]);
+
+    const phoneOnly = await module.listTimeline(uid, { deviceId: 'Aira HarmonyOS' });
+    expect(phoneOnly.total).toBe(2);
+    const desktopOnly = await module.listTimeline(uid, { deviceId: 'Chrome · macOS' });
+    expect(desktopOnly.total).toBe(2);
+  });
 });

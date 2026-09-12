@@ -1,6 +1,7 @@
 import {
   HISTORY_SYNC_MAX_VISITS,
   HISTORY_SYNC_RETENTION_MS,
+  historyDeviceDisplayLabel,
   type HistorySyncBootstrapResponse,
   type HistorySyncChange,
   type HistorySyncDeleteRange,
@@ -482,9 +483,15 @@ export class HistorySyncDatabase {
     await done;
 
     const query = String(options.query || '').trim().toLocaleLowerCase();
-    const deviceId = String(options.deviceId || '').trim();
+    // A selectable device is one stable display label, not one client instance, so
+    // browsing updates or reinstalls do not add another row under the same machine.
+    // The selection key is therefore the grouped label rather than a single clientId.
+    const selectedDeviceLabel = String(options.deviceId || '').trim();
+    const deviceKeyOf = (visit: StoredVisit) => (
+      historyDeviceDisplayLabel(visit.deviceName) || visit.deviceName || visit.clientId
+    );
     const filtered = visits.filter((visit) => {
-      if (deviceId && visit.clientId !== deviceId) return false;
+      if (selectedDeviceLabel && deviceKeyOf(visit) !== selectedDeviceLabel) return false;
       if (!query) return true;
       return visit.title.toLocaleLowerCase().includes(query)
         || visit.url.toLocaleLowerCase().includes(query)
@@ -493,11 +500,9 @@ export class HistorySyncDatabase {
     filtered.sort((left, right) => right.visitedAt - left.visitedAt || right.visitId.localeCompare(left.visitId));
     const offset = Math.max(0, Math.floor(options.offset || 0));
     const limit = Math.min(500, Math.max(1, Math.floor(options.limit || 200)));
-    const deviceNames = new Map<string, string>();
+    const deviceLabels = new Set<string>();
     visits.forEach((visit) => {
-      if (!deviceNames.has(visit.clientId)) {
-        deviceNames.set(visit.clientId, visit.deviceName || visit.clientId);
-      }
+      deviceLabels.add(deviceKeyOf(visit));
     });
     const state = states
       .filter((item) => item.accountUid === accountUid)
@@ -505,7 +510,7 @@ export class HistorySyncDatabase {
     return {
       visits: filtered.slice(offset, offset + limit).map(stripStoredVisit),
       total: filtered.length,
-      devices: Array.from(deviceNames, ([id, name]) => ({ id, name }))
+      devices: Array.from(deviceLabels, (label) => ({ id: label, name: label }))
         .sort((left, right) => left.name.localeCompare(right.name)),
       lastSyncAt: state?.lastSyncAt || 0,
       lastError: state?.lastError || '',

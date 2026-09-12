@@ -128,3 +128,27 @@ export type HistoryTimelinePage = {
   lastSyncAt: number;
   lastError: string;
 };
+
+// A desktop extension reports its raw User-Agent as the device name, which changes
+// with every browser update and never identifies one physical device across
+// reinstalls. Reduce it to a stable, human label for grouping and display; leave
+// explicit names (such as "Aira HarmonyOS") untouched.
+export function historyDeviceDisplayLabel(deviceName: string): string {
+  const name = String(deviceName || '').trim();
+  if (!name) return '';
+  if (!/Mozilla\/|AppleWebKit|Chrome\/|Safari\/|Firefox\//i.test(name)) return name;
+  const platform = /Windows/i.test(name) ? 'Windows'
+    : /Android/i.test(name) ? 'Android'
+      : /iPhone|iPad|iPod/i.test(name) ? 'iOS'
+        : /Macintosh|Mac OS X/i.test(name) ? 'macOS'
+          : /Linux/i.test(name) ? 'Linux'
+            : '';
+  const browser = /Edg\//.test(name) ? 'Edge'
+    : /OPR\/|Opera\//.test(name) ? 'Opera'
+      : /Firefox\//.test(name) ? 'Firefox'
+        : /Chrome\//.test(name) ? 'Chrome'
+          : /Safari\//.test(name) ? 'Safari'
+            : '';
+  const label = [browser, platform].filter(Boolean).join(' · ');
+  return label || name.slice(0, 120);
+}
