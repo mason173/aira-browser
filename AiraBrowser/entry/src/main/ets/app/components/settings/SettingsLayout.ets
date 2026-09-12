@@ -20,7 +20,6 @@ export struct SettingsScrollBody {
   @Prop scrollEnabled: boolean = true;
   @Prop scrollInteractionEnabled: boolean = true;
   @Prop clipContent: boolean = false;
-  @Prop topGradientBlurRadius: number = 0;
   scroller?: Scroller;
   onContentAreaChanged: (area: Area) => void = (_area: Area) => {};
   @BuilderParam content: () => void = this.emptyContent;
@@ -50,10 +49,12 @@ export struct SettingsScrollBody {
     .enableScrollInteraction(this.scrollInteractionEnabled)
     .scrollBar(BarState.Auto)
     .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
-    .linearGradientBlur(this.topGradientBlurRadius, {
-      fractionStops: [[1, 0], [1, 0.05], [0, 0.14], [0, 1]],
-      direction: GradientDirection.Bottom
-    })
+    // No linearGradientBlur here on purpose. With it, a sheet overlaying this
+    // container flashed the region it covered blank for one frame on dismiss;
+    // removing it fixed that. The likely mechanism is that a blur node, even at
+    // radius 0, puts the scroll content into an offscreen render group that is
+    // discarded and rebuilt when the overlay above it is removed. This container
+    // never received a non-zero radius, so no visible effect is lost.
     .clip(this.clipContent)
   }
 

@@ -148,12 +148,12 @@ export struct SettingsDetailContent {
       preferType: this.isLargeScreen ? SheetType.CENTER : SheetType.BOTTOM,
       height: TAB_OVERVIEW_LAYOUT_SHEET_HEIGHT,
       dragBar: !this.isLargeScreen,
-      showClose: false,
-      onDisappear: () => {
-        this.tabOverviewLayoutState =
-          this.tabOverviewLayoutCoordinator.cancelDraft(this.tabOverviewLayoutState);
-        this.tabOverviewLayoutSheetVisible = false;
-      }
+      showClose: false
+      // Deliberately no onDisappear state work: every dismiss path already clears
+      // the visibility flag (the action buttons directly, interactive dismissals
+      // through the $$ binding) and the draft is reset by refreshDraft on the next
+      // open. Writing state here only invalidates this host as the sheet is being
+      // removed, which is pointless work during the dismiss animation.
     })
   }
 
