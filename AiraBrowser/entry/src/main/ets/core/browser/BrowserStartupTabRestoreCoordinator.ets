@@ -62,6 +62,7 @@ import { BrowserTabPreviewCoordinator } from './BrowserTabPreviewCoordinator';
 import {
   BrowserNativeNavigationConsumeCoordinator
 } from '../navigation/BrowserNativeNavigationConsumeCoordinator';
+import { RestoredTabSiteIconPrewarmCoordinator } from '../siteicons/RestoredTabSiteIconPrewarmCoordinator';
 
 interface BrowserStartupTabRestoreRuntimeEvent {
   type: string;
@@ -163,6 +164,8 @@ export class BrowserStartupTabRestoreCoordinator {
   private sessionRestoreService: BrowserTabSessionRestoreService = new BrowserTabSessionRestoreService();
   private sessionRecordFilterCoordinator: BrowserTabSessionRecordFilterCoordinator =
     new BrowserTabSessionRecordFilterCoordinator();
+  private restoredTabSiteIconPrewarmCoordinator: RestoredTabSiteIconPrewarmCoordinator =
+    new RestoredTabSiteIconPrewarmCoordinator();
 
   constructor(dependencies: BrowserStartupTabRestoreDependencies, host: BrowserStartupTabRestoreHost) {
     this.dependencies = dependencies;
@@ -375,6 +378,11 @@ export class BrowserStartupTabRestoreCoordinator {
         tabSequence: Math.max(currentFacts.tabSequence, result.tabSequence)
       }
     });
+    // Warm the restored tabs' cached favicons while the web surface is still
+    // materializing. The tabs overview resolves card icons from the memory
+    // cache at paint time, so doing this here keeps the first cold-start grid
+    // from rendering letter badges for tabs whose icons are already on disk.
+    this.restoredTabSiteIconPrewarmCoordinator.prewarmRestoredTabs(result.tabs);
     if (result.startupBoundaryOptions.privacyMode === 'private') {
       const activeTab = result.tabs.find((tab: BrowserTabState) => tab.id === result.activeTabId);
       if (activeTab !== undefined) {
