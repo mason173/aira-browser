@@ -15,7 +15,15 @@ import {
 import { AiraSyncWorkThrottleService } from './AiraSyncWorkThrottleService';
 import { AiraSyncJankProbe } from '../../common/debug/AiraSyncJankProbe';
 
-const AIRA_SYNC_TASKPOOL_TRANSFER_BUDGET_BYTES: number = 8 * 1024 * 1024;
+// Soft guard on how much we hand to a task: ArrayBuffers in the transfer list
+// move ownership instead of being copied, so this is a memory-pressure bound,
+// not a serialization limit. A Huawei History snapshot runs ~7 MB of rows today
+// and this device's mirror plus its merged state already reached 8.4 MB, so an
+// 8 MB bound kept tipping real syncs onto the cooperative path, which decodes on
+// the UI thread and turns a ~6 s job into a ~140 s one. Keep it aligned with the
+// pack preflight below; exceeding the true platform limit surfaces as a
+// serialization error, which the callers already catch and retry cooperatively.
+const AIRA_SYNC_TASKPOOL_TRANSFER_BUDGET_BYTES: number = 16 * 1024 * 1024;
 const AIRA_SYNC_TASKPOOL_PACK_PREFLIGHT_BUDGET_BYTES: number = 16 * 1024 * 1024;
 
 export interface AiraHistoryInitialMergePlan {

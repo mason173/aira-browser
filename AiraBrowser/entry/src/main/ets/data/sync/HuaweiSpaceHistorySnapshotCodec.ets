@@ -761,6 +761,10 @@ export class HuaweiSpaceHistorySnapshotCodec {
     const bucketReferences: HuaweiSpaceHistoryBucketReference[] = [];
     const rowsToUpsert: HuaweiSpaceHistoryRow[] = [];
     const rowIdsToDeleteBeforePublish: string[] = [];
+    // Index the stored chunk rows by bucket prefix once. Scanning every row for
+    // each rebuilt bucket made this O(buckets x rows) and re-yielded per row,
+    // which cost seconds of extra main-thread time whenever many buckets changed.
+    const chunkRowIdsByPrefix = this.buildChunkRowIdsByPrefix(mirror.rows);
     for (let bucketIndex = 0; bucketIndex < HUAWEI_SPACE_HISTORY_BUCKET_COUNT; bucketIndex += 1) {
       const desiredRecords = desiredBuckets.get(bucketIndex) ?? [];
       const currentReference = ownHead?.value.buckets[bucketIndex];
@@ -789,13 +793,11 @@ export class HuaweiSpaceHistorySnapshotCodec {
         builtRowIds.add(row.rowId);
       });
       const expectedPrefix = this.buildChunkLogicalPrefix(this.deviceId, bucketIndex, bucketSlot);
-      for (let rowIndex = 0; rowIndex < mirror.rows.length; rowIndex += 1) {
-        const row = mirror.rows[rowIndex];
-        if (row.recordKind === 'snapshot_chunk' && row.logicalId.startsWith(expectedPrefix) &&
-          !builtRowIds.has(row.rowId)) {
-          rowIdsToDeleteBeforePublish.push(row.rowId);
+      const candidateRowIds = chunkRowIdsByPrefix.get(expectedPrefix) ?? [];
+      for (let candidateIndex = 0; candidateIndex < candidateRowIds.length; candidateIndex += 1) {
+        if (!builtRowIds.has(candidateRowIds[candidateIndex])) {
+          rowIdsToDeleteBeforePublish.push(candidateRowIds[candidateIndex]);
         }
-        await throttle.afterBatchItem(rowIndex + 1);
       }
       await throttle.afterStage();
     }
