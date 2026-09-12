@@ -1,4 +1,5 @@
 import { DEFAULT_THEME_PALETTE } from '../../../features/theme/palettes/DefaultThemePalette';
+import { hilog } from '@kit.PerformanceAnalysisKit';
 import { BrowserTabPreviewState } from '../../../core/browser/BrowserTabPreviewCoordinator';
 import {
   BrowserTabOverviewItemPresentation,
@@ -452,7 +453,7 @@ export struct BrowserTabsFloatingOverlay {
           this.buildCard(item)
         }
         .height(this.layoutState.itemHeight)
-      }, (item: BrowserTabsFloatingItem) => item.id)
+      }, (item: BrowserTabsFloatingItem) => this.resolveCardIdentityKey(item))
 
       ForEach(this.buildBlankSlotKeys(), (_key: string) => {
         this.buildBlankGridItem()
@@ -499,7 +500,7 @@ export struct BrowserTabsFloatingOverlay {
         .width(this.resolveCardWidth(item))
         .height(this.resolveRootHeight())
         .clip(false)
-      }, (item: BrowserTabsFloatingItem) => item.id)
+      }, (item: BrowserTabsFloatingItem) => this.resolveCardIdentityKey(item))
     }
     .width('100%')
     .height('100%')
@@ -897,7 +898,27 @@ export struct BrowserTabsFloatingOverlay {
         index: items.length
       });
     }
+    for (const item of items) {
+      hilog.info(0x0000, 'CardDiag',
+        'item tab=%{public}s kind=%{public}s uriLen=%{public}d hasPm=%{public}s',
+        item.tab.id, item.presentation.preview.previewKind,
+        item.presentation.preview.sharedSnapshotImageUri.trim().length,
+        `${item.presentation.preview.sharedSnapshotPixelMap !== undefined}`);
+    }
     return items;
+  }
+
+  // A card is keyed by more than the tab id: while the tab stays the same, the
+  // preview moves from "no image yet" to "snapshot ready" a moment later when the
+  // entry capture lands. ArkUI does not rebuild an item whose key is unchanged, so
+  // keying on the id alone left the already-built card on its pending placeholder
+  // forever. Including the image identity re-creates the card when the snapshot
+  // arrives.
+  private resolveCardIdentityKey(item: BrowserTabsFloatingItem): string {
+    const preview = item.presentation.preview;
+    const uri = preview.sharedSnapshotImageUri.trim();
+    const hasPixelMap = preview.sharedSnapshotPixelMap !== undefined;
+    return `${item.id}|${preview.previewKind}|${uri.length > 0 ? uri : (hasPixelMap ? 'pm' : 'none')}`;
   }
 
   private isLocallyRemovedTab(tabId: string): boolean {
