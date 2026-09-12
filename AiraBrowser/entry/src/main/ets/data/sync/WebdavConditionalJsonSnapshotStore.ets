@@ -2,13 +2,14 @@ import http from '@ohos.net.http';
 import buffer from '@ohos.buffer';
 import { AiraSyncWebdavConfig } from '../../common/models/AiraSyncModels';
 
-type WebdavConditionalJsonMethod = 'GET' | 'PUT' | 'DELETE' | 'MKCOL' | 'MOVE';
-type WebdavConditionalJsonCreateMode = 'if-none-match' | 'move-no-overwrite';
+type WebdavConditionalJsonMethod = 'GET' | 'PUT' | 'DELETE' | 'MKCOL' | 'MOVE' | 'LOCK' | 'UNLOCK';
+type WebdavConditionalJsonCreateMode = 'if-none-match' | 'move-no-overwrite' | 'lock-serialized';
 type WebdavConditionalJsonRevisionCondition = 'if-match' | 'webdav-if';
 
 interface WebdavConditionalJsonWriteSupport {
   createMode: WebdavConditionalJsonCreateMode;
   weakEtagIfVerified: boolean;
+  lockSerialized: boolean;
 }
 
 interface WebdavConditionalJsonResponse {
@@ -18,6 +19,11 @@ interface WebdavConditionalJsonResponse {
 }
 
 const WEBDAV_CONDITIONAL_JSON_TIMEOUT_MS: number = 20000;
+const WEBDAV_LOCK_TIMEOUT_SECONDS: number = 120;
+const WEBDAV_LOCK_REQUEST_BODY: string =
+  '<?xml version="1.0" encoding="utf-8"?>' +
+  '<D:lockinfo xmlns:D="DAV:"><D:lockscope><D:exclusive/></D:lockscope>' +
+  '<D:locktype><D:write/></D:locktype><D:owner><D:href>aira</D:href></D:owner></D:lockinfo>';
 const VERIFIED_CONDITIONAL_JSON_WRITE_PROVIDERS:
   Map<string, WebdavConditionalJsonWriteSupport> =
   new Map<string, WebdavConditionalJsonWriteSupport>();
@@ -72,7 +78,13 @@ export class WebdavConditionalJsonSnapshotStore<T extends Object> {
     const conditionalWriteSupport = await this.ensureConditionalWriteSupport();
     const createMode = conditionalWriteSupport.createMode;
     let response: WebdavConditionalJsonResponse;
-    if (expectedRevision.trim().length <= 0 && createMode === 'move-no-overwrite') {
+    if (conditionalWriteSupport.lockSerialized) {
+      response = await this.writeSnapshotWithLock(
+        this.options.filePath,
+        JSON.stringify(snapshot),
+        expectedRevision.trim()
+      );
+    } else if (expectedRevision.trim().length <= 0 && createMode === 'move-no-overwrite') {
       response = await this.createWithMoveNoOverwrite(
         this.options.filePath,
         JSON.stringify(snapshot)
@@ -112,6 +124,116 @@ export class WebdavConditionalJsonSnapshotStore<T extends Object> {
       throw new Error(`WebDAV ${this.options.operationLabel}未返回 ETag，无法安全确认写入。`);
     }
     return revision;
+  }
+
+  /**
+   * Publishes the snapshot under an exclusive WebDAV lock. Providers such as OpenList ignore
+   * `If-None-Match`, `If-Match`, and `MOVE Overwrite: F`, leaving the lock as the only mutual-exclusion
+   * primitive. Re-reading under the lock re-establishes compare-and-swap: the write proceeds only when
+   * the remote revision still matches the one the caller merged against.
+   */
+  private async writeSnapshotWithLock(
+    path: string,
+    body: string,
+    expectedRevision: string
+  ): Promise<WebdavConditionalJsonResponse> {
+    const lock = await this.requestLock(path);
+    if (lock.status < 200 || lock.status >= 300) {
+      throw new Error(`WebDAV ${this.options.operationLabel}获取写入锁失败：HTTP ${lock.status}`);
+    }
+    const token = this.normalizeLockToken(this.headerValue(lock.headers, 'lock-token'));
+    if (token.length <= 0) {
+      throw new Error(`WebDAV ${this.options.operationLabel}写入锁缺少 Lock-Token，无法安全写入。`);
+    }
+    try {
+      const current = await this.readState();
+      const currentRevision = current.revision.trim();
+      if (expectedRevision.length <= 0) {
+        if (current.snapshot !== null) {
+          throw new Error(this.options.writeConflictError);
+        }
+      } else if (currentRevision !== expectedRevision) {
+        throw new Error(this.options.writeConflictError);
+      }
+      const written = await this.request('PUT', path, body, {
+        'If': this.buildLockIfHeader(token)
+      });
+      if (written.status === 409 || written.status === 412 || written.status === 423) {
+        throw new Error(this.options.writeConflictError);
+      }
+      this.assertSuccess(written, path);
+      const readBack = await this.request('GET', path);
+      this.assertSuccess(readBack, path);
+      if (readBack.body !== body) {
+        throw new Error(`WebDAV ${this.options.operationLabel}写入后回读内容不一致。`);
+      }
+      return readBack;
+    } finally {
+      await this.requestUnlock(path, token).catch((_error: Error): void => {});
+    }
+  }
+
+  private async requestLock(path: string): Promise<WebdavConditionalJsonResponse> {
+    const request = http.createHttp();
+    try {
+      const response = await request.request(this.buildUrl(path), {
+        method: 'LOCK' as http.RequestMethod,
+        extraData: WEBDAV_LOCK_REQUEST_BODY,
+        expectDataType: http.HttpDataType.STRING,
+        connectTimeout: WEBDAV_CONDITIONAL_JSON_TIMEOUT_MS,
+        readTimeout: WEBDAV_CONDITIONAL_JSON_TIMEOUT_MS,
+        header: {
+          'Accept': 'application/xml,text/xml,*/*',
+          'Authorization': this.buildAuthorizationHeader(),
+          'Content-Type': 'application/xml; charset=utf-8',
+          'Timeout': `Second-${WEBDAV_LOCK_TIMEOUT_SECONDS}`,
+          'Depth': '0'
+        } as Record<string, string>
+      });
+      return {
+        status: response.responseCode,
+        body: typeof response.result === 'string' ? response.result : '',
+        headers: this.normalizeHeaders(response.header)
+      };
+    } finally {
+      request.destroy();
+    }
+  }
+
+  private async requestUnlock(path: string, token: string): Promise<WebdavConditionalJsonResponse> {
+    const request = http.createHttp();
+    try {
+      const response = await request.request(this.buildUrl(path), {
+        method: 'UNLOCK' as http.RequestMethod,
+        expectDataType: http.HttpDataType.STRING,
+        connectTimeout: WEBDAV_CONDITIONAL_JSON_TIMEOUT_MS,
+        readTimeout: WEBDAV_CONDITIONAL_JSON_TIMEOUT_MS,
+        header: {
+          'Accept': 'application/json,text/plain,*/*',
+          'Authorization': this.buildAuthorizationHeader(),
+          'Lock-Token': `<${token}>`
+        } as Record<string, string>
+      });
+      return {
+        status: response.responseCode,
+        body: typeof response.result === 'string' ? response.result : '',
+        headers: this.normalizeHeaders(response.header)
+      };
+    } finally {
+      request.destroy();
+    }
+  }
+
+  private normalizeLockToken(rawToken: string): string {
+    let token = rawToken.trim();
+    if (token.length >= 2 && token.indexOf('<') === 0 && token.lastIndexOf('>') === token.length - 1) {
+      token = token.slice(1, token.length - 1).trim();
+    }
+    return token;
+  }
+
+  private buildLockIfHeader(token: string): string {
+    return `(<${token}>)`;
   }
 
   private async createWithMoveNoOverwrite(
@@ -166,6 +288,35 @@ export class WebdavConditionalJsonSnapshotStore<T extends Object> {
     }
     const probeId = `${Date.now().toString(36)}-${Math.floor(Math.random() * 0x100000000).toString(36)}`;
     const probePath = `${this.options.rootPath}/cas-probe-${probeId}.json`;
+    let conditionalSupport: WebdavConditionalJsonWriteSupport | null = null;
+    let conditionalError: Error | null = null;
+    try {
+      conditionalSupport = await this.verifyConditionalWriteSupport(probePath, probeId);
+    } catch (error) {
+      conditionalError = error as Error;
+    }
+    if (conditionalSupport !== null) {
+      VERIFIED_CONDITIONAL_JSON_WRITE_PROVIDERS.set(providerKey, conditionalSupport);
+      return conditionalSupport;
+    }
+    try {
+      await this.verifyLockSerializedSupport(probeId);
+    } catch (_lockError) {
+      throw conditionalError ?? new Error(`WebDAV 服务不支持安全${this.options.operationLabel}。`);
+    }
+    const lockSupport: WebdavConditionalJsonWriteSupport = {
+      createMode: 'lock-serialized',
+      weakEtagIfVerified: false,
+      lockSerialized: true
+    };
+    VERIFIED_CONDITIONAL_JSON_WRITE_PROVIDERS.set(providerKey, lockSupport);
+    return lockSupport;
+  }
+
+  private async verifyConditionalWriteSupport(
+    probePath: string,
+    probeId: string
+  ): Promise<WebdavConditionalJsonWriteSupport> {
     try {
       let first = await this.request('PUT', probePath, '{"step":1}', { 'If-None-Match': '*' });
       let createMode: WebdavConditionalJsonCreateMode = 'if-none-match';
@@ -225,11 +376,63 @@ export class WebdavConditionalJsonSnapshotStore<T extends Object> {
       }
       const support: WebdavConditionalJsonWriteSupport = {
         createMode,
-        weakEtagIfVerified: revisionCondition === 'webdav-if'
+        weakEtagIfVerified: revisionCondition === 'webdav-if',
+        lockSerialized: false
       };
-      VERIFIED_CONDITIONAL_JSON_WRITE_PROVIDERS.set(providerKey, support);
       return support;
     } finally {
+      await this.request('DELETE', probePath).catch((_error: Error): void => {});
+    }
+  }
+
+  /**
+   * Verifies that the provider can serialize a publication with an exclusive lock even though it
+   * ignores the HTTP conditional headers. Every step mirrors a real write: the lock must be granted
+   * on an absent path, exclude a competing lock and an unauthenticated write, admit the token-holding
+   * write, expose a validator, and release cleanly. A provider that fails any step stays fail-closed.
+   */
+  private async verifyLockSerializedSupport(probeId: string): Promise<void> {
+    const probePath = `${this.options.rootPath}/lock-probe-${probeId}.json`;
+    const body = '{"lock":1}';
+    let lockToken = '';
+    try {
+      await this.request('DELETE', probePath).catch((_error: Error): void => {});
+      const lock = await this.requestLock(probePath);
+      if (lock.status < 200 || lock.status >= 300) {
+        throw new Error(`WebDAV 服务不支持 LOCK 写入（HTTP ${lock.status}）。`);
+      }
+      lockToken = this.normalizeLockToken(this.headerValue(lock.headers, 'lock-token'));
+      if (lockToken.length <= 0) {
+        throw new Error('WebDAV 服务未返回 Lock-Token，不支持安全首次写入。');
+      }
+      const competingLock = await this.requestLock(probePath);
+      if (competingLock.status !== 423 && competingLock.status !== 409) {
+        throw new Error(`WebDAV 服务未独占加锁，不支持安全首次写入（HTTP ${competingLock.status}）。`);
+      }
+      const unauthenticatedWrite = await this.request('PUT', probePath, body);
+      if (unauthenticatedWrite.status !== 423 && unauthenticatedWrite.status !== 409) {
+        throw new Error(`WebDAV 服务未阻止无锁写入，不支持安全首次写入（HTTP ${unauthenticatedWrite.status}）。`);
+      }
+      const authorizedWrite = await this.request('PUT', probePath, body, {
+        'If': this.buildLockIfHeader(lockToken)
+      });
+      this.assertSuccess(authorizedWrite, probePath);
+      const read = await this.request('GET', probePath);
+      this.assertSuccess(read, probePath);
+      if (read.body !== body || this.headerValue(read.headers, 'etag').length <= 0) {
+        throw new Error(`WebDAV 服务无法确认加锁写入结果，不支持安全${this.options.operationLabel}。`);
+      }
+      const unlock = await this.requestUnlock(probePath, lockToken);
+      if (unlock.status < 200 || unlock.status >= 300) {
+        throw new Error(`WebDAV 服务无法释放写入锁（HTTP ${unlock.status}）。`);
+      }
+      lockToken = '';
+      const afterUnlock = await this.request('PUT', probePath, '{"unlocked":1}');
+      this.assertSuccess(afterUnlock, probePath);
+    } finally {
+      if (lockToken.length > 0) {
+        await this.requestUnlock(probePath, lockToken).catch((_error: Error): void => {});
+      }
       await this.request('DELETE', probePath).catch((_error: Error): void => {});
     }
   }
@@ -414,6 +617,12 @@ export class WebdavConditionalJsonSnapshotStore<T extends Object> {
     }
     if (method === 'MOVE') {
       return 'MOVE' as http.RequestMethod;
+    }
+    if (method === 'LOCK') {
+      return 'LOCK' as http.RequestMethod;
+    }
+    if (method === 'UNLOCK') {
+      return 'UNLOCK' as http.RequestMethod;
     }
     return http.RequestMethod.GET;
   }

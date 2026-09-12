@@ -79,6 +79,75 @@ const EMPTY_SNAPSHOT: LeafTabSyncSnapshot = {
   tombstones: {},
 };
 
+/**
+ * Models a provider like OpenList: it ignores `If-None-Match`, `If-Match`, and `MOVE Overwrite: F`,
+ * but enforces exclusive LOCK/UNLOCK. Only the lock-serialized publication path can stay safe here.
+ */
+const createNonConditionalLockingWebdavFetch = () => {
+  const files = new Map<string, { body: string; etag: string }>();
+  const locks = new Map<string, string>();
+  let revision = 0;
+  let lockCounter = 0;
+  const snapshotWrites: Array<{ url: string; body: string; headers: Headers }> = [];
+  const fetcher = async (input: string | URL | Request, init?: RequestInit) => {
+    const url = String(input);
+    const method = String(init?.method || 'GET').toUpperCase();
+    const headers = new Headers(init?.headers);
+    if (method === 'MKCOL') return new Response(null, { status: 201 });
+    if (method === 'LOCK') {
+      if (locks.has(url)) return new Response(null, { status: 423 });
+      lockCounter += 1;
+      const token = `lock-${lockCounter}`;
+      locks.set(url, token);
+      return new Response('<?xml version="1.0"?><D:prop xmlns:D="DAV:"/>', {
+        status: 200,
+        headers: { 'Lock-Token': `<${token}>` },
+      });
+    }
+    if (method === 'UNLOCK') {
+      const provided = (headers.get('Lock-Token') || '').replace(/[<>]/g, '');
+      if (locks.get(url) !== provided) return new Response(null, { status: 409 });
+      locks.delete(url);
+      return new Response(null, { status: 204 });
+    }
+    if (method === 'GET') {
+      const current = files.get(url);
+      if (!current) return new Response(null, { status: 404 });
+      return new Response(current.body, { status: 200, headers: { ETag: current.etag } });
+    }
+    if (method === 'DELETE') {
+      locks.delete(url);
+      files.delete(url);
+      return new Response(null, { status: 204 });
+    }
+    if (method === 'PUT') {
+      const lockToken = locks.get(url);
+      if (lockToken && !(headers.get('If') || '').includes(lockToken)) {
+        return new Response(null, { status: 423 });
+      }
+      revision += 1;
+      const body = String(init?.body || '');
+      const next = { body, etag: `"revision-${revision}"` };
+      const existed = files.has(url);
+      files.set(url, next);
+      if (url.endsWith('/snapshot.json')) snapshotWrites.push({ url, body, headers });
+      return new Response(null, { status: existed ? 204 : 201, headers: { ETag: next.etag } });
+    }
+    if (method === 'MOVE') {
+      // Deliberately ignores `Overwrite` and overwrites the destination, matching OpenList.
+      const source = files.get(url);
+      const destination = headers.get('Destination') || '';
+      if (source) {
+        files.set(destination, source);
+        files.delete(url);
+      }
+      return new Response(null, { status: 201, headers: { ETag: files.get(destination)?.etag || '' } });
+    }
+    return new Response(null, { status: 405 });
+  };
+  return { fetcher, files, locks, snapshotWrites };
+};
+
 describe('LeafTabSyncWebdavStore', () => {
   test('reads only the g3 version-2 bookmark envelope with its history descriptor', async () => {
     let requestedUrl = '';
@@ -307,5 +376,66 @@ describe('LeafTabSyncWebdavStore', () => {
       parentCommitId: null,
     })).rejects.toThrow('快照格式无效');
     expect(requested).toBe(false);
+  });
+
+  test('falls back to lock-serialized publication when conditional headers and MOVE Overwrite are ignored', async () => {
+    const memory = createNonConditionalLockingWebdavFetch();
+    vi.stubGlobal('fetch', memory.fetcher);
+    const store = new LeafTabSyncWebdavStore({
+      url: 'https://dav-lock.example',
+      requestPermission: false,
+    });
+
+    const result = await store.writeState({
+      snapshot: EMPTY_SNAPSHOT,
+      history: ORIGIN_HISTORY,
+      deviceId: 'desktop-a',
+      parentCommitId: null,
+      createdAt: '2026-08-04T00:00:00.000Z',
+    });
+
+    const publication = memory.snapshotWrites[0];
+    expect({
+      url: publication.url,
+      commitId: (JSON.parse(publication.body) as Record<string, unknown>).commitId,
+      usedLockToken: /\(<lock-\d+>\)/.test(publication.headers.get('If') || ''),
+    }).toEqual({
+      url: 'https://dav-lock.example/aira/g3/bookmarks/snapshot.json',
+      commitId: result.commitId,
+      usedLockToken: true,
+    });
+    expect(memory.locks.size).toBe(0);
+  });
+
+  test('lock-serialized publication still refuses to replace a snapshot whose commit changed', async () => {
+    const memory = createNonConditionalLockingWebdavFetch();
+    vi.stubGlobal('fetch', memory.fetcher);
+    const store = new LeafTabSyncWebdavStore({
+      url: 'https://dav-lock-race.example',
+      requestPermission: false,
+    });
+    const first = await store.writeState({
+      snapshot: EMPTY_SNAPSHOT,
+      history: ORIGIN_HISTORY,
+      deviceId: 'desktop-a',
+      parentCommitId: null,
+      createdAt: '2026-08-04T00:00:00.000Z',
+    });
+    const snapshotUrl = 'https://dav-lock-race.example/aira/g3/bookmarks/snapshot.json';
+    const externalEnvelope = JSON.parse(memory.files.get(snapshotUrl)!.body) as Record<string, unknown>;
+    externalEnvelope.commitId = 'commit-from-other-device';
+    memory.files.set(snapshotUrl, {
+      body: JSON.stringify(externalEnvelope),
+      etag: '"external-revision"',
+    });
+
+    await expect(store.writeState({
+      snapshot: EMPTY_SNAPSHOT,
+      history: ORIGIN_HISTORY,
+      deviceId: 'desktop-a',
+      parentCommitId: first.commitId,
+      createdAt: '2026-08-04T00:01:00.000Z',
+    })).rejects.toThrow('远端已更新');
+    expect(memory.locks.size).toBe(0);
   });
 });

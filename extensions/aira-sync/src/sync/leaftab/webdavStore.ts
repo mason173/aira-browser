@@ -27,13 +27,14 @@ export interface LeafTabSyncWebdavStoreConfig {
   requestTimeoutMs?: number;
 }
 
-type WebdavMethod = 'GET' | 'PUT' | 'DELETE' | 'MKCOL' | 'MOVE';
-type WebdavCreateMode = 'if-none-match' | 'move-no-overwrite';
+type WebdavMethod = 'GET' | 'PUT' | 'DELETE' | 'MKCOL' | 'MOVE' | 'LOCK' | 'UNLOCK';
+type WebdavCreateMode = 'if-none-match' | 'move-no-overwrite' | 'lock-serialized';
 type WebdavRevisionCondition = 'if-match' | 'webdav-if';
 
 type WebdavConditionalWriteSupport = {
   createMode: WebdavCreateMode;
   weakEtagIfVerified: boolean;
+  lockSerialized: boolean;
 };
 
 type WebdavRequestResult = {
@@ -76,6 +77,10 @@ export class LeafTabSyncWebdavError extends Error {
 const BOOKMARK_WEBDAV_FILE_VERSION = 2;
 const BOOKMARK_WEBDAV_SNAPSHOT_FILE = 'snapshot.json';
 const DEFAULT_WEBDAV_REQUEST_TIMEOUT_MS = 15_000;
+const WEBDAV_LOCK_TIMEOUT_SECONDS = 120;
+const WEBDAV_LOCK_REQUEST_BODY = '<?xml version="1.0" encoding="utf-8"?>'
+  + '<D:lockinfo xmlns:D="DAV:"><D:lockscope><D:exclusive/></D:lockscope>'
+  + '<D:locktype><D:write/></D:locktype><D:owner><D:href>aira</D:href></D:owner></D:lockinfo>';
 const CAS_PROBE_CONFIRMATION_DELAYS_MS = [0, 100, 250, 500] as const;
 const VERIFIED_CONDITIONAL_WRITE_PROVIDERS = new Map<string, WebdavConditionalWriteSupport>();
 
@@ -187,7 +192,9 @@ export class LeafTabSyncWebdavStore implements LeafTabSyncRemoteStore {
       snapshot: toLeafTabSyncWireSnapshot(snapshot),
     };
     try {
-      if (expectedParentCommitId === null && createMode === 'move-no-overwrite') {
+      if (conditionalWriteSupport.lockSerialized) {
+        await this.putJsonWithLock(this.snapshotPath(), file, expectedParentCommitId);
+      } else if (expectedParentCommitId === null && createMode === 'move-no-overwrite') {
         await this.putJsonWithMoveNoOverwrite(this.snapshotPath(), file);
       } else {
         const headers = expectedParentCommitId === null
@@ -210,6 +217,78 @@ export class LeafTabSyncWebdavStore implements LeafTabSyncRemoteStore {
       commitId,
       writtenAt: createdAt,
     };
+  }
+
+  /**
+   * Publishes the snapshot under an exclusive WebDAV lock. Providers such as OpenList ignore
+   * `If-None-Match`, `If-Match`, and `MOVE Overwrite: F`, leaving the lock as the only mutual-exclusion
+   * primitive. Re-reading under the lock re-establishes compare-and-swap: the write proceeds only when
+   * the remote parent is still the one the merge was built from.
+   */
+  private async putJsonWithLock(
+    relativePath: string,
+    payload: unknown,
+    expectedParentCommitId: string | null,
+  ) {
+    const body = JSON.stringify(payload);
+    await this.ensureCollections(relativePath);
+    const lockToken = await this.acquireWriteLock(relativePath);
+    try {
+      const current = await this.readSnapshotWithValidator();
+      this.assertExactParent(current.file, expectedParentCommitId);
+      const response = await this.request('PUT', relativePath, {
+        headers: {
+          'Content-Type': 'application/json',
+          If: `(<${lockToken}>)`,
+        },
+        body,
+      });
+      if (response.status === 409 || response.status === 412 || response.status === 423) {
+        throw new LeafTabSyncWebdavError('lock-conflict', 409, relativePath);
+      }
+      if (!response.ok) {
+        throw new LeafTabSyncWebdavError('upload', response.status, relativePath);
+      }
+      const readBack = await this.getTextResult(relativePath);
+      if (!readBack || readBack.text !== body) {
+        throw new Error('WebDAV 写入后回读内容不一致，无法安全同步。');
+      }
+    } finally {
+      await this.releaseWriteLock(relativePath, lockToken).catch(() => undefined);
+    }
+  }
+
+  private async acquireWriteLock(relativePath: string): Promise<string> {
+    const response = await this.request('LOCK', relativePath, {
+      headers: {
+        'Content-Type': 'application/xml; charset=utf-8',
+        Timeout: `Second-${WEBDAV_LOCK_TIMEOUT_SECONDS}`,
+        Depth: '0',
+      },
+      body: WEBDAV_LOCK_REQUEST_BODY,
+    });
+    if (!response.ok) {
+      throw new LeafTabSyncWebdavError('lock', response.status, relativePath);
+    }
+    const token = this.normalizeLockToken(this.readHeaderValue(response.headers, 'lock-token'));
+    if (!token) {
+      throw new Error('WebDAV 写入锁缺少 Lock-Token，无法安全同步。');
+    }
+    return token;
+  }
+
+  private async releaseWriteLock(relativePath: string, token: string) {
+    await this.request('UNLOCK', relativePath, {
+      headers: { 'Lock-Token': `<${token}>` },
+    });
+  }
+
+  private normalizeLockToken(rawToken: string | null) {
+    let token = (rawToken || '').trim();
+    if (token.length >= 2 && token.startsWith('<') && token.endsWith('>')) {
+      token = token.slice(1, -1).trim();
+    }
+    return token;
   }
 
   private async putJsonWithMoveNoOverwrite(relativePath: string, payload: unknown) {
@@ -309,6 +388,32 @@ export class LeafTabSyncWebdavStore implements LeafTabSyncRemoteStore {
     if (verifiedMode) return verifiedMode;
     const probeId = `${Date.now().toString(36)}-${Math.floor(Math.random() * 0x100000000).toString(36)}`;
     const probePath = `${this.config.rootPath}/cas-probe-${probeId}.json`;
+    let conditionalSupport: WebdavConditionalWriteSupport | null = null;
+    let conditionalError: Error | null = null;
+    try {
+      conditionalSupport = await this.verifyConditionalWriteSupport(probePath, probeId);
+    } catch (error) {
+      conditionalError = error as Error;
+    }
+    if (conditionalSupport) {
+      VERIFIED_CONDITIONAL_WRITE_PROVIDERS.set(providerKey, conditionalSupport);
+      return conditionalSupport;
+    }
+    try {
+      await this.verifyLockSerializedSupport(probeId);
+    } catch {
+      throw conditionalError || new Error('WebDAV 服务不支持安全同步。');
+    }
+    const lockSupport: WebdavConditionalWriteSupport = {
+      createMode: 'lock-serialized',
+      weakEtagIfVerified: false,
+      lockSerialized: true,
+    };
+    VERIFIED_CONDITIONAL_WRITE_PROVIDERS.set(providerKey, lockSupport);
+    return lockSupport;
+  }
+
+  private async verifyConditionalWriteSupport(probePath: string, probeId: string) {
     await this.ensureCollections(probePath);
     try {
       let first = await this.request('PUT', probePath, {
@@ -384,10 +489,73 @@ export class LeafTabSyncWebdavStore implements LeafTabSyncRemoteStore {
       const support: WebdavConditionalWriteSupport = {
         createMode,
         weakEtagIfVerified: revisionCondition === 'webdav-if',
+        lockSerialized: false,
       };
-      VERIFIED_CONDITIONAL_WRITE_PROVIDERS.set(providerKey, support);
       return support;
     } finally {
+      await this.deletePath(probePath).catch(() => undefined);
+    }
+  }
+
+  /**
+   * Verifies that the provider can serialize a publication with an exclusive lock even though it
+   * ignores the HTTP conditional headers. Every step mirrors a real write: the lock must be granted
+   * on an absent path, exclude a competing lock and an unauthenticated write, admit the token-holding
+   * write, expose a validator, and release cleanly. A provider that fails any step stays fail-closed.
+   */
+  private async verifyLockSerializedSupport(probeId: string) {
+    const probePath = `${this.config.rootPath}/lock-probe-${probeId}.json`;
+    const body = '{"lock":1}';
+    await this.ensureCollections(probePath);
+    let lockToken = '';
+    try {
+      await this.deletePath(probePath).catch(() => undefined);
+      lockToken = await this.acquireWriteLock(probePath);
+      const competingLock = await this.request('LOCK', probePath, {
+        headers: {
+          'Content-Type': 'application/xml; charset=utf-8',
+          Timeout: `Second-${WEBDAV_LOCK_TIMEOUT_SECONDS}`,
+          Depth: '0',
+        },
+        body: WEBDAV_LOCK_REQUEST_BODY,
+      });
+      if (competingLock.status !== 423 && competingLock.status !== 409) {
+        throw new Error(`WebDAV 服务未独占加锁，不支持安全首次写入（HTTP ${competingLock.status}）。`);
+      }
+      const unauthenticatedWrite = await this.request('PUT', probePath, {
+        headers: { 'Content-Type': 'application/json' },
+        body,
+      });
+      if (unauthenticatedWrite.status !== 423 && unauthenticatedWrite.status !== 409) {
+        throw new Error(`WebDAV 服务未阻止无锁写入，不支持安全首次写入（HTTP ${unauthenticatedWrite.status}）。`);
+      }
+      const authorizedWrite = await this.request('PUT', probePath, {
+        headers: {
+          'Content-Type': 'application/json',
+          If: `(<${lockToken}>)`,
+        },
+        body,
+      });
+      if (!authorizedWrite.ok) {
+        throw new LeafTabSyncWebdavError('lock-probe-write', authorizedWrite.status, probePath);
+      }
+      const read = await this.getTextResult(probePath);
+      if (!read || read.text !== body || !this.readHeaderValue(read.headers, 'etag')) {
+        throw new Error('WebDAV 服务无法确认加锁写入结果，不支持安全同步。');
+      }
+      await this.releaseWriteLock(probePath, lockToken);
+      lockToken = '';
+      const afterUnlock = await this.request('PUT', probePath, {
+        headers: { 'Content-Type': 'application/json' },
+        body: '{"unlocked":1}',
+      });
+      if (!afterUnlock.ok) {
+        throw new LeafTabSyncWebdavError('lock-probe-unlock', afterUnlock.status, probePath);
+      }
+    } finally {
+      if (lockToken) {
+        await this.releaseWriteLock(probePath, lockToken).catch(() => undefined);
+      }
       await this.deletePath(probePath).catch(() => undefined);
     }
   }

@@ -15,13 +15,14 @@ import {
 import { AiraBookmarkSnapshotValidationService } from './AiraBookmarkSnapshotValidationService';
 import { AiraBookmarkTombstoneLifecycleService } from './AiraBookmarkTombstoneLifecycleService';
 
-type AiraWebdavMethod = 'GET' | 'PUT' | 'DELETE' | 'OPTIONS' | 'MKCOL' | 'MOVE';
-type AiraWebdavCreateMode = 'if-none-match' | 'move-no-overwrite';
+type AiraWebdavMethod = 'GET' | 'PUT' | 'DELETE' | 'OPTIONS' | 'MKCOL' | 'MOVE' | 'LOCK' | 'UNLOCK';
+type AiraWebdavCreateMode = 'if-none-match' | 'move-no-overwrite' | 'lock-serialized';
 type AiraWebdavRevisionCondition = 'if-match' | 'webdav-if';
 
 interface AiraWebdavConditionalWriteSupport {
   createMode: AiraWebdavCreateMode;
   weakEtagIfVerified: boolean;
+  lockSerialized: boolean;
 }
 
 interface AiraWebdavResponse {
@@ -37,6 +38,9 @@ interface AiraWebdavHeaders {
   'If'?: string;
   'If-Match'?: string;
   'If-None-Match'?: string;
+  'Timeout'?: string;
+  'Depth'?: string;
+  'Lock-Token'?: string;
 }
 
 interface AiraWebdavMoveHeaders {
@@ -72,6 +76,11 @@ const BOOKMARK_WEBDAV_SNAPSHOT_FILE: string = 'snapshot.json';
 const REQUEST_TIMEOUT_MS: number = 15000;
 const REMOTE_READ_MAX_ATTEMPTS: number = 3;
 const REMOTE_READ_RETRY_DELAY_MS: number = 350;
+const WEBDAV_LOCK_TIMEOUT_SECONDS: number = 120;
+const WEBDAV_LOCK_REQUEST_BODY: string =
+  '<?xml version="1.0" encoding="utf-8"?>' +
+  '<D:lockinfo xmlns:D="DAV:"><D:lockscope><D:exclusive/></D:lockscope>' +
+  '<D:locktype><D:write/></D:locktype><D:owner><D:href>aira</D:href></D:owner></D:lockinfo>';
 const VERIFIED_CONDITIONAL_WRITE_PROVIDERS: Map<string, AiraWebdavConditionalWriteSupport> =
   new Map<string, AiraWebdavConditionalWriteSupport>();
 
@@ -165,7 +174,14 @@ export class AiraWebdavRemoteStore implements AiraSyncRemoteStore {
       snapshot: snapshot
     };
     let response: AiraWebdavResponse;
-    if (expectedParentCommitId === null && createMode === 'move-no-overwrite') {
+    if (conditionalWriteSupport.lockSerialized) {
+      response = await this.writeSnapshotWithLock(
+        this.snapshotPath(),
+        JSON.stringify(nextFile),
+        expectedParentCommitId,
+        overwriteExisting
+      );
+    } else if (expectedParentCommitId === null && createMode === 'move-no-overwrite') {
       response = await this.createWithMoveNoOverwrite(this.snapshotPath(), JSON.stringify(nextFile));
     } else {
       let condition: AiraWebdavConditionalHeaders;
@@ -248,6 +264,111 @@ export class AiraWebdavRemoteStore implements AiraSyncRemoteStore {
     } finally {
       request.destroy();
     }
+  }
+
+  /**
+   * Publishes the snapshot under an exclusive WebDAV lock. Some providers (for example OpenList)
+   * ignore `If-None-Match`, `If-Match`, and `MOVE Overwrite: F`, so the lock is the only available
+   * mutual-exclusion primitive. The in-lock re-read re-establishes compare-and-swap: the write only
+   * proceeds when the remote parent is still the one the merge was built from.
+   */
+  private async writeSnapshotWithLock(
+    path: string,
+    body: string,
+    expectedParentCommitId: string | null,
+    overwriteExisting: boolean
+  ): Promise<AiraWebdavResponse> {
+    const lock = await this.requestLock(path);
+    if (lock.status < 200 || lock.status >= 300) {
+      throw new Error(`WebDAV 获取写入锁失败：HTTP ${lock.status}`);
+    }
+    const token = this.normalizeLockToken(this.readHeaderValue(lock.headers, 'lock-token'));
+    if (token.length <= 0) {
+      throw new Error('WebDAV 写入锁缺少 Lock-Token，无法安全同步。');
+    }
+    try {
+      const current = await this.readSnapshotFile();
+      if (!overwriteExisting) {
+        this.assertExactParent(current.file, expectedParentCommitId);
+      }
+      const written = await this.request('PUT', path, body, { webdavIf: this.buildLockIfHeader(token) });
+      if (written.status === 409 || written.status === 412 || written.status === 423) {
+        throw new Error('WebDAV 远端已被其他设备更新，请重新同步。');
+      }
+      this.assertSuccess(written, path);
+      const readBack = await this.request('GET', path);
+      this.assertSuccess(readBack, path);
+      if (readBack.body !== body) {
+        throw new Error('WebDAV 写入后回读内容不一致，无法安全同步。');
+      }
+      return readBack;
+    } finally {
+      await this.requestUnlock(path, token).catch((_error: Error): void => {
+      });
+    }
+  }
+
+  private async requestLock(path: string): Promise<AiraWebdavResponse> {
+    const request = http.createHttp();
+    try {
+      const response = await request.request(this.buildUrl(path), {
+        method: 'LOCK' as http.RequestMethod,
+        extraData: WEBDAV_LOCK_REQUEST_BODY,
+        expectDataType: http.HttpDataType.STRING,
+        connectTimeout: this.requestTimeoutMs,
+        readTimeout: this.requestTimeoutMs,
+        header: {
+          Accept: 'application/xml,text/xml,*/*',
+          Authorization: this.buildAuthorizationHeader(),
+          'Content-Type': 'application/xml; charset=utf-8',
+          'Timeout': `Second-${WEBDAV_LOCK_TIMEOUT_SECONDS}`,
+          'Depth': '0'
+        } as AiraWebdavHeaders
+      });
+      return {
+        status: response.responseCode,
+        body: typeof response.result === 'string' ? response.result : '',
+        headers: response.header ?? {}
+      };
+    } finally {
+      request.destroy();
+    }
+  }
+
+  private async requestUnlock(path: string, token: string): Promise<AiraWebdavResponse> {
+    const request = http.createHttp();
+    try {
+      const response = await request.request(this.buildUrl(path), {
+        method: 'UNLOCK' as http.RequestMethod,
+        expectDataType: http.HttpDataType.STRING,
+        connectTimeout: this.requestTimeoutMs,
+        readTimeout: this.requestTimeoutMs,
+        header: {
+          Accept: 'application/json,text/plain,*/*',
+          Authorization: this.buildAuthorizationHeader(),
+          'Lock-Token': `<${token}>`
+        } as AiraWebdavHeaders
+      });
+      return {
+        status: response.responseCode,
+        body: typeof response.result === 'string' ? response.result : '',
+        headers: response.header ?? {}
+      };
+    } finally {
+      request.destroy();
+    }
+  }
+
+  private normalizeLockToken(rawToken: string): string {
+    let token = rawToken.trim();
+    if (token.length >= 2 && token.indexOf('<') === 0 && token.lastIndexOf('>') === token.length - 1) {
+      token = token.slice(1, token.length - 1).trim();
+    }
+    return token;
+  }
+
+  private buildLockIfHeader(token: string): string {
+    return `(<${token}>)`;
   }
 
   async testConnection(): Promise<void> {
@@ -406,6 +527,35 @@ export class AiraWebdavRemoteStore implements AiraSyncRemoteStore {
     }
     const probeId = `${Date.now().toString(36)}-${Math.floor(Math.random() * 0x100000000).toString(36)}`;
     const probePath = `${this.rootPath}/cas-probe-${probeId}.json`;
+    let conditionalSupport: AiraWebdavConditionalWriteSupport | null = null;
+    let conditionalError: Error | null = null;
+    try {
+      conditionalSupport = await this.verifyConditionalWriteSupport(probePath, probeId);
+    } catch (error) {
+      conditionalError = error as Error;
+    }
+    if (conditionalSupport !== null) {
+      VERIFIED_CONDITIONAL_WRITE_PROVIDERS.set(providerKey, conditionalSupport);
+      return conditionalSupport;
+    }
+    try {
+      await this.verifyLockSerializedSupport(probeId);
+    } catch (_lockError) {
+      throw conditionalError ?? new Error('WebDAV 服务不支持安全同步。');
+    }
+    const lockSupport: AiraWebdavConditionalWriteSupport = {
+      createMode: 'lock-serialized',
+      weakEtagIfVerified: false,
+      lockSerialized: true
+    };
+    VERIFIED_CONDITIONAL_WRITE_PROVIDERS.set(providerKey, lockSupport);
+    return lockSupport;
+  }
+
+  private async verifyConditionalWriteSupport(
+    probePath: string,
+    probeId: string
+  ): Promise<AiraWebdavConditionalWriteSupport> {
     try {
       let first = await this.request('PUT', probePath, '{"step":1}', { ifNoneMatch: '*' });
       let createMode: AiraWebdavCreateMode = 'if-none-match';
@@ -463,9 +613,9 @@ export class AiraWebdavRemoteStore implements AiraSyncRemoteStore {
       }
       const support: AiraWebdavConditionalWriteSupport = {
         createMode,
-        weakEtagIfVerified: revisionCondition === 'webdav-if'
+        weakEtagIfVerified: revisionCondition === 'webdav-if',
+        lockSerialized: false
       };
-      VERIFIED_CONDITIONAL_WRITE_PROVIDERS.set(providerKey, support);
       return support;
     } finally {
       await this.request('DELETE', probePath).catch((_error: Error): void => {
@@ -509,6 +659,59 @@ export class AiraWebdavRemoteStore implements AiraSyncRemoteStore {
       await this.request('DELETE', sourcePath).catch((_error: Error): void => {
       });
       await this.request('DELETE', destinationPath).catch((_error: Error): void => {
+      });
+    }
+  }
+
+  /**
+   * Verifies that the provider can serialize a publication with an exclusive lock even though it
+   * ignores the HTTP conditional headers. Every step mirrors a real write: the lock must be granted
+   * on an absent path, exclude a competing lock and an unauthenticated write, admit the token-holding
+   * write, expose a validator, and release cleanly. A provider that fails any step stays fail-closed.
+   */
+  private async verifyLockSerializedSupport(probeId: string): Promise<void> {
+    const probePath = `${this.rootPath}/lock-probe-${probeId}.json`;
+    const body = '{"lock":1}';
+    let lockToken = '';
+    try {
+      await this.request('DELETE', probePath).catch((_error: Error): void => {
+      });
+      const lock = await this.requestLock(probePath);
+      if (lock.status < 200 || lock.status >= 300) {
+        throw new Error(`WebDAV 服务不支持 LOCK 写入（HTTP ${lock.status}）。`);
+      }
+      lockToken = this.normalizeLockToken(this.readHeaderValue(lock.headers, 'lock-token'));
+      if (lockToken.length <= 0) {
+        throw new Error('WebDAV 服务未返回 Lock-Token，不支持安全首次写入。');
+      }
+      const competingLock = await this.requestLock(probePath);
+      if (competingLock.status !== 423 && competingLock.status !== 409) {
+        throw new Error(`WebDAV 服务未独占加锁，不支持安全首次写入（HTTP ${competingLock.status}）。`);
+      }
+      const unauthenticatedWrite = await this.request('PUT', probePath, body);
+      if (unauthenticatedWrite.status !== 423 && unauthenticatedWrite.status !== 409) {
+        throw new Error(`WebDAV 服务未阻止无锁写入，不支持安全首次写入（HTTP ${unauthenticatedWrite.status}）。`);
+      }
+      const authorizedWrite = await this.request('PUT', probePath, body, { webdavIf: this.buildLockIfHeader(lockToken) });
+      this.assertSuccess(authorizedWrite, probePath);
+      const read = await this.request('GET', probePath);
+      this.assertSuccess(read, probePath);
+      if (read.body !== body || this.readHeaderValue(read.headers, 'etag').length <= 0) {
+        throw new Error('WebDAV 服务无法确认加锁写入结果，不支持安全同步。');
+      }
+      const unlock = await this.requestUnlock(probePath, lockToken);
+      if (unlock.status < 200 || unlock.status >= 300) {
+        throw new Error(`WebDAV 服务无法释放写入锁（HTTP ${unlock.status}）。`);
+      }
+      lockToken = '';
+      const afterUnlock = await this.request('PUT', probePath, '{"unlocked":1}');
+      this.assertSuccess(afterUnlock, probePath);
+    } finally {
+      if (lockToken.length > 0) {
+        await this.requestUnlock(probePath, lockToken).catch((_error: Error): void => {
+        });
+      }
+      await this.request('DELETE', probePath).catch((_error: Error): void => {
       });
     }
   }

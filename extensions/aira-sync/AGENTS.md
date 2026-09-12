@@ -28,9 +28,11 @@ These rules are mandatory for Codex or any other coding agent working in this re
   enables the target before committing the selected source last. The WebDAV save page must keep its existing immediate
   return-to-home/background-sync interaction unless the user explicitly authorizes a UI change.
 - Preserve complete Bookmark snapshots, provider-identity baselines, CAS/ETag conditions, the verified WebDAV
-  `If-None-Match` or `MOVE Overwrite: F` first-publication behavior, and baseline advancement only after confirmed remote
-  commit plus successful local apply. Do not add oplogs, outboxes, recovery journals, dual writes, App Personalization,
-  account-level provider topology, cross-Domain transactions, or legacy data bridges.
+  `If-None-Match`, `MOVE Overwrite: F`, or lock-serialized first-publication behavior, and baseline advancement only
+  after confirmed remote commit plus successful local apply. The lock-serialized fallback is the only additional create
+  mode, applies only after both `If-None-Match` and the verified `MOVE Overwrite: F` probe fail, and must keep the
+  exclusive-lock-then-re-read compare-and-swap invariant. Do not add oplogs, outboxes, recovery journals, dual writes,
+  App Personalization, account-level provider topology, cross-Domain transactions, or legacy data bridges.
 - After an authorized change, run at least `npm run typecheck` and `npm run build:final`, plus the relevant protocol or
   manual flow checks. Distinguish those results from user-operated real-browser multi-device acceptance.
 

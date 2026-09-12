@@ -460,3 +460,17 @@ to the unchanged complete capture/read/merge/conditional-write path. This is not
 does not treat a Head as a snapshot: Head identity is only a pointer to a previously confirmed complete commit.
 Operation logs, outboxes, incremental replay, and delete-only/private-only fast paths remain outside the current
 Sync Generation.
+
+Amended 2026-09-12 after reproducing a WebDAV additional-backup failure against a self-hosted OpenList v4.2.6 server:
+a provider may support neither HTTP conditional writes nor `MOVE Overwrite: F` while still offering a correct
+exclusive `LOCK`/`UNLOCK`. The capability probe keeps `if-none-match` as its first choice and the verified
+`move-no-overwrite` fallback second; when both fail it may verify and adopt a third `lock-serialized` create mode
+instead of failing closed. The lock mode preserves the same compare-and-swap invariant by a different primitive:
+the App and Aira-sync take an exclusive lock on the snapshot path, re-read the remote under that lock, and proceed
+only when the observed commit/revision still equals the one the merge was built from; the write carries the lock
+token in a WebDAV `If: (<token>)` header and the lock is released in a `finally`. Adoption requires the probe to
+prove, against freshly randomized disposable paths, that the provider grants a lock on an absent path, rejects a
+competing lock and an unauthenticated write (`423`/`409`), admits the token-holding write, reveals a validator, and
+releases cleanly; a provider that fails any step stays fail-closed. This adds no oplog, outbox, second snapshot
+authority, journal, or dual write, and does not relax the blind-overwrite, merge, local-apply, confirmation, or
+baseline contracts.
