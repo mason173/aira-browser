@@ -2259,6 +2259,14 @@ struct BrowserShellPage {
             // Opening the sheet: refresh the cached gallery states before the overlay
             // build reads them, so the first frame already carries the current previews.
             this.refreshTabPreviewStates();
+            if (this.tabsOverviewOverlayResident) {
+              // Already mounted from a previous open: ask it to replay its per-open
+              // setup, since a resident overlay never re-enters aboutToAppear.
+              this.tabsOverviewOpenRequestVersion += 1;
+            } else {
+              // First open: the overlay mounts now and runs its own setup.
+              this.tabsOverviewOverlayResident = true;
+            }
           }
           this.showTabsSheet = effect.shouldShowTabsSheet;
           this.reconcileExternalNavigationPromptForCurrentPage();
@@ -5315,6 +5323,12 @@ struct BrowserShellPage {
   // (`notifyTabPreviewChanged`) or the sheet is (re)opened; the overlay build then
   // reads this field instead of rebuilding the list on every render pass.
   private tabsOverviewPreviewStates: BrowserTabPreviewState[] = [];
+  // Once the tabs overview has been opened it stays mounted (hidden) instead of
+  // being torn down, so later opens reuse the built grid/chrome subtree instead of
+  // paying for it again. The overlay replays its per-open setup from
+  // tabsOverviewOpenRequestVersion.
+  private tabsOverviewOverlayResident: boolean = false;
+  @State private tabsOverviewOpenRequestVersion: number = 0;
   @State
   @Watch('refreshRootBottomPanelLayoutState')
   browserSearchSuggestionSnapshot: BrowserSearchSuggestionSnapshot =
@@ -5947,7 +5961,12 @@ struct BrowserShellPage {
 
       this.buildRootBottomPanelExpandedScrim()
 
-      if (this.buildTabsOverviewSceneRenderState().cardsLayerMounted) {
+      // Mount the overlay whenever it is open OR still resident from a previous
+      // open. Once resident it is kept mounted (opacity 0, hit-test off) so later
+      // opens skip rebuilding the grid and the chrome subtree. Residency flips in
+      // the sheet-open state path, never here: writing state from build() would
+      // re-enter the renderer.
+      if (this.tabsOverviewOverlayResident || this.buildTabsOverviewSceneRenderState().cardsLayerMounted) {
         this.buildTabsOverlay()
       }
 
@@ -7337,8 +7356,19 @@ struct BrowserShellPage {
     }
     .width('100%')
     .height('100%')
-    .opacity(this.tabsOverviewPresentationState.surface.overlayOpacity)
+    // Hidden while resident-but-closed (overlayOpacity is 1 after a close reset
+    // because the old design unmounted the layer; residency must mask it here).
+    .opacity(this.resolveTabsOverlayLayerOpacity())
+    .hitTestBehavior(this.buildTabsOverviewSceneRenderState().cardsLayerMounted ?
+      HitTestMode.Default : HitTestMode.None)
     .zIndex(TABS_OVERVIEW_OVERLAY_Z_INDEX)
+  }
+
+  private resolveTabsOverlayLayerOpacity(): number {
+    if (!this.buildTabsOverviewSceneRenderState().cardsLayerMounted) {
+      return 0;
+    }
+    return this.tabsOverviewPresentationState.surface.overlayOpacity;
   }
 
   @Builder
@@ -7346,6 +7376,7 @@ struct BrowserShellPage {
     BrowserTabsFloatingOverlay({
       tabs: this.tabs,
       previewStates: this.getTabPreviewStates(),
+      openRequestVersion: this.tabsOverviewOpenRequestVersion,
       activeTabId: this.activeTabId,
       activeSection: this.resolveTabsSheetActiveSection(),
       morphCoveredTabId: this.tabsOverviewSessionCoordinator
