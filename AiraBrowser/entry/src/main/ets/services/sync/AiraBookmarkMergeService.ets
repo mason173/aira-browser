@@ -1,4 +1,5 @@
 import {
+  AIRA_SYNC_ROOT_ORDER_KEY,
   AIRA_SYNC_SCHEMA_VERSION,
   AiraBookmarkMergeConflictDetail,
   AiraBookmarkConflictResolution,
@@ -122,7 +123,10 @@ export class AiraBookmarkMergeService {
       bookmarkOrders: await this.filterOrdersByLiveIdsCooperatively(
         orderMerge.values,
         liveFolders,
+        liveItems,
         liveEntityIds,
+        deviceId,
+        generatedAt,
         throttle
       ),
       tombstones: canonicalTombstones,
@@ -229,7 +233,7 @@ export class AiraBookmarkMergeService {
       },
       bookmarkFolders: liveFolders,
       bookmarkItems: liveItems,
-      bookmarkOrders: this.filterOrdersByLiveIds(orderMerge.values, liveFolders, liveEntityIds),
+      bookmarkOrders: this.filterOrdersByLiveIds(orderMerge.values, liveFolders, liveItems, liveEntityIds, deviceId, generatedAt),
       tombstones: canonicalTombstones,
       appPrivateBookmarks: privateMerge.dataSet
     };
@@ -313,22 +317,29 @@ export class AiraBookmarkMergeService {
     };
     const localPrivateDataSet = this.normalizePrivateBookmarkDataSet(local);
     const remotePrivateDataSet = this.normalizePrivateBookmarkDataSet(remote);
+    const missingBaselineGeneratedAt = new Date().toISOString();
     const mergedDataSet = this.mergeMissingBaselineDataSets(
       localDataSet,
       remoteDataSet,
-      remote.meta.deviceId || deviceId
+      remote.meta.deviceId || deviceId,
+      missingBaselineGeneratedAt
     );
     const snapshot: AiraSyncSnapshot = {
       meta: {
         version: AIRA_SYNC_SCHEMA_VERSION,
         deviceId: deviceId,
-        generatedAt: new Date().toISOString()
+        generatedAt: missingBaselineGeneratedAt
       },
       bookmarkFolders: mergedDataSet.bookmarkFolders,
       bookmarkItems: mergedDataSet.bookmarkItems,
       bookmarkOrders: mergedDataSet.bookmarkOrders,
       tombstones: mergedDataSet.tombstones,
-      appPrivateBookmarks: this.mergeInitialPrivateBookmarkDataSets(local, remote, remote.meta.deviceId || deviceId)
+      appPrivateBookmarks: this.mergeInitialPrivateBookmarkDataSets(
+        local,
+        remote,
+        remote.meta.deviceId || deviceId,
+        missingBaselineGeneratedAt
+      )
     };
     return {
       snapshot: snapshot,
@@ -583,12 +594,14 @@ export class AiraBookmarkMergeService {
   private mergeInitialPrivateBookmarkDataSets(
     local: AiraSyncSnapshot,
     remote: AiraSyncSnapshot,
-    remoteDeviceId: string
+    remoteDeviceId: string,
+    generatedAt: string
   ): AiraSyncBookmarkDataSet {
     return this.mergeMissingBaselineDataSets(
       this.normalizePrivateBookmarkDataSet(local),
       this.normalizePrivateBookmarkDataSet(remote),
-      remoteDeviceId
+      remoteDeviceId,
+      generatedAt
     );
   }
 
@@ -1196,17 +1209,46 @@ export class AiraBookmarkMergeService {
   private mergeMissingBaselineDataSets(
     local: AiraSyncBookmarkDataSet,
     remote: AiraSyncBookmarkDataSet,
-    remoteDeviceId: string
+    remoteDeviceId: string,
+    generatedAt: string
   ): AiraSyncBookmarkDataSet {
     const remappedRemote = this.remapInitialRemoteCollisions(local, remote, remoteDeviceId);
-    const bookmarkFolders = this.mergeInitialFolders(local.bookmarkFolders, remappedRemote.bookmarkFolders);
-    const bookmarkItems = this.mergeInitialItems(local.bookmarkItems, remappedRemote.bookmarkItems);
+    // On a first join, a tombstone may only be suppressed by the remote's own live
+    // entities: a snapshot cannot list one id as both live and deleted. A locally-live
+    // entity with the same id is the same entity (ids are unique by construction), so
+    // ignoring the tombstone there would silently resurrect a bookmark the account had
+    // already deleted. Local tombstones are still carried, but they can never delete a
+    // remote live entity, because those ids are filtered out first.
+    const remoteLiveEntityIds = new Set<string>();
+    remappedRemote.bookmarkFolders.forEach((folder: AiraSyncBookmarkFolderEntity): void => {
+      remoteLiveEntityIds.add(folder.id);
+    });
+    remappedRemote.bookmarkItems.forEach((item: AiraSyncBookmarkItemEntity): void => {
+      remoteLiveEntityIds.add(item.id);
+    });
+    const tombstoneValues = this.mergeInitialTombstones(local.tombstones, remappedRemote.tombstones)
+      .filter((entry: AiraSyncTombstone): boolean => !remoteLiveEntityIds.has(entry.id));
+    const deletedFolderIds = this.buildDeletedEntityIdSet(tombstoneValues, 'bookmark-folder');
+    const deletedItemIds = this.buildDeletedEntityIdSet(tombstoneValues, 'bookmark-item');
+    const survivingLocalFolders = local.bookmarkFolders.filter(
+      (folder: AiraSyncBookmarkFolderEntity): boolean => !deletedFolderIds.has(folder.id)
+    );
+    const survivingLocalItems = local.bookmarkItems.filter(
+      (item: AiraSyncBookmarkItemEntity): boolean => !deletedItemIds.has(item.id)
+    );
+    const survivingRemoteFolders = remappedRemote.bookmarkFolders.filter(
+      (folder: AiraSyncBookmarkFolderEntity): boolean => !deletedFolderIds.has(folder.id)
+    );
+    const survivingRemoteItems = remappedRemote.bookmarkItems.filter(
+      (item: AiraSyncBookmarkItemEntity): boolean => !deletedItemIds.has(item.id)
+    );
+    const bookmarkFolders = this.mergeInitialFolders(survivingLocalFolders, survivingRemoteFolders);
+    const bookmarkItems = this.mergeInitialItems(survivingLocalItems, survivingRemoteItems);
     const liveFolderIds = this.toFolderIdSet(bookmarkFolders);
     const liveItemIds = this.toItemIdSet(bookmarkItems);
-    const tombstones = this.mergeInitialTombstones(local.tombstones, remappedRemote.tombstones)
-      .filter((entry: AiraSyncTombstone): boolean => {
-        return !liveFolderIds.has(entry.id) && !liveItemIds.has(entry.id);
-      });
+    const tombstones = tombstoneValues.filter((entry: AiraSyncTombstone): boolean => {
+      return !liveFolderIds.has(entry.id) && !liveItemIds.has(entry.id);
+    });
     const liveEntityIds = this.collectEntityIds(bookmarkFolders, bookmarkItems);
     return {
       bookmarkFolders: bookmarkFolders,
@@ -1215,7 +1257,10 @@ export class AiraBookmarkMergeService {
         local.bookmarkOrders,
         remappedRemote.bookmarkOrders,
         bookmarkFolders,
-        liveEntityIds
+        bookmarkItems,
+        liveEntityIds,
+        remoteDeviceId,
+        generatedAt
       ),
       tombstones: tombstones
     };
@@ -1418,11 +1463,140 @@ export class AiraBookmarkMergeService {
     return Array.from(values.values());
   }
 
+  // First-join identity adoption. Entity IDs are installation-scoped, so a device with
+  // no baseline cannot tell that its local entity and the cloud's entity are the same
+  // bookmark. The four sync roots are canonical across clients, so a path anchored on
+  // the root entity ID identifies the same bookmark everywhere. This returns a rename
+  // map local -> remote; it never merges or drops an entity, so a mispairing can only
+  // swap two IDs and can never lose a bookmark.
+  planIdentityAdoption(local: AiraSyncSnapshot, remote: AiraSyncSnapshot): Map<string, string> {
+    const remoteGroups = this.buildContentCorrelationGroups(remote);
+    const adoption = new Map<string, string>();
+    if (remoteGroups.size === 0) {
+      return adoption;
+    }
+    const localGroups = this.buildContentCorrelationGroups(local);
+    localGroups.forEach((localIds: string[], key: string): void => {
+      const remoteIds = remoteGroups.get(key);
+      if (remoteIds === undefined) {
+        return;
+      }
+      const pairCount = Math.min(localIds.length, remoteIds.length);
+      for (let index = 0; index < pairCount; index += 1) {
+        if (localIds[index] !== remoteIds[index]) {
+          adoption.set(localIds[index], remoteIds[index]);
+        }
+      }
+    });
+    return adoption;
+  }
+
+  private buildContentCorrelationGroups(snapshot: AiraSyncSnapshot): Map<string, string[]> {
+    const parentById = new Map<string, string | null>();
+    const titleById = new Map<string, string>();
+    const urlById = new Map<string, string>();
+    snapshot.bookmarkFolders.forEach((folder: AiraSyncBookmarkFolderEntity): void => {
+      parentById.set(folder.id, folder.parentId);
+      titleById.set(folder.id, folder.title);
+    });
+    snapshot.bookmarkItems.forEach((item: AiraSyncBookmarkItemEntity): void => {
+      parentById.set(item.id, item.parentId);
+      titleById.set(item.id, item.title);
+      urlById.set(item.id, item.url);
+    });
+
+    const orderIndexByParent = new Map<string, Map<string, number>>();
+    snapshot.bookmarkOrders.forEach((order: AiraSyncBookmarkOrder): void => {
+      if (!Array.isArray(order.ids)) {
+        return;
+      }
+      const parentKey = order.parentId === null ? AIRA_SYNC_ROOT_ORDER_KEY : order.parentId;
+      const index = new Map<string, number>();
+      for (let position = 0; position < order.ids.length; position += 1) {
+        if (!index.has(order.ids[position])) {
+          index.set(order.ids[position], position);
+        }
+      }
+      orderIndexByParent.set(parentKey, index);
+    });
+
+    const pathKeyById = new Map<string, string>();
+    const visiting = new Set<string>();
+    const pathKeyOf = (id: string): string => {
+      const cached = pathKeyById.get(id);
+      if (cached !== undefined) {
+        return cached;
+      }
+      if (visiting.has(id)) {
+        return '';
+      }
+      visiting.add(id);
+      const parentId = parentById.get(id) ?? null;
+      let key: string;
+      if (parentId === null) {
+        key = id;
+      } else {
+        const title = titleById.get(id) ?? '';
+        const url = urlById.get(id);
+        const parentKey = pathKeyOf(parentId);
+        key = url === undefined ? `${parentKey}\u0001${title}` : `${parentKey}\u0001${title}\u0002${url}`;
+      }
+      visiting.delete(id);
+      pathKeyById.set(id, key);
+      return key;
+    };
+
+    const groups = new Map<string, string[]>();
+    snapshot.bookmarkFolders.forEach((folder: AiraSyncBookmarkFolderEntity): void => {
+      const key = pathKeyOf(folder.id);
+      const current = groups.get(key);
+      if (current === undefined) {
+        groups.set(key, [folder.id]);
+      } else {
+        current.push(folder.id);
+      }
+    });
+    snapshot.bookmarkItems.forEach((item: AiraSyncBookmarkItemEntity): void => {
+      const key = pathKeyOf(item.id);
+      const current = groups.get(key);
+      if (current === undefined) {
+        groups.set(key, [item.id]);
+      } else {
+        current.push(item.id);
+      }
+    });
+
+    groups.forEach((ids: string[], key: string): void => {
+      ids.sort((left: string, right: string): number => {
+        const parentId = parentById.get(left) ?? null;
+        const parentKey = parentId === null ? AIRA_SYNC_ROOT_ORDER_KEY : parentId;
+        const index = orderIndexByParent.get(parentKey);
+        const leftIndex = index === undefined ? -1 : (index.get(left) ?? -1);
+        const rightIndex = index === undefined ? -1 : (index.get(right) ?? -1);
+        if (leftIndex !== rightIndex) {
+          return rightIndex - leftIndex;
+        }
+        const leftTitle = titleById.get(left) ?? '';
+        const rightTitle = titleById.get(right) ?? '';
+        if (leftTitle !== rightTitle) {
+          return leftTitle.localeCompare(rightTitle);
+        }
+        return left.localeCompare(right);
+      });
+      groups.set(key, ids);
+    });
+
+    return groups;
+  }
+
   private mergeInitialOrders(
     local: AiraSyncBookmarkOrder[],
     remote: AiraSyncBookmarkOrder[],
     folders: AiraSyncBookmarkFolderEntity[],
-    liveEntityIds: Set<string>
+    items: AiraSyncBookmarkItemEntity[],
+    liveEntityIds: Set<string>,
+    deviceId: string,
+    generatedAt: string
   ): AiraSyncBookmarkOrder[] {
     const keys = this.collectKeys(
       [],
@@ -1475,7 +1649,7 @@ export class AiraBookmarkMergeService {
           (this.orderMatchesEitherSide(ids, localIds, remoteIds) ? 0 : 1)
       });
     });
-    return this.filterOrdersByLiveIds(values, folders, liveEntityIds);
+    return this.filterOrdersByLiveIds(values, folders, items, liveEntityIds, deviceId, generatedAt);
   }
 
   private countInitialDataSetAdditions(
@@ -2372,7 +2546,10 @@ export class AiraBookmarkMergeService {
   private filterOrdersByLiveIds(
     orders: AiraSyncBookmarkOrder[],
     folders: AiraSyncBookmarkFolderEntity[],
-    liveEntityIds: Set<string>
+    items: AiraSyncBookmarkItemEntity[],
+    liveEntityIds: Set<string>,
+    deviceId: string,
+    generatedAt: string
   ): AiraSyncBookmarkOrder[] {
     const folderIds = new Set<string>();
     folders.forEach((folder: AiraSyncBookmarkFolderEntity) => folderIds.add(folder.id));
@@ -2396,13 +2573,126 @@ export class AiraBookmarkMergeService {
         revision: order.revision
       });
     });
+    return this.ensureOrderedCoverage(result, folders, items, deviceId, generatedAt);
+  }
+
+  // Every live folder/item must be placed in its parent's order. A merge can
+  // introduce live entities that neither side's order lists (for example the same
+  // bookmark stored under two installation-scoped IDs), and canonical validation
+  // rejects a snapshot with unordered live entities. This retains those
+  // otherwise-unplaced entities instead of dropping them.
+  private ensureOrderedCoverage(
+    orders: AiraSyncBookmarkOrder[],
+    folders: AiraSyncBookmarkFolderEntity[],
+    items: AiraSyncBookmarkItemEntity[],
+    deviceId: string,
+    generatedAt: string
+  ): AiraSyncBookmarkOrder[] {
+    const folderById = new Map<string, AiraSyncBookmarkFolderEntity>();
+    folders.forEach((folder: AiraSyncBookmarkFolderEntity) => folderById.set(folder.id, folder));
+    const childIdsByParent = new Map<string, string[]>();
+    const addChild = (parentId: string | null, id: string): void => {
+      const key = parentId === null ? '' : parentId;
+      const current = childIdsByParent.get(key);
+      if (current !== undefined) {
+        current.push(id);
+        return;
+      }
+      childIdsByParent.set(key, [id]);
+    };
+    folders.forEach((folder: AiraSyncBookmarkFolderEntity) => addChild(folder.parentId, folder.id));
+    items.forEach((item: AiraSyncBookmarkItemEntity) => addChild(item.parentId, item.id));
+
+    const orderByKey = new Map<string, AiraSyncBookmarkOrder>();
+    orders.forEach((order: AiraSyncBookmarkOrder) => orderByKey.set(order.parentId === null ? '' : order.parentId, order));
+
+    const keys = new Set<string>();
+    orderByKey.forEach((_order: AiraSyncBookmarkOrder, key: string) => keys.add(key));
+    childIdsByParent.forEach((_ids: string[], key: string) => keys.add(key));
+
+    const placed = new Set<string>();
+    const result: AiraSyncBookmarkOrder[] = [];
+    keys.forEach((key: string) => {
+      const parentId = key === '' ? null : key;
+      if (parentId !== null && !folderById.has(parentId)) {
+        return;
+      }
+      const children = childIdsByParent.get(key) ?? [];
+      const childSet = new Set<string>();
+      children.forEach((id: string) => childSet.add(id));
+      const ids: string[] = [];
+      const existing = orderByKey.get(key);
+      if (existing !== undefined) {
+        existing.ids.forEach((id: string) => {
+          if (childSet.has(id) && !placed.has(id)) {
+            ids.push(id);
+            placed.add(id);
+          }
+        });
+      }
+      children.forEach((id: string) => {
+        if (!placed.has(id)) {
+          ids.push(id);
+          placed.add(id);
+        }
+      });
+      let updatedAt: string;
+      let updatedBy: string;
+      let revision: number;
+      if (existing !== undefined) {
+        updatedAt = existing.updatedAt;
+        updatedBy = existing.updatedBy;
+        revision = existing.revision;
+      } else {
+        const synthesized: AiraSynthOrderMeta = this.synthesizeOrderMeta(parentId, folderById, deviceId, generatedAt);
+        updatedAt = synthesized.updatedAt;
+        updatedBy = synthesized.updatedBy;
+        revision = synthesized.revision;
+      }
+      result.push({
+        type: 'bookmark-order',
+        parentId: parentId,
+        ids: ids,
+        updatedAt: updatedAt,
+        updatedBy: updatedBy,
+        revision: revision
+      });
+    });
     return result;
+  }
+
+  private synthesizeOrderMeta(
+    parentId: string | null,
+    folderById: Map<string, AiraSyncBookmarkFolderEntity>,
+    deviceId: string,
+    generatedAt: string
+  ): AiraSynthOrderMeta {
+    if (parentId !== null) {
+      const folder = folderById.get(parentId);
+      if (folder !== undefined) {
+        return { updatedAt: folder.updatedAt, updatedBy: folder.updatedBy, revision: folder.revision };
+      }
+    }
+    let newest: AiraSyncBookmarkFolderEntity | null = null;
+    folderById.forEach((folder: AiraSyncBookmarkFolderEntity) => {
+      if (newest === null || folder.updatedAt > newest.updatedAt) {
+        newest = folder;
+      }
+    });
+    if (newest !== null) {
+      const chosen: AiraSyncBookmarkFolderEntity = newest;
+      return { updatedAt: chosen.updatedAt, updatedBy: chosen.updatedBy, revision: chosen.revision };
+    }
+    return { updatedAt: generatedAt, updatedBy: deviceId, revision: 1 };
   }
 
   private async filterOrdersByLiveIdsCooperatively(
     orders: AiraSyncBookmarkOrder[],
     folders: AiraSyncBookmarkFolderEntity[],
+    items: AiraSyncBookmarkItemEntity[],
     liveEntityIds: Set<string>,
+    deviceId: string,
+    generatedAt: string,
     throttle: AiraSyncWorkThrottleService
   ): Promise<AiraSyncBookmarkOrder[]> {
     const folderIds = new Set<string>();
@@ -2435,8 +2725,14 @@ export class AiraBookmarkMergeService {
       });
       await throttle.afterBatchItem(orderIndex + 1);
     }
-    return result;
+    return this.ensureOrderedCoverage(result, folders, items, deviceId, generatedAt);
   }
+}
+
+interface AiraSynthOrderMeta {
+  updatedAt: string;
+  updatedBy: string;
+  revision: number;
 }
 
 interface AiraMergeCollectionResult<T> {

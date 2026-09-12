@@ -9,7 +9,12 @@ export const AIRA_BOOKMARK_SYNC_PROTOCOL_ID: string = 'bookmark-snapshot-v3';
 export const AIRA_CLOUD_BOOKMARK_SYNC_PROTOCOL_ID: string = 'aira-cloud-bookmarks-v4';
 export const AIRA_CLOUD_BOOKMARK_SYNC_GENERATION: number = 4;
 export const AIRA_BOOKMARK_HISTORY_VERSION: number = 1;
-export const AIRA_BOOKMARK_TOMBSTONE_RETENTION_MS: number = 90 * 24 * 60 * 60 * 1000;
+// Shared bookmark tombstone frontier for every provider (Aira Cloud, WebDAV, Huawei Space).
+// A deletion record is kept only until it is older than this window, then the frontier advances
+// and the row is physically purged. Seven days keeps an ordinary multi-day offline device safe
+// while bounding how many tombstones a complete-snapshot provider has to carry; carrying a long
+// accumulated tombstone history is what made an established account's sync slow.
+export const AIRA_BOOKMARK_TOMBSTONE_RETENTION_MS: number = 7 * 24 * 60 * 60 * 1000;
 
 export function buildAiraWebdavRemoteStatusProviderKey(
   endpoint: string,

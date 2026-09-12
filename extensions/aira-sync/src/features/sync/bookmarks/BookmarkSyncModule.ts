@@ -4,6 +4,8 @@ import { LeafTabSyncPersonalServerStore } from '@/sync/leaftab/personalServerSto
 import type { PersonalServerConnection } from '@/features/personal-server/PersonalServerConnection';
 import {
   captureLeafTabBookmarkTreeDraft,
+  persistLeafTabIdentityAdoption,
+  planLeafTabIdentityAdoption,
   replaceLeafTabBookmarkTree,
 } from '@/sync/leaftab/bookmarks';
 import {
@@ -192,6 +194,7 @@ export interface BookmarkSyncLocalAdapter {
   buildSnapshot: () => Promise<LeafTabSyncSnapshot>;
   applySnapshot: (snapshot: LeafTabSyncSnapshot) => Promise<void>;
   verifySnapshot: (snapshot: LeafTabSyncSnapshot) => Promise<void>;
+  adoptIdentity?: (remoteSnapshot: LeafTabSyncSnapshot) => Promise<LeafTabSyncSnapshot | null>;
   readPendingChanges?: () => Promise<number>;
   clearPendingChanges?: (expectedChangedAt: number) => Promise<void> | void;
 }
@@ -209,6 +212,10 @@ export interface BookmarkSyncRuntimeLocalAdapter {
   buildSnapshot: (baselineStorageKey: string) => Promise<LeafTabSyncSnapshot>;
   applySnapshot: (snapshot: LeafTabSyncSnapshot) => Promise<void>;
   verifySnapshot: (snapshot: LeafTabSyncSnapshot) => Promise<void>;
+  adoptIdentity: (
+    baselineStorageKey: string,
+    remoteSnapshot: LeafTabSyncSnapshot,
+  ) => Promise<LeafTabSyncSnapshot | null>;
   readPendingChanges?: () => Promise<number>;
   clearPendingChanges?: (expectedChangedAt: number) => Promise<void> | void;
 }
@@ -312,6 +319,43 @@ export const createBookmarkSyncBrowserLocalAdapter = (
     });
     assertLeafTabBookmarkTreeMatchesSnapshot(bookmarkTree, snapshot);
   },
+  async adoptIdentity(
+    _baselineStorageKey: string,
+    remoteSnapshot: LeafTabSyncSnapshot,
+  ): Promise<LeafTabSyncSnapshot | null> {
+    // No baseline has been persisted for this account yet; adoption only records the
+    // remote's identity in the local node mapping. It never mutates the remote.
+    const draft = await captureLeafTabBookmarkTreeDraft({
+      requestPermission: false,
+      throwOnPermissionDenied: false,
+      deviceId: config.deviceId,
+    });
+    const adoption = planLeafTabIdentityAdoption(draft, remoteSnapshot);
+    if (adoption.size === 0) return null;
+    await persistLeafTabIdentityAdoption(adoption);
+    // Re-capture so the returned snapshot already carries the adopted identity and
+    // the subsequent merge converges instead of unioning the same bookmark twice.
+    const previousSnapshot = normalizeLeafTabSyncSnapshot(null);
+    const refreshedTree = await captureLeafTabBookmarkTreeDraft({
+      requestPermission: false,
+      throwOnPermissionDenied: false,
+      previousSnapshot,
+      deviceId: config.deviceId,
+    });
+    const generatedAt = new Date().toISOString();
+    const state = createLeafTabSyncBuildState({
+      previousSnapshot,
+      bookmarkTree: refreshedTree,
+      deviceId: config.deviceId,
+      generatedAt,
+    });
+    return buildLeafTabSyncSnapshot({
+      bookmarkTree: refreshedTree,
+      deviceId: config.deviceId,
+      generatedAt,
+      state,
+    });
+  },
   readPendingChanges: config.readPendingChanges,
   clearPendingChanges: config.clearPendingChanges,
 });
@@ -358,6 +402,8 @@ export const createBookmarkSyncRuntime = (config: BookmarkSyncRuntimeConfig): Bo
       buildSnapshot: () => config.local.buildSnapshot(baselineStorageKey),
       applySnapshot: config.local.applySnapshot,
       verifySnapshot: config.local.verifySnapshot,
+      adoptIdentity: (remoteSnapshot: LeafTabSyncSnapshot) =>
+        config.local.adoptIdentity(baselineStorageKey, remoteSnapshot),
       readPendingChanges: config.local.readPendingChanges,
       clearPendingChanges: config.local.clearPendingChanges,
     },
@@ -441,6 +487,7 @@ export class BookmarkSyncModule {
       buildLocalSnapshot: local.buildSnapshot,
       applyLocalSnapshot: local.applySnapshot,
       verifyLocalSnapshot: local.verifySnapshot,
+      adoptLocalIdentity: local.adoptIdentity,
       readPendingLocalChanges: local.readPendingChanges,
       clearPendingLocalChanges: local.clearPendingChanges,
       createEmptySnapshot: () => createEmptyBookmarkSyncSnapshot(this.config.deviceId),

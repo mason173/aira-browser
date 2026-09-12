@@ -17,7 +17,8 @@ function createProbe(
   baselineCommitId: string = 'cmt_device_a',
   baselineFolderCount: number = 3,
   baselineItemCount: number = 12,
-  hasBaselineSnapshot: boolean = true
+  hasBaselineSnapshot: boolean = true,
+  baselineHasExpiredTombstone: boolean = false
 ): AiraBookmarkIdentityNoOpProbe {
   return {
     remoteKind: remoteKind,
@@ -27,7 +28,8 @@ function createProbe(
     baselineCommitId: baselineCommitId,
     baselineFolderCount: baselineFolderCount,
     baselineItemCount: baselineItemCount,
-    hasBaselineSnapshot: hasBaselineSnapshot
+    hasBaselineSnapshot: hasBaselineSnapshot,
+    baselineHasExpiredTombstone: baselineHasExpiredTombstone
   };
 }
 
@@ -73,11 +75,21 @@ export default function airaBookmarkIdentityNoOpServiceTest(): void {
       )).assertTrue();
     });
 
+    it('accepts an Aira Cloud no-op with a confirmed matching Head', 0, () => {
+      const probe = createProbe('aira_cloud');
+      expect(service.isEligible(probe)).assertTrue();
+      expect(service.matchesConfirmedHead(probe, createHead())).assertTrue();
+    });
+
     it('rejects pending local writes, provider switches, and other providers', 0, () => {
       expect(service.isEligible(createProbe('huawei_space', 'merge', false, 12))).assertFalse();
+      expect(service.isEligible(createProbe('aira_cloud', 'merge', false, 12))).assertFalse();
       expect(service.isEligible(createProbe('huawei_space', 'merge', true))).assertFalse();
+      expect(service.isEligible(createProbe('aira_cloud', 'merge', true))).assertFalse();
       expect(service.isEligible(createProbe('huawei_space', 'local-over-cloud'))).assertFalse();
+      expect(service.isEligible(createProbe('aira_cloud', 'cloud-over-local'))).assertFalse();
       expect(service.isEligible(createProbe('webdav'))).assertFalse();
+      expect(service.isEligible(createProbe('self_hosted'))).assertFalse();
       expect(service.isEligible(createProbe(
         'huawei_space',
         'merge',
@@ -98,6 +110,42 @@ export default function airaBookmarkIdentityNoOpServiceTest(): void {
         12,
         true
       ))).assertFalse();
+    });
+
+    it('yields the no-op when the baseline still carries an expired tombstone', 0, () => {
+      expect(service.isEligible(createProbe(
+        'huawei_space',
+        'merge',
+        false,
+        0,
+        'cmt_device_a',
+        3,
+        12,
+        true,
+        true
+      ))).assertFalse();
+      expect(service.isEligible(createProbe(
+        'aira_cloud',
+        'merge',
+        false,
+        0,
+        'cmt_device_a',
+        3,
+        12,
+        true,
+        true
+      ))).assertFalse();
+      expect(service.isEligible(createProbe(
+        'aira_cloud',
+        'merge',
+        false,
+        0,
+        'cmt_device_a',
+        3,
+        12,
+        true,
+        false
+      ))).assertTrue();
     });
 
     it('falls through when the confirmed Head identity differs', 0, () => {

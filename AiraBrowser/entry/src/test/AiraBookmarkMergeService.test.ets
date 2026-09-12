@@ -332,5 +332,80 @@ export default function airaBookmarkMergeServiceTest(): void {
         result.snapshot
       );
     });
+
+    it('places a live entity that no order lists so the merged snapshot stays canonical', 0, () => {
+      // Reproduces the reinstall shape: the same bookmark exists under two
+      // installation-scoped IDs, one live in each side, and neither side's order
+      // lists the other side's entity. The merge must keep both reachable.
+      const SHARED_ID = 'bkm_local_phone_7';
+      const REINSTALL_ID = 'bkm_local_desktop_7';
+      const baseline = createSnapshot('baseline', false, false);
+      const local = createSnapshot('phone-a', false, false);
+      local.bookmarkItems = [{
+        id: SHARED_ID, type: 'bookmark-item', parentId: ROOT_ID, title: 'Shared',
+        url: 'https://example.com/', createdAt: T0, updatedAt: T0, updatedBy: 'phone-a', revision: 1
+      }];
+      local.bookmarkOrders = [{
+        type: 'bookmark-order', parentId: null, ids: [ROOT_ID],
+        updatedAt: T0, updatedBy: 'phone-a', revision: 1
+      }, {
+        type: 'bookmark-order', parentId: ROOT_ID, ids: [SHARED_ID],
+        updatedAt: T0, updatedBy: 'phone-a', revision: 2
+      }];
+      const remote = createSnapshot('desktop-a', false, false);
+      remote.bookmarkItems = [{
+        id: REINSTALL_ID, type: 'bookmark-item', parentId: ROOT_ID, title: 'Shared',
+        url: 'https://example.com/', createdAt: T0, updatedAt: T0, updatedBy: 'desktop-a', revision: 1
+      }];
+      remote.bookmarkOrders = [{
+        type: 'bookmark-order', parentId: null, ids: [ROOT_ID],
+        updatedAt: T0, updatedBy: 'desktop-a', revision: 1
+      }, {
+        type: 'bookmark-order', parentId: ROOT_ID, ids: [REINSTALL_ID],
+        updatedAt: T0, updatedBy: 'desktop-a', revision: 2
+      }];
+
+      const result = new AiraBookmarkMergeService().merge(baseline, local, remote, 'phone-a');
+      const orderedIds: string[] = [];
+      result.snapshot.bookmarkOrders.forEach((order: AiraSyncBookmarkOrder) => {
+        order.ids.forEach((id: string) => orderedIds.push(id));
+      });
+      result.snapshot.bookmarkItems.forEach((item: AiraSyncBookmarkItemEntity) => {
+        expect(orderedIds.indexOf(item.id) >= 0).assertTrue();
+      });
+      expect(new AiraBookmarkSnapshotValidationService().validate(result.snapshot, '合并后')).assertEqual(
+        result.snapshot
+      );
+    });
+
+    it('honours a remote tombstone on a first sync so a deleted bookmark cannot resurrect', 0, () => {
+      // The account already deleted the bookmark; this device joins with no baseline and
+      // still holds the same id live. Dropping the tombstone would bring it back.
+      const local = createSnapshot('phone-a', true, false);
+      const remote = createSnapshot('desktop-a', false, false, true);
+      const result = new AiraBookmarkMergeService().merge(null, local, remote, 'phone-a');
+
+      expect(result.snapshot.bookmarkItems.length).assertEqual(0);
+      expect(result.snapshot.tombstones.length).assertEqual(1);
+      expect(new AiraBookmarkSnapshotValidationService().validate(result.snapshot, '首次合并后')).assertEqual(
+        result.snapshot
+      );
+    });
+
+    it('keeps a first sync canonical when the remote tombstone is not among the local live ids', 0, () => {
+      const local = createSnapshot('phone-a', true, false);
+      local.bookmarkItems = [{
+        id: 'bkm_local_phone_other', type: 'bookmark-item', parentId: ROOT_ID, title: 'Other',
+        url: 'https://example.com/other', createdAt: T0, updatedAt: T0, updatedBy: 'phone-a', revision: 1
+      }];
+      const remote = createSnapshot('desktop-a', false, false, true);
+      const result = new AiraBookmarkMergeService().merge(null, local, remote, 'phone-a');
+
+      expect(result.snapshot.bookmarkItems.length).assertEqual(1);
+      expect(result.snapshot.bookmarkItems[0].id).assertEqual('bkm_local_phone_other');
+      expect(new AiraBookmarkSnapshotValidationService().validate(result.snapshot, '首次合并后')).assertEqual(
+        result.snapshot
+      );
+    });
   });
 }

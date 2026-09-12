@@ -74,6 +74,7 @@ VALIDATION_REL="AiraBrowser/entry/src/main/ets/services/sync/AiraBookmarkSnapsho
 MERGE_REL="AiraBrowser/entry/src/main/ets/services/sync/AiraBookmarkMergeService.ets"
 LIFECYCLE_REL="AiraBrowser/entry/src/main/ets/services/sync/AiraBookmarkTombstoneLifecycleService.ets"
 SYNC_REL="AiraBrowser/entry/src/main/ets/services/sync/SyncService.ets"
+NOOP_REL="AiraBrowser/entry/src/main/ets/services/sync/AiraBookmarkIdentityNoOpService.ets"
 BASELINE_REL="AiraBrowser/entry/src/main/ets/data/preferences/ArkAiraSyncConfigStorageAdapter.ets"
 DATABASE_REL="AiraBrowser/entry/src/main/ets/data/database/BrowserDatabase.ets"
 AIRA_STORE_REL="AiraBrowser/entry/src/main/ets/services/sync/AiraCloudBookmarkRemoteStore.ets"
@@ -180,14 +181,14 @@ if [ "${failures}" -eq 0 ]; then
     'physical local node ID[\s\S]*canonical live projection[\s\S]*ordinary same-Provider tombstone' \
     "ADR-0049 must record physical live/delete apply disjointness"
   require_pattern "${ADR_REL}" \
-    'Superseding amendment 2026-08-25[\s\S]*AiraG8BookmarkHeads[\s\S]*AiraG8BookmarkBlocks[\s\S]*Blocks `TIME_FIRST`[\s\S]*Heads `TIME_FIRST`[\s\S]*90-day `storageEpoch`[\s\S]*seven-day quarantine' \
+    'Superseding amendment 2026-08-25[\s\S]*AiraG8BookmarkHeads[\s\S]*AiraG8BookmarkBlocks[\s\S]*Blocks `TIME_FIRST`[\s\S]*Heads `TIME_FIRST`[\s\S]*seven-day `storageEpoch`[\s\S]*seven-day quarantine' \
     "ADR-0049 must record the G8 Head/Blocks publication and physical-GC contract"
   require_pattern "${ADR_REL}" \
     'explicit parent order with[[:space:]]+an empty `ids` array[\s\S]*absent parent order[\s\S]*Every non-empty order' \
     "ADR-0049 must record empty-order local materialization equivalence"
   require_pattern "${MODELS_REL}" \
-    'AIRA_SYNC_DEFAULT_ROOT: string = '\''aira/g3/bookmarks'\''[\s\S]*AIRA_BOOKMARK_SYNC_PROTOCOL_ID: string = '\''bookmark-snapshot-v3'\''[\s\S]*AIRA_BOOKMARK_TOMBSTONE_RETENTION_MS: number = 90 \* 24 \* 60 \* 60 \* 1000' \
-    "Bookmark generation identity and the 90-day retention window must stay isolated and explicit"
+    'AIRA_SYNC_DEFAULT_ROOT: string = '\''aira/g3/bookmarks'\''[\s\S]*AIRA_BOOKMARK_SYNC_PROTOCOL_ID: string = '\''bookmark-snapshot-v3'\''[\s\S]*AIRA_BOOKMARK_TOMBSTONE_RETENTION_MS: number = 7 \* 24 \* 60 \* 60 \* 1000' \
+    "Bookmark generation identity and the seven-day retention window must stay isolated and explicit"
   require_pattern "${LIFECYCLE_REL}" \
     'automaticRetainedFromMs[\s\S]*hasTombstoneBefore\([\s\S]*createAdvancedHistory' \
     "the frontier may advance automatically only when an older tombstone actually exists"
@@ -228,8 +229,8 @@ if [ "${failures}" -eq 0 ]; then
     'HUAWEI_SPACE_BOOKMARK_FORMAT_VERSION: number = 1[\s\S]*HUAWEI_SPACE_BOOKMARK_BUCKET_COUNT: number = 64[\s\S]*HUAWEI_SPACE_BOOKMARK_MAX_PAGE_JSON_BYTES: number = 10 \* 1024[\s\S]*HUAWEI_SPACE_BOOKMARK_LANES[\s\S]*selectCurrentHistoryManifests[\s\S]*newestRetainedFrom[\s\S]*Date\.parse\(manifest\.history\.retainedFrom\) === newestRetainedFrom' \
     "Huawei G8 must materialize 64-shard lane-separated pages only at the newest frontier"
   require_pattern "${HUAWEI_REPOSITORY_REL}" \
-    'HUAWEI_SPACE_BOOKMARK_STORAGE_EPOCH_MS: number = 90 \* 24 \* 60 \* 60 \* 1000[\s\S]*HUAWEI_SPACE_BOOKMARK_STORAGE_EPOCH_QUARANTINE_MS: number = 7 \* 24 \* 60 \* 60 \* 1000[\s\S]*storageEpoch: manifest\.storageEpoch[\s\S]*rowStorageEpoch !== manifest\.storageEpoch' \
-    "Huawei G8 Heads and Blocks must carry a canonical 90-day storage epoch with a seven-day quarantine"
+    'HUAWEI_SPACE_BOOKMARK_STORAGE_EPOCH_MS: number = 7 \* 24 \* 60 \* 60 \* 1000[\s\S]*HUAWEI_SPACE_BOOKMARK_STORAGE_EPOCH_QUARANTINE_MS: number = 7 \* 24 \* 60 \* 60 \* 1000[\s\S]*storageEpoch: manifest\.storageEpoch[\s\S]*rowStorageEpoch !== manifest\.storageEpoch' \
+    "Huawei G8 Heads and Blocks must carry a canonical seven-day storage epoch with a seven-day quarantine"
   require_pattern "${HUAWEI_REPOSITORY_REL}" \
     'catch \(error\)[\s\S]*declaresCurrentManifestFormat\(encoded\)[\s\S]*throw error as Error[\s\S]*declaresCurrentManifestFormat' \
     "Huawei G8 must fail closed when a current-format Head is malformed"
@@ -255,11 +256,20 @@ if [ "${failures}" -eq 0 ]; then
     'resolveBookmarkRemoteStateForMerge[\s\S]*bookmark_baseline_remote[\s\S]*hit=1[\s\S]*baseline.snapshot' \
     "pending Huawei Bookmark local work must reuse the confirmed baseline when Head matches"
   require_pattern "${SYNC_REL}" \
-    'isEligible\(identityProbe\)[\s\S]*tryHuaweiBookmarkIdentityNoOp[\s\S]*readState' \
-    "Huawei ordinary no-op must probe confirmed Head identity before reconstructing a complete snapshot"
+    'isEligible\(identityProbe\)[\s\S]*tryBookmarkIdentityNoOp[\s\S]*readState' \
+    "ordinary no-op must probe confirmed Head identity before reconstructing a complete snapshot"
   require_pattern "${SYNC_REL}" \
     'matchesConfirmedHead\(probe, head\)[\s\S]*recordSuccessfulSync[\s\S]*本机和云端已经一致' \
-    "Huawei ordinary no-op must accept a matching Head commit without reconstructing snapshots"
+    "ordinary no-op must accept a matching Head commit without reconstructing snapshots"
+  require_pattern "${NOOP_REL}" \
+    'probe.remoteKind === .huawei_space. \|\| probe.remoteKind === .aira_cloud.' \
+    "the confirmed-Head no-op must cover Aira Cloud as well as Huawei Space"
+  require_pattern "${NOOP_REL}" \
+    '!probe.baselineHasExpiredTombstone' \
+    "the confirmed-Head no-op must yield when the baseline still carries an expired tombstone to retire"
+  require_pattern "${SYNC_REL}" \
+    'snapshotHasExpiredTombstone[\s\S]*AIRA_BOOKMARK_TOMBSTONE_RETENTION_MS' \
+    "the no-op probe must detect an expired baseline tombstone against the shared retention window"
   require_pattern "${SYNC_REL}" \
     'remoteKind === .huawei_space.[\s\S]*write-already-confirmed' \
     "Huawei G8 write confirmation must not CLOUD_FIRST the whole snapshot after writeState already confirmed"
@@ -285,7 +295,7 @@ if [ "${failures}" -eq 0 ]; then
     'BOOKMARK_WEBDAV_FILE_VERSION: number = 2[\s\S]*history: history[\s\S]*assertSnapshotWithinHistory' \
     "WebDAV must commit history in its isolated file-v2 envelope"
   require_pattern "${RETENTION_ADR_REL}" \
-    'single[[:space:]]+`AiraBookmarkTombstoneLifecycleService` owner[\s\S]*90-day candidate cutoff[\s\S]*G8' \
+    'single[[:space:]]+`AiraBookmarkTombstoneLifecycleService` owner[\s\S]*seven-day candidate cutoff[\s\S]*G8' \
     "ADR-0010 must record the bounded cross-Provider lifecycle"
 fi
 

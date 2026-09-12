@@ -90,12 +90,29 @@ export class AiraBookmarkSnapshotService {
     preferCurrentCache: boolean = false,
     previousSnapshot?: AiraSyncSnapshot | null
   ): Promise<AiraSyncSnapshot> {
+    const initializeStartedAt = Date.now();
     await this.bookmarkRepository.initialize();
+    AiraSyncJankProbe.endExtra(
+      'bookmark_local_initialize',
+      initializeStartedAt,
+      `preferCache=${preferCurrentCache ? 1 : 0}`
+    );
     if (!preferCurrentCache) {
+      const refreshStartedAt = Date.now();
       await this.bookmarkRepository.refresh();
+      AiraSyncJankProbe.endExtra('bookmark_local_repository_refresh', refreshStartedAt, '');
     }
+    const buildStartedAt = Date.now();
     const snapshot = await this.buildBookmarkSnapshotProgressively(deviceId, previousSnapshot);
-    return this.snapshotValidationService.validate(snapshot, '本机');
+    AiraSyncJankProbe.endExtra(
+      'bookmark_local_progressive_build',
+      buildStartedAt,
+      `folders=${snapshot.bookmarkFolders.length} items=${snapshot.bookmarkItems.length} tombstones=${snapshot.tombstones.length}`
+    );
+    const validateStartedAt = Date.now();
+    const validated = this.snapshotValidationService.validate(snapshot, '本机');
+    AiraSyncJankProbe.endExtra('bookmark_local_validate', validateStartedAt, '');
+    return validated;
   }
 
   validateBookmarkSnapshot(snapshot: AiraSyncSnapshot, sourceLabel: string): AiraSyncSnapshot {
@@ -412,6 +429,16 @@ export class AiraBookmarkSnapshotService {
     previousSnapshot?: AiraSyncSnapshot | null
   ): Promise<AiraSyncBookmarkDataSet> {
     const nodes = this.bookmarkRepository.listSyncNodes(resolveBookmarkScope(scope));
+    let liveNodeCount = 0;
+    for (let index = 0; index < nodes.length; index += 1) {
+      if (nodes[index].sync.deletedAt === undefined) {
+        liveNodeCount += 1;
+      }
+    }
+    AiraSyncJankProbe.markExtra(
+      'bookmark_local_nodes',
+      `scope=${scope} total=${nodes.length} live=${liveNodeCount} deleted=${nodes.length - liveNodeCount}`
+    );
     const syncNodeIds = await this.buildScopedSyncNodeIdSetAsync(nodes, rootIds);
     const reachableActiveNodes = await this.filterReachableActiveNodesAsync(nodes);
     const activeNodes = await this.filterNodesByIdSetAsync(reachableActiveNodes, syncNodeIds);
@@ -470,6 +497,59 @@ export class AiraBookmarkSnapshotService {
       }
     });
     return Array.from(latestByKey.values());
+  }
+
+  // First-join identity adoption, local state only. Rewrite each matched node's
+  // originId to the cloud's entity ID so the next snapshot build carries the adopted
+  // identity. No bookmark node is created, moved, or deleted, and the cloud is not
+  // touched; an unmatched node keeps its current originId.
+  async applyBookmarkIdentityAdoption(adoption: Map<string, string>): Promise<number> {
+    if (adoption.size === 0) {
+      return 0;
+    }
+    await this.bookmarkRepository.initialize();
+    const nodes: BookmarkNode[] = this.bookmarkRepository.listSyncNodes(AIRA_BOOKMARK_SYNC_SCOPE)
+      .concat(this.bookmarkRepository.listSyncNodes(AIRA_PRIVATE_BOOKMARK_SYNC_SCOPE));
+    const entityIdPlan = await this.buildBookmarkEntityIdPlanAsync(nodes);
+    const repairedNodes: BookmarkNode[] = [];
+    for (let index = 0; index < nodes.length; index += 1) {
+      const node = nodes[index];
+      if (isBookmarkRootNodeId(node.id)) {
+        await this.workThrottle.afterBatchItem(index + 1);
+        continue;
+      }
+      const existingOriginId = node.sync.originId?.trim() ?? '';
+      const currentEntityId = entityIdPlan.idsByNodeId.get(node.id)?.trim() ?? existingOriginId;
+      const adoptedOriginId = adoption.get(currentEntityId);
+      if (adoptedOriginId !== undefined && adoptedOriginId.trim().length > 0 &&
+        adoptedOriginId.trim() !== existingOriginId) {
+        repairedNodes.push({
+          id: node.id,
+          type: node.type,
+          scope: resolveBookmarkScope(node.scope),
+          parentId: node.parentId,
+          title: node.title,
+          url: node.url,
+          position: node.position,
+          createdAt: node.createdAt,
+          updatedAt: node.updatedAt,
+          sync: {
+            state: node.sync.state,
+            source: node.sync.source,
+            lastModifiedAt: node.sync.lastModifiedAt,
+            lastModifiedBy: node.sync.lastModifiedBy,
+            deviceId: node.sync.deviceId,
+            originId: adoptedOriginId.trim(),
+            deletedAt: node.sync.deletedAt
+          }
+        });
+      }
+      await this.workThrottle.afterBatchItem(index + 1);
+    }
+    if (repairedNodes.length > 0) {
+      await this.upsertSyncNodesWithCooperativeBatches(repairedNodes);
+    }
+    return repairedNodes.length;
   }
 
   private async persistMissingBookmarkOriginIds(

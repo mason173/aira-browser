@@ -10,9 +10,11 @@ Current-generation Bookmark Sync has one correctness algorithm across the App, A
 Amended 2026-08-03: Bookmark tombstones have one cross-Provider lifecycle owner,
 `AiraBookmarkTombstoneLifecycleService`. The canonical snapshot schema remains version 2; its commit envelope and
 provider baseline additionally carry history descriptor version 1 with `epochId` and `retainedFrom`. The origin frontier
-is `1970-01-01T00:00:00.000Z`. A normal run proposes `now - 90 days` only when the local snapshot, remote snapshot, or
+is `1970-01-01T00:00:00.000Z`. A normal run proposes `now - 7 days` only when the local snapshot, remote snapshot, or
 provider baseline actually contains a tombstone older than that cutoff, so an idle account does not generate empty
 history commits on every run. Concurrent descriptors are ordered first by `retainedFrom` and then by `epochId`.
+The window was reduced from 90 days to 7 days on 2026-09-12; see the amendment at the end of this ADR for the measured
+reason. Both clients must agree, because each proposes the same `retainedFrom`.
 
 Only a baseline whose history exactly matches the selected remote and locally confirmed history may participate in the
 ordinary three-way merge. Any mismatch is an expired-cursor condition: the baseline is excluded, both complete snapshots
@@ -353,7 +355,7 @@ confirmation, and physical tombstone cleanup. A stale or incomplete read-back fa
 those states.
 
 Amended 2026-08-04 after the cross-client generation audit: Aira-sync uses the same `/sync/v3/bookmarks` Aira Cloud state,
-`aira/g3/bookmarks/snapshot.json` WebDAV envelope version 2, history descriptor, 90-day frontier selection, and complete
+`aira/g3/bookmarks/snapshot.json` WebDAV envelope version 2, history descriptor, seven-day frontier selection, and complete
 post-write read-back rule as the App. Its g3 provider baselines, runtime status, pending-conflict state, and WebDAV root
 are isolated from the retired generation without a compatibility read or migration. The existing desktop device ID,
 bookmark node-to-entity mapping, selected Provider, authoritative extension-storage ownership, and one cross-context
@@ -407,7 +409,7 @@ ordered page references, all objects are exact-canonical and hash-bound, and com
 parent-Head, newest-`retainedFrom`, tombstone-history, multi-head, validation, merge, apply, and baseline semantics.
 
 Physical cleanup is a storage concern, not a second correctness rule. Every G8 Head and Block belongs to an explicit
-90-day `storageEpoch`. Only after a complete current-epoch Head covers every older logical Head and the epoch has cleared
+seven-day `storageEpoch`. Only after a complete current-epoch Head covers every older logical Head and the epoch has cleared
 a seven-day quarantine may maintenance delete older Head rows. Their cloud deletion must be freshly confirmed before
 any older-epoch Block is deleted and freshly confirmed. Cleanup runs after an ordinary commit succeeds; every cleanup
 error is logged and swallowed, leaving unreachable rows for a later attempt without failing or rolling back Sync. The
@@ -461,6 +463,22 @@ does not treat a Head as a snapshot: Head identity is only a pointer to a previo
 Operation logs, outboxes, incremental replay, and delete-only/private-only fast paths remain outside the current
 Sync Generation.
 
+Amended 2026-09-12 (later the same day) after measuring a 90.7-second ordinary Aira Cloud no-op: the confirmed-Head
+no-op gate above is not Huawei-specific and now also covers `aira_cloud`. Measured on a ~3.3 MB snapshot, the read and
+merge dominated while network transfer was about one second, because the Aira Cloud path had no commit short-circuit and
+re-read and re-merged the whole snapshot on every run even when nothing had changed. `AiraBookmarkIdentityNoOpService`
+now accepts `remoteKind` `huawei_space` or `aira_cloud`; every other condition is unchanged, including the `merge`,
+non-conservative, zero-`pendingBookmarkSyncAt`, and complete-baseline-snapshot requirements. Aira Cloud already exposes
+the same content-addressed `commitId` from `POST /sync/v4/bookmarks/head`, and a confirmed Head that still equals the
+baseline commit, together with the absence of a recorded local mutation, proves local == baseline == remote, so the
+complete snapshot read, local capture, merge, conditional write, and local re-apply are skipped. The gate removes an
+idle full read and merge; it is still not a second merge algorithm and still treats a Head only as a pointer to a
+previously confirmed complete commit. The proof covers live content only, so the gate additionally yields whenever the
+baseline snapshot still carries a tombstone older than the retention window: retiring that tombstone is a maintenance
+write the full path performs, and short-circuiting it would pin the frontier and keep the accumulated history forever.
+WebDAV and Personal Server remain outside the gate because their read is already a provider revision rather than a
+separate commit-only probe.
+
 Amended 2026-09-12 after reproducing a WebDAV additional-backup failure against a self-hosted OpenList v4.2.6 server:
 a provider may support neither HTTP conditional writes nor `MOVE Overwrite: F` while still offering a correct
 exclusive `LOCK`/`UNLOCK`. The capability probe keeps `if-none-match` as its first choice and the verified
@@ -474,3 +492,16 @@ competing lock and an unauthenticated write (`423`/`409`), admits the token-hold
 releases cleanly; a provider that fails any step stays fail-closed. This adds no oplog, outbox, second snapshot
 authority, journal, or dual write, and does not relax the blind-overwrite, merge, local-apply, confirmation, or
 baseline contracts.
+
+Amended 2026-09-12 after measuring an established account whose bookmark snapshot had grown to 18,172 tombstones
+against only 303 live bookmarks (about 3.3 MB), because a long accumulation of deletion records was carried in every
+complete snapshot read and written on each run: the shared bookmark tombstone frontier is reduced from 90 days to 7
+days. `AIRA_BOOKMARK_TOMBSTONE_RETENTION_MS` and `LEAFTAB_SYNC_TOMBSTONE_RETENTION_MS` remain a single value that the
+App and Aira-sync must agree on, because each proposes the same `retainedFrom`. The Huawei G8 physical `storageEpoch`
+and its quarantine are aligned to the same seven days so logical retirement and physical cleanup move on one cadence.
+Seven days is the industry-range bound (Cassandra `gc_grace_seconds` is ten days; Microsoft Graph delta tokens expire
+around seven days and then demand a full resync) and keeps an ordinary multi-day offline device safe; a device offline
+beyond the window does not replay a retired tombstone, it takes the existing preservation-first full rebootstrap, which
+may duplicate stale live content but never silently deletes. This changes only the frontier constant and its physical
+epoch alignment; it adds no oplog, outbox, or second authority, and the descriptor, merge, apply, confirmation, and
+baseline contracts are unchanged. Browsing-history retention (ADR-0072) remains a separate 90-day domain.

@@ -651,21 +651,17 @@ const prepareMissingBaselineSnapshots = (
   remoteSnapshot: LeafTabSyncSnapshot,
 ) => {
   const remappedRemote = remapInitialRemoteCollisions(localSnapshot, remoteSnapshot);
-  const liveFolderIds = new Set([
-    ...Object.keys(localSnapshot.bookmarkFolders),
+  // Only the remote's own live entities may suppress its tombstones: a remote snapshot
+  // cannot list an id as both live and deleted. A local entity that is still live for a
+  // tombstoned remote id is *the same entity* (the ids match), not an unmatched entity, so
+  // dropping the tombstone there would resurrect a bookmark the account already deleted.
+  const remoteLiveEntityIds = new Set([
     ...Object.keys(remappedRemote.bookmarkFolders),
-  ]);
-  const liveItemIds = new Set([
-    ...Object.keys(localSnapshot.bookmarkItems),
     ...Object.keys(remappedRemote.bookmarkItems),
-  ]);
-  const liveEntityIds = new Set([
-    ...liveFolderIds,
-    ...liveItemIds,
   ]);
   const tombstones: Record<string, LeafTabSyncTombstone> = {};
   const keepNewestTombstone = (entry: LeafTabSyncTombstone) => {
-    if (liveEntityIds.has(entry.id)) return;
+    if (remoteLiveEntityIds.has(entry.id)) return;
     const key = createLeafTabSyncTombstoneKey(entry);
     const current = tombstones[key];
     if (!current || entry.lastKnownRevision > current.lastKnownRevision ||
@@ -893,6 +889,8 @@ export const mergeLeafTabSyncSnapshotWithoutBaseline = (
     [localSnapshot, remoteSnapshot],
     options.deviceId,
   );
+  // First-join identity adoption happens in the local adapter before this merge,
+  // in local state only, so the remote snapshot stays byte-identical here.
   const prepared = prepareMissingBaselineSnapshots(normalizedLocalSnapshot, normalizedRemoteSnapshot);
   const emptyBase: LeafTabSyncSnapshot = {
     meta: cloneLeafTabSyncSnapshotMeta(localSnapshot.meta, {

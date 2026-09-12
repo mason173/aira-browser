@@ -307,4 +307,6 @@ describe('mergeLeafTabSyncSnapshot', () => {
     expect(merged.bookmarkOrders[preservedFolderId!]).toBeUndefined();
     expect(parseCanonicalLeafTabSyncWireSnapshot(toLeafTabSyncWireSnapshot(merged))).not.toBeNull();
   });
+
+
 });

@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import {
+  LEAFTAB_SYNC_TOMBSTONE_RETENTION_MS,
   LeafTabSyncTombstoneLifecycle,
   type LeafTabSyncHistoryStore,
 } from './historyLifecycle';
@@ -17,6 +18,13 @@ class MemoryHistoryStore implements LeafTabSyncHistoryStore {
   }
 }
 
+const LIFECYCLE_NOW = Date.parse('2026-08-04T00:00:00.000Z');
+const LIFECYCLE_CUTOFF = new Date(LIFECYCLE_NOW - LEAFTAB_SYNC_TOMBSTONE_RETENTION_MS).toISOString();
+// One tombstone sits clearly outside the retention window, one clearly inside it, so the test
+// exercises "advance only past the cutoff" for whatever the current retention happens to be.
+const EXPIRED_DELETED_AT = new Date(LIFECYCLE_NOW - 30 * 24 * 60 * 60 * 1000).toISOString();
+const RETAINED_DELETED_AT = new Date(LIFECYCLE_NOW - 24 * 60 * 60 * 1000).toISOString();
+
 const createDeletionSnapshot = (): LeafTabSyncSnapshot => ({
   meta: {
     version: 2,
@@ -30,14 +38,14 @@ const createDeletionSnapshot = (): LeafTabSyncSnapshot => ({
     'bookmark-item|old': {
       id: 'old',
       type: 'bookmark-item',
-      deletedAt: '2026-05-05T23:59:59.999Z',
+      deletedAt: EXPIRED_DELETED_AT,
       deletedBy: 'desktop-a',
       lastKnownRevision: 1,
     },
     'bookmark-item|recent': {
       id: 'recent',
       type: 'bookmark-item',
-      deletedAt: '2026-05-06T00:00:00.000Z',
+      deletedAt: RETAINED_DELETED_AT,
       deletedBy: 'desktop-a',
       lastKnownRevision: 1,
     },
@@ -45,14 +53,14 @@ const createDeletionSnapshot = (): LeafTabSyncSnapshot => ({
 });
 
 describe('LeafTabSyncTombstoneLifecycle', () => {
-  test('advances the 90-day frontier only to retire tombstones older than the cutoff', async () => {
+  test('advances the retained frontier only to retire tombstones older than the cutoff', async () => {
     const lifecycle = new LeafTabSyncTombstoneLifecycle(new MemoryHistoryStore());
     const plan = await lifecycle.planMerge(
       null,
       createDeletionSnapshot(),
       { snapshot: null, commitId: null, history: null },
       'desktop-a',
-      Date.parse('2026-08-04T00:00:00.000Z'),
+      LIFECYCLE_NOW,
     );
 
     expect({
@@ -60,7 +68,7 @@ describe('LeafTabSyncTombstoneLifecycle', () => {
       retainedTombstoneIds: Object.values(plan.localSnapshot.tombstones).map((entry) => entry.id),
       requiresRemoteHistoryWrite: plan.requiresRemoteHistoryWrite,
     }).toEqual({
-      retainedFrom: '2026-05-06T00:00:00.000Z',
+      retainedFrom: LIFECYCLE_CUTOFF,
       retainedTombstoneIds: ['recent'],
       requiresRemoteHistoryWrite: true,
     });
@@ -131,7 +139,7 @@ describe('LeafTabSyncTombstoneLifecycle', () => {
         'bookmark-item|private_old': {
           id: 'private_old',
           type: 'bookmark-item',
-          deletedAt: '2026-05-05T23:59:59.999Z',
+          deletedAt: EXPIRED_DELETED_AT,
           deletedBy: 'phone-a',
           lastKnownRevision: 1,
         },
@@ -142,7 +150,7 @@ describe('LeafTabSyncTombstoneLifecycle', () => {
       snapshot,
       { snapshot: null, commitId: null, history: null },
       'desktop-a',
-      Date.parse('2026-08-04T00:00:00.000Z'),
+      LIFECYCLE_NOW,
     );
 
     expect({

@@ -2,7 +2,7 @@
 
 Superseded 2026-08-03: current-generation Bookmark Sync now has a bounded logical tombstone history. The single
 `AiraBookmarkTombstoneLifecycleService` owner advances a history descriptor only when a complete local, remote, or
-provider-baseline snapshot actually contains a tombstone older than the 90-day candidate cutoff. The descriptor contains
+provider-baseline snapshot actually contains a tombstone older than the seven-day candidate cutoff. The descriptor contains
 `version`, `epochId`, and `retainedFrom`; `1970-01-01T00:00:00.000Z` is the origin frontier. A frontier change is part of
 the complete Provider commit envelope, and a device that sees a different frontier discards the ordinary three-way
 baseline and performs a preservation-first full-snapshot rebootstrap. Old live content may therefore be duplicated or

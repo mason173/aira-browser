@@ -299,7 +299,8 @@ export default function airaSyncClosedLoopTest(): void {
         baselineCommitId: 'cmt-1',
         baselineFolderCount: 3,
         baselineItemCount: 12,
-        hasBaselineSnapshot: true
+        hasBaselineSnapshot: true,
+        baselineHasExpiredTombstone: false
       };
       expect(bookmarkNoOp.isEligible(probe)).assertFalse();
       expect(bookmarkNoOp.matchesConfirmedHead(probe, {
@@ -320,7 +321,8 @@ export default function airaSyncClosedLoopTest(): void {
         baselineCommitId: 'cmt-1',
         baselineFolderCount: 3,
         baselineItemCount: 12,
-        hasBaselineSnapshot: true
+        hasBaselineSnapshot: true,
+        baselineHasExpiredTombstone: false
       };
       expect(bookmarkNoOp.isEligible(probe)).assertTrue();
       expect(bookmarkNoOp.matchesConfirmedHead(probe, {

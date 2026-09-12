@@ -184,11 +184,12 @@ shape. `HuaweiSpaceRdbStoreOwner` therefore checks both G8 tables with `PRAGMA t
 idempotent and preserves all existing G8 rows. It is a bounded repair of the current G8 local schema, not a compatibility
 read or migration from G7 or any earlier generation.
 
-G8 cleanup is restricted to G8 rows and is itself non-destructive to confirmed current state. Each row carries a 90-day
+G8 cleanup is restricted to G8 rows and is itself non-destructive to confirmed current state. Each row carries a seven-day
 storage epoch. After a seven-day quarantine, cleanup requires complete current-epoch Heads that cover all older logical
 Heads; it then deletes and cloud-confirms older Heads before deleting and cloud-confirming older Blocks. Missing proof or
 any cleanup error leaves rows in place and cannot fail the already confirmed Bookmark synchronization. These physical
-epochs do not replace or shorten the Bookmark Domain's independent tombstone-history frontier.
+epochs move on the same seven-day cadence as, but do not replace or shorten, the Bookmark Domain's independent
+tombstone-history frontier.
 
 Amended 2026-08-25: the earlier prohibitions on deleting `AiraG2PersonalizationCommits` apply to schema bootstrap,
 Bookmark protocol upgrades, database repair, and generation migration; none may clear or reset that valid Domain table.

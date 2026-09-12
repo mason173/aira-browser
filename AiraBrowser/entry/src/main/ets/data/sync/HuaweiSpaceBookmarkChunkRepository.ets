@@ -39,7 +39,13 @@ const HUAWEI_SPACE_BOOKMARK_QUERY_ID_BATCH_SIZE: number = 400;
 const HUAWEI_SPACE_BOOKMARK_MAX_ROW_JSON_BYTES: number = 12 * 1024;
 const HUAWEI_SPACE_BOOKMARK_MAX_PAGE_JSON_BYTES: number = 10 * 1024;
 const HUAWEI_SPACE_BOOKMARK_LANES: HuaweiSpaceBookmarkLane[] = ['live', 'order', 'tombstone'];
-const HUAWEI_SPACE_BOOKMARK_STORAGE_EPOCH_MS: number = 90 * 24 * 60 * 60 * 1000;
+// Physical G8 storage-epoch bucket width. It sets how often an epoch rolls over and therefore
+// how often superseded Heads and older Blocks become eligible for physical GC (still gated by
+// the quarantine below). Seven days matches the shared bookmark tombstone window so logical and
+// physical cleanup move on the same cadence. A device offline past an epoch plus quarantine
+// loses only superseded physical rows and rebootstraps from a complete current-epoch Head, which
+// is preservation-first: it may duplicate, never silently delete.
+const HUAWEI_SPACE_BOOKMARK_STORAGE_EPOCH_MS: number = 7 * 24 * 60 * 60 * 1000;
 const HUAWEI_SPACE_BOOKMARK_STORAGE_EPOCH_QUARANTINE_MS: number = 7 * 24 * 60 * 60 * 1000;
 interface HuaweiSpaceBookmarkChunkRecordData {
   p: HuaweiSpaceBookmarkPartition;

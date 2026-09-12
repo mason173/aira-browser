@@ -8,7 +8,12 @@ import {
 } from './schema';
 import type { LeafTabSyncRemoteState } from './remoteStore';
 
-export const LEAFTAB_SYNC_TOMBSTONE_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
+// Shared bookmark tombstone frontier for every provider (Aira Cloud, WebDAV, Huawei Space).
+// This must equal the App's AIRA_BOOKMARK_TOMBSTONE_RETENTION_MS: both clients propose the same
+// `retainedFrom` in the history descriptor, and a mismatch would let one side purge a tombstone
+// the other still relies on. Seven days keeps an ordinary multi-day offline device safe while
+// bounding how many tombstones a complete-snapshot provider has to carry.
+export const LEAFTAB_SYNC_TOMBSTONE_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 
 const ORIGIN_RETAINED_FROM = '1970-01-01T00:00:00.000Z';
 const ORIGIN_EPOCH_ID = 'bookmark-history-v1-origin';

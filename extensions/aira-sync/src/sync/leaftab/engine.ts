@@ -55,6 +55,9 @@ export interface LeafTabSyncEngineConfig {
   readPendingLocalChanges?: () => Promise<number>;
   clearPendingLocalChanges?: (expectedChangedAt: number) => Promise<void> | void;
   createEmptySnapshot: () => LeafTabSyncSnapshot;
+  // First-join only: adopt the remote's identity for content-identical local
+  // entities so a device with no baseline converges instead of duplicating.
+  adoptLocalIdentity?: (remoteSnapshot: LeafTabSyncSnapshot) => Promise<LeafTabSyncSnapshot | null>;
 }
 
 export interface LeafTabSyncEngineRunOptions {
@@ -286,10 +289,21 @@ export class LeafTabSyncEngine {
       remoteState,
       this.config.deviceId,
     );
-    const localSnapshot = historyPlan.localSnapshot;
+    let localSnapshot = historyPlan.localSnapshot;
     const baseSnapshot = historyPlan.baselineSnapshot || this.config.createEmptySnapshot();
     const hasBaseline = Boolean(historyPlan.baselineSnapshot);
     const remoteCommitId = this.resolveRemoteCommitId(remoteState);
+
+    // A device joining an account it has never synced has no baseline and its own
+    // installation-scoped IDs, so it would otherwise union the same bookmark twice.
+    // Adoption renames local identity onto the remote's before the merge; it never
+    // merges or drops an entity, and it leaves the remote unchanged.
+    if (!hasBaseline && historyPlan.remoteSnapshot && this.config.adoptLocalIdentity) {
+      const adoptedLocalSnapshot = await this.config.adoptLocalIdentity(historyPlan.remoteSnapshot);
+      if (adoptedLocalSnapshot) {
+        localSnapshot = adoptedLocalSnapshot;
+      }
+    }
 
     if (!hasBaseline && !historyPlan.remoteSnapshot) {
       reportProgress(runOptions?.onProgress, {

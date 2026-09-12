@@ -14,6 +14,7 @@ import {
   AiraSyncBookmarkItemEntity,
   AiraSyncBookmarkOrder,
   AiraSyncProviderKind,
+  AIRA_BOOKMARK_TOMBSTONE_RETENTION_MS,
   AiraSyncRemoteKind,
   AiraSyncRemoteHead,
   AiraSyncRemoteStatusCache,
@@ -1039,16 +1040,27 @@ export class SyncService implements AiraCloudBookmarkV4BootstrapDomain {
     await this.runBookmarkStage('remote_confirmation', (): Promise<void> => {
       return this.confirmPendingRemoteWrites(settings, store, remoteKind);
     });
-    const identityProbe = this.buildHuaweiBookmarkIdentityNoOpProbe(
+    const identityProbe = this.buildBookmarkIdentityNoOpProbe(
       remoteKind,
       intent,
       conservativeMerge,
       settings,
       baseline
     );
-    if (this.bookmarkIdentityNoOpService.isEligible(identityProbe) &&
-      store.readHead !== undefined && baseline !== undefined) {
-      const identityNoOp = await this.tryHuaweiBookmarkIdentityNoOp(
+    const identityNoOpEligible = this.bookmarkIdentityNoOpService.isEligible(identityProbe);
+    if (!identityNoOpEligible || store.readHead === undefined || baseline === undefined) {
+      AiraSyncJankProbe.markExtra(
+        'bookmark_identity_noop_skip',
+        `eligible=${identityNoOpEligible ? 1 : 0} hasReadHead=${store.readHead !== undefined ? 1 : 0}` +
+          ` hasBaseline=${baseline !== undefined ? 1 : 0} provider=${remoteKind} intent=${intent}` +
+          ` conservative=${conservativeMerge ? 1 : 0} pending=${identityProbe.pendingBookmarkSyncAt}` +
+          ` hasBaselineSnapshot=${identityProbe.hasBaselineSnapshot ? 1 : 0}` +
+          ` expiredTombstone=${identityProbe.baselineHasExpiredTombstone ? 1 : 0}` +
+          ` baselineCommit=${identityProbe.baselineCommitId.length}`
+      );
+    }
+    if (identityNoOpEligible && store.readHead !== undefined && baseline !== undefined) {
+      const identityNoOp = await this.tryBookmarkIdentityNoOp(
         store,
         remoteKind,
         identityProbe,
@@ -1059,6 +1071,7 @@ export class SyncService implements AiraCloudBookmarkV4BootstrapDomain {
         return identityNoOp;
       }
     }
+    const remoteReadStartedAt = Date.now();
     const loadedRemoteState: AiraSyncRemoteState = await this.runBookmarkStage(
       'remote_read_validation',
       (): Promise<AiraSyncRemoteState> => this.resolveBookmarkRemoteStateForMerge(
@@ -1067,6 +1080,11 @@ export class SyncService implements AiraCloudBookmarkV4BootstrapDomain {
         identityProbe,
         baseline
       )
+    );
+    AiraSyncJankProbe.endExtra(
+      'bookmark_remote_read',
+      remoteReadStartedAt,
+      `provider=${remoteKind} snapshotBytes=${this.measureSnapshotPayloadBytes(loadedRemoteState.snapshot)}`
     );
     await this.workThrottle.afterStage();
     const recoveredHuaweiRemoteFromBaseline = remoteKind === 'huawei_space' && baseline !== undefined &&
@@ -1078,11 +1096,25 @@ export class SyncService implements AiraCloudBookmarkV4BootstrapDomain {
       }
     );
     const completedPendingBookmarkSyncAt = settings.pendingBookmarkSyncAt ?? 0;
+    // A device joining an account it has never synced has no baseline and its own
+    // installation-scoped IDs, so it would union the same bookmark twice. Adopt the
+    // cloud's identity in local state before the snapshot is built; the cloud stays
+    // unchanged and ordinary merges are untouched.
+    if (baseline === undefined && remoteState.snapshot !== null) {
+      await this.adoptRemoteBookmarkIdentityOnFirstSync(remoteState.snapshot);
+    }
+    const localSnapshotStartedAt = Date.now();
     const localSnapshot = await this.runBookmarkStage(
       'local_snapshot',
       (): Promise<AiraSyncSnapshot> => this.resolveLocalSnapshotForMerge(settings, baseline)
     );
+    AiraSyncJankProbe.endExtra(
+      'bookmark_local_snapshot_build',
+      localSnapshotStartedAt,
+      `folders=${localSnapshot.bookmarkFolders.length} items=${localSnapshot.bookmarkItems.length}`
+    );
     await this.workThrottle.afterStage();
+    const mergeStartedAt = Date.now();
     const historyPlan = await this.runBookmarkStage(
       'merge',
       () => this.bookmarkHistoryService.planMerge(
@@ -1093,10 +1125,12 @@ export class SyncService implements AiraCloudBookmarkV4BootstrapDomain {
         Date.now()
       )
     );
+    AiraSyncJankProbe.endExtra('bookmark_history_plan', mergeStartedAt, `provider=${remoteKind}`);
     const decisionLocalSnapshot = this.resolveMaterializedLocalSnapshotForDecision(
       historyPlan.localSnapshot,
       historyPlan.baselineSnapshot
     );
+    const decideStartedAt = Date.now();
     const mergeResult = await this.runBookmarkStage(
       'merge',
       () => this.bookmarkDecisionService.decideCooperatively({
@@ -1105,6 +1139,11 @@ export class SyncService implements AiraCloudBookmarkV4BootstrapDomain {
         local: decisionLocalSnapshot,
         remote: historyPlan.remoteSnapshot
       }, this.workThrottle)
+    );
+    AiraSyncJankProbe.endExtra(
+      'bookmark_merge_decide',
+      decideStartedAt,
+      `provider=${remoteKind} intent=${intent}`
     );
     await this.workThrottle.afterStage();
     if (mergeResult.hasConflicts) {
@@ -1204,6 +1243,7 @@ export class SyncService implements AiraCloudBookmarkV4BootstrapDomain {
       }
     }
     await this.workThrottle.beforeMainThreadWrite();
+    const remoteCommitStartedAt = Date.now();
     const writeResult = await this.runBookmarkStage(
       'remote_commit',
       () => store.writeState({
@@ -1214,6 +1254,12 @@ export class SyncService implements AiraCloudBookmarkV4BootstrapDomain {
         createdAt: mergeResult.snapshot.meta.generatedAt
       })
     );
+    AiraSyncJankProbe.endExtra(
+      'bookmark_remote_commit',
+      remoteCommitStartedAt,
+      `provider=${remoteKind} payloadBytes=${this.measureSnapshotPayloadBytes(mergeResult.snapshot)}`
+    );
+    const remoteConfirmStartedAt = Date.now();
     await this.runBookmarkStage(
       'remote_confirmation',
       (): Promise<void> => this.confirmRemoteBookmarkCommit(
@@ -1224,6 +1270,7 @@ export class SyncService implements AiraCloudBookmarkV4BootstrapDomain {
         historyPlan.history
       )
     );
+    AiraSyncJankProbe.endExtra('bookmark_remote_confirm', remoteConfirmStartedAt, `provider=${remoteKind}`);
     if (this.shouldApplyMergedBookmarkSnapshotToLocal(settings, mergeResult)) {
       const applyResult = await this.runBookmarkStage(
         'local_apply',
@@ -1275,7 +1322,7 @@ export class SyncService implements AiraCloudBookmarkV4BootstrapDomain {
     return this.stringifyError(error).indexOf(HUAWEI_SPACE_BOOKMARK_WRITE_CONFLICT_MESSAGE) === 0;
   }
 
-  private buildHuaweiBookmarkIdentityNoOpProbe(
+  private buildBookmarkIdentityNoOpProbe(
     remoteKind: AiraSyncRemoteKind,
     intent: AiraBookmarkSyncIntent,
     conservativeMerge: boolean,
@@ -1291,11 +1338,32 @@ export class SyncService implements AiraCloudBookmarkV4BootstrapDomain {
       baselineCommitId: baseline?.commitId ?? '',
       baselineFolderCount: snapshot === null ? 0 : snapshot.bookmarkFolders.length,
       baselineItemCount: snapshot === null ? 0 : snapshot.bookmarkItems.length,
-      hasBaselineSnapshot: snapshot !== null
+      hasBaselineSnapshot: snapshot !== null,
+      baselineHasExpiredTombstone: this.snapshotHasExpiredTombstone(snapshot, Date.now())
     };
   }
 
-  private async tryHuaweiBookmarkIdentityNoOp(
+  // A tombstone older than the retention window is a maintenance obligation the full sync path
+  // retires by advancing the history frontier; the identity no-op must yield to it.
+  private snapshotHasExpiredTombstone(snapshot: AiraSyncSnapshot | null, now: number): boolean {
+    if (snapshot === null) {
+      return false;
+    }
+    const cutoff = now - AIRA_BOOKMARK_TOMBSTONE_RETENTION_MS;
+    const hasExpired = (tombstones: AiraSyncTombstone[]): boolean => {
+      return tombstones.some((tombstone: AiraSyncTombstone): boolean => {
+        const deletedAt = Date.parse(tombstone.deletedAt);
+        return Number.isFinite(deletedAt) && deletedAt < cutoff;
+      });
+    };
+    if (hasExpired(snapshot.tombstones)) {
+      return true;
+    }
+    const privateData = snapshot.appPrivateBookmarks;
+    return privateData !== undefined && hasExpired(privateData.tombstones);
+  }
+
+  private async tryBookmarkIdentityNoOp(
     store: AiraSyncRemoteStore,
     remoteKind: AiraSyncRemoteKind,
     probe: AiraBookmarkIdentityNoOpProbe,
@@ -1334,7 +1402,8 @@ export class SyncService implements AiraCloudBookmarkV4BootstrapDomain {
     hilog.info(
       0x0000,
       'AiraBookmarkSync',
-      'Huawei bookmark identity no-op commit=%{public}s folders=%{public}d items=%{public}d',
+      'bookmark identity no-op provider=%{public}s commit=%{public}s folders=%{public}d items=%{public}d',
+      remoteKind,
       commitId,
       probe.baselineFolderCount,
       probe.baselineItemCount
@@ -1377,6 +1446,28 @@ export class SyncService implements AiraCloudBookmarkV4BootstrapDomain {
       createdAt: snapshot.meta.generatedAt,
       overwriteExisting: true
     });
+  }
+
+  // First-join only. Rewrites local originIds to the cloud's entity IDs so the same
+  // bookmark stops being counted twice. Never creates, moves, or deletes a bookmark.
+  private async adoptRemoteBookmarkIdentityOnFirstSync(remoteSnapshot: AiraSyncSnapshot): Promise<void> {
+    try {
+      const localSnapshot = await this.buildFreshAiraBookmarkSnapshot(false, null);
+      const adoption = this.bookmarkMergeService.planIdentityAdoption(localSnapshot, remoteSnapshot);
+      if (adoption.size === 0) {
+        return;
+      }
+      await this.bookmarkSnapshotService.applyBookmarkIdentityAdoption(adoption);
+    } catch (error) {
+      // Adoption is an optimization that removes duplicates; a failure must not block
+      // an otherwise valid first sync. The merge keeps its preserve-both behavior.
+      hilog.warn(
+        0x0000,
+        'AiraBookmarkIdentity',
+        'first-sync identity adoption skipped: %{public}s',
+        String(error instanceof Error ? error.message : error)
+      );
+    }
   }
 
   private async resolveLocalSnapshotForMerge(
@@ -1631,6 +1722,20 @@ export class SyncService implements AiraCloudBookmarkV4BootstrapDomain {
       folders: reachableIds.folders.size,
       items: reachableIds.items.size
     };
+  }
+
+  // Temporary sync-jank diagnostic: the byte size of a snapshot, so a stage's duration can be
+  // correlated with the payload it had to parse. Grep [DEBUG-sync-jank-9f3c] to remove with the
+  // rest of the AiraSyncJankProbe probes.
+  private measureSnapshotPayloadBytes(snapshot: AiraSyncSnapshot | null): number {
+    if (snapshot === null) {
+      return 0;
+    }
+    try {
+      return JSON.stringify(snapshot).length;
+    } catch (_error) {
+      return -1;
+    }
   }
 
   private projectRemoteStateForBookmarkSync(state: AiraSyncRemoteState): AiraSyncRemoteState {
@@ -1971,6 +2076,7 @@ export class SyncService implements AiraCloudBookmarkV4BootstrapDomain {
     completedPendingBookmarkSyncAt: number = 0
   ): Promise<void> {
     const providerId = this.resolveProviderId(remoteKind);
+    const baselinePersistStartedAt = Date.now();
     const baseline = await this.requireSyncConfigStore().readBaseline(providerId);
     const baselineMatches = baseline !== undefined && baseline.snapshot !== null &&
       baseline.commitId === commitId &&
@@ -1984,6 +2090,11 @@ export class SyncService implements AiraCloudBookmarkV4BootstrapDomain {
         providerId
       );
     }
+    AiraSyncJankProbe.endExtra(
+      'bookmark_baseline_persist',
+      baselinePersistStartedAt,
+      `provider=${remoteKind} matched=${baselineMatches ? 1 : 0}`
+    );
     const settingsForNativeActivation = this.getAiraSyncSettings();
     const nativeAiraCloudGeneration = shouldAcknowledgeNativeAiraCloudBookmarkV4Activation(
       remoteKind,

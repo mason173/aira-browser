@@ -1,10 +1,11 @@
-import { afterEach, describe, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import {
   createLeafTabSyncBaseline,
   type LeafTabSyncBaselineStore,
 } from './baseline';
 import { LeafTabSyncEngine } from './engine';
 import {
+  LEAFTAB_SYNC_TOMBSTONE_RETENTION_MS,
   LeafTabSyncTombstoneLifecycle,
   type LeafTabSyncHistoryStore,
 } from './historyLifecycle';
@@ -29,6 +30,21 @@ const ORIGIN_HISTORY: LeafTabSyncHistoryDescriptor = {
   epochId: 'bookmark-history-v1-origin',
   retainedFrom: '1970-01-01T00:00:00.000Z',
 };
+
+// The expiry fixtures derive from the shared retention window, so changing the retention
+// cannot silently leave these tests asserting a frontier that no longer advances.
+const EXPIRY_NOW = new Date('2026-08-04T00:00:00.000Z');
+const EXPIRED_TOMBSTONE_DELETED_AT = new Date(
+  EXPIRY_NOW.getTime() - 30 * 24 * 60 * 60 * 1000,
+).toISOString();
+const EXPIRY_ADVANCED_RETAINED_FROM = new Date(
+  EXPIRY_NOW.getTime() - LEAFTAB_SYNC_TOMBSTONE_RETENTION_MS,
+).toISOString();
+
+// Ordinary flow fixtures carry tombstones dated T1 = 2026-08-02. The lifecycle clock must be
+// pinned just after them: a real wall clock far in the future would make every fixture tombstone
+// look "expired", advance the frontier, and retire the very deletions these flows assert.
+const FLOW_CLOCK = '2026-08-02T00:00:01.000Z';
 
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 
@@ -292,7 +308,12 @@ const expectLiveItemIds = (snapshot: LeafTabSyncSnapshot) => {
   return Object.keys(snapshot.bookmarkItems).sort();
 };
 
+beforeEach(() => {
+  vi.spyOn(Date, 'now').mockReturnValue(Date.parse(FLOW_CLOCK));
+});
+
 afterEach(() => {
+  vi.restoreAllMocks();
   vi.useRealTimers();
 });
 
@@ -936,11 +957,11 @@ describe('Airatab realistic bookmark sync flows', () => {
 
   test('an expired tombstone advances history only after remote confirmation and leaves a clean baseline', async () => {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-08-04T00:00:00.000Z'));
+    vi.setSystemTime(EXPIRY_NOW);
     const expiredTombstone: LeafTabSyncTombstone = {
       id: 'deleted-a',
       type: 'bookmark-item',
-      deletedAt: '2026-05-05T23:59:59.999Z',
+      deletedAt: EXPIRED_TOMBSTONE_DELETED_AT,
       deletedBy: 'desktop-a',
       lastKnownRevision: 1,
     };
@@ -958,7 +979,7 @@ describe('Airatab realistic bookmark sync flows', () => {
       remoteTombstones: Object.keys(remote.state.snapshot?.tombstones || {}),
       confirmedHistory: await flow.historyLifecycle.readConfirmedHistory(),
     }).toEqual({
-      retainedFrom: '2026-05-06T00:00:00.000Z',
+      retainedFrom: EXPIRY_ADVANCED_RETAINED_FROM,
       baselineTombstones: [],
       remoteTombstones: [],
       confirmedHistory: flow.baselineStore.value?.history,
@@ -967,11 +988,11 @@ describe('Airatab realistic bookmark sync flows', () => {
 
   test('Aira and WebDAV adopt the same retainedFrom after one provider retires an expired tombstone', async () => {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-08-04T00:00:00.000Z'));
+    vi.setSystemTime(EXPIRY_NOW);
     const expiredTombstone: LeafTabSyncTombstone = {
       id: 'deleted-a',
       type: 'bookmark-item',
-      deletedAt: '2026-05-05T23:59:59.999Z',
+      deletedAt: EXPIRED_TOMBSTONE_DELETED_AT,
       deletedBy: 'desktop-a',
       lastKnownRevision: 1,
     };
@@ -1017,7 +1038,7 @@ describe('Airatab realistic bookmark sync flows', () => {
       airaTombstones: Object.keys(aira.state.snapshot?.tombstones || {}),
       webdavTombstones: Object.keys(webdav.state.snapshot?.tombstones || {}),
     }).toEqual({
-      retainedFromValues: Array(5).fill('2026-05-06T00:00:00.000Z'),
+      retainedFromValues: Array(5).fill(EXPIRY_ADVANCED_RETAINED_FROM),
       epochCount: 1,
       airaTombstones: [],
       webdavTombstones: [],
