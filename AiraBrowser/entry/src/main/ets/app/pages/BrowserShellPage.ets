@@ -5282,7 +5282,8 @@ struct BrowserShellPage {
     this.tabsOverviewSessionCoordinator.getPresentationState();
   @State tabsSharedSnapshotState: BrowserTabsSharedSnapshotTransitionState =
     this.tabsOverviewPresentationState.sharedSnapshotState;
-  @State tabsOverviewSnapshotPipelineState: BrowserTabsOverviewSnapshotPipelineState =
+  @State @Watch('handleTabsOverviewSnapshotPipelineStateChanged')
+  tabsOverviewSnapshotPipelineState: BrowserTabsOverviewSnapshotPipelineState =
     this.tabsOverviewSnapshotPipelineCoordinator.buildIdleState();
   @State rootViewportLeft: number = 0;
   @State rootViewportTop: number = 0;
@@ -5320,9 +5321,11 @@ struct BrowserShellPage {
   private restoredWebLayerGeometry?: BrowserWebLayerGeometrySnapshot;
   @State tabPreviewRenderVersion: number = 0;
   // Cached gallery preview states. Refreshed only when previews change
-  // (`notifyTabPreviewChanged`) or the sheet is (re)opened; the overlay build then
-  // reads this field instead of rebuilding the list on every render pass.
-  private tabsOverviewPreviewStates: BrowserTabPreviewState[] = [];
+  // (`notifyTabPreviewChanged`), the sheet is (re)opened, the tabs change, or the
+  // snapshot pipeline installs a new entry capture. The overlay reads this instead
+  // of rebuilding the list on every render pass. It is @State (not a plain field)
+  // so a refresh re-renders the overlay and the cards pick up the new snapshots.
+  @State private tabsOverviewPreviewStates: BrowserTabPreviewState[] = [];
   // Once the tabs overview has been opened it stays mounted (hidden) instead of
   // being torn down, so later opens reuse the built grid/chrome subtree instead of
   // paying for it again. The overlay replays its per-open setup from
@@ -8376,6 +8379,14 @@ struct BrowserShellPage {
       this.tabs,
       capturedAt
     );
+  }
+
+  // The entry capture installs its fresh pixel map into the snapshot pipeline, and
+  // the card reads its image through the cached gallery states. Without this the
+  // cache kept the pre-capture image, so the morph animated the new snapshot while
+  // the settled card stayed on the old one (or showed none for a brand-new tab).
+  private handleTabsOverviewSnapshotPipelineStateChanged(): void {
+    this.refreshTabPreviewStates();
   }
 
   private notifyTabPreviewChanged(): void {
