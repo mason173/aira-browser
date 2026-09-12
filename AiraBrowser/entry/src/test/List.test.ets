@@ -37,6 +37,7 @@ import huaweiSpaceHistoryCloudReadGateTest from './HuaweiSpaceHistoryCloudReadGa
 import huaweiSpaceTransportWarmupTest from './HuaweiSpaceTransportWarmup.test';
 import historySelectionMoreMenuTest from './HistorySelectionMoreMenu.test';
 import huaweiIapProductCatalogTest from './HuaweiIapProductCatalog.test';
+import startupWelcomeIntroTest from './StartupWelcomeIntro.test';
 
 export default function tests(): void {
   userScriptValueStateStoreTest();
@@ -76,4 +77,5 @@ export default function tests(): void {
   huaweiSpaceTransportWarmupTest();
   historySelectionMoreMenuTest();
   huaweiIapProductCatalogTest();
+  startupWelcomeIntroTest();
 }

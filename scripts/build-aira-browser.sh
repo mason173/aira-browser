@@ -624,6 +624,7 @@ writeJson(moduleConfigPath, moduleConfig);
 NODE
 
   if [ "${DISTRIBUTION}" = "official" ]; then
+    mkdir -p "$(dirname "${AGCONNECT_RAWFILE}")"
     cp "${AGCONNECT_SOURCE}" "${AGCONNECT_RAWFILE}"
   else
     rm -f "${AGCONNECT_RAWFILE}"
