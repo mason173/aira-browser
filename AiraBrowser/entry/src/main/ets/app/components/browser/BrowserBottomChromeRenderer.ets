@@ -775,7 +775,7 @@ export struct BrowserBottomChromeRenderer {
       .fontSize(BROWSER_BOTTOM_ADDRESS_PASTE_BUTTON_TEXT_SIZE)
       .fontWeight(FontWeight.Regular)
       .fontColor(this.resolvePrimaryTextForeground())
-      .backgroundColor($r('sys.color.ohos_id_color_background_transparent'))
+      .backgroundColor(this.resolveAddressContextPasteBackground())
       .borderWidth(0)
       .borderRadius(BROWSER_BOTTOM_ADDRESS_PASTE_BUTTON_RADIUS)
       .minFontScale(1)
@@ -1426,6 +1426,16 @@ export struct BrowserBottomChromeRenderer {
 
   private resolveSecondaryTextForeground(): ResourceColor {
     return this.adaptiveForeground ? $r('sys.color.font_secondary') : this.secondaryTextColor;
+  }
+
+  /**
+   * The paste row is a security control, which forces any background alpha below 0x1a up to opaque.
+   * A transparent background therefore paints an opaque tile, and the raw system transparent color
+   * resolves to white in both themes, hiding the white dark-mode label. Reuse the menu surface token
+   * so the row keeps the same themed background as the copy-link row.
+   */
+  private resolveAddressContextPasteBackground(): ResourceColor {
+    return $r('app.color.surface_floating_background');
   }
 
   private resolveMaterialShadow(): ShadowOptions {
