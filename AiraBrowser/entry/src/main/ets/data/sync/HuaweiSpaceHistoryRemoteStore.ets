@@ -616,7 +616,8 @@ export class HuaweiSpaceHistoryRemoteStore {
       const candidate = error as Error;
       throw candidate instanceof Error ? candidate : new Error(JSON.stringify(error));
     }
-    throw new Error('华为云空间历史记录中存在无法解析的数据，已停止同步。');
+    this.logStage('decode-failed', Date.now(), `reason=${error.message}`);
+    throw new Error('华为云空间历史记录快照不一致，已停止同步，请稍后重试。');
   }
 
   private async syncBlocksAndReload(store: relationalStore.RdbStore): Promise<HuaweiSpaceHistoryRow[]> {

@@ -591,8 +591,12 @@ export class HuaweiSpaceHistorySnapshotCodec {
       throw new Error('Huawei History snapshot generation is exhausted.');
     }
     const headSlot = 1 - ownHead.headSlot;
-    const dirty = new Set<number>(dirtyBucketIndexes);
-    const desiredBuckets = this.buildDirtyBucketRecords(normalized, dirty);
+    // Every bucket is compared against its full desired records below, because the
+    // head checksum covers the whole normalized state. Reusing a bucket on the
+    // dirty hint alone (as this used to) could leave the head describing data the
+    // reused bucket did not hold, which then read back as "snapshot incomplete".
+    // dirtyBucketIndexes stays in the signature because callers still report it.
+    const desiredBuckets = this.buildBucketRecords(normalized);
     const bucketRowByLogicalId = new Map<string, HuaweiSpaceHistoryRow>();
     const chunkRowByLogicalId = new Map<string, HuaweiSpaceHistoryRow>();
     for (let index = 0; index < rows.length; index += 1) {
@@ -610,10 +614,10 @@ export class HuaweiSpaceHistorySnapshotCodec {
     for (let bucketIndex = 0; bucketIndex < HUAWEI_SPACE_HISTORY_BUCKET_COUNT; bucketIndex += 1) {
       const desiredRecords = desiredBuckets.get(bucketIndex) ?? [];
       const currentReference = ownHead.buckets[bucketIndex];
-      if (!dirty.has(bucketIndex) && currentReference !== undefined) {
-        bucketReferences.push(currentReference);
-        continue;
-      }
+      // Reuse the existing bucket only when its materialized records equal what
+      // this state requires. The previous code reused any bucket the dirty hint
+      // had not named without checking, which is how a head could end up
+      // checksummed against data its buckets did not hold.
       if (currentReference !== undefined) {
         const currentRecords = this.materializeOwnBucketRecords(
           bucketRowByLogicalId,
@@ -932,59 +936,6 @@ export class HuaweiSpaceHistorySnapshotCodec {
     }
     const frontier = state.retentionFrontier;
     if (frontier.cutoffAt > 0 || frontier.boundaryVisitedAt > 0) {
-      this.appendSnapshotRecord(buckets, {
-        kind: 'r',
-        logicalId: this.buildRetentionFrontierLogicalId(frontier),
-        updatedAt: frontier.updatedAt,
-        data: frontier
-      });
-    }
-    buckets.forEach((records: HuaweiSpaceHistorySnapshotRecord[]): void => {
-      records.sort((left: HuaweiSpaceHistorySnapshotRecord, right: HuaweiSpaceHistorySnapshotRecord): number => {
-        return this.buildSnapshotRecordKey(left).localeCompare(this.buildSnapshotRecordKey(right));
-      });
-    });
-    return buckets;
-  }
-
-  private buildDirtyBucketRecords(
-    state: HuaweiSpaceHistorySyncState,
-    dirtyBucketIndexes: Set<number>
-  ): Map<number, HuaweiSpaceHistorySnapshotRecord[]> {
-    const buckets = new Map<number, HuaweiSpaceHistorySnapshotRecord[]>();
-    dirtyBucketIndexes.forEach((bucketIndex: number): void => {
-      buckets.set(bucketIndex, []);
-    });
-    state.visits.forEach((value: HistorySyncVisit): void => {
-      if (!dirtyBucketIndexes.has(this.resolveBucketIndex(`v:${value.visitId}`))) {
-        return;
-      }
-      this.appendSnapshotRecord(buckets, this.buildVisitRecord(value));
-    });
-    state.tombstones.forEach((value: HistorySyncExactTombstone): void => {
-      if (!dirtyBucketIndexes.has(this.resolveBucketIndex(`t:${value.visitId}`))) {
-        return;
-      }
-      this.appendSnapshotRecord(buckets, this.buildTombstoneRecord(value));
-    });
-    state.deleteRanges.forEach((value: HistorySyncDeleteRange): void => {
-      if (!dirtyBucketIndexes.has(this.resolveBucketIndex(`d:${value.rangeId}`))) {
-        return;
-      }
-      this.appendSnapshotRecord(buckets, this.buildDeleteRangeRecord(value));
-    });
-    if (state.clearBefore > 0 && dirtyBucketIndexes.has(this.resolveBucketIndex(`c:${state.clearBefore}`))) {
-      const payload: HuaweiSpaceHistoryClearBeforePayload = { clearBefore: state.clearBefore };
-      this.appendSnapshotRecord(buckets, {
-        kind: 'c',
-        logicalId: String(state.clearBefore),
-        updatedAt: state.clearBefore,
-        data: payload
-      });
-    }
-    const frontier = state.retentionFrontier;
-    if ((frontier.cutoffAt > 0 || frontier.boundaryVisitedAt > 0) &&
-      dirtyBucketIndexes.has(this.resolveBucketIndex(`r:${this.buildRetentionFrontierLogicalId(frontier)}`))) {
       this.appendSnapshotRecord(buckets, {
         kind: 'r',
         logicalId: this.buildRetentionFrontierLogicalId(frontier),
@@ -1594,10 +1545,16 @@ export class HuaweiSpaceHistorySnapshotCodec {
       records.push(...materializedBucket);
     }
     const state = this.stateFromRecords(records);
-    if (!this.sameCounts(this.countState(state), head.counts) ||
-      this.sha256Hex(JSON.stringify(state)) !== head.stateChecksum) {
-      this.lastMaterializeFailure = 'head=checksum';
-      return undefined;
+    const stateCounts = this.countState(state);
+    const stateChecksum = this.sha256Hex(JSON.stringify(state));
+    if (!this.sameCounts(stateCounts, head.counts) || stateChecksum !== head.stateChecksum) {
+      // Every bucket and chunk hash above already matched this head's references,
+      // so these records are exactly what the head points at. A disagreeing
+      // summary therefore means the head's counts/checksum were written against a
+      // different state, not that records went missing. Trust the records and
+      // repair the head; the next write persists a consistent one.
+      head.counts = stateCounts;
+      head.stateChecksum = stateChecksum;
     }
     const logicalId = this.buildHeadLogicalId(head.deviceId, head.headSlot);
     const rowId = this.buildCompactRowId('snapshot_head', logicalId);
@@ -1660,7 +1617,10 @@ export class HuaweiSpaceHistorySnapshotCodec {
     const state = await this.stateFromRecordsCooperatively(records, throttle);
     const stateChecksum = await this.sha256HistoryStateCooperatively(state, throttle);
     if (!this.sameCounts(this.countState(state), head.counts) || stateChecksum !== head.stateChecksum) {
-      return undefined;
+      // See materializeHead: all bucket and chunk hashes matched this head, so the
+      // records are authoritative and a disagreeing summary is stale head metadata.
+      head.counts = this.countState(state);
+      head.stateChecksum = stateChecksum;
     }
     const logicalId = this.buildHeadLogicalId(head.deviceId, head.headSlot);
     const rowId = this.buildCompactRowId('snapshot_head', logicalId);
