@@ -636,6 +636,11 @@ export class WebVideoPresentationService {
   var actionToolbarProtocol = ${actionToolbarProtocol};
   var fullscreenRequestResultEvent = ${fullscreenRequestResultEvent};
   var expectedFrameRuntimeId = ${frameRuntimeId};
+  // Distance kept between the action toolbar and the video's bottom edge, so the buttons sit
+  // clear of the picture, plus the margin kept from the viewport edge when clamping.
+  var actionToolbarVideoGap = 28;
+  var actionToolbarViewportEdgeGap = 8;
+  var actionToolbarDragStartDistance = 4;
   var lastPresentationFailureReason = '';
   var lastPresentationVerificationDetail = '';
   function rememberObjectFit(targetVideo) {
@@ -1997,26 +2002,59 @@ export class WebVideoPresentationService {
     toolbar.setAttribute('aria-label', 'Aira 视频操作');
     toolbar.style.cssText = [
       'position:fixed', 'left:8px', 'top:8px', 'z-index:2147483647',
-      'display:flex', 'align-items:center', 'gap:4px', 'box-sizing:border-box',
-      'height:44px', 'padding:4px', 'border:1px solid rgba(255,255,255,.28)',
-      'border-radius:22px', 'background:rgba(255,255,255,.16)', 'color:#fff',
-      '-webkit-backdrop-filter:blur(24px) saturate(1.45)', 'backdrop-filter:blur(24px) saturate(1.45)',
-      'box-shadow:0 3px 16px rgba(0,0,0,.28)', 'font:600 13px sans-serif',
-      'letter-spacing:0', 'pointer-events:auto', 'touch-action:manipulation',
+      'display:flex', 'align-items:center', 'gap:8px', 'box-sizing:border-box',
+      'color:#fff', 'pointer-events:auto', 'touch-action:none', 'user-select:none',
       'visibility:hidden'
     ].join(';');
-    var createButton = function (label, accessibilityLabel) {
+    var svgNamespace = 'http://www.w3.org/2000/svg';
+    var castIconPaths = [
+      'M3.75 23.75H3.7625',
+      'M8.75 23.75C8.75 22.4239 8.22322 21.1521 7.28553 20.2145C6.34785 19.2768 5.07608 18.75 3.75 18.75',
+      'M13.75 23.75C13.75 21.0978 12.6964 18.5543 10.8211 16.6789C8.9457 14.8036 6.40216 13.75 3.75 13.75',
+      'M18.75 23.75H22.5C23.4946 23.75 24.4484 23.3549 25.1516 22.6517C25.8549 21.9484 26.25 20.9946 26.25 20V10C26.25 9.00544 25.8549 8.05161 25.1516 7.34835C24.4484 6.64509 23.4946 6.25 22.5 6.25H7.5C6.7306 6.2573 5.98207 6.5011 5.35595 6.94833C4.72983 7.39556 4.25644 8.02456 4 8.75'
+    ];
+    var pictureInPictureIconPaths = [
+      'M13.75 23.75H6.25C5.58696 23.75 4.95107 23.4866 4.48223 23.0178C4.01339 22.5489 3.75 21.913 3.75 21.25V8.75C3.75 8.08696 4.01339 7.45107 4.48223 6.98223C4.95107 6.51339 5.58696 6.25 6.25 6.25H23.75C24.413 6.25 25.0489 6.51339 25.5178 6.98223C25.9866 7.45107 26.25 8.08696 26.25 8.75V13.75',
+      'M17.5 18.75C17.5 18.4185 17.6317 18.1005 17.8661 17.8661C18.1005 17.6317 18.4185 17.5 18.75 17.5H25C25.3315 17.5 25.6495 17.6317 25.8839 17.8661C26.1183 18.1005 26.25 18.4185 26.25 18.75V22.5C26.25 22.8315 26.1183 23.1495 25.8839 23.3839C25.6495 23.6183 25.3315 23.75 25 23.75H18.75C18.4185 23.75 18.1005 23.6183 17.8661 23.3839C17.6317 23.1495 17.5 22.8315 17.5 22.5V18.75Z'
+    ];
+    var fullscreenIconPaths = [
+      'M5 10V7.5C5 6.83696 5.26339 6.20107 5.73223 5.73223C6.20107 5.26339 6.83696 5 7.5 5H10',
+      'M5 20V22.5C5 23.163 5.26339 23.7989 5.73223 24.2678C6.20107 24.7366 6.83696 25 7.5 25H10',
+      'M20 5H22.5C23.163 5 23.7989 5.26339 24.2678 5.73223C24.7366 6.20107 25 6.83696 25 7.5V10',
+      'M20 25H22.5C23.163 25 23.7989 24.7366 24.2678 24.2678C24.7366 23.7989 25 23.163 25 22.5V20'
+    ];
+    var createIcon = function (iconPaths) {
+      var icon = ownerDocument.createElementNS(svgNamespace, 'svg');
+      icon.setAttribute('viewBox', '0 0 30 30');
+      icon.setAttribute('fill', 'none');
+      icon.setAttribute('stroke', 'currentColor');
+      icon.setAttribute('stroke-width', '2.3');
+      icon.setAttribute('stroke-linecap', 'round');
+      icon.setAttribute('stroke-linejoin', 'round');
+      icon.setAttribute('aria-hidden', 'true');
+      icon.setAttribute('focusable', 'false');
+      icon.style.cssText = 'width:24px;height:24px;display:block;pointer-events:none';
+      for (var pathIndex = 0; pathIndex < iconPaths.length; pathIndex += 1) {
+        var path = ownerDocument.createElementNS(svgNamespace, 'path');
+        path.setAttribute('d', iconPaths[pathIndex]);
+        icon.appendChild(path);
+      }
+      return icon;
+    };
+    var createButton = function (iconPaths, accessibilityLabel) {
       var button = ownerDocument.createElement('button');
       button.type = 'button';
-      button.textContent = label;
       button.setAttribute('aria-label', accessibilityLabel);
       button.style.cssText = [
-        'min-width:48px', 'height:36px', 'box-sizing:border-box', 'border:0',
-        'border-radius:18px', 'padding:0 9px', 'margin:0',
-        'background:rgba(255,255,255,.10)', 'color:#fff', 'font:600 13px sans-serif',
-        'letter-spacing:0', 'white-space:nowrap', 'cursor:pointer',
-        'touch-action:manipulation', '-webkit-tap-highlight-color:transparent'
+        'width:40px', 'height:40px', 'box-sizing:border-box', 'padding:0', 'margin:0',
+        'display:inline-flex', 'align-items:center', 'justify-content:center',
+        'border:1px solid rgba(255,255,255,.28)', 'border-radius:50%',
+        'background:rgba(255,255,255,.16)', 'color:#fff', 'cursor:pointer',
+        'touch-action:none', '-webkit-tap-highlight-color:transparent',
+        '-webkit-backdrop-filter:blur(24px) saturate(1.45)', 'backdrop-filter:blur(24px) saturate(1.45)',
+        'box-shadow:0 3px 16px rgba(0,0,0,.28)'
       ].join(';');
+      button.appendChild(createIcon(iconPaths));
       button.addEventListener('pointerdown', function (event) {
         event.stopPropagation();
       }, true);
@@ -2027,11 +2065,11 @@ export class WebVideoPresentationService {
       button.setAttribute('data-state', state);
       button.title = title;
       button.style.opacity = state === 'unavailable' ? '0.48' : '1';
-      button.style.background = state === 'busy' ? 'rgba(10,89,247,.92)' : 'rgba(255,255,255,.10)';
+      button.style.background = state === 'busy' ? 'rgba(10,89,247,.92)' : 'rgba(255,255,255,.16)';
     };
-    var castButton = createButton('投屏', '投屏');
-    var pipButton = createButton('小窗', '小窗播放');
-    var fullscreenButton = createButton('全屏', '使用 Aira 全屏播放');
+    var castButton = createButton(castIconPaths, '投屏');
+    var pipButton = createButton(pictureInPictureIconPaths, '小窗播放');
+    var fullscreenButton = createButton(fullscreenIconPaths, '使用 Aira 全屏播放');
     var resetToolbarInteractionState = function () {
       setButtonState(castButton, 'idle', '投屏');
       setButtonState(pipButton, 'idle', '小窗播放');
@@ -2242,6 +2280,160 @@ export class WebVideoPresentationService {
         scheduleToolbarRefresh();
       }
     });
+    // The user may drag the whole button group to any spot. The offset is kept relative to the
+    // computed anchor below, so the group keeps following the video while remembering the drag.
+    // A fresh page or a new video installs a new toolbar, which starts back at the default anchor.
+    var actionToolbarDragOffsetX = 0;
+    var actionToolbarDragOffsetY = 0;
+    var actionToolbarDragActive = false;
+    var actionToolbarTouchActive = false;
+    var actionToolbarDragMoved = false;
+    var actionToolbarDragStartX = 0;
+    var actionToolbarDragStartY = 0;
+    var actionToolbarDragStartOffsetX = 0;
+    var actionToolbarDragStartOffsetY = 0;
+    var actionToolbarSuppressClick = false;
+    var actionToolbarSuppressClickTimer = -1;
+    // Prefer touch events for touch input: many video players cancel pointer events from their own
+    // vertical swipe gestures, which would otherwise leave only horizontal drags working.
+    var actionToolbarSupportsTouchEvents = ('ontouchstart' in ownerWindow) ||
+      Number((ownerWindow.navigator && ownerWindow.navigator.maxTouchPoints) || 0) > 0;
+    var armActionToolbarClickSuppression = function () {
+      actionToolbarSuppressClick = true;
+      if (actionToolbarSuppressClickTimer >= 0) {
+        clearTimeout(actionToolbarSuppressClickTimer);
+      }
+      // The click that follows a drag lands on the same task turn; drop the flag afterwards so a
+      // drag that produced no click cannot swallow the next genuine tap.
+      actionToolbarSuppressClickTimer = setTimeout(function () {
+        actionToolbarSuppressClickTimer = -1;
+        actionToolbarSuppressClick = false;
+      }, 0);
+    };
+    var applyActionToolbarPosition = function () {
+      var rect = video.getBoundingClientRect();
+      var viewportWidth = Math.max(1, Number(ownerWindow.innerWidth || ownerDocument.documentElement.clientWidth || 1));
+      var viewportHeight = Math.max(1, Number(ownerWindow.innerHeight || ownerDocument.documentElement.clientHeight || 1));
+      var toolbarWidth = Math.max(136, Number(toolbar.offsetWidth || 136));
+      var toolbarHeight = Math.max(40, Number(toolbar.offsetHeight || 40));
+      var maxLeft = Math.max(actionToolbarViewportEdgeGap, viewportWidth - toolbarWidth - actionToolbarViewportEdgeGap);
+      var maxTop = Math.max(actionToolbarViewportEdgeGap, viewportHeight - toolbarHeight - actionToolbarViewportEdgeGap);
+      // Default anchor: below the video's bottom-right corner, offset by a clear gap, so the buttons
+      // never cover the picture; clamped into the viewport for full-bleed players.
+      var anchorLeft = Math.max(actionToolbarViewportEdgeGap, Math.min(maxLeft, rect.right - toolbarWidth));
+      var anchorTop = Math.max(actionToolbarViewportEdgeGap, Math.min(maxTop, rect.bottom + actionToolbarVideoGap));
+      var left = Math.max(actionToolbarViewportEdgeGap, Math.min(maxLeft, anchorLeft + actionToolbarDragOffsetX));
+      var top = Math.max(actionToolbarViewportEdgeGap, Math.min(maxTop, anchorTop + actionToolbarDragOffsetY));
+      toolbar.style.left = String(Math.round(left)) + 'px';
+      toolbar.style.top = String(Math.round(top)) + 'px';
+    };
+    var actionToolbarFinite = function (value) {
+      var numeric = Number(value);
+      return Number.isFinite(numeric) ? numeric : 0;
+    };
+    var beginActionToolbarDrag = function (clientX, clientY) {
+      actionToolbarDragActive = true;
+      actionToolbarDragMoved = false;
+      actionToolbarDragStartX = actionToolbarFinite(clientX);
+      actionToolbarDragStartY = actionToolbarFinite(clientY);
+      actionToolbarDragStartOffsetX = actionToolbarDragOffsetX;
+      actionToolbarDragStartOffsetY = actionToolbarDragOffsetY;
+    };
+    var moveActionToolbarDrag = function (clientX, clientY) {
+      if (!actionToolbarDragActive) {
+        return;
+      }
+      var deltaX = actionToolbarFinite(clientX) - actionToolbarDragStartX;
+      var deltaY = actionToolbarFinite(clientY) - actionToolbarDragStartY;
+      if (!actionToolbarDragMoved) {
+        if (Math.abs(deltaX) < actionToolbarDragStartDistance &&
+            Math.abs(deltaY) < actionToolbarDragStartDistance) {
+          return;
+        }
+        actionToolbarDragMoved = true;
+      }
+      actionToolbarDragOffsetX = actionToolbarDragStartOffsetX + deltaX;
+      actionToolbarDragOffsetY = actionToolbarDragStartOffsetY + deltaY;
+      applyActionToolbarPosition();
+    };
+    var endActionToolbarDrag = function () {
+      if (!actionToolbarDragActive) {
+        return;
+      }
+      actionToolbarDragActive = false;
+      if (actionToolbarDragMoved) {
+        armActionToolbarClickSuppression();
+      }
+      actionToolbarDragMoved = false;
+    };
+    var isActionToolbarDragging = function () {
+      return actionToolbarDragActive || actionToolbarTouchActive;
+    };
+    var handleActionToolbarPointerDown = function (event) {
+      if (!event || event.isPrimary === false) {
+        return;
+      }
+      if (actionToolbarSupportsTouchEvents && event.pointerType === 'touch') {
+        return;
+      }
+      if (typeof event.button === 'number' && event.button !== 0) {
+        return;
+      }
+      beginActionToolbarDrag(event.clientX, event.clientY);
+    };
+    var handleActionToolbarPointerMove = function (event) {
+      if (!actionToolbarDragActive || !event) {
+        return;
+      }
+      if (actionToolbarSupportsTouchEvents && event.pointerType === 'touch') {
+        return;
+      }
+      if (event.cancelable === true && typeof event.preventDefault === 'function') {
+        event.preventDefault();
+      }
+      moveActionToolbarDrag(event.clientX, event.clientY);
+    };
+    var handleActionToolbarPointerEnd = function (event) {
+      if (!actionToolbarDragActive) {
+        return;
+      }
+      if (actionToolbarSupportsTouchEvents && event && event.pointerType === 'touch') {
+        return;
+      }
+      endActionToolbarDrag();
+    };
+    // Touch drives its own path so a page-level swipe gesture cannot cancel a vertical drag.
+    var handleActionToolbarTouchStart = function (event) {
+      if (!event || !event.touches || event.touches.length !== 1) {
+        return;
+      }
+      var touch = event.touches[0];
+      actionToolbarTouchActive = true;
+      beginActionToolbarDrag(touch.clientX, touch.clientY);
+      if (typeof event.stopPropagation === 'function') {
+        event.stopPropagation();
+      }
+    };
+    var handleActionToolbarTouchMove = function (event) {
+      if (!actionToolbarTouchActive || !event || !event.touches || event.touches.length <= 0) {
+        return;
+      }
+      if (event.cancelable === true && typeof event.preventDefault === 'function') {
+        event.preventDefault();
+      }
+      if (typeof event.stopPropagation === 'function') {
+        event.stopPropagation();
+      }
+      var touch = event.touches[0];
+      moveActionToolbarDrag(touch.clientX, touch.clientY);
+    };
+    var handleActionToolbarTouchEnd = function () {
+      if (!actionToolbarTouchActive) {
+        return;
+      }
+      actionToolbarTouchActive = false;
+      endActionToolbarDrag();
+    };
     var refreshToolbar = function () {
       try {
         var presentationState = video[livePresentationProperty] || livePresentationRegistry[expectedRuntimeId];
@@ -2254,6 +2446,12 @@ export class WebVideoPresentationService {
           toolbar.style.visibility = 'hidden';
           return;
         }
+        // While the user is dragging, keep the finger-driven position. A page scroll or video
+        // geometry refresh must not yank the group back to its anchor mid-gesture.
+        if (isActionToolbarDragging()) {
+          toolbar.style.visibility = 'visible';
+          return;
+        }
         var rect = video.getBoundingClientRect();
         var viewportWidth = Math.max(1, Number(ownerWindow.innerWidth || ownerDocument.documentElement.clientWidth || 1));
         var viewportHeight = Math.max(1, Number(ownerWindow.innerHeight || ownerDocument.documentElement.clientHeight || 1));
@@ -2263,12 +2461,7 @@ export class WebVideoPresentationService {
           toolbar.style.visibility = 'hidden';
           return;
         }
-        var toolbarWidth = Math.max(164, Number(toolbar.offsetWidth || 164));
-        var toolbarHeight = Math.max(44, Number(toolbar.offsetHeight || 44));
-        var left = Math.max(8, Math.min(viewportWidth - toolbarWidth - 8, rect.right - toolbarWidth - 8));
-        var top = Math.max(8, Math.min(viewportHeight - toolbarHeight - 8, rect.top + 8));
-        toolbar.style.left = String(Math.round(left)) + 'px';
-        toolbar.style.top = String(Math.round(top)) + 'px';
+        applyActionToolbarPosition();
         toolbar.style.visibility = 'visible';
       } catch (_toolbarPositionError) {
         toolbar.style.visibility = 'hidden';
@@ -2294,6 +2487,22 @@ export class WebVideoPresentationService {
     video.addEventListener('resize', scheduleToolbarRefresh, false);
     video.addEventListener('playing', scheduleToolbarRefresh, false);
     video.addEventListener('ended', scheduleToolbarRefresh, false);
+    toolbar.addEventListener('pointerdown', handleActionToolbarPointerDown, { capture: true, passive: false });
+    ownerWindow.addEventListener('pointermove', handleActionToolbarPointerMove, { capture: true, passive: false });
+    ownerWindow.addEventListener('pointerup', handleActionToolbarPointerEnd, true);
+    ownerWindow.addEventListener('pointercancel', handleActionToolbarPointerEnd, true);
+    toolbar.addEventListener('touchstart', handleActionToolbarTouchStart, { capture: true, passive: false });
+    ownerWindow.addEventListener('touchmove', handleActionToolbarTouchMove, { capture: true, passive: false });
+    ownerWindow.addEventListener('touchend', handleActionToolbarTouchEnd, true);
+    ownerWindow.addEventListener('touchcancel', handleActionToolbarTouchEnd, true);
+    // A drag that started on a button must not also trigger that button's action.
+    toolbar.addEventListener('click', function (event) {
+      if (actionToolbarSuppressClick) {
+        actionToolbarSuppressClick = false;
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    }, true);
     toolbar.__airaRefresh = scheduleToolbarRefresh;
     toolbar.__airaResetInteractionState = resetToolbarInteractionState;
     toolbar.__airaCleanup = function () {
@@ -2303,6 +2512,18 @@ export class WebVideoPresentationService {
         video.removeEventListener('resize', scheduleToolbarRefresh, false);
         video.removeEventListener('playing', scheduleToolbarRefresh, false);
         video.removeEventListener('ended', scheduleToolbarRefresh, false);
+        toolbar.removeEventListener('pointerdown', handleActionToolbarPointerDown, { capture: true });
+        ownerWindow.removeEventListener('pointermove', handleActionToolbarPointerMove, { capture: true });
+        ownerWindow.removeEventListener('pointerup', handleActionToolbarPointerEnd, true);
+        ownerWindow.removeEventListener('pointercancel', handleActionToolbarPointerEnd, true);
+        toolbar.removeEventListener('touchstart', handleActionToolbarTouchStart, { capture: true });
+        ownerWindow.removeEventListener('touchmove', handleActionToolbarTouchMove, { capture: true });
+        ownerWindow.removeEventListener('touchend', handleActionToolbarTouchEnd, true);
+        ownerWindow.removeEventListener('touchcancel', handleActionToolbarTouchEnd, true);
+        if (actionToolbarSuppressClickTimer >= 0) {
+          clearTimeout(actionToolbarSuppressClickTimer);
+          actionToolbarSuppressClickTimer = -1;
+        }
         if (toolbarResizeObserver && typeof toolbarResizeObserver.disconnect === 'function') {
           toolbarResizeObserver.disconnect();
         }

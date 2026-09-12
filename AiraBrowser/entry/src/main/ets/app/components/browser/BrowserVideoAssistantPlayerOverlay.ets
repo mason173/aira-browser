@@ -21,6 +21,7 @@ import {
   BROWSER_FLOATING_GLASS_MATERIAL_DARK_TINT
 } from './BrowserFloatingGlassMaterialTokens';
 import { BrowserFloatingGlassMaterialSurface } from './BrowserFloatingGlassMaterialSurface';
+import { BrowserVideoAssistantPlayerIconButton } from './BrowserVideoAssistantPlayerIconButton';
 
 const VIDEO_ASSISTANT_PLAYER_TITLE_HEIGHT: number = 64;
 const VIDEO_ASSISTANT_PLAYER_TITLE_HORIZONTAL_INSET: number = 24;
@@ -411,15 +412,17 @@ export struct BrowserVideoAssistantPlayerOverlay {
   @Builder
   private buildTopFeatureLayer() {
     Row({ space: VIDEO_ASSISTANT_PLAYER_TITLE_BUTTON_GAP }) {
-      this.buildPlayerGlassIconButton(
-        'browser.toolbar.back',
-        VIDEO_ASSISTANT_PLAYER_BACK_ICON_SIZE,
-        VIDEO_ASSISTANT_PLAYER_BACK_BUTTON_SIZE,
-        '返回网页',
-        () => {
-        this.closePlayer();
+      BrowserVideoAssistantPlayerIconButton({
+        airaIconId: 'browser.toolbar.back',
+        iconSize: VIDEO_ASSISTANT_PLAYER_BACK_ICON_SIZE,
+        buttonSize: VIDEO_ASSISTANT_PLAYER_BACK_BUTTON_SIZE,
+        iconColor: this.playerControlColor,
+        buttonColor: this.playerTransparentColor,
+        accessibilityLabel: '返回网页',
+        onPress: (): void => {
+          this.closePlayer();
         }
-      )
+      })
 
       Text(this.resolvePlayerTitle())
         .fontSize(VIDEO_ASSISTANT_PLAYER_TITLE_TEXT_SIZE)
@@ -450,15 +453,17 @@ export struct BrowserVideoAssistantPlayerOverlay {
     Row({ space: VIDEO_ASSISTANT_PLAYER_CENTER_CONTROL_GAP }) {
       this.buildTenSecondSeekButton(false)
 
-      this.buildPlayerGlassIconButton(
-        this.isPlaying() ? 'videoAssistant.pause' : 'videoAssistant.play',
-        VIDEO_ASSISTANT_PLAYER_CENTER_PLAY_ICON_SIZE,
-        VIDEO_ASSISTANT_PLAYER_CENTER_PLAY_SIZE,
-        this.isPlaying() ? '暂停' : '播放',
-        () => {
+      BrowserVideoAssistantPlayerIconButton({
+        airaIconId: this.isPlaying() ? 'videoAssistant.pause' : 'videoAssistant.play',
+        iconSize: VIDEO_ASSISTANT_PLAYER_CENTER_PLAY_ICON_SIZE,
+        buttonSize: VIDEO_ASSISTANT_PLAYER_CENTER_PLAY_SIZE,
+        iconColor: this.playerControlColor,
+        buttonColor: this.playerTransparentColor,
+        accessibilityLabel: this.isPlaying() ? '暂停' : '播放',
+        onPress: (): void => {
           this.togglePlayback();
         }
-      )
+      })
 
       this.buildTenSecondSeekButton(true)
     }
@@ -472,15 +477,18 @@ export struct BrowserVideoAssistantPlayerOverlay {
 
   @Builder
   private buildTenSecondSeekButton(forward: boolean) {
-    this.buildPlayerGlassIconButton(
-      forward ? 'videoAssistant.seekForward10' : 'videoAssistant.seekBackward10',
-      VIDEO_ASSISTANT_PLAYER_SEEK_ICON_SIZE,
-      VIDEO_ASSISTANT_PLAYER_SEEK_BUTTON_SIZE,
-      forward ? '快进 10 秒' : '后退 10 秒',
-      () => {
-        this.seekBySeconds(forward ? VIDEO_ASSISTANT_PLAYER_SEEK_STEP_SECONDS : -VIDEO_ASSISTANT_PLAYER_SEEK_STEP_SECONDS);
+    BrowserVideoAssistantPlayerIconButton({
+      airaIconId: forward ? 'videoAssistant.seekForward10' : 'videoAssistant.seekBackward10',
+      iconSize: VIDEO_ASSISTANT_PLAYER_SEEK_ICON_SIZE,
+      buttonSize: VIDEO_ASSISTANT_PLAYER_SEEK_BUTTON_SIZE,
+      iconColor: this.playerControlColor,
+      buttonColor: this.playerTransparentColor,
+      accessibilityLabel: forward ? '快进 10 秒' : '后退 10 秒',
+      onPress: (): void => {
+        this.seekBySeconds(forward ? VIDEO_ASSISTANT_PLAYER_SEEK_STEP_SECONDS :
+          -VIDEO_ASSISTANT_PLAYER_SEEK_STEP_SECONDS);
       }
-    )
+    })
   }
 
   @Builder
@@ -564,60 +572,70 @@ export struct BrowserVideoAssistantPlayerOverlay {
   @Builder
   private buildBottomFeatureLayer() {
     Row() {
-      this.buildPlayerGlassIconButton(
-        'videoAssistant.control.aspectRatio',
-        VIDEO_ASSISTANT_PLAYER_FEATURE_BUTTON_SIZE,
-        VIDEO_ASSISTANT_PLAYER_FEATURE_TOUCH_SIZE,
-        '切换画面比例',
-        () => {
+      BrowserVideoAssistantPlayerIconButton({
+        airaIconId: 'videoAssistant.control.aspectRatio',
+        iconSize: VIDEO_ASSISTANT_PLAYER_FEATURE_BUTTON_SIZE,
+        buttonSize: VIDEO_ASSISTANT_PLAYER_FEATURE_TOUCH_SIZE,
+        iconColor: this.playerControlColor,
+        buttonColor: this.playerTransparentColor,
+        accessibilityLabel: '切换画面比例',
+        onPress: (): void => {
           this.cycleVideoScaleMode();
         }
-      )
+      })
 
-      this.buildPlayerGlassIconButton(
-        'settings.downloads',
-        VIDEO_ASSISTANT_PLAYER_FEATURE_BUTTON_SIZE,
-        VIDEO_ASSISTANT_PLAYER_FEATURE_TOUCH_SIZE,
-        '下载当前视频',
-        () => {
+      BrowserVideoAssistantPlayerIconButton({
+        airaIconId: 'settings.downloads',
+        iconSize: VIDEO_ASSISTANT_PLAYER_FEATURE_BUTTON_SIZE,
+        buttonSize: VIDEO_ASSISTANT_PLAYER_FEATURE_TOUCH_SIZE,
+        iconColor: this.playerControlColor,
+        buttonColor: this.playerTransparentColor,
+        accessibilityLabel: '下载当前视频',
+        onPress: (): void => {
           this.speedPanelVisible = false;
           this.onAction({ type: 'download' });
           this.showControlsTemporarily();
         }
-      )
+      })
 
-      this.buildPlayerGlassIconButton(
-        'videoAssistant.control.playbackSpeed',
-        VIDEO_ASSISTANT_PLAYER_FEATURE_BUTTON_SIZE,
-        VIDEO_ASSISTANT_PLAYER_FEATURE_TOUCH_SIZE,
-        '播放速度',
-        () => {
+      BrowserVideoAssistantPlayerIconButton({
+        airaIconId: 'videoAssistant.control.playbackSpeed',
+        iconSize: VIDEO_ASSISTANT_PLAYER_FEATURE_BUTTON_SIZE,
+        buttonSize: VIDEO_ASSISTANT_PLAYER_FEATURE_TOUCH_SIZE,
+        iconColor: this.playerControlColor,
+        buttonColor: this.playerTransparentColor,
+        accessibilityLabel: '播放速度',
+        onPress: (): void => {
           this.togglePlaybackSpeedPanel();
         }
-      )
+      })
 
-      this.buildPlayerGlassIconButton(
-        'videoAssistant.control.rotate',
-        VIDEO_ASSISTANT_PLAYER_FEATURE_BUTTON_SIZE,
-        VIDEO_ASSISTANT_PLAYER_FEATURE_TOUCH_SIZE,
-        '旋转画面',
-        () => {
+      BrowserVideoAssistantPlayerIconButton({
+        airaIconId: 'videoAssistant.control.rotate',
+        iconSize: VIDEO_ASSISTANT_PLAYER_FEATURE_BUTTON_SIZE,
+        buttonSize: VIDEO_ASSISTANT_PLAYER_FEATURE_TOUCH_SIZE,
+        iconColor: this.playerControlColor,
+        buttonColor: this.playerTransparentColor,
+        accessibilityLabel: '旋转画面',
+        onPress: (): void => {
           this.requestRotate();
         }
-      )
+      })
 
-      this.buildPlayerGlassIconButton(
-        'videoAssistant.unlock',
-        VIDEO_ASSISTANT_PLAYER_FEATURE_BUTTON_SIZE,
-        VIDEO_ASSISTANT_PLAYER_FEATURE_TOUCH_SIZE,
-        '锁定播放器控制',
-        () => {
+      BrowserVideoAssistantPlayerIconButton({
+        airaIconId: 'videoAssistant.unlock',
+        iconSize: VIDEO_ASSISTANT_PLAYER_FEATURE_BUTTON_SIZE,
+        buttonSize: VIDEO_ASSISTANT_PLAYER_FEATURE_TOUCH_SIZE,
+        iconColor: this.playerControlColor,
+        buttonColor: this.playerTransparentColor,
+        accessibilityLabel: '锁定播放器控制',
+        onPress: (): void => {
           this.controlsLocked = true;
           this.controlsVisible = true;
           this.speedPanelVisible = false;
           this.scheduleControlsHideIfIdle(true);
         }
-      )
+      })
     }
     .width('100%')
     .height(this.resolveBottomControlRegionHeight())
@@ -626,43 +644,6 @@ export struct BrowserVideoAssistantPlayerOverlay {
     .justifyContent(FlexAlign.SpaceAround)
     .position({ x: 0, y: this.resolveBottomControlRegionTop() })
     .zIndex(7)
-  }
-
-  @Builder
-  private buildPlayerGlassIconButton(
-    iconId: AiraRenderableIconId,
-    iconSize: number,
-    buttonSize: number,
-    accessibilityLabel: string,
-    action: () => void
-  ) {
-    Stack({ alignContent: Alignment.Center }) {
-      BrowserFloatingGlassMaterialSurface({
-        surfaceWidth: buttonSize,
-        surfaceHeight: buttonSize,
-        surfaceRadius: buttonSize / 2,
-        tintColor: BROWSER_FLOATING_GLASS_MATERIAL_DARK_TINT
-      }) {
-        AiraIcon({
-          airaIconId: iconId,
-          iconSize: iconSize,
-          iconColor: this.playerControlColor
-        })
-        .hitTestBehavior(HitTestMode.None)
-      }
-
-      Button({ type: ButtonType.Circle })
-        .width('100%')
-        .height('100%')
-        .backgroundColor(this.playerTransparentColor)
-        .accessibilityText(accessibilityLabel)
-        .onClick(() => {
-          action();
-        })
-    }
-    .width(buttonSize)
-    .height(buttonSize)
-    .borderRadius(buttonSize / 2)
   }
 
   @Builder
@@ -758,16 +739,18 @@ export struct BrowserVideoAssistantPlayerOverlay {
   @Builder
   private buildLockedControl() {
     Stack() {
-      this.buildPlayerGlassIconButton(
-        'videoAssistant.lock',
-        VIDEO_ASSISTANT_PLAYER_FEATURE_BUTTON_SIZE,
-        VIDEO_ASSISTANT_PLAYER_FEATURE_TOUCH_SIZE,
-        '解锁播放器控制',
-        () => {
+      BrowserVideoAssistantPlayerIconButton({
+        airaIconId: 'videoAssistant.lock',
+        iconSize: VIDEO_ASSISTANT_PLAYER_FEATURE_BUTTON_SIZE,
+        buttonSize: VIDEO_ASSISTANT_PLAYER_FEATURE_TOUCH_SIZE,
+        iconColor: this.playerControlColor,
+        buttonColor: this.playerTransparentColor,
+        accessibilityLabel: '解锁播放器控制',
+        onPress: (): void => {
           this.controlsLocked = false;
           this.showControlsTemporarily();
         }
-      )
+      })
     }
     .width(VIDEO_ASSISTANT_PLAYER_FEATURE_TOUCH_SIZE)
     .height(VIDEO_ASSISTANT_PLAYER_FEATURE_TOUCH_SIZE)
