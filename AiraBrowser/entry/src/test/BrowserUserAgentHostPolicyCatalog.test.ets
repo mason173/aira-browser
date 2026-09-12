@@ -36,5 +36,35 @@ export default function browserUserAgentHostPolicyCatalogTest(): void {
         'accounts.google.com'
       )).assertUndefined();
     });
+
+    it('gives China Mobile activity Hosts an Android-free HarmonyOS shape', 0, () => {
+      const catalog = new BrowserUserAgentHostPolicyCatalog();
+
+      const activity = catalog.resolveMandatoryCompatibility(
+        'mobile',
+        'wx.10086.cn'
+      );
+      const transit = catalog.resolveMandatoryCompatibility(
+        'mobile',
+        'client.app.coc.10086.cn'
+      );
+
+      expect(activity?.profileId).assertEqual('aira_harmony_compat');
+      expect(transit?.profileId).assertEqual('aira_harmony_compat');
+      const userAgent = activity?.userAgent ?? '';
+      expect(userAgent.toLocaleLowerCase().includes('harmony')).assertTrue();
+      expect(userAgent.toLocaleLowerCase().includes('arkweb')).assertTrue();
+      // An Android token is what makes these pages emit an Android-only launch scheme.
+      expect(userAgent.toLocaleLowerCase().includes('android')).assertFalse();
+    });
+
+    it('keeps the HarmonyOS compatibility shape off the desktop family', 0, () => {
+      const catalog = new BrowserUserAgentHostPolicyCatalog();
+
+      expect(catalog.resolveMandatoryCompatibility(
+        'desktop',
+        'wx.10086.cn'
+      )).assertUndefined();
+    });
   });
 }

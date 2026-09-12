@@ -65,7 +65,8 @@ export class BrowserUserAgentHostPolicyService {
       identityId: `host_profile:${match.profileId}`,
       reason: match.reason,
       userAgent: match.userAgent,
-      mode: match.profileId === 'aira_android_compat' ? 'mobile' : 'desktop'
+      // Every compatibility profile is a mobile shape except the large-screen one.
+      mode: match.profileId === 'aira_desktop_compat' ? 'desktop' : 'mobile'
     };
   }
 

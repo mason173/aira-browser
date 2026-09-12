@@ -1,11 +1,15 @@
 import {
   AIRA_COMPAT_MOBILE_USER_AGENT,
   AIRA_COMPAT_DESKTOP_USER_AGENT,
+  AIRA_COMPAT_HARMONY_MOBILE_USER_AGENT,
   BrowserUserAgentApplicationFamily
 } from './BrowserUserAgentService';
 import { GOOGLE_SEARCH_COMPATIBILITY_HOST_CHUNKS } from './GeneratedGoogleSearchCompatibilityHosts';
 
-export type BrowserUserAgentHostProfileId = 'aira_android_compat' | 'aira_desktop_compat';
+export type BrowserUserAgentHostProfileId =
+  'aira_android_compat' |
+  'aira_desktop_compat' |
+  'aira_harmony_compat';
 
 export interface BrowserUserAgentHostProfile {
   id: BrowserUserAgentHostProfileId;
@@ -60,6 +64,10 @@ const HOST_PROFILES: BrowserUserAgentHostProfile[] = [
   {
     id: 'aira_desktop_compat',
     userAgent: AIRA_COMPAT_DESKTOP_USER_AGENT
+  },
+  {
+    id: 'aira_harmony_compat',
+    userAgent: AIRA_COMPAT_HARMONY_MOBILE_USER_AGENT
   }
 ];
 
@@ -124,6 +132,25 @@ const BUNDLED_HOST_COMPATIBILITY_RULES: BrowserUserAgentHostCompatibilityRule[] 
     verificationUrl: 'https://www.youtube.com/',
     addedAt: '2026-08-17',
     lastVerifiedAt: '2026-08-17'
+  },
+  {
+    id: 'china-mobile-app-launch-harmony-compat',
+    profileId: 'aira_harmony_compat',
+    mandatory: true,
+    applicationFamilies: ['mobile'],
+    hosts: [
+      'wx.10086.cn',
+      'h.app.coc.10086.cn',
+      'client.app.coc.10086.cn',
+      'h5.he.10086.cn'
+    ],
+    reason: 'China Mobile activity pages choose their app-launch scheme from the platform token. An Android token ' +
+      'emits com.greenpoint://android.mc10086.activity, which the HarmonyOS client does not register, so the launch ' +
+      'always fails; a HarmonyOS/ArkWeb token emits the cross-platform client entry instead. These Hosts therefore ' +
+      'require the Android-free HarmonyOS-shaped identity.',
+    verificationUrl: 'https://wx.10086.cn/hlwyxhdhub/act-launch-app/index.html',
+    addedAt: '2026-09-13',
+    lastVerifiedAt: '2026-09-13'
   }
 ]);
 

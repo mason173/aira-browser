@@ -21,6 +21,7 @@ import browserHttpsFirstNavigationServiceTest from './BrowserHttpsFirstNavigatio
 import browserBrowsingIdentityPolicyCoordinatorTest from './BrowserBrowsingIdentityPolicyCoordinator.test';
 import browserUserAgentRuntimeServiceTest from './BrowserUserAgentRuntimeService.test';
 import browserUserAgentHostPolicyCatalogTest from './BrowserUserAgentHostPolicyCatalog.test';
+import externalNavigationLaunchServiceTest from './ExternalNavigationLaunchService.test';
 import localBackupImportScenariosTest from './LocalBackupImportScenarios.test';
 import airaBookmarkSnapshotServiceTest from './AiraBookmarkSnapshotService.test';
 import browserTabsOverviewSceneDriverTest from './BrowserTabsOverviewSceneDriver.test';
@@ -61,6 +62,7 @@ export default function tests(): void {
   browserBrowsingIdentityPolicyCoordinatorTest();
   browserUserAgentRuntimeServiceTest();
   browserUserAgentHostPolicyCatalogTest();
+  externalNavigationLaunchServiceTest();
   localBackupImportScenariosTest();
   airaBookmarkSnapshotServiceTest();
   browserTabsOverviewSceneDriverTest();

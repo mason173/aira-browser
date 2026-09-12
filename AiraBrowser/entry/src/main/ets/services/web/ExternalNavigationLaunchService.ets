@@ -83,6 +83,18 @@ const FALLBACK_PARAM_NAMES: string[] = [
   's.browser_fallback_url',
   'browser_fallback_url'
 ];
+const HARMONY_CLIENT_REWRITE_LAUNCH_API: string = 'startAbility_harmony_client_scheme_rewrite';
+const OPEN_LINK_ALL_SCHEMES_LAUNCH_API: string = 'openLink_all_schemes';
+// China Mobile activity pages build `com.greenpoint://android.mc10086.activity?<query>` from an
+// Android token and the cross-platform `cn.10086.app://<query>` from a HarmonyOS/ArkWeb token. A
+// page that misread the platform therefore leaves an Android-only scheme that the HarmonyOS client
+// never registered, so the same query is retried through the cross-platform client entry.
+const DEEPLINK_SCHEME_REWRITES: DeeplinkSchemeRewrite[] = [
+  {
+    androidPrefix: 'com.greenpoint://android.mc10086.activity?',
+    harmonyPrefix: 'cn.10086.app://'
+  }
+];
 
 interface ExternalNavigationLaunchResultInput {
   success: boolean;
@@ -120,6 +132,16 @@ interface DeeplinkAbilityQueryResult {
   errorCode: string;
   errorMessage: string;
   abilityInfos: bundleManager.AbilityInfo[];
+}
+
+interface DeeplinkSchemeRewrite {
+  androidPrefix: string;
+  harmonyPrefix: string;
+}
+
+interface LaunchedAttempt {
+  attemptedUrl: string;
+  launchApi: string;
 }
 
 export class ExternalNavigationLaunchService {
@@ -409,6 +431,30 @@ export class ExternalNavigationLaunchService {
       const errorMessage = this.stringifyError(businessError);
       const errorCode = this.extractErrorCode(businessError, errorMessage);
       const status = this.resolveFailureStatus(errorCode, errorMessage);
+      if (status === 'no_matching_ability' && mode === 'deeplink_view_data' && targetElement === undefined) {
+        const recovered = await this.recoverDeeplinkLaunch(context, request, targetUrl);
+        if (recovered !== undefined) {
+          return this.buildResult({
+            success: true,
+            status: 'success',
+            classification: classification,
+            mode: mode,
+            originalUrl: request.url.trim(),
+            attemptedUrl: recovered.attemptedUrl,
+            fallbackUrl: fallbackUrl,
+            errorCode: '',
+            errorMessage: '',
+            message: this.buildSuccessMessage(mode),
+            userMessage: this.buildSuccessUserMessage(),
+            request: request,
+            launchApi: recovered.launchApi,
+            resolution: resolution,
+            queryStatus: queryResult.status,
+            queryErrorCode: queryResult.errorCode,
+            queryErrorMessage: queryResult.errorMessage
+          });
+        }
+      }
       const reportedErrorMessage = request.redactDiagnostics === true ? '' : errorMessage;
       return this.buildResult({
         success: false,
@@ -430,6 +476,57 @@ export class ExternalNavigationLaunchService {
         queryErrorMessage: queryResult.errorMessage
       });
     }
+  }
+
+  /**
+   * Recovers from a page that built an Android-only app scheme because it misread the platform
+   * token. The retry stays bounded and ordered: first the cross-platform client entry for the same
+   * query, then the system's own URI router without a forced action. Each step only runs when the
+   * previous one reported that no installed ability claimed the URI.
+   */
+  private async recoverDeeplinkLaunch(
+    context: common.UIAbilityContext,
+    request: ExternalNavigationLaunchRequest,
+    targetUrl: string
+  ): Promise<LaunchedAttempt | undefined> {
+    const rewrittenUrl = this.resolveCrossPlatformSchemeRewrite(targetUrl);
+    if (rewrittenUrl.length > 0) {
+      try {
+        await this.startDeeplinkAbility(context, rewrittenUrl);
+        return {
+          attemptedUrl: rewrittenUrl,
+          launchApi: HARMONY_CLIENT_REWRITE_LAUNCH_API
+        };
+      } catch (_rewriteError) {
+      }
+    }
+    // startAbility above forces `ohos.want.action.viewData`. A target app may declare the scheme
+    // under a different action, so the last attempt lets the system match on the URI alone. It
+    // prefers the cross-platform entry when the original URI was the Android-only scheme.
+    const routerUrl = rewrittenUrl.length > 0 ? rewrittenUrl : targetUrl;
+    try {
+      await context.openLink(routerUrl, {
+        appLinkingOnly: false,
+        hideFailureTipDialog: request.hideFailureTipDialog === true
+      });
+      return {
+        attemptedUrl: routerUrl,
+        launchApi: OPEN_LINK_ALL_SCHEMES_LAUNCH_API
+      };
+    } catch (_openLinkError) {
+    }
+    return undefined;
+  }
+
+  resolveCrossPlatformSchemeRewrite(url: string): string {
+    const normalizedUrl = url.trim();
+    for (let index = 0; index < DEEPLINK_SCHEME_REWRITES.length; index += 1) {
+      const rewrite = DEEPLINK_SCHEME_REWRITES[index];
+      if (normalizedUrl.startsWith(rewrite.androidPrefix)) {
+        return `${rewrite.harmonyPrefix}${normalizedUrl.substring(rewrite.androidPrefix.length)}`;
+      }
+    }
+    return '';
   }
 
   private async startDeeplinkAbility(

@@ -123,6 +123,11 @@ export const AIRA_COMPAT_MOBILE_USER_AGENT: string =
   'Mozilla/5.0 (Linux; Android 12; SGT-AL10 Build/HUAWEISGT-AL10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 ArkWeb/6.0.0.130 Mobile HuaweiBrowser/6.1.1.303';
 export const HUAWEI_BROWSER_USER_AGENT: string =
   'Mozilla/5.0 (Phone; OpenHarmony 6.0; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 ArkWeb/6.0.0.130 Mobile HuaweiBrowser/6.1.1.303';
+// Native ArkWeb publishes a `Phone; OpenHarmony ... Mobile` identity. Pages that pick an
+// app-launch scheme from the platform token must see that shape instead of an Android one, so
+// this identity deliberately carries no `Android` token while keeping ArkWeb and Mobile.
+export const AIRA_COMPAT_HARMONY_MOBILE_USER_AGENT: string =
+  'Mozilla/5.0 (Phone; OpenHarmony 6.0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 ArkWeb/6.0.0.130 Mobile';
 export const CHROME_ANDROID_USER_AGENT: string =
   'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Mobile Safari/537.36';
 export const AIRA_COMPAT_DESKTOP_USER_AGENT: string =
