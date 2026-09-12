@@ -141,6 +141,11 @@ export struct BrowserTabsFloatingOverlay {
   @Prop entrySharedSnapshotState: BrowserTabsSharedSnapshotTransitionState =
     new BrowserTabsSharedSnapshotTransitionCoordinator().buildIdleState();
   @Prop entrySharedSnapshotBackgroundColor: ResourceColor | undefined = undefined;
+  // Incremented by the page every time the sheet is opened. While the overlay is
+  // resident (mounted but closed) it never re-runs aboutToAppear, so the per-open
+  // setup has to be replayed from this signal.
+  @Watch('handleOpenRequested')
+  @Prop openRequestVersion: number = 0;
 
   @State private selectedSection: BrowserTabsOverviewSection = 'tabs';
   @State private layoutState: BrowserTabsOverviewLayoutState =
@@ -210,8 +215,40 @@ export struct BrowserTabsFloatingOverlay {
   onOpenDeviceTabs: () => void = () => {};
 
   aboutToAppear(): void {
+    // Subscribe once for the lifetime of the component; the identity-icon binding is
+    // not per-open, and re-binding it on every open would stack subscriptions.
+    this.overlayViewModel.bindIdentityIconUpdates(
+      (): BrowserTabsOverviewIdentityIconSnapshot => this.buildIdentityIconSnapshot(),
+      (states: SiteIconListRenderState[]): void => {
+        this.siteIconStates = states;
+      }
+    );
+    this.initializeForOpen();
+    // HDS segmented tabs, the blurred material bar and the corner buttons add a large
+    // native subtree on top of the grid. Mount them on the next frame so the first
+    // frame stays cheap: it blocks the main thread, so this timer only runs once the
+    // grid has been laid out. Only the first open defers them; later opens reuse them.
+    this.chromeMountTimer = setTimeout(() => {
+      this.chromeMountTimer = 0;
+      this.chromeMounted = true;
+    }, 0);
+  }
+
+  private handleOpenRequested(): void {
+    this.initializeForOpen();
+  }
+
+  /**
+   * Per-open setup. Runs from aboutToAppear on the first open and from
+   * openRequestVersion on every later open, because a resident overlay does not
+   * remount and therefore never re-enters aboutToAppear.
+   */
+  private initializeForOpen(): void {
     this.selectedSection = this.activeSection;
     this.entryReturnTabId = this.activeTabId.trim();
+    // A close-all leaves this latched true. It used to be cleared by the remount;
+    // a resident overlay must clear it here or every later open stays non-interactive.
+    this.closeAllExitActive = false;
     this.syncLayoutState();
     this.entryProgress = this.resolveEntryInitialProgress();
     this.entryDisplacementTargetId = this.entryDisplacementTabId.trim();
@@ -221,26 +258,12 @@ export struct BrowserTabsFloatingOverlay {
     this.resetEntryTargetPreparation();
     this.beginEntryTargetPreparationIfNeeded();
     this.removalState = this.shadowViewModel.buildInitialLocalRemovalState();
-    this.overlayViewModel.bindIdentityIconUpdates(
-      (): BrowserTabsOverviewIdentityIconSnapshot => this.buildIdentityIconSnapshot(),
-      (states: SiteIconListRenderState[]): void => {
-        this.siteIconStates = states;
-      }
-    );
     this.syncEntryDisplacementFromProps();
     this.prepareBottomEntryAnimation();
     // Resolve identity icons before the grid is first built. The grid is keyed by tab
     // id, so a later @State update would not repaint already-built cards and every
     // favicon would stay on its letter fallback.
     this.syncSiteIcons();
-    // HDS segmented tabs, the blurred material bar and the corner buttons add a large
-    // native subtree on top of the grid. Mount them on the next frame so the first
-    // frame stays cheap: it blocks the main thread, so this timer only runs once the
-    // grid has been laid out.
-    this.chromeMountTimer = setTimeout(() => {
-      this.chromeMountTimer = 0;
-      this.chromeMounted = true;
-    }, 0);
   }
 
   aboutToDisappear(): void {
@@ -429,7 +452,7 @@ export struct BrowserTabsFloatingOverlay {
           this.buildCard(item)
         }
         .height(this.layoutState.itemHeight)
-      }, (item: BrowserTabsFloatingItem) => item.id)
+      }, (item: BrowserTabsFloatingItem) => this.resolveCardIdentityKey(item))
 
       ForEach(this.buildBlankSlotKeys(), (_key: string) => {
         this.buildBlankGridItem()
@@ -476,7 +499,7 @@ export struct BrowserTabsFloatingOverlay {
         .width(this.resolveCardWidth(item))
         .height(this.resolveRootHeight())
         .clip(false)
-      }, (item: BrowserTabsFloatingItem) => item.id)
+      }, (item: BrowserTabsFloatingItem) => this.resolveCardIdentityKey(item))
     }
     .width('100%')
     .height('100%')
@@ -875,6 +898,19 @@ export struct BrowserTabsFloatingOverlay {
       });
     }
     return items;
+  }
+
+  // A card is keyed by more than the tab id: while the tab stays the same, the
+  // preview moves from "no image yet" to "snapshot ready" a moment later when the
+  // entry capture lands. ArkUI does not rebuild an item whose key is unchanged, so
+  // keying on the id alone left the already-built card on its pending placeholder
+  // forever. Including the image identity re-creates the card when the snapshot
+  // arrives.
+  private resolveCardIdentityKey(item: BrowserTabsFloatingItem): string {
+    const preview = item.presentation.preview;
+    const uri = preview.sharedSnapshotImageUri.trim();
+    const hasPixelMap = preview.sharedSnapshotPixelMap !== undefined;
+    return `${item.id}|${preview.previewKind}|${uri.length > 0 ? uri : (hasPixelMap ? 'pm' : 'none')}`;
   }
 
   private isLocallyRemovedTab(tabId: string): boolean {
