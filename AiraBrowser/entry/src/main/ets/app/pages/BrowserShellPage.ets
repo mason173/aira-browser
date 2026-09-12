@@ -2255,6 +2255,11 @@ struct BrowserShellPage {
           if (effect.shouldResetHomeReveal) {
             this.browserHomePresentationSessionCoordinator.resetReveal();
           }
+          if (effect.shouldShowTabsSheet && !this.showTabsSheet) {
+            // Opening the sheet: refresh the cached gallery states before the overlay
+            // build reads them, so the first frame already carries the current previews.
+            this.refreshTabPreviewStates();
+          }
           this.showTabsSheet = effect.shouldShowTabsSheet;
           this.reconcileExternalNavigationPromptForCurrentPage();
           return;
@@ -5306,6 +5311,10 @@ struct BrowserShellPage {
   @State hostedWebLayerMeasured: boolean = false;
   private restoredWebLayerGeometry?: BrowserWebLayerGeometrySnapshot;
   @State tabPreviewRenderVersion: number = 0;
+  // Cached gallery preview states. Refreshed only when previews change
+  // (`notifyTabPreviewChanged`) or the sheet is (re)opened; the overlay build then
+  // reads this field instead of rebuilding the list on every render pass.
+  private tabsOverviewPreviewStates: BrowserTabPreviewState[] = [];
   @State
   @Watch('refreshRootBottomPanelLayoutState')
   browserSearchSuggestionSnapshot: BrowserSearchSuggestionSnapshot =
@@ -6295,6 +6304,10 @@ struct BrowserShellPage {
     if (this.showHomePage) {
       this.homeSurfacePaintedOnce = true;
     }
+    // The overlay reads cached gallery states, so a tab add/close/reorder must
+    // invalidate them here (this runs on every `tabs` change). Otherwise a tab
+    // closed while the sheet is open would keep its stale preview entry.
+    this.refreshTabPreviewStates();
     const presentation = this.browserShellPresentationOperations?.reconcileTabs(this.tabs, this.activeTabId);
     this.browserShellRouteCoordinator.reconcilePhoneNativeTabHandoff(
       presentation?.surface,
@@ -8316,15 +8329,35 @@ struct BrowserShellPage {
   }
 
   private getTabPreviewStates() {
-    return this.tabsOverviewSnapshotPipelineCoordinator.buildGalleryPreviewStates(
+    // Pure read: the overlay build calls this, so it must not write shared state.
+    // The thumbnail store is refreshed from notifyTabPreviewChanged instead.
+    return this.tabsOverviewPreviewStates;
+  }
+
+  private refreshTabPreviewStates(capturedAt: number = Date.now()): void {
+    this.tabsOverviewPreviewStates = this.tabsOverviewSnapshotPipelineCoordinator.buildGalleryPreviewStates(
       this.tabsOverviewSnapshotPipelineState,
       this.browserTabPreviewCoordinator.listPreviewStates(this.tabs),
       this.tabs,
-      Date.now()
+      capturedAt
     );
   }
 
-  private notifyTabPreviewChanged(): void { this.tabPreviewRenderVersion += 1; }
+  private notifyTabPreviewChanged(): void {
+    // Publish the freshest previews into the thumbnail store here, on the change
+    // event, instead of from getTabPreviewStates(). That getter is read during the
+    // overlay build, and the store write bumps a version the renderer observes, so
+    // doing it there spun a render -> write -> render loop (the tabs overview froze
+    // the app whenever it stayed mounted).
+    const capturedAt = Date.now();
+    this.tabsOverviewSnapshotPipelineCoordinator.publishPreviewStatesToThumbnailStore(
+      this.tabsOverviewSnapshotPipelineState,
+      this.browserTabPreviewCoordinator.listPreviewStates(this.tabs),
+      capturedAt
+    );
+    this.refreshTabPreviewStates(capturedAt);
+    this.tabPreviewRenderVersion += 1;
+  }
 
   private persistMeasuredWebLayerGeometry(): void {
     if (!this.hostedWebLayerMeasured || this.rootViewportWidth <= 1 || this.rootViewportHeight <= 1 ||

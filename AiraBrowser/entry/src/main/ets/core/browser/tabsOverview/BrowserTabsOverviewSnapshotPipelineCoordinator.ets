@@ -145,11 +145,25 @@ export class BrowserTabsOverviewSnapshotPipelineCoordinator {
     capturedAt: number
   ): BrowserTabPreviewState[] {
     const mergedStates = this.mergePreviewStatesWithEntrySession(state, persistedStates, capturedAt);
-    // Mirror the freshest persisted previews into the thumbnail store so the card's
-    // snapshotThumbnail asset and the shared-snapshot transition resolve the same
-    // capture. The store's capturedAt guard rejects any stale write.
-    this.thumbnailCoordinator.reconcileFromPreviewStates(mergedStates);
     return this.thumbnailCoordinator.buildGalleryPreviewStates(mergedStates, tabs);
+  }
+
+  /**
+   * Mirrors the freshest previews into the thumbnail store so the card's
+   * snapshotThumbnail asset and the shared-snapshot transition resolve the same
+   * capture. The store's capturedAt guard rejects stale writes.
+   *
+   * This mutates shared state, so it belongs to the preview-change notification
+   * path. Keeping it out of the overlay build is what lets the overlay stay
+   * mounted without the renderer observing its own writes.
+   */
+  publishPreviewStatesToThumbnailStore(
+    state: BrowserTabsOverviewSnapshotPipelineState,
+    persistedStates: BrowserTabPreviewState[],
+    capturedAt: number
+  ): void {
+    this.thumbnailCoordinator.reconcileFromPreviewStates(
+      this.mergePreviewStatesWithEntrySession(state, persistedStates, capturedAt));
   }
 
   buildTransitionPreviewState(
