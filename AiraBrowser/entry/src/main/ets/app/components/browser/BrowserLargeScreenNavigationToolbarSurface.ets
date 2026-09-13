@@ -40,6 +40,7 @@ import {
   BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY
 } from '../../../core/theme/BrowserThemeStorageKeys';
 import { AiraIcon } from '../common/AiraIcon';
+import { AIRA_DISTRIBUTION_CAPABILITY_OWNER } from '../../../common/config/AiraDistributionCapabilityOwner';
 import { BrowserLargeScreenAccountPopover } from './BrowserLargeScreenAccountPopover';
 import { BrowserLargeScreenBookmarkPopover } from './BrowserLargeScreenBookmarkPopover';
 import { BrowserSiteInfoSheet } from './BrowserSiteInfoSheet';
@@ -317,19 +318,24 @@ export struct BrowserLargeScreenNavigationToolbarSurface {
         .clip(false)
 
         if (this.inputProfile !== 'touch') {
-          BrowserLargeScreenAccountPopover({
-            privateMode: this.activeTabChrome.privateMode,
-            viewportWidthVp: this.viewportWidthVp,
-            viewportHeightVp: this.viewportHeightVp,
-            popupReservedTopVp: this.popupReservedTopVp,
-            onOpenAiraPro: (): void => {
-              this.onIntent({
-                kind: 'open_settings_target',
-                text: '',
-                settingsDestination: 'aira_pro'
-              });
-            }
-          })
+          // The account popover signs in to Huawei and opens Aira Pro, both Official-only
+          // capabilities. Community has no Huawei project, cloud, or payment approval, so it
+          // must not offer an account entry that can never complete.
+          if (AIRA_DISTRIBUTION_CAPABILITY_OWNER.isOfficial()) {
+            BrowserLargeScreenAccountPopover({
+              privateMode: this.activeTabChrome.privateMode,
+              viewportWidthVp: this.viewportWidthVp,
+              viewportHeightVp: this.viewportHeightVp,
+              popupReservedTopVp: this.popupReservedTopVp,
+              onOpenAiraPro: (): void => {
+                this.onIntent({
+                  kind: 'open_settings_target',
+                  text: '',
+                  settingsDestination: 'aira_pro'
+                });
+              }
+            })
+          }
 
           this.buildUserScriptButton()
         }

@@ -37,6 +37,8 @@ NATIVE_TAB_SCENE_SERVICE_REL="AiraBrowser/entry/src/main/ets/core/browser/Browse
 NATIVE_TAB_SCENE_SERVICE="${REPO_ROOT}/${NATIVE_TAB_SCENE_SERVICE_REL}"
 LARGE_SCREEN_TAB_SNAPSHOT_ADAPTER_REL="AiraBrowser/entry/src/main/ets/core/browser/BrowserLargeScreenTabSnapshotAdapter.ets"
 LARGE_SCREEN_TAB_SNAPSHOT_ADAPTER="${REPO_ROOT}/${LARGE_SCREEN_TAB_SNAPSHOT_ADAPTER_REL}"
+LARGE_SCREEN_NAV_TOOLBAR_REL="AiraBrowser/entry/src/main/ets/app/components/browser/BrowserLargeScreenNavigationToolbarSurface.ets"
+LARGE_SCREEN_NAV_TOOLBAR="${REPO_ROOT}/${LARGE_SCREEN_NAV_TOOLBAR_REL}"
 WEB_VIEWPORT_COORDINATOR_REL="AiraBrowser/entry/src/main/ets/core/browser/BrowserWebViewportCoordinator.ets"
 WEB_VIEWPORT_COORDINATOR="${REPO_ROOT}/${WEB_VIEWPORT_COORDINATOR_REL}"
 WEB_TOP_CHROME_OVERLAY_REL="AiraBrowser/entry/src/main/ets/app/components/browser/BrowserWebTopChromeOverlay.ets"
@@ -5044,6 +5046,12 @@ check_file_contains_rule "${NATIVE_TAB_SCENE_SERVICE}" "${NATIVE_TAB_SCENE_SERVI
 check_file_contains_rule "${LARGE_SCREEN_TAB_SNAPSHOT_ADAPTER}" "${LARGE_SCREEN_TAB_SNAPSHOT_ADAPTER_REL}" \
   "browserNativeTabSceneService\.resolveCanonicalTitleForTab\(tab\.url, tab\.pendingUrl\)" \
   "must project canonical native-scene titles before applying the ordinary Home title fallback."
+check_file_contains_rule "${LARGE_SCREEN_NAV_TOOLBAR}" "${LARGE_SCREEN_NAV_TOOLBAR_REL}" \
+  "if \(AIRA_DISTRIBUTION_CAPABILITY_OWNER\.isOfficial\(\)\) \{" \
+  "must gate the Huawei account popover on Official so Community cannot render an unusable login entry."
+check_file_contains_rule "${LARGE_SCREEN_NAV_TOOLBAR}" "${LARGE_SCREEN_NAV_TOOLBAR_REL}" \
+  "BrowserLargeScreenAccountPopover\(\{" \
+  "must still render the account popover for Official alongside its distribution gate."
 
 if [ "${ARCH_GUARD_ALLOW_PAGE_GROWTH:-0}" = "1" ]; then
   echo "Architecture page-growth diff guard bypassed by ARCH_GUARD_ALLOW_PAGE_GROWTH=1."
