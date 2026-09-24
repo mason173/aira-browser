@@ -249,6 +249,12 @@
     },
     {
       "properties": {
+        "name": "element-inspection-picker",
+        "code": 60957
+      }
+    },
+    {
+      "properties": {
         "name": "element-inspection-reselect",
         "code": 60931
       }

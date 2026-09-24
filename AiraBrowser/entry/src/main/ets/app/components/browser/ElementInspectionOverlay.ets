@@ -48,6 +48,7 @@ import {
   resolveBrowserFloatingGlassMaterialTintForMode
 } from './BrowserFloatingGlassMaterialTokens';
 import { BROWSER_TOP_FLOATING_PROMPT_HOST_Z_INDEX } from './BrowserTopFloatingPromptHost';
+import { pointer } from '@kit.InputKit';
 import { ElementInspectionCodePreview } from './ElementInspectionCodePreview';
 import { MARKDOWN_CODE_BLOCK_BACKGROUND_COLOR } from '../../../services/markdown/MarkdownDocumentViewerService';
 import {
@@ -103,6 +104,9 @@ export struct ElementInspectionOverlay {
   @Prop webLayerWidthVp: number = 1;
   @Prop webLayerHeightVp: number = 1;
   @Prop @Watch('handlePresentationChanged') presentation: ElementInspectionPresentation;
+  @Prop docked: boolean = false;
+  @Prop captureSelection: boolean = true;
+  @Prop hoverPreview: boolean = false;
   @State private codeFullscreen: boolean = false;
   @State private selectionTouchTracking: boolean = false;
   @State private selectionTouchMoved: boolean = false;
@@ -112,11 +116,39 @@ export struct ElementInspectionOverlay {
   @State private selectionMouseMoved: boolean = false;
   @State private selectionMouseStartX: number = 0;
   @State private selectionMouseStartY: number = 0;
+  private lastHoverEmitAt: number = 0;
+  private lastHoverEmitX: number = -1;
+  private lastHoverEmitY: number = -1;
   onAction: (action: ElementInspectionAction) => void = (_action: ElementInspectionAction) => {};
   onSelectNormalizedPoint: (normalizedX: number, normalizedY: number) => void =
     (_normalizedX: number, _normalizedY: number) => {};
+  onHoverNormalizedPoint: (normalizedX: number, normalizedY: number) => void =
+    (_normalizedX: number, _normalizedY: number) => {};
+  onHoverPreviewEnd: () => void = () => {};
 
   build() {
+    if (this.docked) {
+      this.buildDockedSelectionShield()
+    } else {
+      this.buildPhoneOverlay()
+    }
+  }
+
+  @Builder
+  private buildDockedSelectionShield() {
+    Stack({ alignContent: Alignment.TopStart }) {
+      if (this.presentation.active && this.captureSelection) {
+        this.buildSelectionInputShield()
+      }
+    }
+    .width('100%')
+    .height('100%')
+    .hitTestBehavior(HitTestMode.Transparent)
+    .zIndex(BROWSER_MODAL_BOTTOM_OVERLAY_Z_INDEX)
+  }
+
+  @Builder
+  private buildPhoneOverlay() {
     Stack({ alignContent: this.codeFullscreen ? Alignment.Bottom : Alignment.Top }) {
       if (this.presentation.active && !this.codeFullscreen) {
         this.buildSelectionInputShield()
@@ -149,6 +181,14 @@ export struct ElementInspectionOverlay {
       .backgroundColor(Color.Transparent)
       .hitTestBehavior(HitTestMode.Block)
       .focusable(false)
+      .onHover((isHover: boolean): void => {
+        this.setInspectCursor(isHover && this.hoverPreview);
+        if (!isHover && this.hoverPreview) {
+          this.lastHoverEmitX = -1;
+          this.lastHoverEmitY = -1;
+          this.onHoverPreviewEnd();
+        }
+      })
       .onTouch((event: TouchEvent): void => {
         this.handleSelectionTouch(event);
       })
@@ -583,6 +623,12 @@ export struct ElementInspectionOverlay {
       this.selectionMouseStartY = pointY;
       return;
     }
+    if (event.action === MouseAction.Move && !this.selectionMouseTracking) {
+      if (this.hoverPreview) {
+        this.emitHoverPoint(pointX, pointY);
+      }
+      return;
+    }
     if (event.action === MouseAction.Move && this.selectionMouseTracking) {
       if (this.hasSelectionPointerMoved(
         this.selectionMouseStartX,
@@ -618,11 +664,39 @@ export struct ElementInspectionOverlay {
   }
 
   private emitNormalizedSelectionPoint(localXVp: number, localYVp: number): void {
+    const point = this.normalizeSelectionPoint(localXVp, localYVp);
+    this.onSelectNormalizedPoint(point.x, point.y);
+  }
+
+  private emitHoverPoint(localXVp: number, localYVp: number): void {
+    const now = Date.now();
+    if (Math.abs(localXVp - this.lastHoverEmitX) < 3 &&
+      Math.abs(localYVp - this.lastHoverEmitY) < 3 &&
+      now - this.lastHoverEmitAt < 32) {
+      return;
+    }
+    this.lastHoverEmitAt = now;
+    this.lastHoverEmitX = localXVp;
+    this.lastHoverEmitY = localYVp;
+    const point = this.normalizeSelectionPoint(localXVp, localYVp);
+    this.onHoverNormalizedPoint(point.x, point.y);
+  }
+
+  private normalizeSelectionPoint(localXVp: number, localYVp: number): ElementInspectionSelectionPoint {
     const widthVp = Math.max(1, this.webLayerWidthVp);
     const heightVp = Math.max(1, this.webLayerHeightVp);
-    const normalizedX = Math.min(1, Math.max(0, localXVp / widthVp));
-    const normalizedY = Math.min(1, Math.max(0, localYVp / heightVp));
-    this.onSelectNormalizedPoint(normalizedX, normalizedY);
+    const point: ElementInspectionSelectionPoint = {
+      x: Math.min(1, Math.max(0, localXVp / widthVp)),
+      y: Math.min(1, Math.max(0, localYVp / heightVp))
+    };
+    return point;
+  }
+
+  private setInspectCursor(active: boolean): void {
+    try {
+      cursorControl.setCursor(active ? pointer.PointerStyle.CROSS : pointer.PointerStyle.DEFAULT);
+    } catch (_error) {
+    }
   }
 
   private hasSelectionPointerMoved(startX: number, startY: number, currentX: number, currentY: number): boolean {

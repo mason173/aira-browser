@@ -105,6 +105,7 @@ export struct BrowserShellPrimarySurfaceHost {
     createBrowserUserScriptApplicationSnapshot();
   @Prop largeScreenNativeVideoTakeoverActive: boolean = false;
   @Prop largeScreenWebFullscreenActive: boolean = false;
+  @Prop elementInspectionDockVisible: boolean = false;
   @Prop largeScreenQuickSearchPresentation: BrowserQuickSearchSwitchingPresentation =
     createHiddenBrowserQuickSearchSwitchingPresentation();
   @Prop recentlyClosedApplicationSnapshot: BrowserRecentlyClosedApplicationSnapshot =
@@ -124,6 +125,7 @@ export struct BrowserShellPrimarySurfaceHost {
   @BuilderParam webSurfaceSlot: () => void = this.emptyBuilder;
   @BuilderParam sidePanelSlot: () => void = this.emptyBuilder;
   @BuilderParam bottomStatusSlot: () => void = this.emptyBuilder;
+  @BuilderParam elementInspectionDockSlot: () => void = this.emptyBuilder;
 
   build() {
     if (this.presentationSurface === 'large_screen') {
@@ -146,6 +148,7 @@ export struct BrowserShellPrimarySurfaceHost {
         userScriptApplicationSnapshot: this.userScriptApplicationSnapshot,
         nativeVideoTakeoverActive: this.largeScreenNativeVideoTakeoverActive,
         webFullscreenActive: this.largeScreenWebFullscreenActive,
+        elementInspectionDockVisible: this.elementInspectionDockVisible,
         quickSearchPresentation: this.largeScreenQuickSearchPresentation,
         recentlyClosed: this.recentlyClosedApplicationSnapshot,
         onSelectQuickSearchEngine: (engineId: string): void => {
@@ -170,7 +173,10 @@ export struct BrowserShellPrimarySurfaceHost {
           this.buildHomeSurface()
         },
         sidePanel: this.emptyBuilder,
-        bottomStatus: this.emptyBuilder
+        bottomStatus: this.emptyBuilder,
+        elementInspectionDock: () => {
+          this.buildElementInspectionDock()
+        }
       })
     } else if (this.presentationSurface === 'web_app') {
       BrowserWebAppPrimarySurface({
@@ -249,6 +255,11 @@ export struct BrowserShellPrimarySurfaceHost {
   @Builder
   private buildSidePanel() {
     this.sidePanelSlot()
+  }
+
+  @Builder
+  private buildElementInspectionDock() {
+    this.elementInspectionDockSlot()
   }
 
   @Builder

@@ -64,6 +64,7 @@ import bottomToolbarGuideCoordinatorTest from './BottomToolbarGuideCoordinator.t
 import crossDeviceLinkViewModelTest from './CrossDeviceLinkViewModel.test';
 import communityUpdateCheckCoordinatorTest from './CommunityUpdateCheckCoordinator.test';
 import browserLargeScreenWebZoomPolicyTest from './BrowserLargeScreenWebZoomPolicy.test';
+import elementInspectionRuntimeScriptServiceTest from './ElementInspectionRuntimeScriptService.test';
 
 export default function tests(): void {
   userScriptValueStateStoreTest();
@@ -130,4 +131,5 @@ export default function tests(): void {
   crossDeviceLinkViewModelTest();
   communityUpdateCheckCoordinatorTest();
   browserLargeScreenWebZoomPolicyTest();
+  elementInspectionRuntimeScriptServiceTest();
 }

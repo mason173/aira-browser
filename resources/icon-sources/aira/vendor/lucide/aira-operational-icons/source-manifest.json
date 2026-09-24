@@ -740,6 +740,13 @@
       "lucideSlug": "minimize"
     },
     {
+      "glyph": "element-inspection-picker",
+      "sourceFile": "svg/element-inspection-picker.svg",
+      "codePoint": 60957,
+      "sourceSha256": "dc4356212af9d8857ee81a8fb7b339ed0be8d1ac99a62fee70d0b0fc04940d65",
+      "lucideSlug": "pointer-2"
+    },
+    {
       "glyph": "toolbar-expand-hint",
       "sourceFile": "svg/toolbar-expand-hint.svg",
       "codePoint": 60934,

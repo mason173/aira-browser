@@ -1,10 +1,19 @@
 import { BrowserClipboardCopyResult, BrowserClipboardService } from '../../services/share/BrowserClipboardService';
 import {
+  ElementInspectionBoxModel,
+  ElementInspectionComputedProperty,
+  ElementInspectionConsoleEntry,
+  ElementInspectionListenerEntry,
   ElementInspectionNavigationRelation,
+  ElementInspectionNetworkEntry,
+  ElementInspectionOutlineNode,
+  ElementInspectionPageInfo,
   ElementInspectionRuntimeAttribute,
   ElementInspectionRuntimeNodeSnapshot,
   ElementInspectionRuntimeScriptService,
-  ElementInspectionRuntimeSnapshot
+  ElementInspectionRuntimeSnapshot,
+  ElementInspectionSourceEntry,
+  ElementInspectionSourcePreview
 } from '../../services/web/ElementInspectionRuntimeScriptService';
 import { BrowserRuntimeLifecyclePort } from '../../services/web/BrowserRuntimeLifecyclePort';
 import { BrowserTransientSurfaceCoordinator } from './BrowserTransientSurfaceCoordinator';
@@ -39,7 +48,17 @@ export interface ElementInspectionPresentation {
   phase: ElementInspectionSessionPhase;
   busy: boolean;
   helperText: string;
+  pickerArmed: boolean;
+  outline: ElementInspectionOutlineNode[];
+  computed: ElementInspectionComputedProperty[];
+  logs: ElementInspectionConsoleEntry[];
+  network: ElementInspectionNetworkEntry[];
+  sources: ElementInspectionSourceEntry[];
+  listeners: ElementInspectionListenerEntry[];
+  pageInfo?: ElementInspectionPageInfo;
+  sourcePreview?: ElementInspectionSourcePreview;
   node?: ElementInspectionRuntimeNodeSnapshot;
+  box?: ElementInspectionBoxModel;
 }
 
 export interface ElementInspectionSessionShell {
@@ -48,7 +67,7 @@ export interface ElementInspectionSessionShell {
   showToast: (message: string) => void;
 }
 
-const ELEMENT_INSPECTION_POLL_INTERVAL_MS: number = 280;
+const ELEMENT_INSPECTION_POLL_INTERVAL_MS: number = 120;
 const ELEMENT_INSPECTION_REVEAL_DELAY_MS: number = 0;
 const ELEMENT_INSPECTION_DISMISS_DURATION_MS: number = 220;
 const ELEMENT_INSPECTION_SHELL_RESUME_RETRY_DELAY_MS: number = 120;
@@ -69,6 +88,14 @@ export class ElementInspectionSessionCoordinator {
   private pollTimer: number = -1;
   private pollInFlight: boolean = false;
   private selectionInFlight: boolean = false;
+  private hoverInFlight: boolean = false;
+  private hoverSelectInFlight: boolean = false;
+  private pendingHoverX: number = -1;
+  private pendingHoverY: number = -1;
+  private lastHoverX: number = -1;
+  private lastHoverY: number = -1;
+  private hoverSelectTimer: number = -1;
+  private hoverEpoch: number = 0;
   private pollEpoch: number = 0;
   private closeTimer: number = -1;
   private shellPaused: boolean = false;
@@ -110,6 +137,80 @@ export class ElementInspectionSessionCoordinator {
 
   startFromToolbar(): void {
     void this.runStartFromToolbar();
+  }
+
+  setPickerArmed(armed: boolean): void {
+    if (!this.presentation.active || this.presentation.phase === 'closing' ||
+      this.presentation.pickerArmed === armed) {
+      return;
+    }
+    const next = this.clonePresentation(this.presentation);
+    next.pickerArmed = armed;
+    this.publish(next);
+    this.cancelHoverTracking();
+    void this.runSetPickerArmed(armed);
+  }
+
+  previewAtNormalizedPoint(normalizedX: number, normalizedY: number): void {
+    if (!this.canHoverPreview(normalizedX, normalizedY)) {
+      return;
+    }
+    this.pendingHoverX = Math.min(1, Math.max(0, normalizedX));
+    this.pendingHoverY = Math.min(1, Math.max(0, normalizedY));
+    this.lastHoverX = this.pendingHoverX;
+    this.lastHoverY = this.pendingHoverY;
+    this.scheduleHoverSelect();
+    if (!this.hoverInFlight) {
+      void this.drainHoverPreview();
+    }
+  }
+
+  clearHoverPreview(): void {
+    this.hoverEpoch += 1;
+    this.pendingHoverX = -1;
+    this.pendingHoverY = -1;
+    this.lastHoverX = -1;
+    this.lastHoverY = -1;
+    if (this.hoverSelectTimer >= 0) {
+      clearTimeout(this.hoverSelectTimer);
+      this.hoverSelectTimer = -1;
+    }
+    if (!this.presentation.active || this.originTabId.length === 0 || this.documentToken.length === 0) {
+      return;
+    }
+    void this.runClearPreview(this.sessionGeneration, this.originTabId, this.documentToken);
+  }
+
+  evaluateConsole(expression: string): void {
+    const normalized = expression.trim();
+    if (normalized.length === 0 || normalized.length > 2000 || !this.canRunDebugCommand()) {
+      return;
+    }
+    void this.runEvaluateConsole(normalized);
+  }
+
+  clearConsole(): void {
+    if (!this.canRunDebugCommand()) {
+      return;
+    }
+    void this.runClearConsole();
+  }
+
+  readSource(sourceId: string): void {
+    if (!this.runtimeScriptService.isSourceId(sourceId) || !this.canRunDebugCommand()) {
+      return;
+    }
+    void this.runReadSource(sourceId);
+  }
+
+  selectOutline(path: string): void {
+    if (!this.runtimeScriptService.isOutlinePath(path) ||
+      !this.presentation.active || this.presentation.busy || this.selectionInFlight ||
+      (this.presentation.phase !== 'selecting' && this.presentation.phase !== 'inspected') ||
+      this.isSelectedOutlinePath(path)) {
+      return;
+    }
+    void this.runSelectOutline(path);
   }
 
   selectAtNormalizedPoint(normalizedX: number, normalizedY: number): void {
@@ -230,7 +331,14 @@ export class ElementInspectionSessionCoordinator {
       active: true,
       phase: 'starting',
       busy: true,
-      helperText: '正在准备元素审查…'
+      helperText: '正在准备元素审查…',
+      pickerArmed: true,
+      outline: [],
+      computed: [],
+      logs: [],
+      network: [],
+      sources: [],
+      listeners: []
     });
     try {
       const raw: string = await this.runtimeLifecyclePort.runJavaScriptOnLiveRuntime(
@@ -446,6 +554,47 @@ export class ElementInspectionSessionCoordinator {
     }
   }
 
+  private async runSelectOutline(path: string): Promise<void> {
+    const generation = this.sessionGeneration;
+    const tabId = this.originTabId;
+    const documentToken = this.documentToken;
+    const previousRevision = this.runtimeRevision;
+    this.selectionInFlight = true;
+    this.stopSelectionPolling();
+    try {
+      const raw: string = await this.runtimeLifecyclePort.runJavaScriptOnLiveRuntime(
+        tabId,
+        this.runtimeScriptService.buildSelectOutlineScript(generation, documentToken, path),
+        'element_inspection_runtime_not_live'
+      );
+      if (!this.isCurrentGeneration(generation) || this.originTabId !== tabId ||
+        this.documentToken !== documentToken) {
+        return;
+      }
+      const snapshot = this.runtimeScriptService.parseSnapshot(raw);
+      const hydratedSnapshot = await this.hydrateRuntimeSnapshotHtml(
+        snapshot,
+        tabId,
+        generation,
+        documentToken
+      );
+      if (hydratedSnapshot === undefined || hydratedSnapshot.revision <= previousRevision ||
+        !this.applyRuntimeSnapshot(hydratedSnapshot, generation)) {
+        this.shell.showToast('无法选择当前元素。');
+      }
+    } catch (_error) {
+      if (this.isCurrentGeneration(generation)) {
+        this.shell.showToast('无法选择当前元素。');
+      }
+    } finally {
+      this.selectionInFlight = false;
+      if (!this.shellPaused && this.isCurrentGeneration(generation) &&
+        (this.presentation.phase === 'selecting' || this.presentation.phase === 'inspected')) {
+        this.startSelectionPolling();
+      }
+    }
+  }
+
   private async runNavigation(relation: ElementInspectionNavigationRelation): Promise<void> {
     if (!this.canRunNodeCommand()) {
       return;
@@ -557,7 +706,17 @@ export class ElementInspectionSessionCoordinator {
       phase: this.presentation.phase,
       busy: true,
       helperText: helperText,
-      node: this.presentation.node
+      pickerArmed: this.presentation.pickerArmed,
+      outline: this.presentation.outline,
+      computed: this.presentation.computed,
+      logs: this.presentation.logs,
+      network: this.presentation.network,
+      sources: this.presentation.sources,
+      listeners: this.presentation.listeners,
+      pageInfo: this.presentation.pageInfo,
+      sourcePreview: this.presentation.sourcePreview,
+      node: this.presentation.node,
+      box: this.presentation.box
     });
     return context;
   }
@@ -595,7 +754,7 @@ export class ElementInspectionSessionCoordinator {
         return;
       }
       const snapshot = this.runtimeScriptService.parseSnapshot(raw);
-      if (this.presentation.busy) {
+      if (this.presentation.busy || snapshot.revision < this.runtimeRevision) {
         return;
       }
       const hydratedSnapshot = await this.hydrateRuntimeSnapshotHtml(snapshot, tabId, generation, documentToken);
@@ -679,12 +838,27 @@ export class ElementInspectionSessionCoordinator {
         phase: 'inspected',
         busy: false,
         helperText: '已选中当前元素',
-        node: snapshot.node
+        pickerArmed: this.presentation.pickerArmed,
+        outline: snapshot.outline !== undefined ? snapshot.outline : this.presentation.outline,
+        computed: snapshot.computed !== undefined ? snapshot.computed : this.presentation.computed,
+        logs: snapshot.logs !== undefined ? snapshot.logs : this.presentation.logs,
+        network: snapshot.network !== undefined ? snapshot.network : this.presentation.network,
+        sources: snapshot.sources !== undefined ? snapshot.sources : this.presentation.sources,
+        listeners: snapshot.listeners !== undefined ? snapshot.listeners : this.presentation.listeners,
+        pageInfo: snapshot.pageInfo !== undefined ? snapshot.pageInfo : this.presentation.pageInfo,
+        sourcePreview: this.presentation.sourcePreview,
+        node: snapshot.node,
+        box: snapshot.box !== undefined ? snapshot.box : this.presentation.box
       });
       return true;
     }
     if (snapshot.mode === 'inspected' && snapshot.revision === this.runtimeRevision &&
       this.presentation.phase === 'inspected' && this.presentation.node !== undefined) {
+      if (this.debugChanged(snapshot)) {
+        const next = this.clonePresentation(this.presentation);
+        this.applyDebugSnapshot(next, snapshot);
+        this.publish(next);
+      }
       return true;
     }
     this.runtimeRevision = snapshot.revision;
@@ -692,7 +866,16 @@ export class ElementInspectionSessionCoordinator {
       active: true,
       phase: 'selecting',
       busy: false,
-      helperText: '点击网页上的元素查看代码'
+      helperText: '点击网页上的元素查看代码',
+      pickerArmed: this.presentation.pickerArmed,
+      outline: snapshot.outline !== undefined ? snapshot.outline : this.presentation.outline,
+      computed: [],
+      logs: snapshot.logs !== undefined ? snapshot.logs : this.presentation.logs,
+      network: snapshot.network !== undefined ? snapshot.network : this.presentation.network,
+      sources: snapshot.sources !== undefined ? snapshot.sources : this.presentation.sources,
+      listeners: snapshot.listeners !== undefined ? snapshot.listeners : [],
+      pageInfo: snapshot.pageInfo !== undefined ? snapshot.pageInfo : this.presentation.pageInfo,
+      sourcePreview: this.presentation.sourcePreview
     });
     return true;
   }
@@ -706,7 +889,17 @@ export class ElementInspectionSessionCoordinator {
       phase: this.presentation.node === undefined ? 'selecting' : 'inspected',
       busy: false,
       helperText: this.presentation.node === undefined ? '点击网页上的元素查看代码' : '已选中当前元素',
-      node: this.presentation.node
+      pickerArmed: this.presentation.pickerArmed,
+      outline: this.presentation.outline,
+      computed: this.presentation.computed,
+      logs: this.presentation.logs,
+      network: this.presentation.network,
+      sources: this.presentation.sources,
+      listeners: this.presentation.listeners,
+      pageInfo: this.presentation.pageInfo,
+      sourcePreview: this.presentation.sourcePreview,
+      node: this.presentation.node,
+      box: this.presentation.box
     });
   }
 
@@ -741,6 +934,7 @@ export class ElementInspectionSessionCoordinator {
     this.sessionGeneration += 1;
     this.operationSequence += 1;
     const closingGeneration = this.sessionGeneration;
+    this.cancelHoverTracking();
     this.stopSelectionPolling();
     this.clearCloseTimer();
     this.publish({
@@ -748,7 +942,17 @@ export class ElementInspectionSessionCoordinator {
       phase: 'closing',
       busy: true,
       helperText: '正在结束元素审查…',
-      node: this.presentation.node
+      pickerArmed: this.presentation.pickerArmed,
+      outline: this.presentation.outline,
+      computed: this.presentation.computed,
+      logs: this.presentation.logs,
+      network: this.presentation.network,
+      sources: this.presentation.sources,
+      listeners: this.presentation.listeners,
+      pageInfo: this.presentation.pageInfo,
+      sourcePreview: this.presentation.sourcePreview,
+      node: this.presentation.node,
+      box: this.presentation.box
     });
     if (cleanupTabId.length > 0 && cleanupDocumentToken.length > 0) {
       void this.runtimeLifecyclePort.runJavaScriptOnLiveRuntime(
@@ -829,12 +1033,80 @@ export class ElementInspectionSessionCoordinator {
       active: presentation.active,
       phase: presentation.phase,
       busy: presentation.busy,
-      helperText: presentation.helperText
+      helperText: presentation.helperText,
+      pickerArmed: presentation.pickerArmed === true,
+      outline: this.cloneOutline(presentation.outline),
+      computed: this.cloneComputed(presentation.computed),
+      logs: this.cloneLogs(presentation.logs),
+      network: this.cloneNetwork(presentation.network),
+      sources: this.cloneSources(presentation.sources),
+      listeners: this.cloneListeners(presentation.listeners),
+      pageInfo: presentation.pageInfo,
+      sourcePreview: presentation.sourcePreview
     };
     if (presentation.node !== undefined) {
       result.node = this.cloneNode(presentation.node);
     }
+    if (presentation.box !== undefined) {
+      result.box = this.cloneBox(presentation.box);
+    }
     return result;
+  }
+
+  private cloneOutline(nodes: ElementInspectionOutlineNode[] | undefined): ElementInspectionOutlineNode[] {
+    const result: ElementInspectionOutlineNode[] = [];
+    (nodes ?? []).forEach((node: ElementInspectionOutlineNode): void => {
+      result.push({
+        path: node.path,
+        depth: node.depth,
+        tagName: node.tagName,
+        elementId: node.elementId,
+        classTokens: node.classTokens.slice(0),
+        textPreview: node.textPreview,
+        childCount: node.childCount,
+        selected: node.selected
+      });
+    });
+    return result;
+  }
+
+  private cloneComputed(
+    properties: ElementInspectionComputedProperty[] | undefined
+  ): ElementInspectionComputedProperty[] {
+    const result: ElementInspectionComputedProperty[] = [];
+    (properties ?? []).forEach((property: ElementInspectionComputedProperty): void => {
+      result.push({ name: property.name, value: property.value });
+    });
+    return result;
+  }
+
+  private cloneBox(box: ElementInspectionBoxModel): ElementInspectionBoxModel {
+    return {
+      marginTop: box.marginTop,
+      marginRight: box.marginRight,
+      marginBottom: box.marginBottom,
+      marginLeft: box.marginLeft,
+      borderTop: box.borderTop,
+      borderRight: box.borderRight,
+      borderBottom: box.borderBottom,
+      borderLeft: box.borderLeft,
+      paddingTop: box.paddingTop,
+      paddingRight: box.paddingRight,
+      paddingBottom: box.paddingBottom,
+      paddingLeft: box.paddingLeft,
+      contentWidth: box.contentWidth,
+      contentHeight: box.contentHeight
+    };
+  }
+
+  private isSelectedOutlinePath(path: string): boolean {
+    for (let index = 0; index < this.presentation.outline.length; index += 1) {
+      const node = this.presentation.outline[index];
+      if (node.selected && node.path === path) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private cloneNode(node: ElementInspectionRuntimeNodeSnapshot): ElementInspectionRuntimeNodeSnapshot {
@@ -873,8 +1145,329 @@ export class ElementInspectionSessionCoordinator {
       active: false,
       phase: 'inactive',
       busy: false,
-      helperText: ''
+      helperText: '',
+      pickerArmed: false,
+      outline: [],
+      computed: [],
+      logs: [],
+      network: [],
+      sources: [],
+      listeners: []
     };
+  }
+
+  private async runSetPickerArmed(armed: boolean): Promise<void> {
+    const generation = this.sessionGeneration;
+    const tabId = this.originTabId;
+    const documentToken = this.documentToken;
+    if (tabId.length === 0 || documentToken.length === 0) {
+      return;
+    }
+    try {
+      await this.runtimeLifecyclePort.runJavaScriptOnLiveRuntime(
+        tabId,
+        this.runtimeScriptService.buildSetPickerArmedScript(generation, documentToken, armed),
+        'element_inspection_runtime_not_live'
+      );
+    } catch (_error) {
+    }
+  }
+
+  private canHoverPreview(normalizedX: number, normalizedY: number): boolean {
+    return Number.isFinite(normalizedX) && Number.isFinite(normalizedY) &&
+      this.presentation.active && this.presentation.pickerArmed &&
+      !this.presentation.busy && !this.selectionInFlight &&
+      (this.presentation.phase === 'selecting' || this.presentation.phase === 'inspected') &&
+      this.originTabId.length > 0 && this.documentToken.length > 0;
+  }
+
+  private cancelHoverTracking(): void {
+    this.hoverEpoch += 1;
+    this.pendingHoverX = -1;
+    this.pendingHoverY = -1;
+    this.lastHoverX = -1;
+    this.lastHoverY = -1;
+    if (this.hoverSelectTimer >= 0) {
+      clearTimeout(this.hoverSelectTimer);
+      this.hoverSelectTimer = -1;
+    }
+  }
+
+  private scheduleHoverSelect(): void {
+    if (this.hoverSelectTimer >= 0) {
+      clearTimeout(this.hoverSelectTimer);
+    }
+    this.hoverSelectTimer = setTimeout((): void => {
+      this.hoverSelectTimer = -1;
+      void this.runHoverSelect();
+    }, 80);
+  }
+
+  private async drainHoverPreview(): Promise<void> {
+    if (this.hoverInFlight) {
+      return;
+    }
+    this.hoverInFlight = true;
+    const generation = this.sessionGeneration;
+    const tabId = this.originTabId;
+    const documentToken = this.documentToken;
+    try {
+      while (this.pendingHoverX >= 0 && this.pendingHoverY >= 0 &&
+        this.isCurrentGeneration(generation) && this.presentation.pickerArmed) {
+        const normalizedX = this.pendingHoverX;
+        const normalizedY = this.pendingHoverY;
+        this.pendingHoverX = -1;
+        this.pendingHoverY = -1;
+        await this.runtimeLifecyclePort.runJavaScriptOnLiveRuntime(
+          tabId,
+          this.runtimeScriptService.buildPreviewAtNormalizedPointScript(
+            generation,
+            documentToken,
+            normalizedX,
+            normalizedY
+          ),
+          'element_inspection_runtime_not_live'
+        );
+      }
+    } catch (_error) {
+    } finally {
+      this.hoverInFlight = false;
+      if (this.pendingHoverX >= 0 && this.isCurrentGeneration(generation) && this.presentation.pickerArmed) {
+        void this.drainHoverPreview();
+      }
+    }
+  }
+
+  private async runHoverSelect(): Promise<void> {
+    if (this.hoverSelectInFlight || this.selectionInFlight || this.lastHoverX < 0 || this.lastHoverY < 0 ||
+      !this.canHoverPreview(this.lastHoverX, this.lastHoverY)) {
+      return;
+    }
+    const generation = this.sessionGeneration;
+    const tabId = this.originTabId;
+    const documentToken = this.documentToken;
+    const normalizedX = this.lastHoverX;
+    const normalizedY = this.lastHoverY;
+    const epoch = this.hoverEpoch;
+    this.hoverSelectInFlight = true;
+    try {
+      const raw: string = await this.runtimeLifecyclePort.runJavaScriptOnLiveRuntime(
+        tabId,
+        this.runtimeScriptService.buildHoverSelectAtNormalizedPointScript(
+          generation,
+          documentToken,
+          normalizedX,
+          normalizedY
+        ),
+        'element_inspection_runtime_not_live'
+      );
+      if (epoch !== this.hoverEpoch || !this.isCurrentGeneration(generation) ||
+        this.originTabId !== tabId || this.documentToken !== documentToken) {
+        return;
+      }
+      const snapshot = this.runtimeScriptService.parseSnapshot(raw);
+      this.applyRuntimeSnapshot(snapshot, generation);
+    } catch (_error) {
+    } finally {
+      this.hoverSelectInFlight = false;
+    }
+  }
+
+  private async runClearPreview(generation: number, tabId: string, documentToken: string): Promise<void> {
+    try {
+      await this.runtimeLifecyclePort.runJavaScriptOnLiveRuntime(
+        tabId,
+        this.runtimeScriptService.buildClearPreviewScript(generation, documentToken),
+        'element_inspection_runtime_not_live'
+      );
+    } catch (_error) {
+    }
+  }
+
+  private canRunDebugCommand(): boolean {
+    return this.presentation.active &&
+      (this.presentation.phase === 'selecting' || this.presentation.phase === 'inspected') &&
+      !this.presentation.busy &&
+      this.originTabId.length > 0 &&
+      this.documentToken.length > 0;
+  }
+
+  private async runEvaluateConsole(expression: string): Promise<void> {
+    const generation = this.sessionGeneration;
+    const tabId = this.originTabId;
+    const documentToken = this.documentToken;
+    try {
+      const raw: string = await this.runtimeLifecyclePort.runJavaScriptOnLiveRuntime(
+        tabId,
+        this.runtimeScriptService.buildEvaluateScript(generation, documentToken, expression),
+        'element_inspection_runtime_not_live'
+      );
+      if (!this.isCurrentGeneration(generation) || this.originTabId !== tabId ||
+        this.documentToken !== documentToken) {
+        return;
+      }
+      const snapshot = this.runtimeScriptService.parseSnapshot(raw);
+      if (!this.applyRuntimeSnapshot(snapshot, generation)) {
+        this.shell.showToast('无法执行脚本。');
+      }
+    } catch (_error) {
+      if (this.isCurrentGeneration(generation)) {
+        this.shell.showToast('无法执行脚本。');
+      }
+    }
+  }
+
+  private async runClearConsole(): Promise<void> {
+    const generation = this.sessionGeneration;
+    const tabId = this.originTabId;
+    const documentToken = this.documentToken;
+    try {
+      const raw: string = await this.runtimeLifecyclePort.runJavaScriptOnLiveRuntime(
+        tabId,
+        this.runtimeScriptService.buildClearLogsScript(generation, documentToken),
+        'element_inspection_runtime_not_live'
+      );
+      if (!this.isCurrentGeneration(generation) || this.originTabId !== tabId) {
+        return;
+      }
+      const snapshot = this.runtimeScriptService.parseSnapshot(raw);
+      if (!this.applyRuntimeSnapshot(snapshot, generation)) {
+        this.shell.showToast('无法清空控制台。');
+      }
+    } catch (_error) {
+      if (this.isCurrentGeneration(generation)) {
+        this.shell.showToast('无法清空控制台。');
+      }
+    }
+  }
+
+  private async runReadSource(sourceId: string): Promise<void> {
+    const generation = this.sessionGeneration;
+    const tabId = this.originTabId;
+    const documentToken = this.documentToken;
+    try {
+      const raw: string = await this.runtimeLifecyclePort.runJavaScriptOnLiveRuntime(
+        tabId,
+        this.runtimeScriptService.buildReadSourceScript(generation, documentToken, sourceId),
+        'element_inspection_runtime_not_live'
+      );
+      if (!this.isCurrentGeneration(generation) || this.originTabId !== tabId ||
+        this.documentToken !== documentToken) {
+        return;
+      }
+      const result = this.runtimeScriptService.parseSourceReadResult(raw);
+      if (result.sessionGeneration !== generation || result.documentToken !== documentToken ||
+        result.id !== sourceId) {
+        this.shell.showToast('无法读取源代码。');
+        return;
+      }
+      const next = this.clonePresentation(this.presentation);
+      next.sourcePreview = {
+        id: result.id,
+        name: result.name,
+        text: result.text,
+        reason: result.reason
+      };
+      this.publish(next);
+    } catch (_error) {
+      if (this.isCurrentGeneration(generation)) {
+        this.shell.showToast('无法读取源代码。');
+      }
+    }
+  }
+
+  private debugChanged(snapshot: ElementInspectionRuntimeSnapshot): boolean {
+    const logs = snapshot.logs !== undefined ? snapshot.logs : this.presentation.logs;
+    const network = snapshot.network !== undefined ? snapshot.network : this.presentation.network;
+    const sources = snapshot.sources !== undefined ? snapshot.sources : this.presentation.sources;
+    const listeners = snapshot.listeners !== undefined ? snapshot.listeners : this.presentation.listeners;
+    return logs.length !== this.presentation.logs.length ||
+      network.length !== this.presentation.network.length ||
+      sources.length !== this.presentation.sources.length ||
+      listeners.length !== this.presentation.listeners.length ||
+      this.lastLogKey(logs) !== this.lastLogKey(this.presentation.logs) ||
+      this.networkSignature(network) !== this.networkSignature(this.presentation.network);
+  }
+
+  private applyDebugSnapshot(
+    presentation: ElementInspectionPresentation,
+    snapshot: ElementInspectionRuntimeSnapshot
+  ): void {
+    if (snapshot.logs !== undefined) {
+      presentation.logs = snapshot.logs;
+    }
+    if (snapshot.network !== undefined) {
+      presentation.network = snapshot.network;
+    }
+    if (snapshot.sources !== undefined) {
+      presentation.sources = snapshot.sources;
+    }
+    if (snapshot.listeners !== undefined) {
+      presentation.listeners = snapshot.listeners;
+    }
+    if (snapshot.pageInfo !== undefined) {
+      presentation.pageInfo = snapshot.pageInfo;
+    }
+  }
+
+  private lastLogKey(entries: ElementInspectionConsoleEntry[]): string {
+    if (entries.length === 0) {
+      return '';
+    }
+    const last = entries[entries.length - 1];
+    return `${last.time}:${last.level}:${last.text}`;
+  }
+
+  private networkSignature(entries: ElementInspectionNetworkEntry[]): string {
+    let completed = 0;
+    let size = 0;
+    entries.forEach((entry: ElementInspectionNetworkEntry): void => {
+      if (entry.status > 0 || entry.durationMs > 0) {
+        completed += 1;
+      }
+      size += entry.size;
+    });
+    return `${entries.length}:${completed}:${size}`;
+  }
+
+  private cloneLogs(entries: ElementInspectionConsoleEntry[] | undefined): ElementInspectionConsoleEntry[] {
+    const result: ElementInspectionConsoleEntry[] = [];
+    (entries ?? []).forEach((entry: ElementInspectionConsoleEntry): void => {
+      result.push({ level: entry.level, text: entry.text, time: entry.time });
+    });
+    return result;
+  }
+
+  private cloneNetwork(entries: ElementInspectionNetworkEntry[] | undefined): ElementInspectionNetworkEntry[] {
+    const result: ElementInspectionNetworkEntry[] = [];
+    (entries ?? []).forEach((entry: ElementInspectionNetworkEntry): void => {
+      result.push({
+        method: entry.method,
+        url: entry.url,
+        status: entry.status,
+        type: entry.type,
+        size: entry.size,
+        durationMs: entry.durationMs,
+        startedAt: entry.startedAt
+      });
+    });
+    return result;
+  }
+
+  private cloneSources(entries: ElementInspectionSourceEntry[] | undefined): ElementInspectionSourceEntry[] {
+    const result: ElementInspectionSourceEntry[] = [];
+    (entries ?? []).forEach((entry: ElementInspectionSourceEntry): void => {
+      result.push({ id: entry.id, kind: entry.kind, name: entry.name, url: entry.url });
+    });
+    return result;
+  }
+
+  private cloneListeners(entries: ElementInspectionListenerEntry[] | undefined): ElementInspectionListenerEntry[] {
+    const result: ElementInspectionListenerEntry[] = [];
+    (entries ?? []).forEach((entry: ElementInspectionListenerEntry): void => {
+      result.push({ type: entry.type, capture: entry.capture, source: entry.source });
+    });
+    return result;
   }
 }
 

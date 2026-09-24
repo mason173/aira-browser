@@ -36,6 +36,84 @@ export interface ElementInspectionRuntimeNodeSnapshot {
   hasNextSibling: boolean;
 }
 
+export interface ElementInspectionOutlineNode {
+  path: string;
+  depth: number;
+  tagName: string;
+  elementId: string;
+  classTokens: string[];
+  textPreview: string;
+  childCount: number;
+  selected: boolean;
+}
+
+export interface ElementInspectionBoxModel {
+  marginTop: number;
+  marginRight: number;
+  marginBottom: number;
+  marginLeft: number;
+  borderTop: number;
+  borderRight: number;
+  borderBottom: number;
+  borderLeft: number;
+  paddingTop: number;
+  paddingRight: number;
+  paddingBottom: number;
+  paddingLeft: number;
+  contentWidth: number;
+  contentHeight: number;
+}
+
+export interface ElementInspectionComputedProperty {
+  name: string;
+  value: string;
+}
+
+export interface ElementInspectionConsoleEntry {
+  level: string;
+  text: string;
+  time: number;
+}
+
+export interface ElementInspectionNetworkEntry {
+  method: string;
+  url: string;
+  status: number;
+  type: string;
+  size: number;
+  durationMs: number;
+  startedAt: number;
+}
+
+export interface ElementInspectionSourceEntry {
+  id: string;
+  kind: string;
+  name: string;
+  url: string;
+}
+
+export interface ElementInspectionListenerEntry {
+  type: string;
+  capture: boolean;
+  source: string;
+}
+
+export interface ElementInspectionPageInfo {
+  url: string;
+  title: string;
+  userAgent: string;
+  viewportWidth: number;
+  viewportHeight: number;
+  devicePixelRatio: number;
+}
+
+export interface ElementInspectionSourcePreview {
+  id: string;
+  name: string;
+  text: string;
+  reason: string;
+}
+
 export interface ElementInspectionRuntimeSnapshot {
   ok: boolean;
   reason: string;
@@ -45,6 +123,25 @@ export interface ElementInspectionRuntimeSnapshot {
   revision: number;
   mode: ElementInspectionRuntimeMode;
   node?: ElementInspectionRuntimeNodeSnapshot;
+  outline?: ElementInspectionOutlineNode[];
+  box?: ElementInspectionBoxModel;
+  computed?: ElementInspectionComputedProperty[];
+  logs?: ElementInspectionConsoleEntry[];
+  network?: ElementInspectionNetworkEntry[];
+  sources?: ElementInspectionSourceEntry[];
+  listeners?: ElementInspectionListenerEntry[];
+  pageInfo?: ElementInspectionPageInfo;
+}
+
+export interface ElementInspectionSourceReadResult {
+  ok: boolean;
+  reason: string;
+  protocolVersion: number;
+  sessionGeneration: number;
+  documentToken: string;
+  id: string;
+  name: string;
+  text: string;
 }
 
 export interface ElementInspectionHtmlChunkResult {
@@ -59,7 +156,8 @@ export interface ElementInspectionHtmlChunkResult {
   value: string;
 }
 
-const ELEMENT_INSPECTION_PROTOCOL_VERSION: number = 2;
+const ELEMENT_INSPECTION_PROTOCOL_VERSION: number = 4;
+const ELEMENT_INSPECTION_OUTLINE_PATH_PATTERN: RegExp = /^(?:[0-9]+(?:\/[0-9]+)*)?$/;
 const ELEMENT_INSPECTION_HTML_TRANSFER_CHUNK_SIZE: number = 16384;
 
 export class ElementInspectionRuntimeScriptService {
@@ -194,7 +292,7 @@ export class ElementInspectionRuntimeScriptService {
     var walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
     var current = walker.nextNode();
     while (current && remaining > 0 && visited < 96) {
-      var text = String(current.nodeValue || '').replace(/\s+/g, ' ').trim();
+      var text = collapseSpace(current.nodeValue).trim();
       if (text.length > 0) {
         var value = text.length <= remaining ? text : text.substring(0, remaining);
         parts.push(value);
@@ -354,6 +452,21 @@ export class ElementInspectionRuntimeScriptService {
       parseInt(hex.substring(2, 4), 16) + ',' + parseInt(hex.substring(4, 6), 16) + ',0.16)';
   }
   var highlightFillColor = buildHighlightFillColor(highlightColor);
+  function createHighlightLayer(background) {
+    var layer = document.createElement('div');
+    layer.setAttribute(uiAttribute, 'true');
+    layer.style.cssText = [
+      'position:absolute!important',
+      'left:0!important',
+      'top:0!important',
+      'width:0!important',
+      'height:0!important',
+      'pointer-events:none!important',
+      'box-sizing:border-box!important',
+      'background:' + background + '!important'
+    ].join(';');
+    return layer;
+  }
   var highlight = document.createElement('div');
   highlight.id = highlightId;
   highlight.setAttribute(uiAttribute, 'true');
@@ -365,14 +478,35 @@ export class ElementInspectionRuntimeScriptService {
     'height:0!important',
     'pointer-events:none!important',
     'z-index:2147483647!important',
-    'background:' + highlightFillColor + '!important',
-    'outline:2px solid ' + highlightColor + '!important',
-    'outline-offset:-1px!important',
-    'box-shadow:0 0 0 2px rgba(10,89,247,0.24)!important',
-    'border-radius:3px!important',
+    'box-sizing:border-box!important',
+    'background:rgba(246,178,107,0.55)!important',
     'visibility:visible!important',
     'display:none!important'
   ].join(';');
+  var highlightBorder = createHighlightLayer('rgba(255,229,153,0.75)');
+  var highlightPadding = createHighlightLayer('rgba(147,196,125,0.55)');
+  var highlightContent = createHighlightLayer(highlightFillColor);
+  highlightContent.style.setProperty('outline', '1px solid ' + highlightColor, 'important');
+  var highlightLabel = document.createElement('div');
+  highlightLabel.setAttribute(uiAttribute, 'true');
+  highlightLabel.style.cssText = [
+    'position:absolute!important',
+    'left:0!important',
+    'top:-18px!important',
+    'height:16px!important',
+    'max-width:280px!important',
+    'padding:0 4px!important',
+    'background:#1a73e8!important',
+    'color:#ffffff!important',
+    'font:11px/16px sans-serif!important',
+    'white-space:nowrap!important',
+    'overflow:hidden!important',
+    'pointer-events:none!important'
+  ].join(';');
+  highlight.appendChild(highlightBorder);
+  highlight.appendChild(highlightPadding);
+  highlight.appendChild(highlightContent);
+  highlight.appendChild(highlightLabel);
   document.documentElement.appendChild(highlight);
   var runtime = {
     active: true,
@@ -386,8 +520,344 @@ export class ElementInspectionRuntimeScriptService {
     currentHtmlRevision: -1,
     nodeDirty: false,
     mutationObserver: null,
-    templateContentRoots: []
+    templateContentRoots: [],
+    logs: [],
+    network: [],
+    listenerMap: [],
+    debugHooks: null,
+    previewNode: null,
+    pickerArmed: true,
+    lastHoverSelectAt: 0,
+    savedCursor: ''
   };
+  function formatConsoleValue(value) {
+    if (value === null) {
+      return 'null';
+    }
+    if (value === undefined) {
+      return 'undefined';
+    }
+    var valueType = typeof value;
+    if (valueType === 'string' || valueType === 'number' || valueType === 'boolean') {
+      return String(value);
+    }
+    if (value instanceof Error) {
+      return safeString((value.name || 'Error') + ': ' + (value.message || ''), 240);
+    }
+    try {
+      var json = JSON.stringify(value);
+      if (typeof json === 'string') {
+        return json;
+      }
+    } catch (error) {}
+    return String(value);
+  }
+  function pushLog(level, args) {
+    var parts = [];
+    var values = args || [];
+    for (var index = 0; index < values.length; index++) {
+      parts.push(formatConsoleValue(values[index]));
+    }
+    runtime.logs.push({
+      level: level,
+      text: safeString(parts.join(' '), 240),
+      time: Date.now()
+    });
+    if (runtime.logs.length > 80) {
+      runtime.logs.shift();
+    }
+  }
+  function pushNetwork(entry) {
+    runtime.network.push({
+      method: safeString(entry.method || 'GET', 12),
+      url: safeString(entry.url || '', 180),
+      status: Number(entry.status) || 0,
+      type: safeString(entry.type || '', 48),
+      size: Number(entry.size) || 0,
+      durationMs: Number(entry.durationMs) || 0,
+      startedAt: Number(entry.startedAt) || Date.now()
+    });
+    if (runtime.network.length > 40) {
+      runtime.network.shift();
+    }
+  }
+  function contentTypeOf(headerValue) {
+    var value = String(headerValue || '');
+    var splitAt = value.indexOf(';');
+    if (splitAt >= 0) {
+      value = value.substring(0, splitAt);
+    }
+    return value;
+  }
+  function recordListener(node, type, options) {
+    if (!node || node.nodeType !== 1) {
+      return;
+    }
+    var capture = options === true || (options && options.capture === true);
+    runtime.listenerMap.push({
+      node: node,
+      type: safeString(type, 32),
+      capture: capture
+    });
+    if (runtime.listenerMap.length > 200) {
+      runtime.listenerMap.shift();
+    }
+  }
+  function installDebugHooks() {
+    if (runtime.debugHooks || !window.console) {
+      return;
+    }
+    var hooks = {
+      console: {},
+      fetch: window.fetch,
+      open: window.XMLHttpRequest && XMLHttpRequest.prototype ? XMLHttpRequest.prototype.open : null,
+      send: window.XMLHttpRequest && XMLHttpRequest.prototype ? XMLHttpRequest.prototype.send : null,
+      addEventListener: Element.prototype.addEventListener
+    };
+    var levels = ['log', 'info', 'warn', 'error', 'debug'];
+    for (var levelIndex = 0; levelIndex < levels.length; levelIndex++) {
+      (function(level) {
+        var original = console[level];
+        hooks.console[level] = original;
+        console[level] = function() {
+          try {
+            pushLog(level, arguments);
+          } catch (error) {}
+          if (typeof original === 'function') {
+            return original.apply(console, arguments);
+          }
+        };
+      })(levels[levelIndex]);
+    }
+    hooks.onError = function(event) {
+      pushLog('error', [event && event.message ? event.message : 'error']);
+    };
+    hooks.onRejection = function(event) {
+      pushLog('error', ['Unhandled rejection', event ? event.reason : '']);
+    };
+    window.addEventListener('error', hooks.onError);
+    window.addEventListener('unhandledrejection', hooks.onRejection);
+    if (typeof hooks.fetch === 'function') {
+      window.fetch = function(input, init) {
+        var startedAt = Date.now();
+        var method = 'GET';
+        var url = '';
+        try {
+          if (typeof input === 'string') {
+            url = input;
+          } else if (input && input.url) {
+            url = String(input.url);
+            if (input.method) {
+              method = String(input.method);
+            }
+          }
+          if (init && init.method) {
+            method = String(init.method);
+          }
+        } catch (error) {}
+        var pending = hooks.fetch.apply(this, arguments);
+        if (!pending || typeof pending.then !== 'function') {
+          return pending;
+        }
+        return pending.then(function(response) {
+          var type = '';
+          var size = 0;
+          try {
+            type = contentTypeOf(response.headers && response.headers.get ? response.headers.get('content-type') : '');
+            size = Number(response.headers && response.headers.get ? response.headers.get('content-length') : 0) || 0;
+          } catch (error) {}
+          pushNetwork({
+            method: method,
+            url: url,
+            status: response.status || 0,
+            type: type,
+            size: size,
+            durationMs: Date.now() - startedAt,
+            startedAt: startedAt
+          });
+          return response;
+        }, function(error) {
+          pushNetwork({
+            method: method,
+            url: url,
+            status: 0,
+            type: '',
+            size: 0,
+            durationMs: Date.now() - startedAt,
+            startedAt: startedAt
+          });
+          throw error;
+        });
+      };
+    }
+    if (hooks.open && hooks.send) {
+      XMLHttpRequest.prototype.open = function(method, url) {
+        this.__airaInspectionRequest = {
+          method: String(method || 'GET'),
+          url: String(url || ''),
+          startedAt: 0
+        };
+        return hooks.open.apply(this, arguments);
+      };
+      XMLHttpRequest.prototype.send = function() {
+        var xhr = this;
+        var request = xhr.__airaInspectionRequest || { method: 'GET', url: '', startedAt: 0 };
+        request.startedAt = Date.now();
+        var onDone = function() {
+          var type = '';
+          var size = 0;
+          try {
+            type = contentTypeOf(xhr.getResponseHeader('content-type'));
+            size = Number(xhr.getResponseHeader('content-length')) || 0;
+          } catch (error) {}
+          pushNetwork({
+            method: request.method,
+            url: request.url,
+            status: xhr.status || 0,
+            type: type,
+            size: size,
+            durationMs: Date.now() - request.startedAt,
+            startedAt: request.startedAt
+          });
+          xhr.removeEventListener('loadend', onDone);
+        };
+        xhr.addEventListener('loadend', onDone);
+        return hooks.send.apply(xhr, arguments);
+      };
+    }
+    Element.prototype.addEventListener = function(type, listener, options) {
+      try {
+        recordListener(this, type, options);
+      } catch (error) {}
+      if (typeof hooks.addEventListener === 'function') {
+        return hooks.addEventListener.apply(this, arguments);
+      }
+    };
+    runtime.debugHooks = hooks;
+  }
+  function buildListeners(node) {
+    var result = [];
+    if (!node || !node.attributes) {
+      return result;
+    }
+    for (var index = 0; index < node.attributes.length && result.length < 24; index++) {
+      var name = String(node.attributes[index].name || '');
+      if (name.indexOf('on') === 0 && name.length > 2) {
+        result.push({ type: name.substring(2), capture: false, source: 'attribute' });
+      }
+    }
+    for (var listenerIndex = 0; listenerIndex < runtime.listenerMap.length && result.length < 24; listenerIndex++) {
+      var recorded = runtime.listenerMap[listenerIndex];
+      if (recorded.node === node) {
+        result.push({ type: recorded.type, capture: recorded.capture === true, source: 'listener' });
+      }
+    }
+    return result;
+  }
+  function buildSources() {
+    var result = [{
+      id: 'document',
+      kind: 'document',
+      name: safeString(document.title || location.href, 80),
+      url: safeString(location.href, 180)
+    }];
+    var scripts = document.scripts || [];
+    for (var scriptIndex = 0; scriptIndex < scripts.length && result.length < 40; scriptIndex++) {
+      var script = scripts[scriptIndex];
+      result.push({
+        id: 'script:' + scriptIndex,
+        kind: 'script',
+        name: safeString(script.src || ('inline-' + scriptIndex), 80),
+        url: safeString(script.src || '', 180)
+      });
+    }
+    var links = document.querySelectorAll('link[rel]');
+    for (var linkIndex = 0; linkIndex < links.length && result.length < 40; linkIndex++) {
+      var rel = String(links[linkIndex].rel || '').toLowerCase();
+      if (rel.indexOf('stylesheet') < 0) {
+        continue;
+      }
+      result.push({
+        id: 'style:' + linkIndex,
+        kind: 'style',
+        name: safeString(links[linkIndex].href || ('style-' + linkIndex), 80),
+        url: safeString(links[linkIndex].href || '', 180)
+      });
+    }
+    var styleNodes = document.querySelectorAll('style');
+    for (var inlineIndex = 0; inlineIndex < styleNodes.length && result.length < 40; inlineIndex++) {
+      result.push({
+        id: 'inline:' + inlineIndex,
+        kind: 'style',
+        name: 'style-' + inlineIndex,
+        url: ''
+      });
+    }
+    return result;
+  }
+  function buildPageInfo() {
+    return {
+      url: safeString(location.href, 180),
+      title: safeString(document.title, 80),
+      userAgent: safeString(navigator.userAgent, 180),
+      viewportWidth: Math.round(window.innerWidth || 0),
+      viewportHeight: Math.round(window.innerHeight || 0),
+      devicePixelRatio: Number(window.devicePixelRatio) || 1
+    };
+  }
+  function readStylesheetText(href) {
+    var sheets = document.styleSheets || [];
+    for (var index = 0; index < sheets.length; index++) {
+      var sheet = sheets[index];
+      if (!sheet || String(sheet.href || '') !== String(href || '')) {
+        continue;
+      }
+      try {
+        var rules = sheet.cssRules || [];
+        var text = '';
+        for (var ruleIndex = 0; ruleIndex < rules.length && text.length < 8000; ruleIndex++) {
+          text += rules[ruleIndex].cssText + '\\n';
+        }
+        return text;
+      } catch (error) {
+        return '';
+      }
+    }
+    return '';
+  }
+  function restoreDebugHooks() {
+    var hooks = runtime.debugHooks;
+    if (!hooks) {
+      return;
+    }
+    var levels = ['log', 'info', 'warn', 'error', 'debug'];
+    for (var levelIndex = 0; levelIndex < levels.length; levelIndex++) {
+      var level = levels[levelIndex];
+      if (hooks.console && Object.prototype.hasOwnProperty.call(hooks.console, level)) {
+        console[level] = hooks.console[level];
+      }
+    }
+    if (hooks.onError) {
+      window.removeEventListener('error', hooks.onError);
+    }
+    if (hooks.onRejection) {
+      window.removeEventListener('unhandledrejection', hooks.onRejection);
+    }
+    if (hooks.fetch) {
+      window.fetch = hooks.fetch;
+    }
+    if (hooks.open && window.XMLHttpRequest) {
+      XMLHttpRequest.prototype.open = hooks.open;
+    }
+    if (hooks.send && window.XMLHttpRequest) {
+      XMLHttpRequest.prototype.send = hooks.send;
+    }
+    if (hooks.addEventListener) {
+      Element.prototype.addEventListener = hooks.addEventListener;
+    }
+    runtime.debugHooks = null;
+  }
+  installDebugHooks();
   function clearCurrentHtml() {
     runtime.currentHtml = '';
     runtime.currentHtmlRevision = -1;
@@ -456,18 +926,70 @@ export class ElementInspectionRuntimeScriptService {
     clearCurrentHtml();
     refreshMutationObservationRoots();
   }
+  function readHighlightPx(style, name) {
+    var value = parseFloat(style.getPropertyValue(name));
+    if (!isFinite(value) || value < 0) {
+      return 0;
+    }
+    return value;
+  }
+  function placeHighlightLayer(layer, x, y, width, height) {
+    layer.style.setProperty('left', x + 'px', 'important');
+    layer.style.setProperty('top', y + 'px', 'important');
+    layer.style.setProperty('width', Math.max(0, width) + 'px', 'important');
+    layer.style.setProperty('height', Math.max(0, height) + 'px', 'important');
+  }
   function updateHighlight() {
-    var node = runtime.currentNode;
-    if (!node || !node.isConnected || runtime.mode !== 'inspected') {
+    var node = runtime.previewNode && runtime.previewNode.isConnected ? runtime.previewNode : null;
+    if (!node && runtime.mode === 'inspected' && runtime.currentNode && runtime.currentNode.isConnected) {
+      node = runtime.currentNode;
+    }
+    if (!node) {
       highlight.style.setProperty('display', 'none', 'important');
       return;
     }
+    var style = window.getComputedStyle(node);
     var rect = node.getBoundingClientRect();
+    var marginLeft = readHighlightPx(style, 'margin-left');
+    var marginRight = readHighlightPx(style, 'margin-right');
+    var marginTop = readHighlightPx(style, 'margin-top');
+    var marginBottom = readHighlightPx(style, 'margin-bottom');
+    var borderLeft = readHighlightPx(style, 'border-left-width');
+    var borderRight = readHighlightPx(style, 'border-right-width');
+    var borderTop = readHighlightPx(style, 'border-top-width');
+    var borderBottom = readHighlightPx(style, 'border-bottom-width');
+    var paddingLeft = readHighlightPx(style, 'padding-left');
+    var paddingRight = readHighlightPx(style, 'padding-right');
+    var paddingTop = readHighlightPx(style, 'padding-top');
+    var paddingBottom = readHighlightPx(style, 'padding-bottom');
+    var outerLeft = rect.left - marginLeft;
+    var outerTop = rect.top - marginTop;
+    var outerWidth = rect.width + marginLeft + marginRight;
+    var outerHeight = rect.height + marginTop + marginBottom;
     highlight.style.setProperty('display', 'block', 'important');
-    highlight.style.setProperty('left', Math.max(0, rect.left) + 'px', 'important');
-    highlight.style.setProperty('top', Math.max(0, rect.top) + 'px', 'important');
-    highlight.style.setProperty('width', Math.max(0, rect.width) + 'px', 'important');
-    highlight.style.setProperty('height', Math.max(0, rect.height) + 'px', 'important');
+    highlight.style.setProperty('left', outerLeft + 'px', 'important');
+    highlight.style.setProperty('top', outerTop + 'px', 'important');
+    highlight.style.setProperty('width', Math.max(0, outerWidth) + 'px', 'important');
+    highlight.style.setProperty('height', Math.max(0, outerHeight) + 'px', 'important');
+    placeHighlightLayer(highlightBorder, marginLeft, marginTop, rect.width, rect.height);
+    placeHighlightLayer(
+      highlightPadding,
+      marginLeft + borderLeft,
+      marginTop + borderTop,
+      rect.width - borderLeft - borderRight,
+      rect.height - borderTop - borderBottom
+    );
+    placeHighlightLayer(
+      highlightContent,
+      marginLeft + borderLeft + paddingLeft,
+      marginTop + borderTop + paddingTop,
+      rect.width - borderLeft - borderRight - paddingLeft - paddingRight,
+      rect.height - borderTop - borderBottom - paddingTop - paddingBottom
+    );
+    var tag = String(node.tagName || '').toLowerCase();
+    var idText = node.id ? '#' + String(node.id) : '';
+    highlightLabel.textContent = tag + idText + '  ' + Math.round(rect.width) + ' \u00d7 ' + Math.round(rect.height);
+    highlightLabel.style.setProperty('top', outerTop < 20 ? '0px' : '-18px', 'important');
   }
   function buildNodeSnapshot(node) {
     var rect = node.getBoundingClientRect();
@@ -504,6 +1026,251 @@ export class ElementInspectionRuntimeScriptService {
       hasNextSibling: !!node.nextElementSibling
     };
   }
+  function pathOf(node) {
+    if (!node || node === document.documentElement) {
+      return '';
+    }
+    var parts = [];
+    var current = node;
+    var guard = 0;
+    while (current && current !== document.documentElement && current.parentElement && guard < 64) {
+      var siblings = current.parentElement.children || [];
+      var index = 0;
+      for (var siblingIndex = 0; siblingIndex < siblings.length; siblingIndex++) {
+        if (siblings[siblingIndex] === current) {
+          index = siblingIndex;
+          break;
+        }
+      }
+      parts.push(index);
+      current = current.parentElement;
+      guard += 1;
+    }
+    parts.reverse();
+    return parts.join('/');
+  }
+  function collapseSpace(value) {
+    var text = String(value || '');
+    var result = '';
+    var pendingSpace = false;
+    for (var index = 0; index < text.length; index++) {
+      var code = text.charCodeAt(index);
+      var isSpace = code === 9 || code === 10 || code === 12 || code === 13 || code === 32;
+      if (isSpace) {
+        pendingSpace = result.length > 0;
+        continue;
+      }
+      if (pendingSpace) {
+        result += ' ';
+        pendingSpace = false;
+      }
+      result += text.charAt(index);
+    }
+    return result;
+  }
+  function isSafeOutlinePath(value) {
+    if (value.length === 0) {
+      return true;
+    }
+    var parts = value.split('/');
+    for (var index = 0; index < parts.length; index++) {
+      var part = parts[index];
+      if (part.length === 0) {
+        return false;
+      }
+      for (var digitIndex = 0; digitIndex < part.length; digitIndex++) {
+        var code = part.charCodeAt(digitIndex);
+        if (code < 48 || code > 57) {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+  function resolveOutlinePath(path) {
+    var value = String(path || '');
+    if (!isSafeOutlinePath(value)) {
+      return null;
+    }
+    var node = document.documentElement;
+    if (!node) {
+      return null;
+    }
+    if (value.length === 0) {
+      return node;
+    }
+    var parts = value.split('/');
+    for (var index = 0; index < parts.length; index++) {
+      var childIndex = Number(parts[index]);
+      var children = node.children || [];
+      if (!children[childIndex]) {
+        return null;
+      }
+      node = children[childIndex];
+    }
+    return node;
+  }
+  function elementDepth(node) {
+    var depth = 0;
+    var current = node;
+    while (current && current !== document.documentElement && current.parentElement && depth < 64) {
+      depth += 1;
+      current = current.parentElement;
+    }
+    return depth;
+  }
+  function isOutlineTarget(node) {
+    var element = normalizeElement(node);
+    return !!(element && element.nodeType === 1 && !isAiraUi(element));
+  }
+  function pushOutline(nodes, seen, node, selected) {
+    if (!node || node.nodeType !== 1 || nodes.length >= 80 || isAiraUi(node)) {
+      return;
+    }
+    var path = pathOf(node);
+    if (seen[path]) {
+      return;
+    }
+    seen[path] = true;
+    var classTokens = [];
+    if (node.classList) {
+      var classLimit = Math.min(node.classList.length, 3);
+      for (var classIndex = 0; classIndex < classLimit; classIndex++) {
+        classTokens.push(safeString(node.classList[classIndex], 48));
+      }
+    }
+    var textPreview = '';
+    if (!node.children || node.children.length === 0) {
+      textPreview = safeString(collapseSpace(node.textContent).trim(), 32);
+    }
+    nodes.push({
+      path: path,
+      depth: elementDepth(node),
+      tagName: String(node.tagName || '').toLowerCase(),
+      elementId: safeString(node.id, 64),
+      classTokens: classTokens,
+      textPreview: textPreview,
+      childCount: node.children ? node.children.length : 0,
+      selected: selected === true
+    });
+  }
+  function buildOutline(selected) {
+    var nodes = [];
+    var seen = {};
+    var root = document.documentElement;
+    if (!root) {
+      return nodes;
+    }
+    if (!selected || !selected.isConnected) {
+      pushOutline(nodes, seen, root, false);
+      if (document.head) {
+        pushOutline(nodes, seen, document.head, false);
+      }
+      if (document.body) {
+        pushOutline(nodes, seen, document.body, false);
+        var bodyChildren = document.body.children || [];
+        var bodyCap = Math.min(bodyChildren.length, 24);
+        for (var bodyIndex = 0; bodyIndex < bodyCap; bodyIndex++) {
+          pushOutline(nodes, seen, bodyChildren[bodyIndex], false);
+          var grandchildren = bodyChildren[bodyIndex].children || [];
+          var grandchildCap = Math.min(grandchildren.length, 6);
+          for (var grandchildIndex = 0; grandchildIndex < grandchildCap; grandchildIndex++) {
+            pushOutline(nodes, seen, grandchildren[grandchildIndex], false);
+          }
+        }
+      }
+      return nodes;
+    }
+    var chain = [];
+    var current = selected;
+    while (current && current.nodeType === 1) {
+      chain.push(current);
+      if (current === root) {
+        break;
+      }
+      current = current.parentElement;
+    }
+    chain.reverse();
+    pushOutline(nodes, seen, root, selected === root);
+    for (var chainIndex = 0; chainIndex < chain.length; chainIndex++) {
+      var ancestor = chain[chainIndex];
+      if (!ancestor || ancestor === root || !ancestor.parentElement) {
+        continue;
+      }
+      var siblings = ancestor.parentElement.children || [];
+      var ancestorIndex = 0;
+      for (var siblingIndex = 0; siblingIndex < siblings.length; siblingIndex++) {
+        if (siblings[siblingIndex] === ancestor) {
+          ancestorIndex = siblingIndex;
+          break;
+        }
+      }
+      var start = Math.max(0, ancestorIndex - 4);
+      var end = Math.min(siblings.length, ancestorIndex + 5);
+      for (var windowIndex = start; windowIndex < end; windowIndex++) {
+        pushOutline(nodes, seen, siblings[windowIndex], siblings[windowIndex] === selected);
+      }
+    }
+    var selectedChildren = selected.children || [];
+    var childCap = Math.min(selectedChildren.length, 16);
+    for (var childIndex = 0; childIndex < childCap; childIndex++) {
+      pushOutline(nodes, seen, selectedChildren[childIndex], false);
+    }
+    return nodes;
+  }
+  function readPx(style, name) {
+    var value = parseFloat(style.getPropertyValue(name));
+    if (!isFinite(value)) {
+      return 0;
+    }
+    return Math.round(value * 10) / 10;
+  }
+  function buildBoxModel(node) {
+    var style = window.getComputedStyle(node);
+    var rect = node.getBoundingClientRect();
+    var borderLeft = readPx(style, 'border-left-width');
+    var borderRight = readPx(style, 'border-right-width');
+    var borderTop = readPx(style, 'border-top-width');
+    var borderBottom = readPx(style, 'border-bottom-width');
+    var paddingLeft = readPx(style, 'padding-left');
+    var paddingRight = readPx(style, 'padding-right');
+    var paddingTop = readPx(style, 'padding-top');
+    var paddingBottom = readPx(style, 'padding-bottom');
+    return {
+      marginTop: readPx(style, 'margin-top'),
+      marginRight: readPx(style, 'margin-right'),
+      marginBottom: readPx(style, 'margin-bottom'),
+      marginLeft: readPx(style, 'margin-left'),
+      borderTop: borderTop,
+      borderRight: borderRight,
+      borderBottom: borderBottom,
+      borderLeft: borderLeft,
+      paddingTop: paddingTop,
+      paddingRight: paddingRight,
+      paddingBottom: paddingBottom,
+      paddingLeft: paddingLeft,
+      contentWidth: Math.max(0, Math.round((rect.width - borderLeft - borderRight - paddingLeft - paddingRight) * 10) / 10),
+      contentHeight: Math.max(0, Math.round((rect.height - borderTop - borderBottom - paddingTop - paddingBottom) * 10) / 10)
+    };
+  }
+  function buildComputedProperties(node) {
+    var style = window.getComputedStyle(node);
+    var names = ['display', 'position', 'color', 'background-color', 'font-size', 'font-weight',
+      'line-height', 'width', 'height', 'overflow', 'z-index', 'opacity', 'box-sizing', 'flex'];
+    var result = [];
+    for (var index = 0; index < names.length; index++) {
+      var value = '';
+      try {
+        value = safeString(style.getPropertyValue(names[index]), 80);
+      } catch (error) {
+        value = '';
+      }
+      if (value.length > 0) {
+        result.push({ name: names[index], value: value });
+      }
+    }
+    return result;
+  }
   runtime.snapshot = function(knownRevision) {
     if (runtime.currentNode && !runtime.currentNode.isConnected) {
       runtime.currentNode = null;
@@ -529,11 +1296,101 @@ export class ElementInspectionRuntimeScriptService {
       Math.floor(normalizedKnownRevision) !== runtime.revision;
     if (runtime.mode === 'inspected' && runtime.currentNode) {
       updateHighlight();
-      if (nodeChanged) {
+    }
+    result.logs = runtime.logs || [];
+    result.network = runtime.network || [];
+    result.sources = buildSources();
+    result.pageInfo = buildPageInfo();
+    result.listeners = runtime.mode === 'inspected' && runtime.currentNode ?
+      buildListeners(runtime.currentNode) : [];
+    if (nodeChanged) {
+      result.outline = buildOutline(runtime.currentNode);
+      if (runtime.mode === 'inspected' && runtime.currentNode) {
         result.node = buildNodeSnapshot(runtime.currentNode);
+        result.box = buildBoxModel(runtime.currentNode);
+        result.computed = buildComputedProperties(runtime.currentNode);
       }
     }
     return result;
+  };
+  runtime.evaluate = function(expression) {
+    var source = String(expression || '');
+    pushLog('log', ['> ' + source]);
+    try {
+      var result = (0, eval)(source);
+      pushLog('log', [result]);
+    } catch (error) {
+      pushLog('error', [error]);
+    }
+    return runtime.snapshot();
+  };
+  runtime.clearLogs = function() {
+    runtime.logs = [];
+    return runtime.snapshot();
+  };
+  runtime.readSource = function(id) {
+    var sourceId = String(id || '');
+    var name = sourceId;
+    var text = '';
+    var reason = 'source_unavailable';
+    var ok = false;
+    if (sourceId === 'document' && document.documentElement) {
+      name = document.title || location.href;
+      text = safeString(document.documentElement.outerHTML, 8000);
+      ok = true;
+      reason = '';
+    } else if (sourceId.indexOf('script:') === 0) {
+      var scriptIndex = Number(sourceId.substring(7));
+      var script = document.scripts && document.scripts[scriptIndex];
+      if (script) {
+        name = script.src || ('inline-' + scriptIndex);
+        text = safeString(script.textContent || '', 8000);
+        if (text.length > 0) {
+          ok = true;
+          reason = '';
+        } else if (script.src) {
+          text = safeString(script.src, 180);
+          reason = 'external_script';
+        }
+      }
+    } else if (sourceId.indexOf('inline:') === 0) {
+      var inlineIndex = Number(sourceId.substring(7));
+      var styleNodes = document.querySelectorAll('style');
+      var styleNode = styleNodes[inlineIndex];
+      if (styleNode) {
+        name = 'style-' + inlineIndex;
+        text = safeString(styleNode.textContent || '', 8000);
+        if (text.length > 0) {
+          ok = true;
+          reason = '';
+        }
+      }
+    } else if (sourceId.indexOf('style:') === 0) {
+      var links = document.querySelectorAll('link[rel]');
+      var styleIndex = Number(sourceId.substring(6));
+      var link = links[styleIndex];
+      if (link) {
+        name = link.href || ('style-' + styleIndex);
+        text = safeString(readStylesheetText(link.href), 8000);
+        if (text.length > 0) {
+          ok = true;
+          reason = '';
+        } else if (link.href) {
+          text = safeString(link.href, 180);
+          reason = 'external_style';
+        }
+      }
+    }
+    return {
+      ok: ok,
+      reason: reason,
+      protocolVersion: runtime.protocolVersion,
+      sessionGeneration: runtime.sessionGeneration,
+      documentToken: runtime.documentToken,
+      id: sourceId,
+      name: safeString(name, 80),
+      text: text
+    };
   };
   function selectNode(node) {
     var element = normalizeElement(node);
@@ -670,7 +1527,149 @@ export class ElementInspectionRuntimeScriptService {
     return selectNode(node);
   }
   runtime.selectAtNormalizedPoint = function(normalizedX, normalizedY) {
+    runtime.previewNode = null;
     selectAtNormalizedPoint(normalizedX, normalizedY);
+    updateHighlight();
+    return runtime.snapshot();
+  };
+  runtime.previewAtNormalizedPoint = function(normalizedX, normalizedY) {
+    var node = resolveNodeAtNormalizedPoint(normalizedX, normalizedY);
+    if (!isDirectlySelectable(node)) {
+      if (runtime.previewNode) {
+        runtime.previewNode = null;
+        updateHighlight();
+      }
+      return { ok: true, changed: false };
+    }
+    var changed = node !== runtime.previewNode;
+    runtime.previewNode = node;
+    updateHighlight();
+    return { ok: true, changed: changed };
+  };
+  runtime.hoverSelectAtNormalizedPoint = function(normalizedX, normalizedY) {
+    var node = resolveNodeAtNormalizedPoint(normalizedX, normalizedY);
+    if (!isDirectlySelectable(node)) {
+      runtime.previewNode = null;
+      updateHighlight();
+      return runtime.snapshot();
+    }
+    if (node !== runtime.currentNode) {
+      setCurrentNode(node);
+    }
+    runtime.previewNode = node;
+    updateHighlight();
+    var snap = runtime.snapshot();
+    if (snap && snap.node && snap.node.htmlPreview && snap.node.htmlLength > snap.node.htmlPreview.length) {
+      snap.node.htmlLength = snap.node.htmlPreview.length;
+    }
+    return snap;
+  };
+  runtime.clearPreview = function() {
+    runtime.previewNode = null;
+    updateHighlight();
+    return { ok: true };
+  };
+  function inspectPointerActive() {
+    return runtime.active && runtime.pickerArmed === true;
+  }
+  function nodeAtClientPoint(clientX, clientY) {
+    try {
+      return document.elementFromPoint(clientX, clientY);
+    } catch (error) {
+      return null;
+    }
+  }
+  function previewFromClientPoint(clientX, clientY) {
+    var node = nodeAtClientPoint(clientX, clientY);
+    if (!isDirectlySelectable(node)) {
+      if (runtime.previewNode) {
+        runtime.previewNode = null;
+        updateHighlight();
+      }
+      return { ok: true, changed: false };
+    }
+    var changed = node !== runtime.previewNode;
+    runtime.previewNode = node;
+    updateHighlight();
+    return { ok: true, changed: changed };
+  }
+  function hoverSelectFromClientPoint(clientX, clientY) {
+    var node = nodeAtClientPoint(clientX, clientY);
+    if (!isDirectlySelectable(node)) {
+      runtime.previewNode = null;
+      updateHighlight();
+      return;
+    }
+    if (node !== runtime.currentNode) {
+      setCurrentNode(node);
+    }
+    runtime.previewNode = node;
+    updateHighlight();
+  }
+  function onInspectMouseMove(event) {
+    if (!inspectPointerActive() || !event) {
+      return;
+    }
+    var result = previewFromClientPoint(event.clientX, event.clientY);
+    if (!result || !result.changed) {
+      return;
+    }
+    var now = Date.now();
+    if (now - runtime.lastHoverSelectAt < 70) {
+      return;
+    }
+    runtime.lastHoverSelectAt = now;
+    hoverSelectFromClientPoint(event.clientX, event.clientY);
+  }
+  function blockInspectPointer(event) {
+    if (!inspectPointerActive() || !event) {
+      return;
+    }
+    if (event.cancelable && event.preventDefault) {
+      event.preventDefault();
+    }
+    if (event.stopPropagation) {
+      event.stopPropagation();
+    }
+  }
+  function onInspectClick(event) {
+    blockInspectPointer(event);
+    if (!inspectPointerActive() || !event) {
+      return;
+    }
+    hoverSelectFromClientPoint(event.clientX, event.clientY);
+    runtime.previewNode = runtime.currentNode;
+    updateHighlight();
+  }
+  runtime.onInspectMouseMove = onInspectMouseMove;
+  runtime.onInspectMouseDown = blockInspectPointer;
+  runtime.onInspectClick = onInspectClick;
+  document.addEventListener('mousemove', onInspectMouseMove, true);
+  document.addEventListener('mousedown', blockInspectPointer, true);
+  document.addEventListener('mouseup', blockInspectPointer, true);
+  document.addEventListener('click', onInspectClick, true);
+  document.addEventListener('auxclick', blockInspectPointer, true);
+  document.addEventListener('contextmenu', blockInspectPointer, true);
+  runtime.savedCursor = document.documentElement.style.cursor || '';
+  document.documentElement.style.cursor = 'crosshair';
+  runtime.setPickerArmed = function(armed) {
+    runtime.pickerArmed = armed === true;
+    if (runtime.pickerArmed) {
+      document.documentElement.style.cursor = 'crosshair';
+    } else {
+      document.documentElement.style.cursor = runtime.savedCursor || '';
+      runtime.previewNode = null;
+      updateHighlight();
+    }
+    return { ok: true, pickerArmed: runtime.pickerArmed };
+  };
+  runtime.selectByPath = function(path) {
+    var node = resolveOutlinePath(path);
+    if (!isOutlineTarget(node)) {
+      return runtime.snapshot();
+    }
+    setCurrentNode(node);
+    updateHighlight();
     return runtime.snapshot();
   };
   function onViewportChanged() {
@@ -721,6 +1720,15 @@ export class ElementInspectionRuntimeScriptService {
       return;
     }
     runtime.active = false;
+    runtime.pickerArmed = false;
+    document.documentElement.style.cursor = runtime.savedCursor || '';
+    document.removeEventListener('mousemove', runtime.onInspectMouseMove, true);
+    document.removeEventListener('mousedown', runtime.onInspectMouseDown, true);
+    document.removeEventListener('mouseup', runtime.onInspectMouseDown, true);
+    document.removeEventListener('click', runtime.onInspectClick, true);
+    document.removeEventListener('auxclick', runtime.onInspectMouseDown, true);
+    document.removeEventListener('contextmenu', runtime.onInspectMouseDown, true);
+    restoreDebugHooks();
     window.removeEventListener('resize', onViewportChanged, true);
     window.removeEventListener('scroll', onViewportChanged, true);
     if (runtime.mutationObserver) {
@@ -750,6 +1758,70 @@ export class ElementInspectionRuntimeScriptService {
     );
   }
 
+  isOutlinePath(path: string): boolean {
+    return ELEMENT_INSPECTION_OUTLINE_PATH_PATTERN.test(path);
+  }
+
+  isSourceId(sourceId: string): boolean {
+    if (sourceId === 'document') {
+      return true;
+    }
+    const separator = sourceId.indexOf(':');
+    if (separator <= 0 || separator !== sourceId.lastIndexOf(':')) {
+      return false;
+    }
+    const kind = sourceId.substring(0, separator);
+    const suffix = sourceId.substring(separator + 1);
+    if (kind !== 'script' && kind !== 'style' && kind !== 'inline') {
+      return false;
+    }
+    if (suffix.length === 0 || suffix.length > 4) {
+      return false;
+    }
+    for (let index = 0; index < suffix.length; index += 1) {
+      const code = suffix.charCodeAt(index);
+      if (code < 48 || code > 57) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  buildEvaluateScript(sessionGeneration: number, documentToken: string, expression: string): string {
+    const normalized = expression.length > 2000 ? expression.substring(0, 2000) : expression;
+    return this.buildRuntimeCommandScript(
+      sessionGeneration,
+      documentToken,
+      `runtime.evaluate(${this.encodeScriptString(normalized)})`
+    );
+  }
+
+  buildClearLogsScript(sessionGeneration: number, documentToken: string): string {
+    return this.buildRuntimeCommandScript(sessionGeneration, documentToken, 'runtime.clearLogs()');
+  }
+
+  buildReadSourceScript(sessionGeneration: number, documentToken: string, sourceId: string): string {
+    if (!this.isSourceId(sourceId)) {
+      return this.buildRuntimeCommandScript(sessionGeneration, documentToken, 'runtime.snapshot()');
+    }
+    return this.buildRuntimeCommandScript(
+      sessionGeneration,
+      documentToken,
+      `runtime.readSource(${this.encodeScriptString(sourceId)})`
+    );
+  }
+
+  buildSelectOutlineScript(sessionGeneration: number, documentToken: string, path: string): string {
+    if (!this.isOutlinePath(path)) {
+      return this.buildRuntimeCommandScript(sessionGeneration, documentToken, 'runtime.snapshot()');
+    }
+    return this.buildRuntimeCommandScript(
+      sessionGeneration,
+      documentToken,
+      `runtime.selectByPath(${this.encodeScriptString(path)})`
+    );
+  }
+
   buildSelectAtNormalizedPointScript(
     sessionGeneration: number,
     documentToken: string,
@@ -762,6 +1834,48 @@ export class ElementInspectionRuntimeScriptService {
       sessionGeneration,
       documentToken,
       `runtime.selectAtNormalizedPoint(${clampedX}, ${clampedY})`
+    );
+  }
+
+  buildPreviewAtNormalizedPointScript(
+    sessionGeneration: number,
+    documentToken: string,
+    normalizedX: number,
+    normalizedY: number
+  ): string {
+    const clampedX = Number.isFinite(normalizedX) ? Math.min(1, Math.max(0, normalizedX)) : 0;
+    const clampedY = Number.isFinite(normalizedY) ? Math.min(1, Math.max(0, normalizedY)) : 0;
+    return this.buildRuntimeCommandScript(
+      sessionGeneration,
+      documentToken,
+      `runtime.previewAtNormalizedPoint(${clampedX}, ${clampedY})`
+    );
+  }
+
+  buildHoverSelectAtNormalizedPointScript(
+    sessionGeneration: number,
+    documentToken: string,
+    normalizedX: number,
+    normalizedY: number
+  ): string {
+    const clampedX = Number.isFinite(normalizedX) ? Math.min(1, Math.max(0, normalizedX)) : 0;
+    const clampedY = Number.isFinite(normalizedY) ? Math.min(1, Math.max(0, normalizedY)) : 0;
+    return this.buildRuntimeCommandScript(
+      sessionGeneration,
+      documentToken,
+      `runtime.hoverSelectAtNormalizedPoint(${clampedX}, ${clampedY})`
+    );
+  }
+
+  buildClearPreviewScript(sessionGeneration: number, documentToken: string): string {
+    return this.buildRuntimeCommandScript(sessionGeneration, documentToken, 'runtime.clearPreview()');
+  }
+
+  buildSetPickerArmedScript(sessionGeneration: number, documentToken: string, armed: boolean): string {
+    return this.buildRuntimeCommandScript(
+      sessionGeneration,
+      documentToken,
+      `runtime.setPickerArmed(${armed ? 'true' : 'false'})`
     );
   }
 
@@ -832,6 +1946,30 @@ export class ElementInspectionRuntimeScriptService {
       if (mode === 'inspected' && parsed.node !== undefined) {
         result.node = this.normalizeNode(parsed.node);
       }
+      if (Array.isArray(parsed.outline)) {
+        result.outline = this.normalizeOutline(parsed.outline);
+      }
+      if (parsed.box !== undefined) {
+        result.box = this.normalizeBox(parsed.box);
+      }
+      if (Array.isArray(parsed.computed)) {
+        result.computed = this.normalizeComputed(parsed.computed);
+      }
+      if (Array.isArray(parsed.logs)) {
+        result.logs = this.normalizeLogs(parsed.logs);
+      }
+      if (Array.isArray(parsed.network)) {
+        result.network = this.normalizeNetwork(parsed.network);
+      }
+      if (Array.isArray(parsed.sources)) {
+        result.sources = this.normalizeSources(parsed.sources);
+      }
+      if (Array.isArray(parsed.listeners)) {
+        result.listeners = this.normalizeListeners(parsed.listeners);
+      }
+      if (parsed.pageInfo !== undefined) {
+        result.pageInfo = this.normalizePageInfo(parsed.pageInfo);
+      }
       return result;
     } catch (_error) {
       return this.buildUnavailableSnapshot('invalid_snapshot');
@@ -864,6 +2002,35 @@ export class ElementInspectionRuntimeScriptService {
         offset: 0,
         totalLength: 0,
         value: ''
+      };
+    }
+  }
+
+  parseSourceReadResult(rawValue: string): ElementInspectionSourceReadResult {
+    const normalized = this.unwrapJsonString(rawValue);
+    try {
+      const parsed: ElementInspectionSourceReadResult = JSON.parse(normalized) as ElementInspectionSourceReadResult;
+      return {
+        ok: parsed.ok === true && parsed.protocolVersion === ELEMENT_INSPECTION_PROTOCOL_VERSION &&
+          this.isSourceId(this.normalizeString(parsed.id)),
+        reason: this.normalizeString(parsed.reason),
+        protocolVersion: this.normalizeCount(parsed.protocolVersion),
+        sessionGeneration: this.normalizeCount(parsed.sessionGeneration),
+        documentToken: this.normalizeString(parsed.documentToken),
+        id: this.normalizeString(parsed.id),
+        name: this.normalizeString(parsed.name).substring(0, 80),
+        text: this.normalizeRawString(parsed.text).substring(0, 8000)
+      };
+    } catch (_error) {
+      return {
+        ok: false,
+        reason: 'invalid_source_result',
+        protocolVersion: ELEMENT_INSPECTION_PROTOCOL_VERSION,
+        sessionGeneration: 0,
+        documentToken: '',
+        id: '',
+        name: '',
+        text: ''
       };
     }
   }
@@ -906,6 +2073,171 @@ export class ElementInspectionRuntimeScriptService {
   }
   return JSON.stringify(${commandExpression});
 })();`;
+  }
+
+  private normalizeOutline(nodes: ElementInspectionOutlineNode[]): ElementInspectionOutlineNode[] {
+    const result: ElementInspectionOutlineNode[] = [];
+    const seen: string[] = [];
+    nodes.forEach((node: ElementInspectionOutlineNode): void => {
+      if (result.length >= 80) {
+        return;
+      }
+      const path = this.normalizeString(node.path);
+      if (!this.isOutlinePath(path) || seen.indexOf(path) >= 0) {
+        return;
+      }
+      seen.push(path);
+      const classTokens: string[] = [];
+      if (Array.isArray(node.classTokens)) {
+        node.classTokens.forEach((value: string): void => {
+          const normalized = this.normalizeString(value);
+          if (normalized.length > 0 && classTokens.length < 3) {
+            classTokens.push(normalized);
+          }
+        });
+      }
+      const normalizedNode: ElementInspectionOutlineNode = {
+        path: path,
+        depth: Math.min(64, this.normalizeCount(node.depth)),
+        tagName: this.normalizeString(node.tagName, 'element'),
+        elementId: this.normalizeString(node.elementId),
+        classTokens: classTokens,
+        textPreview: this.normalizeString(node.textPreview).substring(0, 32),
+        childCount: this.normalizeCount(node.childCount),
+        selected: node.selected === true
+      };
+      result.push(normalizedNode);
+    });
+    return result;
+  }
+
+  private normalizeBox(box: ElementInspectionBoxModel): ElementInspectionBoxModel {
+    return {
+      marginTop: this.normalizeDimension(box.marginTop),
+      marginRight: this.normalizeDimension(box.marginRight),
+      marginBottom: this.normalizeDimension(box.marginBottom),
+      marginLeft: this.normalizeDimension(box.marginLeft),
+      borderTop: this.normalizeDimension(box.borderTop),
+      borderRight: this.normalizeDimension(box.borderRight),
+      borderBottom: this.normalizeDimension(box.borderBottom),
+      borderLeft: this.normalizeDimension(box.borderLeft),
+      paddingTop: this.normalizeDimension(box.paddingTop),
+      paddingRight: this.normalizeDimension(box.paddingRight),
+      paddingBottom: this.normalizeDimension(box.paddingBottom),
+      paddingLeft: this.normalizeDimension(box.paddingLeft),
+      contentWidth: this.normalizeDimension(box.contentWidth),
+      contentHeight: this.normalizeDimension(box.contentHeight)
+    };
+  }
+
+  private normalizeLogs(entries: ElementInspectionConsoleEntry[]): ElementInspectionConsoleEntry[] {
+    const result: ElementInspectionConsoleEntry[] = [];
+    entries.forEach((entry: ElementInspectionConsoleEntry): void => {
+      if (result.length >= 80) {
+        return;
+      }
+      const level = this.normalizeString(entry.level, 'log');
+      const text = this.normalizeString(entry.text);
+      if (text.length === 0) {
+        return;
+      }
+      result.push({
+        level: level === 'info' || level === 'warn' || level === 'error' || level === 'debug' ? level : 'log',
+        text: text.substring(0, 240),
+        time: this.normalizeCount(entry.time)
+      });
+    });
+    return result;
+  }
+
+  private normalizeNetwork(entries: ElementInspectionNetworkEntry[]): ElementInspectionNetworkEntry[] {
+    const result: ElementInspectionNetworkEntry[] = [];
+    entries.forEach((entry: ElementInspectionNetworkEntry): void => {
+      if (result.length >= 40) {
+        return;
+      }
+      const url = this.normalizeString(entry.url);
+      if (url.length === 0) {
+        return;
+      }
+      result.push({
+        method: this.normalizeString(entry.method, 'GET').substring(0, 12),
+        url: url.substring(0, 180),
+        status: this.normalizeCount(entry.status),
+        type: this.normalizeString(entry.type).substring(0, 48),
+        size: this.normalizeCount(entry.size),
+        durationMs: this.normalizeCount(entry.durationMs),
+        startedAt: this.normalizeCount(entry.startedAt)
+      });
+    });
+    return result;
+  }
+
+  private normalizeSources(entries: ElementInspectionSourceEntry[]): ElementInspectionSourceEntry[] {
+    const result: ElementInspectionSourceEntry[] = [];
+    entries.forEach((entry: ElementInspectionSourceEntry): void => {
+      if (result.length >= 40) {
+        return;
+      }
+      const id = this.normalizeString(entry.id);
+      if (!this.isSourceId(id)) {
+        return;
+      }
+      result.push({
+        id: id,
+        kind: this.normalizeString(entry.kind, 'script'),
+        name: this.normalizeString(entry.name, id).substring(0, 80),
+        url: this.normalizeString(entry.url).substring(0, 180)
+      });
+    });
+    return result;
+  }
+
+  private normalizeListeners(entries: ElementInspectionListenerEntry[]): ElementInspectionListenerEntry[] {
+    const result: ElementInspectionListenerEntry[] = [];
+    entries.forEach((entry: ElementInspectionListenerEntry): void => {
+      if (result.length >= 24) {
+        return;
+      }
+      const type = this.normalizeString(entry.type);
+      if (type.length === 0) {
+        return;
+      }
+      const source = this.normalizeString(entry.source, 'listener');
+      result.push({
+        type: type.substring(0, 32),
+        capture: entry.capture === true,
+        source: source === 'attribute' ? 'attribute' : 'listener'
+      });
+    });
+    return result;
+  }
+
+  private normalizePageInfo(info: ElementInspectionPageInfo): ElementInspectionPageInfo {
+    return {
+      url: this.normalizeString(info.url).substring(0, 180),
+      title: this.normalizeString(info.title).substring(0, 80),
+      userAgent: this.normalizeString(info.userAgent).substring(0, 180),
+      viewportWidth: this.normalizeCount(info.viewportWidth),
+      viewportHeight: this.normalizeCount(info.viewportHeight),
+      devicePixelRatio: Number.isFinite(info.devicePixelRatio) ? info.devicePixelRatio : 1
+    };
+  }
+
+  private normalizeComputed(properties: ElementInspectionComputedProperty[]): ElementInspectionComputedProperty[] {
+    const result: ElementInspectionComputedProperty[] = [];
+    properties.forEach((property: ElementInspectionComputedProperty): void => {
+      if (result.length >= 24) {
+        return;
+      }
+      const name = this.normalizeString(property.name);
+      const value = this.normalizeString(property.value);
+      if (name.length === 0 || value.length === 0) {
+        return;
+      }
+      result.push({ name: name, value: value.substring(0, 80) });
+    });
+    return result;
   }
 
   private normalizeNode(node: ElementInspectionRuntimeNodeSnapshot): ElementInspectionRuntimeNodeSnapshot {
@@ -996,6 +2328,13 @@ export class ElementInspectionRuntimeScriptService {
 
   private normalizeNumber(value: number | undefined): number {
     return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+  }
+
+  private normalizeDimension(value: number | undefined): number {
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
+      return 0;
+    }
+    return Math.max(0, Math.round(value * 10) / 10);
   }
 
   private encodeScriptString(value: string): string {

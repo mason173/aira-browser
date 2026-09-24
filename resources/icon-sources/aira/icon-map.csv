@@ -106,6 +106,7 @@ vendor/lucide/aira-operational-icons/svg/video-assistant-cast.svg,Lucide 1.38.0 
 vendor/lucide/aira-operational-icons/svg/element-inspection-reselect.svg,Lucide 1.38.0 / mouse-pointer-square-dashed,app_element_inspection_reselect,app_element_inspection_reselect,Lucide Operational font source
 vendor/lucide/aira-operational-icons/svg/element-inspection-fullscreen.svg,Lucide 1.38.0 / fullscreen,app_element_inspection_fullscreen,app_element_inspection_fullscreen,Lucide Operational font source
 vendor/lucide/aira-operational-icons/svg/element-inspection-exit-fullscreen.svg,Lucide 1.38.0 / minimize,app_element_inspection_exit_fullscreen,app_element_inspection_exit_fullscreen,Lucide Operational font source
+vendor/lucide/aira-operational-icons/svg/element-inspection-picker.svg,Lucide 1.38.0 / pointer-2,app_element_inspection_picker,app_element_inspection_picker,Lucide Operational font source
 vendor/lucide/aira-operational-icons/svg/toolbar-expand-hint.svg,Lucide 1.38.0 / chevron-up,app_toolbar_expand_hint,app_toolbar_expand_hint,Lucide Operational font source
 vendor/lucide/aira-operational-icons/svg/toolbar-bookmark-add.svg,Lucide 1.38.0 / bookmark-plus,app_omnibox_add_bookmark,app_omnibox_add_bookmark,Lucide Operational font source
 vendor/lucide/aira-operational-icons/svg/toolbar-bookmark-selected.svg,Lucide 1.38.0 / bookmark-check,app_omnibox_bookmarked,app_omnibox_bookmarked,Lucide Operational font source

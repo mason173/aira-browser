@@ -5,11 +5,11 @@
     "familyName": "AiraOperationalIcons",
     "fontFile": "vendor/lucide/aira-operational-icons/AiraOperationalIcons.ttf",
     "packagedRawfile": "fonts/aira/aira-operational-icons.ttf",
-    "fontSha256": "dd809e0c8dbfb4c2754887079ea50fb93c8da83fc994800d4ef9d41cd44c6a22",
+    "fontSha256": "4a6faec5f2b6846a792d223cff5a2e798796b3df0a47f81c89409ea6c1ec08e2",
     "selectionFile": "vendor/lucide/aira-operational-icons/selection.json",
-    "selectionSha256": "399a0455bd195d9a91104d65b03c0eab2bda226e924411dba0b34b67562f7b0e",
+    "selectionSha256": "fc9b59df5ba95836ac8172213c4bc64b9a68ec38fe90ba6d3872cddcf1d77e1d",
     "sourceManifestFile": "vendor/lucide/aira-operational-icons/source-manifest.json",
-    "sourceManifestSha256": "53246bc7ac7de6039cc600a7fc978e759ac692d753073c17a5cceec43c100463",
+    "sourceManifestSha256": "81c9fb516a5b6467340c5f8517f994bec3da364c150212dec0c5996dc4618ea8",
     "fontQuarantinedIconIds": [
       "desktopCard.shortcut.history",
       "desktopCard.shortcut.bookmarks",
@@ -1194,6 +1194,15 @@
         "kind": "font",
         "glyph": "element-inspection-exit-fullscreen",
         "reason": "lucide-1.38.0"
+      }
+    },
+    {
+      "id": "browser.elementInspection.picker",
+      "legacyResourceFamily": "app_element_inspection_picker",
+      "representation": {
+        "kind": "font",
+        "glyph": "element-inspection-picker",
+        "reason": "user-provided pointer icon for the element inspection picker"
       }
     },
     {

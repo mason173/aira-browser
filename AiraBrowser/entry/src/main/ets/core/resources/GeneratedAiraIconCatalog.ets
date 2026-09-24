@@ -124,6 +124,7 @@ export type AiraIconId =
   | "browser.elementInspection.reselect"
   | "browser.elementInspection.fullscreen"
   | "browser.elementInspection.exitFullscreen"
+  | "browser.elementInspection.picker"
   | "settings.siteSettings"
   | "userscripts.defaultIcon"
   | "browser.toolbar.siteInfo"
@@ -297,6 +298,7 @@ export type AiraRenderableIconId =
   | "browser.elementInspection.reselect"
   | "browser.elementInspection.fullscreen"
   | "browser.elementInspection.exitFullscreen"
+  | "browser.elementInspection.picker"
   | "settings.siteSettings"
   | "userscripts.defaultIcon"
   | "browser.toolbar.siteInfo"
@@ -474,6 +476,7 @@ export class GeneratedAiraIconCatalog {
       case "browser.elementInspection.reselect":
       case "browser.elementInspection.fullscreen":
       case "browser.elementInspection.exitFullscreen":
+      case "browser.elementInspection.picker":
       case "settings.siteSettings":
       case "userscripts.defaultIcon":
       case "browser.toolbar.siteInfo":
@@ -766,6 +769,8 @@ export class GeneratedAiraIconCatalog {
         return '\uEE04';
       case "browser.elementInspection.exitFullscreen":
         return '\uEE05';
+      case "browser.elementInspection.picker":
+        return '\uEE1D';
       case "settings.siteSettings":
         return '\uE288';
       case "userscripts.defaultIcon":

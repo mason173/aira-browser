@@ -890,6 +890,7 @@ import {
   BrowserWebPageToolsContent,
   BrowserWebPageToolsLargeScreenOverlayHost
 } from '../components/browser/BrowserWebPageToolsOverlayHost';
+import { ElementInspectionDock } from '../components/browser/ElementInspectionDock';
 import { ElementInspectionOverlay } from '../components/browser/ElementInspectionOverlay';
 import { BrowserDownloadConfirmOverlay } from '../components/browser/BrowserDownloadConfirmSheet';
 import { WebContextMenuOverlay } from '../components/browser/WebContextMenuOverlay';
@@ -6775,6 +6776,10 @@ struct BrowserShellPage {
         onLargeScreenBookmarkBarAction: (action: BrowserDesktopBookmarkBarAction): void => {
           this.browserLargeScreenShellIntentApplication.dispatchBookmarkBarAction(action);
         },
+        elementInspectionDockVisible: this.shouldShowElementInspectionDock(),
+        elementInspectionDockSlot: () => {
+          this.buildElementInspectionDock()
+        },
         homeSurfaceSlot: () => {
           this.buildHomePage()
         },
@@ -7737,6 +7742,50 @@ struct BrowserShellPage {
     return (this.browserShellPresentationOperations?.snapshot()?.shellFamily ?? 'phone') === 'large_screen';
   }
 
+  private isElementInspectionDocked(): boolean {
+    return this.isLargeScreenShellFamilyActive() && this.elementInspectionPresentation.active;
+  }
+
+  private shouldShowElementInspectionDock(): boolean {
+    return this.isElementInspectionDocked() &&
+      this.elementInspectionPresentation.phase !== 'closing' &&
+      !this.isAssistantVideoTakeoverActive() &&
+      !this.browserFullscreenSessionPresentation.fullScreenModeEnabled;
+  }
+
+  private shouldCaptureElementInspectionSelection(): boolean {
+    return this.shouldShowElementInspectionDock() &&
+      this.elementInspectionPresentation.pickerArmed &&
+      (this.elementInspectionPresentation.phase === 'selecting' ||
+        this.elementInspectionPresentation.phase === 'inspected');
+  }
+
+  @Builder
+  private buildElementInspectionDock() {
+    ElementInspectionDock({
+      presentation: this.elementInspectionPresentation,
+      maxWidthVp: this.rootViewportWidth,
+      onAction: (action) => {
+        this.elementInspectionSessionCoordinator.handleAction(action);
+      },
+      onSelectOutline: (path: string): void => {
+        this.elementInspectionSessionCoordinator.selectOutline(path);
+      },
+      onPickerArmedChange: (armed: boolean): void => {
+        this.elementInspectionSessionCoordinator.setPickerArmed(armed);
+      },
+      onEvaluateConsole: (expression: string): void => {
+        this.elementInspectionSessionCoordinator.evaluateConsole(expression);
+      },
+      onClearConsole: (): void => {
+        this.elementInspectionSessionCoordinator.clearConsole();
+      },
+      onReadSource: (sourceId: string): void => {
+        this.elementInspectionSessionCoordinator.readSource(sourceId);
+      }
+    })
+  }
+
   private getWebViewportTopInsetPx(): number {
     return this.getWebViewportVisualTopInsetPx();
   }
@@ -8506,11 +8555,20 @@ struct BrowserShellPage {
         webLayerWidthVp: this.hostedWebLayerWidth,
         webLayerHeightVp: this.hostedWebLayerHeight,
         presentation: this.elementInspectionPresentation,
+        docked: this.isElementInspectionDocked(),
+        captureSelection: this.shouldCaptureElementInspectionSelection(),
+        hoverPreview: this.shouldCaptureElementInspectionSelection(),
         onAction: (action) => {
           this.elementInspectionSessionCoordinator.handleAction(action);
         },
         onSelectNormalizedPoint: (normalizedX: number, normalizedY: number): void => {
           this.elementInspectionSessionCoordinator.selectAtNormalizedPoint(normalizedX, normalizedY);
+        },
+        onHoverNormalizedPoint: (normalizedX: number, normalizedY: number): void => {
+          this.elementInspectionSessionCoordinator.previewAtNormalizedPoint(normalizedX, normalizedY);
+        },
+        onHoverPreviewEnd: (): void => {
+          this.elementInspectionSessionCoordinator.clearHoverPreview();
         }
       })
     } else if (this.browserTransientSurfaceSnapshot.activeCustomBottomSurfaceId === 'wifi_qr_result' &&

@@ -96,6 +96,7 @@ export struct BrowserLargeScreenPrimarySurface {
   @Prop homeSurfaceVisible: boolean = false;
   @Prop sidePanelVisible: boolean = false;
   @Prop bottomStatusVisible: boolean = false;
+  @Prop elementInspectionDockVisible: boolean = false;
   @Prop omniboxPresentation: BrowserLargeScreenOmniboxPresentation =
     createBrowserLargeScreenOmniboxPresentation();
   @Prop suggestionSnapshot: BrowserSearchSuggestionSnapshot = EMPTY_SEARCH_SUGGESTION_SNAPSHOT;
@@ -133,6 +134,7 @@ export struct BrowserLargeScreenPrimarySurface {
   @BuilderParam homeSurface: () => void = this.emptyBuilder;
   @BuilderParam sidePanel: () => void = this.emptyBuilder;
   @BuilderParam bottomStatus: () => void = this.emptyBuilder;
+  @BuilderParam elementInspectionDock: () => void = this.emptyBuilder;
 
   @StorageProp(BROWSER_THEME_STORAGE_PAGE_BACKGROUND_KEY)
   private storedPageBackgroundColor: string = DEFAULT_THEME_PALETTE.light.pageBackground;
@@ -232,9 +234,17 @@ export struct BrowserLargeScreenPrimarySurface {
             if (this.shouldRenderSidePanelOnRight()) {
               this.buildSidePanelSurface()
             }
+
+            // Sibling of the main stage, not a wrapper around the Web node.
+            // Opening the dock must not reparent ArkWeb.
+            if (this.elementInspectionDockVisible && !this.nativeVideoTakeoverActive &&
+              !this.webFullscreenActive) {
+              this.elementInspectionDock()
+            }
           }
           .layoutWeight(1)
           .width('100%')
+          .clip(false)
 
           if (this.shouldRenderBottomStatus()) {
             this.bottomStatus()

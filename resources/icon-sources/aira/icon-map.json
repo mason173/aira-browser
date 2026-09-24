@@ -1002,6 +1002,15 @@
     "note": "Lucide Operational font source"
   },
   {
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/element-inspection-picker.svg",
+    "originalSource": "Lucide 1.38.0 / pointer-2",
+    "primaryResourceFamily": "app_element_inspection_picker",
+    "resourceFamilies": [
+      "app_element_inspection_picker"
+    ],
+    "note": "Lucide Operational font source"
+  },
+  {
     "exportedFile": "vendor/lucide/aira-operational-icons/svg/toolbar-expand-hint.svg",
     "originalSource": "Lucide 1.38.0 / chevron-up",
     "primaryResourceFamily": "app_toolbar_expand_hint",
