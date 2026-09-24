@@ -1,3 +1,4 @@
+import { webview } from '@kit.ArkWeb';
 import { BrowserCreateTabOptions, BrowserTabState, TabManager } from '../tabs/TabManager';
 import { WebRuntimeBridge } from '../web/WebRuntimeBridge';
 import { BrowserWindowOpenCoordinator } from './BrowserWindowOpenCoordinator';
@@ -31,6 +32,7 @@ export interface BrowserWindowOpenApplicationHost {
   syncTabPreviewCacheWithTabs: () => void;
   requestCloseTabsOverview: () => void;
   syncActiveTabToView: () => void;
+  resolveManagedTabController: (tab: BrowserTabState) => webview.WebviewController | undefined;
   recordRecentCreate: (now: number) => void;
   persistTabs: () => void;
   syncPrivateModeLockForCurrentBoundary: () => void;
@@ -75,7 +77,7 @@ export class BrowserWindowOpenApplicationCoordinator {
         tabId
       );
       const now = Date.now();
-      const deviceFormFactorInput = await this.deviceFormFactorInputService.resolveWindowOpenInput();
+      const deviceFormFactorInput = this.deviceFormFactorInputService.resolveWindowOpenInputSync();
       const plan = this.windowOpenCoordinator.buildPlan({
         openerTab: host.findTabById(tabId),
         targetUrl: event.targetUrl,
@@ -166,6 +168,7 @@ export class BrowserWindowOpenApplicationCoordinator {
     plan: BrowserNewWindowPlan,
     host: BrowserWindowOpenApplicationHost
   ): Promise<void> {
+    let claimedTabId = '';
     try {
       const openPlan = this.windowOpenCoordinator.openManagedTab({
         tabManager: this.tabManager,
@@ -198,7 +201,31 @@ export class BrowserWindowOpenApplicationCoordinator {
         `targetTab=${targetTabId} target=${plan.targetUrl} plan=${plan.type}`,
         targetTabId
       );
-      await host.captureOpenerPreviewBeforeManagedTabOpen(openerTabId, targetTabId, 'window_open');
+      // ArkWeb on PC opens a chromeless page window if this callback returns before
+      // setWebController. Bind the tab controller, then schedule its Web component,
+      // before the opener-preview await yields.
+      const preparedTab = this.findTransitionTab(transition.tabs, targetTabId);
+      const controller = preparedTab === undefined ? undefined : host.resolveManagedTabController(preparedTab);
+      const controllerClaimed = controller !== undefined &&
+        this.windowOpenCoordinator.claimStoredEvent(targetTabId, controller);
+      if (controllerClaimed) {
+        claimedTabId = targetTabId;
+      }
+      if (!controllerClaimed) {
+        host.recordRuntimeEvent(
+          'window_open_controller_claim_failed',
+          `targetTab=${targetTabId} target=${plan.targetUrl} plan=${plan.type}`,
+          targetTabId
+        );
+        this.windowOpenCoordinator.rejectStoredEvent(targetTabId, 'controller_claim_failed');
+        return;
+      }
+      host.recordRuntimeEvent(
+        'window_open_controller_claimed',
+        `targetTab=${targetTabId} target=${plan.targetUrl} plan=${plan.type}`,
+        targetTabId
+      );
+      const previewPromise = host.captureOpenerPreviewBeforeManagedTabOpen(openerTabId, targetTabId, 'window_open');
       host.retainWindowOpenOpener(openerTabId, targetTabId);
       host.setTabs(transition.tabs);
       host.syncTabPreviewCacheWithTabs();
@@ -212,6 +239,7 @@ export class BrowserWindowOpenApplicationCoordinator {
       }
 
       host.syncActiveTabToView();
+      await previewPromise;
       host.recordRuntimeEvent(
         'normal_runtime_controller_created_or_resolved',
         `targetTab=${targetTabId} source=sync_active_tab_to_view`,
@@ -231,7 +259,18 @@ export class BrowserWindowOpenApplicationCoordinator {
     } catch (error) {
       host.recordRuntimeEvent('window_open_managed_tab_failed',
         `新窗口 managed tab 创建失败 ${JSON.stringify(error)}`, openerTabId);
-      this.windowOpenCoordinator.rejectImmediateEvent(event);
+      if (!this.windowOpenCoordinator.wasStoredEventClaimed(claimedTabId)) {
+        this.windowOpenCoordinator.rejectImmediateEvent(event);
+      }
     }
+  }
+
+  private findTransitionTab(tabs: BrowserTabState[], tabId: string): BrowserTabState | undefined {
+    for (let index = 0; index < tabs.length; index += 1) {
+      if (tabs[index].id === tabId) {
+        return tabs[index];
+      }
+    }
+    return undefined;
   }
 }

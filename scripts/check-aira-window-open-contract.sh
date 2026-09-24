@@ -768,6 +768,16 @@ forbid_regex "${MEDIA_TAKEOVER_COORDINATOR}" \
   'WEB_LIVE_ORIENTATION_REFRESH_(FIRST|SECOND)_DELAY_MS|canRefreshWebLiveOrientation' \
   'must not restore the disproved post-rotation presentation re-entry path.'
 
+require_order "${WINDOW_OPEN_APP}" \
+  'this.windowOpenCoordinator.claimStoredEvent(targetTabId, controller)' \
+  'await previewPromise' \
+  'must bind the child controller before the onWindowNew callback can await.'
+require_literal "${WINDOW_OPEN_APP}" \
+  'resolveWindowOpenInputSync()' \
+  'must not await window metrics before claiming the ArkWeb child controller.'
+require_literal "${WEB_PAGE_CONTROLLER}" \
+  'host.wasWindowOpenControllerClaimed(this.tabId)' \
+  'must not call setWebController a second time after the synchronous claim.'
 require_literal "${WINDOW_OPEN_APP}" \
   "host.recordRuntimeEvent('window_open_child_exit'" \
   'must keep native child-exit handling in the window-open owner.'

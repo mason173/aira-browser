@@ -1908,6 +1908,13 @@ struct BrowserShellPage {
     syncActiveTabToView: (): void => {
       this.browserTabSwitchCoordinator.synchronizeActiveTab();
     },
+    resolveManagedTabController: (tab: BrowserTabState): webview.WebviewController | undefined => {
+      try {
+        return this.browserRuntimeLifecyclePort.ensureTabRuntime(tab, this.currentWindowId).runtime.controller;
+      } catch (_error) {
+        return undefined;
+      }
+    },
     recordRecentCreate: (now: number): void => {
       this.browserRecentActionManager.recordCreate(now);
     },

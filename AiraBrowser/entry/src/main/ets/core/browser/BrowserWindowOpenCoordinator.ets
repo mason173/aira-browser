@@ -1,3 +1,4 @@
+import { webview } from '@kit.ArkWeb';
 import { BrowserCreateTabOptions, BrowserTabState, BrowserTabManagerPort } from '../tabs/TabManager';
 import { WebRuntimeBridge } from '../web/WebRuntimeBridge';
 import {
@@ -114,6 +115,14 @@ export class BrowserWindowOpenCoordinator {
       stored: this.eventManager.addEvent(targetTabId, event),
       targetTabId: targetTabId
     };
+  }
+
+  claimStoredEvent(tabId: string, controller: webview.WebviewController): boolean {
+    return this.eventManager.claimEvent(tabId, controller);
+  }
+
+  wasStoredEventClaimed(tabId: string): boolean {
+    return this.eventManager.isClaimed(tabId);
   }
 
   takeStoredEvent(tabId: string): OnWindowNewEvent | undefined {

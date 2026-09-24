@@ -85,6 +85,7 @@ export interface BrowserWebPageControllerHost extends BrowserWebComponentControl
   isArkWebControllerAttached: (tabId: string) => boolean;
   resolveWebId: (tabId: string) => number;
   takeWindowNewEventForPageController: (tabId: string) => OnWindowNewEvent | undefined;
+  wasWindowOpenControllerClaimed: (tabId: string) => boolean;
   applyWebPageNavigationState: (tabId: string, canGoBackward: boolean, canGoForward: boolean) => void;
   applyWebPageCommittedUrlRestore: (tabId: string, url: string) => void;
   applyWebHistoryTargetUrlPreview: (tabId: string, direction: BrowserWebHistoryDirection, targetUrl: string) => void;
@@ -249,9 +250,28 @@ export class BrowserWebPageController {
     host: BrowserWebPageControllerHost,
     reason: string
   ): BrowserWindowNewEventConsumptionResult {
+    const alreadyClaimed = host.wasWindowOpenControllerClaimed(this.tabId);
     const event = host.takeWindowNewEventForPageController(this.tabId);
     if (event === undefined) {
       return buildEmptyBrowserWindowNewEventConsumptionResult();
+    }
+    if (alreadyClaimed) {
+      const claimedResult: BrowserWindowNewEventConsumptionResult = {
+        eventFound: true,
+        completed: true,
+        controllerAvailable: true,
+        completionKind: 'child_controller',
+        shouldTreatAsWindowOpenHandoff: true,
+        errorMessage: ''
+      };
+      host.recordRuntimeEvent(
+        'window_open_event_consumed_by_page_controller',
+        `targetTab=${this.tabId} reason=${reason} controller=true completed=true completion=child_controller ` +
+          'handoff=true error= claimed=true',
+        this.tabId
+      );
+      this.syncRuntimeOwnership(host, 'window_new_event_consumed');
+      return claimedResult;
     }
     const controller = host.resolveWebController(this.tabId);
     let completed = false;

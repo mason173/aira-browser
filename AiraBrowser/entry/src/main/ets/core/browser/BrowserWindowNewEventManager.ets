@@ -12,6 +12,7 @@ interface BrowserWindowNewEventRecord {
   event: OnWindowNewEvent;
   timerId: number;
   createdAt: number;
+  claimed: boolean;
 }
 
 const DEFAULT_WINDOW_NEW_EVENT_TIMEOUT_MS: number = 3000;
@@ -48,9 +49,30 @@ export class BrowserWindowNewEventManager {
       tabId: normalizedTabId,
       event: event,
       timerId: timerId,
-      createdAt: Date.now()
+      createdAt: Date.now(),
+      claimed: false
     };
     return true;
+  }
+
+  claimEvent(tabId: string, controller: webview.WebviewController): boolean {
+    const normalizedTabId = tabId.trim();
+    const record = this.recordsByTabId[normalizedTabId];
+    if (record === undefined || record.claimed) {
+      return false;
+    }
+    if (!this.safeSetWebController(record.event, controller)) {
+      return false;
+    }
+    record.claimed = true;
+    this.cancel(record.timerId);
+    record.timerId = 0;
+    return true;
+  }
+
+  isClaimed(tabId: string): boolean {
+    const record = this.recordsByTabId[tabId.trim()];
+    return record !== undefined && record.claimed;
   }
 
   hasEvent(tabId: string): boolean {
@@ -87,7 +109,7 @@ export class BrowserWindowNewEventManager {
   private expireEvent(tabId: string): void {
     const normalizedTabId = tabId.trim();
     const record = this.recordsByTabId[normalizedTabId];
-    if (record === undefined) {
+    if (record === undefined || record.claimed) {
       return;
     }
     this.recordsByTabId[normalizedTabId] = undefined;

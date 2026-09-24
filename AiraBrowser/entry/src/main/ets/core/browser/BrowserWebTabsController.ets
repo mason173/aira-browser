@@ -493,6 +493,8 @@ export class BrowserWebTabsController {
       resolveWebId: this.dependencies.resolveWebId,
       takeWindowNewEventForPageController: (tabId: string): OnWindowNewEvent | undefined =>
         this.windowOpenApplicationCoordinator.takeStoredEventForPageController(tabId),
+      wasWindowOpenControllerClaimed: (tabId: string): boolean =>
+        this.windowOpenApplicationCoordinator.wasStoredEventClaimed(tabId),
       handleWebDialogBack: (tabId: string, kind: BrowserWebDialogKind): boolean =>
         this.handleWebDialogBack(tabId, kind),
       recordRuntimeEvent: host.recordRuntimeEvent,
