@@ -50,6 +50,12 @@ export function buildGenerationBoundHostedWebNodeCallbacks(
     onProgressChange: callbacks.onProgressChange,
     onScroll: callbacks.onScroll,
     onTouch: callbacks.onTouch,
+    onScaleChange: callbacks.onScaleChange === undefined ? undefined :
+      (eventTabId: string, event: OnScaleChangeEvent): void => {
+        if (eventTabId === tabId && isCurrent(tabId, generation)) {
+          callbacks.onScaleChange?.(eventTabId, event);
+        }
+      },
     onNavigationEntryCommitted: callbacks.onNavigationEntryCommitted,
     onTitleReceive: callbacks.onTitleReceive,
     onFaviconReceived: callbacks.onFaviconReceived,

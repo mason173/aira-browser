@@ -21,6 +21,7 @@ export interface BrowserWebEventHostHandlers {
   onProgressChange: (tabId: string, event: OnProgressChangeEvent) => void;
   onScroll: (tabId: string, event: OnScrollEvent) => void;
   onTouch: (tabId: string, event: TouchEvent) => void;
+  onScaleChange: (tabId: string, event: OnScaleChangeEvent) => void;
   onNavigationEntryCommitted: (tabId: string, details: LoadCommittedDetails) => void;
   onTitleReceive: (tabId: string, event: OnTitleReceiveEvent) => void;
   onFaviconReceived: (tabId: string, event: OnFaviconReceivedEvent) => void;
@@ -85,6 +86,8 @@ export class BrowserWebEventHostCoordinator {
         this.runVoid('scroll', tabId, () => handlers.onScroll(tabId, event)),
       onTouch: (tabId: string, event: TouchEvent) =>
         this.runVoid('touch', tabId, () => handlers.onTouch(tabId, event)),
+      onScaleChange: (tabId: string, event: OnScaleChangeEvent) =>
+        this.runVoid('scale_change', tabId, () => handlers.onScaleChange(tabId, event)),
       onNavigationEntryCommitted: (tabId: string, details: LoadCommittedDetails) =>
         this.runVoid('navigation_entry_committed', tabId, () => handlers.onNavigationEntryCommitted(tabId, details)),
       onTitleReceive: (tabId: string, event: OnTitleReceiveEvent) =>

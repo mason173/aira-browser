@@ -41,6 +41,7 @@ export interface HostedWebNodeCallbacks {
   onProgressChange: (tabId: string, event: OnProgressChangeEvent) => void;
   onScroll: (tabId: string, event: OnScrollEvent) => void;
   onTouch: (tabId: string, event: TouchEvent) => void;
+  onScaleChange?: (tabId: string, event: OnScaleChangeEvent) => void;
   onNavigationEntryCommitted: (tabId: string, details: LoadCommittedDetails) => void;
   onTitleReceive: (tabId: string, event: OnTitleReceiveEvent) => void;
   onFaviconReceived: (tabId: string, event: OnFaviconReceivedEvent) => void;
@@ -2377,14 +2378,7 @@ function HostedWebNodeBuilder(config: HostedWebNodeConfig) {
         config.callbacks.onAudioStateChanged?.(config.tabId, event.playing);
       })
       .onScaleChange((event: OnScaleChangeEvent) => {
-        hilog.info(
-          HOSTED_WEB_NODE_LOG_DOMAIN,
-          HOSTED_WEB_NODE_LOG_TAG,
-          '[DEBUG-desktop-zoom-20260726] scale-probe change tab=%{public}s old=%{public}s new=%{public}s',
-          config.tabId,
-          event.oldScale.toString(),
-          event.newScale.toString()
-        );
+        config.callbacks.onScaleChange?.(config.tabId, event);
       })
       .onScroll((event: OnScrollEvent) => {
         config.callbacks.onScroll(config.tabId, event);
@@ -2716,6 +2710,7 @@ function buildTrackedHostedWebNodeConfig(
       onProgressChange: config.callbacks.onProgressChange,
       onScroll: config.callbacks.onScroll,
       onTouch: config.callbacks.onTouch,
+      onScaleChange: config.callbacks.onScaleChange,
       onNavigationEntryCommitted: config.callbacks.onNavigationEntryCommitted,
       onTitleReceive: config.callbacks.onTitleReceive,
       onFaviconReceived: config.callbacks.onFaviconReceived,

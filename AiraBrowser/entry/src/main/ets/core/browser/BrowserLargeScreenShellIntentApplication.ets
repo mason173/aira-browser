@@ -261,8 +261,8 @@ export class BrowserLargeScreenShellIntentApplication {
       !this.dependencies.webZoomCoordinator.snapshot(facts.activeTabId).available) {
       return false;
     }
-    // Aira 独占 Ctrl +/-/0：Down 时执行绝对缩放并弹出提示，Down/Up 都消费，
-    // 避免 ArkWeb 原生再叠加一次缩放导致弹窗数字与页面真实比例不同步。
+    // Aira 独占 Ctrl +/-/0：Down 时按当前比例缩到目标档并弹出提示，Down/Up 都消费，
+    // 避免 ArkWeb 原生再叠加一次相对缩放。
     if (event.type === KeyType.Down) {
       const result = this.dependencies.webZoomCoordinator.applyShortcut(facts.activeTabId, action);
       hilog.info(
@@ -829,6 +829,18 @@ export class BrowserLargeScreenShellIntentApplication {
         facts.selectedSearchEngine
       );
     }
+  }
+
+  handleObservedWebPageScale(tabId: string, scalePercent: number): void {
+    const changed = this.dependencies.webZoomCoordinator.observePageScale(tabId, scalePercent);
+    if (!changed || !this.webZoomDialogVisible) {
+      return;
+    }
+    const facts = this.dependencies.readFacts();
+    if (facts.activeTabId !== tabId) {
+      return;
+    }
+    this.dependencies.updateWebZoom(this.dependencies.webZoomCoordinator.snapshot(tabId));
   }
 
   private presentOrUpdateWebZoom(snapshot: BrowserLargeScreenWebZoomSnapshot): void {

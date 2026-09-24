@@ -10423,12 +10423,14 @@ struct BrowserShellPage {
         this.browserWebBottomSafeAreaCoordinator.requestCheck(tabId);
       },
       onPageBegin: (tabId: string, event: OnPageBeginEvent) => {
+        this.browserLargeScreenWebZoomCoordinator.handleDocumentBegin(tabId);
         this.browserAddressBarTabSwipeCoordinator.noteDocumentBegin(tabId);
         this.browserTabSwipePreviewCoordinator.noteDocumentBegin(tabId);
         this.browserWebBottomSafeAreaCoordinator.handleDocumentBegin(tabId);
         this.browserWebPageLifecycleApplicationCoordinator.handlePageBegin(tabId, event);
       },
       onPageEnd: (tabId: string, event: OnPageEndEvent) => {
+        this.browserLargeScreenWebZoomCoordinator.handleDocumentEnd(tabId);
         this.browserWebPageLifecycleApplicationCoordinator.handlePageEnd(tabId, event);
         this.browserWebBottomSafeAreaCoordinator.requestCheck(tabId);
         this.novelReaderApplication.handlePageReady(
@@ -10458,6 +10460,9 @@ struct BrowserShellPage {
           this.browserWebBottomSafeAreaCoordinator.handleTouch(tabId, event.type === TouchType.Down);
         }
         this.browserWebScrollInteractionCoordinator.handleTouchEvent(tabId, event.type);
+      },
+      onScaleChange: (tabId: string, event: OnScaleChangeEvent): void => {
+        this.browserLargeScreenShellIntentApplication.handleObservedWebPageScale(tabId, event.newScale);
       },
       onNavigationEntryCommitted: (tabId: string, details: LoadCommittedDetails) => {
         this.browserWebPageLifecycleApplicationCoordinator.handleNavigationEntryCommitted(tabId, details);

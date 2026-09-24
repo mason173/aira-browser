@@ -63,6 +63,7 @@ import browserTabsOverviewStackLayoutPolicyTest from './BrowserTabsOverviewStack
 import bottomToolbarGuideCoordinatorTest from './BottomToolbarGuideCoordinator.test';
 import crossDeviceLinkViewModelTest from './CrossDeviceLinkViewModel.test';
 import communityUpdateCheckCoordinatorTest from './CommunityUpdateCheckCoordinator.test';
+import browserLargeScreenWebZoomPolicyTest from './BrowserLargeScreenWebZoomPolicy.test';
 
 export default function tests(): void {
   userScriptValueStateStoreTest();
@@ -128,4 +129,5 @@ export default function tests(): void {
   bottomToolbarGuideCoordinatorTest();
   crossDeviceLinkViewModelTest();
   communityUpdateCheckCoordinatorTest();
+  browserLargeScreenWebZoomPolicyTest();
 }

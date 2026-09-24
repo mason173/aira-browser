@@ -1,6 +1,15 @@
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { BrowserHostedRuntimeSurfacePort } from '../../services/web/BrowserHostedRuntimeSurfacePort';
 import { BrowserRuntimeLifecyclePort } from '../../services/web/BrowserRuntimeLifecyclePort';
+import {
+  buildDocumentZoomScript,
+  buildPageScaleReadScript,
+  isDocumentZoomApplied,
+  normalizeObservedWebZoomPercent,
+  resolveBaselinePageScale,
+  resolvePageScalePercentFromViewport,
+  resolveWebZoomPlan
+} from './BrowserLargeScreenWebZoomPolicy';
 
 export const BROWSER_LARGE_SCREEN_WEB_ZOOM_DEFAULT_PERCENT: number = 100;
 const BROWSER_LARGE_SCREEN_WEB_ZOOM_NOTIFICATION_DURATION_MS: number = 1500;
@@ -67,8 +76,12 @@ export function createBrowserLargeScreenWebZoomSnapshot(): BrowserLargeScreenWeb
 
 interface BrowserLargeScreenWebZoomTabState {
   percent: number;
+  enginePercent: number;
+  baselinePercent: number;
   runtimeId: number;
   percentKnown: boolean;
+  owned: boolean;
+  zoomEpoch: number;
 }
 
 interface BrowserLargeScreenWebZoomRuntimeSnapshot {
@@ -81,6 +94,7 @@ interface BrowserLargeScreenWebZoomExecutionResult {
   applied: boolean;
   runtimeId: number;
   reason: string;
+  percent: number;
 }
 
 export class BrowserLargeScreenWebZoomCoordinator {
@@ -95,6 +109,8 @@ export class BrowserLargeScreenWebZoomCoordinator {
   private shortcutNotificationLabel: string = '';
   private shortcutNotificationDismissTimer: number = -1;
   private shortcutNotificationGeneration: number = 0;
+  private scaleObservationGeneration: number = 0;
+  private lastObservedScaleByTabId: Record<string, number | undefined> = {};
 
   constructor(
     runtimeLifecyclePort: BrowserRuntimeLifecyclePort,
@@ -117,8 +133,8 @@ export class BrowserLargeScreenWebZoomCoordinator {
     return largeScreenShellActive || configuredForceEnableWebZoom;
   }
 
-  // 键盘 Ctrl +/-/0 与弹窗按钮走同一条“绝对缩放”执行路径：Aira 是页面缩放的唯一写入者，
-  // 因此本地记录的百分比始终等于引擎真实比例，不会再漂移，也能可靠恢复默认（zoom(1)）。
+  // 键盘 Ctrl +/-/0 与弹窗按钮走同一条目标缩放路径。档位写入 document zoom，
+  // 不把请求百分比当成已经生效；引擎没动时界面保持上一次确认的比例。
   applyShortcut(
     tabId: string,
     action: BrowserLargeScreenWebZoomAction
@@ -153,18 +169,6 @@ export class BrowserLargeScreenWebZoomCoordinator {
     const runtime = this.resolveRuntime(normalizedTabId, 'apply-entry', traceId);
     const currentState = this.resolveTabState(normalizedTabId, runtime);
     const targetPercent = this.resolveTargetPercent(currentState.percent, action);
-    hilog.info(
-      WEB_ZOOM_DIAG_DOMAIN,
-      WEB_ZOOM_DIAG_TAG,
-      '%{public}s apply id=%{public}d action=%{public}s tab=%{public}s currentPercent=%{public}d currentRuntimeId=%{public}d targetPercent=%{public}d',
-      WEB_ZOOM_DIAG_PREFIX,
-      traceId,
-      action,
-      normalizedTabId,
-      currentState.percent,
-      currentState.runtimeId,
-      targetPercent
-    );
     if (!runtime.available) {
       hilog.info(
         WEB_ZOOM_DIAG_DOMAIN,
@@ -177,10 +181,8 @@ export class BrowserLargeScreenWebZoomCoordinator {
       );
       return this.buildApplyResult(normalizedTabId, currentState.percent, false, false, runtime.reason);
     }
-    // 绝对缩放：controller.zoom(factor) 的 factor 相对“原始页面”，factor=1 即 100%（未缩放）。
-    // 目标级别直接写入 zoom(targetPercent / 100)，恢复默认即 zoom(1)，无需依赖本地旧比例做相对推算，
-    // 因此每一次都能精确落到目标级别、缩到最小档、真实归位，不会再出现 UI 与页面不一致。
-    const execution = this.applyAbsoluteZoom(normalizedTabId, targetPercent, traceId);
+    // 100% 是页面刚打开时的基准。高于基准用 zoom()，低于 100% 才用 CSS zoom。
+    const execution = this.applyTargetZoom(normalizedTabId, targetPercent, traceId);
     if (!execution.applied) {
       hilog.info(
         WEB_ZOOM_DIAG_DOMAIN,
@@ -194,26 +196,61 @@ export class BrowserLargeScreenWebZoomCoordinator {
       );
       return this.buildExecutionFailureResult(normalizedTabId, currentState.percent, execution);
     }
-    const changed = targetPercent !== currentState.percent;
-    this.statesByTabId[normalizedTabId] = {
-      percent: targetPercent,
-      runtimeId: execution.runtimeId,
-      percentKnown: true
-    };
+    const changed = execution.percent !== currentState.percent;
     this.revision += 1;
     this.publishRevision();
-    hilog.info(
-      WEB_ZOOM_DIAG_DOMAIN,
-      WEB_ZOOM_DIAG_TAG,
-      '%{public}s apply-result id=%{public}d applied=true changed=%{public}s percent=%{public}d runtimeId=%{public}d revision=%{public}d',
-      WEB_ZOOM_DIAG_PREFIX,
-      traceId,
-      changed ? 'true' : 'false',
-      targetPercent,
-      execution.runtimeId,
-      this.revision
-    );
-    return this.buildApplyResult(normalizedTabId, targetPercent, changed, true, '');
+    return this.buildApplyResult(normalizedTabId, execution.percent, changed, true, '');
+  }
+
+  handleDocumentBegin(tabId: string): void {
+    const normalizedTabId = tabId.trim();
+    const state = this.statesByTabId[normalizedTabId];
+    if (state === undefined) {
+      return;
+    }
+    this.lastObservedScaleByTabId[normalizedTabId] = undefined;
+    this.statesByTabId[normalizedTabId] = {
+      percent: state.percent,
+      enginePercent: 0,
+      baselinePercent: 0,
+      runtimeId: state.runtimeId,
+      percentKnown: state.percentKnown,
+      owned: state.owned,
+      zoomEpoch: state.zoomEpoch
+    };
+  }
+
+  handleDocumentEnd(tabId: string): void {
+    const normalizedTabId = tabId.trim();
+    const state = this.statesByTabId[normalizedTabId];
+    if (state === undefined || !state.owned || state.percent === BROWSER_LARGE_SCREEN_WEB_ZOOM_DEFAULT_PERCENT) {
+      return;
+    }
+    this.applyTargetZoom(normalizedTabId, state.percent, this.debugSequence);
+  }
+
+  observePageScale(tabId: string, scalePercent: number): boolean {
+    const normalizedTabId = tabId.trim();
+    const displayPercent = normalizeObservedWebZoomPercent(scalePercent);
+    if (normalizedTabId.length === 0 || displayPercent <= 0) {
+      return false;
+    }
+    this.scaleObservationGeneration += 1;
+    this.lastObservedScaleByTabId[normalizedTabId] = scalePercent;
+    const runtime = this.resolveRuntime(normalizedTabId);
+    const currentState = this.resolveTabState(normalizedTabId, runtime);
+    const baselinePercent = currentState.baselinePercent > 0 ? currentState.baselinePercent :
+      (!currentState.owned ? scalePercent : 0);
+    this.statesByTabId[normalizedTabId] = {
+      percent: currentState.percent,
+      enginePercent: scalePercent,
+      baselinePercent: baselinePercent,
+      runtimeId: runtime.runtimeId > 0 ? runtime.runtimeId : currentState.runtimeId,
+      percentKnown: currentState.percentKnown,
+      owned: currentState.owned,
+      zoomEpoch: currentState.zoomEpoch
+    };
+    return false;
   }
 
   private resolveTabState(
@@ -224,15 +261,23 @@ export class BrowserLargeScreenWebZoomCoordinator {
     if (storedState === undefined) {
       return {
         percent: BROWSER_LARGE_SCREEN_WEB_ZOOM_DEFAULT_PERCENT,
+        enginePercent: 0,
+        baselinePercent: 0,
         runtimeId: runtime.runtimeId,
-        percentKnown: true
+        percentKnown: true,
+        owned: false,
+        zoomEpoch: 0
       };
     }
     if (runtime.available && storedState.runtimeId > 0 && runtime.runtimeId !== storedState.runtimeId) {
       const resetState: BrowserLargeScreenWebZoomTabState = {
         percent: BROWSER_LARGE_SCREEN_WEB_ZOOM_DEFAULT_PERCENT,
+        enginePercent: 0,
+        baselinePercent: 0,
         runtimeId: runtime.runtimeId,
-        percentKnown: true
+        percentKnown: true,
+        owned: false,
+        zoomEpoch: 0
       };
       this.statesByTabId[tabId] = resetState;
       return resetState;
@@ -399,73 +444,279 @@ export class BrowserLargeScreenWebZoomCoordinator {
     return snapshot;
   }
 
-  private applyAbsoluteZoom(
+  private applyTargetZoom(
     tabId: string,
     percent: number,
     traceId: number
   ): BrowserLargeScreenWebZoomExecutionResult {
-    // factor 相对“原始页面”，非相对当前缩放：percent=100 → zoom(1)（恢复默认），percent=25 → zoom(0.25)。
-    // 公开 API 文档明确 “The value 1 indicates that the page is not zoomed. Value range: (0, 100]”。
-    const factor = percent / BROWSER_LARGE_SCREEN_WEB_ZOOM_DEFAULT_PERCENT;
-    if (!Number.isFinite(factor) || factor <= 0 || factor > 100) {
-      hilog.info(
-        WEB_ZOOM_DIAG_DOMAIN,
-        WEB_ZOOM_DIAG_TAG,
-        '%{public}s zoom-call id=%{public}d tab=%{public}s percent=%{public}d factor=%{public}s outcome=invalid-factor',
-        WEB_ZOOM_DIAG_PREFIX,
-        traceId,
-        tabId,
-        percent,
-        factor.toString()
-      );
-      return { applied: false, runtimeId: -1, reason: 'invalid_factor' };
-    }
     const runtime = this.resolveRuntime(tabId, 'zoom-call', traceId);
     if (!runtime.available) {
-      return { applied: false, runtimeId: runtime.runtimeId, reason: runtime.reason };
+      return { applied: false, runtimeId: runtime.runtimeId, reason: runtime.reason, percent: percent };
+    }
+    const currentState = this.resolveTabState(tabId, runtime);
+    const controller = this.runtimeLifecyclePort.resolveController(tabId);
+    if (controller === undefined) {
+      return { applied: false, runtimeId: -1, reason: 'missing_controller', percent: currentState.percent };
+    }
+    const zoomEpoch = currentState.zoomEpoch + 1;
+    const knownPageScale = this.resolveKnownPageScale(tabId, currentState);
+    this.statesByTabId[tabId] = {
+      percent: percent,
+      enginePercent: knownPageScale,
+      baselinePercent: currentState.baselinePercent,
+      runtimeId: runtime.runtimeId,
+      percentKnown: true,
+      owned: true,
+      zoomEpoch: zoomEpoch
+    };
+    try {
+      const pending = controller.runJavaScript(buildPageScaleReadScript());
+      pending.then((raw: string) => {
+        this.finishZoomChoice(tabId, zoomEpoch, percent, currentState.percent, knownPageScale, raw, runtime.runtimeId);
+      }).catch((_error: Error) => {
+        this.finishZoomChoice(tabId, zoomEpoch, percent, currentState.percent, knownPageScale, '', runtime.runtimeId);
+      });
+      return { applied: true, runtimeId: runtime.runtimeId, reason: '', percent: percent };
+    } catch (_error) {
+      const baseline = resolveBaselinePageScale(currentState.baselinePercent, knownPageScale);
+      return this.applyChosenZoom(
+        tabId, zoomEpoch, percent, currentState.percent, knownPageScale, baseline, runtime.runtimeId);
+    }
+  }
+
+  private finishZoomChoice(
+    tabId: string,
+    zoomEpoch: number,
+    percent: number,
+    previousPercent: number,
+    knownPageScale: number,
+    raw: string,
+    runtimeId: number
+  ): void {
+    const state = this.statesByTabId[tabId];
+    if (state === undefined || state.zoomEpoch !== zoomEpoch) {
+      return;
+    }
+    const readScale = resolvePageScalePercentFromViewport(raw);
+    const pageScale = readScale > 0 ? readScale : knownPageScale;
+    const baseline = resolveBaselinePageScale(state.baselinePercent, readScale);
+    const resolvedBaseline = baseline > 0 ? baseline : pageScale;
+    this.applyChosenZoom(
+      tabId, zoomEpoch, percent, previousPercent, pageScale, resolvedBaseline, runtimeId);
+  }
+
+  private applyChosenZoom(
+    tabId: string,
+    zoomEpoch: number,
+    percent: number,
+    previousPercent: number,
+    pageScale: number,
+    baseline: number,
+    runtimeId: number
+  ): BrowserLargeScreenWebZoomExecutionResult {
+    const state = this.resolveTabState(tabId, { available: true, runtimeId: runtimeId, reason: '' });
+    this.statesByTabId[tabId] = {
+      percent: state.percent,
+      enginePercent: pageScale,
+      baselinePercent: baseline,
+      runtimeId: state.runtimeId,
+      percentKnown: true,
+      owned: true,
+      zoomEpoch: state.zoomEpoch
+    };
+    const plan = resolveWebZoomPlan(baseline, pageScale, percent);
+    if (plan.pageScaleTarget <= 0 || plan.zoomFactor <= 0) {
+      this.restoreUnappliedZoom(tabId, previousPercent, pageScale, baseline, state.runtimeId, state.zoomEpoch);
+      return {
+        applied: false,
+        runtimeId: runtimeId,
+        reason: 'invalid_factor',
+        percent: previousPercent
+      };
+    }
+    if (plan.mechanism === 'document') {
+      if (Math.abs(plan.zoomFactor - 1) > 0.01) {
+        this.zoomEngine(tabId, plan.zoomFactor);
+      }
+      return this.applyDocumentZoom(
+        tabId, zoomEpoch, percent, previousPercent, plan.pageScaleTarget, plan.cssRatio, runtimeId);
+    }
+    return this.applyPageScaleZoom(
+      tabId, percent, state, pageScale, plan.pageScaleTarget, plan.zoomFactor, plan.clearCss, runtimeId);
+  }
+
+  private applyDocumentZoom(
+    tabId: string,
+    zoomEpoch: number,
+    percent: number,
+    previousPercent: number,
+    pageScale: number,
+    ratio: number,
+    runtimeId: number
+  ): BrowserLargeScreenWebZoomExecutionResult {
+    const script = buildDocumentZoomScript(ratio);
+    const controller = this.runtimeLifecyclePort.resolveController(tabId);
+    const state = this.resolveTabState(tabId, { available: true, runtimeId: runtimeId, reason: '' });
+    if (script.length === 0 || controller === undefined) {
+      this.restoreUnappliedZoom(tabId, previousPercent, pageScale, state.baselinePercent, runtimeId, zoomEpoch);
+      return {
+        applied: false,
+        runtimeId: runtimeId,
+        reason: controller === undefined ? 'missing_controller' : 'invalid_factor',
+        percent: previousPercent
+      };
+    }
+    try {
+      const pending = controller.runJavaScript(script);
+      this.statesByTabId[tabId] = {
+        percent: percent,
+        enginePercent: pageScale,
+        baselinePercent: state.baselinePercent,
+        runtimeId: runtimeId,
+        percentKnown: true,
+        owned: true,
+        zoomEpoch: zoomEpoch
+      };
+      pending.then((raw: string) => {
+        this.finishDocumentZoom(tabId, zoomEpoch, percent, previousPercent, pageScale, ratio, raw);
+      }).catch((_error: Error) => {
+        this.finishDocumentZoom(tabId, zoomEpoch, percent, previousPercent, pageScale, ratio, '');
+      });
+      return { applied: true, runtimeId: runtimeId, reason: '', percent: percent };
+    } catch (_error) {
+      this.restoreUnappliedZoom(tabId, previousPercent, pageScale, state.baselinePercent, runtimeId, zoomEpoch);
+      return {
+        applied: false,
+        runtimeId: runtimeId,
+        reason: 'platform_error',
+        percent: previousPercent
+      };
+    }
+  }
+
+  private restoreUnappliedZoom(
+    tabId: string,
+    previousPercent: number,
+    pageScale: number,
+    baseline: number,
+    runtimeId: number,
+    zoomEpoch: number
+  ): void {
+    this.statesByTabId[tabId] = {
+      percent: previousPercent,
+      enginePercent: pageScale,
+      baselinePercent: baseline,
+      runtimeId: runtimeId,
+      percentKnown: previousPercent > 0,
+      owned: false,
+      zoomEpoch: zoomEpoch
+    };
+    this.revision += 1;
+    this.publishRevision();
+  }
+
+  private finishDocumentZoom(
+    tabId: string,
+    zoomEpoch: number,
+    percent: number,
+    previousPercent: number,
+    pageScalePercent: number,
+    ratio: number,
+    raw: string
+  ): void {
+    const state = this.statesByTabId[tabId];
+    if (state === undefined || state.zoomEpoch !== zoomEpoch) {
+      return;
+    }
+    const applied = isDocumentZoomApplied(raw, ratio);
+    if (applied) {
+      return;
+    }
+    this.statesByTabId[tabId] = {
+      percent: previousPercent,
+      enginePercent: pageScalePercent,
+      baselinePercent: state.baselinePercent,
+      runtimeId: state.runtimeId,
+      percentKnown: true,
+      owned: false,
+      zoomEpoch: state.zoomEpoch
+    };
+    this.revision += 1;
+    this.publishRevision();
+  }
+
+  private applyPageScaleZoom(
+    tabId: string,
+    percent: number,
+    currentState: BrowserLargeScreenWebZoomTabState,
+    currentEnginePercent: number,
+    desiredPageScale: number,
+    factor: number,
+    clearCss: boolean,
+    runtimeId: number
+  ): BrowserLargeScreenWebZoomExecutionResult {
+    const controller = this.runtimeLifecyclePort.resolveController(tabId);
+    if (desiredPageScale <= 0 || factor <= 0 || controller === undefined) {
+      return {
+        applied: false,
+        runtimeId: runtimeId,
+        reason: controller === undefined ? 'missing_controller' : 'invalid_factor',
+        percent: currentState.percent
+      };
+    }
+    const shouldZoom = Math.abs(factor - 1) > 0.01;
+    try {
+      if (clearCss) {
+        void controller.runJavaScript("(function(){var root=document.documentElement;if(root){root.style.removeProperty('zoom');}return '';})()");
+      }
+      if (shouldZoom) {
+        controller.zoom(factor);
+      }
+    } catch (_error) {
+      return { applied: false, runtimeId: runtimeId, reason: 'platform_error', percent: currentState.percent };
+    }
+    const baselinePercent = this.statesByTabId[tabId]?.baselinePercent ?? currentState.baselinePercent;
+    this.statesByTabId[tabId] = {
+      percent: percent,
+      enginePercent: shouldZoom ? desiredPageScale : currentEnginePercent,
+      baselinePercent: baselinePercent,
+      runtimeId: runtimeId > 0 ? runtimeId : currentState.runtimeId,
+      percentKnown: true,
+      owned: true,
+      zoomEpoch: currentState.zoomEpoch
+    };
+    return { applied: true, runtimeId: runtimeId, reason: '', percent: percent };
+  }
+
+  private zoomEngine(tabId: string, factor: number): void {
+    if (factor <= 0 || Math.abs(factor - 1) <= 0.01) {
+      return;
     }
     const controller = this.runtimeLifecyclePort.resolveController(tabId);
     if (controller === undefined) {
-      return { applied: false, runtimeId: -1, reason: 'missing_controller' };
+      return;
     }
-    hilog.info(
-      WEB_ZOOM_DIAG_DOMAIN,
-      WEB_ZOOM_DIAG_TAG,
-      '%{public}s zoom-call id=%{public}d tab=%{public}s runtimeId=%{public}d percent=%{public}d factor=%{public}s outcome=invoke',
-      WEB_ZOOM_DIAG_PREFIX,
-      traceId,
-      tabId,
-      runtime.runtimeId,
-      percent,
-      factor.toString()
-    );
     try {
       controller.zoom(factor);
-      hilog.info(
-        WEB_ZOOM_DIAG_DOMAIN,
-        WEB_ZOOM_DIAG_TAG,
-        '%{public}s zoom-call id=%{public}d tab=%{public}s runtimeId=%{public}d percent=%{public}d factor=%{public}s outcome=returned',
-        WEB_ZOOM_DIAG_PREFIX,
-        traceId,
-        tabId,
-        runtime.runtimeId,
-        percent,
-        factor.toString()
-      );
-      return { applied: true, runtimeId: runtime.runtimeId, reason: '' };
     } catch (_error) {
-      hilog.info(
-        WEB_ZOOM_DIAG_DOMAIN,
-        WEB_ZOOM_DIAG_TAG,
-        '%{public}s zoom-call id=%{public}d tab=%{public}s runtimeId=%{public}d percent=%{public}d factor=%{public}s outcome=threw',
-        WEB_ZOOM_DIAG_PREFIX,
-        traceId,
-        tabId,
-        runtime.runtimeId,
-        percent,
-        factor.toString()
-      );
-      return { applied: false, runtimeId: runtime.runtimeId, reason: 'platform_error' };
     }
+  }
+
+  private resolveKnownPageScale(tabId: string, state: BrowserLargeScreenWebZoomTabState): number {
+    const observed = this.lastObservedScaleByTabId[tabId];
+    if (observed !== undefined && Number.isFinite(observed) && observed > 0) {
+      return observed;
+    }
+    return this.resolveEnginePercent(state);
+  }
+
+  private resolveEnginePercent(state: BrowserLargeScreenWebZoomTabState): number {
+    if (Number.isFinite(state.enginePercent) && state.enginePercent > 0) {
+      return state.enginePercent;
+    }
+    if (state.percent > 0) {
+      return state.percent;
+    }
+    return BROWSER_LARGE_SCREEN_WEB_ZOOM_DEFAULT_PERCENT;
   }
 }
