@@ -23,7 +23,8 @@ import { WebsiteIconView } from '../common/WebsiteIconView';
 import { AiraIcon } from '../common/AiraIcon';
 import {
   BrowserDesktopContextMenu,
-  BrowserDesktopContextMenuItem
+  BrowserDesktopContextMenuItem,
+  buildBrowserDesktopMenuOptions
 } from '../browser/BrowserDesktopContextMenu';
 import { HistoryWorkspaceSelectionMode } from '../../../core/history/HistoryWorkspaceSessionCoordinator';
 import { DEFAULT_THEME_PALETTE } from '../../../features/theme/palettes/DefaultThemePalette';
@@ -217,7 +218,7 @@ export struct HistoryLargeScreenTimeline {
           this.onOpenVisit(visit, true);
         }
       })
-      .bindContextMenu(this.buildVisitContextMenu(visit), ResponseType.RightClick)
+      .bindContextMenu(this.buildVisitContextMenu(visit), ResponseType.RightClick, buildBrowserDesktopMenuOptions())
     }
     .width('100%')
   }

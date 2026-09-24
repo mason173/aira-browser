@@ -27,18 +27,21 @@ export struct BookmarkManagerCreateFolderDialog {
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY) private storedSecondaryTextColor: string = '#5F6875';
   controller?: CustomDialogController;
   @Link folderTitle: string;
+  /** Shared by "new folder" and "rename" flows; callers override the copy. */
+  @Prop dialogTitle: string = '新建文件夹';
+  @Prop fieldPlaceholder: string = '文件夹名称';
   confirm: (title: string) => void = (_title: string) => {};
 
   build() {
     Column({ space: 16 }) {
-      Text('新建文件夹')
+      Text(this.dialogTitle)
         .width('100%')
         .fontSize(20)
         .fontWeight(FontWeight.Bold)
         .fontColor(this.storedPrimaryTextColor)
         .textAlign(TextAlign.Center)
 
-      TextInput({ text: this.folderTitle, placeholder: '文件夹名称' })
+      TextInput({ text: this.folderTitle, placeholder: this.fieldPlaceholder })
         .width('100%')
         .height(44)
         .fontSize(15)
@@ -91,6 +94,8 @@ export struct BookmarkManagerEditNodeDialog {
   @Link nodeUrl: string;
   @Link nodeType: string;
   @Link iconPath: string;
+  /** Callers that add instead of edit override the heading; empty keeps the edit wording. */
+  @Prop dialogTitleOverride: string = '';
   confirm: () => void = () => {};
   @State private iconStates: SiteIconListRenderState[] = [];
   private iconTargetUrl: string = '';
@@ -114,7 +119,7 @@ export struct BookmarkManagerEditNodeDialog {
     Column({ space: 16 }) {
       this.buildIcon()
 
-      Text(this.nodeType === 'folder' ? '编辑文件夹' : '编辑书签')
+      Text(this.resolveDialogTitle())
         .width('100%')
         .fontSize(20)
         .fontWeight(FontWeight.Bold)
@@ -218,6 +223,13 @@ export struct BookmarkManagerEditNodeDialog {
         this.resolvePixelMapAfterUriFailure(iconUri, sourceRevision);
       }
     })
+  }
+
+  private resolveDialogTitle(): string {
+    if (this.dialogTitleOverride.length > 0) {
+      return this.dialogTitleOverride;
+    }
+    return this.nodeType === 'folder' ? '编辑文件夹' : '编辑书签';
   }
 
   private resolveIcon(): void {

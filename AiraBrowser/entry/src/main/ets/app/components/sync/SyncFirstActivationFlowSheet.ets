@@ -30,8 +30,10 @@ export struct SyncFirstActivationFlowSheet {
   @Prop isPrivateSession: boolean = false;
   @Prop layoutMode: SyncSetupStepLayoutMode = 'phone';
   @Prop @Watch('resetNavigation') flowRevision: number = 0;
+  @Prop maxHeightVp: number = 0;
   @Prop settingsIconBackgrounds: BrowserSettingsIconBackgroundTokenSet =
     DEFAULT_BROWSER_SETTINGS_ICON_BACKGROUND_TOKENS;
+  @State private contentHeightVp: number = 0;
   private navigationStack: NavPathStack = new NavPathStack();
   onToggle: (id: SyncFirstActivationItemId, enabled: boolean) => void =
     (_id: SyncFirstActivationItemId, _enabled: boolean) => {};
@@ -45,22 +47,31 @@ export struct SyncFirstActivationFlowSheet {
   }
 
   build() {
+    if (this.layoutMode === 'large_screen') {
+      this.buildLargeScreenNavigation()
+    } else {
+      this.buildPhoneNavigation()
+    }
+  }
+
+  @Builder
+  private buildLargeScreenNavigation() {
     Navigation(this.navigationStack) {
-      SyncFirstActivationItemsSheet({
-        state: $itemsState,
-        isBusy: this.isBusy,
-        canSubmit: this.hasSelectedItems(),
-        layoutMode: this.layoutMode,
-        submitLabel: '下一步',
-        settingsIconBackgrounds: this.settingsIconBackgrounds,
-        onToggle: (id: SyncFirstActivationItemId, enabled: boolean) => {
-          this.onToggle(id, enabled);
-        },
-        onSubmit: () => {
-          this.openGoalSelection();
-        },
-        onClose: this.onClose
-      })
+      this.buildItemsSheet()
+    }
+    .width('100%')
+    .height(this.resolveLargeScreenNavigationHeightVp())
+    .mode(NavigationMode.Stack)
+    .hideTitleBar(true)
+    .hideNavBar(false)
+    .navDestination(this.buildDestination)
+    .backgroundColor(Color.Transparent)
+  }
+
+  @Builder
+  private buildPhoneNavigation() {
+    Navigation(this.navigationStack) {
+      this.buildItemsSheet()
     }
     .width('100%')
     .height('100%')
@@ -68,7 +79,30 @@ export struct SyncFirstActivationFlowSheet {
     .hideTitleBar(true)
     .hideNavBar(false)
     .navDestination(this.buildDestination)
-    .backgroundColor(this.layoutMode === 'large_screen' ? Color.Transparent : this.storedControlBackgroundColor)
+    .backgroundColor(this.storedControlBackgroundColor)
+  }
+
+  @Builder
+  private buildItemsSheet() {
+    SyncFirstActivationItemsSheet({
+      state: $itemsState,
+      isBusy: this.isBusy,
+      canSubmit: this.hasSelectedItems(),
+      layoutMode: this.layoutMode,
+      submitLabel: '下一步',
+      settingsIconBackgrounds: this.settingsIconBackgrounds,
+      maxHeightVp: this.maxHeightVp,
+      onToggle: (id: SyncFirstActivationItemId, enabled: boolean) => {
+        this.onToggle(id, enabled);
+      },
+      onSubmit: () => {
+        this.openGoalSelection();
+      },
+      onClose: this.onClose,
+      onContentHeight: (heightVp: number): void => {
+        this.publishContentHeight(heightVp, false);
+      }
+    })
   }
 
   @Builder
@@ -82,6 +116,7 @@ export struct SyncFirstActivationFlowSheet {
           showBackButton: true,
           layoutMode: this.layoutMode,
           radioGroup: 'sync-first-activation-goal',
+          maxHeightVp: this.maxHeightVp,
           onBack: () => {
             this.navigationStack.pop();
           },
@@ -94,7 +129,10 @@ export struct SyncFirstActivationFlowSheet {
           onConfigureWebdav: () => {
             this.onConfigureWebdav();
           },
-          onClose: this.onClose
+          onClose: this.onClose,
+          onContentHeight: (heightVp: number): void => {
+            this.publishContentHeight(heightVp, true);
+          }
         })
       }
       .hideTitleBar(true)
@@ -119,5 +157,27 @@ export struct SyncFirstActivationFlowSheet {
 
   private hasSelectedItems(): boolean {
     return this.itemsState.items.some((item: SyncFirstActivationItemState): boolean => item.enabled);
+  }
+
+  private publishContentHeight(heightVp: number, fromDestination: boolean): void {
+    if (this.layoutMode !== 'large_screen' || fromDestination !== this.isShowingDestination()) {
+      return;
+    }
+    if (!Number.isFinite(heightVp) || heightVp <= 0 || Math.abs(heightVp - this.contentHeightVp) < 1) {
+      return;
+    }
+    this.contentHeightVp = heightVp;
+  }
+
+  private isShowingDestination(): boolean {
+    return this.navigationStack.size() > 0;
+  }
+
+  private resolveLargeScreenNavigationHeightVp(): number {
+    const capVp = this.maxHeightVp > 0 ? this.maxHeightVp : 4000;
+    if (this.contentHeightVp <= 0) {
+      return capVp;
+    }
+    return Math.min(this.contentHeightVp, capVp);
   }
 }

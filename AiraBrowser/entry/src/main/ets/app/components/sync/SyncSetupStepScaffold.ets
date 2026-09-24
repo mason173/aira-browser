@@ -5,7 +5,6 @@ import {
   BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY
 } from '../../../core/theme/BrowserThemeStorageKeys';
 import { DEFAULT_THEME_PALETTE } from '../../../features/theme/palettes/DefaultThemePalette';
-import { SettingsScrollBody } from '../settings/SettingsLayout';
 import { APP_STANDARD_HORIZONTAL_PADDING } from '../common/AppLayoutTokens';
 import { BrowserLargeScreenModalHeader } from '../browser/BrowserLargeScreenModalHeader';
 import {
@@ -16,6 +15,11 @@ import {
   BrowserImmersiveSheetLayout,
   BrowserSheetActionButton,
 } from '../browser/BrowserModalBottomSheet';
+import { BROWSER_LARGE_SCREEN_MODAL_HEADER_HEIGHT_VP } from '../../../core/browser/BrowserModalPresentationTokens';
+
+const SYNC_SETUP_LARGE_SCREEN_SUMMARY_BLOCK_VP: number = 92;
+const SYNC_SETUP_LARGE_SCREEN_SUBMIT_BUTTON_VP: number = 44;
+const SYNC_SETUP_LARGE_SCREEN_MIN_SCROLL_VP: number = 120;
 
 export type SyncSetupStepLayoutMode = 'phone' | 'large_screen';
 
@@ -33,6 +37,7 @@ export struct SyncSetupStepScaffold {
   @Prop summary: string = '';
   @Prop showBackButton: boolean = false;
   @Prop layoutMode: SyncSetupStepLayoutMode = 'phone';
+  @Prop maxHeightVp: number = 0;
   @Prop showSubmitButton: boolean = false;
   @Prop submitLabel: string = '';
   @Prop isBusy: boolean = false;
@@ -40,6 +45,7 @@ export struct SyncSetupStepScaffold {
   onBack: () => void = () => {};
   onClose: () => void = () => {};
   onSubmit: () => void = () => {};
+  onContentHeight: (heightVp: number) => void = (_heightVp: number) => {};
   @BuilderParam content: () => void = this.emptyContent;
 
   build() {
@@ -62,25 +68,56 @@ export struct SyncSetupStepScaffold {
       })
       this.buildSummary()
 
-      Column() {
-        SettingsScrollBody({
-          contentSpace: 12,
-          topPadding: 0,
-          bottomPadding: 12,
-          clipContent: true
-        }) {
+      Scroll() {
+        Column({ space: 12 }) {
           this.content()
         }
+        .width('100%')
+        .padding({
+          left: APP_STANDARD_HORIZONTAL_PADDING,
+          right: APP_STANDARD_HORIZONTAL_PADDING,
+          bottom: 12
+        })
+        .alignItems(HorizontalAlign.Start)
       }
-      .layoutWeight(1)
+      .width('100%')
+      .flexShrink(1)
+      .constraintSize({ minHeight: 0, maxHeight: this.resolveLargeScreenScrollMaxHeightVp() })
+      .scrollBar(BarState.Auto)
+      .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
+      .align(Alignment.Top)
 
       if (this.showSubmitButton) {
         this.buildSubmitFooter()
       }
     }
     .width('100%')
-    .height('100%')
+    .constraintSize({ maxHeight: this.resolveLargeScreenColumnMaxHeightVp() })
     .backgroundColor(Color.Transparent)
+    .onAreaChange((_oldArea: Area, area: Area) => {
+      const heightVp = Number(area.height);
+      if (Number.isFinite(heightVp) && heightVp > 0) {
+        this.onContentHeight(heightVp);
+      }
+    })
+  }
+
+  private resolveLargeScreenColumnMaxHeightVp(): number {
+    if (!Number.isFinite(this.maxHeightVp) || this.maxHeightVp <= 0) {
+      return 4000;
+    }
+    return this.maxHeightVp;
+  }
+
+  private resolveLargeScreenScrollMaxHeightVp(): number {
+    if (!Number.isFinite(this.maxHeightVp) || this.maxHeightVp <= 0) {
+      return 4000;
+    }
+    let chromeVp = BROWSER_LARGE_SCREEN_MODAL_HEADER_HEIGHT_VP + SYNC_SETUP_LARGE_SCREEN_SUMMARY_BLOCK_VP;
+    if (this.showSubmitButton) {
+      chromeVp += SYNC_SETUP_LARGE_SCREEN_SUBMIT_BUTTON_VP + BROWSER_SHEET_IMMERSIVE_BOTTOM_PADDING;
+    }
+    return Math.max(SYNC_SETUP_LARGE_SCREEN_MIN_SCROLL_VP, this.maxHeightVp - chromeVp);
   }
 
   @Builder

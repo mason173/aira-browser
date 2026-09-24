@@ -20,6 +20,8 @@ import { BrowserAddressSubmissionCoordinator } from '../navigation/BrowserAddres
 import { BrowserForegroundTabCreationCoordinator } from './BrowserForegroundTabCreationCoordinator';
 import { BrowserAppUrlOpenCoordinator } from './BrowserAppUrlOpenCoordinator';
 import { BrowserDesktopBookmarkBarAction } from './BrowserDesktopBookmarkBarViewModel';
+import { BrowserDesktopBookmarkBarNodeAction } from './BrowserDesktopBookmarkBarViewModel';
+import { BrowserDesktopBookmarkBarActionCoordinator } from './BrowserDesktopBookmarkBarActionCoordinator';
 import {
   BrowserLargeScreenSearchInvocationAdapter,
   BrowserLargeScreenSearchInvocationHost
@@ -180,6 +182,11 @@ export interface BrowserLargeScreenShellIntentDependencies {
   tabHomeCoordinator: BrowserTabHomeCoordinator;
   resolveRootBottomPanelActionApplication: () => BrowserRootBottomPanelFixedActionApplication;
   siteControlsRuntimeCoordinator: BrowserSiteControlsRuntimeCoordinator;
+  bookmarkBarActionCoordinator: BrowserDesktopBookmarkBarActionCoordinator;
+  /** Opens a bookmark in a separate browser window. */
+  openBookmarkWindow: (url: string) => void;
+  /** Opens a bookmark in a private window; false means the window could not be created. */
+  openPrivateWindow: (url: string) => Promise<boolean>;
   homeUrl: string;
   newTabTitle: string;
   openOverflow: () => void;
@@ -221,8 +228,35 @@ export class BrowserLargeScreenShellIntentApplication {
       this.openNativeRoute({ scene: 'bookmarks' });
       return;
     }
+    if (action.kind === 'set_bar_visibility') {
+      this.dependencies.bookmarkBarActionCoordinator.handleSetBarVisibility(action.visibility);
+      return;
+    }
+    if (action.kind === 'add_bookmark_to_bar' || action.kind === 'add_folder_to_bar') {
+      this.dependencies.bookmarkBarActionCoordinator.handleBarRootAddAction(action.kind, action.scope);
+      return;
+    }
+    if (action.kind !== 'open_bookmark') {
+      const nodeAction = action as BrowserDesktopBookmarkBarNodeAction;
+      this.dependencies.bookmarkBarActionCoordinator.handleNodeAction(nodeAction.kind, nodeAction.node);
+      return;
+    }
     const url = (action.node.url ?? '').trim();
     if (url.length <= 0) {
+      return;
+    }
+    if (action.target === 'private_window') {
+      void this.dependencies.openPrivateWindow(url).then((opened: boolean): void => {
+        if (!opened) {
+          this.dependencies.showMessage('隐私窗口打开失败，请重试。');
+          return;
+        }
+        this.dependencies.showMessage('已在新的隐私窗口中打开书签。');
+      });
+      return;
+    }
+    if (action.target === 'new_window') {
+      this.dependencies.openBookmarkWindow(url);
       return;
     }
     if (action.target === 'background') {

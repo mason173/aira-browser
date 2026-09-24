@@ -47,7 +47,8 @@ import {
   SitePermissionKind,
   SitePermissionRule,
   SitePermissionSettings,
-  normalizeBrowserProfileId
+  normalizeBrowserProfileId,
+  normalizeDesktopBookmarkBarVisibility
 } from '../../common/models/BrowserModels';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { DEFAULT_BROWSER_THEME_PALETTE_ID } from '../../features/theme/BrowserThemePalettes';
@@ -214,7 +215,8 @@ export const DEFAULT_BROWSER_APPEARANCE_SETTINGS: BrowserAppearanceSettings = {
   themePaletteId: DEFAULT_BROWSER_THEME_PALETTE_ID,
   tabsOverviewLayoutStyle: 'grid',
   tabsOverviewCloseButtonAlwaysVisible: false,
-  showDesktopBookmarkBar: true
+  showDesktopBookmarkBar: true,
+  desktopBookmarkBarVisibility: 'always'
 };
 
 export const DEFAULT_BROWSER_GENERAL_SETTINGS: BrowserGeneralSettings = {
@@ -784,7 +786,8 @@ export class PreferencesRepository {
       themePaletteId: current.themePaletteId,
       tabsOverviewLayoutStyle: current.tabsOverviewLayoutStyle,
       tabsOverviewCloseButtonAlwaysVisible: current.tabsOverviewCloseButtonAlwaysVisible,
-      showDesktopBookmarkBar: current.showDesktopBookmarkBar
+      showDesktopBookmarkBar: current.showDesktopBookmarkBar,
+      desktopBookmarkBarVisibility: current.desktopBookmarkBarVisibility
     });
   }
 
@@ -808,7 +811,8 @@ export class PreferencesRepository {
       themePaletteId: current.themePaletteId,
       tabsOverviewLayoutStyle: this.normalizeTabsOverviewLayoutStyle(style),
       tabsOverviewCloseButtonAlwaysVisible: closeButtonAlwaysVisible,
-      showDesktopBookmarkBar: current.showDesktopBookmarkBar
+      showDesktopBookmarkBar: current.showDesktopBookmarkBar,
+      desktopBookmarkBarVisibility: current.desktopBookmarkBarVisibility
     });
   }
 
@@ -1031,7 +1035,11 @@ export class PreferencesRepository {
         : DEFAULT_BROWSER_APPEARANCE_SETTINGS.tabsOverviewCloseButtonAlwaysVisible,
       showDesktopBookmarkBar: typeof settings?.showDesktopBookmarkBar === 'boolean'
         ? settings.showDesktopBookmarkBar
-        : DEFAULT_BROWSER_APPEARANCE_SETTINGS.showDesktopBookmarkBar
+        : DEFAULT_BROWSER_APPEARANCE_SETTINGS.showDesktopBookmarkBar,
+      desktopBookmarkBarVisibility: normalizeDesktopBookmarkBarVisibility(
+        settings?.desktopBookmarkBarVisibility,
+        DEFAULT_BROWSER_APPEARANCE_SETTINGS.desktopBookmarkBarVisibility
+      )
     };
   }
 

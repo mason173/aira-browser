@@ -65,6 +65,7 @@ import { AiraCloudBookmarkV4RecoveryPointStore } from
   '../../data/sync/AiraCloudBookmarkV4RecoveryPointStore';
 import { HuaweiSpaceBookmarkUpgradeStore } from '../../data/sync/HuaweiSpaceBookmarkUpgradeStore';
 import { ActivityTracker } from '../../services/activity/ActivityTracker';
+import { NativeHttpProxyResolutionService } from '../../services/network/NativeHttpProxyResolutionService';
 import { SearchEngineAvailabilityProbeService } from '../../services/search/SearchEngineAvailabilityProbeService';
 import { SearchEngineRoutingService } from '../../services/search/SearchEngineRoutingService';
 import { SearchQueryHistoryService } from '../../services/search/SearchQueryHistoryService';
@@ -73,6 +74,7 @@ import {
   WebNetworkAvailabilitySnapshot
 } from '../../services/web/WebNetworkAvailabilityService';
 import { TranslationProviderSecretService } from '../../services/translation/TranslationProviderSecretService';
+import { UserScriptSourceFetchService } from '../../services/userscripts/UserScriptSourceFetchService';
 import { UserScriptInstallSessionCoordinator } from '../../core/userscripts/UserScriptInstallSessionCoordinator';
 import { UserScriptManagementSessionCoordinator } from '../../core/userscripts/UserScriptManagementSessionCoordinator';
 import { UserScriptPackageLifecycleCoordinator } from '../../core/userscripts/UserScriptPackageLifecycleCoordinator';
@@ -111,12 +113,14 @@ import { AdBlockRuleSourceCoordinator } from '../../core/adblock/AdBlockRuleSour
 import { AdBlockRuntimeGenerationCoordinator } from '../../core/adblock/AdBlockRuntimeGenerationCoordinator';
 import { BrowserExperimentMigrationCoordinator } from '../../core/settings/BrowserExperimentMigrationCoordinator';
 import { buildBrowserDataBoundary, SearchEngineRecord } from '../../common/models/BrowserModels';
+import { resolveDesktopBookmarkBarVisibility } from '../../core/browser/DesktopBookmarkBarVisibility';
 import { resolveAiraHuaweiAccountIdentity } from '../../common/models/AiraSyncModels';
 import {
   BROWSER_APPEARANCE_STORAGE_HOME_SHORTCUT_ICON_SIZE_RATIO_KEY,
   BROWSER_APPEARANCE_STORAGE_SITE_ICON_CORNER_RATIO_KEY,
   BROWSER_APPEARANCE_STORAGE_TABS_OVERVIEW_CLOSE_BUTTON_ALWAYS_VISIBLE_KEY,
   BROWSER_APPEARANCE_STORAGE_DESKTOP_BOOKMARK_BAR_VISIBLE_KEY,
+  BROWSER_APPEARANCE_STORAGE_DESKTOP_BOOKMARK_BAR_VISIBILITY_KEY,
   BROWSER_APPEARANCE_STORAGE_TABS_OVERVIEW_LAYOUT_STYLE_KEY,
   BROWSER_THEME_STORAGE_ACCENT_KEY,
   BROWSER_THEME_STORAGE_APP_PROXY_ACTIVE_BACKGROUND_KEY,
@@ -454,15 +458,22 @@ sharedCrossDeviceTabPresenceCoordinator.configureMembershipFacts(
   (): AiraMembershipState => sharedMembershipFeature.getState(),
   (): AiraLapsedProView => sharedMembershipFeature.getLapsedProState()
 );
+const sharedUserScriptSourceFetchService: UserScriptSourceFetchService = new UserScriptSourceFetchService(
+  new NativeHttpProxyResolutionService(sharedPreferencesRepository)
+);
 const sharedUserScriptPackageLifecycleCoordinator: UserScriptPackageLifecycleCoordinator =
   new UserScriptPackageLifecycleCoordinator(
     sharedUserScriptRepository,
     sharedUserScriptValueStateStore,
     sharedUserScriptRuntimeStateRepository,
-    sharedMembershipFeature
+    sharedMembershipFeature,
+    sharedUserScriptSourceFetchService
   );
 export const sharedUserScriptInstallSessionCoordinator: UserScriptInstallSessionCoordinator =
-  new UserScriptInstallSessionCoordinator(sharedUserScriptPackageLifecycleCoordinator);
+  new UserScriptInstallSessionCoordinator(
+    sharedUserScriptPackageLifecycleCoordinator,
+    sharedUserScriptSourceFetchService
+  );
 export function createUserScriptManagementSessionCoordinator(): UserScriptManagementSessionCoordinator {
   return new UserScriptManagementSessionCoordinator(
     sharedUserScriptRepository,
@@ -1373,6 +1384,10 @@ export function syncBrowserThemeAppStorage(): void {
   AppStorage.setOrCreate(
     BROWSER_APPEARANCE_STORAGE_DESKTOP_BOOKMARK_BAR_VISIBLE_KEY,
     preferences.appearance.showDesktopBookmarkBar !== false
+  );
+  AppStorage.setOrCreate(
+    BROWSER_APPEARANCE_STORAGE_DESKTOP_BOOKMARK_BAR_VISIBILITY_KEY,
+    resolveDesktopBookmarkBarVisibility(preferences.appearance)
   );
 }
 

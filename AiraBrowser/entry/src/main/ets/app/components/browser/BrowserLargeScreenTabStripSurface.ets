@@ -26,7 +26,11 @@ import {
 } from '../../../core/siteicons/SiteIconListPresenter';
 import { AiraIcon } from '../common/AiraIcon';
 import { SiteIconView } from '../common/SiteIconView';
-import { BrowserDesktopContextMenu, BrowserDesktopContextMenuItem } from './BrowserDesktopContextMenu';
+import {
+  BrowserDesktopContextMenu,
+  BrowserDesktopContextMenuItem,
+  buildBrowserDesktopMenuOptions
+} from './BrowserDesktopContextMenu';
 import { BROWSER_DESKTOP_MENU_COMPACT_WIDTH_VP } from '../../../core/browser/BrowserDesktopMenuPresentationTokens';
 import {
   BROWSER_LARGE_SCREEN_TITLE_BAR_ACTION_GAP_VP,
@@ -216,7 +220,7 @@ export struct BrowserLargeScreenTabStripSurface {
     .onHover((hovered: boolean) => {
       this.hoveredTabId = hovered ? tab.id : (this.hoveredTabId === tab.id ? '' : this.hoveredTabId);
     })
-    .bindContextMenu(this.buildTabContextMenu(tab), ResponseType.RightClick)
+    .bindContextMenu(this.buildTabContextMenu(tab), ResponseType.RightClick, buildBrowserDesktopMenuOptions())
   }
 
   @Builder

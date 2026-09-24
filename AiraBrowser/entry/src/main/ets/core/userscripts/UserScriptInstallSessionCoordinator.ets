@@ -3,6 +3,7 @@ import { EntitlementDecision } from '../../common/models/MembershipModels';
 import { EntitlementContext } from '../../services/membership/EntitlementService';
 import { UserScriptLocalFileService } from '../../services/userscripts/UserScriptLocalFileService';
 import {
+  USER_SCRIPT_SOURCE_DOWNLOAD_FAILED_MESSAGE,
   UserScriptSourceFetchResult,
   UserScriptSourceFetchService
 } from '../../services/userscripts/UserScriptSourceFetchService';
@@ -542,7 +543,8 @@ export class UserScriptInstallSessionCoordinator {
       if (!this.isCurrentImportOperation(operationSerial)) {
         return { status: 'cancelled' };
       }
-      const fallback = request.type === 'url' ? '下载脚本失败。' : '读取脚本文件失败。';
+      const fallback = request.type === 'url' ?
+        USER_SCRIPT_SOURCE_DOWNLOAD_FAILED_MESSAGE : '读取脚本文件失败。';
       const message = error instanceof Error && error.message.length > 0 ? error.message : fallback;
       const result = this.failed(message);
       this.updateImportState(false, message);

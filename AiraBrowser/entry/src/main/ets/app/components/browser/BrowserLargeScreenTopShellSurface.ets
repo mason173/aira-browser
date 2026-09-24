@@ -38,7 +38,10 @@ import {
   BrowserUserScriptApplicationSnapshot,
   createBrowserUserScriptApplicationSnapshot
 } from '../../../core/userscripts/BrowserUserScriptApplicationCoordinator';
-import { BROWSER_APPEARANCE_STORAGE_DESKTOP_BOOKMARK_BAR_VISIBLE_KEY } from '../../../core/theme/BrowserThemeStorageKeys';
+import {
+  BROWSER_APPEARANCE_STORAGE_DESKTOP_BOOKMARK_BAR_VISIBILITY_KEY
+} from '../../../core/theme/BrowserThemeStorageKeys';
+import { isDesktopBookmarkBarPainted } from '../../../core/browser/DesktopBookmarkBarVisibility';
 import {
   BROWSER_LARGE_SCREEN_TITLE_BAR_BASE_HEIGHT_VP
 } from '../../../core/browser/BrowserLargeScreenTitleBarTokens';
@@ -108,8 +111,8 @@ export struct BrowserLargeScreenTopShellSurface {
 
   @StorageProp(BROWSER_THEME_STORAGE_PAGE_BACKGROUND_KEY)
   private storedPageBackgroundColor: string = DEFAULT_THEME_PALETTE.light.pageBackground;
-  @StorageProp(BROWSER_APPEARANCE_STORAGE_DESKTOP_BOOKMARK_BAR_VISIBLE_KEY)
-  private storedBookmarkBarVisible: boolean = true;
+  @StorageProp(BROWSER_APPEARANCE_STORAGE_DESKTOP_BOOKMARK_BAR_VISIBILITY_KEY)
+  private storedBookmarkBarVisibility: string = 'always';
   build() {
     Column({ space: 0 }) {
       if (this.presentation !== undefined) {
@@ -164,11 +167,10 @@ export struct BrowserLargeScreenTopShellSurface {
           .height(LARGE_SCREEN_NAVIGATION_TOOLBAR_HEIGHT_VP)
       }
 
-      if (this.presentation !== undefined && this.storedBookmarkBarVisible) {
+      if (this.presentation !== undefined && this.resolveBookmarkBarPainted()) {
         BrowserLargeScreenBookmarkBar({
           privateMode: this.presentation.activeTabChrome.privateMode,
           availableWidthVp: this.viewportWidthVp,
-          barEnabled: true,
           onAction: (action: BrowserDesktopBookmarkBarAction): void => {
             this.onBookmarkBarAction(action);
           }
@@ -198,7 +200,7 @@ export struct BrowserLargeScreenTopShellSurface {
   }
 
   private resolveTotalHeight(): number {
-    const bookmarkBarHeight = this.presentation !== undefined && this.storedBookmarkBarVisible
+    const bookmarkBarHeight = this.presentation !== undefined && this.resolveBookmarkBarPainted()
       ? LARGE_SCREEN_BOOKMARK_BAR_HEIGHT_VP
       : 0;
     return this.resolveTitleBarHeightVp() + LARGE_SCREEN_NAVIGATION_TOOLBAR_HEIGHT_VP + bookmarkBarHeight +
@@ -212,5 +214,14 @@ export struct BrowserLargeScreenTopShellSurface {
 
   private resolveTitleBarHeightVp(): number {
     return this.presentation?.tabStrip.titleBarHeightVp ?? BROWSER_LARGE_SCREEN_TITLE_BAR_BASE_HEIGHT_VP;
+  }
+
+  /**
+   * The bookmark bar is device-local chrome. "New tab page only" keeps it on the home surface
+   * and collapses it while a web or native page owns the stage.
+   */
+  private resolveBookmarkBarPainted(): boolean {
+    const newTabPageActive = this.presentation?.activeTabChrome.scene === 'home';
+    return isDesktopBookmarkBarPainted(this.storedBookmarkBarVisibility, newTabPageActive);
   }
 }

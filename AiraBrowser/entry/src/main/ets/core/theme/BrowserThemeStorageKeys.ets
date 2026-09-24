@@ -24,3 +24,5 @@ export const BROWSER_APPEARANCE_STORAGE_TABS_OVERVIEW_CLOSE_BUTTON_ALWAYS_VISIBL
   'browserAppearanceTabsOverviewCloseButtonAlwaysVisible';
 export const BROWSER_APPEARANCE_STORAGE_DESKTOP_BOOKMARK_BAR_VISIBLE_KEY: string =
   'browserAppearanceDesktopBookmarkBarVisible';
+export const BROWSER_APPEARANCE_STORAGE_DESKTOP_BOOKMARK_BAR_VISIBILITY_KEY: string =
+  'browserAppearanceDesktopBookmarkBarVisibility';

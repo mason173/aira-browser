@@ -1,13 +1,11 @@
 import { AiraRenderableIconId } from '../../../core/resources/GeneratedAiraIconCatalog';
-import {
-  BROWSER_DESKTOP_MENU_CORNER_RADIUS_VP
-} from '../../../core/browser/BrowserDesktopMenuPresentationTokens';
 import { AiraIcon } from '../common/AiraIcon';
 import { HdsImmersiveMaterialSurface } from '../common/HdsImmersiveMaterialSurface';
 import { isHdsMaterialAvailable } from '../common/HdsImmersiveMaterialTokens';
 import {
   BrowserDesktopContextMenu,
-  BrowserDesktopContextMenuItem
+  BrowserDesktopContextMenuItem,
+  buildBrowserDesktopMenuOptions
 } from '../browser/BrowserDesktopContextMenu';
 
 export interface SettingsDesktopWorkspaceHeaderAction {
@@ -144,12 +142,11 @@ export struct SettingsDesktopWorkspaceHeader {
         .stateEffect(true)
         .focusable(true)
         .accessibilityText('更多操作')
-        .bindMenu(this.buildActionMenu(), {
+        .bindMenu(this.buildActionMenu(), buildBrowserDesktopMenuOptions({
           placement: Placement.BottomRight,
           enableArrow: false,
-          showInSubWindow: false,
-          borderRadius: BROWSER_DESKTOP_MENU_CORNER_RADIUS_VP
-        })
+          showInSubWindow: false
+        }))
       }
     }
     .width('100%')

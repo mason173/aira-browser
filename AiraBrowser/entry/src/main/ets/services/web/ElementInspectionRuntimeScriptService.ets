@@ -45,6 +45,7 @@ export interface ElementInspectionOutlineNode {
   textPreview: string;
   childCount: number;
   selected: boolean;
+  hidden?: boolean;
 }
 
 export interface ElementInspectionBoxModel {
@@ -144,6 +145,26 @@ export interface ElementInspectionSourceReadResult {
   text: string;
 }
 
+export interface ElementInspectionContextActionResult {
+  ok: boolean;
+  reason: string;
+  protocolVersion: number;
+  sessionGeneration: number;
+  documentToken: string;
+  text: string;
+  snapshot: ElementInspectionRuntimeSnapshot;
+}
+
+interface ElementInspectionContextActionWire {
+  ok?: boolean;
+  reason?: string;
+  protocolVersion?: number;
+  sessionGeneration?: number;
+  documentToken?: string;
+  text?: string;
+  snapshot?: ElementInspectionRuntimeSnapshot;
+}
+
 export interface ElementInspectionHtmlChunkResult {
   ok: boolean;
   reason: string;
@@ -158,6 +179,24 @@ export interface ElementInspectionHtmlChunkResult {
 
 const ELEMENT_INSPECTION_PROTOCOL_VERSION: number = 4;
 const ELEMENT_INSPECTION_OUTLINE_PATH_PATTERN: RegExp = /^(?:[0-9]+(?:\/[0-9]+)*)?$/;
+const ELEMENT_INSPECTION_OUTLINE_COMMAND_KINDS: string[] = [
+  'copy_selector',
+  'copy_js_path',
+  'copy_xpath',
+  'copy_html',
+  'read_html',
+  'duplicate',
+  'delete',
+  'cut',
+  'paste',
+  'hide',
+  'scroll_into_view',
+  'focus',
+  'store_global',
+  'set_attribute',
+  'replace_html',
+  'paste_html'
+];
 const ELEMENT_INSPECTION_HTML_TRANSFER_CHUNK_SIZE: number = 16384;
 
 export class ElementInspectionRuntimeScriptService {
@@ -487,27 +526,183 @@ export class ElementInspectionRuntimeScriptService {
   var highlightPadding = createHighlightLayer('rgba(147,196,125,0.55)');
   var highlightContent = createHighlightLayer(highlightFillColor);
   highlightContent.style.setProperty('outline', '1px solid ' + highlightColor, 'important');
-  var highlightLabel = document.createElement('div');
-  highlightLabel.setAttribute(uiAttribute, 'true');
-  highlightLabel.style.cssText = [
-    'position:absolute!important',
-    'left:0!important',
-    'top:-18px!important',
-    'height:16px!important',
-    'max-width:280px!important',
-    'padding:0 4px!important',
-    'background:#1a73e8!important',
-    'color:#ffffff!important',
-    'font:11px/16px sans-serif!important',
-    'white-space:nowrap!important',
-    'overflow:hidden!important',
-    'pointer-events:none!important'
-  ].join(';');
   highlight.appendChild(highlightBorder);
   highlight.appendChild(highlightPadding);
   highlight.appendChild(highlightContent);
-  highlight.appendChild(highlightLabel);
   document.documentElement.appendChild(highlight);
+  function tooltipNode(styles) {
+    var node = document.createElement('div');
+    node.setAttribute(uiAttribute, 'true');
+    node.style.cssText = styles;
+    return node;
+  }
+  var tooltip = tooltipNode([
+    'position:fixed!important',
+    'left:8px!important',
+    'top:8px!important',
+    'width:280px!important',
+    'box-sizing:border-box!important',
+    'padding:10px 12px 8px!important',
+    'background:#ffffff!important',
+    'color:#202124!important',
+    'border:1px solid rgba(0,0,0,0.08)!important',
+    'border-radius:8px!important',
+    'box-shadow:0 8px 24px rgba(0,0,0,0.18)!important',
+    'font:12px/16px sans-serif!important',
+    'pointer-events:none!important',
+    'z-index:2147483647!important',
+    'display:none!important',
+    'text-align:left!important'
+  ].join(';'));
+  var tooltipCaret = tooltipNode([
+    'position:absolute!important',
+    'width:12px!important',
+    'height:12px!important',
+    'background:#ffffff!important',
+    'transform:rotate(45deg)!important',
+    'bottom:-6px!important',
+    'left:24px!important',
+    'box-shadow:2px 2px 2px rgba(0,0,0,0.04)!important'
+  ].join(';'));
+  function tooltipRow() {
+    return tooltipNode([
+      'display:flex!important',
+      'align-items:center!important',
+      'justify-content:space-between!important',
+      'gap:12px!important',
+      'min-height:22px!important',
+      'margin:0!important',
+      'padding:0!important'
+    ].join(';'));
+  }
+  function tooltipLabel(text) {
+    var node = tooltipNode('flex:0 0 auto!important;color:#202124!important;font:12px/16px sans-serif!important;');
+    node.textContent = text;
+    return node;
+  }
+  function tooltipValueNode() {
+    return tooltipNode([
+      'min-width:0!important',
+      'color:#202124!important',
+      'font:12px/16px sans-serif!important',
+      'text-align:right!important',
+      'white-space:nowrap!important',
+      'overflow:hidden!important',
+      'text-overflow:ellipsis!important'
+    ].join(';'));
+  }
+  var tooltipHeader = tooltipRow();
+  var tooltipIdentity = tooltipNode('display:flex!important;align-items:center!important;gap:6px!important;min-width:0!important;');
+  var tooltipIcon = tooltipNode([
+    'width:14px!important',
+    'height:14px!important',
+    'box-sizing:border-box!important',
+    'border:1.5px solid #1a73e8!important',
+    'border-radius:2px!important',
+    'flex:0 0 auto!important',
+    'position:relative!important'
+  ].join(';'));
+  tooltipIcon.appendChild(tooltipNode([
+    'position:absolute!important',
+    'left:2px!important',
+    'top:2px!important',
+    'width:6px!important',
+    'height:6px!important',
+    'background:#1a73e8!important'
+  ].join(';')));
+  var tooltipTag = tooltipNode('color:#881280!important;font:700 13px/16px sans-serif!important;');
+  var tooltipSize = tooltipValueNode();
+  tooltipSize.style.setProperty('color', '#5f6368', 'important');
+  tooltipIdentity.appendChild(tooltipIcon);
+  tooltipIdentity.appendChild(tooltipTag);
+  tooltipHeader.appendChild(tooltipIdentity);
+  tooltipHeader.appendChild(tooltipSize);
+  var tooltipColorRow = tooltipRow();
+  var tooltipColorValue = tooltipNode('display:flex!important;align-items:center!important;justify-content:flex-end!important;gap:6px!important;min-width:0!important;');
+  var tooltipSwatch = tooltipNode([
+    'width:14px!important',
+    'height:14px!important',
+    'border-radius:3px!important',
+    'border:1px solid rgba(0,0,0,0.16)!important',
+    'background:#000000!important',
+    'flex:0 0 auto!important'
+  ].join(';'));
+  var tooltipColorText = tooltipValueNode();
+  tooltipColorValue.appendChild(tooltipSwatch);
+  tooltipColorValue.appendChild(tooltipColorText);
+  tooltipColorRow.appendChild(tooltipLabel('颜色'));
+  tooltipColorRow.appendChild(tooltipColorValue);
+  var tooltipFontRow = tooltipRow();
+  var tooltipFont = tooltipValueNode();
+  tooltipFontRow.appendChild(tooltipLabel('字体'));
+  tooltipFontRow.appendChild(tooltipFont);
+  var tooltipPaddingRow = tooltipRow();
+  var tooltipPadding = tooltipValueNode();
+  tooltipPaddingRow.appendChild(tooltipLabel('内边距'));
+  tooltipPaddingRow.appendChild(tooltipPadding);
+  var tooltipA11y = tooltipNode('display:flex!important;align-items:center!important;gap:8px!important;margin:8px 0 2px!important;');
+  var tooltipA11yText = tooltipNode('flex:0 0 auto!important;color:#80868b!important;font:11px/16px sans-serif!important;letter-spacing:0.4px!important;');
+  tooltipA11yText.textContent = '无障碍';
+  tooltipA11y.appendChild(tooltipA11yText);
+  tooltipA11y.appendChild(tooltipNode('flex:1 1 auto!important;height:1px!important;background:#e0e0e0!important;'));
+  var tooltipNameRow = tooltipRow();
+  var tooltipName = tooltipValueNode();
+  tooltipNameRow.appendChild(tooltipLabel('名称'));
+  tooltipNameRow.appendChild(tooltipName);
+  var tooltipRoleRow = tooltipRow();
+  var tooltipRole = tooltipValueNode();
+  tooltipRoleRow.appendChild(tooltipLabel('角色'));
+  tooltipRoleRow.appendChild(tooltipRole);
+  var tooltipFocusRow = tooltipRow();
+  var tooltipFocusValue = tooltipNode('display:flex!important;justify-content:flex-end!important;');
+  function createFocusIcon(focusable) {
+    var icon = tooltipNode([
+      'width:14px!important',
+      'height:14px!important',
+      'border-radius:50%!important',
+      'box-sizing:border-box!important',
+      'border:1.5px solid ' + (focusable ? '#1a73e8' : '#9aa0a6') + '!important',
+      'position:relative!important'
+    ].join(';'));
+    if (focusable) {
+      icon.appendChild(tooltipNode([
+        'position:absolute!important',
+        'left:3px!important',
+        'top:3px!important',
+        'width:6px!important',
+        'height:6px!important',
+        'border-radius:50%!important',
+        'background:#1a73e8!important'
+      ].join(';')));
+    } else {
+      icon.appendChild(tooltipNode([
+        'position:absolute!important',
+        'left:6px!important',
+        'top:-1px!important',
+        'width:1.5px!important',
+        'height:16px!important',
+        'background:#9aa0a6!important',
+        'transform:rotate(45deg)!important'
+      ].join(';')));
+    }
+    return icon;
+  }
+  var tooltipFocusYes = createFocusIcon(true);
+  var tooltipFocusNo = createFocusIcon(false);
+  tooltipFocusValue.appendChild(tooltipFocusYes);
+  tooltipFocusValue.appendChild(tooltipFocusNo);
+  tooltipFocusRow.appendChild(tooltipLabel('可键盘聚焦'));
+  tooltipFocusRow.appendChild(tooltipFocusValue);
+  tooltip.appendChild(tooltipCaret);
+  tooltip.appendChild(tooltipHeader);
+  tooltip.appendChild(tooltipColorRow);
+  tooltip.appendChild(tooltipFontRow);
+  tooltip.appendChild(tooltipPaddingRow);
+  tooltip.appendChild(tooltipA11y);
+  tooltip.appendChild(tooltipNameRow);
+  tooltip.appendChild(tooltipRoleRow);
+  tooltip.appendChild(tooltipFocusRow);
+  document.documentElement.appendChild(tooltip);
   var runtime = {
     active: true,
     protocolVersion: protocolVersion,
@@ -528,7 +723,8 @@ export class ElementInspectionRuntimeScriptService {
     previewNode: null,
     pickerArmed: true,
     lastHoverSelectAt: 0,
-    savedCursor: ''
+    savedCursor: '',
+    globalSeq: 0
   };
   function formatConsoleValue(value) {
     if (value === null) {
@@ -939,13 +1135,251 @@ export class ElementInspectionRuntimeScriptService {
     layer.style.setProperty('width', Math.max(0, width) + 'px', 'important');
     layer.style.setProperty('height', Math.max(0, height) + 'px', 'important');
   }
+  function formatMeasure(value) {
+    var scaled = Math.round(Number(value) * 100) / 100;
+    if (!isFinite(scaled)) {
+      return '0';
+    }
+    return String(scaled);
+  }
+  function hexChannel(value) {
+    var channel = Math.max(0, Math.min(255, Math.round(Number(value) || 0)));
+    var hex = channel.toString(16).toUpperCase();
+    return hex.length < 2 ? '0' + hex : hex;
+  }
+  function cssColorText(value) {
+    var text = String(value || '');
+    var open = text.indexOf('(');
+    var close = text.indexOf(')');
+    if (open < 0 || close <= open) {
+      return text;
+    }
+    var parts = text.substring(open + 1, close).split(',');
+    if (parts.length < 3) {
+      return text;
+    }
+    var hex = '#' + hexChannel(parts[0]) + hexChannel(parts[1]) + hexChannel(parts[2]);
+    if (parts.length > 3) {
+      var alpha = parseFloat(parts[3]);
+      if (isFinite(alpha) && alpha < 1) {
+        return hex + ' / ' + Math.round(alpha * 100) + '%';
+      }
+    }
+    return hex;
+  }
+  function formatSideShorthand(top, right, bottom, left) {
+    var sides = [top || '0px', right || '0px', bottom || '0px', left || '0px'];
+    if (sides[0] === sides[1] && sides[1] === sides[2] && sides[2] === sides[3]) {
+      return sides[0];
+    }
+    if (sides[0] === sides[2] && sides[1] === sides[3]) {
+      return sides[0] + ' ' + sides[1];
+    }
+    if (sides[1] === sides[3]) {
+      return sides[0] + ' ' + sides[1] + ' ' + sides[2];
+    }
+    return sides[0] + ' ' + sides[1] + ' ' + sides[2] + ' ' + sides[3];
+  }
+  function shortText(value, limit) {
+    var text = collapseSpace(value);
+    if (text.length <= limit) {
+      return text;
+    }
+    return text.substring(0, limit) + '...';
+  }
+  function labelledByText(node) {
+    var labelledBy = node.getAttribute ? node.getAttribute('aria-labelledby') : '';
+    if (!labelledBy) {
+      return '';
+    }
+    var ids = String(labelledBy).split(' ');
+    var text = '';
+    for (var index = 0; index < ids.length && text.length < 80; index++) {
+      if (!ids[index]) {
+        continue;
+      }
+      var target = document.getElementById(ids[index]);
+      if (target && target.textContent) {
+        text += (text ? ' ' : '') + target.textContent;
+      }
+    }
+    return shortText(text, 48);
+  }
+  function accessibleName(node) {
+    if (!node || !node.getAttribute) {
+      return '';
+    }
+    var ariaLabel = node.getAttribute('aria-label');
+    if (ariaLabel) {
+      return shortText(ariaLabel, 48);
+    }
+    var labelled = labelledByText(node);
+    if (labelled) {
+      return labelled;
+    }
+    var tag = String(node.tagName || '').toLowerCase();
+    if ((tag === 'img' || tag === 'input') && node.getAttribute('alt')) {
+      return shortText(node.getAttribute('alt'), 48);
+    }
+    if (node.id) {
+      var labels = document.querySelectorAll('label');
+      for (var index = 0; index < labels.length; index++) {
+        if (labels[index].getAttribute && labels[index].getAttribute('for') === node.id) {
+          return shortText(labels[index].textContent || '', 48);
+        }
+      }
+    }
+    if (tag === 'button' || tag === 'a' || tag === 'summary' || tag === 'label') {
+      return shortText(node.textContent || '', 48);
+    }
+    var title = node.getAttribute('title');
+    return title ? shortText(title, 48) : '';
+  }
+  function accessibleRole(node) {
+    var explicitRole = node.getAttribute ? node.getAttribute('role') : '';
+    if (explicitRole) {
+      return shortText(explicitRole, 32);
+    }
+    var tag = String(node.tagName || '').toLowerCase();
+    if (tag === 'a' && node.getAttribute && node.getAttribute('href')) {
+      return 'link';
+    }
+    if (tag === 'button') {
+      return 'button';
+    }
+    if (tag === 'img') {
+      return 'image';
+    }
+    if (tag === 'textarea' || tag === 'select') {
+      return tag === 'select' ? 'combobox' : 'textbox';
+    }
+    if (tag === 'input') {
+      var inputType = String(node.getAttribute('type') || 'text').toLowerCase();
+      if (inputType === 'checkbox' || inputType === 'radio' || inputType === 'button' ||
+        inputType === 'submit' || inputType === 'reset') {
+        return inputType === 'submit' || inputType === 'reset' ? 'button' : inputType;
+      }
+      return 'textbox';
+    }
+    if (tag === 'nav') {
+      return 'navigation';
+    }
+    if (tag === 'ul' || tag === 'ol') {
+      return 'list';
+    }
+    if (tag === 'li') {
+      return 'listitem';
+    }
+    if (tag === 'h1' || tag === 'h2' || tag === 'h3' || tag === 'h4' || tag === 'h5' || tag === 'h6') {
+      return 'heading';
+    }
+    if (tag === 'header') {
+      return 'banner';
+    }
+    if (tag === 'footer') {
+      return 'contentinfo';
+    }
+    if (tag === 'main') {
+      return 'main';
+    }
+    if (tag === 'p') {
+      return 'paragraph';
+    }
+    return 'generic';
+  }
+  function isKeyboardFocusable(node) {
+    if (!node || node.disabled) {
+      return false;
+    }
+    var tab = node.getAttribute ? node.getAttribute('tabindex') : null;
+    if (tab !== null && String(tab).length > 0) {
+      var tabValue = Number(tab);
+      return isFinite(tabValue) && tabValue >= 0;
+    }
+    var tag = String(node.tagName || '').toLowerCase();
+    if (tag === 'a') {
+      return !!(node.getAttribute && node.getAttribute('href'));
+    }
+    if (tag === 'button' || tag === 'input' || tag === 'select' || tag === 'textarea' || tag === 'summary') {
+      return true;
+    }
+    return node.isContentEditable === true;
+  }
+  function hideTooltip() {
+    tooltip.style.setProperty('display', 'none', 'important');
+  }
+  function placeTooltip(rect) {
+    tooltip.style.setProperty('display', 'block', 'important');
+    var width = tooltip.offsetWidth || 280;
+    var height = tooltip.offsetHeight || 180;
+    var gap = 10;
+    var viewportWidth = window.innerWidth || document.documentElement.clientWidth || width;
+    var viewportHeight = window.innerHeight || document.documentElement.clientHeight || height;
+    var left = rect.left + rect.width / 2 - width / 2;
+    var top = rect.top - height - gap;
+    var below = top < 8;
+    if (below) {
+      top = rect.bottom + gap;
+    }
+    var maxLeft = Math.max(8, viewportWidth - width - 8);
+    var maxTop = Math.max(8, viewportHeight - height - 8);
+    if (left < 8) {
+      left = 8;
+    } else if (left > maxLeft) {
+      left = maxLeft;
+    }
+    if (top < 8) {
+      top = 8;
+    } else if (top > maxTop) {
+      top = maxTop;
+    }
+    tooltip.style.setProperty('left', left + 'px', 'important');
+    tooltip.style.setProperty('top', top + 'px', 'important');
+    var caretLeft = rect.left + rect.width / 2 - left - 6;
+    if (caretLeft < 14) {
+      caretLeft = 14;
+    } else if (caretLeft > width - 26) {
+      caretLeft = width - 26;
+    }
+    tooltipCaret.style.setProperty('left', caretLeft + 'px', 'important');
+    if (below) {
+      tooltipCaret.style.setProperty('top', '-6px', 'important');
+      tooltipCaret.style.setProperty('bottom', 'auto', 'important');
+    } else {
+      tooltipCaret.style.setProperty('top', 'auto', 'important');
+      tooltipCaret.style.setProperty('bottom', '-6px', 'important');
+    }
+  }
+  function fillTooltip(node, style, rect) {
+    var color = style.getPropertyValue('color') || '';
+    var focusable = isKeyboardFocusable(node);
+    tooltipTag.textContent = String(node.tagName || '').toLowerCase();
+    tooltipSize.textContent = formatMeasure(rect.width) + ' × ' + formatMeasure(rect.height);
+    tooltipSwatch.style.setProperty('background', color || 'transparent', 'important');
+    tooltipColorText.textContent = cssColorText(color);
+    tooltipFont.textContent = shortText((style.getPropertyValue('font-size') || '') + ' ' +
+      (style.getPropertyValue('font-family') || ''), 42);
+    tooltipPadding.textContent = formatSideShorthand(
+      style.getPropertyValue('padding-top'),
+      style.getPropertyValue('padding-right'),
+      style.getPropertyValue('padding-bottom'),
+      style.getPropertyValue('padding-left')
+    );
+    tooltipName.textContent = accessibleName(node);
+    tooltipRole.textContent = accessibleRole(node);
+    tooltipFocusYes.style.setProperty('display', focusable ? 'block' : 'none', 'important');
+    tooltipFocusNo.style.setProperty('display', focusable ? 'none' : 'block', 'important');
+    placeTooltip(rect);
+  }
   function updateHighlight() {
-    var node = runtime.previewNode && runtime.previewNode.isConnected ? runtime.previewNode : null;
+    var previewing = !!(runtime.previewNode && runtime.previewNode.isConnected);
+    var node = previewing ? runtime.previewNode : null;
     if (!node && runtime.mode === 'inspected' && runtime.currentNode && runtime.currentNode.isConnected) {
       node = runtime.currentNode;
     }
     if (!node) {
       highlight.style.setProperty('display', 'none', 'important');
+      hideTooltip();
       return;
     }
     var style = window.getComputedStyle(node);
@@ -986,10 +1420,11 @@ export class ElementInspectionRuntimeScriptService {
       rect.width - borderLeft - borderRight - paddingLeft - paddingRight,
       rect.height - borderTop - borderBottom - paddingTop - paddingBottom
     );
-    var tag = String(node.tagName || '').toLowerCase();
-    var idText = node.id ? '#' + String(node.id) : '';
-    highlightLabel.textContent = tag + idText + '  ' + Math.round(rect.width) + ' \u00d7 ' + Math.round(rect.height);
-    highlightLabel.style.setProperty('top', outerTop < 20 ? '0px' : '-18px', 'important');
+    if (previewing) {
+      fillTooltip(node, style, rect);
+    } else {
+      hideTooltip();
+    }
   }
   function buildNodeSnapshot(node) {
     var rect = node.getBoundingClientRect();
@@ -1151,7 +1586,8 @@ export class ElementInspectionRuntimeScriptService {
       classTokens: classTokens,
       textPreview: textPreview,
       childCount: node.children ? node.children.length : 0,
-      selected: selected === true
+      selected: selected === true,
+      hidden: !!(node.classList && node.classList.contains('aira-inspect-hidden'))
     });
   }
   function buildOutline(selected) {
@@ -1569,6 +2005,17 @@ export class ElementInspectionRuntimeScriptService {
     updateHighlight();
     return { ok: true };
   };
+  runtime.previewByPath = function(path) {
+    var node = resolveOutlinePath(path);
+    if (!isOutlineTarget(node)) {
+      runtime.previewNode = null;
+      updateHighlight();
+      return { ok: false };
+    }
+    runtime.previewNode = node;
+    updateHighlight();
+    return { ok: true };
+  };
   function inspectPointerActive() {
     return runtime.active && runtime.pickerArmed === true;
   }
@@ -1672,6 +2119,288 @@ export class ElementInspectionRuntimeScriptService {
     updateHighlight();
     return runtime.snapshot();
   };
+  function isStructuralTag(node) {
+    var tag = String(node && node.tagName || '').toLowerCase();
+    return tag === 'html' || tag === 'head' || tag === 'body';
+  }
+  function isAttributeName(value) {
+    var name = String(value || '');
+    if (name.length === 0 || name.length > 64) {
+      return false;
+    }
+    var first = name.charCodeAt(0);
+    if (!((first >= 65 && first <= 90) || (first >= 97 && first <= 122) || first === 95 || first === 58)) {
+      return false;
+    }
+    for (var index = 1; index < name.length; index++) {
+      var code = name.charCodeAt(index);
+      var allowed = (code >= 65 && code <= 90) || (code >= 97 && code <= 122) ||
+        (code >= 48 && code <= 57) || code === 45 || code === 58 || code === 95;
+      if (!allowed) {
+        return false;
+      }
+    }
+    return true;
+  }
+  function isDomId(value) {
+    var text = String(value || '');
+    if (text.length === 0 || text.length > 64) {
+      return false;
+    }
+    var first = text.charCodeAt(0);
+    if (!((first >= 65 && first <= 90) || (first >= 97 && first <= 122) || first === 95)) {
+      return false;
+    }
+    for (var index = 1; index < text.length; index++) {
+      var code = text.charCodeAt(index);
+      var allowed = (code >= 65 && code <= 90) || (code >= 97 && code <= 122) ||
+        (code >= 48 && code <= 57) || code === 45 || code === 95;
+      if (!allowed) {
+        return false;
+      }
+    }
+    return true;
+  }
+  function buildJsPath(node) {
+    if (!node || node.nodeType !== 1) {
+      return '';
+    }
+    if (node === document.body) {
+      return 'document.body';
+    }
+    if (node === document.head) {
+      return 'document.head';
+    }
+    if (node === document.documentElement) {
+      return 'document.documentElement';
+    }
+    if (node.id && isDomId(node.id)) {
+      return 'document.getElementById(' + JSON.stringify(node.id) + ')';
+    }
+    var selector = buildSelector(node);
+    if (selector.length === 0) {
+      return '';
+    }
+    return 'document.querySelector(' + JSON.stringify(selector) + ')';
+  }
+  function buildXPath(node) {
+    if (!node || node.nodeType !== 1) {
+      return '';
+    }
+    var parts = [];
+    var current = node;
+    var guard = 0;
+    while (current && current.nodeType === 1 && guard < 64) {
+      var tag = String(current.tagName || '').toLowerCase();
+      var index = 1;
+      var sibling = current.previousElementSibling;
+      while (sibling) {
+        if (String(sibling.tagName || '').toLowerCase() === tag) {
+          index += 1;
+        }
+        sibling = sibling.previousElementSibling;
+      }
+      parts.unshift(tag + '[' + index + ']');
+      if (current === document.documentElement) {
+        break;
+      }
+      current = current.parentElement;
+      guard += 1;
+    }
+    return '/' + parts.join('/');
+  }
+  function ensureHideStyle() {
+    if (document.getElementById('aira-element-inspection-hide-style')) {
+      return;
+    }
+    var style = document.createElement('style');
+    style.id = 'aira-element-inspection-hide-style';
+    style.setAttribute(uiAttribute, 'true');
+    style.textContent = '.aira-inspect-hidden{display:none !important}';
+    var parent = document.head || document.documentElement;
+    if (parent) {
+      parent.appendChild(style);
+    }
+  }
+  function contextResult(ok, reason, text) {
+    return {
+      ok: ok === true,
+      reason: reason || '',
+      protocolVersion: runtime.protocolVersion,
+      sessionGeneration: runtime.sessionGeneration,
+      documentToken: runtime.documentToken,
+      text: text || '',
+      snapshot: runtime.snapshot()
+    };
+  }
+  runtime.contextAction = function(kind, path, payload) {
+    var action = String(kind || '');
+    var node = resolveOutlinePath(path);
+    if (!isOutlineTarget(node)) {
+      return contextResult(false, 'node_missing', '');
+    }
+    if (action === 'copy_selector') {
+      var selector = buildSelector(node);
+      return contextResult(selector.length > 0, selector.length > 0 ? '' : 'selector_unavailable', selector);
+    }
+    if (action === 'copy_js_path') {
+      var jsPath = buildJsPath(node);
+      return contextResult(jsPath.length > 0, jsPath.length > 0 ? '' : 'selector_unavailable', jsPath);
+    }
+    if (action === 'copy_xpath') {
+      var xpath = buildXPath(node);
+      return contextResult(xpath.length > 0, xpath.length > 0 ? '' : 'selector_unavailable', xpath);
+    }
+    if (action === 'copy_html' || action === 'read_html') {
+      var html = '';
+      try {
+        html = String(node.outerHTML || '');
+      } catch (error) {
+        html = '';
+      }
+      if (action === 'read_html' && html.length > 12000) {
+        return contextResult(false, 'html_too_large', '');
+      }
+      if (html.length > 20000) {
+        return contextResult(true, 'html_truncated', html.substring(0, 20000));
+      }
+      return contextResult(html.length > 0, html.length > 0 ? '' : 'html_unavailable', html);
+    }
+    if (action === 'duplicate') {
+      if (isStructuralTag(node) || !node.parentElement) {
+        return contextResult(false, 'node_protected', '');
+      }
+      var copy = node.cloneNode(true);
+      node.parentElement.insertBefore(copy, node.nextSibling);
+      if (isOutlineTarget(copy)) {
+        setCurrentNode(copy);
+        updateHighlight();
+      }
+      return contextResult(true, '', '');
+    }
+    if (action === 'delete') {
+      if (isStructuralTag(node) || !node.parentElement) {
+        return contextResult(false, 'node_protected', '');
+      }
+      var parent = node.parentElement;
+      parent.removeChild(node);
+      if (isOutlineTarget(parent)) {
+        setCurrentNode(parent);
+        updateHighlight();
+      }
+      return contextResult(true, '', '');
+    }
+    if (action === 'hide') {
+      if (isStructuralTag(node) || !node.classList) {
+        return contextResult(false, 'node_protected', '');
+      }
+      ensureHideStyle();
+      var hidden = true;
+      if (node.classList.contains('aira-inspect-hidden')) {
+        node.classList.remove('aira-inspect-hidden');
+        hidden = false;
+      } else {
+        node.classList.add('aira-inspect-hidden');
+        hidden = true;
+      }
+      setCurrentNode(node);
+      updateHighlight();
+      return contextResult(true, '', hidden ? 'hidden' : 'shown');
+    }
+    if (action === 'scroll_into_view') {
+      try {
+        node.scrollIntoView({ block: 'center', inline: 'nearest' });
+      } catch (error) {
+        node.scrollIntoView(true);
+      }
+      updateHighlight();
+      return contextResult(true, '', '');
+    }
+    if (action === 'focus') {
+      try {
+        node.focus();
+      } catch (error) {}
+      return contextResult(true, '', '');
+    }
+    if (action === 'store_global') {
+      runtime.globalSeq = (runtime.globalSeq || 0) + 1;
+      var globalName = 'temp' + runtime.globalSeq;
+      try {
+        window[globalName] = node;
+      } catch (error) {
+        return contextResult(false, 'store_failed', '');
+      }
+      pushLog('log', [globalName]);
+      return contextResult(true, '', globalName);
+    }
+    if (action === 'set_attribute') {
+      var parsed = null;
+      try {
+        parsed = JSON.parse(String(payload || ''));
+      } catch (error) {
+        parsed = null;
+      }
+      var attrName = parsed && parsed.name ? String(parsed.name) : '';
+      var attrValue = parsed && parsed.value !== undefined && parsed.value !== null ? String(parsed.value) : '';
+      if (!isAttributeName(attrName) || attrValue.length > 500) {
+        return contextResult(false, 'attribute_invalid', '');
+      }
+      try {
+        if (attrValue.length === 0) {
+          node.removeAttribute(attrName);
+        } else {
+          node.setAttribute(attrName, attrValue);
+        }
+      } catch (error) {
+        return contextResult(false, 'attribute_rejected', '');
+      }
+      setCurrentNode(node);
+      updateHighlight();
+      return contextResult(true, '', '');
+    }
+    if (action === 'replace_html') {
+      if (node === document.documentElement || !node.parentElement) {
+        return contextResult(false, 'node_protected', '');
+      }
+      var nextHtml = String(payload || '');
+      if (nextHtml.length === 0 || nextHtml.length > 12000) {
+        return contextResult(false, 'html_rejected', '');
+      }
+      var holder = document.createElement('div');
+      holder.innerHTML = nextHtml;
+      var replacement = holder.firstElementChild;
+      if (!replacement || holder.children.length !== 1) {
+        return contextResult(false, 'html_rejected', '');
+      }
+      node.parentElement.replaceChild(replacement, node);
+      if (isOutlineTarget(replacement)) {
+        setCurrentNode(replacement);
+        updateHighlight();
+      }
+      return contextResult(true, '', '');
+    }
+    if (action === 'paste_html') {
+      if (node === document.documentElement || !node.parentElement) {
+        return contextResult(false, 'node_protected', '');
+      }
+      var pasted = String(payload || '');
+      if (pasted.length === 0 || pasted.length > 20000) {
+        return contextResult(false, 'html_rejected', '');
+      }
+      try {
+        node.insertAdjacentHTML('afterend', pasted);
+      } catch (error) {
+        return contextResult(false, 'html_rejected', '');
+      }
+      var inserted = node.nextElementSibling;
+      if (isOutlineTarget(inserted)) {
+        setCurrentNode(inserted);
+        updateHighlight();
+      }
+      return contextResult(true, '', '');
+    }
+    return contextResult(false, 'action_unsupported', '');
+  };
   function onViewportChanged() {
     updateHighlight();
   }
@@ -1737,6 +2466,13 @@ export class ElementInspectionRuntimeScriptService {
     }
     if (highlight.parentNode) {
       highlight.parentNode.removeChild(highlight);
+    }
+    if (tooltip.parentNode) {
+      tooltip.parentNode.removeChild(tooltip);
+    }
+    var hideStyle = document.getElementById('aira-element-inspection-hide-style');
+    if (hideStyle && hideStyle.parentNode) {
+      hideStyle.parentNode.removeChild(hideStyle);
     }
     if (window[runtimeKey] === runtime) {
       window[runtimeKey] = undefined;
@@ -1819,6 +2555,39 @@ export class ElementInspectionRuntimeScriptService {
       sessionGeneration,
       documentToken,
       `runtime.selectByPath(${this.encodeScriptString(path)})`
+    );
+  }
+
+  buildPreviewOutlineScript(sessionGeneration: number, documentToken: string, path: string): string {
+    if (!this.isOutlinePath(path)) {
+      return this.buildRuntimeCommandScript(sessionGeneration, documentToken, 'runtime.clearPreview()');
+    }
+    return this.buildRuntimeCommandScript(
+      sessionGeneration,
+      documentToken,
+      `runtime.previewByPath(${this.encodeScriptString(path)})`
+    );
+  }
+
+  isOutlineCommandKind(kind: string): boolean {
+    return ELEMENT_INSPECTION_OUTLINE_COMMAND_KINDS.indexOf(kind) >= 0;
+  }
+
+  buildOutlineCommandScript(
+    sessionGeneration: number,
+    documentToken: string,
+    kind: string,
+    path: string,
+    payload: string
+  ): string {
+    if (kind === 'cut' || kind === 'paste' || !this.isOutlineCommandKind(kind) || !this.isOutlinePath(path)) {
+      return this.buildRuntimeCommandScript(sessionGeneration, documentToken, 'runtime.snapshot()');
+    }
+    const normalizedPayload = payload.length > 20000 ? payload.substring(0, 20000) : payload;
+    return this.buildRuntimeCommandScript(
+      sessionGeneration,
+      documentToken,
+      `runtime.contextAction(${this.encodeScriptString(kind)}, ${this.encodeScriptString(path)}, ${this.encodeScriptString(normalizedPayload)})`
     );
   }
 
@@ -2035,6 +2804,36 @@ export class ElementInspectionRuntimeScriptService {
     }
   }
 
+  parseContextActionResult(rawValue: string): ElementInspectionContextActionResult {
+    const failed: ElementInspectionContextActionResult = {
+      ok: false,
+      reason: 'invalid_context_action',
+      protocolVersion: ELEMENT_INSPECTION_PROTOCOL_VERSION,
+      sessionGeneration: 0,
+      documentToken: '',
+      text: '',
+      snapshot: this.buildUnavailableSnapshot('invalid_context_action')
+    };
+    try {
+      const parsed: ElementInspectionContextActionWire =
+        JSON.parse(this.unwrapJsonString(rawValue)) as ElementInspectionContextActionWire;
+      const snapshot = parsed.snapshot === undefined ?
+        this.buildUnavailableSnapshot('missing_snapshot') :
+        this.parseSnapshot(JSON.stringify(parsed.snapshot));
+      return {
+        ok: parsed.ok === true && parsed.protocolVersion === ELEMENT_INSPECTION_PROTOCOL_VERSION,
+        reason: this.normalizeString(parsed.reason),
+        protocolVersion: this.normalizeCount(parsed.protocolVersion),
+        sessionGeneration: this.normalizeCount(parsed.sessionGeneration),
+        documentToken: this.normalizeString(parsed.documentToken),
+        text: this.normalizeRawString(parsed.text).substring(0, 20000),
+        snapshot: snapshot
+      };
+    } catch (_error) {
+      return failed;
+    }
+  }
+
   unwrapJsonString(rawValue: string): string {
     const trimmed = String(rawValue ?? '').trim();
     if (trimmed.length >= 2 && trimmed.charAt(0) === '"' && trimmed.charAt(trimmed.length - 1) === '"') {
@@ -2104,7 +2903,8 @@ export class ElementInspectionRuntimeScriptService {
         classTokens: classTokens,
         textPreview: this.normalizeString(node.textPreview).substring(0, 32),
         childCount: this.normalizeCount(node.childCount),
-        selected: node.selected === true
+        selected: node.selected === true,
+        hidden: node.hidden === true
       };
       result.push(normalizedNode);
     });

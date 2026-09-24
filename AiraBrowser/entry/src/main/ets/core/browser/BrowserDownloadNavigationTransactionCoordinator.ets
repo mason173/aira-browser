@@ -144,6 +144,25 @@ export class BrowserDownloadNavigationTransactionCoordinator {
     this.activeTransactionIdByTabId[nextTransaction.tabId] = undefined;
   }
 
+  retireUrlSuppression(url: string, now: number = Date.now()): void {
+    this.pruneExpiredTransactions(now);
+    const transactionId = this.transactionIdByNormalizedUrl[this.normalizeUrl(url)];
+    if (transactionId === undefined) {
+      return;
+    }
+    const transaction = this.transactionsById[transactionId];
+    if (transaction === undefined) {
+      return;
+    }
+    const nextTransaction = this.copyTransaction(transaction);
+    nextTransaction.phase = 'promoted_document';
+    nextTransaction.updatedAt = now;
+    nextTransaction.terminalAt = 0;
+    nextTransaction.expiresAt = now + TERMINAL_TRANSACTION_RETENTION_MS;
+    this.storeTransaction(nextTransaction);
+    this.activeTransactionIdByTabId[nextTransaction.tabId] = undefined;
+  }
+
   markCandidateDocumentPromoted(tabId: string, url: string, now: number = Date.now()): void {
     this.pruneExpiredTransactions(now);
     const lookup = this.lookupByTabAndUrl(tabId, url, now);

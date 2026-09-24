@@ -91,7 +91,8 @@ export class SiteIconAppearanceSettingsViewModel {
       themePaletteId: current.themePaletteId,
       tabsOverviewLayoutStyle: current.tabsOverviewLayoutStyle,
       tabsOverviewCloseButtonAlwaysVisible: current.tabsOverviewCloseButtonAlwaysVisible,
-      showDesktopBookmarkBar: current.showDesktopBookmarkBar
+      showDesktopBookmarkBar: current.showDesktopBookmarkBar,
+      desktopBookmarkBarVisibility: current.desktopBookmarkBarVisibility
     };
   }
 

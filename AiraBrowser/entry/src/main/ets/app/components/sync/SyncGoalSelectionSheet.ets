@@ -35,12 +35,14 @@ export struct SyncGoalSelectionSheet {
   @Prop isPrivateSession: boolean = false;
   @Prop showBackButton: boolean = false;
   @Prop layoutMode: SyncSetupStepLayoutMode = 'phone';
+  @Prop maxHeightVp: number = 0;
   @Prop radioGroup: string = 'sync-goal-selection';
   onBack: () => void = () => {};
   onSelect: (remoteKind: AiraSyncProviderKind) => void = (_remoteKind: AiraSyncProviderKind) => {};
   onOpenTutorial: () => void = () => {};
   onConfigureWebdav: () => void = () => {};
   onClose: () => void = () => {};
+  onContentHeight: (heightVp: number) => void = (_heightVp: number) => {};
 
   build() {
     SyncSetupStepScaffold({
@@ -48,11 +50,15 @@ export struct SyncGoalSelectionSheet {
       summary: '选择用于同步所选内容的服务。',
       showBackButton: this.showBackButton,
       layoutMode: this.layoutMode,
+      maxHeightVp: this.maxHeightVp,
       isBusy: this.isBusy,
       onBack: () => {
         this.onBack();
       },
-      onClose: this.onClose
+      onClose: this.onClose,
+      onContentHeight: (heightVp: number): void => {
+        this.onContentHeight(heightVp);
+      }
     }) {
       Column({ space: 12 }) {
         ForEach(this.options, (option: SyncExperienceGoalOption) => {

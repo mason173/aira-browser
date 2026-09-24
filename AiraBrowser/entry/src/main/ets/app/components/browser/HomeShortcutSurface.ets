@@ -40,7 +40,7 @@ import { AiraRenderableIconId } from '../../../core/resources/GeneratedAiraIconC
 import { HOME_PAGE_PRESENTATION_SHOW_SHORTCUT_NAMES_KEY } from
   '../../../common/constants/HomePagePresentationStorageKeys';
 import { HOME_CONTEXT_MENU_RADIUS } from '../../../features/newtab/HomeContextMenuTokens';
-import { BrowserDesktopContextMenu, BrowserDesktopContextMenuItem } from './BrowserDesktopContextMenu';
+import { BrowserDesktopContextMenu, BrowserDesktopContextMenuItem, buildBrowserDesktopMenuOptions } from './BrowserDesktopContextMenu';
 import { SiteIconPixelMapCacheService } from '../../../services/siteicons/SiteIconPixelMapCacheService';
 import { AiraLoadScrollJankProbe } from '../../../common/debug/AiraLoadScrollJankProbe';
 
@@ -158,7 +158,7 @@ export struct HomeShortcutSurface {
                 })
               )
             )
-            .bindContextMenu(this.buildDesktopShortcutContextMenu(shortcut), ResponseType.RightClick, {
+            .bindContextMenu(this.buildDesktopShortcutContextMenu(shortcut), ResponseType.RightClick, buildBrowserDesktopMenuOptions({
               onAppear: () => {
                 this.contextMenuShortcutId = '';
                 this.pressedShortcutId = shortcut.id;
@@ -168,7 +168,7 @@ export struct HomeShortcutSurface {
                   this.pressedShortcutId = '';
                 }
               }
-            })
+            }))
           }, (shortcut: ShortcutRecord) => shortcut.id)
             .onMove((from: number, to: number) => {
               this.commitNativeMove(from, to);

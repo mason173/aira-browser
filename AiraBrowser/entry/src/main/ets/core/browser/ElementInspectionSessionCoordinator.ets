@@ -10,6 +10,7 @@ import {
   ElementInspectionPageInfo,
   ElementInspectionRuntimeAttribute,
   ElementInspectionRuntimeNodeSnapshot,
+  ElementInspectionContextActionResult,
   ElementInspectionRuntimeScriptService,
   ElementInspectionRuntimeSnapshot,
   ElementInspectionSourceEntry,
@@ -35,6 +36,28 @@ export type ElementInspectionAction =
   'copy_selector' |
   'copy_html';
 
+export interface ElementInspectionOutlineCommand {
+  kind: string;
+  path: string;
+  name: string;
+  value: string;
+  requestId: number;
+}
+
+export interface ElementInspectionOutlineDraft {
+  requestId: number;
+  path: string;
+  kind: string;
+  text: string;
+  ready: boolean;
+  reason: string;
+}
+
+interface ElementInspectionAttributePayload {
+  name: string;
+  value: string;
+}
+
 export interface ElementInspectionSessionFacts {
   activeTabId: string;
   showHomePage: boolean;
@@ -59,6 +82,7 @@ export interface ElementInspectionPresentation {
   sourcePreview?: ElementInspectionSourcePreview;
   node?: ElementInspectionRuntimeNodeSnapshot;
   box?: ElementInspectionBoxModel;
+  outlineDraft?: ElementInspectionOutlineDraft;
 }
 
 export interface ElementInspectionSessionShell {
@@ -96,6 +120,19 @@ export class ElementInspectionSessionCoordinator {
   private lastHoverY: number = -1;
   private hoverSelectTimer: number = -1;
   private hoverEpoch: number = 0;
+  private outlinePreviewEpoch: number = 0;
+  private pendingOutlinePath: string = '';
+  private outlinePreviewInFlight: boolean = false;
+  private outlineCommandInFlight: boolean = false;
+  private outlineCommandQueued: boolean = false;
+  private queuedOutlineCommand: ElementInspectionOutlineCommand = {
+    kind: '',
+    path: '',
+    name: '',
+    value: '',
+    requestId: 0
+  };
+  private outlineReadRequestId: number = 0;
   private pollEpoch: number = 0;
   private closeTimer: number = -1;
   private shellPaused: boolean = false;
@@ -165,6 +202,37 @@ export class ElementInspectionSessionCoordinator {
     }
   }
 
+  previewOutline(path: string): void {
+    if (!this.runtimeScriptService.isOutlinePath(path) || !this.canPreviewOutline()) {
+      return;
+    }
+    this.outlinePreviewEpoch += 1;
+    this.pendingOutlinePath = path;
+    this.pendingHoverX = -1;
+    this.pendingHoverY = -1;
+    if (!this.outlinePreviewInFlight) {
+      void this.drainOutlinePreview();
+    }
+  }
+
+  clearOutlinePreview(): void {
+    const epoch = this.outlinePreviewEpoch + 1;
+    this.outlinePreviewEpoch = epoch;
+    this.pendingOutlinePath = '';
+    const generation = this.sessionGeneration;
+    const tabId = this.originTabId;
+    const documentToken = this.documentToken;
+    if (tabId.length === 0 || documentToken.length === 0) {
+      return;
+    }
+    setTimeout((): void => {
+      if (epoch !== this.outlinePreviewEpoch || !this.isCurrentGeneration(generation)) {
+        return;
+      }
+      void this.runClearPreview(generation, tabId, documentToken);
+    }, 50);
+  }
+
   clearHoverPreview(): void {
     this.hoverEpoch += 1;
     this.pendingHoverX = -1;
@@ -211,6 +279,19 @@ export class ElementInspectionSessionCoordinator {
       return;
     }
     void this.runSelectOutline(path);
+  }
+
+  runOutlineCommand(command: ElementInspectionOutlineCommand): void {
+    if (!this.runtimeScriptService.isOutlinePath(command.path) ||
+      !this.runtimeScriptService.isOutlineCommandKind(command.kind) ||
+      !this.canRunOutlineCommand()) {
+      return;
+    }
+    if (this.selectionInFlight || this.outlineCommandInFlight) {
+      this.queueOutlineCommand(command);
+      return;
+    }
+    void this.executeOutlineCommand(command);
   }
 
   selectAtNormalizedPoint(normalizedX: number, normalizedY: number): void {
@@ -592,6 +673,7 @@ export class ElementInspectionSessionCoordinator {
         (this.presentation.phase === 'selecting' || this.presentation.phase === 'inspected')) {
         this.startSelectionPolling();
       }
+      this.flushQueuedOutlineCommand();
     }
   }
 
@@ -1024,8 +1106,12 @@ export class ElementInspectionSessionCoordinator {
   }
 
   private publish(presentation: ElementInspectionPresentation): void {
-    this.presentation = this.clonePresentation(presentation);
-    this.shell.publishPresentation(this.clonePresentation(this.presentation));
+    const next = this.clonePresentation(presentation);
+    if (next.outlineDraft === undefined && next.active && this.presentation.outlineDraft !== undefined) {
+      next.outlineDraft = this.cloneOutlineDraft(this.presentation.outlineDraft);
+    }
+    this.presentation = next;
+    this.shell.publishPresentation(this.clonePresentation(next));
   }
 
   private clonePresentation(presentation: ElementInspectionPresentation): ElementInspectionPresentation {
@@ -1044,6 +1130,9 @@ export class ElementInspectionSessionCoordinator {
       pageInfo: presentation.pageInfo,
       sourcePreview: presentation.sourcePreview
     };
+    if (presentation.outlineDraft !== undefined) {
+      result.outlineDraft = this.cloneOutlineDraft(presentation.outlineDraft);
+    }
     if (presentation.node !== undefined) {
       result.node = this.cloneNode(presentation.node);
     }
@@ -1064,10 +1153,22 @@ export class ElementInspectionSessionCoordinator {
         classTokens: node.classTokens.slice(0),
         textPreview: node.textPreview,
         childCount: node.childCount,
-        selected: node.selected
+        selected: node.selected,
+        hidden: node.hidden === true
       });
     });
     return result;
+  }
+
+  private cloneOutlineDraft(draft: ElementInspectionOutlineDraft): ElementInspectionOutlineDraft {
+    return {
+      requestId: draft.requestId,
+      path: draft.path,
+      kind: draft.kind,
+      text: draft.text,
+      ready: draft.ready,
+      reason: draft.reason
+    };
   }
 
   private cloneComputed(
@@ -1170,6 +1271,41 @@ export class ElementInspectionSessionCoordinator {
         'element_inspection_runtime_not_live'
       );
     } catch (_error) {
+    }
+  }
+
+  private canPreviewOutline(): boolean {
+    return this.presentation.active &&
+      !this.presentation.busy &&
+      (this.presentation.phase === 'selecting' || this.presentation.phase === 'inspected') &&
+      this.originTabId.length > 0 &&
+      this.documentToken.length > 0;
+  }
+
+  private async drainOutlinePreview(): Promise<void> {
+    if (this.outlinePreviewInFlight) {
+      return;
+    }
+    this.outlinePreviewInFlight = true;
+    const generation = this.sessionGeneration;
+    const tabId = this.originTabId;
+    const documentToken = this.documentToken;
+    try {
+      while (this.pendingOutlinePath.length > 0 && this.isCurrentGeneration(generation)) {
+        const path = this.pendingOutlinePath;
+        this.pendingOutlinePath = '';
+        await this.runtimeLifecyclePort.runJavaScriptOnLiveRuntime(
+          tabId,
+          this.runtimeScriptService.buildPreviewOutlineScript(generation, documentToken, path),
+          'element_inspection_runtime_not_live'
+        );
+      }
+    } catch (_error) {
+    } finally {
+      this.outlinePreviewInFlight = false;
+      if (this.pendingOutlinePath.length > 0 && this.isCurrentGeneration(generation)) {
+        void this.drainOutlinePreview();
+      }
     }
   }
 
@@ -1282,6 +1418,424 @@ export class ElementInspectionSessionCoordinator {
       );
     } catch (_error) {
     }
+  }
+
+  private canRunOutlineCommand(): boolean {
+    return this.canRunDebugCommand();
+  }
+
+  private queueOutlineCommand(command: ElementInspectionOutlineCommand): void {
+    this.queuedOutlineCommand = {
+      kind: command.kind,
+      path: command.path,
+      name: command.name,
+      value: command.value,
+      requestId: command.requestId
+    };
+    this.outlineCommandQueued = true;
+  }
+
+  private flushQueuedOutlineCommand(): void {
+    if (!this.outlineCommandQueued || this.outlineCommandInFlight || this.selectionInFlight) {
+      return;
+    }
+    const command = this.queuedOutlineCommand;
+    this.outlineCommandQueued = false;
+    this.queuedOutlineCommand = {
+      kind: '',
+      path: '',
+      name: '',
+      value: '',
+      requestId: 0
+    };
+    this.runOutlineCommand(command);
+  }
+
+  private outlineCommandChangesDom(kind: string): boolean {
+    return kind === 'duplicate' || kind === 'delete' || kind === 'cut' || kind === 'paste' ||
+      kind === 'hide' || kind === 'set_attribute' || kind === 'replace_html';
+  }
+
+  private async executeOutlineCommand(command: ElementInspectionOutlineCommand): Promise<void> {
+    const mutates = this.outlineCommandChangesDom(command.kind);
+    const generation = this.sessionGeneration;
+    const tabId = this.originTabId;
+    const documentToken = this.documentToken;
+    this.outlineCommandInFlight = true;
+    if (mutates) {
+      this.selectionInFlight = true;
+      this.stopSelectionPolling();
+    }
+    try {
+      if (command.kind === 'cut') {
+        await this.cutOutlineNode(command.path, generation, tabId, documentToken);
+      } else if (command.kind === 'paste') {
+        await this.pasteOutlineNode(command.path, generation, tabId, documentToken);
+      } else if (command.kind === 'set_attribute') {
+        await this.setOutlineAttribute(command, generation, tabId, documentToken);
+      } else if (command.kind === 'read_html') {
+        await this.readOutlineHtml(command, generation, tabId, documentToken);
+      } else if (command.kind === 'replace_html') {
+        await this.replaceOutlineHtml(command, generation, tabId, documentToken);
+      } else {
+        await this.runSimpleOutlineCommand(command, generation, tabId, documentToken);
+      }
+    } catch (_error) {
+      if (this.isCurrentGeneration(generation)) {
+        this.shell.showToast('元素操作失败，请稍后重试。');
+      }
+    } finally {
+      this.outlineCommandInFlight = false;
+      if (mutates) {
+        this.selectionInFlight = false;
+        if (!this.shellPaused && this.isCurrentGeneration(generation) &&
+          (this.presentation.phase === 'selecting' || this.presentation.phase === 'inspected')) {
+          this.startSelectionPolling();
+        }
+      }
+      this.flushQueuedOutlineCommand();
+    }
+  }
+
+  private async cutOutlineNode(
+    path: string,
+    generation: number,
+    tabId: string,
+    documentToken: string
+  ): Promise<void> {
+    const described = await this.runPageOutlineCommand('copy_html', path, '', generation, tabId, documentToken);
+    if (described === undefined) {
+      return;
+    }
+    if (!described.ok || described.text.length === 0) {
+      this.shell.showToast(this.outlineCommandFailureMessage(described.reason));
+      return;
+    }
+    const copied = await this.clipboardService.copyText({
+      value: described.text,
+      emptyMessage: '当前元素没有可剪切的 HTML。',
+      successMessage: '已剪切。',
+      failureMessage: '剪切失败，请稍后重试。'
+    });
+    if (!this.isCurrentGeneration(generation)) {
+      return;
+    }
+    if (!copied.ok) {
+      this.shell.showToast(copied.message);
+      return;
+    }
+    const deleted = await this.runPageOutlineCommand('delete', path, '', generation, tabId, documentToken);
+    if (deleted === undefined) {
+      return;
+    }
+    if (!deleted.ok) {
+      this.shell.showToast('HTML 已复制，但无法删除元素。');
+      return;
+    }
+    await this.applyContextSnapshot(deleted, generation, tabId, documentToken);
+    if (this.isCurrentGeneration(generation)) {
+      this.shell.showToast(described.reason === 'html_truncated' ? '已剪切，超长部分已截断。' : '已剪切。');
+    }
+  }
+
+  private async pasteOutlineNode(
+    path: string,
+    generation: number,
+    tabId: string,
+    documentToken: string
+  ): Promise<void> {
+    const clipboard = await this.clipboardService.readText({
+      emptyMessage: '剪贴板是空的。',
+      failureMessage: '读取剪贴板失败，请稍后重试。'
+    });
+    if (!this.isCurrentGeneration(generation)) {
+      return;
+    }
+    if (!clipboard.ok) {
+      this.shell.showToast(clipboard.message);
+      return;
+    }
+    const html = clipboard.value.length > 20000 ? clipboard.value.substring(0, 20000) : clipboard.value;
+    const pasted = await this.runPageOutlineCommand('paste_html', path, html, generation, tabId, documentToken);
+    if (pasted === undefined) {
+      return;
+    }
+    if (!pasted.ok) {
+      this.shell.showToast(this.outlineCommandFailureMessage(pasted.reason));
+      return;
+    }
+    await this.applyContextSnapshot(pasted, generation, tabId, documentToken);
+    if (this.isCurrentGeneration(generation)) {
+      this.shell.showToast('已粘贴。');
+    }
+  }
+
+  private async setOutlineAttribute(
+    command: ElementInspectionOutlineCommand,
+    generation: number,
+    tabId: string,
+    documentToken: string
+  ): Promise<void> {
+    const name = command.name.trim();
+    const value = command.value.length > 500 ? command.value.substring(0, 500) : command.value;
+    if (!this.isOutlineAttributeName(name)) {
+      this.shell.showToast('属性名无效。');
+      return;
+    }
+    const payloadObject: ElementInspectionAttributePayload = { name: name, value: value };
+    const payload = JSON.stringify(payloadObject);
+    const updated = await this.runPageOutlineCommand(
+      'set_attribute', command.path, payload, generation, tabId, documentToken
+    );
+    await this.finishOutlineMutation(updated, generation, tabId, documentToken, '属性已更新。');
+  }
+
+  private async replaceOutlineHtml(
+    command: ElementInspectionOutlineCommand,
+    generation: number,
+    tabId: string,
+    documentToken: string
+  ): Promise<void> {
+    const html = command.value.trim();
+    if (html.length === 0 || html.length > 12000) {
+      this.shell.showToast(html.length === 0 ? 'HTML 不能为空。' : '这段 HTML 太长，暂时不能整段编辑。');
+      return;
+    }
+    const replaced = await this.runPageOutlineCommand(
+      'replace_html', command.path, html, generation, tabId, documentToken
+    );
+    await this.finishOutlineMutation(replaced, generation, tabId, documentToken, 'HTML 已更新。');
+  }
+
+  private async readOutlineHtml(
+    command: ElementInspectionOutlineCommand,
+    generation: number,
+    tabId: string,
+    documentToken: string
+  ): Promise<void> {
+    this.outlineReadRequestId = command.requestId;
+    const result = await this.runPageOutlineCommand('read_html', command.path, '', generation, tabId, documentToken);
+    if (!this.isCurrentGeneration(generation) || command.requestId !== this.outlineReadRequestId) {
+      return;
+    }
+    const draft: ElementInspectionOutlineDraft = {
+      requestId: command.requestId,
+      path: command.path,
+      kind: 'html',
+      text: '',
+      ready: false,
+      reason: 'node_missing'
+    };
+    if (result === undefined) {
+      draft.reason = 'stale';
+    } else if (!result.ok) {
+      draft.reason = result.reason;
+      this.shell.showToast(this.outlineCommandFailureMessage(result.reason));
+    } else {
+      draft.ready = true;
+      draft.text = result.text;
+      draft.reason = result.reason;
+    }
+    const next = this.clonePresentation(this.presentation);
+    next.outlineDraft = draft;
+    this.publish(next);
+  }
+
+  private async runSimpleOutlineCommand(
+    command: ElementInspectionOutlineCommand,
+    generation: number,
+    tabId: string,
+    documentToken: string
+  ): Promise<void> {
+    const result = await this.runPageOutlineCommand(
+      command.kind, command.path, '', generation, tabId, documentToken
+    );
+    if (result === undefined) {
+      return;
+    }
+    if (!result.ok) {
+      this.shell.showToast(this.outlineCommandFailureMessage(result.reason));
+      return;
+    }
+    if (command.kind === 'copy_selector' || command.kind === 'copy_js_path' ||
+      command.kind === 'copy_xpath' || command.kind === 'copy_html') {
+      await this.copyOutlineText(command.kind, result);
+      return;
+    }
+    if (this.outlineCommandChangesDom(command.kind)) {
+      await this.applyContextSnapshot(result, generation, tabId, documentToken);
+    }
+    if (!this.isCurrentGeneration(generation)) {
+      return;
+    }
+    const message = this.outlineCommandSuccessMessage(command.kind, result);
+    if (message.length > 0) {
+      this.shell.showToast(message);
+    }
+  }
+
+  private async finishOutlineMutation(
+    result: ElementInspectionContextActionResult | undefined,
+    generation: number,
+    tabId: string,
+    documentToken: string,
+    successMessage: string
+  ): Promise<void> {
+    if (result === undefined) {
+      return;
+    }
+    if (!result.ok) {
+      this.shell.showToast(this.outlineCommandFailureMessage(result.reason));
+      return;
+    }
+    await this.applyContextSnapshot(result, generation, tabId, documentToken);
+    if (this.isCurrentGeneration(generation)) {
+      this.shell.showToast(successMessage);
+    }
+  }
+
+  private async runPageOutlineCommand(
+    kind: string,
+    path: string,
+    payload: string,
+    generation: number,
+    tabId: string,
+    documentToken: string
+  ): Promise<ElementInspectionContextActionResult | undefined> {
+    const raw: string = await this.runtimeLifecyclePort.runJavaScriptOnLiveRuntime(
+      tabId,
+      this.runtimeScriptService.buildOutlineCommandScript(generation, documentToken, kind, path, payload),
+      'element_inspection_runtime_not_live'
+    );
+    if (!this.isCurrentGeneration(generation) || this.originTabId !== tabId ||
+      this.documentToken !== documentToken) {
+      return undefined;
+    }
+    const result = this.runtimeScriptService.parseContextActionResult(raw);
+    if (result.sessionGeneration !== generation || result.documentToken !== documentToken) {
+      return undefined;
+    }
+    return result;
+  }
+
+  private async applyContextSnapshot(
+    result: ElementInspectionContextActionResult,
+    generation: number,
+    tabId: string,
+    documentToken: string
+  ): Promise<void> {
+    if (!result.snapshot.ok || !this.isCurrentGeneration(generation)) {
+      return;
+    }
+    const hydrated = await this.hydrateRuntimeSnapshotHtml(result.snapshot, tabId, generation, documentToken);
+    if (hydrated === undefined || !this.isCurrentGeneration(generation)) {
+      return;
+    }
+    this.applyRuntimeSnapshot(hydrated, generation);
+  }
+
+  private async copyOutlineText(
+    kind: string,
+    result: ElementInspectionContextActionResult
+  ): Promise<void> {
+    let successMessage = 'HTML 已复制。';
+    if (kind === 'copy_selector') {
+      successMessage = '选择器已复制。';
+    } else if (kind === 'copy_js_path') {
+      successMessage = 'JS 路径已复制。';
+    } else if (kind === 'copy_xpath') {
+      successMessage = 'XPath 已复制。';
+    } else if (result.reason === 'html_truncated') {
+      successMessage = 'HTML 已复制，超长部分已截断。';
+    }
+    const copied = await this.clipboardService.copyText({
+      value: result.text,
+      emptyMessage: '没有可复制的内容。',
+      successMessage: successMessage,
+      failureMessage: '复制失败，请稍后重试。'
+    });
+    this.shell.showToast(copied.message);
+  }
+
+  private outlineCommandSuccessMessage(
+    kind: string,
+    result: ElementInspectionContextActionResult
+  ): string {
+    if (kind === 'copy_selector') {
+      return '';
+    }
+    if (kind === 'copy_js_path' || kind === 'copy_xpath' || kind === 'copy_html') {
+      return '';
+    }
+    if (kind === 'duplicate') {
+      return '元素已复制。';
+    }
+    if (kind === 'delete') {
+      return '元素已删除。';
+    }
+    if (kind === 'hide') {
+      return result.text === 'hidden' ? '元素已隐藏。' : '元素已显示。';
+    }
+    if (kind === 'scroll_into_view') {
+      return '已滚动到元素。';
+    }
+    if (kind === 'focus') {
+      return '已聚焦元素。';
+    }
+    if (kind === 'store_global') {
+      return result.text.length > 0 ? `已存为 ${result.text}，可在控制台使用。` : '已存为全局变量。';
+    }
+    return '';
+  }
+
+  private outlineCommandFailureMessage(reason: string): string {
+    if (reason === 'node_protected') {
+      return '这个元素不能这样修改。';
+    }
+    if (reason === 'html_too_large') {
+      return '这段 HTML 太长，暂时不能整段编辑。';
+    }
+    if (reason === 'html_unavailable') {
+      return '当前元素没有可复制的 HTML。';
+    }
+    if (reason === 'html_rejected') {
+      return 'HTML 无法应用。请保留一个根元素。';
+    }
+    if (reason === 'attribute_invalid') {
+      return '属性名无效。';
+    }
+    if (reason === 'attribute_rejected') {
+      return '无法修改这个属性。';
+    }
+    if (reason === 'selector_unavailable') {
+      return '当前元素没有可复制的路径。';
+    }
+    if (reason === 'store_failed') {
+      return '无法存为全局变量。';
+    }
+    if (reason === 'node_missing') {
+      return '找不到这个元素。';
+    }
+    return '元素操作失败，请稍后重试。';
+  }
+
+  private isOutlineAttributeName(value: string): boolean {
+    if (value.length === 0 || value.length > 64) {
+      return false;
+    }
+    const first = value.charCodeAt(0);
+    if (!((first >= 65 && first <= 90) || (first >= 97 && first <= 122) || first === 95 || first === 58)) {
+      return false;
+    }
+    for (let index = 1; index < value.length; index += 1) {
+      const code = value.charCodeAt(index);
+      const allowed = (code >= 65 && code <= 90) || (code >= 97 && code <= 122) ||
+        (code >= 48 && code <= 57) || code === 45 || code === 95 || code === 58;
+      if (!allowed) {
+        return false;
+      }
+    }
+    return true;
   }
 
   private canRunDebugCommand(): boolean {

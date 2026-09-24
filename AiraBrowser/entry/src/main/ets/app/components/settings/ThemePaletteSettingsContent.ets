@@ -194,7 +194,8 @@ export struct ThemePaletteSettingsContent {
       themePaletteId: paletteId,
       tabsOverviewLayoutStyle: currentSettings.tabsOverviewLayoutStyle,
       tabsOverviewCloseButtonAlwaysVisible: currentSettings.tabsOverviewCloseButtonAlwaysVisible,
-      showDesktopBookmarkBar: currentSettings.showDesktopBookmarkBar
+      showDesktopBookmarkBar: currentSettings.showDesktopBookmarkBar,
+      desktopBookmarkBarVisibility: currentSettings.desktopBookmarkBarVisibility
     };
     this.isSelectingOption = true;
     this.interactionCoordinator.commitAppearanceSettings({

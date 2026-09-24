@@ -43,12 +43,14 @@ import {
   MANAGEMENT_LARGE_SCREEN_ROW_RADIUS,
   ManagementLargeScreenActionGroup,
   ManagementLargeScreenIconButton,
+  ManagementLargeScreenNavSection,
   ManagementLargeScreenShell,
   ManagementLargeScreenTextButton
 } from '../common/ManagementLargeScreenShell';
 import {
   BrowserDesktopContextMenu,
-  BrowserDesktopContextMenuItem
+  BrowserDesktopContextMenuItem,
+  buildBrowserDesktopMenuOptions
 } from '../browser/BrowserDesktopContextMenu';
 import {
   BookmarkManagerCreateFolderDialog,
@@ -101,6 +103,7 @@ export struct BookmarkLargeScreenWorkspace {
     new BookmarkHtmlTransferApplicationService(this.bookmarkManagementFeature);
   @State private snapshot: BookmarkWorkspaceSnapshot = createEmptyBookmarkWorkspaceSnapshot();
   @State private hoveredFolderId: string = '';
+  private suppressNextFolderRowClick: boolean = false;
   @State private hoveredNodeId: string = '';
   @State private newFolderTitle: string = '';
   @State private editingNodeId: string = '';
@@ -296,10 +299,12 @@ export struct BookmarkLargeScreenWorkspace {
 
   @Builder
   private buildFolderTree() {
+    ManagementLargeScreenNavSection({ title: '书签' })
     Column({ space: 3 }) {
       ForEach(this.snapshot.folders, (folder: BookmarkWorkspaceFolderRow) => {
         this.buildFolderRow(folder)
-      }, (folder: BookmarkWorkspaceFolderRow) => `bookmark-folder-${folder.id}`)
+      }, (folder: BookmarkWorkspaceFolderRow) =>
+        `bookmark-folder-${folder.id}:${folder.expanded ? 1 : 0}`)
     }
     .width('100%')
     .alignItems(HorizontalAlign.Start)
@@ -315,16 +320,24 @@ export struct BookmarkLargeScreenWorkspace {
             iconSize: 13,
             iconColor: this.storedSecondaryTextColor
           })
+            .rotate({
+              angle: folder.expanded ? 180 : 90,
+              centerX: '50%',
+              centerY: '50%'
+            })
         }
         .width(24)
         .height(24)
         .type(ButtonType.Circle)
         .buttonStyle(ButtonStyleMode.TEXTUAL)
         .backgroundColor($r('sys.color.ohos_id_color_background_transparent'))
-        .rotate({ angle: folder.expanded ? 180 : 0 })
         .accessibilityText(folder.expanded ? '折叠文件夹' : '展开文件夹')
         .onClick((): void => {
+          this.suppressNextFolderRowClick = true;
           this.snapshot = this.coordinator.toggleFolder(folder.id);
+          setTimeout((): void => {
+            this.suppressNextFolderRowClick = false;
+          }, 0);
         })
       } else {
         Blank().width(24).height(24)
@@ -360,6 +373,10 @@ export struct BookmarkLargeScreenWorkspace {
       this.hoveredFolderId = hovered ? folder.id : '';
     })
     .onClick((): void => {
+      if (this.suppressNextFolderRowClick) {
+        this.suppressNextFolderRowClick = false;
+        return;
+      }
       this.snapshot = this.coordinator.selectFolder(folder.id);
       this.publishRouteNow();
     })
@@ -534,13 +551,13 @@ export struct BookmarkLargeScreenWorkspace {
       }
       void this.moveDraggingSelectionToFolder(this.snapshot.currentFolderId, rowIndex);
     })
-    .bindContextMenu(this.buildRecordContextMenu(node), ResponseType.RightClick, {
+    .bindContextMenu(this.buildRecordContextMenu(node), ResponseType.RightClick, buildBrowserDesktopMenuOptions({
       onAppear: (): void => {
         if (!this.snapshot.selectedNodeIds.includes(node.id)) {
           this.snapshot = this.coordinator.selectNode(node.id, 'replace');
         }
       }
-    })
+    }))
   }
 
   @Builder

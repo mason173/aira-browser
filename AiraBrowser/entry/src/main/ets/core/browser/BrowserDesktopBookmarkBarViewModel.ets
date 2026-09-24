@@ -1,4 +1,4 @@
-import { BookmarkNode, BookmarkStorageScope } from '../../common/models/BrowserModels';
+import { BookmarkNode, BookmarkStorageScope, DesktopBookmarkBarVisibility } from '../../common/models/BrowserModels';
 import {
   BOOKMARK_TOOLBAR_ROOT_ID,
   PRIVATE_BOOKMARK_TOOLBAR_ROOT_ID
@@ -12,11 +12,46 @@ export interface BrowserDesktopBookmarkBarManagerAction {
 export interface BrowserDesktopBookmarkBarOpenAction {
   kind: 'open_bookmark';
   node: BookmarkNode;
-  target: 'current' | 'new' | 'background';
+  target: 'current' | 'new' | 'background' | 'new_window' | 'private_window';
+}
+
+/** Node-scoped bar commands: they carry the right-clicked node and resolve their own target. */
+export type BrowserDesktopBookmarkBarNodeActionKind =
+  'rename_node' |
+  'delete_node' |
+  'add_bookmark' |
+  'add_folder' |
+  'cut_node' |
+  'copy_node' |
+  'paste_node';
+
+export interface BrowserDesktopBookmarkBarNodeAction {
+  kind: BrowserDesktopBookmarkBarNodeActionKind;
+  node: BookmarkNode;
+}
+
+export interface BrowserDesktopBookmarkBarVisibilityAction {
+  kind: 'set_bar_visibility';
+  visibility: DesktopBookmarkBarVisibility;
+}
+
+/**
+ * Bar-wide commands from the empty area of the toolbar. They carry no node, so the scope of the
+ * visible bar decides which toolbar root they write into.
+ */
+export type BrowserDesktopBookmarkBarRootActionKind = 'add_bookmark_to_bar' | 'add_folder_to_bar';
+
+export interface BrowserDesktopBookmarkBarRootAction {
+  kind: BrowserDesktopBookmarkBarRootActionKind;
+  scope: BookmarkStorageScope;
 }
 
 export type BrowserDesktopBookmarkBarAction =
-  BrowserDesktopBookmarkBarManagerAction | BrowserDesktopBookmarkBarOpenAction;
+  BrowserDesktopBookmarkBarManagerAction |
+  BrowserDesktopBookmarkBarOpenAction |
+  BrowserDesktopBookmarkBarNodeAction |
+  BrowserDesktopBookmarkBarVisibilityAction |
+  BrowserDesktopBookmarkBarRootAction;
 
 export interface BrowserDesktopBookmarkBarSnapshot {
   scope: BookmarkStorageScope;

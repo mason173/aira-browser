@@ -5169,7 +5169,7 @@ check_file_contains_rule "${LARGE_SCREEN_NAV_TOOLBAR}" "${LARGE_SCREEN_NAV_TOOLB
   "must gate the Huawei account popover on Official so Community cannot render an unusable login entry."
 SYNC_SELECTION_DIALOG_REL="AiraBrowser/entry/src/main/ets/app/components/sync/SyncExperienceSelectionDialog.ets"
 check_file_contains_rule "${REPO_ROOT}/${SYNC_SELECTION_DIALOG_REL}" "${SYNC_SELECTION_DIALOG_REL}" \
-  "CENTERED_DIALOG_SYSTEM_TALL_DEFINITE_SURFACE_MODIFIER" \
+  "CENTERED_DIALOG_SYSTEM_HUG_DEFINITE_SURFACE_MODIFIER" \
   "the sync selection dialog wraps a Navigation, so it must take the definite centered width instead of collapsing."
 check_file_contains_rule "${LARGE_SCREEN_NAV_TOOLBAR}" "${LARGE_SCREEN_NAV_TOOLBAR_REL}" \
   "BrowserLargeScreenAccountPopover\(\{" \

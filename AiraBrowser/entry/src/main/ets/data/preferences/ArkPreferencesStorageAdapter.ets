@@ -43,7 +43,8 @@ import {
   SitePermissionDefaultSettings,
   SitePermissionRule,
   SitePermissionSettings,
-  normalizeBrowserProfileId
+  normalizeBrowserProfileId,
+  normalizeDesktopBookmarkBarVisibility
 } from '../../common/models/BrowserModels';
 import { AppRuntimeContext } from '../../app/runtime/AppRuntimeContext';
 import {
@@ -446,7 +447,11 @@ export class ArkPreferencesStorageAdapter implements PreferencesStorageAdapter {
           : defaultValue.tabsOverviewCloseButtonAlwaysVisible,
         showDesktopBookmarkBar: typeof parsed.showDesktopBookmarkBar === 'boolean'
           ? parsed.showDesktopBookmarkBar
-          : defaultValue.showDesktopBookmarkBar
+          : defaultValue.showDesktopBookmarkBar,
+        desktopBookmarkBarVisibility: normalizeDesktopBookmarkBarVisibility(
+          parsed.desktopBookmarkBarVisibility,
+          defaultValue.desktopBookmarkBarVisibility
+        )
       };
     } catch (_error) {
       return defaultValue;

@@ -2,6 +2,7 @@ import { common } from '@kit.AbilityKit';
 import { webview } from '@kit.ArkWeb';
 import { AiraNavForensicsProbe } from '../../common/debug/AiraNavForensicsProbe';
 import { FrameCallback, KeyboardAvoidMode, window } from '@kit.ArkUI';
+import { KeyCode } from '@kit.InputKit';
 import { accessibility } from '@kit.AccessibilityKit';
 import {
   BrowserAddressBarTabSwipeCoordinator,
@@ -98,7 +99,7 @@ import {
   BrowserTabBackgroundSessionSyncCoordinator,
   BrowserTabBackgroundSessionSyncCoordinatorHost
 } from '../../services/web/BrowserTabBackgroundSessionSyncCoordinator';
-import { BrowserClipboardCopyResult, BrowserClipboardService } from '../../services/share/BrowserClipboardService';
+import { BrowserClipboardCopyResult, BrowserClipboardCopyTextRequest, BrowserClipboardService } from '../../services/share/BrowserClipboardService';
 import { BrowserDesktopBookmarkBarAction } from '../../core/browser/BrowserDesktopBookmarkBarViewModel';
 import { WebPageShareService } from '../../services/share/WebPageShareService';
 import { BrowserUserAgentClientHintsService } from '../../services/web/BrowserUserAgentClientHintsService';
@@ -423,6 +424,7 @@ import {
   BrowserMainBackHost
 } from '../../core/browser/BrowserMainBackCoordinator';
 import {
+  ElementInspectionOutlineCommand,
   ElementInspectionPresentation,
   ElementInspectionSessionCoordinator,
   ElementInspectionSessionFacts,
@@ -828,6 +830,18 @@ import {
 import { ExternalAppSearchDisclosurePresenter } from '../components/browser/ExternalAppSearchDisclosurePresenter';
 import { BrowserNativeAlertDialogPresenter } from '../components/browser/BrowserNativeAlertDialogPresenter';
 import {
+  BookmarkManagerCreateFolderDialog,
+  BookmarkManagerEditNodeDialog
+} from '../components/bookmarks/BookmarkManagerDialogs';
+import { BrowserNewWindowLaunchService } from '../../services/browser/BrowserNewWindowLaunchService';
+import {
+  BrowserDesktopBookmarkBarActionCoordinator,
+  BrowserDesktopBookmarkBarActionShell,
+  BrowserDesktopBookmarkBarActivePage,
+  BrowserDesktopBookmarkBarBookmarkEditorRequest,
+  BrowserDesktopBookmarkBarFolderNameRequest
+} from '../../core/browser/BrowserDesktopBookmarkBarActionCoordinator';
+import {
   BrowserWebCapabilityAlertDialogPresenter
 } from '../components/browser/BrowserWebCapabilityAlertDialogPresenter';
 import { HomeBackdropLayer } from '../components/browser/HomeBackdropLayer';
@@ -882,6 +896,7 @@ import {
   BrowserFullscreenSessionSink,
   BrowserFullscreenSurfaceFacts
 } from '../../core/browser/BrowserFullscreenSessionCoordinator';
+import { shouldExitFullscreenOnEscape } from '../../core/browser/BrowserFullscreenExitHintPolicy';
 import {
   BROWSER_TOP_FLOATING_PROMPT_HOST_Z_INDEX,
   BrowserTopFloatingPromptHost
@@ -1277,6 +1292,7 @@ struct BrowserShellPage {
     new BrowserSearchSubmissionHistoryCoordinator(sharedSearchQueryHistoryService,
       (): void => this.browserSearchSuggestionCoordinator.invalidate());
   private externalAppSearchDisclosurePresenter: ExternalAppSearchDisclosurePresenter = new ExternalAppSearchDisclosurePresenter();
+  private browserNewWindowLaunchService: BrowserNewWindowLaunchService = new BrowserNewWindowLaunchService();
   private browserNativeAlertDialogPresenter: BrowserNativeAlertDialogPresenter =
     new BrowserNativeAlertDialogPresenter();
   private browserAddressSubmissionShell: BrowserAddressSubmissionShell = {
@@ -5000,6 +5016,82 @@ struct BrowserShellPage {
         this.largeScreenWebZoomRevision += 1;
       }
     );
+  @State private bookmarkBarDialogTitle: string = '';
+  @State private bookmarkBarFolderTitle: string = '';
+  @State private bookmarkBarLinkTitle: string = '';
+  @State private bookmarkBarLinkUrl: string = '';
+  @State private bookmarkBarLinkType: string = 'bookmark';
+  @State private bookmarkBarLinkIconPath: string = '';
+  private bookmarkBarFolderRequest?: BrowserDesktopBookmarkBarFolderNameRequest = undefined;
+  private bookmarkBarBookmarkRequest?: BrowserDesktopBookmarkBarBookmarkEditorRequest = undefined;
+  /** One dialog serves "new folder" and "rename folder"; the request carries the headings. */
+  private bookmarkBarFolderNameDialogController: CustomDialogController = new CustomDialogController({
+    alignment: DialogAlignment.Center,
+    builder: BookmarkManagerCreateFolderDialog({
+      folderTitle: $bookmarkBarFolderTitle,
+      dialogTitle: $bookmarkBarDialogTitle,
+      fieldPlaceholder: '文件夹名称',
+      confirm: (title: string): void => this.confirmBookmarkBarFolderName(title)
+    }),
+    customStyle: false,
+    backgroundColor: resolveCenteredDialogSurfaceColor(),
+    backgroundBlurStyle: BlurStyle.NONE,
+    cornerRadius: CENTERED_DIALOG_CORNER_RADIUS_VP,
+    width: resolveCenteredDialogControllerWidth('s'),
+    autoCancel: true
+  });
+  private bookmarkBarBookmarkDialogController: CustomDialogController = new CustomDialogController({
+    alignment: DialogAlignment.Center,
+    builder: BookmarkManagerEditNodeDialog({
+      nodeTitle: $bookmarkBarLinkTitle,
+      nodeUrl: $bookmarkBarLinkUrl,
+      nodeType: $bookmarkBarLinkType,
+      iconPath: $bookmarkBarLinkIconPath,
+      dialogTitleOverride: $bookmarkBarDialogTitle,
+      confirm: (): void => this.confirmBookmarkBarBookmark()
+    }),
+    customStyle: false,
+    backgroundColor: resolveCenteredDialogSurfaceColor(),
+    backgroundBlurStyle: BlurStyle.NONE,
+    cornerRadius: CENTERED_DIALOG_CORNER_RADIUS_VP,
+    width: resolveCenteredDialogControllerWidth('s'),
+    autoCancel: true
+  });
+  private browserDesktopBookmarkBarActionShell: BrowserDesktopBookmarkBarActionShell = {
+    readActivePage: (): BrowserDesktopBookmarkBarActivePage | undefined => {
+      const url = this.resolveCurrentWebPageActionUrl().trim();
+      if (url.length === 0) {
+        return undefined;
+      }
+      return {
+        title: this.currentTitle.trim().length > 0 ? this.currentTitle.trim() : url,
+        url: url
+      };
+    },
+    presentFolderNameDialog: (request: BrowserDesktopBookmarkBarFolderNameRequest): void => {
+      this.presentBookmarkBarFolderNameDialog(request);
+    },
+    presentBookmarkEditor: (request: BrowserDesktopBookmarkBarBookmarkEditorRequest): void => {
+      this.presentBookmarkBarBookmarkDialog(request);
+    },
+    confirmDelete: (request: BrowserConfirmationRequest): void => {
+      this.browserNativeAlertDialogPresenter.confirm(request);
+    },
+    copyText: (request: BrowserClipboardCopyTextRequest): void => {
+      void this.browserClipboardService.copyText(request).then(
+        (result: BrowserClipboardCopyResult): void => this.showNativeToast(result.message),
+        (_error: Error): void => this.showNativeToast('复制失败，请稍后重试。')
+      );
+    },
+    showToast: (message: string): void => {
+      this.showNativeToast(message);
+    }
+  };
+  private browserDesktopBookmarkBarActionCoordinator: BrowserDesktopBookmarkBarActionCoordinator =
+    new BrowserDesktopBookmarkBarActionCoordinator({
+      repository: sharedBookmarkRepository,
+      preferencesRepository: sharedPreferencesRepository
+    }, this.browserDesktopBookmarkBarActionShell);
   private browserLargeScreenShellIntentApplication: BrowserLargeScreenShellIntentApplication =
     new BrowserLargeScreenShellIntentApplication({
       tabSwitchCoordinator: this.browserTabSwitchCoordinator,
@@ -5028,6 +5120,12 @@ struct BrowserShellPage {
       resolveRootBottomPanelActionApplication: (): BrowserRootBottomPanelFixedActionApplication =>
         this.browserRootBottomPanelActionApplication,
       siteControlsRuntimeCoordinator: this.browserSiteControlsRuntimeCoordinator,
+      bookmarkBarActionCoordinator: this.browserDesktopBookmarkBarActionCoordinator,
+      openBookmarkWindow: (url: string): void => {
+        void this.openBookmarkInSeparateWindow(url);
+      },
+      openPrivateWindow: (url: string): Promise<boolean> =>
+        this.browserPrivateTabCoordinator.openPrivateWindow(url),
       homeUrl: HOME_TAB_URL,
       newTabTitle: '新标签页',
       openOverflow: (): void => {
@@ -6684,8 +6782,12 @@ struct BrowserShellPage {
         this.handleSystemSheetDisappear();
       }
     }, resolveSystemSheetDialogTier(this.browserTransientSurfaceSnapshot.systemSheet.type)))
-    .onKeyPreIme((event: KeyEvent): boolean =>
-      this.browserLargeScreenShellIntentApplication.handleWebZoomShortcutKey(event))
+    .onKeyPreIme((event: KeyEvent): boolean => {
+      if (this.browserLargeScreenShellIntentApplication.handleWebZoomShortcutKey(event)) {
+        return true;
+      }
+      return this.consumeFullscreenEscape(event);
+    })
     .onKeyEvent((event: KeyEvent): boolean => {
       return this.tabsOverviewSessionCoordinator.handleShellKeyEvent(this.showTabsSheet, event);
     })
@@ -7771,6 +7873,12 @@ struct BrowserShellPage {
       onSelectOutline: (path: string): void => {
         this.elementInspectionSessionCoordinator.selectOutline(path);
       },
+      onPreviewOutline: (path: string): void => {
+        this.elementInspectionSessionCoordinator.previewOutline(path);
+      },
+      onClearOutlinePreview: (): void => {
+        this.elementInspectionSessionCoordinator.clearOutlinePreview();
+      },
       onPickerArmedChange: (armed: boolean): void => {
         this.elementInspectionSessionCoordinator.setPickerArmed(armed);
       },
@@ -7782,6 +7890,9 @@ struct BrowserShellPage {
       },
       onReadSource: (sourceId: string): void => {
         this.elementInspectionSessionCoordinator.readSource(sourceId);
+      },
+      onOutlineCommand: (command: ElementInspectionOutlineCommand): void => {
+        this.elementInspectionSessionCoordinator.runOutlineCommand(command);
       }
     })
   }
@@ -7886,6 +7997,61 @@ struct BrowserShellPage {
       ],
       this.currentTitle
     );
+  }
+
+  private presentBookmarkBarFolderNameDialog(request: BrowserDesktopBookmarkBarFolderNameRequest): void {
+    this.bookmarkBarFolderRequest = request;
+    this.bookmarkBarDialogTitle = request.dialogTitle;
+    this.bookmarkBarFolderTitle = request.initialTitle;
+    this.bookmarkBarFolderNameDialogController.open();
+  }
+
+  private confirmBookmarkBarFolderName(title: string): void {
+    const request = this.bookmarkBarFolderRequest;
+    this.bookmarkBarFolderRequest = undefined;
+    if (request === undefined) {
+      return;
+    }
+    this.browserDesktopBookmarkBarActionCoordinator.handleFolderNameSubmitted(request, title);
+  }
+
+  private presentBookmarkBarBookmarkDialog(request: BrowserDesktopBookmarkBarBookmarkEditorRequest): void {
+    this.bookmarkBarBookmarkRequest = request;
+    this.bookmarkBarDialogTitle = request.dialogTitle;
+    this.bookmarkBarLinkTitle = request.title;
+    this.bookmarkBarLinkUrl = request.url;
+    this.bookmarkBarLinkType = 'bookmark';
+    this.bookmarkBarLinkIconPath = '';
+    this.bookmarkBarBookmarkDialogController.open();
+  }
+
+  private confirmBookmarkBarBookmark(): void {
+    const request = this.bookmarkBarBookmarkRequest;
+    this.bookmarkBarBookmarkRequest = undefined;
+    if (request === undefined) {
+      return;
+    }
+    this.browserDesktopBookmarkBarActionCoordinator.handleBookmarkSubmitted(
+      request,
+      this.bookmarkBarLinkTitle,
+      this.bookmarkBarLinkUrl
+    );
+  }
+
+  private async openBookmarkInSeparateWindow(url: string): Promise<void> {
+    const targetUrl = url.trim();
+    if (targetUrl.length === 0) {
+      return;
+    }
+    try {
+      await this.browserNewWindowLaunchService.openNewWindow(
+        targetUrl,
+        this.browserWindowContextCoordinator.resolveCurrentTabSessionProfileId()
+      );
+      this.showNativeToast('已在新窗口中打开书签。');
+    } catch (_error) {
+      this.showNativeToast('新窗口打开失败，请重试。');
+    }
   }
 
   private buildCurrentBookmarkActionTarget(): BrowserBookmarkActionTarget {
@@ -10329,8 +10495,21 @@ struct BrowserShellPage {
       webPageVisible: this.isWebPageVisible(),
       homePageVisible: this.showHomePage,
       tabsSheetVisible: this.showTabsSheet,
-      assistantVideoTakeoverActive: this.isAssistantVideoTakeoverActive()
+      assistantVideoTakeoverActive: this.isAssistantVideoTakeoverActive(),
+      platformDeviceType: this.browserWindowPresentationProfileInputService.resolvePlatformDeviceType()
     };
+  }
+
+  private consumeFullscreenEscape(event: KeyEvent): boolean {
+    if (!shouldExitFullscreenOnEscape(
+      this.browserFullscreenSessionPresentation.fullScreenModeEnabled,
+      event.keyCode === KeyCode.KEYCODE_ESCAPE,
+      event.type === KeyType.Down
+    )) {
+      return false;
+    }
+    this.browserKeyboardShortcutCoordinator.consumeFullscreenEscapeFromPreIme();
+    return true;
   }
 
   private applyBrowserFullscreenSessionEffect(effect: BrowserFullscreenSessionEffect): void {

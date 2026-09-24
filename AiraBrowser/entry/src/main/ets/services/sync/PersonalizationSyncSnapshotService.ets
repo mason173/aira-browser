@@ -1339,7 +1339,8 @@ export class PersonalizationSyncSnapshotService {
         tabsOverviewCloseButtonAlwaysVisible:
           incomingAppearance.tabsOverviewCloseButtonAlwaysVisible ?? current.tabsOverviewCloseButtonAlwaysVisible,
         // Desktop chrome is device-local and must never be overwritten by a synced snapshot.
-        showDesktopBookmarkBar: current.showDesktopBookmarkBar
+        showDesktopBookmarkBar: current.showDesktopBookmarkBar,
+        desktopBookmarkBarVisibility: current.desktopBookmarkBarVisibility
       }, 'sync');
     }
     const presentation = this.dependencies.homePagePresentationSettingsRepository.getSettings();

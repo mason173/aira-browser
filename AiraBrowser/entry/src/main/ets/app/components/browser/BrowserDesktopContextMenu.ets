@@ -1,5 +1,7 @@
 import { LengthMetrics } from '@kit.ArkUI';
 import {
+  BROWSER_DESKTOP_MENU_CHECKMARK_GUTTER_VP,
+  BROWSER_DESKTOP_MENU_CHECKMARK_SIZE_FP,
   BROWSER_DESKTOP_MENU_CORNER_RADIUS_VP,
   BROWSER_DESKTOP_MENU_DISABLED_OPACITY,
   BROWSER_DESKTOP_MENU_DIVIDER_HORIZONTAL_MARGIN_VP,
@@ -22,6 +24,47 @@ import {
   BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY
 } from '../../../core/theme/BrowserThemeStorageKeys';
 import { DEFAULT_THEME_PALETTE } from '../../../features/theme/palettes/DefaultThemePalette';
+import { resolveCenteredDialogSurfaceColor } from '../common/CenteredDialogSurface';
+
+/**
+ * Pointer-menu popup surface. The platform default for a context menu is a transparent background
+ * combined with a `COMPONENT_ULTRA_THICK` backdrop blur, which washes the labels out over page
+ * content. Desktop menus use the same opaque floating surface as centered dialogs instead.
+ */
+export function resolveBrowserDesktopMenuSurfaceColor(): ResourceColor {
+  return resolveCenteredDialogSurfaceColor();
+}
+
+/** Options every desktop pointer menu accepts on top of the shared surface. */
+export interface BrowserDesktopMenuOptionsInput {
+  onAppear?: () => void;
+  onDisappear?: () => void;
+  preview?: MenuPreviewMode | CustomBuilder;
+  previewBorderRadius?: Length | BorderRadiuses | LocalizedBorderRadiuses;
+  placement?: Placement;
+  enableArrow?: boolean;
+  showInSubWindow?: boolean;
+}
+
+/**
+ * Builds the options for every bindContextMenu/bindMenu that renders
+ * {@link BrowserDesktopContextMenu}, so the menu surface and its popup material stay one policy.
+ */
+export function buildBrowserDesktopMenuOptions(input?: BrowserDesktopMenuOptionsInput): MenuOptions {
+  const options: MenuOptions = {
+    backgroundColor: resolveBrowserDesktopMenuSurfaceColor(),
+    backgroundBlurStyle: BlurStyle.NONE,
+    borderRadius: BROWSER_DESKTOP_MENU_CORNER_RADIUS_VP,
+    placement: input?.placement,
+    enableArrow: input?.enableArrow,
+    showInSubWindow: input?.showInSubWindow,
+    onAppear: input?.onAppear,
+    onDisappear: input?.onDisappear,
+    preview: input?.preview,
+    previewBorderRadius: input?.previewBorderRadius
+  };
+  return options;
+}
 
 @Component
 export struct BrowserDesktopContextMenu {
@@ -65,6 +108,7 @@ export struct BrowserDesktopContextMenuItem {
   @Prop label: string = '';
   @Prop shortcut: string = '';
   @Prop itemEnabled: boolean = true;
+  @Prop checked: boolean = false;
   onAction: () => void = () => {};
 
   build() {
@@ -86,6 +130,18 @@ export struct BrowserDesktopContextMenuItem {
   @Builder
   private buildContent() {
     Row({ space: BROWSER_DESKTOP_MENU_LABEL_SHORTCUT_GAP_VP }) {
+      Row() {
+        if (this.checked) {
+          SymbolGlyph($r('sys.symbol.checkmark'))
+            .fontSize(BROWSER_DESKTOP_MENU_CHECKMARK_SIZE_FP)
+            .fontWeight(FontWeight.Bold)
+            .fontColor([this.storedPrimaryTextColor])
+        }
+      }
+      .width(BROWSER_DESKTOP_MENU_CHECKMARK_GUTTER_VP)
+      .justifyContent(FlexAlign.Center)
+      .alignItems(VerticalAlign.Center)
+
       Text(this.label)
         .layoutWeight(1)
         .constraintSize({ minWidth: 0 })

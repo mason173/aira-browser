@@ -40,11 +40,13 @@ export struct SyncFirstActivationItemsSheet {
   @Prop canSubmit: boolean = true;
   @Prop layoutMode: SyncSetupStepLayoutMode = 'phone';
   @Prop submitLabel: string = '立即同步';
+  @Prop maxHeightVp: number = 0;
   @Prop settingsIconBackgrounds: BrowserSettingsIconBackgroundTokenSet =
     DEFAULT_BROWSER_SETTINGS_ICON_BACKGROUND_TOKENS;
   onToggle?: (id: SyncFirstActivationItemId, enabled: boolean) => void;
   onSubmit?: () => void;
   onClose: () => void = () => {};
+  onContentHeight: (heightVp: number) => void = (_heightVp: number) => {};
 
   build() {
     SyncSetupStepScaffold({
@@ -55,10 +57,14 @@ export struct SyncFirstActivationItemsSheet {
       submitLabel: this.submitLabel,
       isBusy: this.isBusy,
       canSubmit: this.canSubmit,
+      maxHeightVp: this.maxHeightVp,
       onSubmit: () => {
         this.onSubmit?.();
       },
-      onClose: this.onClose
+      onClose: this.onClose,
+      onContentHeight: (heightVp: number): void => {
+        this.onContentHeight(heightVp);
+      }
     }) {
       SettingsGroupCard({ surfaceColor: this.storedSurfaceBackgroundColor }) {
         ForEach(this.state.items, (item: SyncFirstActivationItemState, index: number) => {

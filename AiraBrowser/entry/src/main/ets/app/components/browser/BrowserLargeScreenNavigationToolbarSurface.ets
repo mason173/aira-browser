@@ -700,11 +700,6 @@ export struct BrowserLargeScreenNavigationToolbarSurface {
       autoCancel: true,
       mask: false,
       targetSpace: BROWSER_DESKTOP_MENU_VERTICAL_INSET_VP,
-      // Padding that keeps the blur inside the popup is shifted back so the card stays put.
-      offset: {
-        x: BROWSER_DESKTOP_MENU_SHADOW_BLEED_VP,
-        y: -BROWSER_DESKTOP_MENU_SHADOW_BLEED_VP
-      },
       width: this.resolveOverflowPopupWidth(),
       radius: 0,
       borderWidth: 0,
@@ -826,7 +821,12 @@ export struct BrowserLargeScreenNavigationToolbarSurface {
       this.buildPointerOverflowMenuColumn()
     }
     .width(this.resolveOverflowPopupWidth())
-    .padding(BROWSER_DESKTOP_MENU_SHADOW_BLEED_VP)
+    // Bleed only on the sides away from the anchor. Top or right padding, or a
+    // negative offset, makes the system slide this tall popup up to the window edge.
+    .padding({
+      left: BROWSER_DESKTOP_MENU_SHADOW_BLEED_VP,
+      bottom: BROWSER_DESKTOP_MENU_SHADOW_BLEED_VP
+    })
     .alignItems(VerticalAlign.Top)
     .justifyContent(FlexAlign.End)
   }
@@ -1229,7 +1229,7 @@ export struct BrowserLargeScreenNavigationToolbarSurface {
   private resolveOverflowPopupWidth(): number {
     const flyoutSpan = this.overflowFlyoutColumnCount *
       (BROWSER_LARGE_SCREEN_OVERFLOW_FLYOUT_WIDTH_VP + BROWSER_LARGE_SCREEN_OVERFLOW_FLYOUT_GAP_VP);
-    return LARGE_SCREEN_OVERFLOW_MENU_WIDTH_VP + flyoutSpan + BROWSER_DESKTOP_MENU_SHADOW_BLEED_VP * 2;
+    return LARGE_SCREEN_OVERFLOW_MENU_WIDTH_VP + flyoutSpan + BROWSER_DESKTOP_MENU_SHADOW_BLEED_VP;
   }
 
   private handlePointerOverflowHover(actionId: string, hovered: boolean): void {

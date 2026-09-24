@@ -168,6 +168,15 @@ export class BrowserDownloadNavigationStateCoordinator {
     };
   }
 
+  allowExplicitPageRestore(url: string): void {
+    const normalizedUrl = this.normalizeUrl(url);
+    if (normalizedUrl.length <= 0) {
+      return;
+    }
+    this.forgetNonRestorableNavigation(normalizedUrl);
+    this.transactionCoordinator.retireUrlSuppression(normalizedUrl);
+  }
+
   markDownloadUrlHandled(downloadUrl: string): void {
     const normalizedDownloadUrl = this.normalizeUrl(downloadUrl);
     if (normalizedDownloadUrl.length <= 0) {

@@ -308,6 +308,11 @@ export const CENTERED_DIALOG_SYSTEM_TALL_SURFACE_MODIFIER: AttributeModifier<Com
 export const CENTERED_DIALOG_SYSTEM_TALL_DEFINITE_SURFACE_MODIFIER: AttributeModifier<CommonAttribute> =
   new CenteredDialogSurfaceModifier(true, false, false, CENTERED_DIALOG_TOP_PADDING_VP,
     CENTERED_DIALOG_BOTTOM_PADDING_VP, true);
+// Definite width, but no forced height. A tall fill uses the physical display, so a
+// shorter app window clips the footer and leaves a blank band above it.
+export const CENTERED_DIALOG_SYSTEM_HUG_DEFINITE_SURFACE_MODIFIER: AttributeModifier<CommonAttribute> =
+  new CenteredDialogSurfaceModifier(false, false, false, CENTERED_DIALOG_TOP_PADDING_VP,
+    CENTERED_DIALOG_BOTTOM_PADDING_VP, true);
 export const CENTERED_DIALOG_SYSTEM_TALL_PADDED_SURFACE_MODIFIER: AttributeModifier<CommonAttribute> =
   new CenteredDialogSurfaceModifier(true, false, true);
 export const CENTERED_DIALOG_SYSTEM_SCROLL_SURFACE_MODIFIER: AttributeModifier<CommonAttribute> =

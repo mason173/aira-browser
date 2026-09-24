@@ -76,6 +76,7 @@ export interface BrowserKeyboardShortcutDependencies {
 export class BrowserKeyboardShortcutCoordinator {
   private readonly dependencies: BrowserKeyboardShortcutDependencies;
   private readonly shell: BrowserKeyboardShortcutShell;
+  private suppressFollowingEscapeShortcut: boolean = false;
 
   constructor(
     dependencies: BrowserKeyboardShortcutDependencies,
@@ -85,7 +86,19 @@ export class BrowserKeyboardShortcutCoordinator {
     this.shell = shell;
   }
 
+  consumeFullscreenEscapeFromPreIme(): void {
+    this.handleShortcut('escape');
+    this.suppressFollowingEscapeShortcut = true;
+    setTimeout((): void => {
+      this.suppressFollowingEscapeShortcut = false;
+    }, 0);
+  }
+
   handleShortcut(action: BrowserKeyboardShortcutAction): void {
+    if (action === 'escape' && this.suppressFollowingEscapeShortcut) {
+      this.suppressFollowingEscapeShortcut = false;
+      return;
+    }
     this.dependencies.recentActionManager.recordOperate();
     const facts = this.shell.readFacts();
     switch (action) {

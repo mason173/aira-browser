@@ -315,7 +315,8 @@ export class SettingsDetailViewModel {
       themePaletteId: 'default',
       tabsOverviewLayoutStyle: 'grid',
       tabsOverviewCloseButtonAlwaysVisible: false,
-      showDesktopBookmarkBar: true
+      showDesktopBookmarkBar: true,
+      desktopBookmarkBarVisibility: 'always'
     },
     experiments: BrowserExperimentSettings = {
       pauseWebAnimationsDuringScroll: false,

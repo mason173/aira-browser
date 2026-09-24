@@ -18,6 +18,9 @@ export const BROWSER_DESKTOP_MENU_LABEL_SHORTCUT_GAP_VP: number = 12;
 export const BROWSER_DESKTOP_MENU_HORIZONTAL_INSET_VP: number = 4;
 export const BROWSER_DESKTOP_MENU_VERTICAL_INSET_VP: number = 6;
 export const BROWSER_DESKTOP_MENU_ITEM_HORIZONTAL_PADDING_VP: number = 10;
+/** Reserved gutter for the checked state so labels stay aligned across a check group. */
+export const BROWSER_DESKTOP_MENU_CHECKMARK_GUTTER_VP: number = 18;
+export const BROWSER_DESKTOP_MENU_CHECKMARK_SIZE_FP: number = 14;
 export const BROWSER_DESKTOP_MENU_DISABLED_OPACITY: number = 0.38;
 export const BROWSER_DESKTOP_MENU_DIVIDER_WIDTH_VP: number = 0.5;
 export const BROWSER_DESKTOP_MENU_DIVIDER_HORIZONTAL_MARGIN_VP: number = 10;

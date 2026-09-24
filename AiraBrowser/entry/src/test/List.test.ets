@@ -2,6 +2,9 @@ import userScriptValueStateStoreTest from './UserScriptValueStateStore.test';
 import userScriptOverwriteInstallTest from './UserScriptOverwriteInstall.test';
 import userScriptDocumentStartHeadCompatTest from './UserScriptDocumentStartHeadCompat.test';
 import userScriptExternalImportServiceTest from './UserScriptExternalImportService.test';
+import userScriptGforkProxyInstallUrlTest from './UserScriptGforkProxyInstallUrl.test';
+import userScriptInstallLoadFailureTest from './UserScriptInstallLoadFailure.test';
+import userScriptInstallSourceResolverTest from './UserScriptInstallSourceResolver.test';
 import novelReadingSessionStateTest from './NovelReadingSessionState.test';
 import readingDocumentTest from './ReadingDocument.test';
 import mediaSessionResolutionServiceTest from './MediaSessionResolutionService.test';
@@ -16,8 +19,10 @@ import browserShellFontScalePolicyTest from './BrowserShellFontScalePolicy.test'
 import novelFontSubstitutionPolicyTest from './NovelFontSubstitutionPolicy.test';
 import browserLargeScreenOmniboxSearchViewModelTest from './BrowserLargeScreenOmniboxSearchViewModel.test';
 import browserLargeScreenToolbarMenuViewModelTest from './BrowserLargeScreenToolbarMenuViewModel.test';
+import browserDesktopBookmarkBarMenuModelTest from './BrowserDesktopBookmarkBarMenuModel.test';
 import browserLargeScreenOverflowFlyoutViewModelTest from './BrowserLargeScreenOverflowFlyoutViewModel.test';
 import browserPrivacyEffectPolicyTest from './BrowserPrivacyEffectPolicy.test';
+import browserRecentlyClosedRestoreTest from './BrowserRecentlyClosedRestore.test';
 import downloadPrivacyPolicyTest from './DownloadPrivacyPolicy.test';
 import downloadSelectionModeTest from './DownloadSelectionMode.test';
 import downloadV2StateMachineTest from './DownloadV2StateMachine.test';
@@ -64,13 +69,18 @@ import bottomToolbarGuideCoordinatorTest from './BottomToolbarGuideCoordinator.t
 import crossDeviceLinkViewModelTest from './CrossDeviceLinkViewModel.test';
 import communityUpdateCheckCoordinatorTest from './CommunityUpdateCheckCoordinator.test';
 import browserLargeScreenWebZoomPolicyTest from './BrowserLargeScreenWebZoomPolicy.test';
+import browserFullscreenExitHintPolicyTest from './BrowserFullscreenExitHintPolicy.test';
 import elementInspectionRuntimeScriptServiceTest from './ElementInspectionRuntimeScriptService.test';
+import elementInspectionOutlineMenuLayoutTest from './ElementInspectionOutlineMenuLayout.test';
 
 export default function tests(): void {
   userScriptValueStateStoreTest();
   userScriptOverwriteInstallTest();
   userScriptDocumentStartHeadCompatTest();
   userScriptExternalImportServiceTest();
+  userScriptGforkProxyInstallUrlTest();
+  userScriptInstallLoadFailureTest();
+  userScriptInstallSourceResolverTest();
   novelReadingSessionStateTest();
   readingDocumentTest();
   mediaSessionResolutionServiceTest();
@@ -84,8 +94,10 @@ export default function tests(): void {
   novelFontSubstitutionPolicyTest();
   browserLargeScreenOmniboxSearchViewModelTest();
   browserLargeScreenToolbarMenuViewModelTest();
+  browserDesktopBookmarkBarMenuModelTest();
   browserLargeScreenOverflowFlyoutViewModelTest();
   browserPrivacyEffectPolicyTest();
+  browserRecentlyClosedRestoreTest();
   downloadPrivacyPolicyTest();
   downloadSelectionModeTest();
   downloadV2StateMachineTest();
@@ -131,5 +143,7 @@ export default function tests(): void {
   crossDeviceLinkViewModelTest();
   communityUpdateCheckCoordinatorTest();
   browserLargeScreenWebZoomPolicyTest();
+  browserFullscreenExitHintPolicyTest();
   elementInspectionRuntimeScriptServiceTest();
+  elementInspectionOutlineMenuLayoutTest();
 }

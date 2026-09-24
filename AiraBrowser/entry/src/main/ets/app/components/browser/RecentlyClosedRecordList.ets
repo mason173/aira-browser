@@ -25,7 +25,7 @@ import { WebsiteRecordRow } from '../common/WebsiteRecordRow';
 import { normalizeHomeWallpaperTransitionDuration } from '../../../core/wallpaper/HomeWallpaperPresentationTokens';
 import { BrowserRecentlyClosedUserAction } from '../../../core/browser/BrowserRecentlyClosedApplicationCoordinator';
 import { HomeRecentlyClosedLayoutViewModel } from '../../../features/newtab/HomeRecentlyClosedLayoutViewModel';
-import { BrowserDesktopContextMenu, BrowserDesktopContextMenuItem } from './BrowserDesktopContextMenu';
+import { BrowserDesktopContextMenu, BrowserDesktopContextMenuItem, buildBrowserDesktopMenuOptions } from './BrowserDesktopContextMenu';
 import { BROWSER_DESKTOP_MENU_COMPACT_WIDTH_VP } from '../../../core/browser/BrowserDesktopMenuPresentationTokens';
 
 interface RecentlyClosedRecordRow {
@@ -222,7 +222,7 @@ export struct RecentlyClosedRecordList {
       })
     }
     .width('100%')
-    .bindContextMenu(this.buildRightClickContextMenu(record), ResponseType.RightClick, {
+    .bindContextMenu(this.buildRightClickContextMenu(record), ResponseType.RightClick, buildBrowserDesktopMenuOptions({
       onAppear: () => {
         this.contextMenuRecordId = '';
         this.pressedRecordId = record.id;
@@ -232,7 +232,7 @@ export struct RecentlyClosedRecordList {
           this.pressedRecordId = '';
         }
       }
-    })
+    }))
   }
 
   @Builder

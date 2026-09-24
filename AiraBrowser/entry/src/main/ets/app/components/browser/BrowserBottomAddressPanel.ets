@@ -792,6 +792,7 @@ export struct BrowserBottomAddressPanel {
       showClose: false,
       backgroundColor: this.storedPageBackgroundColor,
       blurStyle: BlurStyle.NONE,
+      radiusRenderStrategy: RenderStrategy.OFFSCREEN,
       onWillDismiss: (action: DismissSheetAction): void => {
         // Native interactive dismissal can finish its $$ writeback after the exit animation.
         // Clear the binding before it starts so a scrolling-page redraw cannot resubmit show=true.

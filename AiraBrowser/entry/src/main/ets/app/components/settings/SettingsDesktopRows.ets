@@ -3,7 +3,6 @@ import {
   SettingsDetailOption
 } from '../../../core/settings/SettingsDetailViewModel';
 import {
-  BROWSER_DESKTOP_MENU_CORNER_RADIUS_VP,
   BROWSER_DESKTOP_MENU_HORIZONTAL_INSET_VP,
   BROWSER_DESKTOP_MENU_ITEM_CORNER_RADIUS_VP,
   BROWSER_DESKTOP_MENU_ITEM_HEIGHT_VP,
@@ -13,7 +12,7 @@ import {
   BROWSER_DESKTOP_MENU_WIDE_WIDTH_VP
 } from '../../../core/browser/BrowserDesktopMenuPresentationTokens';
 import { AiraIcon } from '../common/AiraIcon';
-import { BrowserDesktopContextMenu } from '../browser/BrowserDesktopContextMenu';
+import { BrowserDesktopContextMenu, buildBrowserDesktopMenuOptions } from '../browser/BrowserDesktopContextMenu';
 
 const DESKTOP_SETTINGS_ROW_HEIGHT: number = 44;
 const DESKTOP_SETTINGS_ROW_RADIUS: number = 8;
@@ -229,12 +228,11 @@ export struct SettingsDesktopDropdownRow {
     .onTouch((event: TouchEvent) => {
       this.pressed = this.isEnabled && event.type === TouchType.Down;
     })
-    .bindMenu(this.buildOptionsMenu(), {
+    .bindMenu(this.buildOptionsMenu(), buildBrowserDesktopMenuOptions({
       placement: Placement.BottomRight,
       enableArrow: false,
-      showInSubWindow: false,
-      borderRadius: BROWSER_DESKTOP_MENU_CORNER_RADIUS_VP
-    })
+      showInSubWindow: false
+    }))
   }
 
   @Builder

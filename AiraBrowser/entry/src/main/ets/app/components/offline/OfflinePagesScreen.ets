@@ -37,7 +37,8 @@ import {
 import { AppEmptyState } from '../common/AppEmptyState';
 import {
   BrowserDesktopContextMenu,
-  BrowserDesktopContextMenuItem
+  BrowserDesktopContextMenuItem,
+  buildBrowserDesktopMenuOptions
 } from '../browser/BrowserDesktopContextMenu';
 import {
   MANAGEMENT_LARGE_SCREEN_ROW_GAP,
@@ -277,14 +278,14 @@ export struct OfflinePagesScreen {
       }
       this.openOfflinePageIfAvailable(item);
     })
-    .bindContextMenu(this.buildDesktopItemMenu(item), ResponseType.RightClick, {
+    .bindContextMenu(this.buildDesktopItemMenu(item), ResponseType.RightClick, buildBrowserDesktopMenuOptions({
       onAppear: (): void => {
         this.desktopMenuItemId = item.id;
       },
       onDisappear: (): void => {
         this.dismissDesktopItemMenu(item.id);
       }
-    })
+    }))
   }
 
   private buildHeaderMenuActions(): ManagementHdsMenuAction[] {
@@ -394,7 +395,7 @@ export struct OfflinePagesScreen {
       .onClick((): void => {
         this.desktopMenuItemId = item.id;
       })
-      .bindMenu(this.buildDesktopItemMenu(item), {
+      .bindMenu(this.buildDesktopItemMenu(item), buildBrowserDesktopMenuOptions({
         placement: Placement.BottomRight,
         showInSubWindow: false,
         onAppear: (): void => {
@@ -403,15 +404,15 @@ export struct OfflinePagesScreen {
         onDisappear: (): void => {
           this.dismissDesktopItemMenu(item.id);
         }
-      })
-      .bindContextMenu(this.buildDesktopItemMenu(item), ResponseType.RightClick, {
+      }))
+      .bindContextMenu(this.buildDesktopItemMenu(item), ResponseType.RightClick, buildBrowserDesktopMenuOptions({
         onAppear: (): void => {
           this.desktopMenuItemId = item.id;
         },
         onDisappear: (): void => {
           this.dismissDesktopItemMenu(item.id);
         }
-      })
+      }))
   }
 
   @Builder

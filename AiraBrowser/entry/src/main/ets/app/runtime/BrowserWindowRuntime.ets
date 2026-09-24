@@ -84,6 +84,7 @@ export interface BrowserLaunchPayload {
   privacyMode: BrowserSessionPrivacyMode;
   dataScope: BrowserDataScope;
   privateWindowInstanceId: string;
+  newWindowInstanceId: string;
   tabMoveWindowInstanceId: string;
   tabMoveRequestId: string;
   continuation?: BrowserContinuationPayload;
@@ -102,6 +103,7 @@ export interface BrowserLaunchPayloadInput {
   privacyMode?: BrowserSessionPrivacyMode | string;
   dataScope?: BrowserDataScope | string;
   privateWindowInstanceId?: string;
+  newWindowInstanceId?: string;
   tabMoveWindowInstanceId?: string;
   tabMoveRequestId?: string;
   continuation?: BrowserContinuationPayload;
@@ -169,6 +171,7 @@ const STORAGE_LAUNCH_PROFILE_ID_KEY = 'aira.browser.launchProfileId';
 const STORAGE_LAUNCH_PRIVACY_MODE_KEY = 'aira.browser.launchPrivacyMode';
 const STORAGE_LAUNCH_DATA_SCOPE_KEY = 'aira.browser.launchDataScope';
 const STORAGE_LAUNCH_PRIVATE_WINDOW_INSTANCE_ID_KEY = 'aira.browser.launchPrivateWindowInstanceId';
+const STORAGE_LAUNCH_NEW_WINDOW_INSTANCE_ID_KEY = 'aira.browser.launchNewWindowInstanceId';
 const STORAGE_LAUNCH_TAB_MOVE_WINDOW_INSTANCE_ID_KEY = 'aira.browser.launchTabMoveWindowInstanceId';
 const STORAGE_LAUNCH_TAB_MOVE_REQUEST_ID_KEY = 'aira.browser.launchTabMoveRequestId';
 const STORAGE_LAUNCH_SHORTCUT_ID_KEY = 'aira.browser.launchShortcutId';
@@ -191,6 +194,11 @@ export const BROWSER_PRIVATE_WINDOW_OPEN_NEW_WANT_KEY = 'aira.privateWindow.open
 export const BROWSER_PRIVATE_WINDOW_PROFILE_ID_WANT_KEY = 'aira.privateWindow.profileId';
 export const BROWSER_PRIVATE_WINDOW_PRIVACY_MODE_WANT_KEY = 'aira.privateWindow.privacyMode';
 export const BROWSER_PRIVATE_WINDOW_DATA_SCOPE_WANT_KEY = 'aira.privateWindow.dataScope';
+export const BROWSER_NEW_WINDOW_LAUNCH_SOURCE = 'aira_new_window';
+export const BROWSER_NEW_WINDOW_SOURCE_WANT_KEY = 'aira.newWindow.source';
+export const BROWSER_NEW_WINDOW_INSTANCE_ID_WANT_KEY = 'aira.newWindow.instanceId';
+export const BROWSER_NEW_WINDOW_OPEN_NEW_WANT_KEY = 'aira.newWindow.openInNewWindow';
+export const BROWSER_NEW_WINDOW_PROFILE_ID_WANT_KEY = 'aira.newWindow.profileId';
 export const BROWSER_TAB_WINDOW_MOVE_LAUNCH_SOURCE = 'aira_tab_window_move';
 export const BROWSER_TAB_WINDOW_MOVE_SOURCE_WANT_KEY = 'aira.tabMove.source';
 export const BROWSER_TAB_WINDOW_MOVE_INSTANCE_ID_WANT_KEY = 'aira.tabMove.windowInstanceId';
@@ -892,6 +900,7 @@ export class BrowserWindowRuntime {
     storage.setOrCreate(STORAGE_LAUNCH_PRIVACY_MODE_KEY, payload.privacyMode);
     storage.setOrCreate(STORAGE_LAUNCH_DATA_SCOPE_KEY, payload.dataScope);
     storage.setOrCreate(STORAGE_LAUNCH_PRIVATE_WINDOW_INSTANCE_ID_KEY, payload.privateWindowInstanceId);
+    storage.setOrCreate(STORAGE_LAUNCH_NEW_WINDOW_INSTANCE_ID_KEY, payload.newWindowInstanceId);
     storage.setOrCreate(STORAGE_LAUNCH_TAB_MOVE_WINDOW_INSTANCE_ID_KEY, payload.tabMoveWindowInstanceId);
     storage.setOrCreate(STORAGE_LAUNCH_TAB_MOVE_REQUEST_ID_KEY, payload.tabMoveRequestId);
     BrowserWindowRuntime.writeShortcutLaunchContext(storage, payload.shortcut);
@@ -906,6 +915,7 @@ export class BrowserWindowRuntime {
     storage.set(STORAGE_LAUNCH_PRIVACY_MODE_KEY, payload.privacyMode);
     storage.set(STORAGE_LAUNCH_DATA_SCOPE_KEY, payload.dataScope);
     storage.set(STORAGE_LAUNCH_PRIVATE_WINDOW_INSTANCE_ID_KEY, payload.privateWindowInstanceId);
+    storage.set(STORAGE_LAUNCH_NEW_WINDOW_INSTANCE_ID_KEY, payload.newWindowInstanceId);
     storage.set(STORAGE_LAUNCH_TAB_MOVE_WINDOW_INSTANCE_ID_KEY, payload.tabMoveWindowInstanceId);
     storage.set(STORAGE_LAUNCH_TAB_MOVE_REQUEST_ID_KEY, payload.tabMoveRequestId);
     BrowserWindowRuntime.writeShortcutLaunchContext(storage, payload.shortcut);
@@ -921,12 +931,14 @@ export class BrowserWindowRuntime {
     const privateWindowInstanceId = String(
       storage.get(STORAGE_LAUNCH_PRIVATE_WINDOW_INSTANCE_ID_KEY) ?? ''
     ).trim();
+    const newWindowInstanceId = String(storage.get(STORAGE_LAUNCH_NEW_WINDOW_INSTANCE_ID_KEY) ?? '').trim();
     const tabMoveWindowInstanceId = String(
       storage.get(STORAGE_LAUNCH_TAB_MOVE_WINDOW_INSTANCE_ID_KEY) ?? ''
     ).trim();
     const tabMoveRequestId = String(storage.get(STORAGE_LAUNCH_TAB_MOVE_REQUEST_ID_KEY) ?? '').trim();
     if (uri.length === 0 && appShortcut.length === 0 && shortcut === undefined &&
-      privateWindowInstanceId.length === 0 && tabMoveRequestId.length === 0) {
+      privateWindowInstanceId.length === 0 && newWindowInstanceId.length === 0 &&
+      tabMoveRequestId.length === 0) {
       return undefined;
     }
     return {
@@ -944,6 +956,7 @@ export class BrowserWindowRuntime {
         normalizeBrowserSessionPrivacyMode(storage.get(STORAGE_LAUNCH_PRIVACY_MODE_KEY) as string | undefined)
       ),
       privateWindowInstanceId: privateWindowInstanceId,
+      newWindowInstanceId: newWindowInstanceId,
       tabMoveWindowInstanceId: tabMoveWindowInstanceId,
       tabMoveRequestId: tabMoveRequestId,
       shortcut: shortcut
@@ -962,6 +975,7 @@ export class BrowserWindowRuntime {
     storage.set(STORAGE_LAUNCH_PRIVACY_MODE_KEY, 'regular');
     storage.set(STORAGE_LAUNCH_DATA_SCOPE_KEY, 'profile_persistent');
     storage.set(STORAGE_LAUNCH_PRIVATE_WINDOW_INSTANCE_ID_KEY, '');
+    storage.set(STORAGE_LAUNCH_NEW_WINDOW_INSTANCE_ID_KEY, '');
     storage.set(STORAGE_LAUNCH_TAB_MOVE_WINDOW_INSTANCE_ID_KEY, '');
     storage.set(STORAGE_LAUNCH_TAB_MOVE_REQUEST_ID_KEY, '');
     BrowserWindowRuntime.writeShortcutLaunchContext(storage, undefined);
@@ -1101,6 +1115,7 @@ export function buildBrowserLaunchPayload(input: BrowserLaunchPayloadInput): Bro
     privacyMode: privacyMode,
     dataScope: normalizeBrowserDataScope(input.dataScope, privacyMode),
     privateWindowInstanceId: String(input.privateWindowInstanceId ?? '').trim(),
+    newWindowInstanceId: String(input.newWindowInstanceId ?? '').trim(),
     tabMoveWindowInstanceId: String(input.tabMoveWindowInstanceId ?? '').trim(),
     tabMoveRequestId: String(input.tabMoveRequestId ?? '').trim(),
     continuation: sharedBrowserContinuationCoordinator.copyPayload(input.continuation),
@@ -1131,6 +1146,10 @@ export function resolveBrowserLaunchPayloadFromWant(want: Want | undefined, sour
   const privateWindowInstanceId = privateWindowSource === BROWSER_PRIVATE_WINDOW_LAUNCH_SOURCE
     ? String(parameters?.[BROWSER_PRIVATE_WINDOW_INSTANCE_ID_WANT_KEY] ?? '').trim()
     : '';
+  const newWindowSource = String(parameters?.[BROWSER_NEW_WINDOW_SOURCE_WANT_KEY] ?? '').trim();
+  const newWindowInstanceId = newWindowSource === BROWSER_NEW_WINDOW_LAUNCH_SOURCE
+    ? String(parameters?.[BROWSER_NEW_WINDOW_INSTANCE_ID_WANT_KEY] ?? '').trim()
+    : '';
   const tabMoveSource = String(parameters?.[BROWSER_TAB_WINDOW_MOVE_SOURCE_WANT_KEY] ?? '').trim();
   const tabMoveWindowInstanceId = tabMoveSource === BROWSER_TAB_WINDOW_MOVE_LAUNCH_SOURCE
     ? String(parameters?.[BROWSER_TAB_WINDOW_MOVE_INSTANCE_ID_WANT_KEY] ?? '').trim()
@@ -1146,8 +1165,20 @@ export function resolveBrowserLaunchPayloadFromWant(want: Want | undefined, sour
   const shortcut = resolveShortcutContextFromWant(parameters, shortcutSource);
   const trustedControls = resolveTrustedAiraLaunchControls(parameters, shortcut);
   if (uri.length === 0 && shortcut === undefined && appShortcut.length === 0 &&
-    privateWindowInstanceId.length === 0 && tabMoveRequestId.length === 0) {
+    privateWindowInstanceId.length === 0 && newWindowInstanceId.length === 0 &&
+    tabMoveRequestId.length === 0) {
     return undefined;
+  }
+  if (newWindowInstanceId.length > 0) {
+    return buildBrowserLaunchPayload({
+      uri: uri,
+      source: BROWSER_NEW_WINDOW_LAUNCH_SOURCE,
+      openInNewWindow: Boolean(parameters?.[BROWSER_NEW_WINDOW_OPEN_NEW_WANT_KEY] ?? true),
+      profileId: String(parameters?.[BROWSER_NEW_WINDOW_PROFILE_ID_WANT_KEY] ?? DEFAULT_BROWSER_PROFILE_ID),
+      privacyMode: 'regular',
+      dataScope: 'profile_persistent',
+      newWindowInstanceId: newWindowInstanceId
+    });
   }
   if (privateWindowInstanceId.length > 0) {
     return buildBrowserLaunchPayload({
@@ -1238,6 +1269,9 @@ function resolveShortcutContextFromWant(
 export function resolveBrowserLaunchWindowId(payload: BrowserLaunchPayload): string {
   if (payload.tabMoveWindowInstanceId.length > 0) {
     return `browser-window:${payload.tabMoveWindowInstanceId}`;
+  }
+  if (payload.newWindowInstanceId.length > 0) {
+    return `browser-window:${payload.newWindowInstanceId}`;
   }
   if (payload.privateWindowInstanceId.length > 0) {
     return `private-window:${payload.privateWindowInstanceId}`;

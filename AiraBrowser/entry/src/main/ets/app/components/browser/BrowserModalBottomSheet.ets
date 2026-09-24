@@ -263,12 +263,13 @@ export struct BrowserBottomSheetSurface {
         bottom: this.bottomPadding
       })
       .backgroundColor(this.presentation === 'flat_content' ? Color.Transparent : this.resolveSurfaceColor())
+      // Immersive sheets blur the top edge. FAST corner clipping samples the mask there.
       .borderRadius({
         topLeft: this.presentation === 'flat_content' ? 0 : this.topCornerRadius,
         topRight: this.presentation === 'flat_content' ? 0 : this.topCornerRadius,
         bottomLeft: 0,
         bottomRight: 0
-      })
+      }, this.presentation === 'flat_content' ? RenderStrategy.FAST : RenderStrategy.OFFSCREEN)
       .border({
         width: { top: this.presentation === 'flat_content' ? 0 : this.topBorderWidth },
         color: this.topBorderColor

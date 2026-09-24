@@ -1,7 +1,12 @@
 import {
   ElementInspectionAction,
+  ElementInspectionOutlineCommand,
   ElementInspectionPresentation
 } from '../../../core/browser/ElementInspectionSessionCoordinator';
+import {
+  ElementInspectionOutlineContextMenu,
+  ElementInspectionOutlineMenuEntry
+} from './ElementInspectionOutlineContextMenu';
 import {
   ElementInspectionBoxModel,
   ElementInspectionComputedProperty,
@@ -46,6 +51,25 @@ export struct ElementInspectionDock {
   @State private consoleFilter: string = 'all';
   @State private consoleInput: string = '';
   @State private selectedSourceId: string = '';
+  @State private hoveredOutlinePath: string = '';
+  @State private editorVisible: boolean = false;
+  @State private editorKind: string = '';
+  @State private editorTitle: string = '';
+  @State private editorPath: string = '';
+  @State private editorText: string = '';
+  @State private editorName: string = '';
+  @State private editorBusy: boolean = false;
+  @State private outlineMenuVisible: boolean = false;
+  @State private outlineMenuEntries: ElementInspectionOutlineMenuEntry[] = [];
+  @State private outlineMenuAnchorXVp: number = 0;
+  @State private outlineMenuAnchorYVp: number = 0;
+  @State private outlineMenuHostWidthVp: number = 0;
+  @State private outlineMenuHostHeightVp: number = 0;
+  private outlineMenuHostGlobalXVp: number = 0;
+  private outlineMenuHostGlobalYVp: number = 0;
+  private outlineMenuPath: string = '';
+  private editorRequestId: number = 0;
+  private appliedEditorRequestId: number = -1;
   private panStartWidthVp: number = ELEMENT_INSPECTION_DOCK_DEFAULT_WIDTH_VP;
   private panResizeActive: boolean = false;
   private mouseDragStartWindowXPx: number = 0;
@@ -53,38 +77,58 @@ export struct ElementInspectionDock {
   private treeScroller: Scroller = new Scroller();
   onAction: (action: ElementInspectionAction) => void = (_action: ElementInspectionAction) => {};
   onSelectOutline: (path: string) => void = (_path: string) => {};
+  onPreviewOutline: (path: string) => void = (_path: string) => {};
+  onClearOutlinePreview: () => void = () => {};
   onPickerArmedChange: (armed: boolean) => void = (_armed: boolean) => {};
   onEvaluateConsole: (expression: string) => void = (_expression: string) => {};
   onClearConsole: () => void = () => {};
   onReadSource: (sourceId: string) => void = (_sourceId: string) => {};
+  onOutlineCommand: (command: ElementInspectionOutlineCommand) => void =
+    (_command: ElementInspectionOutlineCommand) => {};
 
   build() {
     Row() {
       this.buildSplitter()
 
-      Column() {
-        this.buildTabBar()
-        if (this.tab === 'elements') {
-          this.buildElementsPane()
-        } else if (this.tab === 'console') {
-          this.buildConsolePane()
-        } else if (this.tab === 'network') {
-          this.buildNetworkPane()
-        } else if (this.tab === 'sources') {
-          this.buildSourcesPane()
-        } else {
-          Text('这个页签没有内容。')
-            .width('100%')
-            .layoutWeight(1)
-            .fontSize(13)
-            .fontColor(ELEMENT_INSPECTION_DOCK_DIM_COLOR)
-            .textAlign(TextAlign.Center)
-            .padding(24)
+      Stack({ alignContent: Alignment.TopStart }) {
+        Column() {
+          this.buildTabBar()
+          if (this.tab === 'elements') {
+            this.buildElementsPane()
+          } else if (this.tab === 'console') {
+            this.buildConsolePane()
+          } else if (this.tab === 'network') {
+            this.buildNetworkPane()
+          } else if (this.tab === 'sources') {
+            this.buildSourcesPane()
+          } else {
+            Text('这个页签没有内容。')
+              .width('100%')
+              .layoutWeight(1)
+              .fontSize(13)
+              .fontColor(ELEMENT_INSPECTION_DOCK_DIM_COLOR)
+              .textAlign(TextAlign.Center)
+              .padding(24)
+          }
+        }
+        .width('100%')
+        .height('100%')
+        .backgroundColor(ELEMENT_INSPECTION_DOCK_BACKGROUND_COLOR)
+
+        if (this.editorVisible) {
+          this.buildOutlineEditor()
+        }
+
+        if (this.outlineMenuVisible) {
+          this.buildOutlineMenuOverlay()
         }
       }
       .layoutWeight(1)
       .height('100%')
-      .backgroundColor(ELEMENT_INSPECTION_DOCK_BACKGROUND_COLOR)
+      .clip(true)
+      .onAreaChange((_oldArea: Area, area: Area) => {
+        this.updateOutlineMenuHost(area);
+      })
 
       if (this.splitterDragging) {
         Column()
@@ -98,6 +142,7 @@ export struct ElementInspectionDock {
             this.handleSplitterMouse(event, true);
           })
       }
+
     }
     .width(this.panelWidthVp)
     .height('100%')
@@ -307,17 +352,161 @@ export struct ElementInspectionDock {
       .fontSize(12)
       .maxLines(1)
       .textOverflow({ overflow: TextOverflow.Ellipsis })
+      .copyOption(CopyOptions.None)
     }
     .width('100%')
     .height(ELEMENT_INSPECTION_DOCK_ROW_HEIGHT_VP)
     .padding({ left: 8 + node.depth * 12, right: 8 })
-    .backgroundColor(node.selected ? ELEMENT_INSPECTION_DOCK_SELECT_COLOR : Color.Transparent)
+    .backgroundColor(node.selected ? ELEMENT_INSPECTION_DOCK_SELECT_COLOR :
+      (this.hoveredOutlinePath === node.path ? '#35363a' : Color.Transparent))
     .alignItems(VerticalAlign.Center)
+    .onHover((isHover: boolean) => {
+      if (isHover) {
+        this.hoveredOutlinePath = node.path;
+        this.onPreviewOutline(node.path);
+        return;
+      }
+      if (this.hoveredOutlinePath === node.path) {
+        this.hoveredOutlinePath = '';
+      }
+      this.onClearOutlinePreview();
+    })
     .onClick(() => {
+      this.dismissOutlineMenu();
       if (!this.presentation.busy) {
         this.onSelectOutline(node.path);
       }
     })
+    .onMouse((event: MouseEvent) => {
+      if (event.button !== MouseButton.Right || event.action !== MouseAction.Press) {
+        return;
+      }
+      event.stopPropagation();
+      this.openOutlineMenu(node, event);
+    })
+  }
+
+  @Builder
+  private buildOutlineMenuOverlay() {
+    Stack() {
+      Column()
+        .width(8000)
+        .height('100%')
+        .position({ x: -4000, y: 0 })
+        .backgroundColor(Color.Transparent)
+        .hitTestBehavior(HitTestMode.Block)
+        .onClick(() => {
+          this.dismissOutlineMenu();
+        })
+        .onMouse((event: MouseEvent) => {
+          if (event.button === MouseButton.Right && event.action === MouseAction.Press) {
+            this.dismissOutlineMenu();
+          }
+        })
+        .keyboardShortcut(FunctionKey.ESC, [], () => {
+          this.dismissOutlineMenu();
+        })
+
+      ElementInspectionOutlineContextMenu({
+        entries: this.outlineMenuEntries,
+        anchorXVp: this.outlineMenuAnchorXVp,
+        anchorYVp: this.outlineMenuAnchorYVp,
+        hostWidthVp: this.outlineMenuHostWidthVp,
+        hostHeightVp: this.outlineMenuHostHeightVp,
+        onSelect: (key: string): void => {
+          this.handleOutlineMenuSelect(key);
+        }
+      })
+    }
+    .width('100%')
+    .height('100%')
+    .zIndex(80)
+    .hitTestBehavior(HitTestMode.Transparent)
+  }
+
+  @Builder
+  private buildOutlineEditor() {
+    Column() {
+      Text(this.editorTitle)
+        .width('100%')
+        .fontSize(14)
+        .fontColor(ELEMENT_INSPECTION_DOCK_TEXT_COLOR)
+        .margin({ bottom: 8 })
+      Text(this.editorKind === 'html' ?
+        '需要保留一个根元素。' : '属性值为空时会删除该属性。')
+        .width('100%')
+        .fontSize(12)
+        .fontColor(ELEMENT_INSPECTION_DOCK_DIM_COLOR)
+        .margin({ bottom: 10 })
+      if (this.editorKind === 'attribute') {
+        TextInput({ text: this.editorName, placeholder: '属性名' })
+          .width('100%')
+          .height(36)
+          .fontSize(13)
+          .fontColor(ELEMENT_INSPECTION_DOCK_TEXT_COLOR)
+          .placeholderColor(ELEMENT_INSPECTION_DOCK_DIM_COLOR)
+          .backgroundColor(ELEMENT_INSPECTION_DOCK_BAR_COLOR)
+          .margin({ bottom: 8 })
+          .enabled(!this.editorBusy)
+          .onChange((value: string) => {
+            this.editorName = value;
+          })
+      }
+      if (this.editorBusy) {
+        Text('正在读取 HTML…')
+          .width('100%')
+          .layoutWeight(1)
+          .fontSize(12)
+          .fontColor(ELEMENT_INSPECTION_DOCK_DIM_COLOR)
+      }
+      TextArea({
+        text: this.editorText,
+        placeholder: this.editorKind === 'html' ? '' : '属性值'
+      })
+        .visibility(this.editorBusy ? Visibility.None : Visibility.Visible)
+        .width('100%')
+        .layoutWeight(1)
+        .fontSize(12)
+        .fontFamily('monospace')
+        .fontColor(ELEMENT_INSPECTION_DOCK_TEXT_COLOR)
+        .placeholderColor(ELEMENT_INSPECTION_DOCK_DIM_COLOR)
+        .backgroundColor(ELEMENT_INSPECTION_DOCK_BAR_COLOR)
+        .enabled(!this.editorBusy)
+        .onChange((value: string) => {
+          if (!this.editorBusy) {
+            this.editorText = value;
+          }
+        })
+      Row({ space: 8 }) {
+        Button('取消')
+          .layoutWeight(1)
+          .height(34)
+          .fontSize(13)
+          .fontColor(ELEMENT_INSPECTION_DOCK_TEXT_COLOR)
+          .backgroundColor(ELEMENT_INSPECTION_DOCK_LINE_COLOR)
+          .onClick(() => {
+            this.closeOutlineEditor();
+          })
+        Button(this.editorKind === 'html' ? '应用' : '确定')
+          .layoutWeight(1)
+          .height(34)
+          .fontSize(13)
+          .fontColor('#FFFFFF')
+          .backgroundColor(ELEMENT_INSPECTION_DOCK_SELECT_COLOR)
+          .enabled(this.canApplyOutlineEditor())
+          .onClick(() => {
+            this.applyOutlineEditor();
+          })
+      }
+      .width('100%')
+      .margin({ top: 12 })
+    }
+    .width('100%')
+    .height('100%')
+    .padding(16)
+    .backgroundColor(ELEMENT_INSPECTION_DOCK_BACKGROUND_COLOR)
+    .zIndex(20)
+    .hitTestBehavior(HitTestMode.Block)
   }
 
   @Builder
@@ -597,6 +786,7 @@ export struct ElementInspectionDock {
   }
 
   private handlePresentationChanged(): void {
+    this.applyOutlineDraft();
     let selectedIndex = -1;
     for (let index = 0; index < this.presentation.outline.length; index += 1) {
       if (this.presentation.outline[index].selected) {
@@ -615,6 +805,185 @@ export struct ElementInspectionDock {
       });
     } catch (_error) {
     }
+  }
+
+  private updateOutlineMenuHost(area: Area): void {
+    const widthVp = Number(area.width);
+    const heightVp = Number(area.height);
+    const globalXVp = Number(area.globalPosition.x);
+    const globalYVp = Number(area.globalPosition.y);
+    if (Number.isFinite(widthVp) && widthVp > 0) {
+      this.outlineMenuHostWidthVp = widthVp;
+    }
+    if (Number.isFinite(heightVp) && heightVp > 0) {
+      this.outlineMenuHostHeightVp = heightVp;
+    }
+    if (Number.isFinite(globalXVp)) {
+      this.outlineMenuHostGlobalXVp = globalXVp;
+    }
+    if (Number.isFinite(globalYVp)) {
+      this.outlineMenuHostGlobalYVp = globalYVp;
+    }
+  }
+
+  private openOutlineMenu(node: ElementInspectionOutlineNode, event: MouseEvent): void {
+    if (this.presentation.busy) {
+      return;
+    }
+    this.onSelectOutline(node.path);
+    this.outlineMenuPath = node.path;
+    this.outlineMenuEntries = this.buildOutlineMenuEntries(node);
+    if (this.outlineMenuHostWidthVp <= 0) {
+      this.outlineMenuHostWidthVp = Math.max(1, this.panelWidthVp);
+    }
+    if (this.outlineMenuHostHeightVp <= 0) {
+      this.outlineMenuHostHeightVp = 640;
+    }
+    this.outlineMenuAnchorXVp = event.windowX - this.outlineMenuHostGlobalXVp;
+    this.outlineMenuAnchorYVp = event.windowY - this.outlineMenuHostGlobalYVp;
+    this.outlineMenuVisible = true;
+  }
+
+  private dismissOutlineMenu(): void {
+    this.outlineMenuVisible = false;
+    this.outlineMenuPath = '';
+  }
+
+  private handleOutlineMenuSelect(key: string): void {
+    const path = this.outlineMenuPath;
+    this.dismissOutlineMenu();
+    if (path.length === 0 || this.presentation.busy) {
+      return;
+    }
+    if (key === 'add_attribute') {
+      this.openAttributeEditor(path, '添加属性');
+      return;
+    }
+    if (key === 'edit_attribute') {
+      this.openAttributeEditor(path, '编辑属性');
+      return;
+    }
+    if (key === 'edit_html') {
+      this.openHtmlEditor(path);
+      return;
+    }
+    this.emitOutlineCommand(key, path, '', '');
+  }
+
+  private buildOutlineMenuEntries(node: ElementInspectionOutlineNode): ElementInspectionOutlineMenuEntry[] {
+    const busy = this.presentation.busy;
+    const protectedNode = this.isProtectedOutlineNode(node);
+    const htmlRoot = node.tagName === 'html';
+    const entries: ElementInspectionOutlineMenuEntry[] = [];
+    entries.push({ key: 'add_attribute', label: '添加属性', enabled: !busy, group: 0 });
+    entries.push({ key: 'edit_attribute', label: '编辑属性', enabled: !busy, group: 0 });
+    entries.push({ key: 'edit_html', label: '编辑为 HTML', enabled: !busy && !htmlRoot, group: 0 });
+    entries.push({ key: 'duplicate', label: '复制元素', enabled: !busy && !protectedNode, group: 0 });
+    entries.push({ key: 'delete', label: '删除元素', enabled: !busy && !protectedNode, group: 0 });
+    entries.push({ key: 'cut', label: '剪切', enabled: !busy && !protectedNode, group: 1 });
+    entries.push({ key: 'copy_selector', label: '复制选择器', enabled: !busy, group: 1 });
+    entries.push({ key: 'copy_js_path', label: '复制 JS 路径', enabled: !busy, group: 1 });
+    entries.push({ key: 'copy_xpath', label: '复制 XPath', enabled: !busy, group: 1 });
+    entries.push({ key: 'copy_html', label: '复制 outerHTML', enabled: !busy, group: 1 });
+    entries.push({ key: 'paste', label: '粘贴', enabled: !busy && !htmlRoot, group: 1 });
+    entries.push({
+      key: 'hide',
+      label: node.hidden === true ? '显示元素' : '隐藏元素',
+      enabled: !busy && !protectedNode,
+      group: 2
+    });
+    entries.push({ key: 'scroll_into_view', label: '滚动到可视区域', enabled: !busy, group: 2 });
+    entries.push({ key: 'focus', label: '聚焦', enabled: !busy, group: 2 });
+    entries.push({ key: 'store_global', label: '存为全局变量', enabled: !busy, group: 2 });
+    return entries;
+  }
+
+  private isProtectedOutlineNode(node: ElementInspectionOutlineNode): boolean {
+    return node.tagName === 'html' || node.tagName === 'head' || node.tagName === 'body';
+  }
+
+  private emitOutlineCommand(kind: string, path: string, name: string, value: string): void {
+    const command: ElementInspectionOutlineCommand = {
+      kind: kind,
+      path: path,
+      name: name,
+      value: value,
+      requestId: 0
+    };
+    this.onOutlineCommand(command);
+  }
+
+  private openAttributeEditor(path: string, title: string): void {
+    this.editorKind = 'attribute';
+    this.editorTitle = title;
+    this.editorPath = path;
+    this.editorName = '';
+    this.editorText = '';
+    this.editorBusy = false;
+    this.editorVisible = true;
+  }
+
+  private openHtmlEditor(path: string): void {
+    this.editorRequestId += 1;
+    this.editorKind = 'html';
+    this.editorTitle = '编辑为 HTML';
+    this.editorPath = path;
+    this.editorName = '';
+    this.editorText = '';
+    this.editorBusy = true;
+    this.editorVisible = true;
+    const command: ElementInspectionOutlineCommand = {
+      kind: 'read_html',
+      path: path,
+      name: '',
+      value: '',
+      requestId: this.editorRequestId
+    };
+    this.onOutlineCommand(command);
+  }
+
+  private closeOutlineEditor(): void {
+    this.editorVisible = false;
+    this.editorBusy = false;
+    this.editorText = '';
+    this.editorName = '';
+  }
+
+  private canApplyOutlineEditor(): boolean {
+    if (!this.editorVisible || this.editorBusy) {
+      return false;
+    }
+    if (this.editorKind === 'html') {
+      return this.editorText.trim().length > 0;
+    }
+    return this.editorName.trim().length > 0;
+  }
+
+  private applyOutlineEditor(): void {
+    if (!this.canApplyOutlineEditor()) {
+      return;
+    }
+    if (this.editorKind === 'html') {
+      this.emitOutlineCommand('replace_html', this.editorPath, '', this.editorText);
+    } else {
+      this.emitOutlineCommand('set_attribute', this.editorPath, this.editorName.trim(), this.editorText);
+    }
+    this.closeOutlineEditor();
+  }
+
+  private applyOutlineDraft(): void {
+    const draft = this.presentation.outlineDraft;
+    if (draft === undefined || !this.editorVisible || this.editorKind !== 'html' ||
+      draft.requestId !== this.editorRequestId || draft.requestId === this.appliedEditorRequestId) {
+      return;
+    }
+    this.appliedEditorRequestId = draft.requestId;
+    this.editorBusy = false;
+    if (!draft.ready) {
+      this.closeOutlineEditor();
+      return;
+    }
+    this.editorText = draft.text;
   }
 
   @Builder

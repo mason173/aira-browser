@@ -10,9 +10,11 @@ import {
   buildEmptyUserScriptInstallExistingTarget
 } from '../../../core/userscripts/UserScriptInstallSessionCoordinator';
 import {
+  resolveUserScriptInstallLoadErrorMessage,
   UserScriptInstallPreviewState,
   UserScriptsSettingsViewModel
 } from '../../../core/userscripts/UserScriptsSettingsViewModel';
+import { USER_SCRIPT_SOURCE_DOWNLOAD_FAILED_MESSAGE } from '../../../services/userscripts/UserScriptSourceFetchService';
 import {
   UserScriptPackageMutationResult,
   UserScriptPackageSuccessResult
@@ -60,6 +62,7 @@ export struct UserScriptInstallSheetContent {
   @State private existingTarget: UserScriptInstallExistingTarget = buildEmptyUserScriptInstallExistingTarget();
   @State private importBusy: boolean = false;
   @State private commitBusy: boolean = false;
+  @State private loadErrorMessage: string = '';
   aboutToAppear(): void {
     this.freezeInstallSurfaceAccess();
     this.pageVisible = true;
@@ -84,8 +87,13 @@ export struct UserScriptInstallSheetContent {
       this.requestClose();
       return;
     }
-    if (this.entryMode === 'direct_web_install' && initialSourceUrl.length > 0 && this.source.length === 0) {
-      void this.loadSourceFromInitialUrl(initialSourceUrl);
+    if (this.entryMode === 'direct_web_install' && this.source.length === 0) {
+      if (initialSourceUrl.length > 0) {
+        this.importBusy = true;
+        void this.loadSourceFromInitialUrl(initialSourceUrl);
+      } else {
+        this.loadErrorMessage = '没有可读取的脚本地址。';
+      }
     }
   }
 
@@ -130,12 +138,17 @@ export struct UserScriptInstallSheetContent {
     Column() {
       UserScriptInstallScreen({
         source: this.source,
+        sourceUrl: this.initialSourceUrl,
+        loadErrorMessage: this.loadErrorMessage,
         preview: this.preview,
         existingTarget: this.existingTarget,
         importBusy: this.importBusy,
         installBusy: this.commitBusy,
         onSave: () => {
           this.saveScript();
+        },
+        onRetry: () => {
+          this.retryInitialSourceLoad();
         },
         onClose: () => {
           if (!this.commitBusy) {
@@ -174,6 +187,11 @@ export struct UserScriptInstallSheetContent {
     }
     this.importBusy = state.importBusy;
     this.commitBusy = state.commitBusy;
+    this.loadErrorMessage = resolveUserScriptInstallLoadErrorMessage(
+      state.source,
+      state.importBusy,
+      state.helperMessage
+    );
   }
 
   private observeInstallSession(): boolean {
@@ -247,13 +265,27 @@ export struct UserScriptInstallSheetContent {
   private applySourceLoadResult(result: UserScriptInstallSourceResult): void {
     switch (result.status) {
       case 'cancelled':
+        this.importBusy = false;
         return;
       case 'failed':
+        this.importBusy = false;
+        this.loadErrorMessage = result.errorMessage.trim().length > 0 ?
+          result.errorMessage.trim() : USER_SCRIPT_SOURCE_DOWNLOAD_FAILED_MESSAGE;
         return;
       case 'loaded':
         this.applySessionState(result.state);
         return;
     }
+  }
+
+  private retryInitialSourceLoad(): void {
+    const url = this.initialSourceUrl.trim();
+    if (url.length === 0 || this.importBusy || this.commitBusy) {
+      return;
+    }
+    this.importBusy = true;
+    this.loadErrorMessage = '';
+    void this.loadSourceFromInitialUrl(url);
   }
 
   private handleSaveResult(result: UserScriptPackageMutationResult): void {

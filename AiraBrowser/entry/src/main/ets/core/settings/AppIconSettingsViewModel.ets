@@ -30,12 +30,14 @@ interface KnownDynamicAppIconMetadata {
 }
 
 const KNOWN_DYNAMIC_APP_ICONS: KnownDynamicAppIconMetadata[] = [
-  { id: 'Aira_dark', title: '深色图标', sortIndex: 10 },
-  { id: 'Aira_dark_pad', title: '平板深色图标', sortIndex: 11 },
-  { id: 'Aira_blue', title: '蓝色图标', sortIndex: 20 },
-  { id: 'Aira_blue_pad', title: '平板蓝色图标', sortIndex: 21 },
-  { id: 'Aira_color', title: '彩色图标', sortIndex: 30 },
-  { id: 'Aira_color_pad', title: '平板彩色图标', sortIndex: 31 }
+  { id: 'Aira_dark', title: '夜色', sortIndex: 10 },
+  { id: 'Aira_dark_pad', title: '夜色', sortIndex: 11 },
+  { id: 'Aira_blue', title: '海蓝', sortIndex: 20 },
+  { id: 'Aira_blue_pad', title: '海蓝', sortIndex: 21 },
+  { id: 'Aira_color', title: '缤纷', sortIndex: 30 },
+  { id: 'Aira_color_pad', title: '缤纷', sortIndex: 31 },
+  { id: 'Aira_texture', title: '磨砂', sortIndex: 40 },
+  { id: 'Aira_texture_pad', title: '磨砂', sortIndex: 41 }
 ];
 
 export class AppIconSettingsViewModel {
@@ -79,7 +81,7 @@ export class AppIconSettingsViewModel {
     return [
       {
         id: 'default',
-        title: '默认图标',
+        title: '经典',
         iconUrl: '',
         isDefault: true,
         isSelected: isSelected,

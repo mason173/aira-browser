@@ -1,12 +1,14 @@
 import { DEFAULT_THEME_PALETTE } from '../../../features/theme/palettes/DefaultThemePalette';
 import {
+  resolveUserScriptDesktopColumnCount,
+  USER_SCRIPT_DESKTOP_CARD_GAP_VP,
   UserScriptRowView,
   UserScriptValueRecoveryViewState,
   UserScriptsSettingsState
 } from '../../../core/userscripts/UserScriptsSettingsViewModel';
 import { AppEmptyState } from '../common/AppEmptyState';
 import { SiteIconView } from '../common/SiteIconView';
-import { BrowserDesktopContextMenu, BrowserDesktopContextMenuItem } from '../browser/BrowserDesktopContextMenu';
+import { BrowserDesktopContextMenu, BrowserDesktopContextMenuItem, buildBrowserDesktopMenuOptions } from '../browser/BrowserDesktopContextMenu';
 import { SettingsSwitchRow } from '../settings/SettingsRows';
 import {
   SETTINGS_DESKTOP_SCROLLBAR_GUTTER,
@@ -42,6 +44,20 @@ import {
 } from '../settings/SettingsDesktopWorkspaceHeader';
 
 const USER_SCRIPTS_SECTION_CORNER_RADIUS: number = 22;
+const USER_SCRIPT_DESKTOP_CARD_RADIUS_VP: number = 16;
+const USER_SCRIPT_DESKTOP_CARD_MIN_HEIGHT_VP: number = 196;
+
+class UserScriptDesktopCardRow {
+  readonly key: string;
+  readonly cards: UserScriptRowView[];
+  readonly spacerCount: number;
+
+  constructor(key: string, cards: UserScriptRowView[], spacerCount: number) {
+    this.key = key;
+    this.cards = cards;
+    this.spacerCount = spacerCount;
+  }
+}
 
 @Component
 export struct UserScriptsScreen {
@@ -71,6 +87,7 @@ export struct UserScriptsScreen {
   @Prop showTitleBar: boolean = true;
   @Prop useTopSafeInset: boolean = true;
   @Prop desktopPresentation: boolean = false;
+  @Prop useCardLayout: boolean = false;
   @Prop showNotice: boolean = true;
   @Prop valueRecovery: UserScriptValueRecoveryViewState = {
     visible: false,
@@ -79,6 +96,7 @@ export struct UserScriptsScreen {
   };
   @State pressedScriptId: string = '';
   @State contextMenuScriptId: string = '';
+  @State private desktopContentWidthVp: number = 0;
   onAddFromUrl: () => void = () => {};
   onImportFromFile: () => void = () => {};
   onEditSource: () => void = () => {};
@@ -243,12 +261,16 @@ export struct UserScriptsScreen {
       if (this.state.hasScripts) {
         Column({ space: 8 }) {
           this.buildSectionTitle('已安装脚本')
-          Column({ space: 12 }) {
-            ForEach(this.state.rows, (row: UserScriptRowView) => {
-              this.buildScriptCard(row)
-            }, (row: UserScriptRowView) => row.id)
+          if (this.useCardLayout) {
+            this.buildDesktopScriptGrid()
+          } else {
+            Column({ space: 12 }) {
+              ForEach(this.state.rows, (row: UserScriptRowView) => {
+                this.buildScriptCard(row)
+              }, (row: UserScriptRowView) => row.id)
+            }
+            .width('100%')
           }
-          .width('100%')
         }
         .width('100%')
       } else {
@@ -308,6 +330,161 @@ export struct UserScriptsScreen {
       title: title,
       message: message
     })
+  }
+
+  @Builder
+  private buildDesktopScriptGrid() {
+    Column({ space: USER_SCRIPT_DESKTOP_CARD_GAP_VP }) {
+      ForEach(this.resolveDesktopCardRows(), (group: UserScriptDesktopCardRow) => {
+        Row({ space: USER_SCRIPT_DESKTOP_CARD_GAP_VP }) {
+          ForEach(group.cards, (row: UserScriptRowView) => {
+            this.buildDesktopScriptCard(row)
+          }, (row: UserScriptRowView) => row.id)
+          ForEach(this.resolveDesktopSpacerIndexes(group.spacerCount), (index: number) => {
+            Column()
+              .layoutWeight(1)
+          }, (index: number) => `${group.key}-pad-${index}`)
+        }
+        .width('100%')
+        .alignItems(VerticalAlign.Top)
+      }, (group: UserScriptDesktopCardRow) => group.key)
+    }
+    .width('100%')
+    .alignItems(HorizontalAlign.Start)
+    .onAreaChange((_oldArea: Area, area: Area) => {
+      const widthVp = Number(area.width);
+      if (!Number.isFinite(widthVp) || widthVp <= 0 || Math.abs(widthVp - this.desktopContentWidthVp) < 1) {
+        return;
+      }
+      this.desktopContentWidthVp = widthVp;
+    })
+  }
+
+  @Builder
+  private buildDesktopScriptCard(row: UserScriptRowView) {
+    Column({ space: 14 }) {
+      Row({ space: 12 }) {
+        SiteIconView({
+          iconUri: row.iconUrl,
+          fallbackAiraIconId: 'userscripts.defaultIcon',
+          iconSize: 42,
+          cornerRadius: 21,
+          fit: ImageFit.Contain,
+          containerBackgroundColor: this.storedPressedBackgroundColor,
+          frameBorderColor: this.storedDividerColor,
+          textColor: this.storedPrimaryTextColor
+        })
+
+        Column({ space: 6 }) {
+          Row({ space: 8 }) {
+            Text(row.title)
+              .fontSize(15)
+              .fontWeight(FontWeight.Medium)
+              .fontColor(this.storedPrimaryTextColor)
+              .maxLines(1)
+              .textOverflow({ overflow: TextOverflow.Ellipsis })
+              .layoutWeight(1)
+
+            if (row.version.length > 0) {
+              Text(row.version)
+                .fontSize(13)
+                .fontColor(this.storedSecondaryTextColor)
+                .maxLines(1)
+                .textOverflow({ overflow: TextOverflow.Ellipsis })
+                .constraintSize({ maxWidth: 96 })
+            }
+          }
+          .width('100%')
+          .alignItems(VerticalAlign.Center)
+
+          Text(row.description.length > 0 ? row.description : '没有说明')
+            .width('100%')
+            .fontSize(13)
+            .lineHeight(20)
+            .fontColor(this.storedSecondaryTextColor)
+            .maxLines(3)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
+            .constraintSize({ minHeight: 60 })
+        }
+        .layoutWeight(1)
+        .alignItems(HorizontalAlign.Start)
+      }
+      .width('100%')
+      .alignItems(VerticalAlign.Top)
+      .opacity(row.enabled ? 1 : 0.62)
+
+      Column({ space: 4 }) {
+        Text(`ID：${row.id}`)
+          .width('100%')
+          .fontSize(12)
+          .fontColor(this.storedSecondaryTextColor)
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+
+        Text(`作用范围：${row.scopeSummary}`)
+          .width('100%')
+          .fontSize(12)
+          .fontColor(this.storedSecondaryTextColor)
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+      }
+      .width('100%')
+      .alignItems(HorizontalAlign.Start)
+      .opacity(row.enabled ? 1 : 0.62)
+
+      Blank()
+        .layoutWeight(1)
+
+      Row({ space: 8 }) {
+        this.buildDesktopCardAction('详情', row.id, 'detail')
+        this.buildDesktopCardAction('移除', row.id, 'remove')
+        Blank()
+          .layoutWeight(1)
+        Toggle({ type: ToggleType.Switch, isOn: row.enabled })
+          .selectedColor(this.storedAccentColor)
+          .onChange((enabled: boolean) => {
+            this.onToggleScript(row.id, enabled);
+          })
+      }
+      .width('100%')
+      .alignItems(VerticalAlign.Center)
+    }
+    .width('100%')
+    .constraintSize({ minHeight: USER_SCRIPT_DESKTOP_CARD_MIN_HEIGHT_VP })
+    .padding(16)
+    .layoutWeight(1)
+    .alignItems(HorizontalAlign.Start)
+    .justifyContent(FlexAlign.Start)
+    .backgroundColor(this.storedSurfaceBackgroundColor)
+    .border({ width: 1, color: this.storedDividerColor })
+    .borderRadius(USER_SCRIPT_DESKTOP_CARD_RADIUS_VP)
+    .clip(true)
+    .bindContextMenu(this.buildScriptDesktopContextMenu(row), ResponseType.RightClick, buildBrowserDesktopMenuOptions({
+      onAppear: () => {
+        this.contextMenuScriptId = '';
+      }
+    }))
+  }
+
+  @Builder
+  private buildDesktopCardAction(label: string, scriptId: string, action: string) {
+    Button(label)
+      .type(ButtonType.Normal)
+      .height(32)
+      .fontSize(13)
+      .fontColor(this.storedAccentColor)
+      .backgroundColor(Color.Transparent)
+      .border({ width: 1, color: this.storedAccentColor })
+      .borderRadius(16)
+      .padding({ left: 14, right: 14 })
+      .stateEffect(true)
+      .onClick(() => {
+        if (action === 'detail') {
+          this.onEditScript(scriptId);
+          return;
+        }
+        this.onDeleteScript(scriptId);
+      })
   }
 
   @Builder
@@ -374,7 +551,7 @@ export struct UserScriptsScreen {
     .backgroundColor(this.storedSurfaceBackgroundColor)
     .borderRadius(this.desktopPresentation ? 8 : USER_SCRIPTS_SECTION_CORNER_RADIUS)
     .clip(true)
-    .bindContextMenu(this.buildScriptDesktopContextMenu(row), ResponseType.RightClick, {
+    .bindContextMenu(this.buildScriptDesktopContextMenu(row), ResponseType.RightClick, buildBrowserDesktopMenuOptions({
       onAppear: () => {
         this.contextMenuScriptId = '';
         this.pressedScriptId = row.id;
@@ -384,7 +561,7 @@ export struct UserScriptsScreen {
           this.pressedScriptId = '';
         }
       }
-    })
+    }))
   }
 
   @Builder
@@ -490,6 +667,31 @@ export struct UserScriptsScreen {
       .fontWeight(FontWeight.Medium)
       .fontColor(this.storedSecondaryTextColor)
       .padding({ left: 6 })
+  }
+
+  private resolveDesktopCardRows(): UserScriptDesktopCardRow[] {
+    const columnCount = resolveUserScriptDesktopColumnCount(this.desktopContentWidthVp);
+    const groups: UserScriptDesktopCardRow[] = [];
+    const rows = this.state.rows;
+    for (let index = 0; index < rows.length; index += columnCount) {
+      const cards = rows.slice(index, index + columnCount);
+      const firstId = cards.length > 0 ? cards[0].id : `${index}`;
+      const lastId = cards.length > 0 ? cards[cards.length - 1].id : `${index}`;
+      groups.push(new UserScriptDesktopCardRow(
+        `${firstId}:${lastId}:${cards.length}`,
+        cards,
+        columnCount - cards.length
+      ));
+    }
+    return groups;
+  }
+
+  private resolveDesktopSpacerIndexes(count: number): number[] {
+    const indexes: number[] = [];
+    for (let index = 0; index < count; index += 1) {
+      indexes.push(index);
+    }
+    return indexes;
   }
 
   private updatePressedScript(scriptId: string, type: TouchType): void {

@@ -1,5 +1,10 @@
 import { DEFAULT_THEME_PALETTE } from '../../../features/theme/palettes/DefaultThemePalette';
-import { UserScriptInstallPreviewState } from '../../../core/userscripts/UserScriptsSettingsViewModel';
+import {
+  resolveUserScriptInstallLoadFailureTitle,
+  resolveUserScriptInstallSurfaceMode,
+  UserScriptInstallPreviewState,
+  UserScriptInstallSurfaceMode
+} from '../../../core/userscripts/UserScriptsSettingsViewModel';
 import {
   UserScriptInstallExistingTarget,
   buildEmptyUserScriptInstallExistingTarget
@@ -33,6 +38,8 @@ export struct UserScriptInstallScreen {
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY) private storedPrimaryTextColor: string = '#111318';
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY) private storedSecondaryTextColor: string = '#5F6875';
   @Prop source: string = '';
+  @Prop sourceUrl: string = '';
+  @Prop loadErrorMessage: string = '';
   @Prop preview: UserScriptInstallPreviewState = {
     name: '',
     iconUrl: '',
@@ -53,6 +60,7 @@ export struct UserScriptInstallScreen {
   @Prop existingTarget: UserScriptInstallExistingTarget = buildEmptyUserScriptInstallExistingTarget();
   onSave: () => void = () => {};
   onClose: () => void = () => {};
+  onRetry: () => void = () => {};
 
   build() {
     Column() {
@@ -61,6 +69,8 @@ export struct UserScriptInstallScreen {
       Stack({ alignContent: Alignment.Bottom }) {
         if (this.shouldShowInstallLoading()) {
           this.buildInstallLoadingState()
+        } else if (this.shouldShowLoadFailure()) {
+          this.buildLoadFailureState()
         } else {
           Scroll() {
             Column({ space: 18 }) {
@@ -116,6 +126,80 @@ export struct UserScriptInstallScreen {
     .width('100%')
     .height(44)
     .padding({ left: 16, right: 16, top: 4, bottom: 4 })
+    .alignItems(VerticalAlign.Center)
+  }
+
+  @Builder
+  private buildLoadFailureState() {
+    Column() {
+      Column({ space: 14 }) {
+        Text(this.resolveLoadFailureTitle())
+          .width('100%')
+          .fontSize(22)
+          .fontWeight(FontWeight.Bold)
+          .fontColor(this.storedPrimaryTextColor)
+          .textAlign(TextAlign.Center)
+          .maxLines(2)
+
+        Text(this.loadErrorMessage)
+          .width('100%')
+          .fontSize(14)
+          .lineHeight(21)
+          .fontColor($r('sys.color.ohos_id_color_warning'))
+          .textAlign(TextAlign.Center)
+
+        if (this.sourceUrl.trim().length > 0) {
+          Column({ space: 6 }) {
+            Text('脚本地址')
+              .width('100%')
+              .fontSize(12)
+              .fontColor(this.storedSecondaryTextColor)
+
+            Text(this.sourceUrl)
+              .width('100%')
+              .fontSize(13)
+              .lineHeight(18)
+              .fontColor(this.storedPrimaryTextColor)
+              .maxLines(4)
+              .textOverflow({ overflow: TextOverflow.Ellipsis })
+              .textSelectable(TextSelectableMode.SELECTABLE_UNFOCUSABLE)
+          }
+          .width('100%')
+          .padding(16)
+          .alignItems(HorizontalAlign.Start)
+          .backgroundColor(this.storedSurfaceBackgroundColor)
+          .borderRadius(22)
+        }
+      }
+      .width('100%')
+      .layoutWeight(1)
+      .padding({ left: 20, right: 20 })
+      .justifyContent(FlexAlign.Center)
+
+      if (this.canRetrySourceLoad()) {
+        this.buildRetryAction()
+      }
+    }
+    .width('100%')
+    .height('100%')
+  }
+
+  @Builder
+  private buildRetryAction() {
+    Row() {
+      BrowserSheetActionButton({
+        label: '重试',
+        emphasis: 'primary',
+        accentColor: this.storedAccentColor,
+        actionEnabled: this.canRetrySourceLoad(),
+        buttonHeight: BROWSER_MODAL_BOTTOM_SHEET_ACTION_HEIGHT,
+        onAction: () => {
+          this.onRetry();
+        }
+      })
+    }
+    .width('100%')
+    .padding({ left: 16, right: 16, top: 8, bottom: 16 })
     .alignItems(VerticalAlign.Center)
   }
 
@@ -409,7 +493,23 @@ export struct UserScriptInstallScreen {
   }
 
   private shouldShowInstallLoading(): boolean {
-    return this.source.length <= 0 && this.importBusy;
+    return this.installSurfaceMode() === 'loading';
+  }
+
+  private shouldShowLoadFailure(): boolean {
+    return this.installSurfaceMode() === 'failure';
+  }
+
+  private installSurfaceMode(): UserScriptInstallSurfaceMode {
+    return resolveUserScriptInstallSurfaceMode(this.source, this.importBusy, this.loadErrorMessage);
+  }
+
+  private resolveLoadFailureTitle(): string {
+    return resolveUserScriptInstallLoadFailureTitle(this.loadErrorMessage);
+  }
+
+  private canRetrySourceLoad(): boolean {
+    return this.sourceUrl.trim().length > 0 && !this.importBusy && !this.installBusy;
   }
 
   private shouldShowInstallConfirmation(): boolean {

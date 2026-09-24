@@ -112,7 +112,10 @@ export class SettingsDetailActionResolver {
       return this.copyAppearanceSettings(current, { blurPrivateTabPreviews: nextChecked });
     }
     if (action === 'toggle_desktop_bookmark_bar') {
-      return this.copyAppearanceSettings(current, { showDesktopBookmarkBar: nextChecked });
+      return this.copyAppearanceSettings(current, {
+        showDesktopBookmarkBar: nextChecked,
+        desktopBookmarkBarVisibility: nextChecked ? 'always' : 'never'
+      });
     }
     return undefined;
   }
@@ -176,7 +179,8 @@ export class SettingsDetailActionResolver {
       tabsOverviewLayoutStyle: patch.tabsOverviewLayoutStyle ?? current.tabsOverviewLayoutStyle,
       tabsOverviewCloseButtonAlwaysVisible: patch.tabsOverviewCloseButtonAlwaysVisible ??
         current.tabsOverviewCloseButtonAlwaysVisible,
-      showDesktopBookmarkBar: patch.showDesktopBookmarkBar ?? current.showDesktopBookmarkBar
+      showDesktopBookmarkBar: patch.showDesktopBookmarkBar ?? current.showDesktopBookmarkBar,
+      desktopBookmarkBarVisibility: patch.desktopBookmarkBarVisibility ?? current.desktopBookmarkBarVisibility
     };
   }
 

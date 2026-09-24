@@ -12,6 +12,7 @@ import {
   BrowserWebFullscreenState
 } from './BrowserWebFullscreenPresentationCoordinator';
 import { BrowserWebPageToolsCoordinator } from './BrowserWebPageToolsCoordinator';
+import { resolveManualFullscreenEnterHint } from './BrowserFullscreenExitHintPolicy';
 
 export interface BrowserFullscreenSurfaceFacts {
   context: common.UIAbilityContext;
@@ -20,6 +21,7 @@ export interface BrowserFullscreenSurfaceFacts {
   homePageVisible: boolean;
   tabsSheetVisible: boolean;
   assistantVideoTakeoverActive: boolean;
+  platformDeviceType: string;
 }
 
 export interface BrowserFullscreenSessionPresentation {
@@ -118,7 +120,7 @@ export class BrowserFullscreenSessionCoordinator {
     this.transitionGeneration += 1;
     this.publishFullscreenState(true, this.presentation.webFullscreenState);
     this.emitEffect('fullscreen_chrome_entered');
-    this.emitEffect('toast', '', '已进入全屏模式，按系统返回键可退出。');
+    this.emitEffect('toast', '', resolveManualFullscreenEnterHint(facts.platformDeviceType));
   }
 
   async disableFullscreen(showToast: boolean): Promise<void> {

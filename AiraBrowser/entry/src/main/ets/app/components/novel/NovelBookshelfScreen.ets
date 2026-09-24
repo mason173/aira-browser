@@ -26,7 +26,8 @@ import {
 import { AiraIcon } from '../common/AiraIcon';
 import {
   BrowserDesktopContextMenu,
-  BrowserDesktopContextMenuItem
+  BrowserDesktopContextMenuItem,
+  buildBrowserDesktopMenuOptions
 } from '../browser/BrowserDesktopContextMenu';
 import { AppEmptyState } from '../common/AppEmptyState';
 import { ManagementHdsScaffold } from '../common/ManagementHdsScaffold';
@@ -439,16 +440,17 @@ export struct NovelBookshelfScreen {
             })
         )
       )
-      .bindContextMenu(this.contextMenuBookId === book.id, this.buildDesktopBookContextMenu(book), {
-        onDisappear: (): void => {
-          if (this.contextMenuBookId === book.id) {
-            this.contextMenuBookId = '';
+      .bindContextMenu(this.contextMenuBookId === book.id, this.buildDesktopBookContextMenu(book),
+        buildBrowserDesktopMenuOptions({
+          onDisappear: (): void => {
+            if (this.contextMenuBookId === book.id) {
+              this.contextMenuBookId = '';
+            }
           }
-        }
-      })
+        }))
     }
     .width('100%')
-    .bindContextMenu(this.buildDesktopBookContextMenu(book), ResponseType.RightClick)
+    .bindContextMenu(this.buildDesktopBookContextMenu(book), ResponseType.RightClick, buildBrowserDesktopMenuOptions())
   }
 
   @Builder

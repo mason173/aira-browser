@@ -205,6 +205,7 @@ export struct UserScriptManagementHost {
       height: this.resolvePhoneSheetHeight(),
       dragBar: true,
       showClose: false,
+      radiusRenderStrategy: RenderStrategy.OFFSCREEN,
       onWillDismiss: (dismissDialogAction: DismissDialogAction): void => {
         if (!this.isInstallCommitBusy()) {
           dismissDialogAction.dismiss();
@@ -262,6 +263,7 @@ export struct UserScriptManagementHost {
           showTitleBar: true,
           useTopSafeInset: this.presentationMode === 'page',
           desktopPresentation: this.settingsWorkspacePresentation,
+          useCardLayout: this.presentationMode === 'native_tab',
           onAddFromUrl: () => {
             this.openManualUrlDialog();
           },

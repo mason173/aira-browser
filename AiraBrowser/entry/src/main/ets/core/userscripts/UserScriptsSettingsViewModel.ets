@@ -9,9 +9,26 @@ import { UserScriptMatchService } from '../../services/userscripts/UserScriptMat
 export interface UserScriptRowView {
   id: string;
   title: string;
+  version: string;
+  description: string;
+  scopeSummary: string;
   iconUrl: string;
   enabled: boolean;
   canUpdate: boolean;
+}
+
+export const USER_SCRIPT_DESKTOP_CARD_MIN_WIDTH_VP: number = 300;
+export const USER_SCRIPT_DESKTOP_CARD_GAP_VP: number = 16;
+export const USER_SCRIPT_DESKTOP_MAX_COLUMNS: number = 4;
+
+/** Column count for the PC script grid. Narrow panes stay one column; wide windows cap at four. */
+export function resolveUserScriptDesktopColumnCount(contentWidthVp: number): number {
+  if (!Number.isFinite(contentWidthVp) || contentWidthVp <= 0) {
+    return 1;
+  }
+  const slotWidthVp = USER_SCRIPT_DESKTOP_CARD_MIN_WIDTH_VP + USER_SCRIPT_DESKTOP_CARD_GAP_VP;
+  const columnCount = Math.floor((contentWidthVp + USER_SCRIPT_DESKTOP_CARD_GAP_VP) / slotWidthVp);
+  return Math.max(1, Math.min(USER_SCRIPT_DESKTOP_MAX_COLUMNS, columnCount));
 }
 
 export interface UserScriptsSettingsState {
@@ -42,6 +59,44 @@ export interface UserScriptInstallPreviewState {
   saveEnabled: boolean;
 }
 
+export type UserScriptInstallSurfaceMode = 'loading' | 'failure' | 'content';
+
+export function resolveUserScriptInstallLoadErrorMessage(
+  source: string,
+  importBusy: boolean,
+  helperMessage: string
+): string {
+  if (importBusy || source.trim().length > 0) {
+    return '';
+  }
+  return helperMessage.trim();
+}
+
+export function resolveUserScriptInstallSurfaceMode(
+  source: string,
+  importBusy: boolean,
+  loadErrorMessage: string
+): UserScriptInstallSurfaceMode {
+  if (source.trim().length <= 0 && importBusy) {
+    return 'loading';
+  }
+  if (source.trim().length <= 0 && loadErrorMessage.trim().length > 0) {
+    return 'failure';
+  }
+  return 'content';
+}
+
+export function resolveUserScriptInstallLoadFailureTitle(errorMessage: string): string {
+  const message = errorMessage.trim();
+  if (message.indexOf('没有可用网络') >= 0) {
+    return '当前没有可用网络';
+  }
+  if (message.indexOf('无法连接') >= 0 || message.indexOf('访问不到') >= 0) {
+    return '无法连接脚本地址';
+  }
+  return '无法读取脚本';
+}
+
 export class UserScriptsSettingsViewModel {
   private capabilityContract: UserScriptCapabilityContractService = new UserScriptCapabilityContractService();
   private matchService: UserScriptMatchService = new UserScriptMatchService();
@@ -54,6 +109,9 @@ export class UserScriptsSettingsViewModel {
       return {
         id: script.id,
         title: script.name,
+        version: script.version.trim(),
+        description: script.description.trim(),
+        scopeSummary: this.matchService.summarizeScope(script),
         iconUrl: script.iconUrl,
         enabled: script.enabled,
         canUpdate: script.updateUrl.length > 0 || script.downloadUrl.length > 0

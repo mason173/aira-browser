@@ -45,6 +45,10 @@ export function applyDesktopDialogSheetChrome(
   callerRequestedCenter: boolean = false,
   useTierMaxHeight: boolean = false
 ): SheetOptions {
+  // Phone sheets return below without desktop chrome, but they still need this.
+  // bindSheet defaults to RenderStrategy.FAST. With top blur, that mode samples
+  // the dark mask into the top corners. OFFSCREEN draws the sheet first, then clips.
+  options.radiusRenderStrategy = RenderStrategy.OFFSCREEN;
   if (!shouldCenterDialogSheet(callerRequestedCenter)) {
     return options;
   }

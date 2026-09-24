@@ -624,6 +624,16 @@ export function normalizeBrowserSessionPrivacyMode(
   return value === 'private' ? 'private' : 'regular';
 }
 
+export function normalizeDesktopBookmarkBarVisibility(
+  value: DesktopBookmarkBarVisibility | string | undefined,
+  fallback: DesktopBookmarkBarVisibility = 'always'
+): DesktopBookmarkBarVisibility {
+  if (value === 'always' || value === 'never' || value === 'new_tab_only') {
+    return value;
+  }
+  return fallback;
+}
+
 export function resolveBrowserDataScopeForPrivacyMode(privacyMode: BrowserSessionPrivacyMode): BrowserDataScope {
   return privacyMode === 'private' ? 'session_ephemeral' : 'profile_persistent';
 }
@@ -1165,9 +1175,20 @@ export interface BrowserAppearanceSettings {
   themePaletteId: BrowserThemePaletteId;
   tabsOverviewLayoutStyle: BrowserTabsOverviewLayoutStyle;
   tabsOverviewCloseButtonAlwaysVisible: boolean;
-  /** Device-local Large-Screen chrome preference; intentionally excluded from Personalization Sync. */
+  /**
+   * Device-local Large-Screen chrome preference; intentionally excluded from Personalization Sync.
+   * Kept as the two-state projection of {@link desktopBookmarkBarVisibility} so existing device
+   * switches keep working.
+   */
   showDesktopBookmarkBar?: boolean;
+  /**
+   * Device-local Large-Screen bookmark bar policy; intentionally excluded from Personalization
+   * Sync. Absent on installs that only ever stored {@link showDesktopBookmarkBar}.
+   */
+  desktopBookmarkBarVisibility?: DesktopBookmarkBarVisibility;
 }
+
+export type DesktopBookmarkBarVisibility = 'always' | 'never' | 'new_tab_only';
 
 export type BrowserStartupRestorePolicy = 'restore_regular_tabs' | 'open_home';
 export type BrowserPrivateTabRestorePolicy = 'never_restore' | 'restore_private_tabs';

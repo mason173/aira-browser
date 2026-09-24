@@ -14,7 +14,8 @@ import { DEFAULT_THEME_PALETTE } from '../../../features/theme/palettes/DefaultT
 import { WebsiteIconView } from '../common/WebsiteIconView';
 import {
   BrowserDesktopContextMenu,
-  BrowserDesktopContextMenuItem
+  BrowserDesktopContextMenuItem,
+  buildBrowserDesktopMenuOptions
 } from '../browser/BrowserDesktopContextMenu';
 import { BROWSER_DESKTOP_MENU_WIDE_WIDTH_VP } from '../../../core/browser/BrowserDesktopMenuPresentationTokens';
 import {
@@ -137,7 +138,7 @@ export struct HistoryLargeScreenSites {
         this.hoveredSiteKey = hovered ? site.key : '';
       })
       .onClick((): void => this.onOpenSite(site))
-      .bindContextMenu(this.buildSiteContextMenu(site), ResponseType.RightClick)
+      .bindContextMenu(this.buildSiteContextMenu(site), ResponseType.RightClick, buildBrowserDesktopMenuOptions())
     }
     .width('100%')
     .backgroundColor($r('sys.color.ohos_id_color_background_transparent'))

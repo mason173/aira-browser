@@ -133,21 +133,13 @@ export class BrowserRecentlyClosedTabsService {
     activeTabId: string,
     records: BrowserRecentlyClosedTabRecord[]
   ): BrowserRestoreRecentlyClosedTabResult {
-    const restorableRecords = this.filterRestorableRecords(records);
-    const latest = restorableRecords.slice().sort((left: BrowserRecentlyClosedTabRecord, right: BrowserRecentlyClosedTabRecord) => {
+    const latest = records.slice().sort((left: BrowserRecentlyClosedTabRecord, right: BrowserRecentlyClosedTabRecord) => {
       return this.compareNewestFirst(left, right);
-    })[0];
+    }).find((record: BrowserRecentlyClosedTabRecord) => this.resolveStoredRestoreUrl(record.tab).length > 0);
     if (latest === undefined) {
-      return {
-        tabs: tabs.slice(),
-        activeTabId: activeTabId,
-        restored: false,
-        restoredTabId: '',
-        remainingRecords: restorableRecords,
-        summaryLine: 'recentlyClosedRestore restored=0 reason=empty'
-      };
+      return this.buildFailedRestoreResult(tabs, activeTabId, records, 'empty');
     }
-    return this.restoreByRecordId(tabs, activeTabId, restorableRecords, latest.id);
+    return this.restoreByRecordId(tabs, activeTabId, records, latest.id);
   }
 
   restoreByRecordId(
@@ -156,31 +148,45 @@ export class BrowserRecentlyClosedTabsService {
     records: BrowserRecentlyClosedTabRecord[],
     recordId: string
   ): BrowserRestoreRecentlyClosedTabResult {
-    const restorableRecords = this.filterRestorableRecords(records);
-    const record = restorableRecords.find((item: BrowserRecentlyClosedTabRecord) => item.id === recordId);
+    const record = records.find((item: BrowserRecentlyClosedTabRecord) => item.id === recordId);
     if (record === undefined) {
-      return {
-        tabs: tabs.slice(),
-        activeTabId: activeTabId,
-        restored: false,
-        restoredTabId: '',
-        remainingRecords: restorableRecords,
-        summaryLine: `recentlyClosedRestore restored=0 reason=missing record=${recordId}`
-      };
+      return this.buildFailedRestoreResult(tabs, activeTabId, records, `missing record=${recordId}`);
+    }
+    const storedUrl = this.resolveStoredRestoreUrl(record.tab);
+    if (storedUrl.length === 0) {
+      return this.buildFailedRestoreResult(tabs, activeTabId, records, `empty_url record=${recordId}`);
     }
     const restoredTab = this.cloneClosedTab(
       record.tab,
       this.resolveRestoredRuntimeState(record.tab),
-      this.buildRestoredTabId(record, tabs)
+      this.buildRestoredTabId(record, tabs),
+      storedUrl
     );
+    this.downloadNavigationStateCoordinator.allowExplicitPageRestore(storedUrl);
     const nextTabs = this.deactivateCurrentActiveTab(tabs, activeTabId).concat([restoredTab]);
     return {
       tabs: nextTabs,
       activeTabId: restoredTab.id,
       restored: true,
       restoredTabId: restoredTab.id,
-      remainingRecords: restorableRecords.filter((item: BrowserRecentlyClosedTabRecord) => item.id !== record.id),
+      remainingRecords: records.filter((item: BrowserRecentlyClosedTabRecord) => item.id !== record.id),
       summaryLine: `recentlyClosedRestore restored=1 tab=${restoredTab.id} original=${record.originalTabId}`
+    };
+  }
+
+  private buildFailedRestoreResult(
+    tabs: BrowserTabState[],
+    activeTabId: string,
+    records: BrowserRecentlyClosedTabRecord[],
+    reason: string
+  ): BrowserRestoreRecentlyClosedTabResult {
+    return {
+      tabs: tabs.slice(),
+      activeTabId: activeTabId,
+      restored: false,
+      restoredTabId: '',
+      remainingRecords: records.slice(),
+      summaryLine: `recentlyClosedRestore restored=0 reason=${reason}`
     };
   }
 
@@ -210,12 +216,6 @@ export class BrowserRecentlyClosedTabsService {
       return `data_scope_${this.formatDataScope(policy.boundary.dataScope)}`;
     }
     return 'empty_url';
-  }
-
-  private filterRestorableRecords(records: BrowserRecentlyClosedTabRecord[]): BrowserRecentlyClosedTabRecord[] {
-    return records.filter((record: BrowserRecentlyClosedTabRecord) => {
-      return this.shouldRecordClosedTab(record.tab);
-    });
   }
 
   private buildUpdateResult(
@@ -257,8 +257,14 @@ export class BrowserRecentlyClosedTabsService {
     return (records[0].siteIconUri ?? '').trim().length > 0;
   }
 
-  private cloneClosedTab(tab: BrowserTabState, runtimeState: TabRuntimeState, tabId: string): BrowserTabState {
-    const url = this.resolveRestorableUrl(tab);
+  private cloneClosedTab(
+    tab: BrowserTabState,
+    runtimeState: TabRuntimeState,
+    tabId: string,
+    storedUrl: string = ''
+  ): BrowserTabState {
+    const explicitUrl = storedUrl.trim();
+    const url = explicitUrl.length > 0 ? explicitUrl : this.resolveRestorableUrl(tab);
     const restorableTitle = this.resolveRestorableTitle(tab, url);
     return {
       id: tabId,
@@ -336,6 +342,43 @@ export class BrowserRecentlyClosedTabsService {
 
   private resolveRestorableUrl(tab: BrowserTabState): string {
     return this.downloadNavigationStateCoordinator.resolveRestorableNavigation(tab).url;
+  }
+
+  private resolveStoredRestoreUrl(tab: BrowserTabState): string {
+    const candidates: string[] = [
+      tab.lastRestorableUrl,
+      tab.lastGoodUrl,
+      this.resolveHistoryCandidate(tab.navigationHistory, tab.navigationIndex),
+      tab.pendingUrl,
+      tab.url
+    ];
+    for (let index = 0; index < candidates.length; index += 1) {
+      const url = candidates[index].trim();
+      if (url.length === 0 || this.isInternalRestoreUrl(url)) {
+        continue;
+      }
+      return url;
+    }
+    return '';
+  }
+
+  private resolveHistoryCandidate(history: string[], navigationIndex: number): string {
+    if (history.length <= 0) {
+      return '';
+    }
+    const startIndex = navigationIndex >= 0 && navigationIndex < history.length ? navigationIndex : history.length - 1;
+    for (let index = startIndex; index >= 0; index -= 1) {
+      const candidate = history[index].trim();
+      if (candidate.length > 0) {
+        return candidate;
+      }
+    }
+    return '';
+  }
+
+  private isInternalRestoreUrl(url: string): boolean {
+    const normalized = url.trim().toLowerCase();
+    return normalized.startsWith('aira://') || normalized.startsWith('about:') || normalized.startsWith('data:');
   }
 
   private resolveRestorableTitle(tab: BrowserTabState, url: string): string {

@@ -89,6 +89,10 @@ export class BrowserWindowFixedLaunchApplication implements BrowserWindowLaunchA
       this.openPrivateWindowLaunch(payload);
       return;
     }
+    if (payload.newWindowInstanceId.length > 0) {
+      this.openNewWindowLaunch(payload);
+      return;
+    }
     if (payload.appShortcut.length > 0) {
       this.openAppShortcut(payload);
       return;
@@ -283,6 +287,31 @@ export class BrowserWindowFixedLaunchApplication implements BrowserWindowLaunchA
       return;
     }
     this.dependencies.tabHomeCoordinator.showHomeSurface('已打开隐私窗口', options);
+  }
+
+  /**
+   * A bookmark opened into its own window. The window already exists (its ability was started with
+   * the URL), so this only materialises the tab and keeps the regular boundary of the payload.
+   */
+  private openNewWindowLaunch(payload: BrowserLaunchPayload): void {
+    const targetUrl = payload.uri.trim();
+    if (targetUrl.length === 0) {
+      return;
+    }
+    this.dependencies.tabHomeCoordinator.applyBoundary(payload.profileId, payload.privacyMode, payload.dataScope);
+    this.dependencies.foregroundTabCreationCoordinator.createNewTabNow({
+      initialUrl: targetUrl,
+      initialTitle: resolveBrowserNewWindowTestTitle(targetUrl, targetUrl),
+      options: {
+        profileId: payload.profileId,
+        privacyMode: payload.privacyMode,
+        dataScope: payload.dataScope
+      },
+      runtimeOptions: {
+        skipCurrentTabPreviewForForegroundOpen: true
+      }
+    });
+    this.shell.publishHelper('已在新窗口中打开链接。');
   }
 
   private openAppShortcut(payload: BrowserLaunchPayload): void {

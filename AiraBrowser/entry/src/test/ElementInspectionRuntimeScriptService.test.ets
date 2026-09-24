@@ -164,5 +164,44 @@ export default function elementInspectionRuntimeScriptServiceTest(): void {
       expect(rejected.indexOf('runtime.selectByPath(') >= 0).assertFalse();
       expect(rejected.indexOf('runtime.snapshot()') >= 0).assertTrue();
     });
+
+    it('previews an outline path without selecting it', 0, () => {
+      const service = new ElementInspectionRuntimeScriptService();
+      const preview = service.buildPreviewOutlineScript(2, '2:token', '1/0');
+      const rejected = service.buildPreviewOutlineScript(2, '2:token', '1;alert(1)');
+      const install = service.buildInstallScript(2, '2:token', '#0A59F7');
+
+      expect(preview.indexOf('runtime.previewByPath(') >= 0).assertTrue();
+      expect(preview.indexOf('"1/0"') >= 0).assertTrue();
+      expect(rejected.indexOf('runtime.previewByPath(') >= 0).assertFalse();
+      expect(install.indexOf('可键盘聚焦') >= 0).assertTrue();
+    });
+
+    it('builds a path-scoped context action and rejects an unsafe command', 0, () => {
+      const service = new ElementInspectionRuntimeScriptService();
+      const script = service.buildOutlineCommandScript(2, '2:token', 'delete', '1/0', '');
+      const rejectedKind = service.buildOutlineCommandScript(2, '2:token', 'delete;alert(1)', '1/0', '');
+      const rejectedPath = service.buildOutlineCommandScript(2, '2:token', 'paste', '1/0', '<div>');
+      const install = service.buildInstallScript(2, '2:token', '#0A59F7');
+      const parsed = service.parseContextActionResult(JSON.stringify({
+        ok: true,
+        reason: '',
+        protocolVersion: 4,
+        sessionGeneration: 2,
+        documentToken: '2:token',
+        text: 'temp1',
+        snapshot: JSON.parse(inspectedSnapshot())
+      }));
+
+      expect(script.indexOf('runtime.contextAction(') >= 0).assertTrue();
+      expect(script.indexOf('"delete"') >= 0).assertTrue();
+      expect(rejectedKind.indexOf('runtime.contextAction(') >= 0).assertFalse();
+      expect(rejectedPath.indexOf('runtime.contextAction(') >= 0).assertFalse();
+      expect(install.indexOf('runtime.contextAction') >= 0).assertTrue();
+      expect(install.indexOf('aira-inspect-hidden') >= 0).assertTrue();
+      expect(parsed.ok).assertTrue();
+      expect(parsed.text).assertEqual('temp1');
+      expect(parsed.snapshot.ok).assertTrue();
+    });
   });
 }

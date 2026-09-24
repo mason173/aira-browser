@@ -7,14 +7,24 @@ import {
   BrowserDesktopBookmarkBarViewModel,
   DESKTOP_BOOKMARK_BAR_LAYOUT
 } from '../../../core/browser/BrowserDesktopBookmarkBarViewModel';
+import {
+  BrowserDesktopBookmarkBarMenuItem,
+  BrowserDesktopBookmarkBarMenuItemId,
+  BrowserDesktopBookmarkBarMenuModel,
+  buildDesktopBookmarkBarBlankMenuModel,
+  buildDesktopBookmarkBarMenuModel,
+  resolveDesktopBookmarkBarVisibilityForMenuItem
+} from '../../../core/browser/BrowserDesktopBookmarkBarMenuModel';
+import { normalizeDesktopBookmarkBarVisibility } from '../../../common/models/BrowserModels';
+import { DESKTOP_BOOKMARK_CLIPBOARD_HAS_CONTENT_KEY } from '../../../core/bookmarks/DesktopBookmarkClipboardSignal';
 import { BookmarkStatsVersionSignal, BOOKMARK_STATS_VERSION_KEY } from '../../../core/bookmarks/BookmarkStatsVersionSignal';
 import { SiteIconListPresenter, SiteIconListRenderState, SiteIconListTarget } from '../../../core/siteicons/SiteIconListPresenter';
 import { SiteIconView } from '../common/SiteIconView';
 import { AiraIcon } from '../common/AiraIcon';
-import { BrowserDesktopContextMenu, BrowserDesktopContextMenuItem } from './BrowserDesktopContextMenu';
-import { BROWSER_DESKTOP_MENU_WIDTH_VP } from '../../../core/browser/BrowserDesktopMenuPresentationTokens';
+import { BrowserDesktopContextMenu, BrowserDesktopContextMenuItem, buildBrowserDesktopMenuOptions } from './BrowserDesktopContextMenu';
+import { BROWSER_DESKTOP_MENU_WIDE_WIDTH_VP, BROWSER_DESKTOP_MENU_WIDTH_VP } from '../../../core/browser/BrowserDesktopMenuPresentationTokens';
 import {
-  BROWSER_APPEARANCE_STORAGE_DESKTOP_BOOKMARK_BAR_VISIBLE_KEY,
+  BROWSER_APPEARANCE_STORAGE_DESKTOP_BOOKMARK_BAR_VISIBILITY_KEY,
   BROWSER_APPEARANCE_STORAGE_SITE_ICON_CORNER_RATIO_KEY,
   BROWSER_THEME_STORAGE_CONTROL_BACKGROUND_KEY,
   BROWSER_THEME_STORAGE_DIVIDER_KEY,
@@ -38,17 +48,18 @@ const EMPTY_BAR_SNAPSHOT: BrowserDesktopBookmarkBarSnapshot = {
 @Component
 export struct BrowserLargeScreenBookmarkBar {
   @Prop privateMode: boolean = false;
+  /** Bookmark-bar content width in vp; the parent surface owns bar visibility. */
   @Prop @Watch('handleLayoutChanged') availableWidthVp: number = 0;
-  @Prop barEnabled: boolean = true;
   onAction: (action: BrowserDesktopBookmarkBarAction) => void =
     (_action: BrowserDesktopBookmarkBarAction): void => {};
 
-  @StorageProp(BROWSER_APPEARANCE_STORAGE_DESKTOP_BOOKMARK_BAR_VISIBLE_KEY)
-  @Watch('handleStoredVisibilityChanged')
-  private storedVisibility: boolean = true;
   @StorageProp(BOOKMARK_STATS_VERSION_KEY)
   @Watch('handleBookmarkStatsChanged')
   private storedBookmarkStatsVersion: number = 0;
+  @StorageProp(BROWSER_APPEARANCE_STORAGE_DESKTOP_BOOKMARK_BAR_VISIBILITY_KEY)
+  private storedBarVisibility: string = 'always';
+  @StorageProp(DESKTOP_BOOKMARK_CLIPBOARD_HAS_CONTENT_KEY)
+  private storedClipboardHasContent: boolean = false;
   @StorageProp(BROWSER_APPEARANCE_STORAGE_SITE_ICON_CORNER_RATIO_KEY)
   private storedIconCornerRatio: number = 0.3;
   @StorageProp(BROWSER_THEME_STORAGE_PAGE_BACKGROUND_KEY)
@@ -90,25 +101,24 @@ export struct BrowserLargeScreenBookmarkBar {
 
   build() {
     Column() {
-      if (this.barEnabled && this.storedVisibility) {
-        Row({ space: DESKTOP_BOOKMARK_BAR_LAYOUT.itemGapVp }) {
-          this.buildManagerEntry()
-          ForEach(this.snapshot.visibleItems, (node: BookmarkNode): void => {
-            this.buildBookmarkEntry(node)
-          }, (node: BookmarkNode): string => node.id)
-          if (this.snapshot.overflowItems.length > 0) {
-            this.buildOverflowEntry()
-          }
+      Row({ space: DESKTOP_BOOKMARK_BAR_LAYOUT.itemGapVp }) {
+        this.buildManagerEntry()
+        ForEach(this.snapshot.visibleItems, (node: BookmarkNode): void => {
+          this.buildBookmarkEntry(node)
+        }, (node: BookmarkNode): string => node.id)
+        if (this.snapshot.overflowItems.length > 0) {
+          this.buildOverflowEntry()
         }
-        .width('100%')
-        .height(DESKTOP_BOOKMARK_BAR_LAYOUT.heightVp)
-        .padding({ left: DESKTOP_BOOKMARK_BAR_LAYOUT.horizontalInsetVp, right: DESKTOP_BOOKMARK_BAR_LAYOUT.horizontalInsetVp })
-        .backgroundColor(this.storedPageBackgroundColor)
-        .border({ width: { bottom: 1 }, color: this.storedDividerColor })
       }
+      .width('100%')
+      .height(DESKTOP_BOOKMARK_BAR_LAYOUT.heightVp)
+      .padding({ left: DESKTOP_BOOKMARK_BAR_LAYOUT.horizontalInsetVp, right: DESKTOP_BOOKMARK_BAR_LAYOUT.horizontalInsetVp })
+      .backgroundColor(this.storedPageBackgroundColor)
+      .border({ width: { bottom: 1 }, color: this.storedDividerColor })
+      .bindContextMenu(this.buildBlankAreaContextMenu(), ResponseType.RightClick, buildBrowserDesktopMenuOptions())
     }
     .width('100%')
-    .height(this.barEnabled && this.storedVisibility ? DESKTOP_BOOKMARK_BAR_LAYOUT.heightVp : 0)
+    .height(DESKTOP_BOOKMARK_BAR_LAYOUT.heightVp)
     .focusable(true)
     .onKeyEvent((event: KeyEvent): boolean => this.handleKeyEvent(event))
   }
@@ -129,10 +139,6 @@ export struct BrowserLargeScreenBookmarkBar {
         this.refresh();
       }
     }, (_error: Error): void => {});
-  }
-
-  private handleStoredVisibilityChanged(): void {
-    this.refresh();
   }
 
   private handleLayoutChanged(): void {
@@ -165,7 +171,7 @@ export struct BrowserLargeScreenBookmarkBar {
     .backgroundColor($r('sys.color.ohos_id_color_background_transparent'))
     .accessibilityText('打开书签管理')
     .onClick((): void => this.onAction({ kind: 'open_bookmarks' }))
-    .bindContextMenu(this.buildManagerContextMenu(), ResponseType.RightClick)
+    .bindContextMenu(this.buildManagerContextMenu(), ResponseType.RightClick, buildBrowserDesktopMenuOptions())
   }
 
   @Builder
@@ -238,8 +244,8 @@ export struct BrowserLargeScreenBookmarkBar {
         }
       }
     })
-    .bindContextMenu(this.buildBookmarkContextMenu(node), ResponseType.RightClick)
-    .bindMenu(node.type === 'folder' ? this.buildFolderMenu(node) : [])
+    .bindContextMenu(this.buildNodeContextMenu(node), ResponseType.RightClick, buildBrowserDesktopMenuOptions())
+    .bindMenu(node.type === 'folder' ? this.buildFolderMenu(node) : [], buildBrowserDesktopMenuOptions())
   }
 
   @Builder
@@ -253,36 +259,144 @@ export struct BrowserLargeScreenBookmarkBar {
     .buttonStyle(ButtonStyleMode.TEXTUAL)
     .backgroundColor($r('sys.color.ohos_id_color_background_transparent'))
     .accessibilityText('更多书签')
-    .bindMenu(this.buildOverflowMenu)
+    .bindMenu(this.buildOverflowMenu, buildBrowserDesktopMenuOptions())
   }
 
   @Builder
   private buildManagerContextMenu() {
     BrowserDesktopContextMenu() {
-      BrowserDesktopContextMenuItem({ label: '进入书签管理', onAction: (): void => this.onAction({ kind: 'open_bookmarks' }) })
+      BrowserDesktopContextMenuItem({ label: '打开书签管理器', onAction: (): void => this.onAction({ kind: 'open_bookmarks' }) })
     }
   }
 
+  /**
+   * Folder and bookmark items share one model-driven menu: the pure model decides which entries
+   * belong to the node, this surface only renders groups and dispatches entry ids.
+   */
   @Builder
-  private buildBookmarkContextMenu(node: BookmarkNode) {
-    BrowserDesktopContextMenu() {
-      if (node.type === 'bookmark') {
+  private buildNodeContextMenu(node: BookmarkNode) {
+    BrowserDesktopContextMenu({ menuWidthVp: BROWSER_DESKTOP_MENU_WIDE_WIDTH_VP }) {
+      ForEach(this.buildMenuModel(node).groups, (group: BrowserDesktopBookmarkBarMenuItem[]): void => {
         MenuItemGroup() {
-          BrowserDesktopContextMenuItem({ label: '当前标签打开', shortcut: 'Enter', onAction: (): void => {
-            this.onAction({ kind: 'open_bookmark', node: node, target: 'current' });
-          } })
-          BrowserDesktopContextMenuItem({ label: '新前台标签打开', onAction: (): void => {
-            this.onAction({ kind: 'open_bookmark', node: node, target: 'new' });
-          } })
-          BrowserDesktopContextMenuItem({ label: '后台标签打开', onAction: (): void => {
-            this.onAction({ kind: 'open_bookmark', node: node, target: 'background' });
-          } })
+          ForEach(group, (item: BrowserDesktopBookmarkBarMenuItem): void => {
+            BrowserDesktopContextMenuItem({
+              menuWidthVp: BROWSER_DESKTOP_MENU_WIDE_WIDTH_VP,
+              label: item.label,
+              itemEnabled: item.enabled,
+              checked: item.checked,
+              onAction: (): void => this.dispatchMenuItem(node, item.id)
+            })
+          }, (item: BrowserDesktopBookmarkBarMenuItem): string => item.id)
         }
-      }
-      MenuItemGroup() {
-        BrowserDesktopContextMenuItem({ label: '进入书签管理', onAction: (): void => this.onAction({ kind: 'open_bookmarks' }) })
-      }
+      }, (group: BrowserDesktopBookmarkBarMenuItem[], groupIndex: number): string => `${node.id}-${groupIndex}`)
     }
+  }
+
+  /**
+   * Empty-area menu of the bar row. Items and folders own their own menus, so a right click that
+   * lands on those entries never reaches this list.
+   */
+  @Builder
+  private buildBlankAreaContextMenu() {
+    BrowserDesktopContextMenu({ menuWidthVp: BROWSER_DESKTOP_MENU_WIDE_WIDTH_VP }) {
+      ForEach(this.buildBlankMenuModel().groups, (group: BrowserDesktopBookmarkBarMenuItem[]): void => {
+        MenuItemGroup() {
+          ForEach(group, (item: BrowserDesktopBookmarkBarMenuItem): void => {
+            BrowserDesktopContextMenuItem({
+              menuWidthVp: BROWSER_DESKTOP_MENU_WIDE_WIDTH_VP,
+              label: item.label,
+              itemEnabled: item.enabled,
+              checked: item.checked,
+              onAction: (): void => this.dispatchBlankMenuItem(item.id)
+            })
+          }, (item: BrowserDesktopBookmarkBarMenuItem): string => item.id)
+        }
+      }, (group: BrowserDesktopBookmarkBarMenuItem[], groupIndex: number): string => `bar-blank-${groupIndex}`)
+    }
+  }
+
+  private buildBlankMenuModel(): BrowserDesktopBookmarkBarMenuModel {
+    return buildDesktopBookmarkBarBlankMenuModel({
+      barVisibility: normalizeDesktopBookmarkBarVisibility(this.storedBarVisibility)
+    });
+  }
+
+  /** Bar-wide commands resolve against the toolbar root that this bar renders. */
+  private dispatchBlankMenuItem(id: BrowserDesktopBookmarkBarMenuItemId): void {
+    const visibility = resolveDesktopBookmarkBarVisibilityForMenuItem(id);
+    if (visibility !== undefined) {
+      this.onAction({ kind: 'set_bar_visibility', visibility: visibility });
+      return;
+    }
+    const scope: BookmarkStorageScope = this.privateMode ? 'private' : 'regular';
+    if (id === 'add_bookmark') {
+      this.onAction({ kind: 'add_bookmark_to_bar', scope: scope });
+      return;
+    }
+    if (id === 'add_folder') {
+      this.onAction({ kind: 'add_folder_to_bar', scope: scope });
+      return;
+    }
+    if (id === 'open_manager') {
+      this.onAction({ kind: 'open_bookmarks' });
+    }
+  }
+
+  private buildMenuModel(node: BookmarkNode): BrowserDesktopBookmarkBarMenuModel {
+    return buildDesktopBookmarkBarMenuModel({
+      node: node,
+      barVisibility: normalizeDesktopBookmarkBarVisibility(this.storedBarVisibility),
+      hasClipboardContent: this.storedClipboardHasContent
+    });
+  }
+
+  private dispatchMenuItem(node: BookmarkNode, id: BrowserDesktopBookmarkBarMenuItemId): void {
+    const visibility = resolveDesktopBookmarkBarVisibilityForMenuItem(id);
+    if (visibility !== undefined) {
+      this.onAction({ kind: 'set_bar_visibility', visibility: visibility });
+      return;
+    }
+    if (id === 'open_new_tab') {
+      this.onAction({ kind: 'open_bookmark', node: node, target: 'new' });
+      return;
+    }
+    if (id === 'open_new_window') {
+      this.onAction({ kind: 'open_bookmark', node: node, target: 'new_window' });
+      return;
+    }
+    if (id === 'open_private_window') {
+      this.onAction({ kind: 'open_bookmark', node: node, target: 'private_window' });
+      return;
+    }
+    if (id === 'open_manager') {
+      this.onAction({ kind: 'open_bookmarks' });
+      return;
+    }
+    if (id === 'rename_node') {
+      this.onAction({ kind: 'rename_node', node: node });
+      return;
+    }
+    if (id === 'delete_node') {
+      this.onAction({ kind: 'delete_node', node: node });
+      return;
+    }
+    if (id === 'add_bookmark') {
+      this.onAction({ kind: 'add_bookmark', node: node });
+      return;
+    }
+    if (id === 'add_folder') {
+      this.onAction({ kind: 'add_folder', node: node });
+      return;
+    }
+    if (id === 'cut_node') {
+      this.onAction({ kind: 'cut_node', node: node });
+      return;
+    }
+    if (id === 'copy_node') {
+      this.onAction({ kind: 'copy_node', node: node });
+      return;
+    }
+    this.onAction({ kind: 'paste_node', node: node });
   }
 
   @Builder
