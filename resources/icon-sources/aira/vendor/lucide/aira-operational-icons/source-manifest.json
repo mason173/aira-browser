@@ -878,6 +878,20 @@
       "codePoint": 60954,
       "sourceSha256": "9983dcb4377f7f9c3b774196e6750fd66ad697c471502fc9e20c8cbfe455e840",
       "lucideSlug": "tools"
+    },
+    {
+      "glyph": "minus",
+      "sourceFile": "svg/minus.svg",
+      "codePoint": 60955,
+      "sourceSha256": "1a43a0f30601432550fe1126cbce04acdeccc39a055e50ebe55ebe784df49d90",
+      "lucideSlug": "minus"
+    },
+    {
+      "glyph": "user",
+      "sourceFile": "svg/user.svg",
+      "codePoint": 60956,
+      "sourceSha256": "b6f904c7da85e76a1eeffe7588a370d23f21a0bbc8eb91f66db719739db5c4d4",
+      "lucideSlug": "user"
     }
   ],
   "package": "@tabler/icons",

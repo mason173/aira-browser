@@ -28,6 +28,7 @@ import {
   sharedPreferencesRepository
 } from '../../bootstrap/BrowserAppRuntime';
 import { SettingsNavigationCoordinator } from '../../router/SettingsNavigationCoordinator';
+import { AiraIcon } from '../common/AiraIcon';
 import { HuaweiAccountInfoContent } from '../account/HuaweiAccountInfoContent';
 import { HuaweiLoginSheetContent } from '../account/HuaweiLoginSheetContent';
 import { AppWindowModalLayoutService } from '../../../services/layout/AppWindowModalLayoutService';
@@ -201,9 +202,11 @@ export struct BrowserLargeScreenAccountPopover {
           .clip(true)
           .objectFit(ImageFit.Cover)
       } else {
-        SymbolGlyph($r('sys.symbol.person_fill'))
-          .fontSize(LARGE_SCREEN_ACCOUNT_PLACEHOLDER_ICON_SIZE_VP)
-          .fontColor([this.theme.textPrimary])
+        AiraIcon({
+          airaIconId: 'browser.toolbar.account',
+          iconSize: LARGE_SCREEN_ACCOUNT_PLACEHOLDER_ICON_SIZE_VP,
+          iconColor: this.theme.textPrimary
+        })
       }
     }
     .width(LARGE_SCREEN_ACCOUNT_AVATAR_SIZE_VP)

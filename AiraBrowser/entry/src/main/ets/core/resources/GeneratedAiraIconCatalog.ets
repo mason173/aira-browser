@@ -168,7 +168,10 @@ export type AiraIconId =
   | "browser.toolbar.expandHint"
   | "crossDeviceLink.localDevice"
   | "crossDeviceLink.peerComputer"
-  | "crossDeviceLink.help";
+  | "crossDeviceLink.help"
+  | "browser.toolbar.account"
+  | "browser.toolbar.zoomOut"
+  | "browser.toolbar.zoomIn";
 
 export type AiraRenderableIconId =
   | "bookmarks.folder"
@@ -338,7 +341,10 @@ export type AiraRenderableIconId =
   | "browser.toolbar.expandHint"
   | "crossDeviceLink.localDevice"
   | "crossDeviceLink.peerComputer"
-  | "crossDeviceLink.help";
+  | "crossDeviceLink.help"
+  | "browser.toolbar.account"
+  | "browser.toolbar.zoomOut"
+  | "browser.toolbar.zoomIn";
 
 export const AIRA_ICON_FONT_FAMILY: string = "AiraOperationalIcons";
 export const AIRA_ICON_FONT_RAWFILE_PATH: string = "fonts/aira/aira-operational-icons.ttf";
@@ -513,6 +519,9 @@ export class GeneratedAiraIconCatalog {
       case "crossDeviceLink.localDevice":
       case "crossDeviceLink.peerComputer":
       case "crossDeviceLink.help":
+      case "browser.toolbar.account":
+      case "browser.toolbar.zoomOut":
+      case "browser.toolbar.zoomIn":
         return true;
       default:
         return false;
@@ -847,6 +856,12 @@ export class GeneratedAiraIconCatalog {
         return '\uE560';
       case "crossDeviceLink.help":
         return '\uE2CE';
+      case "browser.toolbar.account":
+        return '\uEE1C';
+      case "browser.toolbar.zoomOut":
+        return '\uEE1B';
+      case "browser.toolbar.zoomIn":
+        return '\uE3D4';
       default:
         return '';
     }

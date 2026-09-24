@@ -387,6 +387,12 @@
     },
     {
       "properties": {
+        "name": "minus",
+        "code": 60955
+      }
+    },
+    {
+      "properties": {
         "name": "moon",
         "code": 58160
       }
@@ -701,6 +707,12 @@
       "properties": {
         "name": "trash",
         "code": 58534
+      }
+    },
+    {
+      "properties": {
+        "name": "user",
+        "code": 60956
       }
     },
     {

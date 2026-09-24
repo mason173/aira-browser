@@ -6,7 +6,8 @@ import { AiraRenderableIconId } from '../../../core/resources/GeneratedAiraIconC
 import {
   BROWSER_THEME_STORAGE_CONTROL_BACKGROUND_KEY,
   BROWSER_THEME_STORAGE_DIVIDER_KEY,
-  BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY
+  BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY,
+  BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY
 } from '../../../core/theme/BrowserThemeStorageKeys';
 import { CENTERED_DIALOG_SYSTEM_SURFACE_MODIFIER } from '../common/CenteredDialogSurface';
 import { BrowserSheetActionButton, BrowserSheetIconButton } from './BrowserModalBottomSheet';
@@ -23,6 +24,8 @@ export struct BrowserLargeScreenWebZoomDialog {
   private storedDividerColor: string = '#E3E8EF';
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY)
   private storedPrimaryTextColor: string = '#111318';
+  @StorageProp(BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY)
+  private storedSecondaryTextColor: string = '#5F6875';
   controller?: CustomDialogController;
   @Link snapshot: BrowserLargeScreenWebZoomSnapshot;
   onAction: (action: BrowserLargeScreenWebZoomAction) => void =
@@ -60,12 +63,17 @@ export struct BrowserLargeScreenWebZoomDialog {
       .alignItems(VerticalAlign.Center)
 
       Row({ space: 0 }) {
-        this.buildZoomButton(
-          'reader.decreaseFont',
-          '缩小网页',
-          this.snapshot.canDecrease,
-          'decrease'
-        )
+        Stack() {
+          if (this.snapshot.canDecrease) {
+            this.buildZoomButton('browser.toolbar.zoomOut', '缩小网页', 'decrease', true)
+          } else {
+            this.buildZoomButton('browser.toolbar.zoomOut', '缩小网页', 'decrease', false)
+          }
+        }
+        .width(LARGE_SCREEN_WEB_ZOOM_CONTROL_HEIGHT_VP)
+        .height(LARGE_SCREEN_WEB_ZOOM_CONTROL_HEIGHT_VP)
+        .opacity(this.snapshot.canDecrease ? 1 : 0.38)
+        .enabled(this.snapshot.canDecrease)
 
         this.buildDivider()
 
@@ -80,12 +88,17 @@ export struct BrowserLargeScreenWebZoomDialog {
 
         this.buildDivider()
 
-        this.buildZoomButton(
-          'reader.increaseFont',
-          '放大网页',
-          this.snapshot.canIncrease,
-          'increase'
-        )
+        Stack() {
+          if (this.snapshot.canIncrease) {
+            this.buildZoomButton('browser.toolbar.zoomIn', '放大网页', 'increase', true)
+          } else {
+            this.buildZoomButton('browser.toolbar.zoomIn', '放大网页', 'increase', false)
+          }
+        }
+        .width(LARGE_SCREEN_WEB_ZOOM_CONTROL_HEIGHT_VP)
+        .height(LARGE_SCREEN_WEB_ZOOM_CONTROL_HEIGHT_VP)
+        .opacity(this.snapshot.canIncrease ? 1 : 0.38)
+        .enabled(this.snapshot.canIncrease)
       }
       .width('100%')
       .height(LARGE_SCREEN_WEB_ZOOM_CONTROL_HEIGHT_VP)
@@ -111,16 +124,23 @@ export struct BrowserLargeScreenWebZoomDialog {
   private buildZoomButton(
     iconId: AiraRenderableIconId,
     label: string,
-    enabled: boolean,
-    action: BrowserLargeScreenWebZoomAction
+    action: BrowserLargeScreenWebZoomAction,
+    enabled: boolean
   ) {
     BrowserSheetIconButton({
       airaIconId: iconId,
       iconSize: 17,
+      iconColor: enabled ? this.storedPrimaryTextColor : this.storedSecondaryTextColor,
       buttonSize: LARGE_SCREEN_WEB_ZOOM_CONTROL_HEIGHT_VP,
       actionEnabled: enabled,
       accessibilityLabel: label,
       onAction: () => {
+        if (action === 'decrease' && !this.snapshot.canDecrease) {
+          return;
+        }
+        if (action === 'increase' && !this.snapshot.canIncrease) {
+          return;
+        }
         this.onAction(action);
       }
     })

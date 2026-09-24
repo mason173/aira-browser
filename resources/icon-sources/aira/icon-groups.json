@@ -281,6 +281,18 @@
         {
           "title": "隐私模式",
           "resourceFamily": "app_tabs_privacy_mode"
+        },
+        {
+          "title": "账号",
+          "resourceFamily": "app_toolbar_account"
+        },
+        {
+          "title": "缩小网页",
+          "resourceFamily": "app_toolbar_zoom_out"
+        },
+        {
+          "title": "放大网页",
+          "resourceFamily": "app_toolbar_zoom_in"
         }
       ]
     },

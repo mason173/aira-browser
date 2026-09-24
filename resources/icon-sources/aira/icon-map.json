@@ -554,9 +554,10 @@
     "originalSource": "Lucide 1.38.0 / plus",
     "primaryResourceFamily": "app_tabs_add",
     "resourceFamilies": [
-      "app_tabs_add"
+      "app_tabs_add",
+      "app_toolbar_zoom_in"
     ],
-    "note": "Lucide Operational font source"
+    "note": "one font glyph serves multiple app resource families"
   },
   {
     "exportedFile": "vendor/lucide/aira-operational-icons/svg/printer.svg",
@@ -1177,6 +1178,24 @@
     "primaryResourceFamily": "app_settings_toolbar",
     "resourceFamilies": [
       "app_settings_toolbar"
+    ],
+    "note": "Lucide Operational font source"
+  },
+  {
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/minus.svg",
+    "originalSource": "Lucide 1.38.0 / minus",
+    "primaryResourceFamily": "app_toolbar_zoom_out",
+    "resourceFamilies": [
+      "app_toolbar_zoom_out"
+    ],
+    "note": "Lucide Operational font source"
+  },
+  {
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/user.svg",
+    "originalSource": "Lucide 1.38.0 / user",
+    "primaryResourceFamily": "app_toolbar_account",
+    "resourceFamilies": [
+      "app_toolbar_account"
     ],
     "note": "Lucide Operational font source"
   },

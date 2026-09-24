@@ -5,11 +5,11 @@
     "familyName": "AiraOperationalIcons",
     "fontFile": "vendor/lucide/aira-operational-icons/AiraOperationalIcons.ttf",
     "packagedRawfile": "fonts/aira/aira-operational-icons.ttf",
-    "fontSha256": "2358ce4aca6bd789ca1f3b33098d527732f4d8a24145efe660bdfc795c832dc3",
+    "fontSha256": "dd809e0c8dbfb4c2754887079ea50fb93c8da83fc994800d4ef9d41cd44c6a22",
     "selectionFile": "vendor/lucide/aira-operational-icons/selection.json",
-    "selectionSha256": "7129e2313559f24d52065311edd88d4d0810a139b65e298f577bef66a3539b3b",
+    "selectionSha256": "399a0455bd195d9a91104d65b03c0eab2bda226e924411dba0b34b67562f7b0e",
     "sourceManifestFile": "vendor/lucide/aira-operational-icons/source-manifest.json",
-    "sourceManifestSha256": "cd0f147ec46906c20cc0bc2e4e059ca1fb53db533a2539318d19323733e70f1b",
+    "sourceManifestSha256": "53246bc7ac7de6039cc600a7fc978e759ac692d753073c17a5cceec43c100463",
     "fontQuarantinedIconIds": [
       "desktopCard.shortcut.history",
       "desktopCard.shortcut.bookmarks",
@@ -1600,6 +1600,33 @@
         "glyph": "info",
         "reason": "the cross-device-link page's help action"
       }
+    },
+    {
+      "id": "browser.toolbar.account",
+      "legacyResourceFamily": "app_toolbar_account",
+      "representation": {
+        "kind": "font",
+        "glyph": "user",
+        "reason": "large-screen address-bar account placeholder, replacing the system person symbol"
+      }
+    },
+    {
+      "id": "browser.toolbar.zoomOut",
+      "legacyResourceFamily": "app_toolbar_zoom_out",
+      "representation": {
+        "kind": "font",
+        "glyph": "minus",
+        "reason": "large-screen web zoom decrease, not the reader font-size glyph"
+      }
+    },
+    {
+      "id": "browser.toolbar.zoomIn",
+      "legacyResourceFamily": "app_toolbar_zoom_in",
+      "representation": {
+        "kind": "font",
+        "glyph": "plus",
+        "reason": "large-screen web zoom increase, reusing the existing plus glyph"
+      }
     }
   ],
   "groups": [
@@ -1883,6 +1910,18 @@
         {
           "title": "隐私模式",
           "iconId": "browser.tabs.privacyMode"
+        },
+        {
+          "title": "账号",
+          "iconId": "browser.toolbar.account"
+        },
+        {
+          "title": "缩小网页",
+          "iconId": "browser.toolbar.zoomOut"
+        },
+        {
+          "title": "放大网页",
+          "iconId": "browser.toolbar.zoomIn"
         }
       ]
     },

@@ -6,6 +6,7 @@ import {
   BROWSER_THEME_STORAGE_DIVIDER_KEY,
   BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY
 } from '../../../core/theme/BrowserThemeStorageKeys';
+import { AiraRenderableIconId } from '../../../core/resources/GeneratedAiraIconCatalog';
 import { BrowserSheetActionButton, BrowserSheetIconButton } from './BrowserModalBottomSheet';
 import { CENTERED_DIALOG_SYSTEM_SURFACE_MODIFIER } from '../common/CenteredDialogSurface';
 
@@ -53,7 +54,7 @@ export struct BrowserWebTextZoomSheet {
       .alignItems(VerticalAlign.Center)
 
       Row({ space: 0 }) {
-        this.buildZoomButton($r('sys.symbol.minus'), '减小网页文字', this.state.canDecrease, () => {
+        this.buildZoomButton('browser.toolbar.zoomOut', '减小网页文字', this.state.canDecrease, () => {
           this.onAction('decrease');
         })
 
@@ -70,7 +71,7 @@ export struct BrowserWebTextZoomSheet {
 
         this.buildDivider()
 
-        this.buildZoomButton($r('sys.symbol.plus'), '增大网页文字', this.state.canIncrease, () => {
+        this.buildZoomButton('browser.toolbar.zoomIn', '增大网页文字', this.state.canIncrease, () => {
           this.onAction('increase');
         })
       }
@@ -94,9 +95,9 @@ export struct BrowserWebTextZoomSheet {
   }
 
   @Builder
-  private buildZoomButton(icon: Resource, label: string, enabled: boolean, action: () => void) {
+  private buildZoomButton(iconId: AiraRenderableIconId, label: string, enabled: boolean, action: () => void) {
     BrowserSheetIconButton({
-      icon: icon,
+      airaIconId: iconId,
       iconSize: 17,
       buttonSize: WEB_TEXT_ZOOM_CONTROL_HEIGHT,
       actionEnabled: enabled,

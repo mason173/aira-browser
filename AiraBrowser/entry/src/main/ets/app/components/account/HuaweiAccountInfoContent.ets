@@ -17,6 +17,7 @@ import {
 } from '../settings/SettingsLayout';
 import { ActivityHeatmapCard } from './ActivityHeatmapCard';
 import { AIRA_DISTRIBUTION_CAPABILITY_OWNER } from '../../../common/config/AiraDistributionCapabilityOwner';
+import { AiraIcon } from '../common/AiraIcon';
 
 export type HuaweiAccountInfoContentMode = 'page' | 'embedded_popup';
 
@@ -77,10 +78,11 @@ export struct HuaweiAccountInfoContent {
             .clip(true)
             .objectFit(ImageFit.Cover)
         } else {
-          SymbolGlyph($r('sys.symbol.person_fill'))
-            .fontSize(40)
-            .fontWeight(FontWeight.Bold)
-            .fontColor([this.iconForegroundColor])
+          AiraIcon({
+            airaIconId: 'browser.toolbar.account',
+            iconSize: 40,
+            iconColor: this.iconForegroundColor
+          })
         }
       }
       .width(82)

@@ -57,7 +57,7 @@ vendor/lucide/aira-operational-icons/svg/pause.svg,Lucide 1.38.0 / pause,app_vid
 vendor/lucide/aira-operational-icons/svg/pencil-simple.svg,Lucide 1.38.0 / pencil,app_toolbar_edit,app_toolbar_edit,Lucide Operational font source
 vendor/lucide/aira-operational-icons/svg/picture-in-picture.svg,Lucide 1.38.0 / picture-in-picture,app_video_assistant_popup,app_video_assistant_popup,Lucide Operational font source
 vendor/lucide/aira-operational-icons/svg/play.svg,Lucide 1.38.0 / play,app_video_assistant_play,app_video_assistant_play,Lucide Operational font source
-vendor/lucide/aira-operational-icons/svg/plus.svg,Lucide 1.38.0 / plus,app_tabs_add,app_tabs_add,Lucide Operational font source
+vendor/lucide/aira-operational-icons/svg/plus.svg,Lucide 1.38.0 / plus,app_tabs_add,app_tabs_add;app_toolbar_zoom_in,one font glyph serves multiple app resource families
 vendor/lucide/aira-operational-icons/svg/printer.svg,Lucide 1.38.0 / printer,app_toolbar_print_page,app_toolbar_print_page,Lucide Operational font source
 vendor/lucide/aira-operational-icons/svg/qr-code.svg,Lucide 1.38.0 / qr-code,app_shortcut_scan_qr,app_shortcut_scan_qr,Lucide Operational font source
 vendor/lucide/aira-operational-icons/svg/receipt.svg,Lucide 1.38.0 / receipt,app_settings_restore_purchase,app_settings_restore_purchase;app_membership_restore_purchase,one font glyph serves multiple app resource families
@@ -126,6 +126,8 @@ vendor/lucide/aira-operational-icons/svg/bookmark-edit-move.svg,Lucide 1.38.0 / 
 vendor/lucide/aira-operational-icons/svg/bookmark-edit-select-all.svg,Lucide 1.38.0 / box-select,app_bookmark_edit_select_all,app_bookmark_edit_select_all,Lucide Operational font source
 vendor/lucide/aira-operational-icons/svg/arrow-right.svg,Lucide 1.38.0 / arrow-right,app_toolbar_forward,app_toolbar_forward,Lucide Operational font source
 vendor/lucide/aira-operational-icons/svg/tools.svg,Lucide 1.38.0 / tools,app_settings_toolbar,app_settings_toolbar,Lucide Operational font source
+vendor/lucide/aira-operational-icons/svg/minus.svg,Lucide 1.38.0 / minus,app_toolbar_zoom_out,app_toolbar_zoom_out,Lucide Operational font source
+vendor/lucide/aira-operational-icons/svg/user.svg,Lucide 1.38.0 / user,app_toolbar_account,app_toolbar_account,Lucide Operational font source
 icons/app_widget_shortcut_history__user-provided.svg,user-provided/历史记录.svg,app_widget_shortcut_history,app_widget_shortcut_history,user-provided desktop-card-only source
 icons/app_widget_shortcut_bookmarks__user-provided.svg,user-provided/书签.svg,app_widget_shortcut_bookmarks,app_widget_shortcut_bookmarks,user-provided desktop-card-only source
 icons/app_widget_shortcut_downloads__user-provided.svg,user-provided/下载.svg,app_widget_shortcut_downloads,app_widget_shortcut_downloads,user-provided desktop-card-only source
