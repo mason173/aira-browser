@@ -46,6 +46,12 @@ export interface ElementInspectionOutlineNode {
   childCount: number;
   selected: boolean;
   hidden?: boolean;
+  expanded?: boolean;
+  closing?: boolean;
+  rowKind?: string;
+  moreCount?: number;
+  moreDirection?: string;
+  moreStart?: number;
 }
 
 export interface ElementInspectionBoxModel {
@@ -84,6 +90,32 @@ export interface ElementInspectionNetworkEntry {
   size: number;
   durationMs: number;
   startedAt: number;
+  waitMs: number;
+  downloadMs: number;
+  offsetMs: number;
+  timed: boolean;
+}
+
+export interface ElementInspectionStorageEntry {
+  name: string;
+  value: string;
+  redacted: boolean;
+}
+
+export interface ElementInspectionStorageSnapshot {
+  local: ElementInspectionStorageEntry[];
+  session: ElementInspectionStorageEntry[];
+  cookies: ElementInspectionStorageEntry[];
+  databases: string[];
+}
+
+export interface ElementInspectionSecuritySummary {
+  secure: boolean;
+  protocol: string;
+  origin: string;
+  url: string;
+  mixedUrls: string[];
+  certificateError: boolean;
 }
 
 export interface ElementInspectionSourceEntry {
@@ -132,6 +164,8 @@ export interface ElementInspectionRuntimeSnapshot {
   sources?: ElementInspectionSourceEntry[];
   listeners?: ElementInspectionListenerEntry[];
   pageInfo?: ElementInspectionPageInfo;
+  storage?: ElementInspectionStorageSnapshot;
+  security?: ElementInspectionSecuritySummary;
 }
 
 export interface ElementInspectionSourceReadResult {
@@ -184,7 +218,9 @@ const ELEMENT_INSPECTION_OUTLINE_COMMAND_KINDS: string[] = [
   'copy_js_path',
   'copy_xpath',
   'copy_html',
+  'copy_styles',
   'read_html',
+  'read_attributes',
   'duplicate',
   'delete',
   'cut',
@@ -195,7 +231,9 @@ const ELEMENT_INSPECTION_OUTLINE_COMMAND_KINDS: string[] = [
   'store_global',
   'set_attribute',
   'replace_html',
-  'paste_html'
+  'paste_html',
+  'toggle_outline',
+  'outline_more'
 ];
 const ELEMENT_INSPECTION_HTML_TRANSFER_CHUNK_SIZE: number = 16384;
 
@@ -718,13 +756,20 @@ export class ElementInspectionRuntimeScriptService {
     templateContentRoots: [],
     logs: [],
     network: [],
+    indexedDatabases: [],
+    databaseReadPending: false,
+    databaseReadAt: 0,
     listenerMap: [],
     debugHooks: null,
     previewNode: null,
     pickerArmed: true,
     lastHoverSelectAt: 0,
     savedCursor: '',
-    globalSeq: 0
+    globalSeq: 0,
+    expandedPaths: { '': true },
+    outlineCollapsed: {},
+    childWindowStart: {},
+    outlineRevealPending: false
   };
   function formatConsoleValue(value) {
     if (value === null) {
@@ -773,7 +818,7 @@ export class ElementInspectionRuntimeScriptService {
       durationMs: Number(entry.durationMs) || 0,
       startedAt: Number(entry.startedAt) || Date.now()
     });
-    if (runtime.network.length > 40) {
+    if (runtime.network.length > 80) {
       runtime.network.shift();
     }
   }
@@ -950,6 +995,292 @@ export class ElementInspectionRuntimeScriptService {
     }
     return result;
   }
+  function isSensitiveStorageName(name) {
+    var value = String(name || '').toLowerCase();
+    return value.indexOf('password') >= 0 ||
+      value.indexOf('passwd') >= 0 ||
+      value.indexOf('secret') >= 0 ||
+      value.indexOf('token') >= 0 ||
+      value.indexOf('authorization') >= 0 ||
+      value.indexOf('credential') >= 0;
+  }
+  function readStorageArea(storage) {
+    var result = [];
+    if (!storage) {
+      return result;
+    }
+    var length = 0;
+    try {
+      length = storage.length || 0;
+    } catch (error) {
+      return result;
+    }
+    for (var index = 0; index < length && result.length < 40; index++) {
+      var name = '';
+      var raw = '';
+      try {
+        name = String(storage.key(index) || '');
+        raw = String(storage.getItem(name) || '');
+      } catch (error) {
+        continue;
+      }
+      if (!name) {
+        continue;
+      }
+      var redacted = isSensitiveStorageName(name);
+      result.push({
+        name: safeString(name, 80),
+        value: redacted ? '' : safeString(raw, 160),
+        redacted: redacted
+      });
+    }
+    return result;
+  }
+  function readCookies() {
+    var result = [];
+    var raw = '';
+    try {
+      raw = String(document.cookie || '');
+    } catch (error) {
+      return result;
+    }
+    if (!raw) {
+      return result;
+    }
+    var parts = raw.split(';');
+    for (var index = 0; index < parts.length && result.length < 40; index++) {
+      var part = parts[index];
+      var splitAt = part.indexOf('=');
+      var name = splitAt >= 0 ? part.substring(0, splitAt) : part;
+      var value = splitAt >= 0 ? part.substring(splitAt + 1) : '';
+      name = name.replace(/^\\s+|\\s+$/g, '');
+      if (!name) {
+        continue;
+      }
+      var redacted = isSensitiveStorageName(name);
+      result.push({
+        name: safeString(name, 80),
+        value: redacted ? '' : safeString(value, 160),
+        redacted: redacted
+      });
+    }
+    return result;
+  }
+  function refreshIndexedDatabases() {
+    if (runtime.databaseReadPending || !window.indexedDB || typeof indexedDB.databases !== 'function') {
+      return;
+    }
+    var now = Date.now();
+    if (now - (runtime.databaseReadAt || 0) < 2000) {
+      return;
+    }
+    runtime.databaseReadPending = true;
+    runtime.databaseReadAt = now;
+    try {
+      var pending = indexedDB.databases();
+      if (!pending || typeof pending.then !== 'function') {
+        runtime.databaseReadPending = false;
+        return;
+      }
+      pending.then(function(list) {
+        var names = [];
+        var items = list || [];
+        for (var index = 0; index < items.length && names.length < 40; index++) {
+          var name = items[index] && items[index].name ? String(items[index].name) : '';
+          if (name) {
+            names.push(safeString(name, 80));
+          }
+        }
+        runtime.indexedDatabases = names;
+        runtime.databaseReadPending = false;
+      }, function() {
+        runtime.databaseReadPending = false;
+      });
+    } catch (error) {
+      runtime.databaseReadPending = false;
+    }
+  }
+  function buildStorage() {
+    refreshIndexedDatabases();
+    return {
+      local: readStorageArea(window.localStorage),
+      session: readStorageArea(window.sessionStorage),
+      cookies: readCookies(),
+      databases: runtime.indexedDatabases || []
+    };
+  }
+  function pushMixed(result, seen, url) {
+    var value = safeString(url, 180);
+    if (!value || value.toLowerCase().indexOf('http:') !== 0 || seen[value] || result.length >= 8) {
+      return;
+    }
+    seen[value] = true;
+    result.push(value);
+  }
+  function collectMixedFrom(nodes, attribute, result, seen) {
+    var list = nodes || [];
+    for (var index = 0; index < list.length && result.length < 8 && index < 80; index++) {
+      var node = list[index];
+      var url = '';
+      try {
+        url = node && node.getAttribute ? node.getAttribute(attribute) || '' : '';
+      } catch (error) {}
+      pushMixed(result, seen, url);
+    }
+  }
+  function buildSecurity() {
+    var protocol = 'unknown';
+    var origin = '';
+    var pageUrl = '';
+    var secure = false;
+    try {
+      protocol = String(location.protocol || '').replace(':', '');
+      origin = String(location.origin || '');
+      pageUrl = String(location.href || '');
+      secure = window.isSecureContext === true;
+    } catch (error) {}
+    var mixed = [];
+    var seen = {};
+    if (protocol === 'https') {
+      try {
+        if (window.performance && performance.getEntriesByType) {
+          var resources = performance.getEntriesByType('resource') || [];
+          for (var index = 0; index < resources.length && mixed.length < 8; index++) {
+            pushMixed(mixed, seen, resources[index] && resources[index].name);
+          }
+        }
+      } catch (error) {}
+      collectMixedFrom(document.images, 'src', mixed, seen);
+      collectMixedFrom(document.scripts, 'src', mixed, seen);
+      collectMixedFrom(document.querySelectorAll('link[href]'), 'href', mixed, seen);
+    }
+    return {
+      secure: secure,
+      protocol: safeString(protocol, 16),
+      origin: safeString(origin, 180),
+      url: safeString(pageUrl, 180),
+      mixedUrls: mixed,
+      certificateError: false
+    };
+  }
+  function absoluteUrl(url) {
+    var value = String(url || '');
+    if (!value) {
+      return '';
+    }
+    try {
+      return new URL(value, location.href).href;
+    } catch (error) {
+      return value;
+    }
+  }
+  function buildNetwork() {
+    var hooked = runtime.network || [];
+    var byUrl = {};
+    for (var hookIndex = 0; hookIndex < hooked.length; hookIndex++) {
+      var hookedEntry = hooked[hookIndex];
+      if (hookedEntry && hookedEntry.url) {
+        byUrl[absoluteUrl(hookedEntry.url)] = hookedEntry;
+      }
+    }
+    var timings = [];
+    try {
+      if (window.performance && performance.getEntriesByType) {
+        var navigation = performance.getEntriesByType('navigation') || [];
+        var resources = performance.getEntriesByType('resource') || [];
+        for (var navigationIndex = 0; navigationIndex < navigation.length; navigationIndex++) {
+          timings.push(navigation[navigationIndex]);
+        }
+        for (var resourceIndex = 0; resourceIndex < resources.length; resourceIndex++) {
+          timings.push(resources[resourceIndex]);
+        }
+      }
+    } catch (error) {}
+    var originStart = 0;
+    var hasOrigin = false;
+    for (var startIndex = 0; startIndex < timings.length; startIndex++) {
+      var startTime = Number(timings[startIndex] && timings[startIndex].startTime) || 0;
+      if (!hasOrigin || startTime < originStart) {
+        originStart = startTime;
+        hasOrigin = true;
+      }
+    }
+    var entries = [];
+    var seenUrl = {};
+    for (var index = 0; index < timings.length && entries.length < 60; index++) {
+      var timing = timings[index];
+      if (!timing) {
+        continue;
+      }
+      var url = safeString(timing.name || '', 180);
+      if (!url || seenUrl[url]) {
+        continue;
+      }
+      seenUrl[url] = true;
+      var matched = byUrl[url] || null;
+      var requestStart = Number(timing.requestStart) || 0;
+      var responseStart = Number(timing.responseStart) || 0;
+      var responseEnd = Number(timing.responseEnd) || 0;
+      var timingStart = Number(timing.startTime) || 0;
+      var waitMs = 0;
+      var downloadMs = 0;
+      if (responseStart > 0 && requestStart > 0 && responseStart >= requestStart) {
+        waitMs = Math.round(responseStart - requestStart);
+      } else if (responseStart > 0 && timingStart > 0 && responseStart >= timingStart) {
+        waitMs = Math.round(responseStart - timingStart);
+      }
+      if (responseEnd > 0 && responseStart > 0 && responseEnd >= responseStart) {
+        downloadMs = Math.round(responseEnd - responseStart);
+      }
+      var durationMs = Math.round(Number(timing.duration) || 0);
+      if (durationMs <= 0 && waitMs + downloadMs > 0) {
+        durationMs = waitMs + downloadMs;
+      }
+      var size = Number(timing.transferSize) || Number(timing.encodedBodySize) || Number(timing.decodedBodySize) || 0;
+      if (matched && Number(matched.size) > size) {
+        size = Number(matched.size) || size;
+      }
+      var initiator = String(timing.initiatorType || '');
+      entries.push({
+        method: matched ? String(matched.method || '') : (initiator === 'navigation' ? 'GET' : ''),
+        url: url,
+        status: matched ? (Number(matched.status) || 0) : 0,
+        type: safeString(initiator || (matched ? matched.type : ''), 48),
+        size: size,
+        durationMs: durationMs,
+        startedAt: matched ? (Number(matched.startedAt) || 0) : 0,
+        waitMs: waitMs,
+        downloadMs: downloadMs,
+        offsetMs: hasOrigin ? Math.max(0, Math.round(timingStart - originStart)) : 0,
+        timed: true
+      });
+    }
+    for (var extraIndex = 0; extraIndex < hooked.length && entries.length < 60; extraIndex++) {
+      var extra = hooked[extraIndex];
+      if (!extra || !extra.url || seenUrl[String(extra.url)]) {
+        continue;
+      }
+      var extraUrl = safeString(absoluteUrl(extra.url), 180);
+      if (!extraUrl || seenUrl[extraUrl]) {
+        continue;
+      }
+      seenUrl[extraUrl] = true;
+      entries.push({
+        method: String(extra.method || 'GET'),
+        url: extraUrl,
+        status: Number(extra.status) || 0,
+        type: safeString(extra.type || 'fetch', 48),
+        size: Number(extra.size) || 0,
+        durationMs: Number(extra.durationMs) || 0,
+        startedAt: Number(extra.startedAt) || 0,
+        waitMs: Number(extra.durationMs) || 0,
+        downloadMs: 0,
+        offsetMs: 0,
+        timed: false
+      });
+    }
+    return entries;
+  }
   function buildSources() {
     var result = [{
       id: 'document',
@@ -1121,6 +1452,7 @@ export class ElementInspectionRuntimeScriptService {
     runtime.revision += 1;
     clearCurrentHtml();
     refreshMutationObservationRoots();
+    revealOutlineAncestors(node);
   }
   function readHighlightPx(style, name) {
     var value = parseFloat(style.getPropertyValue(name));
@@ -1558,101 +1890,179 @@ export class ElementInspectionRuntimeScriptService {
     var element = normalizeElement(node);
     return !!(element && element.nodeType === 1 && !isAiraUi(element));
   }
-  function pushOutline(nodes, seen, node, selected) {
-    if (!node || node.nodeType !== 1 || nodes.length >= 80 || isAiraUi(node)) {
+  function outlineElementChildren(node) {
+    var source = node && node.children ? node.children : [];
+    var result = [];
+    for (var index = 0; index < source.length; index++) {
+      if (isOutlineTarget(source[index])) {
+        result.push(source[index]);
+      }
+    }
+    return result;
+  }
+  function revealOutlineAncestors(node) {
+    var current = node ? node.parentElement : null;
+    var guard = 0;
+    while (current && current.nodeType === 1 && guard < 64) {
+      setOutlineExpandedFlag(pathOf(current), true);
+      runtime.outlineRevealPending = true;
+      if (current === document.documentElement) {
+        break;
+      }
+      current = current.parentElement;
+      guard += 1;
+    }
+  }
+  function setOutlineExpandedFlag(path, expanded) {
+    if (!runtime.expandedPaths) {
+      runtime.expandedPaths = {};
+    }
+    if (!runtime.outlineCollapsed) {
+      runtime.outlineCollapsed = {};
+    }
+    if (expanded) {
+      runtime.expandedPaths[path] = true;
+      runtime.outlineCollapsed[path] = false;
       return;
     }
-    var path = pathOf(node);
-    if (seen[path]) {
-      return;
+    runtime.expandedPaths[path] = false;
+    runtime.outlineCollapsed[path] = true;
+  }
+  function isOutlineExpanded(node, path) {
+    if (runtime.outlineCollapsed && runtime.outlineCollapsed[path] === true) {
+      return false;
     }
-    seen[path] = true;
+    if (runtime.expandedPaths && runtime.expandedPaths[path] === true) {
+      return true;
+    }
+    if (path.length === 0) {
+      return true;
+    }
+    return String(node && node.tagName || '').toLowerCase() === 'body';
+  }
+  function outlineChildFocus(children, selected) {
+    if (!selected) {
+      return -1;
+    }
+    for (var index = 0; index < children.length; index++) {
+      var child = children[index];
+      if (child === selected || (child.contains && child.contains(selected))) {
+        return index;
+      }
+    }
+    return -1;
+  }
+  function outlineChildStart(path, children, selected) {
+    if (!runtime.childWindowStart) {
+      runtime.childWindowStart = {};
+    }
+    var start = Number(runtime.childWindowStart[path]) || 0;
+    if (start < 0 || start >= children.length) {
+      start = 0;
+    }
+    if (runtime.outlineRevealPending) {
+      var focus = outlineChildFocus(children, selected);
+      if (focus >= 0 && (focus < start || focus >= start + 40)) {
+        start = Math.max(0, focus - 8);
+        runtime.childWindowStart[path] = start;
+      }
+    }
+    return start;
+  }
+  function pushOutlineRow(nodes, node, selected, expanded, closing, rowKind, moreCount, moreDirection) {
+    if (!node || nodes.length >= 160) {
+      return false;
+    }
     var classTokens = [];
-    if (node.classList) {
+    if (!closing && node.classList) {
       var classLimit = Math.min(node.classList.length, 3);
       for (var classIndex = 0; classIndex < classLimit; classIndex++) {
         classTokens.push(safeString(node.classList[classIndex], 48));
       }
     }
+    var children = outlineElementChildren(node);
     var textPreview = '';
-    if (!node.children || node.children.length === 0) {
+    if (!closing && children.length === 0) {
       textPreview = safeString(collapseSpace(node.textContent).trim(), 32);
     }
     nodes.push({
-      path: path,
-      depth: elementDepth(node),
+      path: pathOf(node),
+      depth: elementDepth(node) + (rowKind === 'more' ? 1 : 0),
       tagName: String(node.tagName || '').toLowerCase(),
-      elementId: safeString(node.id, 64),
+      elementId: closing || rowKind === 'more' ? '' : safeString(node.id, 64),
       classTokens: classTokens,
       textPreview: textPreview,
-      childCount: node.children ? node.children.length : 0,
-      selected: selected === true,
-      hidden: !!(node.classList && node.classList.contains('aira-inspect-hidden'))
+      childCount: children.length,
+      selected: selected === true && rowKind !== 'more',
+      hidden: !!(node.classList && node.classList.contains('aira-inspect-hidden')),
+      expanded: expanded === true,
+      closing: closing === true,
+      rowKind: rowKind,
+      moreCount: moreCount || 0,
+      moreDirection: moreDirection || '',
+      moreStart: 0
     });
+    return true;
+  }
+  function appendOutlineNode(nodes, node, selected) {
+    if (!isOutlineTarget(node) || nodes.length >= 160) {
+      return;
+    }
+    var path = pathOf(node);
+    var children = outlineElementChildren(node);
+    var expanded = children.length > 0 && isOutlineExpanded(node, path);
+    var selectedNode = node === selected;
+    pushOutlineRow(nodes, node, selectedNode, expanded, false, 'element', 0, '');
+    if (!expanded || nodes.length >= 159) {
+      return;
+    }
+    var start = outlineChildStart(path, children, selected);
+    var end = Math.min(children.length, start + 40);
+    if (start > 0) {
+      var beforeRow = pushOutlineRow(nodes, node, false, false, false, 'more', start, 'before');
+      if (beforeRow) {
+        nodes[nodes.length - 1].moreStart = Math.max(0, start - 40);
+      }
+    }
+    var rendered = start;
+    for (var index = start; index < end && nodes.length < 158; index++) {
+      var beforeCount = nodes.length;
+      appendOutlineNode(nodes, children[index], selected);
+      if (nodes.length === beforeCount) {
+        break;
+      }
+      rendered = index + 1;
+    }
+    if (rendered < children.length) {
+      var afterRow = pushOutlineRow(nodes, node, false, false, false, 'more', children.length - rendered, 'after');
+      if (afterRow) {
+        nodes[nodes.length - 1].moreStart = rendered;
+      }
+    }
+    pushOutlineRow(nodes, node, selectedNode, true, true, 'close', 0, '');
   }
   function buildOutline(selected) {
     var nodes = [];
-    var seen = {};
     var root = document.documentElement;
     if (!root) {
       return nodes;
     }
-    if (!selected || !selected.isConnected) {
-      pushOutline(nodes, seen, root, false);
-      if (document.head) {
-        pushOutline(nodes, seen, document.head, false);
-      }
-      if (document.body) {
-        pushOutline(nodes, seen, document.body, false);
-        var bodyChildren = document.body.children || [];
-        var bodyCap = Math.min(bodyChildren.length, 24);
-        for (var bodyIndex = 0; bodyIndex < bodyCap; bodyIndex++) {
-          pushOutline(nodes, seen, bodyChildren[bodyIndex], false);
-          var grandchildren = bodyChildren[bodyIndex].children || [];
-          var grandchildCap = Math.min(grandchildren.length, 6);
-          for (var grandchildIndex = 0; grandchildIndex < grandchildCap; grandchildIndex++) {
-            pushOutline(nodes, seen, grandchildren[grandchildIndex], false);
-          }
-        }
-      }
-      return nodes;
-    }
-    var chain = [];
-    var current = selected;
-    while (current && current.nodeType === 1) {
-      chain.push(current);
-      if (current === root) {
-        break;
-      }
-      current = current.parentElement;
-    }
-    chain.reverse();
-    pushOutline(nodes, seen, root, selected === root);
-    for (var chainIndex = 0; chainIndex < chain.length; chainIndex++) {
-      var ancestor = chain[chainIndex];
-      if (!ancestor || ancestor === root || !ancestor.parentElement) {
-        continue;
-      }
-      var siblings = ancestor.parentElement.children || [];
-      var ancestorIndex = 0;
-      for (var siblingIndex = 0; siblingIndex < siblings.length; siblingIndex++) {
-        if (siblings[siblingIndex] === ancestor) {
-          ancestorIndex = siblingIndex;
-          break;
-        }
-      }
-      var start = Math.max(0, ancestorIndex - 4);
-      var end = Math.min(siblings.length, ancestorIndex + 5);
-      for (var windowIndex = start; windowIndex < end; windowIndex++) {
-        pushOutline(nodes, seen, siblings[windowIndex], siblings[windowIndex] === selected);
-      }
-    }
-    var selectedChildren = selected.children || [];
-    var childCap = Math.min(selectedChildren.length, 16);
-    for (var childIndex = 0; childIndex < childCap; childIndex++) {
-      pushOutline(nodes, seen, selectedChildren[childIndex], false);
-    }
+    var visibleSelected = selected && selected.isConnected ? selected : null;
+    appendOutlineNode(nodes, root, visibleSelected);
+    runtime.outlineRevealPending = false;
     return nodes;
+  }
+  function outlineTreeResult(ok) {
+    return {
+      ok: ok === true,
+      reason: ok === true ? '' : 'node_missing',
+      protocolVersion: runtime.protocolVersion,
+      sessionGeneration: runtime.sessionGeneration,
+      documentToken: runtime.documentToken,
+      revision: runtime.revision,
+      mode: runtime.mode,
+      outline: buildOutline(runtime.currentNode)
+    };
   }
   function readPx(style, name) {
     var value = parseFloat(style.getPropertyValue(name));
@@ -1734,9 +2144,11 @@ export class ElementInspectionRuntimeScriptService {
       updateHighlight();
     }
     result.logs = runtime.logs || [];
-    result.network = runtime.network || [];
+    result.network = buildNetwork();
     result.sources = buildSources();
     result.pageInfo = buildPageInfo();
+    result.storage = buildStorage();
+    result.security = buildSecurity();
     result.listeners = runtime.mode === 'inspected' && runtime.currentNode ?
       buildListeners(runtime.currentNode) : [];
     if (nodeChanged) {
@@ -2119,6 +2531,34 @@ export class ElementInspectionRuntimeScriptService {
     updateHighlight();
     return runtime.snapshot();
   };
+  runtime.setOutlineExpanded = function(path, expanded) {
+    var node = resolveOutlinePath(path);
+    if (!isOutlineTarget(node)) {
+      return outlineTreeResult(false);
+    }
+    setOutlineExpandedFlag(pathOf(node), expanded === true);
+    return outlineTreeResult(true);
+  };
+  runtime.shiftOutlineWindow = function(path, nextStart) {
+    var node = resolveOutlinePath(path);
+    if (!isOutlineTarget(node)) {
+      return outlineTreeResult(false);
+    }
+    var children = outlineElementChildren(node);
+    if (!runtime.childWindowStart) {
+      runtime.childWindowStart = {};
+    }
+    var start = Math.floor(Number(nextStart) || 0);
+    if (start < 0) {
+      start = 0;
+    }
+    if (children.length > 0 && start >= children.length) {
+      start = Math.max(0, children.length - 1);
+    }
+    runtime.childWindowStart[pathOf(node)] = start;
+    runtime.outlineRevealPending = false;
+    return outlineTreeResult(true);
+  };
   function isStructuralTag(node) {
     var tag = String(node && node.tagName || '').toLowerCase();
     return tag === 'html' || tag === 'head' || tag === 'body';
@@ -2187,6 +2627,10 @@ export class ElementInspectionRuntimeScriptService {
     if (!node || node.nodeType !== 1) {
       return '';
     }
+    var elementId = node.id ? String(node.id) : '';
+    if (elementId.length > 0 && elementId.indexOf('"') < 0 && elementId.indexOf("'") < 0) {
+      return '//*[@id="' + elementId + '"]';
+    }
     var parts = [];
     var current = node;
     var guard = 0;
@@ -2222,6 +2666,148 @@ export class ElementInspectionRuntimeScriptService {
       parent.appendChild(style);
     }
   }
+  function canProgrammaticFocus(node) {
+    if (!node || node.disabled || typeof node.focus !== 'function') {
+      return false;
+    }
+    if (isKeyboardFocusable(node)) {
+      return true;
+    }
+    var tab = node.getAttribute ? node.getAttribute('tabindex') : null;
+    if (tab === null || String(tab).length === 0) {
+      return false;
+    }
+    var tabValue = Number(tab);
+    return isFinite(tabValue);
+  }
+  function restoreInspectedTabIndex(node, previousTab) {
+    try {
+      if (previousTab === null) {
+        node.removeAttribute('tabindex');
+      } else {
+        node.setAttribute('tabindex', previousTab);
+      }
+    } catch (error) {}
+  }
+  function focusInspectedNode(node) {
+    if (!node || node.disabled || typeof node.focus !== 'function') {
+      return false;
+    }
+    var previousTab = node.getAttribute ? node.getAttribute('tabindex') : null;
+    var addedTab = false;
+    if (!canProgrammaticFocus(node)) {
+      try {
+        node.setAttribute('tabindex', '-1');
+        addedTab = true;
+      } catch (error) {
+        return false;
+      }
+    }
+    try {
+      node.focus();
+    } catch (error) {
+      if (addedTab) {
+        node.removeAttribute('tabindex');
+      }
+      return false;
+    }
+    if (document.activeElement !== node) {
+      if (addedTab) {
+        restoreInspectedTabIndex(node, previousTab);
+      }
+      return false;
+    }
+    if (addedTab) {
+      restoreInspectedTabIndex(node, previousTab);
+      if (document.activeElement !== node) {
+        try {
+          node.setAttribute('tabindex', '-1');
+          node.focus();
+        } catch (error) {
+          restoreInspectedTabIndex(node, previousTab);
+          return false;
+        }
+        if (document.activeElement !== node) {
+          restoreInspectedTabIndex(node, previousTab);
+          return false;
+        }
+      }
+    }
+    try {
+      node.scrollIntoView({ block: 'center', inline: 'nearest' });
+    } catch (error) {
+      try {
+        node.scrollIntoView(true);
+      } catch (scrollError) {}
+    }
+    return true;
+  }
+  function buildCopiedStyles(node) {
+    var lines = [];
+    var inlineStyle = node.getAttribute ? node.getAttribute('style') : '';
+    if (inlineStyle && String(inlineStyle).length > 0) {
+      lines.push(safeString(inlineStyle, 2000));
+    }
+    var sheets = document.styleSheets || [];
+    for (var sheetIndex = 0; sheetIndex < sheets.length && lines.length < 40; sheetIndex++) {
+      var rules = null;
+      try {
+        rules = sheets[sheetIndex].cssRules;
+      } catch (error) {
+        rules = null;
+      }
+      if (!rules) {
+        continue;
+      }
+      for (var ruleIndex = 0; ruleIndex < rules.length && lines.length < 40; ruleIndex++) {
+        var rule = rules[ruleIndex];
+        if (!rule || !rule.selectorText) {
+          continue;
+        }
+        var matched = false;
+        try {
+          matched = typeof node.matches === 'function' && node.matches(rule.selectorText);
+        } catch (error) {
+          matched = false;
+        }
+        if (!matched) {
+          continue;
+        }
+        var cssText = safeString(rule.cssText, 2000);
+        if (cssText.length > 0) {
+          lines.push(cssText);
+        }
+      }
+    }
+    if (lines.length > 0) {
+      return lines.join('\\n');
+    }
+    var computed = null;
+    try {
+      computed = window.getComputedStyle(node);
+    } catch (error) {
+      computed = null;
+    }
+    if (!computed) {
+      return '';
+    }
+    var computedNames = ['display', 'position', 'color', 'background-color', 'font-size', 'font-weight',
+      'line-height', 'width', 'height', 'margin', 'padding', 'border', 'overflow', 'z-index', 'opacity',
+      'box-sizing', 'flex'];
+    for (var computedIndex = 0; computedIndex < computedNames.length; computedIndex++) {
+      var computedName = computedNames[computedIndex];
+      var computedValue = '';
+      try {
+        computedValue = safeString(computed.getPropertyValue(computedName), 80);
+      } catch (error) {
+        computedValue = '';
+      }
+      if (computedValue.length > 0) {
+        lines.push(computedName + ': ' + computedValue + ';');
+      }
+    }
+    return lines.join('\\n');
+  }
   function contextResult(ok, reason, text) {
     return {
       ok: ok === true,
@@ -2250,6 +2836,30 @@ export class ElementInspectionRuntimeScriptService {
     if (action === 'copy_xpath') {
       var xpath = buildXPath(node);
       return contextResult(xpath.length > 0, xpath.length > 0 ? '' : 'selector_unavailable', xpath);
+    }
+    if (action === 'copy_styles') {
+      var styles = buildCopiedStyles(node);
+      if (styles.length === 0) {
+        return contextResult(false, 'styles_unavailable', '');
+      }
+      if (styles.length > 20000) {
+        return contextResult(true, 'style_truncated', styles.substring(0, 20000));
+      }
+      return contextResult(true, '', styles);
+    }
+    if (action === 'read_attributes') {
+      var attrs = collectAttributes(node);
+      var compact = [];
+      var attrLimit = Math.min(attrs.length, 40);
+      for (var attrIndex = 0; attrIndex < attrLimit; attrIndex++) {
+        var attr = attrs[attrIndex];
+        compact.push({
+          name: attr.name,
+          value: attr.redacted ? '' : safeString(attr.value, 500),
+          redacted: attr.redacted === true
+        });
+      }
+      return contextResult(true, '', JSON.stringify(compact));
     }
     if (action === 'copy_html' || action === 'read_html') {
       var html = '';
@@ -2317,10 +2927,12 @@ export class ElementInspectionRuntimeScriptService {
       return contextResult(true, '', '');
     }
     if (action === 'focus') {
-      try {
-        node.focus();
-      } catch (error) {}
-      return contextResult(true, '', '');
+      if (!focusInspectedNode(node)) {
+        return contextResult(false, 'not_focusable', '');
+      }
+      setCurrentNode(node);
+      updateHighlight();
+      return contextResult(true, '', 'focused');
     }
     if (action === 'store_global') {
       runtime.globalSeq = (runtime.globalSeq || 0) + 1;
@@ -2341,11 +2953,16 @@ export class ElementInspectionRuntimeScriptService {
         parsed = null;
       }
       var attrName = parsed && parsed.name ? String(parsed.name) : '';
+      var previousName = parsed && parsed.previousName ? String(parsed.previousName) : '';
       var attrValue = parsed && parsed.value !== undefined && parsed.value !== null ? String(parsed.value) : '';
-      if (!isAttributeName(attrName) || attrValue.length > 500) {
+      if (!isAttributeName(attrName) || attrValue.length > 500 ||
+        (previousName.length > 0 && previousName !== attrName && !isAttributeName(previousName))) {
         return contextResult(false, 'attribute_invalid', '');
       }
       try {
+        if (previousName.length > 0 && previousName !== attrName) {
+          node.removeAttribute(previousName);
+        }
         if (attrValue.length === 0) {
           node.removeAttribute(attrName);
         } else {
@@ -2558,6 +3175,32 @@ export class ElementInspectionRuntimeScriptService {
     );
   }
 
+  buildOutlineTreeScript(
+    sessionGeneration: number,
+    documentToken: string,
+    kind: string,
+    path: string,
+    value: string
+  ): string {
+    if (!this.isOutlinePath(path) || (kind !== 'toggle_outline' && kind !== 'outline_more')) {
+      return this.buildRuntimeCommandScript(sessionGeneration, documentToken, 'runtime.snapshot()');
+    }
+    if (kind === 'toggle_outline') {
+      return this.buildRuntimeCommandScript(
+        sessionGeneration,
+        documentToken,
+        `runtime.setOutlineExpanded(${this.encodeScriptString(path)}, ${value === '1' ? 'true' : 'false'})`
+      );
+    }
+    const start = Math.max(0, Math.min(100000, Math.floor(Number(value))));
+    const normalizedStart = Number.isFinite(start) ? start : 0;
+    return this.buildRuntimeCommandScript(
+      sessionGeneration,
+      documentToken,
+      `runtime.shiftOutlineWindow(${this.encodeScriptString(path)}, ${normalizedStart})`
+    );
+  }
+
   buildPreviewOutlineScript(sessionGeneration: number, documentToken: string, path: string): string {
     if (!this.isOutlinePath(path)) {
       return this.buildRuntimeCommandScript(sessionGeneration, documentToken, 'runtime.clearPreview()');
@@ -2580,7 +3223,8 @@ export class ElementInspectionRuntimeScriptService {
     path: string,
     payload: string
   ): string {
-    if (kind === 'cut' || kind === 'paste' || !this.isOutlineCommandKind(kind) || !this.isOutlinePath(path)) {
+    if (kind === 'cut' || kind === 'paste' || kind === 'toggle_outline' || kind === 'outline_more' ||
+      !this.isOutlineCommandKind(kind) || !this.isOutlinePath(path)) {
       return this.buildRuntimeCommandScript(sessionGeneration, documentToken, 'runtime.snapshot()');
     }
     const normalizedPayload = payload.length > 20000 ? payload.substring(0, 20000) : payload;
@@ -2739,6 +3383,12 @@ export class ElementInspectionRuntimeScriptService {
       if (parsed.pageInfo !== undefined) {
         result.pageInfo = this.normalizePageInfo(parsed.pageInfo);
       }
+      if (parsed.storage !== undefined) {
+        result.storage = this.normalizeStorage(parsed.storage);
+      }
+      if (parsed.security !== undefined) {
+        result.security = this.normalizeSecurity(parsed.security);
+      }
       return result;
     } catch (_error) {
       return this.buildUnavailableSnapshot('invalid_snapshot');
@@ -2878,14 +3528,18 @@ export class ElementInspectionRuntimeScriptService {
     const result: ElementInspectionOutlineNode[] = [];
     const seen: string[] = [];
     nodes.forEach((node: ElementInspectionOutlineNode): void => {
-      if (result.length >= 80) {
+      if (result.length >= 160) {
         return;
       }
       const path = this.normalizeString(node.path);
-      if (!this.isOutlinePath(path) || seen.indexOf(path) >= 0) {
+      const rowKind = node.rowKind === 'close' || node.rowKind === 'more' ? node.rowKind : 'element';
+      const moreDirection = node.moreDirection === 'before' ? 'before' : 'after';
+      const identity = rowKind === 'more' ? `${path}:more:${moreDirection}` :
+        (rowKind === 'close' ? `${path}:close` : path);
+      if (!this.isOutlinePath(path) || seen.indexOf(identity) >= 0) {
         return;
       }
-      seen.push(path);
+      seen.push(identity);
       const classTokens: string[] = [];
       if (Array.isArray(node.classTokens)) {
         node.classTokens.forEach((value: string): void => {
@@ -2903,8 +3557,14 @@ export class ElementInspectionRuntimeScriptService {
         classTokens: classTokens,
         textPreview: this.normalizeString(node.textPreview).substring(0, 32),
         childCount: this.normalizeCount(node.childCount),
-        selected: node.selected === true,
-        hidden: node.hidden === true
+        selected: node.selected === true && rowKind !== 'more',
+        hidden: node.hidden === true,
+        expanded: node.expanded === true,
+        closing: rowKind === 'close',
+        rowKind: rowKind,
+        moreCount: this.normalizeCount(node.moreCount),
+        moreDirection: moreDirection,
+        moreStart: this.normalizeCount(node.moreStart)
       };
       result.push(normalizedNode);
     });
@@ -2953,7 +3613,7 @@ export class ElementInspectionRuntimeScriptService {
   private normalizeNetwork(entries: ElementInspectionNetworkEntry[]): ElementInspectionNetworkEntry[] {
     const result: ElementInspectionNetworkEntry[] = [];
     entries.forEach((entry: ElementInspectionNetworkEntry): void => {
-      if (result.length >= 40) {
+      if (result.length >= 60) {
         return;
       }
       const url = this.normalizeString(entry.url);
@@ -2961,13 +3621,17 @@ export class ElementInspectionRuntimeScriptService {
         return;
       }
       result.push({
-        method: this.normalizeString(entry.method, 'GET').substring(0, 12),
+        method: this.normalizeString(entry.method).substring(0, 12),
         url: url.substring(0, 180),
         status: this.normalizeCount(entry.status),
         type: this.normalizeString(entry.type).substring(0, 48),
         size: this.normalizeCount(entry.size),
         durationMs: this.normalizeCount(entry.durationMs),
-        startedAt: this.normalizeCount(entry.startedAt)
+        startedAt: this.normalizeCount(entry.startedAt),
+        waitMs: this.normalizeCount(entry.waitMs),
+        downloadMs: this.normalizeCount(entry.downloadMs),
+        offsetMs: this.normalizeCount(entry.offsetMs),
+        timed: entry.timed === true
       });
     });
     return result;
@@ -3011,6 +3675,70 @@ export class ElementInspectionRuntimeScriptService {
       });
     });
     return result;
+  }
+
+  private normalizeStorage(snapshot: ElementInspectionStorageSnapshot): ElementInspectionStorageSnapshot {
+    return {
+      local: this.normalizeStorageEntries(snapshot.local),
+      session: this.normalizeStorageEntries(snapshot.session),
+      cookies: this.normalizeStorageEntries(snapshot.cookies),
+      databases: this.normalizeDatabaseNames(snapshot.databases)
+    };
+  }
+
+  private normalizeStorageEntries(entries: ElementInspectionStorageEntry[] | undefined): ElementInspectionStorageEntry[] {
+    const result: ElementInspectionStorageEntry[] = [];
+    (entries ?? []).forEach((entry: ElementInspectionStorageEntry): void => {
+      if (result.length >= 40) {
+        return;
+      }
+      const name = this.normalizeString(entry.name);
+      if (name.length === 0) {
+        return;
+      }
+      const redacted = entry.redacted === true;
+      result.push({
+        name: name.substring(0, 80),
+        value: redacted ? '' : this.normalizeRawString(entry.value).substring(0, 160),
+        redacted: redacted
+      });
+    });
+    return result;
+  }
+
+  private normalizeDatabaseNames(names: string[] | undefined): string[] {
+    const result: string[] = [];
+    (names ?? []).forEach((name: string): void => {
+      if (result.length >= 40) {
+        return;
+      }
+      const normalized = this.normalizeString(name);
+      if (normalized.length > 0) {
+        result.push(normalized.substring(0, 80));
+      }
+    });
+    return result;
+  }
+
+  private normalizeSecurity(summary: ElementInspectionSecuritySummary): ElementInspectionSecuritySummary {
+    const mixedUrls: string[] = [];
+    (summary.mixedUrls ?? []).forEach((url: string): void => {
+      if (mixedUrls.length >= 8) {
+        return;
+      }
+      const normalized = this.normalizeString(url);
+      if (normalized.toLowerCase().startsWith('http:')) {
+        mixedUrls.push(normalized.substring(0, 180));
+      }
+    });
+    return {
+      secure: summary.secure === true,
+      protocol: this.normalizeString(summary.protocol, 'unknown').substring(0, 16),
+      origin: this.normalizeString(summary.origin).substring(0, 180),
+      url: this.normalizeString(summary.url).substring(0, 180),
+      mixedUrls: mixedUrls,
+      certificateError: summary.certificateError === true
+    };
   }
 
   private normalizePageInfo(info: ElementInspectionPageInfo): ElementInspectionPageInfo {

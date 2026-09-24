@@ -6404,6 +6404,8 @@ struct BrowserShellPage {
     this.manualElementHideRuntimeCoordinator.snapshotSelection();
   @State elementInspectionPresentation: ElementInspectionPresentation =
     this.elementInspectionSessionCoordinator.snapshot();
+  @State elementInspectionOutlineMenuOpen: boolean = false;
+  @State elementInspectionOutlineMenuDismissSerial: number = 0;
   aboutToAppear(): void {
     this.browserDownloadConfirmOverlayCoordinator.setDownloadLocationPicker(
       (): Promise<boolean> => this.changeDownloadLocationFromPrompt()
@@ -6879,6 +6881,10 @@ struct BrowserShellPage {
           this.browserLargeScreenShellIntentApplication.dispatchBookmarkBarAction(action);
         },
         elementInspectionDockVisible: this.shouldShowElementInspectionDock(),
+        elementInspectionOutlineMenuOpen: this.elementInspectionOutlineMenuOpen,
+        onDismissElementInspectionOutlineMenu: (): void => {
+          this.dismissElementInspectionOutlineMenu();
+        },
         elementInspectionDockSlot: () => {
           this.buildElementInspectionDock()
         },
@@ -7893,8 +7899,19 @@ struct BrowserShellPage {
       },
       onOutlineCommand: (command: ElementInspectionOutlineCommand): void => {
         this.elementInspectionSessionCoordinator.runOutlineCommand(command);
+      },
+      outlineMenuDismissSerial: this.elementInspectionOutlineMenuDismissSerial,
+      onOutlineMenuVisibleChange: (visible: boolean): void => {
+        this.elementInspectionOutlineMenuOpen = visible;
       }
     })
+  }
+
+  private dismissElementInspectionOutlineMenu(): void {
+    if (!this.elementInspectionOutlineMenuOpen) {
+      return;
+    }
+    this.elementInspectionOutlineMenuDismissSerial += 1;
   }
 
   private getWebViewportTopInsetPx(): number {
@@ -10738,8 +10755,13 @@ struct BrowserShellPage {
         this.browserWebCapabilityPromptApplicationCoordinator.handleJavaScriptAlert(tabId, event),
       onHttpAuthRequest: (tabId: string, event: OnHttpAuthRequestEvent) =>
         this.browserWebCapabilityPromptApplicationCoordinator.handleHttpAuthRequest(tabId, event),
-      onSslErrorEvent: (tabId: string, event: SslErrorEvent) =>
-        this.browserWebCapabilityPromptApplicationCoordinator.handleSslErrorEvent(tabId, event),
+      onSslErrorEvent: (tabId: string, event: SslErrorEvent) => {
+        if (event.isMainFrame) {
+          const certificateUrl = event.url.length > 0 ? event.url : event.originalUrl;
+          this.elementInspectionSessionCoordinator.noteCertificateError(tabId, certificateUrl);
+        }
+        this.browserWebCapabilityPromptApplicationCoordinator.handleSslErrorEvent(tabId, event);
+      },
       onLoadIntercept: (tabId: string, event: OnLoadInterceptEvent): boolean =>
         this.browserWebTabsController.onLoadIntercept(tabId, event),
       onInterceptRequest: (tabId: string, event: OnInterceptRequestEvent) => this.handleInterceptRequest(tabId, event),

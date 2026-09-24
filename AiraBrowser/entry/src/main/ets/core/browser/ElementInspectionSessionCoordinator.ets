@@ -13,8 +13,11 @@ import {
   ElementInspectionContextActionResult,
   ElementInspectionRuntimeScriptService,
   ElementInspectionRuntimeSnapshot,
+  ElementInspectionSecuritySummary,
   ElementInspectionSourceEntry,
-  ElementInspectionSourcePreview
+  ElementInspectionSourcePreview,
+  ElementInspectionStorageEntry,
+  ElementInspectionStorageSnapshot
 } from '../../services/web/ElementInspectionRuntimeScriptService';
 import { BrowserRuntimeLifecyclePort } from '../../services/web/BrowserRuntimeLifecyclePort';
 import { BrowserTransientSurfaceCoordinator } from './BrowserTransientSurfaceCoordinator';
@@ -42,6 +45,7 @@ export interface ElementInspectionOutlineCommand {
   name: string;
   value: string;
   requestId: number;
+  previousName?: string;
 }
 
 export interface ElementInspectionOutlineDraft {
@@ -56,6 +60,7 @@ export interface ElementInspectionOutlineDraft {
 interface ElementInspectionAttributePayload {
   name: string;
   value: string;
+  previousName?: string;
 }
 
 export interface ElementInspectionSessionFacts {
@@ -79,6 +84,8 @@ export interface ElementInspectionPresentation {
   sources: ElementInspectionSourceEntry[];
   listeners: ElementInspectionListenerEntry[];
   pageInfo?: ElementInspectionPageInfo;
+  storage?: ElementInspectionStorageSnapshot;
+  security?: ElementInspectionSecuritySummary;
   sourcePreview?: ElementInspectionSourcePreview;
   node?: ElementInspectionRuntimeNodeSnapshot;
   box?: ElementInspectionBoxModel;
@@ -96,6 +103,7 @@ const ELEMENT_INSPECTION_REVEAL_DELAY_MS: number = 0;
 const ELEMENT_INSPECTION_DISMISS_DURATION_MS: number = 220;
 const ELEMENT_INSPECTION_SHELL_RESUME_RETRY_DELAY_MS: number = 120;
 const ELEMENT_INSPECTION_SHELL_RESUME_MAX_RETRIES: number = 20;
+const ELEMENT_INSPECTION_REATTACH_RETRY_DELAY_MS: number = 200;
 
 export class ElementInspectionSessionCoordinator {
   private readonly runtimeLifecyclePort: BrowserRuntimeLifecyclePort;
@@ -109,6 +117,8 @@ export class ElementInspectionSessionCoordinator {
   private runtimeRevision: number = 0;
   private originTabId: string = '';
   private documentToken: string = '';
+  private certificateErrorTabId: string = '';
+  private certificateErrorUrl: string = '';
   private pollTimer: number = -1;
   private pollInFlight: boolean = false;
   private selectionInFlight: boolean = false;
@@ -141,6 +151,9 @@ export class ElementInspectionSessionCoordinator {
   private shellResumeRetryTimer: number = -1;
   private shellResumeRetryCount: number = 0;
   private shellLifecycleEpoch: number = 0;
+  private reattachRequested: boolean = false;
+  private reattachTimer: number = -1;
+  private reattachInFlightGeneration: number = 0;
 
   constructor(
     runtimeLifecyclePort: BrowserRuntimeLifecyclePort,
@@ -341,9 +354,34 @@ export class ElementInspectionSessionCoordinator {
     this.close('system_back');
   }
 
-  handlePageBegin(tabId: string): void {
-    if (this.presentation.active && tabId === this.originTabId) {
-      this.close('page_begin');
+  handlePageBegin(tabId: string, url: string = ''): void {
+    if (url.length > 0 && tabId === this.certificateErrorTabId &&
+      !this.sameOrigin(this.certificateErrorUrl, url)) {
+      this.certificateErrorTabId = '';
+      this.certificateErrorUrl = '';
+    }
+    if (this.presentation.active && tabId === this.originTabId && this.presentation.phase !== 'closing') {
+      this.beginDocumentReattach();
+    }
+  }
+
+  handlePageEnd(tabId: string): void {
+    if (!this.reattachRequested || tabId !== this.originTabId || this.presentation.phase === 'closing') {
+      return;
+    }
+    this.clearReattachTimer();
+    this.scheduleDocumentReattach();
+  }
+
+  noteCertificateError(tabId: string, url: string): void {
+    const normalized = url.trim();
+    if (tabId.length === 0 || normalized.length === 0) {
+      return;
+    }
+    this.certificateErrorTabId = tabId;
+    this.certificateErrorUrl = normalized.length > 180 ? normalized.substring(0, 180) : normalized;
+    if (this.presentation.active && this.originTabId === tabId) {
+      this.publish(this.presentation);
     }
   }
 
@@ -455,6 +493,10 @@ export class ElementInspectionSessionCoordinator {
     const facts = this.shell.resolveFacts();
     if (!this.canResumeShell(facts, tabId)) {
       this.finishShellResume('shell_resume_unavailable', '当前页面已变化，元素审查已结束。');
+      return;
+    }
+    if (this.reattachRequested) {
+      await this.runDocumentReattach();
       return;
     }
     try {
@@ -928,6 +970,8 @@ export class ElementInspectionSessionCoordinator {
         sources: snapshot.sources !== undefined ? snapshot.sources : this.presentation.sources,
         listeners: snapshot.listeners !== undefined ? snapshot.listeners : this.presentation.listeners,
         pageInfo: snapshot.pageInfo !== undefined ? snapshot.pageInfo : this.presentation.pageInfo,
+        storage: snapshot.storage !== undefined ? snapshot.storage : this.presentation.storage,
+        security: snapshot.security !== undefined ? snapshot.security : this.presentation.security,
         sourcePreview: this.presentation.sourcePreview,
         node: snapshot.node,
         box: snapshot.box !== undefined ? snapshot.box : this.presentation.box
@@ -957,6 +1001,8 @@ export class ElementInspectionSessionCoordinator {
       sources: snapshot.sources !== undefined ? snapshot.sources : this.presentation.sources,
       listeners: snapshot.listeners !== undefined ? snapshot.listeners : [],
       pageInfo: snapshot.pageInfo !== undefined ? snapshot.pageInfo : this.presentation.pageInfo,
+      storage: snapshot.storage !== undefined ? snapshot.storage : this.presentation.storage,
+      security: snapshot.security !== undefined ? snapshot.security : this.presentation.security,
       sourcePreview: this.presentation.sourcePreview
     });
     return true;
@@ -1002,6 +1048,8 @@ export class ElementInspectionSessionCoordinator {
     this.shellResumeRequested = false;
     this.clearShellResumeRetry();
     this.shellResumeRetryCount = 0;
+    this.reattachRequested = false;
+    this.clearReattachTimer();
     if (this.presentation.phase === 'closing') {
       if (immediate) {
         this.clearCloseTimer();
@@ -1067,7 +1115,129 @@ export class ElementInspectionSessionCoordinator {
     this.shellResumeRequested = false;
     this.clearShellResumeRetry();
     this.shellResumeRetryCount = 0;
+    this.reattachRequested = false;
+    this.clearReattachTimer();
     this.publish(this.buildInactivePresentation());
+  }
+
+  private beginDocumentReattach(): void {
+    this.cancelHoverTracking();
+    this.stopSelectionPolling();
+    this.clearReattachTimer();
+    this.sessionGeneration += 1;
+    this.operationSequence += 1;
+    this.runtimeRevision = 0;
+    this.documentToken = `${this.sessionGeneration}:${Date.now()}`;
+    this.selectionInFlight = false;
+    this.reattachRequested = true;
+    this.reattachInFlightGeneration = 0;
+    this.presentation.outlineDraft = undefined;
+    this.publish({
+      active: true,
+      phase: 'starting',
+      busy: true,
+      helperText: '网页正在刷新，审查会继续。',
+      pickerArmed: this.presentation.pickerArmed,
+      outline: [],
+      computed: [],
+      logs: [],
+      network: [],
+      sources: [],
+      listeners: [],
+      pageInfo: undefined,
+      storage: { local: [], session: [], cookies: [], databases: [] },
+      security: {
+        secure: false,
+        protocol: '',
+        origin: '',
+        url: '',
+        mixedUrls: [],
+        certificateError: false
+      },
+      sourcePreview: undefined,
+      node: undefined,
+      box: undefined
+    });
+    this.scheduleDocumentReattach();
+  }
+
+  private scheduleDocumentReattach(): void {
+    if (!this.presentation.active || !this.reattachRequested || this.presentation.phase === 'closing' ||
+      this.reattachTimer >= 0 || this.reattachInFlightGeneration === this.sessionGeneration) {
+      return;
+    }
+    const facts = this.shell.resolveFacts();
+    if (facts.activeTabId.trim().length > 0 && facts.activeTabId !== this.originTabId) {
+      this.reattachRequested = false;
+      this.close('reattach_tab_changed', true);
+      return;
+    }
+    if (!this.canResumeShell(facts, this.originTabId)) {
+      this.reattachTimer = setTimeout(() => {
+        this.reattachTimer = -1;
+        this.scheduleDocumentReattach();
+      }, ELEMENT_INSPECTION_REATTACH_RETRY_DELAY_MS);
+      return;
+    }
+    void this.runDocumentReattach();
+  }
+
+  private async runDocumentReattach(): Promise<void> {
+    const generation = this.sessionGeneration;
+    if (this.reattachInFlightGeneration === generation) {
+      return;
+    }
+    this.reattachInFlightGeneration = generation;
+    const tabId = this.originTabId;
+    const documentToken = this.documentToken;
+    const facts = this.shell.resolveFacts();
+    try {
+      const raw: string = await this.runtimeLifecyclePort.runJavaScriptOnLiveRuntime(
+        tabId,
+        this.runtimeScriptService.buildInstallScript(generation, documentToken, facts.highlightColor),
+        'element_inspection_runtime_not_live'
+      );
+      if (!this.reattachRequested || !this.isCurrentGeneration(generation) ||
+        this.originTabId !== tabId || this.documentToken !== documentToken) {
+        return;
+      }
+      const snapshot = this.runtimeScriptService.parseSnapshot(raw);
+      if (!this.applyRuntimeSnapshot(snapshot, generation)) {
+        this.scheduleReattachRetry(generation);
+        return;
+      }
+      this.reattachRequested = false;
+      if (this.shellPaused) {
+        this.shellResumeRequested = true;
+        return;
+      }
+      if (this.presentation.phase === 'selecting' || this.presentation.phase === 'inspected') {
+        this.startSelectionPolling();
+      }
+    } catch (_error) {
+      this.scheduleReattachRetry(generation);
+    } finally {
+      if (this.reattachInFlightGeneration === generation) {
+        this.reattachInFlightGeneration = 0;
+      }
+    }
+  }
+
+  private scheduleReattachRetry(generation: number): void {
+    if (!this.reattachRequested || !this.isCurrentGeneration(generation) || this.reattachTimer >= 0) {
+      return;
+    }
+    this.reattachTimer = setTimeout(() => {
+      this.reattachTimer = -1;
+      this.scheduleDocumentReattach();
+    }, ELEMENT_INSPECTION_REATTACH_RETRY_DELAY_MS);
+  }
+
+  private clearReattachTimer(): void {
+    if (this.reattachTimer >= 0) {
+      clearTimeout(this.reattachTimer);
+      this.reattachTimer = -1;
+    }
   }
 
   private stopSelectionPolling(): void {
@@ -1110,6 +1280,15 @@ export class ElementInspectionSessionCoordinator {
     if (next.outlineDraft === undefined && next.active && this.presentation.outlineDraft !== undefined) {
       next.outlineDraft = this.cloneOutlineDraft(this.presentation.outlineDraft);
     }
+    if (next.storage === undefined && next.active && this.presentation.storage !== undefined) {
+      next.storage = this.cloneStorage(this.presentation.storage);
+    }
+    if (next.security === undefined && next.active && this.presentation.security !== undefined) {
+      next.security = this.cloneSecurity(this.presentation.security);
+    }
+    if (next.security !== undefined) {
+      next.security = this.overlayCertificate(next.security);
+    }
     this.presentation = next;
     this.shell.publishPresentation(this.clonePresentation(next));
   }
@@ -1130,6 +1309,12 @@ export class ElementInspectionSessionCoordinator {
       pageInfo: presentation.pageInfo,
       sourcePreview: presentation.sourcePreview
     };
+    if (presentation.storage !== undefined) {
+      result.storage = this.cloneStorage(presentation.storage);
+    }
+    if (presentation.security !== undefined) {
+      result.security = this.cloneSecurity(presentation.security);
+    }
     if (presentation.outlineDraft !== undefined) {
       result.outlineDraft = this.cloneOutlineDraft(presentation.outlineDraft);
     }
@@ -1154,7 +1339,13 @@ export class ElementInspectionSessionCoordinator {
         textPreview: node.textPreview,
         childCount: node.childCount,
         selected: node.selected,
-        hidden: node.hidden === true
+        hidden: node.hidden === true,
+        expanded: node.expanded === true,
+        closing: node.closing === true,
+        rowKind: node.rowKind === 'close' || node.rowKind === 'more' ? node.rowKind : 'element',
+        moreCount: node.moreCount !== undefined ? node.moreCount : 0,
+        moreDirection: node.moreDirection === 'before' ? 'before' : 'after',
+        moreStart: node.moreStart !== undefined ? node.moreStart : 0
       });
     });
     return result;
@@ -1430,7 +1621,8 @@ export class ElementInspectionSessionCoordinator {
       path: command.path,
       name: command.name,
       value: command.value,
-      requestId: command.requestId
+      requestId: command.requestId,
+      previousName: command.previousName !== undefined ? command.previousName : ''
     };
     this.outlineCommandQueued = true;
   }
@@ -1475,8 +1667,12 @@ export class ElementInspectionSessionCoordinator {
         await this.setOutlineAttribute(command, generation, tabId, documentToken);
       } else if (command.kind === 'read_html') {
         await this.readOutlineHtml(command, generation, tabId, documentToken);
+      } else if (command.kind === 'read_attributes') {
+        await this.readOutlineAttributes(command, generation, tabId, documentToken);
       } else if (command.kind === 'replace_html') {
         await this.replaceOutlineHtml(command, generation, tabId, documentToken);
+      } else if (command.kind === 'toggle_outline' || command.kind === 'outline_more') {
+        await this.updateOutlineTree(command, generation, tabId, documentToken);
       } else {
         await this.runSimpleOutlineCommand(command, generation, tabId, documentToken);
       }
@@ -1577,12 +1773,17 @@ export class ElementInspectionSessionCoordinator {
     documentToken: string
   ): Promise<void> {
     const name = command.name.trim();
+    const previousName = command.previousName !== undefined ? command.previousName.trim() : '';
     const value = command.value.length > 500 ? command.value.substring(0, 500) : command.value;
-    if (!this.isOutlineAttributeName(name)) {
+    if (!this.isOutlineAttributeName(name) ||
+      (previousName.length > 0 && previousName !== name && !this.isOutlineAttributeName(previousName))) {
       this.shell.showToast('属性名无效。');
       return;
     }
     const payloadObject: ElementInspectionAttributePayload = { name: name, value: value };
+    if (previousName.length > 0 && previousName !== name) {
+      payloadObject.previousName = previousName;
+    }
     const payload = JSON.stringify(payloadObject);
     const updated = await this.runPageOutlineCommand(
       'set_attribute', command.path, payload, generation, tabId, documentToken
@@ -1641,6 +1842,76 @@ export class ElementInspectionSessionCoordinator {
     this.publish(next);
   }
 
+  private async readOutlineAttributes(
+    command: ElementInspectionOutlineCommand,
+    generation: number,
+    tabId: string,
+    documentToken: string
+  ): Promise<void> {
+    this.outlineReadRequestId = command.requestId;
+    const result = await this.runPageOutlineCommand(
+      'read_attributes', command.path, '', generation, tabId, documentToken
+    );
+    if (!this.isCurrentGeneration(generation) || command.requestId !== this.outlineReadRequestId) {
+      return;
+    }
+    const draft: ElementInspectionOutlineDraft = {
+      requestId: command.requestId,
+      path: command.path,
+      kind: 'attributes',
+      text: '[]',
+      ready: false,
+      reason: 'node_missing'
+    };
+    if (result === undefined) {
+      draft.reason = 'stale';
+    } else if (!result.ok) {
+      draft.reason = result.reason;
+      this.shell.showToast(this.outlineCommandFailureMessage(result.reason));
+    } else {
+      draft.ready = true;
+      draft.text = result.text.length > 0 ? result.text : '[]';
+      draft.reason = result.reason;
+    }
+    const next = this.clonePresentation(this.presentation);
+    next.outlineDraft = draft;
+    this.publish(next);
+  }
+
+  private async updateOutlineTree(
+    command: ElementInspectionOutlineCommand,
+    generation: number,
+    tabId: string,
+    documentToken: string
+  ): Promise<void> {
+    const raw: string = await this.runtimeLifecyclePort.runJavaScriptOnLiveRuntime(
+      tabId,
+      this.runtimeScriptService.buildOutlineTreeScript(
+        generation,
+        documentToken,
+        command.kind,
+        command.path,
+        command.value
+      ),
+      'element_inspection_runtime_not_live'
+    );
+    if (!this.isCurrentGeneration(generation) || this.originTabId !== tabId ||
+      this.documentToken !== documentToken) {
+      return;
+    }
+    const snapshot = this.runtimeScriptService.parseSnapshot(raw);
+    if (!snapshot.ok || snapshot.sessionGeneration !== generation || snapshot.documentToken !== documentToken) {
+      this.shell.showToast('找不到这个元素。');
+      return;
+    }
+    if (snapshot.outline === undefined || snapshot.revision < this.runtimeRevision) {
+      return;
+    }
+    const next = this.clonePresentation(this.presentation);
+    next.outline = snapshot.outline;
+    this.publish(next);
+  }
+
   private async runSimpleOutlineCommand(
     command: ElementInspectionOutlineCommand,
     generation: number,
@@ -1658,11 +1929,11 @@ export class ElementInspectionSessionCoordinator {
       return;
     }
     if (command.kind === 'copy_selector' || command.kind === 'copy_js_path' ||
-      command.kind === 'copy_xpath' || command.kind === 'copy_html') {
+      command.kind === 'copy_xpath' || command.kind === 'copy_html' || command.kind === 'copy_styles') {
       await this.copyOutlineText(command.kind, result);
       return;
     }
-    if (this.outlineCommandChangesDom(command.kind)) {
+    if (this.outlineCommandChangesDom(command.kind) || command.kind === 'focus') {
       await this.applyContextSnapshot(result, generation, tabId, documentToken);
     }
     if (!this.isCurrentGeneration(generation)) {
@@ -1745,6 +2016,8 @@ export class ElementInspectionSessionCoordinator {
       successMessage = 'JS 路径已复制。';
     } else if (kind === 'copy_xpath') {
       successMessage = 'XPath 已复制。';
+    } else if (kind === 'copy_styles') {
+      successMessage = result.reason === 'style_truncated' ? '样式已复制，超长部分已截断。' : '样式已复制。';
     } else if (result.reason === 'html_truncated') {
       successMessage = 'HTML 已复制，超长部分已截断。';
     }
@@ -1764,11 +2037,11 @@ export class ElementInspectionSessionCoordinator {
     if (kind === 'copy_selector') {
       return '';
     }
-    if (kind === 'copy_js_path' || kind === 'copy_xpath' || kind === 'copy_html') {
+    if (kind === 'copy_js_path' || kind === 'copy_xpath' || kind === 'copy_html' || kind === 'copy_styles') {
       return '';
     }
     if (kind === 'duplicate') {
-      return '元素已复制。';
+      return '已在页面上创建副本。';
     }
     if (kind === 'delete') {
       return '元素已删除。';
@@ -1809,6 +2082,12 @@ export class ElementInspectionSessionCoordinator {
     }
     if (reason === 'selector_unavailable') {
       return '当前元素没有可复制的路径。';
+    }
+    if (reason === 'styles_unavailable') {
+      return '当前元素没有可复制的样式。';
+    }
+    if (reason === 'not_focusable') {
+      return '这个元素不能聚焦。';
     }
     if (reason === 'store_failed') {
       return '无法存为全局变量。';
@@ -1940,7 +2219,9 @@ export class ElementInspectionSessionCoordinator {
       sources.length !== this.presentation.sources.length ||
       listeners.length !== this.presentation.listeners.length ||
       this.lastLogKey(logs) !== this.lastLogKey(this.presentation.logs) ||
-      this.networkSignature(network) !== this.networkSignature(this.presentation.network);
+      this.networkSignature(network) !== this.networkSignature(this.presentation.network) ||
+      this.storageSignature(snapshot.storage) !== this.storageSignature(this.presentation.storage) ||
+      this.securitySignature(snapshot.security) !== this.securitySignature(this.presentation.security);
   }
 
   private applyDebugSnapshot(
@@ -1962,6 +2243,12 @@ export class ElementInspectionSessionCoordinator {
     if (snapshot.pageInfo !== undefined) {
       presentation.pageInfo = snapshot.pageInfo;
     }
+    if (snapshot.storage !== undefined) {
+      presentation.storage = snapshot.storage;
+    }
+    if (snapshot.security !== undefined) {
+      presentation.security = snapshot.security;
+    }
   }
 
   private lastLogKey(entries: ElementInspectionConsoleEntry[]): string {
@@ -1980,8 +2267,35 @@ export class ElementInspectionSessionCoordinator {
         completed += 1;
       }
       size += entry.size;
+      completed += entry.durationMs;
     });
     return `${entries.length}:${completed}:${size}`;
+  }
+
+  private storageSignature(storage: ElementInspectionStorageSnapshot | undefined): string {
+    if (storage === undefined) {
+      return '';
+    }
+    return `${this.storageEntryKey(storage.local)}|${this.storageEntryKey(storage.session)}|` +
+      `${this.storageEntryKey(storage.cookies)}|${storage.databases.join(',')}`;
+  }
+
+  private storageEntryKey(entries: ElementInspectionStorageEntry[]): string {
+    let key = `${entries.length}:`;
+    entries.forEach((entry: ElementInspectionStorageEntry): void => {
+      key += `${entry.name}=${entry.redacted ? 1 : 0}:${entry.value.substring(0, 24)};`;
+    });
+    return key;
+  }
+
+  private securitySignature(summary: ElementInspectionSecuritySummary | undefined): string {
+    if (summary === undefined) {
+      return '';
+    }
+    const pageUrl = summary.url.length > 0 ? summary.url : summary.origin;
+    const certificateError = summary.certificateError || this.certificateMatches(pageUrl);
+    return `${summary.secure}:${summary.protocol}:${summary.origin}:${summary.mixedUrls.join(',')}:` +
+      `${certificateError}`;
   }
 
   private cloneLogs(entries: ElementInspectionConsoleEntry[] | undefined): ElementInspectionConsoleEntry[] {
@@ -2002,10 +2316,67 @@ export class ElementInspectionSessionCoordinator {
         type: entry.type,
         size: entry.size,
         durationMs: entry.durationMs,
-        startedAt: entry.startedAt
+        startedAt: entry.startedAt,
+        waitMs: entry.waitMs,
+        downloadMs: entry.downloadMs,
+        offsetMs: entry.offsetMs,
+        timed: entry.timed === true
       });
     });
     return result;
+  }
+
+  private cloneStorage(storage: ElementInspectionStorageSnapshot): ElementInspectionStorageSnapshot {
+    return {
+      local: this.cloneStorageEntries(storage.local),
+      session: this.cloneStorageEntries(storage.session),
+      cookies: this.cloneStorageEntries(storage.cookies),
+      databases: storage.databases.slice()
+    };
+  }
+
+  private cloneStorageEntries(entries: ElementInspectionStorageEntry[]): ElementInspectionStorageEntry[] {
+    const result: ElementInspectionStorageEntry[] = [];
+    entries.forEach((entry: ElementInspectionStorageEntry): void => {
+      result.push({ name: entry.name, value: entry.value, redacted: entry.redacted === true });
+    });
+    return result;
+  }
+
+  private cloneSecurity(summary: ElementInspectionSecuritySummary): ElementInspectionSecuritySummary {
+    return {
+      secure: summary.secure === true,
+      protocol: summary.protocol,
+      origin: summary.origin,
+      url: summary.url,
+      mixedUrls: summary.mixedUrls.slice(),
+      certificateError: summary.certificateError === true
+    };
+  }
+
+  private overlayCertificate(summary: ElementInspectionSecuritySummary): ElementInspectionSecuritySummary {
+    const next = this.cloneSecurity(summary);
+    next.certificateError = this.certificateMatches(next.url.length > 0 ? next.url : next.origin);
+    return next;
+  }
+
+  private certificateMatches(pageUrl: string): boolean {
+    if (this.certificateErrorTabId.length === 0 || this.certificateErrorTabId !== this.originTabId ||
+      this.certificateErrorUrl.length === 0 || pageUrl.length === 0) {
+      return false;
+    }
+    return this.sameOrigin(this.certificateErrorUrl, pageUrl);
+  }
+
+  private sameOrigin(left: string, right: string): boolean {
+    const leftOrigin = this.originOf(left);
+    const rightOrigin = this.originOf(right);
+    return leftOrigin.length > 0 && leftOrigin === rightOrigin;
+  }
+
+  private originOf(url: string): string {
+    const match = url.trim().match(/^[a-z][a-z0-9+.-]*:\/\/[^/?#]+/i);
+    return match === null ? '' : match[0].toLowerCase();
   }
 
   private cloneSources(entries: ElementInspectionSourceEntry[] | undefined): ElementInspectionSourceEntry[] {

@@ -97,6 +97,8 @@ export struct BrowserLargeScreenPrimarySurface {
   @Prop sidePanelVisible: boolean = false;
   @Prop bottomStatusVisible: boolean = false;
   @Prop elementInspectionDockVisible: boolean = false;
+  @Prop elementInspectionOutlineMenuOpen: boolean = false;
+  onDismissElementInspectionOutlineMenu: () => void = (): void => {};
   @Prop omniboxPresentation: BrowserLargeScreenOmniboxPresentation =
     createBrowserLargeScreenOmniboxPresentation();
   @Prop suggestionSnapshot: BrowserSearchSuggestionSnapshot = EMPTY_SEARCH_SUGGESTION_SNAPSHOT;
@@ -226,6 +228,24 @@ export struct BrowserLargeScreenPrimarySurface {
               BrowserLargeScreenWebZoomNotification({
                 snapshot: this.webZoomSnapshot
               })
+
+              if (this.elementInspectionOutlineMenuOpen) {
+                Column()
+                  .width('100%')
+                  .height('100%')
+                  .backgroundColor(Color.Transparent)
+                  .hitTestBehavior(HitTestMode.Block)
+                  .onClick(() => {
+                    this.onDismissElementInspectionOutlineMenu();
+                  })
+                  .onMouse((event: MouseEvent) => {
+                    if (event.action !== MouseAction.Press) {
+                      return;
+                    }
+                    event.stopPropagation();
+                    this.onDismissElementInspectionOutlineMenu();
+                  })
+              }
             }
             .layoutWeight(1)
             .height('100%')

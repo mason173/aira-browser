@@ -745,7 +745,7 @@ export class BrowserWebPageLifecycleApplicationCoordinator implements
       visibleEventUrl,
       this.dependencies.webTabsController.resolveHistoryTargetIntentUrl(tabId)
     );
-    this.dependencies.elementInspectionSessionCoordinator.handlePageBegin(tabId);
+    this.dependencies.elementInspectionSessionCoordinator.handlePageBegin(tabId, visibleEventUrl);
     this.dependencies.webTabsController.onPageBegin(tabId, visibleEventUrl);
     if (tabId === this.resolveShellFacts().activeTabId) {
       this.reconcileExternalNavigationPrompt(visibleEventUrl);
@@ -850,6 +850,7 @@ export class BrowserWebPageLifecycleApplicationCoordinator implements
       this.resolveShellFacts().activeTabId,
       visibleEventUrl
     );
+    this.dependencies.elementInspectionSessionCoordinator.handlePageEnd(tabId);
     const route = this.buildWebPageEventRoute(tabId, visibleEventUrl, true);
     const resolvedEventUrl = route.resolvedUrl;
     const downloadNavigationStateCoordinator = this.dependencies.downloadNavigationStateCoordinator;

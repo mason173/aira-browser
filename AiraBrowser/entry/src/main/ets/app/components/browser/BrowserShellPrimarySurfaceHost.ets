@@ -106,6 +106,8 @@ export struct BrowserShellPrimarySurfaceHost {
   @Prop largeScreenNativeVideoTakeoverActive: boolean = false;
   @Prop largeScreenWebFullscreenActive: boolean = false;
   @Prop elementInspectionDockVisible: boolean = false;
+  @Prop elementInspectionOutlineMenuOpen: boolean = false;
+  onDismissElementInspectionOutlineMenu: () => void = (): void => {};
   @Prop largeScreenQuickSearchPresentation: BrowserQuickSearchSwitchingPresentation =
     createHiddenBrowserQuickSearchSwitchingPresentation();
   @Prop recentlyClosedApplicationSnapshot: BrowserRecentlyClosedApplicationSnapshot =
@@ -149,6 +151,10 @@ export struct BrowserShellPrimarySurfaceHost {
         nativeVideoTakeoverActive: this.largeScreenNativeVideoTakeoverActive,
         webFullscreenActive: this.largeScreenWebFullscreenActive,
         elementInspectionDockVisible: this.elementInspectionDockVisible,
+        elementInspectionOutlineMenuOpen: this.elementInspectionOutlineMenuOpen,
+        onDismissElementInspectionOutlineMenu: (): void => {
+          this.onDismissElementInspectionOutlineMenu();
+        },
         quickSearchPresentation: this.largeScreenQuickSearchPresentation,
         recentlyClosed: this.recentlyClosedApplicationSnapshot,
         onSelectQuickSearchEngine: (engineId: string): void => {
