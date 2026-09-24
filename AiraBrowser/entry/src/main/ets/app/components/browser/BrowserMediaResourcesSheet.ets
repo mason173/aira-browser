@@ -21,7 +21,9 @@ import {
   BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY,
   BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY
 } from '../../../core/theme/BrowserThemeStorageKeys';
+import { DESKTOP_DIALOG_PADDING_VP } from '../../../core/browser/BrowserDialogPresentationTokens';
 import { AppEmptyState } from '../common/AppEmptyState';
+import { FloatingGlassMaterialSurface } from '../common/FloatingGlassMaterialSurface';
 import {
   BROWSER_SHEET_IMMERSIVE_BOTTOM_PADDING,
   BrowserBottomSheetSurface,
@@ -30,6 +32,7 @@ import {
   BrowserSheetActionButton,
   BrowserSheetIconButton
 } from './BrowserModalBottomSheet';
+import { BrowserLargeScreenModalHeader } from './BrowserLargeScreenModalHeader';
 import {
   SegmentedTabOption,
   SegmentedTabs
@@ -242,6 +245,7 @@ export struct BrowserMediaResourcesSheet {
   @StorageProp(BROWSER_THEME_STORAGE_CONTROL_BACKGROUND_KEY) private storedControlBackgroundColor: string = '#EEF2F6';
   @StorageProp(BROWSER_THEME_STORAGE_PAGE_BACKGROUND_KEY) private storedPageBackgroundColor: string = DEFAULT_THEME_PALETTE.light.pageBackground;
   @StorageProp(BROWSER_THEME_STORAGE_PRESSED_BACKGROUND_KEY) private storedPressedBackgroundColor: string = '#DDE4EC';
+  @StorageProp(BROWSER_THEME_STORAGE_RESOLVED_MODE_KEY) private storedResolvedThemeMode: string = 'light';
   @StorageProp(BROWSER_THEME_STORAGE_SURFACE_BACKGROUND_KEY) private storedSurfaceBackgroundColor: string = '#FFFFFF';
   @StorageProp(BROWSER_THEME_STORAGE_DIVIDER_KEY) private storedDividerColor: string = '#E3E8EF';
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY) private storedPrimaryTextColor: string = '#111318';
@@ -269,49 +273,74 @@ export struct BrowserMediaResourcesSheet {
   }
 
   build() {
+    if (this.layoutMode === 'large_screen') {
+      this.buildLargeScreenDialog()
+    } else {
+      this.buildPhoneSheet()
+    }
+  }
+
+  @Builder
+  private buildPhoneSheet() {
     BrowserBottomSheetSurface({
       fullHeight: true,
-      presentation: this.layoutMode === 'large_screen' ? 'flat_content' : 'bottom_sheet',
+      presentation: 'bottom_sheet',
       maxWidth: BROWSER_RESOURCE_SHEET_MAX_WIDTH,
-      horizontalPadding: this.layoutMode === 'phone' ? 0 : 16,
-      topPadding: this.layoutMode === 'phone' ? 0 : 26,
-      bottomPadding: this.layoutMode === 'phone' ? 0 : 24,
+      horizontalPadding: 0,
+      topPadding: 0,
+      bottomPadding: 0,
       surfaceColor: this.storedPageBackgroundColor
     }) {
-      if (this.layoutMode === 'phone') {
-        Stack() {
-          BrowserImmersiveSheetLayout({
-            scrollContent: () => {
-              this.buildList()
-            },
-            header: () => {
-              this.buildPhoneHeader()
-            }
-          })
-        }
-        .width('100%')
-        .height('100%')
-        .onAreaChange((_oldArea: Area, newArea: Area) => {
-          const nextWidth = this.parseAreaDimension(newArea.width);
-          if (nextWidth > 0 && Math.abs(nextWidth - this.contentWidth) >= 1) {
-            this.contentWidth = nextWidth;
-          }
-        })
-      } else {
-        Column({ space: 14 }) {
-          this.buildTabs()
-          this.buildList()
-        }
-        .width('100%')
-        .height('100%')
-        .onAreaChange((_oldArea: Area, newArea: Area) => {
-          const nextWidth = this.parseAreaDimension(newArea.width);
-          if (nextWidth > 0 && Math.abs(nextWidth - this.contentWidth) >= 1) {
-            this.contentWidth = nextWidth;
+      Stack() {
+        BrowserImmersiveSheetLayout({
+          scrollContent: () => {
+            this.buildList()
+          },
+          header: () => {
+            this.buildPhoneHeader()
           }
         })
       }
+      .width('100%')
+      .height('100%')
+      .onAreaChange((_oldArea: Area, newArea: Area) => {
+        this.rememberContentWidth(newArea);
+      })
     }
+  }
+
+  @Builder
+  private buildLargeScreenDialog() {
+    Column() {
+      BrowserLargeScreenModalHeader({
+        title: this.buildTitle(),
+        dialogMode: true,
+        onClose: (): void => {
+          this.onClose();
+        }
+      })
+
+      Column({ space: 16 }) {
+        this.buildLargeScreenTabs()
+        this.buildList()
+      }
+      .width('100%')
+      .layoutWeight(1)
+      .padding({
+        left: DESKTOP_DIALOG_PADDING_VP,
+        right: DESKTOP_DIALOG_PADDING_VP,
+        top: 4,
+        bottom: DESKTOP_DIALOG_PADDING_VP
+      })
+      .alignItems(HorizontalAlign.Start)
+    }
+    .width('100%')
+    .height('100%')
+    .backgroundColor(Color.Transparent)
+    .alignItems(HorizontalAlign.Start)
+    .onAreaChange((_oldArea: Area, newArea: Area) => {
+      this.rememberContentWidth(newArea);
+    })
   }
 
   @Builder
@@ -347,6 +376,36 @@ export struct BrowserMediaResourcesSheet {
       }
     })
     .width('100%')
+  }
+
+  @Builder
+  private buildLargeScreenTabs() {
+    FloatingGlassMaterialSurface({
+      surfaceWidth: '100%',
+      surfaceHeight: 36,
+      surfaceRadius: 18,
+      tintColor: resolveFloatingGlassMaterialTintForMode(this.storedResolvedThemeMode),
+      fallbackColor: this.storedControlBackgroundColor,
+      backgroundBlurEnabled: false
+    }) {
+      SegmentedTabs({
+        options: this.buildTabOptions(),
+        selectedId: this.activeTab,
+        barHeight: 36,
+        itemHeight: 30,
+        fontSize: 14,
+        barPadding: 3,
+        secondaryTextColor: this.storedSecondaryTextColor,
+        fallbackColor: $r('sys.color.ohos_id_color_background_transparent'),
+        barMaterialEnabled: false,
+        onSelect: (id: string) => {
+          this.activeTab = id as MediaResourceSurfaceTab;
+          this.syncSwiperToActiveTab(true);
+        }
+      })
+        .width('100%')
+        .height(36)
+    }
   }
 
   @Builder
@@ -578,6 +637,7 @@ export struct BrowserMediaResourcesSheet {
           candidate: candidate,
           accentColor: this.storedAccentColor,
           cardBackgroundColor: this.storedSurfaceBackgroundColor,
+          cardBorderColor: this.layoutMode === 'large_screen' ? this.storedDividerColor : Color.Transparent,
           thumbnailBackgroundColor: this.storedControlBackgroundColor,
           primaryTextColor: this.storedPrimaryTextColor,
           secondaryTextColor: this.storedSecondaryTextColor,
@@ -834,6 +894,13 @@ export struct BrowserMediaResourcesSheet {
     return '1fr 1fr 1fr';
   }
 
+  private rememberContentWidth(area: Area): void {
+    const nextWidth = this.parseAreaDimension(area.width);
+    if (nextWidth > 0 && Math.abs(nextWidth - this.contentWidth) >= 1) {
+      this.contentWidth = nextWidth;
+    }
+  }
+
   private parseAreaDimension(value: Length): number {
     if (typeof value === 'number') {
       return value;
@@ -962,6 +1029,7 @@ struct BrowserResourceVideoCard {
   @Prop candidate: MediaResourceListItem = createEmptyMediaResourceListItem();
   @Prop accentColor: ResourceColor = '#0A59F7';
   @Prop cardBackgroundColor: ResourceColor = '#FFFFFF';
+  @Prop cardBorderColor: ResourceColor = Color.Transparent;
   @Prop thumbnailBackgroundColor: ResourceColor = '#EEF2F6';
   @Prop primaryTextColor: ResourceColor = '#111318';
   @Prop secondaryTextColor: ResourceColor = '#5F6875';
@@ -1011,6 +1079,7 @@ struct BrowserResourceVideoCard {
     .padding({ left: 10, right: 10, top: 10, bottom: 10 })
     .borderRadius(RESOURCE_VIDEO_CARD_RADIUS)
     .backgroundColor(this.cardBackgroundColor)
+    .border({ width: 0.5, color: this.cardBorderColor })
     .gesture(
       LongPressGesture({ fingers: 1, repeat: false, duration: 450 })
         .onAction(() => {

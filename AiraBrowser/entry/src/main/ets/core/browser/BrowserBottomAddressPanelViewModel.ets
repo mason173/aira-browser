@@ -22,6 +22,7 @@ export interface BrowserBottomPanelMotionState {
   middlePanelHeight: number;
   overlayHostHeight: number;
   keyboardOverlayInset: number;
+  floatingBottomLiftVp: number;
   visible: boolean;
   detentDragEnabled: boolean;
   panelExpansionEnabled: boolean;
@@ -40,6 +41,7 @@ export const DEFAULT_BROWSER_BOTTOM_PANEL_MOTION_STATE: BrowserBottomPanelMotion
   middlePanelHeight: 0,
   overlayHostHeight: 0,
   keyboardOverlayInset: 0,
+  floatingBottomLiftVp: 0,
   visible: true,
   detentDragEnabled: true,
   panelExpansionEnabled: true,

@@ -87,10 +87,13 @@ export class BrowserWindowPresentationProfileCoordinator {
       pointerAvailable: input.pointerAvailable === true,
       foldState: input.foldState ?? 'unknown',
       deviceMarketName: input.deviceMarketName,
-      deviceProductModel: input.deviceProductModel
+      deviceProductModel: input.deviceProductModel,
+      windowWidthVp: input.windowWidthVp
     });
     const family = this.resolveFamily(tabletModeDecision, normalizedAvailability);
-    const familyLocked = eligibility.detectedFormFactor === 'pc' || eligibility.detectedFormFactor === 'two_in_one';
+    const familyLocked = eligibility.detectedFormFactor === 'pc' ||
+      eligibility.detectedFormFactor === 'two_in_one' ||
+      eligibility.detectedFormFactor === 'car';
     const decisionReason = this.resolveDecisionReason(tabletModeDecision, normalizedAvailability, family);
 
     const profile: BrowserWindowPresentationProfile = {

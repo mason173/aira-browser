@@ -2,7 +2,10 @@ import { describe, expect, it } from '@ohos/hypium';
 import { ExternalAppSearchPreferences, SearchSuggestion } from '../main/ets/common/models/BrowserModels';
 import {
   BrowserLargeScreenOmniboxSearchPresentationInput,
-  BrowserLargeScreenOmniboxSearchViewModel
+  BrowserLargeScreenOmniboxSearchViewModel,
+  moveOmniboxSuggestionSelection,
+  omniboxSuggestionSelectionKey,
+  retainOmniboxSuggestionSelection
 } from '../main/ets/core/browser/BrowserLargeScreenOmniboxSearchViewModel';
 
 function createHistorySuggestion(id: string): SearchSuggestion {
@@ -59,6 +62,34 @@ export default function browserLargeScreenOmniboxSearchViewModelTest(): void {
 
       expect(empty.hasHistorySuggestions).assertFalse();
       expect(empty.searchSuggestions.length).assertEqual(0);
+    });
+
+    it('moves keyboard selection through visible suggestions without wrapping', 0, () => {
+      const history = createHistorySuggestion('a');
+      const remote = createRemoteSuggestion('b');
+      const hidden = {
+        id: 'tab',
+        title: 'open tab',
+        source: 'open_tab',
+        target: 'https://example.com'
+      };
+      const suggestions = [hidden, history, remote];
+      const firstKey = omniboxSuggestionSelectionKey(history);
+      const secondKey = omniboxSuggestionSelectionKey(remote);
+
+      const fromQuery = moveOmniboxSuggestionSelection(suggestions, '', 'down');
+      const fromFirst = moveOmniboxSuggestionSelection(suggestions, firstKey, 'down');
+      const staysOnLast = moveOmniboxSuggestionSelection(suggestions, secondKey, 'down');
+      const backToFirst = moveOmniboxSuggestionSelection(suggestions, secondKey, 'up');
+      const backToQuery = moveOmniboxSuggestionSelection(suggestions, firstKey, 'up');
+
+      expect(fromQuery).assertEqual(firstKey);
+      expect(fromFirst).assertEqual(secondKey);
+      expect(staysOnLast).assertEqual(secondKey);
+      expect(backToFirst).assertEqual(firstKey);
+      expect(backToQuery).assertEqual('');
+      expect(retainOmniboxSuggestionSelection(suggestions, secondKey)).assertEqual(secondKey);
+      expect(retainOmniboxSuggestionSelection([history], secondKey)).assertEqual('');
     });
 
     it('stays hidden until the omnibox is editing and focused', 0, () => {

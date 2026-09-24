@@ -1142,6 +1142,7 @@ export struct OfflinePageViewerScreen {
       middlePanelHeight: 0,
       overlayHostHeight: this.resolveOfflineViewportHostHeight(),
       keyboardOverlayInset: 0,
+      floatingBottomLiftVp: 0,
       visible: this.bottomChromeScrollPresentation !== 'hidden',
       detentDragEnabled: true,
       panelExpansionEnabled: true,

@@ -3,6 +3,7 @@ import {
   BROWSER_SYSTEM_FONT_SIZE_SCALE_DEFAULT,
   BrowserWebTextZoomViewModel
 } from './BrowserWebTextZoomViewModel';
+import { BrowserDeviceFormFactor } from './BrowserDeviceFormFactorCoordinator';
 import { BrowserShellFamily } from './BrowserWindowPresentationProfile';
 import {
   BROWSER_FONT_SCALE_PINNED,
@@ -29,6 +30,7 @@ export { BROWSER_FONT_SCALE_PINNED };
 export class BrowserSystemFontScaleCoordinator {
   private currentScale: number = BROWSER_SYSTEM_FONT_SIZE_SCALE_DEFAULT;
   private currentShellFamily: BrowserShellFamily = 'phone';
+  private currentFormFactor: BrowserDeviceFormFactor = 'unknown';
   private appliedUiScale: number = BROWSER_SYSTEM_FONT_SIZE_SCALE_DEFAULT;
   private appliedUiScaleInitialized: boolean = false;
   private textZoomViewModel: BrowserWebTextZoomViewModel = new BrowserWebTextZoomViewModel();
@@ -59,12 +61,16 @@ export class BrowserSystemFontScaleCoordinator {
 
   /** Scale the current shell's content should follow. */
   resolveContentScale(): number {
-    return this.fontScalePolicy.resolveContentScale(this.currentScale, this.currentShellFamily);
+    return this.fontScalePolicy.resolveContentScale(this.currentScale, this.currentShellFamily, this.currentFormFactor);
   }
 
   /** Scale the current shell's native UI text should follow. */
   resolveAppUiScale(): number {
-    return this.fontScalePolicy.resolveAppUiScale(this.currentScale, this.currentShellFamily);
+    return this.fontScalePolicy.resolveAppUiScale(
+      this.currentScale,
+      this.currentShellFamily,
+      this.currentFormFactor
+    );
   }
 
   /**
@@ -74,9 +80,14 @@ export class BrowserSystemFontScaleCoordinator {
    * work. The content scale is republished on every call because a shell-family
    * switch must reach content consumers even when the numeric UI scale is equal.
    */
-  applyForShellFamily(applicationContext: common.ApplicationContext, shellFamily: BrowserShellFamily): boolean {
-    const shellChanged = this.currentShellFamily !== shellFamily;
+  applyForShellFamily(
+    applicationContext: common.ApplicationContext,
+    shellFamily: BrowserShellFamily,
+    formFactor: BrowserDeviceFormFactor = 'unknown'
+  ): boolean {
+    const shellChanged = this.currentShellFamily !== shellFamily || this.currentFormFactor !== formFactor;
     this.currentShellFamily = shellFamily;
+    this.currentFormFactor = formFactor;
     const nextUiScale = this.resolveAppUiScale();
     this.publishContentScale();
     if (!shellChanged && this.appliedUiScaleInitialized && this.appliedUiScale === nextUiScale) {

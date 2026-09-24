@@ -1361,7 +1361,9 @@ export struct BrowserDetentBottomPanel {
     if (!this.floatingBlocksEnabled) {
       return 0;
     }
-    return BROWSER_BOTTOM_ADDRESS_PANEL_FLOATING_BOTTOM_GAP + Math.max(0, this.motionState.keyboardOverlayInset);
+    return BROWSER_BOTTOM_ADDRESS_PANEL_FLOATING_BOTTOM_GAP +
+      Math.max(0, this.motionState.keyboardOverlayInset) +
+      Math.max(0, this.motionState.floatingBottomLiftVp);
   }
 
   private resolveOverlayPanelTranslateY(): number {

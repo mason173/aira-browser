@@ -780,6 +780,7 @@ import {
   NewUserGiftSnapshot
 } from '../../core/membership/NewUserGiftCoordinator';
 import { AIRA_NEW_USER_GIFT_REVISION_KEY } from '../../core/membership/NewUserGiftRefreshSignal';
+import { resolveCockpitAdaptation } from '../../core/browser/BrowserCockpitAdaptationPolicy';
 import {
   BrowserDeviceFormFactor,
   BrowserDeviceFormFactorCoordinator
@@ -899,7 +900,9 @@ import {
 import { shouldExitFullscreenOnEscape } from '../../core/browser/BrowserFullscreenExitHintPolicy';
 import {
   BROWSER_TOP_FLOATING_PROMPT_HOST_Z_INDEX,
-  BrowserTopFloatingPromptHost
+  BrowserTopFloatingPromptFrame,
+  BrowserTopFloatingPromptHost,
+  resolveBrowserTopFloatingPromptFrame
 } from '../components/browser/BrowserTopFloatingPromptHost';
 import {
   BrowserWebPageToolsContent,
@@ -2334,8 +2337,8 @@ struct BrowserShellPage {
           rootViewportHeight: this.rootViewportHeight,
           webViewportHostHeight: this.rootBottomPanelLayoutState.webHostHeight,
           webVisualTopInset: this.getWebViewportTopInsetPx(),
-          topSafeInsetVp: safeInsets.topInsetVp,
-          bottomSafeInsetVp: safeInsets.bottomInsetVp,
+          topSafeInsetVp: this.resolveEffectiveTopChromeInsetVp(safeInsets.topInsetVp),
+          bottomSafeInsetVp: this.resolveEffectiveBottomChromeInsetVp(safeInsets.bottomInsetVp),
           showHomePage: this.showHomePage,
           webAppImmersiveMode: this.isWebAppImmersiveMode(),
           hostedWebLayerMeasured: this.hostedWebLayerMeasured,
@@ -3839,7 +3842,7 @@ struct BrowserShellPage {
       ),
       topOffsetVp: this.browserTopFloatingPromptCoordinator.resolveBackgroundOpenTopOffsetVp({
         showHomePage: this.showHomePage,
-        topInsetVp: this.browserWindowAvoidAreaCoordinator.readStorage(this.getSharedStageStorage()).topInsetVp,
+        topInsetVp: this.resolveStoredEffectiveTopChromeInsetVp(),
         webTopChromeOverlayHeightVp: 0
       })
     }),
@@ -4958,6 +4961,12 @@ struct BrowserShellPage {
         foregroundTabCreationCoordinator: this.browserForegroundTabCreationCoordinator,
         windowContextCoordinator: this.browserWindowContextCoordinator,
         fullscreenSessionCoordinator: this.browserFullscreenSessionCoordinator,
+        preferencesRepository: sharedPreferencesRepository,
+        elementInspectionSessionCoordinator: this.elementInspectionSessionCoordinator,
+        bottomPanelShellActionExecutor: this.browserRootBottomPanelShellActionExecutor,
+        webPrintService: this.browserWebPrintService,
+        runtimeLifecyclePort: this.browserRuntimeLifecyclePort,
+        resolveAbilityContext: (): common.UIAbilityContext => this.getAbilityContext(),
         homeUrl: HOME_TAB_URL,
         newTabTitle: '新标签页'
       },
@@ -6568,11 +6577,7 @@ struct BrowserShellPage {
       this.buildNovelReaderSurface()
 
       if (this.buildTopFloatingPromptHostState().mounted) {
-        BrowserTopFloatingPromptHost({
-          state: this.buildTopFloatingPromptHostState(),
-          onAction: (action) => this.browserTopFloatingPromptCoordinator.handleAction(action)
-        })
-          .zIndex(BROWSER_TOP_FLOATING_PROMPT_HOST_Z_INDEX)
+        this.buildTopFloatingPromptHost()
       }
 
       if (this.webContextMenuPresentation.state.visible) {
@@ -6770,6 +6775,24 @@ struct BrowserShellPage {
     })
     .keyboardShortcut('a', [ModifierKey.CTRL, ModifierKey.SHIFT], () => {
       this.browserKeyboardShortcutCoordinator.handleShortcut('toggleTabsOverview');
+    })
+    .keyboardShortcut('o', [ModifierKey.CTRL, ModifierKey.SHIFT], () => {
+      this.browserKeyboardShortcutCoordinator.handleShortcut('openBookmarks');
+    })
+    .keyboardShortcut('b', [ModifierKey.CTRL, ModifierKey.SHIFT], () => {
+      this.browserKeyboardShortcutCoordinator.handleShortcut('toggleBookmarkBar');
+    })
+    .keyboardShortcut(',', [ModifierKey.CTRL], () => {
+      this.browserKeyboardShortcutCoordinator.handleShortcut('openSettings');
+    })
+    .keyboardShortcut('n', [ModifierKey.CTRL, ModifierKey.SHIFT], () => {
+      this.browserKeyboardShortcutCoordinator.handleShortcut('togglePrivateMode');
+    })
+    .keyboardShortcut('p', [ModifierKey.CTRL], () => {
+      this.browserKeyboardShortcutCoordinator.handleShortcut('printPage');
+    })
+    .keyboardShortcut('i', [ModifierKey.CTRL, ModifierKey.SHIFT], () => {
+      this.browserKeyboardShortcutCoordinator.handleShortcut('inspectElement');
     })
     .bindSheet($$this.phoneSystemSheetVisible, this.buildSystemSheet(), applyDesktopDialogSheetChrome({
       preferType: SheetType.BOTTOM,
@@ -7037,6 +7060,39 @@ struct BrowserShellPage {
     })
   }
 
+  @Builder
+  private buildTopFloatingPromptHost() {
+    Column() {
+      BrowserTopFloatingPromptHost({
+        state: this.buildTopFloatingPromptHostState(),
+        onAction: (action) => this.browserTopFloatingPromptCoordinator.handleAction(action)
+      })
+        .width('100%')
+        .height('100%')
+    }
+    .width(this.resolveTopFloatingPromptFrame().widthVp)
+    .height(this.resolveTopFloatingPromptFrame().heightVp)
+    .position({
+      x: this.resolveTopFloatingPromptFrame().leftVp,
+      y: this.resolveTopFloatingPromptFrame().topVp
+    })
+    .responseRegion({
+      x: 0,
+      y: 0,
+      width: this.resolveTopFloatingPromptFrame().widthVp,
+      height: this.resolveTopFloatingPromptFrame().heightVp
+    })
+    .hitTestBehavior(HitTestMode.Default)
+    .zIndex(BROWSER_TOP_FLOATING_PROMPT_HOST_Z_INDEX)
+  }
+
+  private resolveTopFloatingPromptFrame(): BrowserTopFloatingPromptFrame {
+    return resolveBrowserTopFloatingPromptFrame(
+      this.buildTopFloatingPromptHostState(),
+      this.rootViewportWidth
+    );
+  }
+
   private buildTopFloatingPromptHostState(): BrowserTopFloatingPromptHostState {
     const input: BrowserTopFloatingPromptShellInput = {
       urlThreatNotice: this.urlThreatNoticeState,
@@ -7053,7 +7109,7 @@ struct BrowserShellPage {
       nativeVideoTakeoverVisible: this.isAssistantVideoTakeoverActive(),
       offsets: {
         showHomePage: this.showHomePage,
-        topInsetVp: this.browserWindowAvoidAreaCoordinator.readStorage(this.getSharedStageStorage()).topInsetVp,
+        topInsetVp: this.resolveStoredEffectiveTopChromeInsetVp(),
         webTopChromeOverlayHeightVp: 0
       }
     };
@@ -7834,10 +7890,18 @@ struct BrowserShellPage {
     if (this.isLargeScreenShellFamilyActive()) {
       return 0;
     }
+    const geometry = this.browserWindowAvoidAreaCoordinator.readStoredWebTopGeometryInsets(
+      this.getSharedStageStorage()
+    );
+    const immersionTopVp = this.browserWebTopImmersionSessionCoordinator.resolveWebTopSystemInsetVp(geometry);
+    const cockpitTopVp = this.webStatusBarVisible ? resolveCockpitAdaptation({
+      detectedFormFactor: this.resolveGuideDeviceFormFactor(),
+      windowWidthVp: this.rootViewportWidth,
+      reportedBottomAvoidVp: this.homeBottomSafeInsetVp,
+      reportedTopAvoidVp: geometry.systemTopInsetVp
+    }).contentTopInsetVp : 0;
     const baseTopInsetPx = this.browserChromeRuntimeCoordinator.buildWebTopChromeInsetPx(
-      this.browserWebTopImmersionSessionCoordinator.resolveWebTopSystemInsetVp(
-        this.browserWindowAvoidAreaCoordinator.readStoredWebTopGeometryInsets(this.getSharedStageStorage())
-      ),
+      Math.max(immersionTopVp, cockpitTopVp),
       WEB_TOP_CHROME_CONTENT_GAP_VP
     );
     return BrowserWebViewportCoordinator.resolveVisibleTopChromeInset({
@@ -8195,7 +8259,8 @@ struct BrowserShellPage {
       viewportTop: this.rootViewportTop,
       viewportWidth: this.rootBottomPanelLayoutState.viewport.width,
       viewportHeight: this.rootBottomPanelLayoutState.viewport.height,
-      topSafeInsetVp: this.browserWindowAvoidAreaCoordinator.readStorage(this.getSharedStageStorage()).topInsetVp,
+      topSafeInsetVp: this.resolveStoredEffectiveTopChromeInsetVp(),
+      bottomChromeLiftVp: this.resolveCockpitFloatingChromeBottomLiftVp(),
       backdropBlurRadius: 0,
       backgroundTintEnabled: false,
       backgroundSurfaceOpacity: this.buildTabsOverviewBackgroundRenderState().floatingGlassOpacity,
@@ -8521,6 +8586,7 @@ struct BrowserShellPage {
       layoutState: this.rootBottomPanelLayoutState,
       showHomePage: this.isRootBottomPanelEffectiveHomeMode(),
       keyboardOverlayInset: this.rootAddressKeyboardOverlayInsetVp,
+      floatingBottomLiftVp: this.resolveCockpitFloatingChromeBottomLiftVp(),
       fullScreenModeEnabled: this.browserFullscreenSessionPresentation.fullScreenModeEnabled,
       documentViewerActive: documentViewerPolicy.active,
       documentViewerScrollCollapseEnabled: documentViewerPolicy.scrollCollapseEnabled,
@@ -8893,8 +8959,8 @@ struct BrowserShellPage {
           this.getSharedStageStorage()
         );
         const safeInsets = syncResult.nextInsets;
-        this.homeTopSafeInsetVp = safeInsets.topInsetVp;
-        this.homeBottomSafeInsetVp = safeInsets.bottomInsetVp;
+        this.homeTopSafeInsetVp = this.resolveEffectiveTopChromeInsetVp(safeInsets.topInsetVp);
+        this.homeBottomSafeInsetVp = this.resolveEffectiveBottomChromeInsetVp(safeInsets.bottomInsetVp);
         this.homeLeftSafeInsetVp = safeInsets.leftInsetVp;
         this.homeRightSafeInsetVp = safeInsets.rightInsetVp;
         this.rootKeyboardInsetVp = this.browserWindowAvoidAreaCoordinator.readKeyboardInset(this.getSharedStageStorage());
@@ -8903,8 +8969,8 @@ struct BrowserShellPage {
       })
       .catch((_error: Error) => {
         const safeInsets = this.browserWindowAvoidAreaCoordinator.readStorage(this.getSharedStageStorage());
-        this.homeTopSafeInsetVp = safeInsets.topInsetVp;
-        this.homeBottomSafeInsetVp = safeInsets.bottomInsetVp;
+        this.homeTopSafeInsetVp = this.resolveEffectiveTopChromeInsetVp(safeInsets.topInsetVp);
+        this.homeBottomSafeInsetVp = this.resolveEffectiveBottomChromeInsetVp(safeInsets.bottomInsetVp);
         this.homeLeftSafeInsetVp = safeInsets.leftInsetVp;
         this.homeRightSafeInsetVp = safeInsets.rightInsetVp;
         this.rootKeyboardInsetVp = this.browserWindowAvoidAreaCoordinator.readKeyboardInset(this.getSharedStageStorage());
@@ -9420,7 +9486,7 @@ struct BrowserShellPage {
       return 0;
     }
     return this.browserChromeRuntimeCoordinator.buildStableWebViewportBottomInsetPx(
-      safeInsets.bottomInsetVp,
+      this.resolveEffectiveBottomChromeInsetVp(safeInsets.bottomInsetVp),
       this.browserSearchSuggestionSnapshot.homeSearchOverlayVisible,
       webPageVisible
     );
@@ -9773,13 +9839,13 @@ struct BrowserShellPage {
   private resolveWebpageTranslationOverlayTopOffsetVp(): number {
     return this.browserTopFloatingPromptCoordinator.resolveTranslationTopOffsetVp({
       showHomePage: this.showHomePage,
-      topInsetVp: this.browserWindowAvoidAreaCoordinator.readStorage(this.getSharedStageStorage()).topInsetVp,
+      topInsetVp: this.resolveStoredEffectiveTopChromeInsetVp(),
       webTopChromeOverlayHeightVp: 0
     });
   }
 
   private getReaderModeTopSafeInsetVp(): number {
-    return this.browserWindowAvoidAreaCoordinator.readStorage(this.getSharedStageStorage()).topInsetVp;
+    return this.resolveStoredEffectiveTopChromeInsetVp();
   }
 
   private getReaderModeBottomSafeInsetVp(): number {
@@ -9976,6 +10042,7 @@ struct BrowserShellPage {
         userScriptState: this.browserUserScriptApplicationSnapshot.pageActionsState,
         appProxyState: this.appProxyQuickSheetState,
         mediaResourceState: this.mediaResourceSessionSnapshot,
+        layoutMode: this.browserShellPresentationOperations?.snapshot()?.shellFamily ?? 'phone',
         onUserScriptAction: (action) => {
           this.browserUserScriptApplicationCoordinator.handleAction(action);
         },
@@ -10643,6 +10710,41 @@ struct BrowserShellPage {
       logSync: (_syncSource: string): void => {
       }
     }, WEB_SAFE_INSET_SETTLE_SYNC_DELAY_MS, WEB_SAFE_INSET_SYSTEM_BAR_REFRESH_SETTLE_DELAY_MS);
+  }
+
+  private resolveEffectiveTopChromeInsetVp(reportedTopAvoidVp: number): number {
+    const reported = Math.max(0, Math.ceil(Number.isFinite(reportedTopAvoidVp) ? reportedTopAvoidVp : 0));
+    return Math.max(reported, resolveCockpitAdaptation({
+      detectedFormFactor: this.resolveGuideDeviceFormFactor(),
+      windowWidthVp: this.rootViewportWidth,
+      reportedBottomAvoidVp: this.homeBottomSafeInsetVp,
+      reportedTopAvoidVp: reported
+    }).contentTopInsetVp);
+  }
+
+  private resolveStoredEffectiveTopChromeInsetVp(): number {
+    return this.resolveEffectiveTopChromeInsetVp(
+      this.browserWindowAvoidAreaCoordinator.readStorage(this.getSharedStageStorage()).topInsetVp
+    );
+  }
+
+  private resolveCockpitFloatingChromeBottomLiftVp(): number {
+    return resolveCockpitAdaptation({
+      detectedFormFactor: this.resolveGuideDeviceFormFactor(),
+      windowWidthVp: this.rootViewportWidth,
+      reportedBottomAvoidVp: this.homeBottomSafeInsetVp
+    }).floatingChromeBottomLiftVp;
+  }
+
+  private resolveEffectiveBottomChromeInsetVp(reportedBottomAvoidVp: number): number {
+    return Math.max(
+      Math.max(0, Math.ceil(Number.isFinite(reportedBottomAvoidVp) ? reportedBottomAvoidVp : 0)),
+      resolveCockpitAdaptation({
+        detectedFormFactor: this.resolveGuideDeviceFormFactor(),
+        windowWidthVp: this.rootViewportWidth,
+        reportedBottomAvoidVp: reportedBottomAvoidVp
+      }).floatingChromeBottomLiftVp
+    );
   }
 
   /**

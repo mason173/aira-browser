@@ -37,9 +37,10 @@ import {
   BROWSER_THEME_STORAGE_PAGE_BACKGROUND_KEY
 } from '../../../core/theme/BrowserThemeStorageKeys';
 import { applyDesktopDialogSheetChrome } from '../common/DesktopDialogSheetChrome';
-import { UserScriptDetailScreen } from './UserScriptDetailScreen';
+import { UserScriptDetailDialog } from './UserScriptDetailDialog';
 import { UserScriptInstallSheetContent } from './UserScriptInstallSheetContent';
 import { UserScriptManualUrlDialog } from './UserScriptManualUrlDialog';
+import { UserScriptSourceEditDialog } from './UserScriptSourceEditDialog';
 import { UserScriptRiskConsentSheet } from './UserScriptRiskConsentSheet';
 import { UserScriptUpdateSheet } from './UserScriptUpdateSheet';
 import { UserScriptsScreen } from './UserScriptsScreen';
@@ -87,6 +88,10 @@ export struct UserScriptManagementHost {
   @State private selectedScriptId: string = '';
   @State private detailState: UserScriptDetailState = this.managementSession.detailSnapshot('');
   @State private manualUrlDraft: string = '';
+  @State private sourceEditDraft: string = '';
+  private detailDialogOpen: boolean = false;
+  private sourceEditDialogOpen: boolean = false;
+  private sourceEditToken: string = '';
   @State private manualSourceInstallClaimToken: string = '';
   private manualSourceEditWindowId: string = '';
   private manualSourceEditSurface: UserScriptManagementPresentationMode = 'page';
@@ -111,6 +116,57 @@ export struct UserScriptManagementHost {
     cornerRadius: CENTERED_DIALOG_CORNER_RADIUS_VP,
     width: resolveCenteredDialogControllerWidth('s'),
     autoCancel: true
+  });
+  private detailDialogController: CustomDialogController = new CustomDialogController({
+    alignment: DialogAlignment.Center,
+    builder: UserScriptDetailDialog({
+      state: $detailState,
+      onToggleScript: (enabled: boolean): void => {
+        this.toggleSelectedScript(enabled);
+      },
+      onDeleteScript: (): void => {
+        this.requestSelectedScriptDelete();
+      },
+      onClose: (): void => {
+        this.closeDetailDialog();
+      }
+    }),
+    customStyle: false,
+    backgroundColor: resolveCenteredDialogSurfaceColor(),
+    backgroundBlurStyle: BlurStyle.NONE,
+    cornerRadius: CENTERED_DIALOG_CORNER_RADIUS_VP,
+    width: resolveCenteredDialogControllerWidth('l'),
+    autoCancel: true,
+    onWillDismiss: (dismissDialogAction: DismissDialogAction): void => {
+      this.detailDialogOpen = false;
+      this.selectedScriptId = '';
+      dismissDialogAction.dismiss();
+    }
+  });
+  private sourceEditDialogController: CustomDialogController = new CustomDialogController({
+    alignment: DialogAlignment.Center,
+    builder: UserScriptSourceEditDialog({
+      source: $sourceEditDraft,
+      onSourceChange: (source: string): void => {
+        this.editManualSourceDraft(source);
+      },
+      onSave: (): void => {
+        this.completeManualSourceEditor();
+      },
+      onClose: (): void => {
+        this.closeManualSourceEditor();
+      }
+    }),
+    customStyle: false,
+    backgroundColor: resolveCenteredDialogSurfaceColor(),
+    backgroundBlurStyle: BlurStyle.NONE,
+    cornerRadius: CENTERED_DIALOG_CORNER_RADIUS_VP,
+    width: resolveCenteredDialogControllerWidth('l'),
+    autoCancel: true,
+    onWillDismiss: (dismissDialogAction: DismissDialogAction): void => {
+      this.abandonManualSourceEditor();
+      dismissDialogAction.dismiss();
+    }
   });
 
   aboutToAppear(): void {
@@ -169,6 +225,7 @@ export struct UserScriptManagementHost {
   }
 
   aboutToDisappear(): void {
+    this.closeManualSourceEditor();
     if (this.activeSurface === 'install' && this.activeSurfaceVisible &&
       this.manualSourceInstallClaimToken.length > 0) {
       sharedUserScriptInstallSessionCoordinator.releaseManualSourceInstall(
@@ -231,83 +288,58 @@ export struct UserScriptManagementHost {
   @Builder
   private buildManagementContent() {
     Row() {
-      if (this.presentationMode === 'native_tab' && this.selectedScriptId.length > 0) {
-        UserScriptDetailScreen({
-          state: this.detailState,
-          showBackButton: true,
-          showTitleBar: true,
-          useTopSafeInset: false,
-          desktopPresentation: this.settingsWorkspacePresentation,
-          onBack: () => {
-            this.selectedScriptId = '';
-          },
-          onToggleScript: (enabled: boolean) => {
-            this.toggleSelectedScript(enabled);
-          },
-          onOpenExtensionsPage: () => {
-            this.selectedScriptId = '';
-          },
-          onDeleteScript: () => {
-            this.requestSelectedScriptDelete();
-          }
-        })
-        .width('100%')
-        .height('100%')
-        .constraintSize({ maxWidth: 1120 })
-      } else {
-        UserScriptsScreen({
-          state: this.managementSnapshot.settings,
-          showNotice: this.managementSnapshot.showNotice,
-          valueRecovery: this.managementSnapshot.valueRecovery,
-          showBackButton: this.presentationMode === 'page',
-          showTitleBar: true,
-          useTopSafeInset: this.presentationMode === 'page',
-          desktopPresentation: this.settingsWorkspacePresentation,
-          useCardLayout: this.presentationMode === 'native_tab',
-          onAddFromUrl: () => {
-            this.openManualUrlDialog();
-          },
-          onImportFromFile: () => {
-            this.importManualFile();
-          },
-          onEditSource: () => {
-            this.openManualSourceEditor();
-          },
-          onOpenGallerySource: (url: string) => {
-            this.openManualGallerySource(url);
-          },
-          onToggleScript: (scriptId: string, enabled: boolean) => {
-            this.managementSession.action(UserScriptManagementAction.toggleScript(scriptId, enabled));
-          },
-          onEditScript: (scriptId: string) => {
-            this.openScriptDetail(scriptId);
-          },
-          onUpdateScript: (scriptId: string) => {
-            this.managementSession.action(UserScriptManagementAction.checkScriptUpdate(scriptId));
-          },
-          onExportScript: (scriptId: string) => {
-            this.managementSession.action(UserScriptManagementAction.requestExportScript(scriptId));
-          },
-          onUpdateAllScripts: () => {
-            this.managementSession.action(UserScriptManagementAction.checkAllUpdates());
-          },
-          onAutoUpdateChange: (enabled: boolean) => {
-            this.managementSession.action(UserScriptManagementAction.setAutoUpdate(enabled));
-          },
-          onDeleteScript: (scriptId: string) => {
-            this.managementSession.action(UserScriptManagementAction.requestDeleteScript(scriptId));
-          },
-          onDismissNotice: () => {
-            this.managementSession.action(UserScriptManagementAction.dismissNotice());
-          },
-          onBack: () => {
-            this.onRequestClose();
-          }
-        })
-        .width('100%')
-        .height('100%')
-        .constraintSize({ maxWidth: 1120 })
-      }
+      UserScriptsScreen({
+        state: this.managementSnapshot.settings,
+        showNotice: this.managementSnapshot.showNotice,
+        valueRecovery: this.managementSnapshot.valueRecovery,
+        showBackButton: this.presentationMode === 'page',
+        showTitleBar: true,
+        useTopSafeInset: this.presentationMode === 'page',
+        desktopPresentation: this.settingsWorkspacePresentation,
+        useCardLayout: this.presentationMode === 'native_tab',
+        onAddFromUrl: () => {
+          this.openManualUrlDialog();
+        },
+        onImportFromFile: () => {
+          this.importManualFile();
+        },
+        onEditSource: () => {
+          this.openManualSourceEditor();
+        },
+        onOpenGallerySource: (url: string) => {
+          this.openManualGallerySource(url);
+        },
+        onToggleScript: (scriptId: string, enabled: boolean) => {
+          this.managementSession.action(UserScriptManagementAction.toggleScript(scriptId, enabled));
+        },
+        onEditScript: (scriptId: string) => {
+          this.openScriptDetail(scriptId);
+        },
+        onUpdateScript: (scriptId: string) => {
+          this.managementSession.action(UserScriptManagementAction.checkScriptUpdate(scriptId));
+        },
+        onExportScript: (scriptId: string) => {
+          this.managementSession.action(UserScriptManagementAction.requestExportScript(scriptId));
+        },
+        onUpdateAllScripts: () => {
+          this.managementSession.action(UserScriptManagementAction.checkAllUpdates());
+        },
+        onAutoUpdateChange: (enabled: boolean) => {
+          this.managementSession.action(UserScriptManagementAction.setAutoUpdate(enabled));
+        },
+        onDeleteScript: (scriptId: string) => {
+          this.managementSession.action(UserScriptManagementAction.requestDeleteScript(scriptId));
+        },
+        onDismissNotice: () => {
+          this.managementSession.action(UserScriptManagementAction.dismissNotice());
+        },
+        onBack: () => {
+          this.onRequestClose();
+        }
+      })
+      .width('100%')
+      .height('100%')
+      .constraintSize({ maxWidth: this.resolveManagementContentMaxWidth() })
     }
     .width('100%')
     .height('100%')
@@ -462,7 +494,7 @@ export struct UserScriptManagementHost {
       return;
     }
     if (effect.kind === 'script_deleted' && effect.scriptId === this.selectedScriptId) {
-      this.selectedScriptId = '';
+      this.closeDetailDialog();
       return;
     }
     if (effect.kind === 'export_script' && effect.script !== undefined) {
@@ -553,6 +585,10 @@ export struct UserScriptManagementHost {
       this.showToast('另一个窗口正在编辑或安装脚本，请稍后重试。');
       return;
     }
+    if (this.presentationMode === 'native_tab') {
+      this.openManualSourceEditDialog(editToken);
+      return;
+    }
     router.pushUrl({
       url: USER_SCRIPT_SOURCE_EDIT_ROUTE,
       params: {
@@ -564,6 +600,56 @@ export struct UserScriptManagementHost {
     }).catch((_error: Error) => {
       sharedUserScriptInstallSessionCoordinator.cancelManualSourceEdit(editToken);
     });
+  }
+
+  private openManualSourceEditDialog(editToken: string): void {
+    if (this.sourceEditDialogOpen) {
+      sharedUserScriptInstallSessionCoordinator.cancelManualSourceEdit(editToken);
+      return;
+    }
+    this.sourceEditToken = editToken;
+    this.sourceEditDraft = sharedUserScriptInstallSessionCoordinator.getManualSourceEditSource(editToken);
+    this.sourceEditDialogOpen = true;
+    this.sourceEditDialogController.open();
+  }
+
+  private editManualSourceDraft(source: string): void {
+    sharedUserScriptInstallSessionCoordinator.editManualSource(this.sourceEditToken, source);
+  }
+
+  private completeManualSourceEditor(): void {
+    if (!this.ensureOptionalServiceAvailable()) {
+      return;
+    }
+    if (!sharedUserScriptInstallSessionCoordinator.completeManualSourceEdit(
+      this.sourceEditToken,
+      this.sourceEditDraft
+    )) {
+      this.showToast('脚本编辑会话已失效，请返回后重试。');
+      return;
+    }
+    this.closeManualSourceEditor();
+  }
+
+  private closeManualSourceEditor(): void {
+    const wasOpen = this.sourceEditDialogOpen;
+    this.abandonManualSourceEditor();
+    if (!wasOpen) {
+      return;
+    }
+    try {
+      this.sourceEditDialogController.close();
+    } catch (_error) {
+    }
+  }
+
+  private abandonManualSourceEditor(): void {
+    const token = this.sourceEditToken;
+    this.sourceEditDialogOpen = false;
+    this.sourceEditToken = '';
+    if (token.length > 0) {
+      sharedUserScriptInstallSessionCoordinator.abandonManualSourceEdit(token);
+    }
   }
 
   private resumeManualSourceEditIfNeeded(): void {
@@ -695,6 +781,7 @@ export struct UserScriptManagementHost {
     if (this.presentationMode === 'native_tab') {
       this.selectedScriptId = normalizedScriptId;
       this.detailState = this.managementSession.detailSnapshot(normalizedScriptId);
+      this.openDetailDialog();
       return;
     }
     router.pushUrl({
@@ -706,6 +793,33 @@ export struct UserScriptManagementHost {
         boundarySource: this.boundarySource
       }
     }).catch((_error: Error) => {});
+  }
+
+  private resolveManagementContentMaxWidth(): number {
+    if (this.presentationMode === 'native_tab' && !this.settingsWorkspacePresentation) {
+      return 100000;
+    }
+    return 1120;
+  }
+
+  private openDetailDialog(): void {
+    if (this.detailDialogOpen) {
+      return;
+    }
+    this.detailDialogOpen = true;
+    this.detailDialogController.open();
+  }
+
+  private closeDetailDialog(): void {
+    this.selectedScriptId = '';
+    if (!this.detailDialogOpen) {
+      return;
+    }
+    this.detailDialogOpen = false;
+    try {
+      this.detailDialogController.close();
+    } catch (_error) {
+    }
   }
 
   private toggleSelectedScript(enabled: boolean): void {

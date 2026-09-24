@@ -176,6 +176,15 @@ export class BrowserWindowAvoidAreaCoordinator {
     return nextInsets;
   }
 
+  enableFloatNavigationAvoidArea(mainWindow: window.Window): Promise<void> {
+    try {
+      return mainWindow.setFloatNavigationAvoidAreaEnabled(true).catch((_error: Error) => {
+      });
+    } catch (_error) {
+      return Promise.resolve();
+    }
+  }
+
   bind(mainWindow: window.Window, storage: LocalStorage | undefined): void {
     if (storage === undefined) {
       return;
@@ -359,7 +368,8 @@ export class BrowserWindowAvoidAreaCoordinator {
       ),
       bottomInsetVp: Math.max(
         this.resolveBottomInsetVp(mainWindow, window.AvoidAreaType.TYPE_NAVIGATION_INDICATOR),
-        this.resolveBottomInsetVp(mainWindow, window.AvoidAreaType.TYPE_SYSTEM)
+        this.resolveBottomInsetVp(mainWindow, window.AvoidAreaType.TYPE_SYSTEM),
+        this.resolveBottomInsetVp(mainWindow, window.AvoidAreaType.TYPE_FLOAT_NAVIGATION)
       ),
       leftInsetVp: Math.max(
         this.resolveLeftInsetVp(mainWindow, window.AvoidAreaType.TYPE_SYSTEM),

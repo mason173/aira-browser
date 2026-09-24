@@ -13,6 +13,7 @@ import {
   BROWSER_APPEARANCE_STORAGE_SITE_ICON_CORNER_RATIO_KEY,
   BROWSER_THEME_STORAGE_ACCENT_KEY,
   BROWSER_THEME_STORAGE_CONTROL_BACKGROUND_KEY,
+  BROWSER_THEME_STORAGE_PAGE_BACKGROUND_KEY,
   BROWSER_THEME_STORAGE_DIVIDER_KEY,
   BROWSER_THEME_STORAGE_PRESSED_BACKGROUND_KEY,
   BROWSER_THEME_STORAGE_SURFACE_BACKGROUND_KEY,
@@ -52,6 +53,8 @@ export struct HistoryLargeScreenTimeline {
   private storedAccentColor: string = DEFAULT_THEME_PALETTE.light.accent;
   @StorageProp(BROWSER_THEME_STORAGE_CONTROL_BACKGROUND_KEY)
   private storedControlBackgroundColor: string = DEFAULT_THEME_PALETTE.light.controlBackground;
+  @StorageProp(BROWSER_THEME_STORAGE_PAGE_BACKGROUND_KEY)
+  private storedPageBackgroundColor: string = DEFAULT_THEME_PALETTE.light.pageBackground;
   @StorageProp(BROWSER_THEME_STORAGE_DIVIDER_KEY)
   private storedDividerColor: string = DEFAULT_THEME_PALETTE.light.divider;
   @StorageProp(BROWSER_THEME_STORAGE_PRESSED_BACKGROUND_KEY)
@@ -340,7 +343,7 @@ export struct HistoryLargeScreenTimeline {
       return this.storedPressedBackgroundColor;
     }
     if (this.hoveredVisitId === visitId) {
-      return this.storedControlBackgroundColor;
+      return this.storedPageBackgroundColor;
     }
     return this.storedSurfaceBackgroundColor;
   }

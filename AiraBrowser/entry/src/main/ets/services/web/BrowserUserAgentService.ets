@@ -418,6 +418,9 @@ export class BrowserUserAgentService {
 
   resolveApplicationFamilyForDevice(detectedFormFactor: string): BrowserUserAgentApplicationFamily {
     const normalizedFormFactor = detectedFormFactor.trim().toLowerCase();
+    if (normalizedFormFactor === 'car' || normalizedFormFactor === 'cockpit') {
+      return 'mobile';
+    }
     if (normalizedFormFactor === 'tablet') {
       return 'tablet';
     }

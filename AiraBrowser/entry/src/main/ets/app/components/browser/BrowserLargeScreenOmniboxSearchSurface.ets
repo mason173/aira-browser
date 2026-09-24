@@ -10,7 +10,8 @@ import {
 } from '../../../common/constants/SearchPreferenceKeys';
 import {
   BrowserLargeScreenOmniboxSearchPresentation,
-  BrowserLargeScreenOmniboxSearchViewModel
+  BrowserLargeScreenOmniboxSearchViewModel,
+  omniboxSuggestionSelectionKey
 } from '../../../core/browser/BrowserLargeScreenOmniboxSearchViewModel';
 import {
   BrowserSearchEngineChromePresentation
@@ -79,10 +80,11 @@ struct BrowserLargeScreenSuggestionRow {
     source: 'search_history',
     target: ''
   };
-  @State private hovered: boolean = false;
+  @Prop selected: boolean = false;
   @State private deleteHovered: boolean = false;
   onOpen: (suggestion: SearchSuggestion) => void = (_suggestion: SearchSuggestion): void => {};
   onDelete: (suggestion: SearchSuggestion) => void = (_suggestion: SearchSuggestion): void => {};
+  onHighlight: (suggestion: SearchSuggestion) => void = (_suggestion: SearchSuggestion): void => {};
 
   build() {
     Row({ space: 8 }) {
@@ -157,11 +159,13 @@ struct BrowserLargeScreenSuggestionRow {
     .height(LARGE_SCREEN_SUGGESTION_ROW_HEIGHT_VP)
     .padding({ right: 8 })
     .alignItems(VerticalAlign.Center)
-    .backgroundColor(this.hovered && !this.deleteHovered ? this.storedControlBackgroundColor : Color.Transparent)
+    .backgroundColor(this.selected ? this.storedControlBackgroundColor : Color.Transparent)
     .borderRadius(LARGE_SCREEN_SUGGESTION_ROW_RADIUS_VP)
     .clip(true)
     .onHover((hovered: boolean): void => {
-      this.hovered = hovered;
+      if (hovered) {
+        this.onHighlight(this.suggestion);
+      }
     })
   }
 
@@ -348,9 +352,11 @@ export struct BrowserLargeScreenOmniboxSearchSurface {
   @Prop inputFocused: boolean = false;
   @Prop query: string = '';
   @Prop suggestions: SearchSuggestion[] = [];
+  @Prop @Watch('scrollSelectedSuggestionIntoView') selectedSuggestionKey: string = '';
   @Prop viewportHeightVp: number = 0;
   @Prop popupReservedTopVp: number = 0;
   onOpenSuggestion: (suggestion: SearchSuggestion) => void = (_suggestion: SearchSuggestion): void => {};
+  onHighlightSuggestion: (suggestion: SearchSuggestion) => void = (_suggestion: SearchSuggestion): void => {};
   onDeleteHistorySuggestion: (suggestion: SearchSuggestion) => void =
     (_suggestion: SearchSuggestion): void => {};
   onClearHistorySuggestions: () => void = (): void => {};
@@ -364,6 +370,7 @@ export struct BrowserLargeScreenOmniboxSearchSurface {
   private readonly viewModel: BrowserLargeScreenOmniboxSearchViewModel =
     new BrowserLargeScreenOmniboxSearchViewModel();
   private readonly modalLayoutService: AppWindowModalLayoutService = new AppWindowModalLayoutService();
+  private readonly suggestionScroller: Scroller = new Scroller();
 
   build() {
     if (this.resolvePresentation().visible) {
@@ -522,21 +529,23 @@ export struct BrowserLargeScreenOmniboxSearchSurface {
 
   @Builder
   private buildSuggestionList() {
-    Scroll() {
+    Scroll(this.suggestionScroller) {
       Column({ space: LARGE_SCREEN_SUGGESTION_ROW_GAP_VP }) {
         ForEach(this.resolvePresentation().searchSuggestions, (suggestion: SearchSuggestion) => {
           BrowserLargeScreenSuggestionRow({
             suggestion: suggestion,
+            selected: omniboxSuggestionSelectionKey(suggestion) === this.selectedSuggestionKey,
             onOpen: (nextSuggestion: SearchSuggestion): void => {
               this.onOpenSuggestion(nextSuggestion);
             },
             onDelete: (nextSuggestion: SearchSuggestion): void => {
               this.onDeleteHistorySuggestion(nextSuggestion);
+            },
+            onHighlight: (nextSuggestion: SearchSuggestion): void => {
+              this.onHighlightSuggestion(nextSuggestion);
             }
           })
-        }, (suggestion: SearchSuggestion): string => {
-          return `${suggestion.id}:${suggestion.refId ?? ''}:${suggestion.target}`;
-        })
+        }, (suggestion: SearchSuggestion): string => omniboxSuggestionSelectionKey(suggestion))
       }
       .width('100%')
     }
@@ -544,6 +553,37 @@ export struct BrowserLargeScreenOmniboxSearchSurface {
     .height(this.resolveSuggestionListHeight())
     .scrollBar(BarState.Auto)
     .edgeEffect(EdgeEffect.None)
+  }
+
+  private scrollSelectedSuggestionIntoView(): void {
+    const suggestions = this.resolvePresentation().searchSuggestions;
+    const index = suggestions.findIndex((suggestion: SearchSuggestion): boolean => {
+      return omniboxSuggestionSelectionKey(suggestion) === this.selectedSuggestionKey;
+    });
+    if (index < 0) {
+      return;
+    }
+    const stride = LARGE_SCREEN_SUGGESTION_ROW_HEIGHT_VP + LARGE_SCREEN_SUGGESTION_ROW_GAP_VP;
+    const rowTop = index * stride;
+    const rowBottom = rowTop + LARGE_SCREEN_SUGGESTION_ROW_HEIGHT_VP;
+    const viewport = this.resolveSuggestionListHeight();
+    let currentOffset = 0;
+    try {
+      currentOffset = this.suggestionScroller.currentOffset().yOffset;
+    } catch (_error) {
+      return;
+    }
+    if (rowTop < currentOffset) {
+      this.suggestionScroller.scrollTo({ xOffset: 0, yOffset: rowTop, animation: false });
+      return;
+    }
+    if (rowBottom > currentOffset + viewport) {
+      this.suggestionScroller.scrollTo({
+        xOffset: 0,
+        yOffset: Math.max(0, rowBottom - viewport),
+        animation: false
+      });
+    }
   }
 
   private resolvePresentation(): BrowserLargeScreenOmniboxSearchPresentation {

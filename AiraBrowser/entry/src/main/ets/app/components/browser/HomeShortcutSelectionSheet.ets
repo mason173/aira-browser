@@ -29,7 +29,6 @@ import {
   BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY
 } from '../../../core/theme/BrowserThemeStorageKeys';
 import { BookmarkFolderIcon } from '../bookmarks/BookmarkFolderIcon';
-import { AiraRenderableIconId } from '../../../core/resources/GeneratedAiraIconCatalog';
 import { SegmentedTabOption, SegmentedTabs } from '../common/SegmentedTabs';
 import { WebsiteRecordRow } from '../common/WebsiteRecordRow';
 import { AppEmptyState } from '../common/AppEmptyState';
@@ -58,8 +57,6 @@ const HOME_SHORTCUT_SELECTION_ICON_SIZE: number = 42;
 const HOME_SHORTCUT_SELECTION_ACTION_SIZE: number = 40;
 const HOME_SHORTCUT_SELECTION_LIST_CACHE_COUNT: number = 12;
 const HOME_SHORTCUT_BOOKMARK_DESTINATION_NAME: string = 'homeShortcutBookmarkDestination';
-const HOME_SHORTCUT_SELECTION_RAIL_WIDTH: number = 154;
-const HOME_SHORTCUT_SELECTION_WORKSPACE_RADIUS: number = 22;
 const HOME_SHORTCUT_SELECTION_CONTENT_TOP_PADDING: number = 112;
 
 export type HomeShortcutSelectionLayoutMode = 'phone' | 'large_screen';
@@ -167,7 +164,6 @@ export struct HomeShortcutSelectionContent {
   state: HomeShortcutSelectionState = EMPTY_HOME_SHORTCUT_SELECTION_STATE;
   @Prop layoutMode: HomeShortcutSelectionLayoutMode = 'phone';
   @State private bookmarkIconStates: SiteIconListRenderState[] = [];
-  @State private hoveredNavigationTab: string = '';
   private bookmarkIconLookupSource: SiteIconListRenderState[] = [];
   private bookmarkIconLookup: Record<string, SiteIconListRenderState | undefined> = {};
   private bookmarkNavigationStack: NavPathStack = new NavPathStack();
@@ -229,98 +225,54 @@ export struct HomeShortcutSelectionContent {
         }
       })
 
-      // Same segmented-tab treatment as the history page: a glass bar surface
-      // wrapping SegmentedTabs instead of the bare control.
-      FloatingGlassMaterialSurface({
-        surfaceWidth: '100%',
-        surfaceHeight: 36,
-        surfaceRadius: 18,
-        tintColor: resolveFloatingGlassMaterialTintForMode(this.storedResolvedThemeMode),
-        fallbackColor: this.storedControlBackgroundColor,
-        backgroundBlurEnabled: false
-      }) {
-        SegmentedTabs({
-          options: HOME_SHORTCUT_SELECTION_TABS,
-          selectedId: this.state.activeTab,
-          barHeight: 36,
-          itemHeight: 30,
-          fontSize: 14,
-          barPadding: 3,
-          fallbackColor: $r('sys.color.ohos_id_color_background_transparent'),
-          barMaterialEnabled: false,
-          onSelect: (id: string) => {
-            this.selectNavigationTab(id);
-          }
-        })
-          .width('100%')
-          .height(36)
-      }
+      this.buildSelectionTabs()
     }
     .width('100%')
   }
 
   @Builder
-  private buildLargeScreenLayout() {
-    Row() {
-      Column({ space: 4 }) {
-        this.buildLargeScreenNavigationItem('system', 'browser.toolbar.menu', '系统入口')
-        this.buildLargeScreenNavigationItem('bookmarks', 'browser.shortcut.bookmarks', '书签')
-      }
-      .width(HOME_SHORTCUT_SELECTION_RAIL_WIDTH)
-      .height('100%')
-      .alignItems(HorizontalAlign.Start)
-      .padding({ right: 14 })
+  private buildSelectionTabs() {
+    FloatingGlassMaterialSurface({
+      surfaceWidth: '100%',
+      surfaceHeight: 36,
+      surfaceRadius: 18,
+      tintColor: resolveFloatingGlassMaterialTintForMode(this.storedResolvedThemeMode),
+      fallbackColor: this.storedControlBackgroundColor,
+      backgroundBlurEnabled: false
+    }) {
+      SegmentedTabs({
+        options: HOME_SHORTCUT_SELECTION_TABS,
+        selectedId: this.state.activeTab,
+        barHeight: 36,
+        itemHeight: 30,
+        fontSize: 14,
+        barPadding: 3,
+        fallbackColor: $r('sys.color.ohos_id_color_background_transparent'),
+        barMaterialEnabled: false,
+        onSelect: (id: string) => {
+          this.selectNavigationTab(id);
+        }
+      })
+        .width('100%')
+        .height(36)
+    }
+  }
 
-      Divider()
-        .vertical(true)
-        .height('100%')
-        .strokeWidth(1)
-        .color(this.storedControlBackgroundColor)
+  @Builder
+  private buildLargeScreenLayout() {
+    Column({ space: 16 }) {
+      this.buildSelectionTabs()
 
       Column() {
         this.buildActiveSelectionList()
       }
       .layoutWeight(1)
-      .height('100%')
+      .width('100%')
       .alignItems(HorizontalAlign.Start)
-      .margin({ left: 18 })
-      .backgroundColor(this.storedSurfaceBackgroundColor)
-      .borderRadius(HOME_SHORTCUT_SELECTION_WORKSPACE_RADIUS)
-      .clip(true)
     }
     .width('100%')
     .height('100%')
-    .alignItems(VerticalAlign.Top)
-  }
-
-  @Builder
-  private buildLargeScreenNavigationItem(tab: string, iconId: AiraRenderableIconId, title: string) {
-    Row({ space: 10 }) {
-      AiraIcon({
-        airaIconId: iconId,
-        iconSize: 19,
-        iconColor: this.state.activeTab === tab ? this.storedPrimaryTextColor : this.storedSecondaryTextColor
-      })
-
-      Text(title)
-        .fontSize(14)
-        .fontWeight(this.state.activeTab === tab ? FontWeight.Medium : FontWeight.Regular)
-        .fontColor(this.state.activeTab === tab ? this.storedPrimaryTextColor : this.storedSecondaryTextColor)
-        .maxLines(1)
-    }
-    .width('100%')
-    .height(42)
-    .padding({ left: 12, right: 10 })
-    .alignItems(VerticalAlign.Center)
-    .backgroundColor(this.resolveNavigationItemBackground(tab))
-    .borderRadius(6)
-    .accessibilityText(title)
-    .onHover((hovered: boolean) => {
-      this.hoveredNavigationTab = hovered ? tab : '';
-    })
-    .onClick(() => {
-      this.selectNavigationTab(tab);
-    })
+    .alignItems(HorizontalAlign.Start)
   }
 
   @Builder
@@ -833,13 +785,6 @@ export struct HomeShortcutSelectionContent {
       type: 'select_tab',
       tab: id === 'bookmarks' ? 'bookmarks' : 'system'
     });
-  }
-
-  private resolveNavigationItemBackground(tab: string): ResourceColor {
-    if (this.state.activeTab === tab) {
-      return this.storedControlBackgroundColor;
-    }
-    return this.hoveredNavigationTab === tab ? this.storedPressedBackgroundColor : Color.Transparent;
   }
 
   private resolveSelectionWorkspaceBackground(): ResourceColor {

@@ -21,8 +21,11 @@ import {
   resolveOverflowHistoryEmptyMessage
 } from '../../../core/browser/BrowserLargeScreenOverflowFlyoutViewModel';
 import { toggleDesktopBookmarkBarVisibility } from '../../../core/browser/DesktopBookmarkBarVisibility';
+import { resolveBrowserDesktopMenuShortcutLabel } from '../../../core/browser/BrowserDesktopMenuShortcutCatalog';
 import {
+  alignDesktopSubmenuTop,
   BROWSER_DESKTOP_MENU_CORNER_RADIUS_VP,
+  BROWSER_DESKTOP_MENU_DIVIDER_BLOCK_VP,
   BROWSER_DESKTOP_MENU_SHADOW_OFFSET_Y_VP,
   BROWSER_DESKTOP_MENU_SHADOW_RADIUS_VP,
   BROWSER_DESKTOP_MENU_DIVIDER_HORIZONTAL_MARGIN_VP,
@@ -31,14 +34,17 @@ import {
   BROWSER_DESKTOP_MENU_ITEM_CORNER_RADIUS_VP,
   BROWSER_DESKTOP_MENU_ITEM_HEIGHT_VP,
   BROWSER_DESKTOP_MENU_ITEM_HORIZONTAL_PADDING_VP,
+  BROWSER_DESKTOP_MENU_SHORTCUT_LINE_HEIGHT_VP,
+  BROWSER_DESKTOP_MENU_SHORTCUT_TEXT_SIZE_FP,
   BROWSER_DESKTOP_MENU_TEXT_SIZE_FP,
-  BROWSER_DESKTOP_MENU_VERTICAL_INSET_VP
+  BROWSER_DESKTOP_MENU_VERTICAL_INSET_VP,
+  desktopSubmenuRowTop
 } from '../../../core/browser/BrowserDesktopMenuPresentationTokens';
 import { BOOKMARK_STATS_VERSION_KEY } from '../../../core/bookmarks/BookmarkStatsVersionSignal';
 import {
   BROWSER_APPEARANCE_STORAGE_DESKTOP_BOOKMARK_BAR_VISIBLE_KEY,
   BROWSER_THEME_STORAGE_ACCENT_KEY,
-  BROWSER_THEME_STORAGE_CONTROL_BACKGROUND_KEY,
+  BROWSER_THEME_STORAGE_PAGE_BACKGROUND_KEY,
   BROWSER_THEME_STORAGE_DIVIDER_KEY,
   BROWSER_THEME_STORAGE_SURFACE_BACKGROUND_KEY,
   BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY,
@@ -48,10 +54,12 @@ import { AiraIcon } from '../common/AiraIcon';
 
 const FLYOUT_COLUMN_WIDTH_VP: number =
   BROWSER_LARGE_SCREEN_OVERFLOW_FLYOUT_WIDTH_VP + BROWSER_LARGE_SCREEN_OVERFLOW_FLYOUT_GAP_VP;
+const FLYOUT_DIVIDER_MARGIN_VP: number = 4;
 
 @Component
 struct BrowserLargeScreenOverflowFlyoutPanel {
   @Prop maxHeightVp: number = 320;
+  onVerticalScroll: (offset: number) => void = (_offset: number): void => {};
   @BuilderParam content: () => void = this.emptyContent;
   @StorageProp(BROWSER_THEME_STORAGE_SURFACE_BACKGROUND_KEY)
   private storedSurfaceBackgroundColor: string = '#FFFFFF';
@@ -78,6 +86,9 @@ struct BrowserLargeScreenOverflowFlyoutPanel {
       .align(Alignment.Top)
       .clip(true)
       .borderRadius(BROWSER_DESKTOP_MENU_CORNER_RADIUS_VP)
+      .onScroll((_xOffset: number, yOffset: number): void => {
+        this.onVerticalScroll(yOffset);
+      })
     }
     .width(BROWSER_LARGE_SCREEN_OVERFLOW_FLYOUT_WIDTH_VP)
     .backgroundColor(this.storedSurfaceBackgroundColor)
@@ -106,18 +117,26 @@ export struct BrowserLargeScreenOverflowFlyoutHost {
   onHoverChange: (hovered: boolean) => void = (_hovered: boolean): void => {};
   onOpenHistory: (item: BrowserLargeScreenOverflowHistoryItem) => void =
     (_item: BrowserLargeScreenOverflowHistoryItem): void => {};
+  onOpenHistoryPage: () => void = (): void => {};
   onOpenBookmark: (item: BrowserLargeScreenOverflowBookmarkItem) => void =
     (_item: BrowserLargeScreenOverflowBookmarkItem): void => {};
   onAddBookmark: () => void = (): void => {};
   onOpenManager: () => void = (): void => {};
 
   @StorageProp(BROWSER_APPEARANCE_STORAGE_DESKTOP_BOOKMARK_BAR_VISIBLE_KEY)
-  private bookmarkBarVisible: boolean = true;
+  @Watch('syncBookmarkBarChecked')
+  private storedBookmarkBarVisible: boolean = true;
+  /**
+   * Popup content does not repaint a @StorageProp checkmark until the menu is reopened.
+   * This local flag is what the open menu actually draws, and it is flipped on click.
+   */
+  @State private bookmarkBarChecked: boolean = true;
+  private bookmarkBarTogglePending: boolean = false;
   @StorageProp(BOOKMARK_STATS_VERSION_KEY)
   @Watch('handleBookmarkStatsChanged')
   private storedBookmarkStatsVersion: number = 0;
-  @StorageProp(BROWSER_THEME_STORAGE_CONTROL_BACKGROUND_KEY)
-  private storedControlBackgroundColor: string = '#EEF2F6';
+  @StorageProp(BROWSER_THEME_STORAGE_PAGE_BACKGROUND_KEY)
+  private storedPageBackgroundColor: string = '#F2F3F5';
   @StorageProp(BROWSER_THEME_STORAGE_DIVIDER_KEY)
   private storedDividerColor: string = '#E3E8EF';
   @StorageProp(BROWSER_THEME_STORAGE_ACCENT_KEY)
@@ -130,11 +149,16 @@ export struct BrowserLargeScreenOverflowFlyoutHost {
   @State private historyItems: BrowserLargeScreenOverflowHistoryItem[] = [];
   @State private historyReady: boolean = false;
   @State private bookmarkPath: string[] = [];
+  @State private bookmarkColumnOffsets: number[] = [];
   @State private hoveredBookmarkId: string = '';
+  @State private hoveredHistoryId: string = '';
+  @State private hoveredCommand: string = '';
   @State private bookmarkRevision: number = 0;
   private prepareVersion: number = 0;
+  private columnScrollOffsets: number[] = [];
 
   aboutToAppear(): void {
+    this.bookmarkBarChecked = this.storedBookmarkBarVisible;
     this.publishColumnCount();
     void this.prepare();
   }
@@ -161,6 +185,8 @@ export struct BrowserLargeScreenOverflowFlyoutHost {
   private buildHistoryColumn() {
     Column() {
       BrowserLargeScreenOverflowFlyoutPanel({ maxHeightVp: this.maxHeightVp }) {
+        this.buildHistoryHeader()
+        this.buildDivider()
         if (this.historyItems.length === 0) {
           this.buildMessage(resolveOverflowHistoryEmptyMessage(this.privateMode, this.historyReady))
         }
@@ -178,13 +204,19 @@ export struct BrowserLargeScreenOverflowFlyoutHost {
   private buildBookmarkColumns() {
     ForEach(this.bookmarkColumnParentIds(), (parentId: string) => {
       this.buildBookmarkColumn(parentId)
-    }, (parentId: string) => `${this.bookmarkRevision}:${this.storedBookmarkStatsVersion}:${parentId}`)
+    }, (parentId: string) =>
+      `${this.bookmarkRevision}:${this.storedBookmarkStatsVersion}:${this.bookmarkBarChecked ? 1 : 0}:${parentId}:${this.columnOffset(parentId)}`)
   }
 
   @Builder
   private buildBookmarkColumn(parentId: string) {
     Column() {
-      BrowserLargeScreenOverflowFlyoutPanel({ maxHeightVp: this.maxHeightVp }) {
+      BrowserLargeScreenOverflowFlyoutPanel({
+        maxHeightVp: this.maxHeightVp,
+        onVerticalScroll: (offset: number): void => {
+          this.rememberColumnScroll(parentId, offset);
+        }
+      }) {
         if (this.isBookmarkRoot(parentId)) {
           this.buildBookmarkHeader()
           this.buildDivider()
@@ -192,14 +224,20 @@ export struct BrowserLargeScreenOverflowFlyoutHost {
         if (this.bookmarkItems(parentId).length === 0) {
           this.buildMessage(BROWSER_LARGE_SCREEN_OVERFLOW_BOOKMARK_EMPTY_MESSAGE)
         }
-        ForEach(this.bookmarkItems(parentId), (item: BrowserLargeScreenOverflowBookmarkItem) => {
-          this.buildBookmarkRow(parentId, item)
+        ForEach(this.bookmarkItems(parentId), (item: BrowserLargeScreenOverflowBookmarkItem, rowIndex: number) => {
+          this.buildBookmarkRow(parentId, item, rowIndex)
         }, (item: BrowserLargeScreenOverflowBookmarkItem) => item.id)
       }
     }
     .width(FLYOUT_COLUMN_WIDTH_VP)
+    .margin({ top: this.columnOffset(parentId) })
     .padding({ right: BROWSER_LARGE_SCREEN_OVERFLOW_FLYOUT_GAP_VP })
     .alignItems(HorizontalAlign.Start)
+  }
+
+  @Builder
+  private buildHistoryHeader() {
+    this.buildCommandRow('browser.shortcut.history', '打开历史记录', false, false, 'historyPage')
   }
 
   @Builder
@@ -207,7 +245,7 @@ export struct BrowserLargeScreenOverflowFlyoutHost {
     if (this.canAddBookmark) {
       this.buildCommandRow('browser.toolbar.addBookmark', '添加书签', false, false, 'add')
     }
-    this.buildCommandRow('browser.shortcut.bookmarks', '显示书签栏', this.bookmarkBarVisible, false, 'bar')
+    this.buildCommandRow('browser.shortcut.bookmarks', '显示书签栏', this.bookmarkBarChecked, false, 'bar')
     this.buildCommandRow('bookmarks.folder', '进入书签管理', false, false, 'manager')
   }
 
@@ -232,16 +270,22 @@ export struct BrowserLargeScreenOverflowFlyoutHost {
       left: BROWSER_DESKTOP_MENU_ITEM_HORIZONTAL_PADDING_VP,
       right: BROWSER_DESKTOP_MENU_ITEM_HORIZONTAL_PADDING_VP
     })
+    .backgroundColor(this.menuRowBackground(this.hoveredHistoryId === item.id))
     .borderRadius(BROWSER_DESKTOP_MENU_ITEM_CORNER_RADIUS_VP)
     .clip(true)
-    .hoverEffect(HoverEffect.Highlight)
+    .hoverEffect(HoverEffect.None)
+    .onHover((hovered: boolean): void => {
+      this.hoveredHistoryId = hovered
+        ? item.id
+        : (this.hoveredHistoryId === item.id ? '' : this.hoveredHistoryId);
+    })
     .onClick((): void => {
       this.onOpenHistory(item);
     })
   }
 
   @Builder
-  private buildBookmarkRow(parentId: string, item: BrowserLargeScreenOverflowBookmarkItem) {
+  private buildBookmarkRow(parentId: string, item: BrowserLargeScreenOverflowBookmarkItem, rowIndex: number) {
     Row({ space: 10 }) {
       AiraIcon({
         airaIconId: this.bookmarkItemIcon(item.folder),
@@ -266,15 +310,15 @@ export struct BrowserLargeScreenOverflowFlyoutHost {
       left: BROWSER_DESKTOP_MENU_ITEM_HORIZONTAL_PADDING_VP,
       right: BROWSER_DESKTOP_MENU_ITEM_HORIZONTAL_PADDING_VP
     })
-    .backgroundColor(this.hoveredBookmarkId === item.id ? this.storedControlBackgroundColor : Color.Transparent)
+    .backgroundColor(this.hoveredBookmarkId === item.id ? this.storedPageBackgroundColor : Color.Transparent)
     .borderRadius(BROWSER_DESKTOP_MENU_ITEM_CORNER_RADIUS_VP)
     .clip(true)
     .hoverEffect(HoverEffect.None)
     .onHover((hovered: boolean): void => {
-      this.handleBookmarkHover(parentId, item, hovered);
+      this.handleBookmarkHover(parentId, item, rowIndex, hovered);
     })
     .onClick((): void => {
-      this.handleBookmarkClick(parentId, item);
+      this.handleBookmarkClick(parentId, item, rowIndex);
     })
   }
 
@@ -290,7 +334,9 @@ export struct BrowserLargeScreenOverflowFlyoutHost {
       AiraIcon({
         airaIconId: iconId,
         iconSize: 18,
-        iconColor: selected ? this.storedAccentColor : this.storedPrimaryTextColor
+        iconColor: (command === 'bar' ? this.bookmarkBarChecked : selected)
+          ? this.storedAccentColor
+          : this.storedPrimaryTextColor
       })
       Text(label)
         .layoutWeight(1)
@@ -298,7 +344,8 @@ export struct BrowserLargeScreenOverflowFlyoutHost {
         .fontColor(this.storedPrimaryTextColor)
         .maxLines(1)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
-      if (selected) {
+      this.buildShortcutLabel(command)
+      if (command === 'bar' ? this.bookmarkBarChecked : selected) {
         SymbolGlyph($r('sys.symbol.checkmark'))
           .fontSize(16)
           .fontColor([this.storedAccentColor])
@@ -315,10 +362,14 @@ export struct BrowserLargeScreenOverflowFlyoutHost {
       left: BROWSER_DESKTOP_MENU_ITEM_HORIZONTAL_PADDING_VP,
       right: BROWSER_DESKTOP_MENU_ITEM_HORIZONTAL_PADDING_VP
     })
+    .backgroundColor(this.menuRowBackground(this.hoveredCommand === command))
     .borderRadius(BROWSER_DESKTOP_MENU_ITEM_CORNER_RADIUS_VP)
     .clip(true)
-    .hoverEffect(HoverEffect.Highlight)
+    .hoverEffect(HoverEffect.None)
     .onHover((hovered: boolean): void => {
+      this.hoveredCommand = hovered
+        ? command
+        : (this.hoveredCommand === command ? '' : this.hoveredCommand);
       if (hovered) {
         this.retainFolderDepth(0);
       }
@@ -346,6 +397,18 @@ export struct BrowserLargeScreenOverflowFlyoutHost {
   }
 
   @Builder
+  private buildShortcutLabel(actionId: string) {
+    if (resolveBrowserDesktopMenuShortcutLabel(actionId).length > 0) {
+      Text(resolveBrowserDesktopMenuShortcutLabel(actionId))
+        .fontSize(BROWSER_DESKTOP_MENU_SHORTCUT_TEXT_SIZE_FP)
+        .lineHeight(BROWSER_DESKTOP_MENU_SHORTCUT_LINE_HEIGHT_VP)
+        .fontColor(this.storedSecondaryTextColor)
+        .maxLines(1)
+        .flexShrink(0)
+    }
+  }
+
+  @Builder
   private buildDivider() {
     Divider()
       .strokeWidth(BROWSER_DESKTOP_MENU_DIVIDER_WIDTH_VP)
@@ -353,14 +416,17 @@ export struct BrowserLargeScreenOverflowFlyoutHost {
       .margin({
         left: BROWSER_DESKTOP_MENU_DIVIDER_HORIZONTAL_MARGIN_VP,
         right: BROWSER_DESKTOP_MENU_DIVIDER_HORIZONTAL_MARGIN_VP,
-        top: 4,
-        bottom: 4
+        top: FLYOUT_DIVIDER_MARGIN_VP,
+        bottom: FLYOUT_DIVIDER_MARGIN_VP
       })
   }
 
   private handleKindChanged(): void {
+    this.hoveredHistoryId = '';
+    this.hoveredCommand = '';
     if (this.kind !== 'bookmarks') {
       this.bookmarkPath = [];
+      this.bookmarkColumnOffsets = [];
       this.hoveredBookmarkId = '';
     }
     this.publishColumnCount();
@@ -371,6 +437,7 @@ export struct BrowserLargeScreenOverflowFlyoutHost {
 
   private handlePrivateModeChanged(): void {
     this.bookmarkPath = [];
+    this.bookmarkColumnOffsets = [];
     this.hoveredBookmarkId = '';
     this.publishColumnCount();
     void this.prepare();
@@ -380,27 +447,57 @@ export struct BrowserLargeScreenOverflowFlyoutHost {
     this.bookmarkRevision += 1;
   }
 
+  private menuRowBackground(hovered: boolean): ResourceColor {
+    return hovered ? this.storedPageBackgroundColor : Color.Transparent;
+  }
+
   private dispatchCommand(command: string): void {
     if (command === 'add') {
       this.onAddBookmark();
       return;
     }
     if (command === 'bar') {
-      void toggleDesktopBookmarkBarVisibility(sharedPreferencesRepository);
+      void this.toggleBookmarkBarChecked();
       return;
     }
     if (command === 'manager') {
       this.onOpenManager();
+      return;
+    }
+    if (command === 'historyPage') {
+      this.onOpenHistoryPage();
+    }
+  }
+
+  private syncBookmarkBarChecked(): void {
+    this.bookmarkBarChecked = this.storedBookmarkBarVisible;
+  }
+
+  private async toggleBookmarkBarChecked(): Promise<void> {
+    if (this.bookmarkBarTogglePending) {
+      return;
+    }
+    this.bookmarkBarTogglePending = true;
+    const previous = this.bookmarkBarChecked;
+    this.bookmarkBarChecked = !previous;
+    try {
+      const visible = await toggleDesktopBookmarkBarVisibility(sharedPreferencesRepository);
+      this.bookmarkBarChecked = visible;
+    } catch (_error) {
+      this.bookmarkBarChecked = previous;
+    } finally {
+      this.bookmarkBarTogglePending = false;
     }
   }
 
   private bookmarkItemIcon(folder: boolean): AiraRenderableIconId {
-    return folder ? 'bookmarks.folder' : 'browser.shortcut.bookmarks';
+    return folder ? 'bookmarks.folder' : 'browser.toolbar.siteInfo';
   }
 
   private handleBookmarkHover(
     parentId: string,
     item: BrowserLargeScreenOverflowBookmarkItem,
+    rowIndex: number,
     hovered: boolean
   ): void {
     this.hoveredBookmarkId = hovered
@@ -410,15 +507,19 @@ export struct BrowserLargeScreenOverflowFlyoutHost {
       return;
     }
     if (item.folder) {
-      this.openFolder(this.columnDepth(parentId), item.id);
+      this.openFolder(this.columnDepth(parentId), item.id, this.resolveSubmenuTop(parentId, item.id, rowIndex));
       return;
     }
     this.retainFolderDepth(this.columnDepth(parentId));
   }
 
-  private handleBookmarkClick(parentId: string, item: BrowserLargeScreenOverflowBookmarkItem): void {
+  private handleBookmarkClick(
+    parentId: string,
+    item: BrowserLargeScreenOverflowBookmarkItem,
+    rowIndex: number
+  ): void {
     if (item.folder) {
-      this.openFolder(this.columnDepth(parentId), item.id);
+      this.openFolder(this.columnDepth(parentId), item.id, this.resolveSubmenuTop(parentId, item.id, rowIndex));
       return;
     }
     this.onOpenBookmark(item);
@@ -517,17 +618,18 @@ export struct BrowserLargeScreenOverflowFlyoutHost {
     return count;
   }
 
-  private openFolder(depth: number, folderId: string): void {
-    if (this.bookmarkPath.length > depth && this.bookmarkPath[depth] === folderId) {
-      return;
+  private openFolder(depth: number, folderId: string, topVp: number): void {
+    const sameFolder = this.bookmarkPath.length > depth && this.bookmarkPath[depth] === folderId;
+    if (!sameFolder) {
+      const next: string[] = [];
+      for (let index = 0; index < depth && index < this.bookmarkPath.length; index += 1) {
+        next.push(this.bookmarkPath[index]);
+      }
+      next.push(folderId);
+      this.bookmarkPath = next;
+      this.publishColumnCount();
     }
-    const next: string[] = [];
-    for (let index = 0; index < depth && index < this.bookmarkPath.length; index += 1) {
-      next.push(this.bookmarkPath[index]);
-    }
-    next.push(folderId);
-    this.bookmarkPath = next;
-    this.publishColumnCount();
+    this.writeColumnOffset(depth, topVp);
   }
 
   private retainFolderDepth(depth: number): void {
@@ -539,6 +641,77 @@ export struct BrowserLargeScreenOverflowFlyoutHost {
       next.push(this.bookmarkPath[index]);
     }
     this.bookmarkPath = next;
+    this.bookmarkColumnOffsets = this.bookmarkColumnOffsets.slice(0, depth);
     this.publishColumnCount();
+  }
+
+  private writeColumnOffset(depth: number, topVp: number): void {
+    const next: number[] = [];
+    for (let index = 0; index < depth && index < this.bookmarkColumnOffsets.length; index += 1) {
+      next.push(this.bookmarkColumnOffsets[index]);
+    }
+    next.push(topVp);
+    if (next.length === this.bookmarkColumnOffsets.length && next[depth] === this.bookmarkColumnOffsets[depth]) {
+      return;
+    }
+    this.bookmarkColumnOffsets = next;
+  }
+
+  private columnOffset(parentId: string): number {
+    if (this.isBookmarkRoot(parentId)) {
+      return 0;
+    }
+    const index = this.bookmarkPath.indexOf(parentId);
+    if (index < 0 || index >= this.bookmarkColumnOffsets.length) {
+      return 0;
+    }
+    return this.bookmarkColumnOffsets[index];
+  }
+
+  private resolveSubmenuTop(parentId: string, folderId: string, rowIndex: number): number {
+    const rowTop = desktopSubmenuRowTop(
+      this.columnOffset(parentId),
+      this.columnLeadingVp(parentId),
+      rowIndex,
+      this.columnScrollOffset(parentId)
+    );
+    return alignDesktopSubmenuTop(rowTop, this.estimateSubmenuHeight(folderId), this.maxHeightVp);
+  }
+
+  private columnLeadingVp(parentId: string): number {
+    let leading = BROWSER_DESKTOP_MENU_VERTICAL_INSET_VP;
+    if (this.isBookmarkRoot(parentId)) {
+      leading += this.headerRowCount() * BROWSER_DESKTOP_MENU_ITEM_HEIGHT_VP + BROWSER_DESKTOP_MENU_DIVIDER_BLOCK_VP;
+    }
+    return leading;
+  }
+
+  private headerRowCount(): number {
+    return (this.canAddBookmark ? 1 : 0) + 2;
+  }
+
+  private estimateSubmenuHeight(folderId: string): number {
+    const rows = Math.max(this.bookmarkItems(folderId).length, 1);
+    const content = BROWSER_DESKTOP_MENU_VERTICAL_INSET_VP * 2 + rows * BROWSER_DESKTOP_MENU_ITEM_HEIGHT_VP;
+    return Math.min(this.maxHeightVp, content);
+  }
+
+  private rememberColumnScroll(parentId: string, offset: number): void {
+    const index = this.isBookmarkRoot(parentId) ? 0 : this.bookmarkPath.indexOf(parentId) + 1;
+    if (index < 0) {
+      return;
+    }
+    while (this.columnScrollOffsets.length <= index) {
+      this.columnScrollOffsets.push(0);
+    }
+    this.columnScrollOffsets[index] = offset;
+  }
+
+  private columnScrollOffset(parentId: string): number {
+    const index = this.isBookmarkRoot(parentId) ? 0 : this.bookmarkPath.indexOf(parentId) + 1;
+    if (index < 0 || index >= this.columnScrollOffsets.length) {
+      return 0;
+    }
+    return this.columnScrollOffsets[index];
   }
 }

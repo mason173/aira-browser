@@ -5193,13 +5193,13 @@ check_file_contains_rule "${SHELL_FONT_SCALE_POLICY}" "${SHELL_FONT_SCALE_POLICY
   "return shellFamily !== 'large_screen';" \
   "PC/large-screen shell must be excluded from following the system font scale."
 check_file_contains_rule "${SHELL_FONT_SCALE_POLICY}" "${SHELL_FONT_SCALE_POLICY_REL}" \
-  'return this\.followsSystemFontScale\(shellFamily\) \? this\.normalize\(systemScale\) : BROWSER_FONT_SCALE_PINNED;' \
+  'return this\.followsSystemFontScale\(shellFamily, formFactor\) \? this\.normalize\(systemScale\) : BROWSER_FONT_SCALE_PINNED;' \
   "PC/large-screen UI and content text must both pin to the app default font scale."
 check_file_contains_rule "${SYSTEM_FONT_SCALE_COORDINATOR}" "${SYSTEM_FONT_SCALE_COORDINATOR_REL}" \
   "BROWSER_CONTENT_FONT_SIZE_SCALE_STORAGE_KEY" \
   "content consumers must read the shell-aware content scale, not the raw system scale."
 check_file_contains_rule "${SYSTEM_FONT_SCALE_COORDINATOR}" "${SYSTEM_FONT_SCALE_COORDINATOR_REL}" \
-  'this\.fontScalePolicy\.resolveContentScale\(this\.currentScale, this\.currentShellFamily\)' \
+  'this\.fontScalePolicy\.resolveContentScale\(this\.currentScale, this\.currentShellFamily, this\.currentFormFactor\)' \
   "content font scale must stay owned by the shell-family policy."
 # Consumers must read the shell-aware content scale; reading the raw system scale
 # directly is what let the PC shell inflate web and reader text.

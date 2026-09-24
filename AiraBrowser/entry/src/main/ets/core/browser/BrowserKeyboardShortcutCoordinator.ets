@@ -1,5 +1,9 @@
+import { common } from '@kit.AbilityKit';
 import { OfflinePageSaveCoordinator } from '../offline/OfflinePageSaveCoordinator';
+import { PreferencesRepository } from '../../data/preferences/PreferencesRepository';
 import { BrowserActiveTabRuntimeRestoreCoordinator } from '../../services/web/BrowserActiveTabRuntimeRestoreCoordinator';
+import { BrowserRuntimeLifecyclePort } from '../../services/web/BrowserRuntimeLifecyclePort';
+import { BrowserWebPrintService } from '../../services/web/BrowserWebPrintService';
 import { BrowserRecentActionManager } from '../web/BrowserRecentActionManager';
 import { BrowserTabState } from '../tabs/TabManager';
 import { BrowserShellRouteCoordinator } from './BrowserShellRouteCoordinator';
@@ -13,6 +17,9 @@ import { BrowserForegroundTabCreationCoordinator } from './BrowserForegroundTabC
 import { BrowserFullscreenSessionCoordinator } from './BrowserFullscreenSessionCoordinator';
 import { BrowserWindowContextPort } from './BrowserWindowContextCoordinator';
 import { BrowserWindowRuntime } from '../../app/runtime/BrowserWindowRuntime';
+import { ElementInspectionSessionCoordinator } from './ElementInspectionSessionCoordinator';
+import { BrowserRootBottomPanelShellActionExecutor } from './BrowserRootBottomPanelShellActionExecutor';
+import { toggleDesktopBookmarkBarVisibility } from './DesktopBookmarkBarVisibility';
 
 export type BrowserKeyboardShortcutAction =
   'focusAddressBar' |
@@ -31,6 +38,12 @@ export type BrowserKeyboardShortcutAction =
   'switchToPreviousTab' |
   'saveOfflinePage' |
   'bookmarkCurrentPage' |
+  'openBookmarks' |
+  'openSettings' |
+  'toggleBookmarkBar' |
+  'togglePrivateMode' |
+  'printPage' |
+  'inspectElement' |
   'escape';
 
 export interface BrowserKeyboardShortcutFacts {
@@ -69,6 +82,12 @@ export interface BrowserKeyboardShortcutDependencies {
   foregroundTabCreationCoordinator: BrowserForegroundTabCreationCoordinator;
   windowContextCoordinator: BrowserWindowContextPort;
   fullscreenSessionCoordinator: BrowserFullscreenSessionCoordinator;
+  preferencesRepository: PreferencesRepository;
+  elementInspectionSessionCoordinator: ElementInspectionSessionCoordinator;
+  bottomPanelShellActionExecutor: BrowserRootBottomPanelShellActionExecutor;
+  webPrintService: BrowserWebPrintService;
+  runtimeLifecyclePort: BrowserRuntimeLifecyclePort;
+  resolveAbilityContext: () => common.UIAbilityContext;
   homeUrl: string;
   newTabTitle: string;
 }
@@ -207,6 +226,26 @@ export class BrowserKeyboardShortcutCoordinator {
         }
         this.shell.bookmarkCurrentPage();
         return;
+      case 'openBookmarks':
+        void this.dependencies.routeCoordinator.openBookmarkManagerPage();
+        this.shell.showMessage('已打开书签管理。');
+        return;
+      case 'openSettings':
+        this.dependencies.routeCoordinator.openSettingsCenterPage();
+        this.shell.showMessage('已打开设置。');
+        return;
+      case 'toggleBookmarkBar':
+        void this.toggleBookmarkBar();
+        return;
+      case 'togglePrivateMode':
+        this.dependencies.bottomPanelShellActionExecutor.apply('toggle_private_mode');
+        return;
+      case 'printPage':
+        void this.printCurrentPage(facts);
+        return;
+      case 'inspectElement':
+        this.dependencies.elementInspectionSessionCoordinator.startFromToolbar();
+        return;
       case 'escape':
         this.handleEscapeShortcut(facts);
         return;
@@ -333,6 +372,39 @@ export class BrowserKeyboardShortcutCoordinator {
 
   private isWebSurfaceUnavailable(facts: BrowserKeyboardShortcutFacts): boolean {
     return facts.showHomePage || facts.showTabsSheet;
+  }
+
+  private async toggleBookmarkBar(): Promise<void> {
+    try {
+      const visible = await toggleDesktopBookmarkBarVisibility(this.dependencies.preferencesRepository);
+      this.shell.showMessage(visible ? '已显示书签栏。' : '已隐藏书签栏。');
+    } catch (_error) {
+      this.shell.showMessage('书签栏切换失败，请稍后重试。');
+    }
+  }
+
+  private async printCurrentPage(facts: BrowserKeyboardShortcutFacts): Promise<void> {
+    const canPrint = this.dependencies.webPrintService.canPrintCurrentPage({
+      runtimeLifecyclePort: this.dependencies.runtimeLifecyclePort,
+      showHomePage: facts.showHomePage,
+      showTabsSheet: facts.showTabsSheet,
+      webPageVisible: !facts.showHomePage && !facts.showTabsSheet && facts.controllerAttached
+    });
+    if (!canPrint) {
+      this.shell.showMessage('当前页面暂时无法打印。');
+      return;
+    }
+    const activeTab = this.findTabById(facts.tabs, facts.activeTabId);
+    const result = await this.dependencies.webPrintService.printCurrentPageFromLifecyclePort({
+      runtimeLifecyclePort: this.dependencies.runtimeLifecyclePort,
+      context: this.dependencies.resolveAbilityContext(),
+      title: activeTab === undefined ? '' : activeTab.title,
+      printBackground: true,
+      onStatusMessage: (message: string): void => {
+        this.shell.showMessage(message);
+      }
+    });
+    this.shell.showMessage(result.message);
   }
 
   private openNewTab(): void {

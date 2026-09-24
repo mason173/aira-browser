@@ -7,7 +7,7 @@ import {
 } from '../../data/repositories/BookmarkRepositoryCore';
 
 export const BROWSER_LARGE_SCREEN_OVERFLOW_HISTORY_LIMIT: number = 10;
-export const BROWSER_LARGE_SCREEN_OVERFLOW_FLYOUT_WIDTH_VP: number = 272;
+export const BROWSER_LARGE_SCREEN_OVERFLOW_FLYOUT_WIDTH_VP: number = 320;
 export const BROWSER_LARGE_SCREEN_OVERFLOW_FLYOUT_GAP_VP: number = 6;
 export const BROWSER_LARGE_SCREEN_OVERFLOW_HISTORY_EMPTY_MESSAGE: string = '还没有历史记录';
 export const BROWSER_LARGE_SCREEN_OVERFLOW_HISTORY_PRIVATE_MESSAGE: string = '无痕模式不显示历史记录';

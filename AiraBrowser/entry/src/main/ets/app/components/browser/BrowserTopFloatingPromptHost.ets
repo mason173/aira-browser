@@ -7,7 +7,7 @@ import { BrowserExternalNavigationPromptCard } from './BrowserExternalNavigation
 import { BrowserTopActionPromptCard } from './BrowserTopActionPromptCard';
 import { WebpageTranslationPanel } from '../translation/WebpageTranslationPanel';
 import {
-  TopFloatingOverlayHost,
+  TOP_FLOATING_OVERLAY_ENTRY_CURVE,
   TopFloatingSwipeDismissContainer
 } from '../common/TopFloatingSurface';
 import {
@@ -28,7 +28,6 @@ import {
   BROWSER_THEME_STORAGE_PRESSED_BACKGROUND_KEY
 } from '../../../core/theme/BrowserThemeStorageKeys';
 import {
-  BrowserTopFloatingPromptLayoutState,
   BrowserTopFloatingPromptLayoutViewModel
 } from '../../../core/browser/BrowserTopFloatingPromptLayoutViewModel';
 
@@ -120,20 +119,64 @@ const HIDDEN_TOP_FLOATING_PROMPT_STATE: BrowserTopFloatingPromptHostState = {
 };
 
 export const BROWSER_TOP_FLOATING_PROMPT_HOST_Z_INDEX: number = 220;
-const BROWSER_TOP_FLOATING_PROMPT_HOST_EXTRA_HEIGHT: number = 40;
 const BROWSER_TOP_FLOATING_PROMPT_SWIPE_FLYOUT_OFFSET_Y: number =
   -(FLOATING_PROMPT_CARD_HEIGHT + FLOATING_PROMPT_CARD_TOP_GAP + 24);
+
+export interface BrowserTopFloatingPromptFrame {
+  widthVp: number;
+  heightVp: number;
+  leftVp: number;
+  topVp: number;
+}
+
+export function resolveBrowserTopFloatingPromptTopOffsetVp(state: BrowserTopFloatingPromptHostState): number {
+  if (state.activeKind === 'url_threat') {
+    return state.urlThreat.topOffsetVp;
+  }
+  if (state.activeKind === 'external_navigation') {
+    return state.externalNavigation.topOffsetVp;
+  }
+  if (state.activeKind === 'offline_save') {
+    return state.offlineSave.topOffsetVp;
+  }
+  if (state.activeKind === 'novel') {
+    return state.novelPrompt.topOffsetVp;
+  }
+  if (state.activeKind === 'user_script_install') {
+    return state.userScriptInstall.topOffsetVp;
+  }
+  if (state.activeKind === 'webpage_translation') {
+    return state.webpageTranslation.topOffsetVp;
+  }
+  if (state.activeKind === 'gesture_onboarding') {
+    return state.gestureOnboarding.topOffsetVp;
+  }
+  return state.backgroundOpen.topOffsetVp;
+}
+
+export function resolveBrowserTopFloatingPromptFrame(
+  state: BrowserTopFloatingPromptHostState,
+  containerWidthVp: number
+): BrowserTopFloatingPromptFrame {
+  const layout = new BrowserTopFloatingPromptLayoutViewModel().resolve({
+    containerWidthVp: containerWidthVp,
+    horizontalMarginVp: FLOATING_PROMPT_CARD_HORIZONTAL_MARGIN
+  });
+  return {
+    widthVp: layout.surfaceWidthVp,
+    heightVp: FLOATING_PROMPT_CARD_HEIGHT,
+    leftVp: layout.surfaceLeftVp,
+    topVp: resolveBrowserTopFloatingPromptTopOffsetVp(state) + FLOATING_PROMPT_CARD_TOP_GAP
+  };
+}
 
 @Component
 export struct BrowserTopFloatingPromptHost {
   @Prop @Watch('reconcileMountedState') state: BrowserTopFloatingPromptHostState =
     HIDDEN_TOP_FLOATING_PROMPT_STATE;
   @State private promptEntered: boolean = false;
-  @State private containerWidthVp: number = 0;
   private promptEnterTimer: number = 0;
   private mountedObserved: boolean = false;
-  private layoutViewModel: BrowserTopFloatingPromptLayoutViewModel =
-    new BrowserTopFloatingPromptLayoutViewModel();
   onAction: (action: BrowserTopFloatingPromptAction) => void =
     (_action: BrowserTopFloatingPromptAction): void => {};
 
@@ -146,20 +189,9 @@ export struct BrowserTopFloatingPromptHost {
   }
 
   build() {
-    Stack({ alignContent: Alignment.Top }) {
+    Column() {
       if (this.state.mounted) {
-        TopFloatingOverlayHost({
-          visible: this.isPromptPresentationReady(),
-          topOffsetVp: this.resolveTopOffsetVp(),
-          horizontalMarginVp: FLOATING_PROMPT_CARD_HORIZONTAL_MARGIN,
-          explicitWidthVp: this.resolvePromptLayout().surfaceWidthVp,
-          explicitLeftVp: this.resolvePromptLayout().surfaceLeftVp,
-          topGapVp: FLOATING_PROMPT_CARD_TOP_GAP,
-          hiddenOffsetYVp: FLOATING_PROMPT_CARD_HIDDEN_OFFSET_Y,
-          zIndexValue: 96,
-          animationDurationMs: FLOATING_PROMPT_CARD_ANIMATION_MS,
-          visibleHitTestMode: HitTestMode.Default
-        }) {
+        Column() {
           TopFloatingSwipeDismissContainer({
             active: this.isPromptPresentationReady(),
             resetKey: this.resolveSwipeResetKey(),
@@ -171,18 +203,18 @@ export struct BrowserTopFloatingPromptHost {
             this.buildActivePromptCard()
           }
         }
+        .width('100%')
+        .opacity(this.promptEntered ? 1 : 0)
+        .translate({ y: this.promptEntered ? 0 : FLOATING_PROMPT_CARD_HIDDEN_OFFSET_Y })
+        .animation({
+          duration: FLOATING_PROMPT_CARD_ANIMATION_MS,
+          curve: TOP_FLOATING_OVERLAY_ENTRY_CURVE
+        })
       }
     }
     .width('100%')
-    .height(this.resolveHostHeightVp())
-    .hitTestBehavior(this.state.mounted ? HitTestMode.Default : HitTestMode.None)
-    .zIndex(BROWSER_TOP_FLOATING_PROMPT_HOST_Z_INDEX)
-    .onAreaChange((_oldArea: Area, newArea: Area): void => {
-      const nextWidthVp = this.parseAreaDimension(newArea.width);
-      if (nextWidthVp > 0 && nextWidthVp !== this.containerWidthVp) {
-        this.containerWidthVp = nextWidthVp;
-      }
-    })
+    .height('100%')
+    .hitTestBehavior(HitTestMode.Default)
   }
 
   private reconcileMountedState(): void {
@@ -192,7 +224,6 @@ export struct BrowserTopFloatingPromptHost {
     this.mountedObserved = this.state.mounted;
     this.clearPromptEnterTimer();
     this.promptEntered = false;
-    this.containerWidthVp = 0;
     if (!this.state.mounted) {
       return;
     }
@@ -209,20 +240,8 @@ export struct BrowserTopFloatingPromptHost {
     }
   }
 
-  private resolvePromptLayout(): BrowserTopFloatingPromptLayoutState {
-    return this.layoutViewModel.resolve({
-      containerWidthVp: this.containerWidthVp,
-      horizontalMarginVp: FLOATING_PROMPT_CARD_HORIZONTAL_MARGIN
-    });
-  }
-
   private isPromptPresentationReady(): boolean {
-    return this.containerWidthVp > 0 && this.resolveActivePromptVisible();
-  }
-
-  private parseAreaDimension(value: Length): number {
-    const parsed = Number.parseFloat(`${value}`);
-    return Number.isFinite(parsed) ? parsed : 0;
+    return this.resolveActivePromptVisible();
   }
 
   @Builder
@@ -327,40 +346,8 @@ export struct BrowserTopFloatingPromptHost {
     }
   }
 
-  private resolveHostHeightVp(): number {
-    return this.state.mounted
-      ? this.resolveTopOffsetVp() + FLOATING_PROMPT_CARD_TOP_GAP + FLOATING_PROMPT_CARD_HEIGHT +
-        BROWSER_TOP_FLOATING_PROMPT_HOST_EXTRA_HEIGHT
-      : 0;
-  }
-
-  private resolveTopOffsetVp(): number {
-    if (this.state.activeKind === 'url_threat') {
-      return this.state.urlThreat.topOffsetVp;
-    }
-    if (this.state.activeKind === 'external_navigation') {
-      return this.state.externalNavigation.topOffsetVp;
-    }
-    if (this.state.activeKind === 'offline_save') {
-      return this.state.offlineSave.topOffsetVp;
-    }
-    if (this.state.activeKind === 'novel') {
-      return this.state.novelPrompt.topOffsetVp;
-    }
-    if (this.state.activeKind === 'user_script_install') {
-      return this.state.userScriptInstall.topOffsetVp;
-    }
-    if (this.state.activeKind === 'webpage_translation') {
-      return this.state.webpageTranslation.topOffsetVp;
-    }
-    if (this.state.activeKind === 'gesture_onboarding') {
-      return this.state.gestureOnboarding.topOffsetVp;
-    }
-    return this.state.backgroundOpen.topOffsetVp;
-  }
-
   private resolveActivePromptVisible(): boolean {
-    if (!this.promptEntered || this.containerWidthVp <= 0) {
+    if (!this.promptEntered) {
       return false;
     }
     if (this.state.activeKind === 'url_threat') {

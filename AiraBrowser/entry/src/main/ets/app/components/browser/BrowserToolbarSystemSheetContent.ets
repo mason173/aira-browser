@@ -24,6 +24,7 @@ export function isBrowserToolbarSystemSheetType(type: BrowserSystemSheetType): b
 @Component
 export struct BrowserToolbarSystemSheetContent {
   @Prop type: BrowserSystemSheetType = 'none';
+  @Prop layoutMode: 'phone' | 'large_screen' = 'phone';
   @Prop userScriptState: UserScriptPageActionsState = {
     url: '',
     message: '',
@@ -63,6 +64,7 @@ export struct BrowserToolbarSystemSheetContent {
     } else if (this.type === 'appProxyQuick') {
       AppProxyQuickSheetContent({
         state: this.appProxyState,
+        layoutMode: this.layoutMode,
         onClose: () => {
           this.onAppProxyAction({ type: 'dismiss' });
         },
@@ -85,6 +87,7 @@ export struct BrowserToolbarSystemSheetContent {
         manifestParsingCandidateId: this.mediaResourceState.resourceManifestParsingCandidateId,
         manifestParseResult: this.mediaResourceState.resourceManifestParseResult,
         scanning: this.mediaResourceState.resourceScanInProgress,
+        layoutMode: this.layoutMode,
         onClose: () => {
           this.onMediaResourceAction({ type: 'close' });
         },

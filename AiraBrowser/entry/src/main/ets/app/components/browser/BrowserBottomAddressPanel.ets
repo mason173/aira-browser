@@ -3699,6 +3699,7 @@ export struct BrowserBottomAddressPanel {
       middlePanelHeight: this.resolveMiddlePanelHeight(),
       overlayHostHeight: this.livePanelMotionState.overlayHostHeight,
       keyboardOverlayInset: this.livePanelMotionState.keyboardOverlayInset,
+      floatingBottomLiftVp: this.livePanelMotionState.floatingBottomLiftVp,
       visible: this.livePanelMotionState.visible,
       detentDragEnabled: this.livePanelMotionState.detentDragEnabled,
       panelExpansionEnabled: this.livePanelMotionState.panelExpansionEnabled,
@@ -3820,7 +3821,8 @@ export struct BrowserBottomAddressPanel {
       (this.livePanelMotionState.panelHeight > 0 ? this.livePanelMotionState.panelHeight :
         this.resolveFloatingStackHeightWithoutSuggestion());
     const bottomGap = BROWSER_BOTTOM_ADDRESS_PANEL_FLOATING_BOTTOM_GAP +
-      Math.max(0, this.livePanelMotionState.keyboardOverlayInset);
+      Math.max(0, this.livePanelMotionState.keyboardOverlayInset) +
+      Math.max(0, this.livePanelMotionState.floatingBottomLiftVp);
     const topSafeLimit = Math.max(
       BROWSER_BOTTOM_ADDRESS_PANEL_FLOATING_LOW_HEIGHT,
       hostHeight - bottomGap - WEB_BOTTOM_SUGGESTION_TOP_SAFE_GAP

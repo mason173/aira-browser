@@ -169,6 +169,7 @@ export struct BrowserTabsFloatingOverlay {
   @Prop viewportWidth: number = 390;
   @Prop viewportHeight: number = 844;
   @Prop topSafeInsetVp: number = 0;
+  @Prop bottomChromeLiftVp: number = 0;
   @Prop backdropBlurRadius: number = 0;
   @Prop backgroundTintEnabled: boolean = true;
   @Prop backgroundSurfaceOpacity: number = -1;
@@ -474,6 +475,7 @@ export struct BrowserTabsFloatingOverlay {
             regularTabsLabel: this.buildBottomChromeState().regularTabsLabel,
             viewportWidth: this.resolveRootWidth(),
             viewportHeight: this.resolveRootHeight(),
+            bottomChromeLiftVp: this.bottomChromeLiftVp,
             surfaceOpacity: this.resolveBottomChromeOpacity(),
             chromeInteractionEnabled: this.interactionEnabled && !this.exiting && !this.closeAllExitActive,
             regularChromeIconTone: this.regularChromeIconTone,

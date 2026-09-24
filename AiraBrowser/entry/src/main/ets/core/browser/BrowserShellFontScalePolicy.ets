@@ -1,3 +1,4 @@
+import { BrowserDeviceFormFactor } from './BrowserDeviceFormFactorCoordinator';
 import { BrowserShellFamily } from './BrowserWindowPresentationProfile';
 import { BROWSER_SYSTEM_FONT_SIZE_SCALE_DEFAULT } from './BrowserWebTextZoomViewModel';
 
@@ -11,7 +12,8 @@ import { BROWSER_SYSTEM_FONT_SIZE_SCALE_DEFAULT } from './BrowserWebTextZoomView
  * scale up to 3.2x overflows those rows and inflates page text far past what the
  * wider window needs. The PC shell therefore pins BOTH its own UI text and its
  * content text (web pages and reader content) to the app default, and ignores the
- * system setting.
+ * system setting. A native cockpit keeps following the system scale even on the
+ * wide shell, so driving text can stay at the seat-design body size.
  *
  * The distinction that stays intact is explicit user zoom versus the system
  * setting. A user's own web text zoom is a deliberate per-page action and always
@@ -21,18 +23,35 @@ export const BROWSER_FONT_SCALE_PINNED: number = BROWSER_SYSTEM_FONT_SIZE_SCALE_
 
 export class BrowserShellFontScalePolicy {
   /** Whether this shell honors the system font size at all. */
-  followsSystemFontScale(shellFamily: BrowserShellFamily): boolean {
+  followsSystemFontScale(
+    shellFamily: BrowserShellFamily,
+    formFactor: BrowserDeviceFormFactor = 'unknown'
+  ): boolean {
+    // A cockpit display is read at a glance while driving. Pinning the large
+    // shell to the app default is a PC chrome workaround and would drop the
+    // seat-design body-text floor.
+    if (formFactor === 'car') {
+      return true;
+    }
     return shellFamily !== 'large_screen';
   }
 
   /** Scale for the browser's own ArkUI text. */
-  resolveAppUiScale(systemScale: number, shellFamily: BrowserShellFamily): number {
-    return this.followsSystemFontScale(shellFamily) ? this.normalize(systemScale) : BROWSER_FONT_SCALE_PINNED;
+  resolveAppUiScale(
+    systemScale: number,
+    shellFamily: BrowserShellFamily,
+    formFactor: BrowserDeviceFormFactor = 'unknown'
+  ): number {
+    return this.followsSystemFontScale(shellFamily, formFactor) ? this.normalize(systemScale) : BROWSER_FONT_SCALE_PINNED;
   }
 
   /** Scale for page/reader content (web text zoom and reading-surface metrics). */
-  resolveContentScale(systemScale: number, shellFamily: BrowserShellFamily): number {
-    return this.followsSystemFontScale(shellFamily) ? this.normalize(systemScale) : BROWSER_FONT_SCALE_PINNED;
+  resolveContentScale(
+    systemScale: number,
+    shellFamily: BrowserShellFamily,
+    formFactor: BrowserDeviceFormFactor = 'unknown'
+  ): number {
+    return this.followsSystemFontScale(shellFamily, formFactor) ? this.normalize(systemScale) : BROWSER_FONT_SCALE_PINNED;
   }
 
   private normalize(systemScale: number): number {

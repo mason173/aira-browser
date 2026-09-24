@@ -142,6 +142,9 @@ export class CustomHomepagePreviewViewModel {
     formFactor: BrowserDeviceFormFactor,
     viewportWidth: number
   ): BrowserDeviceFormFactor {
+    if (formFactor === 'car') {
+      return 'phone';
+    }
     if (formFactor !== 'unknown') {
       return formFactor;
     }

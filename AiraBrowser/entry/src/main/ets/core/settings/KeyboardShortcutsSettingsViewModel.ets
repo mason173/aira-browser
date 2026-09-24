@@ -1,3 +1,5 @@
+import { resolveBrowserDesktopMenuShortcutLabel } from '../browser/BrowserDesktopMenuShortcutCatalog';
+
 export interface KeyboardShortcutRowState {
   id: string;
   title: string;
@@ -52,10 +54,16 @@ export class KeyboardShortcutsSettingsViewModel {
         id: 'management',
         title: '管理',
         rows: [
-          this.row('history', '打开历史记录', 'Ctrl+H'),
-          this.row('downloads', '打开下载管理', 'Ctrl+J'),
-          this.row('bookmark', '收藏当前页面', 'Ctrl+D'),
-          this.row('save_offline', '保存当前网页到离线页面', 'Ctrl+S')
+          this.row('history', '打开历史记录', resolveBrowserDesktopMenuShortcutLabel('history')),
+          this.row('downloads', '打开下载管理', resolveBrowserDesktopMenuShortcutLabel('downloads')),
+          this.row('bookmarks_manager', '打开书签管理', resolveBrowserDesktopMenuShortcutLabel('openBookmarks')),
+          this.row('bookmark_bar', '显示或隐藏书签栏', resolveBrowserDesktopMenuShortcutLabel('bar')),
+          this.row('bookmark', '收藏当前页面', resolveBrowserDesktopMenuShortcutLabel('bookmark')),
+          this.row('save_offline', '保存当前网页到离线页面', resolveBrowserDesktopMenuShortcutLabel('offline')),
+          this.row('settings', '打开设置', resolveBrowserDesktopMenuShortcutLabel('settings')),
+          this.row('private_mode', '切换隐私模式', resolveBrowserDesktopMenuShortcutLabel('newPrivateTab')),
+          this.row('print', '打印网页', resolveBrowserDesktopMenuShortcutLabel('print')),
+          this.row('inspect', '审查元素', resolveBrowserDesktopMenuShortcutLabel('elementInspection'))
         ]
       }
     ];

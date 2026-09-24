@@ -1,5 +1,6 @@
 import { describe, expect, it } from '@ohos/hypium';
 import {
+  resolveUserScriptDesktopCardWidth,
   resolveUserScriptDesktopColumnCount,
   resolveUserScriptInstallLoadErrorMessage,
   resolveUserScriptInstallLoadFailureTitle,
@@ -31,6 +32,10 @@ export default function userScriptInstallLoadFailureTest(): void {
       expect(resolveUserScriptDesktopColumnCount(700)).assertEqual(2);
       expect(resolveUserScriptDesktopColumnCount(1024)).assertEqual(3);
       expect(resolveUserScriptDesktopColumnCount(1600)).assertEqual(4);
+      expect(resolveUserScriptDesktopCardWidth(0)).assertEqual(300);
+      expect(resolveUserScriptDesktopCardWidth(1024)).assertEqual(330);
+      expect(resolveUserScriptDesktopCardWidth(1600)).assertEqual(388);
+      expect(resolveUserScriptDesktopCardWidth(1024) < 1024).assertTrue();
     });
 
     it('shows loading while a retry is in flight and content after the source arrives', 0, () => {

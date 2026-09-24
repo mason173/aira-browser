@@ -8,6 +8,7 @@ import {
 } from '@kit.AbilityKit';
 import { webview } from '@kit.ArkWeb';
 import { window } from '@kit.ArkUI';
+import { deviceInfo } from '@kit.BasicServicesKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import {
   initializeBrowserAppLaunchReadiness,
@@ -43,6 +44,11 @@ import {
   BrowserWindowDisplayViewportCoordinator
 } from '../../core/browser/BrowserWindowDisplayViewportCoordinator';
 import { BrowserShellAdapterCatalog } from '../../core/browser/BrowserShellAdapterCatalog';
+import { resolveCockpitAdaptation } from '../../core/browser/BrowserCockpitAdaptationPolicy';
+import {
+  BrowserDeviceFormFactor,
+  BrowserDeviceFormFactorCoordinator
+} from '../../core/browser/BrowserDeviceFormFactorCoordinator';
 import { BrowserShellFamily } from '../../core/browser/BrowserWindowPresentationProfile';
 import { BrowserWindowPresentationProfileInputService } from '../../services/browser/BrowserWindowPresentationProfileInputService';
 import {
@@ -864,6 +870,7 @@ export default class EntryAbility extends UIAbility {
               navigationBarColor: LIGHT_SYSTEM_NAVIGATION_BAR_COLOR
             });
           })
+          .then(() => this.enableCockpitFloatNavigationAvoidArea(mainWindow))
           .then(() => {
             hilog.info(DOMAIN, TAG, 'Main window immersive layout configured.');
             return mainWindow;
@@ -936,7 +943,7 @@ export default class EntryAbility extends UIAbility {
     if (reconciliation.presentationChanged) {
       BrowserShellPresentationRefreshSignal.publish();
     }
-    this.applyShellFamilyUiFontScale(profile.shellFamily, source);
+    this.applyShellFamilyUiFontScale(profile.shellFamily, profile.detectedFormFactor, source);
     hilog.info(
       DOMAIN,
       TAG,
@@ -957,11 +964,38 @@ export default class EntryAbility extends UIAbility {
    * setting cannot overflow the dense large-screen chrome or inflate page text;
    * the phone shell keeps following the system setting.
    */
-  private applyShellFamilyUiFontScale(shellFamily: BrowserShellFamily, source: string): void {
+  private enableCockpitFloatNavigationAvoidArea(mainWindow: window.Window): Promise<void> {
+    const detectedFormFactor = new BrowserDeviceFormFactorCoordinator().resolveShellEligibility({
+      platformDeviceType: this.readPlatformDeviceType()
+    }).detectedFormFactor;
+    const adaptation = resolveCockpitAdaptation({
+      detectedFormFactor: detectedFormFactor,
+      reportedBottomAvoidVp: 0
+    });
+    if (!adaptation.enableFloatNavigationAvoidArea) {
+      return Promise.resolve();
+    }
+    return this.browserWindowAvoidAreaCoordinator.enableFloatNavigationAvoidArea(mainWindow);
+  }
+
+  private readPlatformDeviceType(): string {
+    try {
+      return deviceInfo.deviceType;
+    } catch (_error) {
+      return '';
+    }
+  }
+
+  private applyShellFamilyUiFontScale(
+    shellFamily: BrowserShellFamily,
+    formFactor: BrowserDeviceFormFactor,
+    source: string
+  ): void {
     try {
       const applied = this.browserSystemFontScaleCoordinator.applyForShellFamily(
         this.context.getApplicationContext(),
-        shellFamily
+        shellFamily,
+        formFactor
       );
       if (applied) {
         hilog.info(

@@ -183,6 +183,7 @@ export interface BrowserRootBottomPanelMotionInput {
   layoutState: BrowserRootBottomPanelLayoutState;
   showHomePage: boolean;
   keyboardOverlayInset: number;
+  floatingBottomLiftVp: number;
   fullScreenModeEnabled: boolean;
   documentViewerActive: boolean;
   documentViewerScrollCollapseEnabled: boolean;
@@ -812,6 +813,7 @@ export class BrowserRootBottomPanelSessionCoordinator {
       middlePanelHeight: 0,
       overlayHostHeight: this.resolveActiveHostHeight(input.layoutState, input.showHomePage),
       keyboardOverlayInset: input.keyboardOverlayInset,
+      floatingBottomLiftVp: Math.max(0, Math.ceil(input.floatingBottomLiftVp)),
       visible: this.presentationSnapshot.scrollPresentation !== 'hidden',
       detentDragEnabled: this.resolveDetentDragEnabled({
         fullScreenModeEnabled: input.fullScreenModeEnabled,

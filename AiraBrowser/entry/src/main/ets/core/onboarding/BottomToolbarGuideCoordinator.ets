@@ -201,9 +201,10 @@ export class BottomToolbarGuideCoordinator {
     if (facts.shellFamily !== 'phone') {
       return false;
     }
-    // A desktop has no bottom floating toolbar to swipe away, so the lesson would be
-    // teaching a gesture the device cannot perform.
-    if (facts.deviceFormFactor === 'pc' || facts.deviceFormFactor === 'two_in_one') {
+    // A desktop has no bottom floating toolbar to swipe away, and a cockpit
+    // must not teach a glance-heavy gesture while driving.
+    if (facts.deviceFormFactor === 'pc' || facts.deviceFormFactor === 'two_in_one' ||
+      facts.deviceFormFactor === 'car') {
       return false;
     }
     if (!facts.appVisible || facts.privacyMode === 'private') {

@@ -55,6 +55,7 @@ export struct BrowserTabsOverviewBottomChrome {
   @Prop crossDeviceTabsLabel: string = '跨设备标签页';
   @Prop viewportWidth: number = 390;
   @Prop viewportHeight: number = 844;
+  @Prop bottomChromeLiftVp: number = 0;
   @Prop surfaceOpacity: number = 1;
   @Prop chromeInteractionEnabled: boolean = true;
   @Prop regularChromeIconTone: AppChromeIconTone = 'light';
@@ -491,8 +492,13 @@ export struct BrowserTabsOverviewBottomChrome {
   }
 
   private resolveChromeTop(): number {
-    return Math.max(0, this.viewportHeight - BROWSER_TABS_OVERVIEW_BOTTOM_CHROME_BOTTOM_CLEARANCE -
+    return Math.max(0, this.viewportHeight - this.resolveBottomClearance() -
       BROWSER_TABS_OVERVIEW_BOTTOM_CHROME_HEIGHT);
+  }
+
+  private resolveBottomClearance(): number {
+    const lift = Number.isFinite(this.bottomChromeLiftVp) ? Math.max(0, this.bottomChromeLiftVp) : 0;
+    return BROWSER_TABS_OVERVIEW_BOTTOM_CHROME_BOTTOM_CLEARANCE + lift;
   }
 
   private resolveSurfaceOpacity(): number {

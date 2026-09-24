@@ -1,6 +1,8 @@
+import { DESKTOP_DIALOG_PADDING_VP } from '../../../core/browser/BrowserDialogPresentationTokens';
 import { DEFAULT_THEME_PALETTE } from '../../../features/theme/palettes/DefaultThemePalette';
 import {
   BROWSER_THEME_STORAGE_ACCENT_KEY,
+  BROWSER_THEME_STORAGE_CONTROL_BACKGROUND_KEY,
   BROWSER_THEME_STORAGE_PAGE_BACKGROUND_KEY,
   BROWSER_THEME_STORAGE_SURFACE_BACKGROUND_KEY,
   BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY,
@@ -8,6 +10,7 @@ import {
 } from '../../../core/theme/BrowserThemeStorageKeys';
 import { AppProxyQuickSheetState } from '../../../core/settings/AppProxyQuickSheetCoordinator';
 import { AppProxyProfileListItemState } from '../../../core/settings/AppProxySettingsViewModel';
+import { BrowserLargeScreenModalHeader } from '../browser/BrowserLargeScreenModalHeader';
 import {
   BROWSER_IMMERSIVE_SHEET_HEADER_CONTENT_TOP_INSET,
   BROWSER_SHEET_IMMERSIVE_BOTTOM_PADDING,
@@ -24,11 +27,11 @@ import {
   SettingsOptionRow,
   SettingsSwitchRow
 } from './SettingsRows';
-import { CenteredDialogSurface } from '../common/CenteredDialogSurface';
 
 @Component
 export struct AppProxyQuickSheetContent {
   @StorageProp(BROWSER_THEME_STORAGE_ACCENT_KEY) private storedAccentColor: string = '#0A59F7';
+  @StorageProp(BROWSER_THEME_STORAGE_CONTROL_BACKGROUND_KEY) private storedControlBackgroundColor: string = '#ECEDEF';
   @StorageProp(BROWSER_THEME_STORAGE_PAGE_BACKGROUND_KEY) private storedPageBackgroundColor: string = DEFAULT_THEME_PALETTE.light.pageBackground;
   @StorageProp(BROWSER_THEME_STORAGE_SURFACE_BACKGROUND_KEY) private storedSurfaceBackgroundColor: string = '#FFFFFF';
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY) private storedPrimaryTextColor: string = '#111318';
@@ -49,9 +52,7 @@ export struct AppProxyQuickSheetContent {
 
   build() {
     if (this.layoutMode === 'large_screen') {
-      CenteredDialogSurface({ fillHeight: true }) {
-        this.buildLargeScreenContent()
-      }
+      this.buildLargeScreenDialog()
     } else {
       BrowserBottomSheetSurface({
         fullHeight: true,
@@ -74,18 +75,32 @@ export struct AppProxyQuickSheetContent {
   }
 
   @Builder
-  private buildLargeScreenContent() {
-    BrowserBottomSheetSurface({
-      fullHeight: true,
-      presentation: 'flat_content',
-      contentJustifyContent: FlexAlign.Start,
-      horizontalPadding: 16,
-      topPadding: 26,
-      bottomPadding: 24,
-      surfaceColor: Color.Transparent
-    }) {
-      this.buildScrollContent(false)
+  private buildLargeScreenDialog() {
+    Column() {
+      BrowserLargeScreenModalHeader({
+        title: '应用内代理',
+        dialogMode: true,
+        onClose: (): void => {
+          this.onClose?.();
+        }
+      })
+
+      Column() {
+        this.buildScrollContent(false)
+      }
+      .width('100%')
+      .layoutWeight(1)
+      .padding({
+        left: DESKTOP_DIALOG_PADDING_VP,
+        right: DESKTOP_DIALOG_PADDING_VP,
+        top: 4,
+        bottom: DESKTOP_DIALOG_PADDING_VP
+      })
     }
+    .width('100%')
+    .height('100%')
+    .backgroundColor(Color.Transparent)
+    .alignItems(HorizontalAlign.Start)
   }
 
   @Builder
@@ -125,7 +140,7 @@ export struct AppProxyQuickSheetContent {
 
   @Builder
   private buildGlobalSwitchSection() {
-    SettingsGroupCard({ surfaceColor: this.storedSurfaceBackgroundColor }) {
+    SettingsGroupCard({ surfaceColor: this.resolveGroupSurfaceColor() }) {
       SettingsSwitchRow({
         title: '启用应用内代理',
         checked: this.state.globalEnabled,
@@ -146,7 +161,7 @@ export struct AppProxyQuickSheetContent {
     }) {
       Column({ space: 10 }) {
         if (this.state.profiles.length <= 0) {
-          SettingsGroupCard({ surfaceColor: this.storedSurfaceBackgroundColor }) {
+          SettingsGroupCard({ surfaceColor: this.resolveGroupSurfaceColor() }) {
             SettingsOptionRow({
               title: '暂无代理',
               helperText: '',
@@ -159,7 +174,7 @@ export struct AppProxyQuickSheetContent {
           }
         } else {
           ForEach(this.state.profiles, (item: AppProxyProfileListItemState) => {
-            SettingsGroupCard({ surfaceColor: this.storedSurfaceBackgroundColor }) {
+            SettingsGroupCard({ surfaceColor: this.resolveGroupSurfaceColor() }) {
               SettingsOptionRow({
                 title: item.title,
                 helperText: '',
@@ -193,6 +208,11 @@ export struct AppProxyQuickSheetContent {
       })
     }
     .width('100%')
+  }
+
+  private resolveGroupSurfaceColor(): ResourceColor {
+    return this.layoutMode === 'large_screen' ?
+      this.storedControlBackgroundColor : this.storedSurfaceBackgroundColor;
   }
 
   private isProfileEnabled(profileId: string): boolean {

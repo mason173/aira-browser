@@ -2,6 +2,7 @@ import {
   BrowserFoldPresentationState,
   BrowserTabletInterfaceMode
 } from '../../common/models/BrowserDevicePresentationModels';
+import { resolveCockpitShellFamily } from './BrowserCockpitWindowSpanPolicy';
 import { BrowserDeviceFormFactor } from './BrowserDeviceFormFactorCoordinator';
 
 /**
@@ -55,6 +56,7 @@ export interface BrowserTabletInterfaceModePolicyInput {
   foldState?: BrowserFoldPresentationState;
   deviceMarketName?: string;
   deviceProductModel?: string;
+  windowWidthVp?: number;
 }
 
 export interface BrowserTabletInterfaceModePolicyDecision {
@@ -73,6 +75,11 @@ export class BrowserTabletInterfaceModePolicy {
   resolve(input: BrowserTabletInterfaceModePolicyInput): BrowserTabletInterfaceModePolicyDecision {
     if (input.detectedFormFactor === 'pc' || input.detectedFormFactor === 'two_in_one') {
       return this.decision('large_screen', false, 'desktop-device');
+    }
+    // A cockpit stays on the touch shell. Width must not promote it to the PC
+    // chrome, and a synced desktop preference must not either.
+    if (input.detectedFormFactor === 'car') {
+      return this.decision(resolveCockpitShellFamily(), false, 'car-touch-locked');
     }
     const explicitDecision = this.resolveExplicitMode(input);
     if (explicitDecision !== undefined) {

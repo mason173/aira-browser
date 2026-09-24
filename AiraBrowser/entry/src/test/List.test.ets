@@ -13,6 +13,8 @@ import browserArkWebMediaTakeoverRecoveryCharacterizationTest from
 import mediaSessionResolutionRuntimeServiceTest from './MediaSessionResolutionRuntimeService.test';
 import mediaPageBehaviorEvidenceAdapterTest from './MediaPageBehaviorEvidenceAdapter.test';
 import browserTabletInterfaceModePolicyTest from './BrowserTabletInterfaceModePolicy.test';
+import browserCockpitWindowSpanPolicyTest from './BrowserCockpitWindowSpanPolicy.test';
+import browserCockpitAdaptationPolicyTest from './BrowserCockpitAdaptationPolicy.test';
 import browserTabletInterfaceModeTransitionOwnerTest from './BrowserTabletInterfaceModeTransitionOwner.test';
 import centeredDialogWidthViewModelTest from './CenteredDialogWidthViewModel.test';
 import browserShellFontScalePolicyTest from './BrowserShellFontScalePolicy.test';
@@ -21,6 +23,7 @@ import browserLargeScreenOmniboxSearchViewModelTest from './BrowserLargeScreenOm
 import browserLargeScreenToolbarMenuViewModelTest from './BrowserLargeScreenToolbarMenuViewModel.test';
 import browserDesktopBookmarkBarMenuModelTest from './BrowserDesktopBookmarkBarMenuModel.test';
 import browserLargeScreenOverflowFlyoutViewModelTest from './BrowserLargeScreenOverflowFlyoutViewModel.test';
+import browserDesktopMenuShortcutCatalogTest from './BrowserDesktopMenuShortcutCatalog.test';
 import browserPrivacyEffectPolicyTest from './BrowserPrivacyEffectPolicy.test';
 import browserRecentlyClosedRestoreTest from './BrowserRecentlyClosedRestore.test';
 import downloadPrivacyPolicyTest from './DownloadPrivacyPolicy.test';
@@ -88,6 +91,8 @@ export default function tests(): void {
   mediaSessionResolutionRuntimeServiceTest();
   mediaPageBehaviorEvidenceAdapterTest();
   browserTabletInterfaceModePolicyTest();
+  browserCockpitWindowSpanPolicyTest();
+  browserCockpitAdaptationPolicyTest();
   browserTabletInterfaceModeTransitionOwnerTest();
   centeredDialogWidthViewModelTest();
   browserShellFontScalePolicyTest();
@@ -96,6 +101,7 @@ export default function tests(): void {
   browserLargeScreenToolbarMenuViewModelTest();
   browserDesktopBookmarkBarMenuModelTest();
   browserLargeScreenOverflowFlyoutViewModelTest();
+  browserDesktopMenuShortcutCatalogTest();
   browserPrivacyEffectPolicyTest();
   browserRecentlyClosedRestoreTest();
   downloadPrivacyPolicyTest();

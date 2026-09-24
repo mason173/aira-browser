@@ -5,6 +5,7 @@ import { resolveSiteIconFallbackLabel } from '../../../common/utils/SiteIconFall
 import {
   BROWSER_APPEARANCE_STORAGE_SITE_ICON_CORNER_RATIO_KEY,
   BROWSER_THEME_STORAGE_CONTROL_BACKGROUND_KEY,
+  BROWSER_THEME_STORAGE_PAGE_BACKGROUND_KEY,
   BROWSER_THEME_STORAGE_DIVIDER_KEY,
   BROWSER_THEME_STORAGE_SURFACE_BACKGROUND_KEY,
   BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY,
@@ -36,6 +37,8 @@ export struct HistoryLargeScreenSites {
   private storedSiteIconCornerRadiusRatio: number = 0.3;
   @StorageProp(BROWSER_THEME_STORAGE_CONTROL_BACKGROUND_KEY)
   private storedControlBackgroundColor: string = DEFAULT_THEME_PALETTE.light.controlBackground;
+  @StorageProp(BROWSER_THEME_STORAGE_PAGE_BACKGROUND_KEY)
+  private storedPageBackgroundColor: string = DEFAULT_THEME_PALETTE.light.pageBackground;
   @StorageProp(BROWSER_THEME_STORAGE_DIVIDER_KEY)
   private storedDividerColor: string = DEFAULT_THEME_PALETTE.light.divider;
   @StorageProp(BROWSER_THEME_STORAGE_SURFACE_BACKGROUND_KEY)
@@ -130,7 +133,7 @@ export struct HistoryLargeScreenSites {
       })
       .alignItems(VerticalAlign.Center)
       .backgroundColor(this.hoveredSiteKey === site.key
-        ? this.storedControlBackgroundColor
+        ? this.storedPageBackgroundColor
         : this.storedSurfaceBackgroundColor)
       .borderRadius(MANAGEMENT_LARGE_SCREEN_ROW_RADIUS)
       .clip(true)

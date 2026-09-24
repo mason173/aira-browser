@@ -567,7 +567,7 @@ window.__airaHomeSetHoldingHandStatus(${status});
     var incoming = environment || {};
     var formFactor = String(incoming.formFactor || '').trim();
     if (formFactor !== 'phone' && formFactor !== 'tablet' && formFactor !== 'two_in_one' &&
-      formFactor !== 'pc' && formFactor !== 'unknown') {
+      formFactor !== 'pc' && formFactor !== 'car' && formFactor !== 'unknown') {
       formFactor = 'unknown';
     }
     var shellFamily = incoming.shellFamily === 'large_screen' ? 'large_screen' : 'phone';

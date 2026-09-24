@@ -1,6 +1,10 @@
 import { describe, expect, it } from '@ohos/hypium';
 import { BookmarkNode, BrowserAppearanceSettings, HistoryVisit, SyncMetadata } from '../main/ets/common/models/BrowserModels';
 import {
+  alignDesktopSubmenuTop,
+  desktopSubmenuRowTop
+} from '../main/ets/core/browser/BrowserDesktopMenuPresentationTokens';
+import {
   appendOtherBookmarksFolder,
   BROWSER_LARGE_SCREEN_OVERFLOW_HISTORY_EMPTY_MESSAGE,
   BrowserLargeScreenOverflowBookmarkItem,
@@ -99,6 +103,18 @@ export default function browserLargeScreenOverflowFlyoutViewModelTest(): void {
         .assertEqual(BROWSER_LARGE_SCREEN_OVERFLOW_HISTORY_PRIVATE_MESSAGE);
       expect(resolveOverflowHistoryEmptyMessage(false, true))
         .assertEqual(BROWSER_LARGE_SCREEN_OVERFLOW_HISTORY_EMPTY_MESSAGE);
+    });
+
+    it('aligns a nested bookmark menu to the hovered row instead of the column top', 0, () => {
+      const headerLeadingVp = 6 + 44 * 2 + 8.5;
+      const importedRowTop = desktopSubmenuRowTop(0, headerLeadingVp, 4, 0);
+      const firstRowTop = desktopSubmenuRowTop(0, headerLeadingVp, 0, 0);
+
+      expect(importedRowTop).assertEqual(278.5);
+      expect(alignDesktopSubmenuTop(importedRowTop, 100, 520)).assertEqual(278.5);
+      expect(firstRowTop).assertEqual(102.5);
+      expect(alignDesktopSubmenuTop(480, 200, 520)).assertEqual(320);
+      expect(desktopSubmenuRowTop(278.5, 6, 0, 0)).assertEqual(284.5);
     });
 
     it('projects bookmark folders before bookmarks and appends other bookmarks', 0, () => {

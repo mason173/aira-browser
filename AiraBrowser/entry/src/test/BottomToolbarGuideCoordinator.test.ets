@@ -203,6 +203,11 @@ export default function bottomToolbarGuideCoordinatorTest(): void {
       await flushEvaluation();
       expect(fixture.surface.presentRequests.length).assertEqual(0);
 
+      fixture.shell.facts.deviceFormFactor = 'car';
+      fixture.coordinator.handleWebPageLoadCompleted();
+      await flushEvaluation();
+      expect(fixture.surface.presentRequests.length).assertEqual(0);
+
       fixture.shell.facts.deviceFormFactor = 'tablet';
       fixture.coordinator.handleWebPageLoadCompleted();
       await flushEvaluation();

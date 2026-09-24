@@ -1,4 +1,5 @@
 import { inputMethod } from '@kit.IMEKit';
+import { KeyCode } from '@kit.InputKit';
 import {
   ExternalAppSearchTargetId,
   SearchEngineId,
@@ -9,6 +10,12 @@ import {
 import {
   BrowserLargeScreenActiveTabChromePresentation
 } from '../../../core/browser/BrowserLargeScreenPresentationViewModel';
+import {
+  moveOmniboxSuggestionSelection,
+  omniboxSuggestionSelectionKey,
+  resolveOmniboxKeyboardSuggestions,
+  retainOmniboxSuggestionSelection
+} from '../../../core/browser/BrowserLargeScreenOmniboxSearchViewModel';
 import {
   BrowserLargeScreenOmniboxPresentation,
   createBrowserLargeScreenOmniboxPresentation
@@ -44,6 +51,7 @@ import { AiraRenderableIconId } from '../../../core/resources/GeneratedAiraIconC
 import {
   BROWSER_THEME_STORAGE_ACCENT_KEY,
   BROWSER_THEME_STORAGE_CONTROL_BACKGROUND_KEY,
+  BROWSER_THEME_STORAGE_PAGE_BACKGROUND_KEY,
   BROWSER_THEME_STORAGE_DIVIDER_KEY,
   BROWSER_THEME_STORAGE_SURFACE_BACKGROUND_KEY,
   BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY,
@@ -80,9 +88,12 @@ import {
   BROWSER_DESKTOP_MENU_ITEM_CORNER_RADIUS_VP,
   BROWSER_DESKTOP_MENU_ITEM_HEIGHT_VP,
   BROWSER_DESKTOP_MENU_ITEM_HORIZONTAL_PADDING_VP,
+  BROWSER_DESKTOP_MENU_SHORTCUT_LINE_HEIGHT_VP,
+  BROWSER_DESKTOP_MENU_SHORTCUT_TEXT_SIZE_FP,
   BROWSER_DESKTOP_MENU_TEXT_SIZE_FP,
   BROWSER_DESKTOP_MENU_VERTICAL_INSET_VP
 } from '../../../core/browser/BrowserDesktopMenuPresentationTokens';
+import { resolveBrowserDesktopMenuShortcutLabel } from '../../../core/browser/BrowserDesktopMenuShortcutCatalog';
 import {
   BrowserLargeScreenWebZoomAction,
   BrowserLargeScreenWebZoomSnapshot,
@@ -114,7 +125,7 @@ const LARGE_SCREEN_OMNIBOX_FOCUS_ID: string = 'aira-large-screen-omnibox';
 const LARGE_SCREEN_OMNIBOX_FOCUS_DELAY_MS: number = 24;
 const LARGE_SCREEN_OMNIBOX_SELECTION_DELAY_MS: number = 0;
 const LARGE_SCREEN_OMNIBOX_BLUR_COLLAPSE_DELAY_MS: number = 120;
-const LARGE_SCREEN_OVERFLOW_MENU_WIDTH_VP: number = 272;
+const LARGE_SCREEN_OVERFLOW_MENU_WIDTH_VP: number = 320;
 const LARGE_SCREEN_OVERFLOW_FLYOUT_CLOSE_DELAY_MS: number = 200;
 const LARGE_SCREEN_OVERFLOW_ZOOM_BUTTON_SIZE_VP: number = 28;
 const LARGE_SCREEN_OVERFLOW_MENU_WINDOW_MARGIN_VP: number = 8;
@@ -164,7 +175,8 @@ export struct BrowserLargeScreenNavigationToolbarSurface {
   @Prop
   @Watch('syncOmniboxFocusRequest')
   omniboxPresentation: BrowserLargeScreenOmniboxPresentation = createBrowserLargeScreenOmniboxPresentation();
-  @Prop suggestionSnapshot: BrowserSearchSuggestionSnapshot = EMPTY_SEARCH_SUGGESTION_SNAPSHOT;
+  @Prop @Watch('syncOmniboxSuggestionSelection')
+  suggestionSnapshot: BrowserSearchSuggestionSnapshot = EMPTY_SEARCH_SUGGESTION_SNAPSHOT;
   @Prop searchEnginePresentation: BrowserSearchEngineChromePresentation = EMPTY_SEARCH_ENGINE_PRESENTATION;
   @Prop actionSnapshot: BrowserBottomPanelActionSnapshot | undefined = undefined;
   @Prop bookmarkActionSession: BrowserBookmarkActionSessionSnapshot = EMPTY_BOOKMARK_ACTION_SESSION;
@@ -187,6 +199,8 @@ export struct BrowserLargeScreenNavigationToolbarSurface {
   private storedSurfaceBackgroundColor: string = '#FFFFFF';
   @StorageProp(BROWSER_THEME_STORAGE_CONTROL_BACKGROUND_KEY)
   private storedControlBackgroundColor: string = '#EEF2F6';
+  @StorageProp(BROWSER_THEME_STORAGE_PAGE_BACKGROUND_KEY)
+  private storedPageBackgroundColor: string = '#F2F3F5';
   @StorageProp(BROWSER_THEME_STORAGE_DIVIDER_KEY)
   private storedDividerColor: string = '#E3E8EF';
   @StorageProp(BROWSER_THEME_STORAGE_ACCENT_KEY)
@@ -207,6 +221,7 @@ export struct BrowserLargeScreenNavigationToolbarSurface {
   private omniboxRefocusRequired: boolean = false;
   @State private omniboxInputFocused: boolean = false;
   @State private omniboxDraftText: string = '';
+  @State private omniboxSuggestionSelectionKey: string = '';
   @State private siteInfoPopupVisible: boolean = false;
   @State private crossDeviceTabsPopupVisible: boolean = false;
   @State private hoveredOverflowActionId: string = '';
@@ -290,11 +305,13 @@ export struct BrowserLargeScreenNavigationToolbarSurface {
               if (!this.omniboxPresentation.editing) {
                 return;
               }
+              this.omniboxSuggestionSelectionKey = '';
               this.omniboxDraftText = value;
               this.onIntent({ kind: 'update_omnibox_draft', text: value });
             })
+            .onKeyPreIme((event: KeyEvent): boolean => this.handleOmniboxSuggestionKey(event))
             .onSubmit((_enterKey: EnterKeyType) => {
-              this.onIntent({ kind: 'submit_omnibox', text: this.resolveOmniboxText() });
+              this.submitOmnibox();
             })
 
             if (this.shouldShowBookmarkButton()) {
@@ -327,8 +344,12 @@ export struct BrowserLargeScreenNavigationToolbarSurface {
               inputFocused: this.omniboxInputFocused,
               query: this.omniboxPresentation.draft,
               suggestions: this.suggestionSnapshot.searchSuggestions,
+              selectedSuggestionKey: this.omniboxSuggestionSelectionKey,
               onOpenSuggestion: (suggestion: SearchSuggestion): void => {
                 this.onIntent({ kind: 'open_suggestion', text: suggestion.target, suggestion: suggestion });
+              },
+              onHighlightSuggestion: (suggestion: SearchSuggestion): void => {
+                this.omniboxSuggestionSelectionKey = omniboxSuggestionSelectionKey(suggestion);
               },
               onDeleteHistorySuggestion: (suggestion: SearchSuggestion): void => {
                 this.onIntent({ kind: 'delete_history_suggestion', text: '', suggestion: suggestion });
@@ -799,6 +820,10 @@ export struct BrowserLargeScreenNavigationToolbarSurface {
               title: item.title
             });
           },
+          onOpenHistoryPage: (): void => {
+            this.closeOverflowMenu();
+            this.onIntent({ kind: 'open_history', text: '' });
+          },
           onOpenBookmark: (item: BrowserLargeScreenOverflowBookmarkItem): void => {
             this.closeOverflowMenu();
             this.onIntent({
@@ -1103,6 +1128,14 @@ export struct BrowserLargeScreenNavigationToolbarSurface {
         .maxLines(1)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
 
+      if (resolveBrowserDesktopMenuShortcutLabel(item.id).length > 0) {
+        Text(resolveBrowserDesktopMenuShortcutLabel(item.id))
+          .fontSize(BROWSER_DESKTOP_MENU_SHORTCUT_TEXT_SIZE_FP)
+          .lineHeight(BROWSER_DESKTOP_MENU_SHORTCUT_LINE_HEIGHT_VP)
+          .fontColor(this.storedSecondaryTextColor)
+          .maxLines(1)
+          .flexShrink(0)
+      }
       if (showsSelection && item.selected === true) {
         SymbolGlyph($r('sys.symbol.checkmark'))
           .fontSize(16)
@@ -1210,7 +1243,7 @@ export struct BrowserLargeScreenNavigationToolbarSurface {
 
   private resolveOverflowMenuItemBackground(item: BrowserBottomAddressPanelAction): ResourceColor {
     return this.isOverflowRowHighlighted(item.id)
-      ? this.storedControlBackgroundColor
+      ? this.storedPageBackgroundColor
       : Color.Transparent;
   }
 
@@ -1352,6 +1385,47 @@ export struct BrowserLargeScreenNavigationToolbarSurface {
     this.onIntent({ kind: 'open_browser_action', text: '', actionId: item.id });
   }
 
+  private handleOmniboxSuggestionKey(event: KeyEvent): boolean {
+    if (event.type !== KeyType.Down || !this.omniboxPresentation.editing || !this.omniboxInputFocused) {
+      return false;
+    }
+    let direction: 'up' | 'down' | '' = '';
+    if (event.keyCode === KeyCode.KEYCODE_DPAD_DOWN) {
+      direction = 'down';
+    } else if (event.keyCode === KeyCode.KEYCODE_DPAD_UP) {
+      direction = 'up';
+    }
+    if (direction === '' || resolveOmniboxKeyboardSuggestions(this.suggestionSnapshot.searchSuggestions).length === 0) {
+      return false;
+    }
+    this.omniboxSuggestionSelectionKey = moveOmniboxSuggestionSelection(
+      this.suggestionSnapshot.searchSuggestions,
+      this.omniboxSuggestionSelectionKey,
+      direction
+    );
+    return true;
+  }
+
+  private submitOmnibox(): void {
+    const selected = resolveOmniboxKeyboardSuggestions(this.suggestionSnapshot.searchSuggestions)
+      .find((suggestion: SearchSuggestion): boolean => {
+        return omniboxSuggestionSelectionKey(suggestion) === this.omniboxSuggestionSelectionKey;
+      });
+    if (selected !== undefined) {
+      this.omniboxSuggestionSelectionKey = '';
+      this.onIntent({ kind: 'open_suggestion', text: selected.target, suggestion: selected });
+      return;
+    }
+    this.onIntent({ kind: 'submit_omnibox', text: this.resolveOmniboxText() });
+  }
+
+  private syncOmniboxSuggestionSelection(): void {
+    this.omniboxSuggestionSelectionKey = retainOmniboxSuggestionSelection(
+      this.suggestionSnapshot.searchSuggestions,
+      this.omniboxSuggestionSelectionKey
+    );
+  }
+
   private resolveOmniboxText(): string {
     if (this.omniboxPresentation.editing) {
       return this.omniboxDraftText;
@@ -1385,6 +1459,7 @@ export struct BrowserLargeScreenNavigationToolbarSurface {
       this.clearFocusRequest();
       this.clearSelectionRequest();
       this.omniboxInputFocused = false;
+      this.omniboxSuggestionSelectionKey = '';
       return;
     }
     if (!this.omniboxPresentation.focusRequestPending) {

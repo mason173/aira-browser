@@ -31,6 +31,19 @@ export function resolveUserScriptDesktopColumnCount(contentWidthVp: number): num
   return Math.max(1, Math.min(USER_SCRIPT_DESKTOP_MAX_COLUMNS, columnCount));
 }
 
+/**
+ * Fixed slot width for every script card. A short row must not stretch its only card
+ * to the full pane; it keeps the same width as a card in a full row.
+ */
+export function resolveUserScriptDesktopCardWidth(contentWidthVp: number): number {
+  if (!Number.isFinite(contentWidthVp) || contentWidthVp <= 0) {
+    return USER_SCRIPT_DESKTOP_CARD_MIN_WIDTH_VP;
+  }
+  const columnCount = resolveUserScriptDesktopColumnCount(contentWidthVp);
+  const gaps = USER_SCRIPT_DESKTOP_CARD_GAP_VP * Math.max(0, columnCount - 1);
+  return Math.max(1, Math.floor((contentWidthVp - gaps) / columnCount));
+}
+
 export interface UserScriptsSettingsState {
   autoUpdateEnabled: boolean;
   rows: UserScriptRowView[];

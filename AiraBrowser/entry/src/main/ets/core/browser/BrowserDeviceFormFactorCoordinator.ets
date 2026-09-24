@@ -3,6 +3,7 @@ export type BrowserDeviceFormFactor =
   'tablet' |
   'two_in_one' |
   'pc' |
+  'car' |
   'unknown';
 
 export type BrowserDeviceUiMode =
@@ -162,12 +163,18 @@ export class BrowserDeviceFormFactorCoordinator {
     if (normalized === 'pc' || normalized === 'desktop') {
       return 'pc';
     }
+    if (normalized === 'car' || normalized === 'cockpit') {
+      return 'car';
+    }
     return 'unknown';
   }
 
   private isHuaweiPcUiEligible(formFactor: BrowserDeviceFormFactor, windowWidthVp: number | undefined): boolean {
     if (formFactor === 'tablet' || formFactor === 'two_in_one' || formFactor === 'pc') {
       return true;
+    }
+    if (formFactor === 'car') {
+      return false;
     }
     return (windowWidthVp ?? 0) >= LARGE_SCREEN_WIDTH_VP;
   }

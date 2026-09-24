@@ -1,5 +1,6 @@
 import { window } from '@kit.ArkUI';
 import { AppRuntimeContext } from '../../app/runtime/AppRuntimeContext';
+import { resolveCockpitShellFamily } from '../../core/browser/BrowserCockpitWindowSpanPolicy';
 import {
   BrowserDeviceFormFactor,
   BrowserDeviceFormFactorCoordinator
@@ -28,16 +29,24 @@ export class CustomHomepageEnvironmentService {
     // (≥ 840vp ⇒ tablet), via the same resolveShellEligibility the large-screen
     // shell uses. Keeps this in sync with the shell and stops an emulator that
     // reports deviceType "default" from being misclassified as a phone.
+    const windowWidthVp = this.windowInputService.resolveDisplayWidthVp();
     const formFactor = this.formFactorCoordinator.resolveShellEligibility({
       platformDeviceType: this.windowInputService.resolvePlatformDeviceType(),
-      windowWidthVp: this.windowInputService.resolveDisplayWidthVp()
+      windowWidthVp: windowWidthVp
     }).detectedFormFactor;
     return {
       formFactor: formFactor,
-      shellFamily: formFactor === 'tablet' || formFactor === 'two_in_one' || formFactor === 'pc'
-        ? 'large_screen'
-        : 'phone'
+      shellFamily: this.resolveShellFamily(formFactor)
     };
+  }
+
+  private resolveShellFamily(formFactor: BrowserDeviceFormFactor): CustomHomepageShellFamily {
+    if (formFactor === 'car') {
+      return resolveCockpitShellFamily();
+    }
+    return formFactor === 'tablet' || formFactor === 'two_in_one' || formFactor === 'pc'
+      ? 'large_screen'
+      : 'phone';
   }
 
   async resolveCurrentWindowViewport(): Promise<CustomHomepageWindowViewportState | undefined> {

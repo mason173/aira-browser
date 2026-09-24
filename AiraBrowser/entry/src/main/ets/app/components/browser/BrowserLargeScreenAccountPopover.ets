@@ -34,7 +34,7 @@ import { HuaweiLoginSheetContent } from '../account/HuaweiLoginSheetContent';
 import { AppWindowModalLayoutService } from '../../../services/layout/AppWindowModalLayoutService';
 
 const LARGE_SCREEN_ACCOUNT_BUTTON_SIZE_VP: number = 34;
-const LARGE_SCREEN_ACCOUNT_AVATAR_SIZE_VP: number = 26;
+const LARGE_SCREEN_ACCOUNT_AVATAR_SIZE_VP: number = 17;
 const LARGE_SCREEN_ACCOUNT_PLACEHOLDER_ICON_SIZE_VP: number = 17;
 const LARGE_SCREEN_ACCOUNT_POPUP_WIDTH_VP: number = 408;
 const LARGE_SCREEN_ACCOUNT_PROFILE_HEIGHT_VP: number = 560;
