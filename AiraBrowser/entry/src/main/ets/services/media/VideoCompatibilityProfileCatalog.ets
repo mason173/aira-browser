@@ -875,10 +875,15 @@ export class VideoCompatibilityProfileCatalog {
 
 export const sharedVideoCompatibilityProfileCatalog: VideoCompatibilityProfileCatalog =
   new VideoCompatibilityProfileCatalog([{
+    // Large-screen ArkWeb keeps a playing Weibo video surface valid when
+    // takeover expands the Web component instead of promoting the DOM video
+    // to a new fixed-position surface. Promoting it leaves audio running and
+    // freezes the picture. Desktop PC pages are weibo.com, not m.weibo.cn.
     diagnosticProfileKey: 'packaged.weibo',
-    revision: 'packaged-1',
+    revision: 'packaged-2',
     scope: {
-      exactHosts: ['m.weibo.cn']
+      exactHosts: ['weibo.com', 'weibo.cn', 'm.weibo.cn'],
+      anchoredSubdomainHosts: ['weibo.com', 'weibo.cn']
     },
     presentationRecipe: 'weibo_preserve_surface'
   }, {

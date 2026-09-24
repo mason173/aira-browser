@@ -1,6 +1,7 @@
 import { describe, expect, it } from '@ohos/hypium';
 import { MediaEvidenceScope } from '../main/ets/features/mediaDiscovery/MediaEvidenceGraphModels';
 import {
+  sharedVideoCompatibilityProfileCatalog,
   VideoCompatibilityProfileCatalog,
   VideoCompatibilityProfileDefinition,
   VideoCompatibilityProfileResolveInput,
@@ -348,6 +349,31 @@ export default function videoCompatibilityProfileCatalogTest(): void {
       expect(weibo.isProfileApplied()).assertTrue();
       expect(weibo.getPresentationMode()).assertEqual('preserve_surface');
       expect(generic.getPresentationMode()).assertUndefined();
+    });
+
+    it('keeps desktop and mobile Weibo takeover on the existing video surface', 0, () => {
+      const preservedHosts: string[] = [
+        'https://weibo.com/',
+        'https://www.weibo.com/tv/show/1',
+        'https://video.weibo.com/show/1',
+        'https://weibo.cn/',
+        'https://www.weibo.cn/',
+        'https://m.weibo.cn/status/123'
+      ];
+      for (let index: number = 0; index < preservedHosts.length; index += 1) {
+        const resolution = sharedVideoCompatibilityProfileCatalog.resolve({
+          scope: scope('route-packaged-weibo-' + index.toString()),
+          pageUrl: preservedHosts[index]
+        });
+        expect(resolution.isProfileApplied()).assertTrue();
+        expect(resolution.getDiagnosticAttribution()?.profileKey).assertEqual('packaged.weibo');
+        expect(resolution.getPresentationMode()).assertEqual('preserve_surface');
+      }
+      const unrelated = sharedVideoCompatibilityProfileCatalog.resolve({
+        scope: scope('route-packaged-weibo-unrelated'),
+        pageUrl: 'https://notweibo.com/watch'
+      });
+      expect(unrelated.getPresentationMode()).assertUndefined();
     });
 
     it('selects only the closed Bilibili Acquisition Recipe for its resolved route', 0, () => {

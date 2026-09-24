@@ -2,6 +2,7 @@
 
 Accepted: 2026-08-08
 Amended: 2026-08-09 — YouTube Acquisition Recipe authority cutover and known-scope XlPlayer migration
+Amended: 2026-09-25 — packaged Weibo Presentation Recipe covers desktop and mobile Weibo hosts
 Status: Remote delivery superseded for current clients on 2026-09-01
 
 ## Package-owned catalog revision
@@ -13,6 +14,11 @@ review and an App release. The private server endpoint remains temporarily for o
 the current client.
 
 The original decision below is retained as delivery-history context; its remote lifecycle is no longer current.
+
+The packaged Weibo Presentation Recipe is production presentation authority for top-level `weibo.com` and `weibo.cn`
+pages, including their subdomains. Takeover expands the Web component and leaves the playing video on its existing
+surface. Promoting that element to a new fixed-position surface invalidates the large-screen ArkWeb video surface:
+audio continues and frames stop. Unrelated hosts stay on the default viewport-promoted presentation.
 
 ## Context
 
