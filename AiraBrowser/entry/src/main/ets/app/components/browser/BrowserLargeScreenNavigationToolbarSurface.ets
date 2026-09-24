@@ -71,6 +71,9 @@ import {
 } from '../../../core/browser/BrowserModalPresentationTokens';
 import {
   BROWSER_DESKTOP_MENU_CORNER_RADIUS_VP,
+  BROWSER_DESKTOP_MENU_SHADOW_BLEED_VP,
+  BROWSER_DESKTOP_MENU_SHADOW_OFFSET_Y_VP,
+  BROWSER_DESKTOP_MENU_SHADOW_RADIUS_VP,
   BROWSER_DESKTOP_MENU_DIVIDER_HORIZONTAL_MARGIN_VP,
   BROWSER_DESKTOP_MENU_DIVIDER_WIDTH_VP,
   BROWSER_DESKTOP_MENU_HORIZONTAL_INSET_VP,
@@ -697,6 +700,11 @@ export struct BrowserLargeScreenNavigationToolbarSurface {
       autoCancel: true,
       mask: false,
       targetSpace: BROWSER_DESKTOP_MENU_VERTICAL_INSET_VP,
+      // Padding that keeps the blur inside the popup is shifted back so the card stays put.
+      offset: {
+        x: BROWSER_DESKTOP_MENU_SHADOW_BLEED_VP,
+        y: -BROWSER_DESKTOP_MENU_SHADOW_BLEED_VP
+      },
       width: this.resolveOverflowPopupWidth(),
       radius: 0,
       borderWidth: 0,
@@ -818,43 +826,49 @@ export struct BrowserLargeScreenNavigationToolbarSurface {
       this.buildPointerOverflowMenuColumn()
     }
     .width(this.resolveOverflowPopupWidth())
+    .padding(BROWSER_DESKTOP_MENU_SHADOW_BLEED_VP)
     .alignItems(VerticalAlign.Top)
     .justifyContent(FlexAlign.End)
   }
 
   @Builder
   private buildPointerOverflowMenuColumn() {
-    Scroll() {
-      Column() {
-        ForEach(this.resolvePointerMenu().sections, (section: BrowserLargeScreenToolbarMenuSection, index: number) => {
-          if (index > 0) {
-            this.buildPointerOverflowSectionGap()
-          }
-          this.buildPointerOverflowSection(section)
-        }, (section: BrowserLargeScreenToolbarMenuSection) => section.id)
+    Column() {
+      Scroll() {
+        Column() {
+          ForEach(this.resolvePointerMenu().sections, (section: BrowserLargeScreenToolbarMenuSection, index: number) => {
+            if (index > 0) {
+              this.buildPointerOverflowSectionGap()
+            }
+            this.buildPointerOverflowSection(section)
+          }, (section: BrowserLargeScreenToolbarMenuSection) => section.id)
+        }
+        .width('100%')
+        .padding({
+          left: BROWSER_DESKTOP_MENU_HORIZONTAL_INSET_VP,
+          right: BROWSER_DESKTOP_MENU_HORIZONTAL_INSET_VP,
+          top: BROWSER_DESKTOP_MENU_VERTICAL_INSET_VP,
+          bottom: BROWSER_DESKTOP_MENU_VERTICAL_INSET_VP
+        })
       }
-      .width('100%')
-      .padding({
-        left: BROWSER_DESKTOP_MENU_HORIZONTAL_INSET_VP,
-        right: BROWSER_DESKTOP_MENU_HORIZONTAL_INSET_VP,
-        top: BROWSER_DESKTOP_MENU_VERTICAL_INSET_VP,
-        bottom: BROWSER_DESKTOP_MENU_VERTICAL_INSET_VP
-      })
+      .width(LARGE_SCREEN_OVERFLOW_MENU_WIDTH_VP)
+      .height(this.resolvePointerOverflowMenuHeight().heightVp)
+      .scrollable(ScrollDirection.Vertical)
+      .scrollBar(this.resolvePointerOverflowMenuHeight().scrollable ? BarState.Auto : BarState.Off)
+      .edgeEffect(EdgeEffect.None)
+      .align(Alignment.Top)
+      .clip(true)
+      .borderRadius(BROWSER_DESKTOP_MENU_CORNER_RADIUS_VP)
     }
     .width(LARGE_SCREEN_OVERFLOW_MENU_WIDTH_VP)
-    .height(this.resolvePointerOverflowMenuHeight().heightVp)
-    .scrollable(ScrollDirection.Vertical)
-    .scrollBar(this.resolvePointerOverflowMenuHeight().scrollable ? BarState.Auto : BarState.Off)
-    .edgeEffect(EdgeEffect.None)
-    .align(Alignment.Top)
-    .clip(true)
     .backgroundColor(this.storedSurfaceBackgroundColor)
     .borderRadius(BROWSER_DESKTOP_MENU_CORNER_RADIUS_VP)
+    .clip(false)
     .shadow({
-      radius: 24,
+      radius: BROWSER_DESKTOP_MENU_SHADOW_RADIUS_VP,
       color: $r('app.color.elevation_shadow'),
       offsetX: 0,
-      offsetY: 8
+      offsetY: BROWSER_DESKTOP_MENU_SHADOW_OFFSET_Y_VP
     })
   }
 
@@ -955,7 +969,11 @@ export struct BrowserLargeScreenNavigationToolbarSurface {
         .maxLines(1)
       Blank()
         .layoutWeight(1)
-      this.buildOverflowZoomButton('reader.decreaseFont', '缩小网页', this.webZoomSnapshot.canDecrease, 'decrease')
+      if (this.webZoomSnapshot.canDecrease) {
+        this.buildOverflowZoomButton('browser.toolbar.zoomOut', '缩小网页', 'decrease', true)
+      } else {
+        this.buildOverflowZoomButton('browser.toolbar.zoomOut', '缩小网页', 'decrease', false)
+      }
       Text(this.webZoomSnapshot.percentLabel)
         .width(48)
         .fontSize(13)
@@ -966,7 +984,11 @@ export struct BrowserLargeScreenNavigationToolbarSurface {
         .onClick((): void => {
           this.applyOverflowZoom('reset');
         })
-      this.buildOverflowZoomButton('reader.increaseFont', '放大网页', this.webZoomSnapshot.canIncrease, 'increase')
+      if (this.webZoomSnapshot.canIncrease) {
+        this.buildOverflowZoomButton('browser.toolbar.zoomIn', '放大网页', 'increase', true)
+      } else {
+        this.buildOverflowZoomButton('browser.toolbar.zoomIn', '放大网页', 'increase', false)
+      }
       Divider()
         .vertical(true)
         .strokeWidth(1)
@@ -992,14 +1014,14 @@ export struct BrowserLargeScreenNavigationToolbarSurface {
   private buildOverflowZoomButton(
     iconId: AiraRenderableIconId,
     label: string,
-    enabled: boolean,
-    action: BrowserLargeScreenWebZoomAction
+    action: BrowserLargeScreenWebZoomAction,
+    enabled: boolean
   ) {
     Row() {
       AiraIcon({
         airaIconId: iconId,
         iconSize: 14,
-        iconColor: this.storedPrimaryTextColor
+        iconColor: enabled ? this.storedPrimaryTextColor : this.storedSecondaryTextColor
       })
     }
     .width(LARGE_SCREEN_OVERFLOW_ZOOM_BUTTON_SIZE_VP)
@@ -1008,9 +1030,16 @@ export struct BrowserLargeScreenNavigationToolbarSurface {
     .justifyContent(FlexAlign.Center)
     .backgroundColor(this.storedControlBackgroundColor)
     .borderRadius(LARGE_SCREEN_OVERFLOW_ZOOM_BUTTON_SIZE_VP / 2)
-    .opacity(this.webZoomSnapshot.available && enabled ? 1 : 0.38)
+    .enabled(enabled && this.webZoomSnapshot.available)
+    .opacity(enabled && this.webZoomSnapshot.available ? 1 : 0.38)
     .accessibilityText(label)
     .onClick((): void => {
+      if (action === 'decrease' && !this.webZoomSnapshot.canDecrease) {
+        return;
+      }
+      if (action === 'increase' && !this.webZoomSnapshot.canIncrease) {
+        return;
+      }
       this.applyOverflowZoom(action);
     })
   }
@@ -1163,7 +1192,7 @@ export struct BrowserLargeScreenNavigationToolbarSurface {
     return resolveBrowserLargeScreenOverflowMenuHeight(
       this.resolvePointerMenu(),
       this.viewportHeightVp,
-      this.popupReservedTopVp
+      this.popupReservedTopVp + BROWSER_DESKTOP_MENU_SHADOW_BLEED_VP
     );
   }
 
@@ -1200,7 +1229,7 @@ export struct BrowserLargeScreenNavigationToolbarSurface {
   private resolveOverflowPopupWidth(): number {
     const flyoutSpan = this.overflowFlyoutColumnCount *
       (BROWSER_LARGE_SCREEN_OVERFLOW_FLYOUT_WIDTH_VP + BROWSER_LARGE_SCREEN_OVERFLOW_FLYOUT_GAP_VP);
-    return LARGE_SCREEN_OVERFLOW_MENU_WIDTH_VP + flyoutSpan;
+    return LARGE_SCREEN_OVERFLOW_MENU_WIDTH_VP + flyoutSpan + BROWSER_DESKTOP_MENU_SHADOW_BLEED_VP * 2;
   }
 
   private handlePointerOverflowHover(actionId: string, hovered: boolean): void {

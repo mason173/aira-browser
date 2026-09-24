@@ -23,6 +23,8 @@ import {
 import { toggleDesktopBookmarkBarVisibility } from '../../../core/browser/DesktopBookmarkBarVisibility';
 import {
   BROWSER_DESKTOP_MENU_CORNER_RADIUS_VP,
+  BROWSER_DESKTOP_MENU_SHADOW_OFFSET_Y_VP,
+  BROWSER_DESKTOP_MENU_SHADOW_RADIUS_VP,
   BROWSER_DESKTOP_MENU_DIVIDER_HORIZONTAL_MARGIN_VP,
   BROWSER_DESKTOP_MENU_DIVIDER_WIDTH_VP,
   BROWSER_DESKTOP_MENU_HORIZONTAL_INSET_VP,
@@ -55,32 +57,37 @@ struct BrowserLargeScreenOverflowFlyoutPanel {
   private storedSurfaceBackgroundColor: string = '#FFFFFF';
 
   build() {
-    Scroll() {
-      Column() {
-        this.content()
+    Column() {
+      Scroll() {
+        Column() {
+          this.content()
+        }
+        .width('100%')
+        .padding({
+          left: BROWSER_DESKTOP_MENU_HORIZONTAL_INSET_VP,
+          right: BROWSER_DESKTOP_MENU_HORIZONTAL_INSET_VP,
+          top: BROWSER_DESKTOP_MENU_VERTICAL_INSET_VP,
+          bottom: BROWSER_DESKTOP_MENU_VERTICAL_INSET_VP
+        })
       }
-      .width('100%')
-      .padding({
-        left: BROWSER_DESKTOP_MENU_HORIZONTAL_INSET_VP,
-        right: BROWSER_DESKTOP_MENU_HORIZONTAL_INSET_VP,
-        top: BROWSER_DESKTOP_MENU_VERTICAL_INSET_VP,
-        bottom: BROWSER_DESKTOP_MENU_VERTICAL_INSET_VP
-      })
+      .width(BROWSER_LARGE_SCREEN_OVERFLOW_FLYOUT_WIDTH_VP)
+      .constraintSize({ maxHeight: this.maxHeightVp })
+      .scrollable(ScrollDirection.Vertical)
+      .scrollBar(BarState.Auto)
+      .edgeEffect(EdgeEffect.None)
+      .align(Alignment.Top)
+      .clip(true)
+      .borderRadius(BROWSER_DESKTOP_MENU_CORNER_RADIUS_VP)
     }
     .width(BROWSER_LARGE_SCREEN_OVERFLOW_FLYOUT_WIDTH_VP)
-    .constraintSize({ maxHeight: this.maxHeightVp })
-    .scrollable(ScrollDirection.Vertical)
-    .scrollBar(BarState.Auto)
-    .edgeEffect(EdgeEffect.None)
-    .align(Alignment.Top)
-    .clip(true)
     .backgroundColor(this.storedSurfaceBackgroundColor)
     .borderRadius(BROWSER_DESKTOP_MENU_CORNER_RADIUS_VP)
+    .clip(false)
     .shadow({
-      radius: 24,
+      radius: BROWSER_DESKTOP_MENU_SHADOW_RADIUS_VP,
       color: $r('app.color.elevation_shadow'),
       offsetX: 0,
-      offsetY: 8
+      offsetY: BROWSER_DESKTOP_MENU_SHADOW_OFFSET_Y_VP
     })
   }
 

@@ -21,3 +21,8 @@ export const BROWSER_DESKTOP_MENU_ITEM_HORIZONTAL_PADDING_VP: number = 10;
 export const BROWSER_DESKTOP_MENU_DISABLED_OPACITY: number = 0.38;
 export const BROWSER_DESKTOP_MENU_DIVIDER_WIDTH_VP: number = 0.5;
 export const BROWSER_DESKTOP_MENU_DIVIDER_HORIZONTAL_MARGIN_VP: number = 10;
+/** Soft blur for pointer menus. The popup clips anything outside its box, so callers must pad by the bleed. */
+export const BROWSER_DESKTOP_MENU_SHADOW_RADIUS_VP: number = 32;
+export const BROWSER_DESKTOP_MENU_SHADOW_OFFSET_Y_VP: number = 6;
+export const BROWSER_DESKTOP_MENU_SHADOW_BLEED_VP: number =
+  BROWSER_DESKTOP_MENU_SHADOW_RADIUS_VP + BROWSER_DESKTOP_MENU_SHADOW_OFFSET_Y_VP;
