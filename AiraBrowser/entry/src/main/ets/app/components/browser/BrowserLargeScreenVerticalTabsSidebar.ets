@@ -129,7 +129,10 @@ export struct BrowserLargeScreenVerticalTabsSidebar {
   @State private tabIconStates: SiteIconListRenderState[] = [];
   private siteIconListPresenter: SiteIconListPresenter = new SiteIconListPresenter();
   private hoverInside: boolean = false;
+  private shieldHovered: boolean = false;
   private peekCollapseTimer: number = -1;
+  private lastRowActionKey: string = '';
+  private lastRowActionAtMs: number = 0;
 
   aboutToAppear(): void {
     this.sidebarWidthVp = this.collapsed
@@ -148,34 +151,52 @@ export struct BrowserLargeScreenVerticalTabsSidebar {
   }
 
   build() {
-    Column({ space: 0 }) {
+    Stack({ alignContent: Alignment.TopStart }) {
+      this.buildSidebarHoverShield()
+      Column({ space: 0 }) {
       this.buildHeader()
       Divider()
         .strokeWidth(1)
         .color(this.storedDividerColor)
         .margin({ left: 12, right: 12 })
       Scroll() {
-        Column({ space: 2 }) {
+        Column({ space: 0 }) {
           ForEach(this.tabStrip.allTabs, (tab: BrowserLargeScreenTabProjection): void => {
-            this.buildTab(tab)
+            this.buildTabHoverPlate(tab)
           }, (tab: BrowserLargeScreenTabProjection): string =>
             `${tab.id}:${tab.active ? 'a' : ''}:${tab.pinned ? 'p' : ''}${tab.muted ? 'm' : ''}:${tab.title}`)
-          this.buildNewTabButton()
+          this.buildNewTabHoverPlate()
         }
         .width('100%')
         .padding({ top: 6, bottom: 8 })
         .alignItems(HorizontalAlign.Start)
+        .backgroundColor(this.storedPageBackgroundColor)
+        .hitTestBehavior(HitTestMode.Default)
+        .onHover((hovered: boolean): void => {
+          if (hovered) {
+            this.noteHover(true);
+          }
+        })
       }
       .layoutWeight(1)
       .width('100%')
       .align(Alignment.TopStart)
       .scrollBar(BarState.Off)
+      .edgeEffect(EdgeEffect.None)
+      .scrollable(ScrollDirection.Vertical)
+      .backgroundColor(this.storedPageBackgroundColor)
+      .hitTestBehavior(HitTestMode.Transparent)
+    }
+    .width('100%')
+    .height('100%')
+    .alignItems(HorizontalAlign.Start)
+    .hitTestBehavior(HitTestMode.Transparent)
     }
     .width(this.sidebarWidthVp)
     .height('100%')
-    .alignItems(HorizontalAlign.Start)
     .backgroundColor(this.storedPageBackgroundColor)
     .clip(false)
+    .hitTestBehavior(HitTestMode.BLOCK_HIERARCHY)
     .border({
       width: { right: this.sidebarBorderWidthVp() },
       color: this.storedDividerColor
@@ -189,11 +210,45 @@ export struct BrowserLargeScreenVerticalTabsSidebar {
     .onHover((hovered: boolean): void => {
       this.noteHover(hovered);
     })
+    .onMouse((event: MouseEvent): void => {
+      if (event.action === MouseAction.Move) {
+        this.notePointerInside();
+      }
+    })
     .bindContextMenu(
       this.buildBlankContextMenu(),
       ResponseType.RightClick,
       buildBrowserDesktopMenuOptions({ preview: MenuPreviewMode.NONE })
     )
+  }
+
+  @Builder
+  private buildSidebarHoverShield() {
+    Button({ type: ButtonType.Normal }) {
+      Row()
+        .width('100%')
+        .height('100%')
+    }
+    .width('100%')
+    .height('100%')
+    .padding(0)
+    .borderRadius(0)
+    .backgroundColor(this.storedPageBackgroundColor)
+    .stateEffect(false)
+    .hoverEffect(HoverEffect.None)
+    .hitTestBehavior(HitTestMode.Default)
+    .onHover((hovered: boolean): void => {
+      this.shieldHovered = hovered;
+      if (hovered) {
+        this.notePointerInside();
+      }
+    })
+    .onMouse((event: MouseEvent): void => {
+      if (event.action === MouseAction.Move) {
+        this.shieldHovered = true;
+        this.notePointerInside();
+      }
+    })
   }
 
   @Builder
@@ -241,18 +296,44 @@ export struct BrowserLargeScreenVerticalTabsSidebar {
   }
 
   @Builder
+  private buildTabHoverPlate(tab: BrowserLargeScreenTabProjection) {
+    Column() {
+      this.buildTab(tab)
+    }
+    .width('100%')
+    .padding({ bottom: 2 })
+    .backgroundColor(this.storedPageBackgroundColor)
+    .hitTestBehavior(HitTestMode.Default)
+    .onHover((hovered: boolean): void => {
+      if (hovered) {
+        this.noteHover(true);
+      }
+    })
+  }
+
+  @Builder
+  private buildNewTabHoverPlate() {
+    Column() {
+      this.buildNewTabButton()
+    }
+    .width('100%')
+    .padding({ top: 2 })
+    .backgroundColor(this.storedPageBackgroundColor)
+    .hitTestBehavior(HitTestMode.Default)
+    .onHover((hovered: boolean): void => {
+      if (hovered) {
+        this.noteHover(true);
+      }
+    })
+  }
+
+  @Builder
   private buildTab(tab: BrowserLargeScreenTabProjection) {
     Stack({ alignContent: Alignment.TopStart }) {
-      // A background is required. Without one, ArkUI only hit-tests the painted
-      // glyphs, so the rest of the row cannot switch tabs.
-      Row()
-        .width('100%')
-        .height('100%')
-        .backgroundColor(Color.Transparent)
-        .accessibilityText(`切换到${this.resolveTabTitle(tab)}`)
-        .onClick((): void => {
-          this.onIntent({ kind: 'select_tab', tabId: tab.id });
-        })
+      // Activate on pointer-down. Inside Scroll, a PC mouse click is often claimed
+      // by the scroll or context-menu recognizer before mouse-up, so onClick only
+      // lands on a perfectly still press.
+      this.buildRowActivator(`select_tab:${tab.id}`, `切换到${this.resolveTabTitle(tab)}`, tab.id, 'select_tab')
       this.buildTabHighlight(tab)
       Row() {
         this.buildTabIconSlot(tab)
@@ -282,10 +363,75 @@ export struct BrowserLargeScreenVerticalTabsSidebar {
     }
     .width('100%')
     .height(TAB_ROW_HEIGHT_VP)
+    .backgroundColor(this.storedPageBackgroundColor)
+    .hitTestBehavior(HitTestMode.Default)
+    .responseRegion({
+      x: 0,
+      y: -8,
+      width: '100%',
+      height: TAB_ROW_HEIGHT_VP + 16
+    })
     .onHover((hovered: boolean): void => {
       this.hoveredTabId = hovered ? tab.id : (this.hoveredTabId === tab.id ? '' : this.hoveredTabId);
+      if (hovered) {
+        this.notePointerInside();
+      }
+    })
+    .onMouse((event: MouseEvent): void => {
+      this.activateTabFromPointer(tab.id, 'select_tab', event);
+    })
+    .onTouch((event: TouchEvent): void => {
+      this.activateTabFromTouch(tab.id, 'select_tab', event);
     })
     .bindContextMenu(this.buildTabContextMenu(tab), ResponseType.RightClick, buildBrowserDesktopMenuOptions())
+  }
+
+  @Builder
+  private buildRowActivator(actionKey: string, accessibilityLabel: string, tabId: string, kind: string) {
+    Button({ type: ButtonType.Normal }) {
+      Row()
+        .width('100%')
+        .height('100%')
+    }
+    .width('100%')
+    .height(TAB_ROW_HEIGHT_VP)
+    .padding(0)
+    .borderRadius(0)
+    .backgroundColor(Color.Transparent)
+    .stateEffect(false)
+    .hoverEffect(HoverEffect.None)
+    .hitTestBehavior(HitTestMode.Block)
+    .accessibilityText(accessibilityLabel)
+    .onMouse((event: MouseEvent): void => {
+      if (!this.isPrimaryPointerDown(event)) {
+        return;
+      }
+      event.stopPropagation();
+      this.dispatchRowAction(actionKey, (): void => {
+        this.dispatchRowKind(kind, tabId);
+      });
+    })
+    .onTouch((event: TouchEvent): void => {
+      if (event.type !== TouchType.Down) {
+        return;
+      }
+      this.dispatchRowAction(actionKey, (): void => {
+        this.dispatchRowKind(kind, tabId);
+      });
+    })
+    .parallelGesture(
+      TapGesture({ count: 1 })
+        .onAction((): void => {
+          this.dispatchRowAction(actionKey, (): void => {
+            this.dispatchRowKind(kind, tabId);
+          });
+        })
+    )
+    .onClick((): void => {
+      this.dispatchRowAction(actionKey, (): void => {
+        this.dispatchRowKind(kind, tabId);
+      });
+    })
   }
 
   @Builder
@@ -345,22 +491,43 @@ export struct BrowserLargeScreenVerticalTabsSidebar {
       if (tab.audible || tab.muted) {
         this.buildAudioButton(tab)
       }
-      if (this.shouldShowClose(tab)) {
-        Button({ type: ButtonType.Circle }) {
-          AiraIcon({
-            airaIconId: 'browser.tabs.delete',
-            iconSize: CLOSE_ICON_SIZE_VP,
-            iconColor: this.storedSecondaryTextColor
-          })
-        }
-        .width(CLOSE_BUTTON_SIZE_VP)
-        .height(CLOSE_BUTTON_SIZE_VP)
-        .backgroundColor($r('sys.color.ohos_id_color_background_transparent'))
-        .accessibilityText(`关闭${this.resolveTabTitle(tab)}`)
-        .onClick((): void => {
-          this.onIntent({ kind: 'close_tab', tabId: tab.id });
+      Button({ type: ButtonType.Circle }) {
+        AiraIcon({
+          airaIconId: 'browser.tabs.delete',
+          iconSize: CLOSE_ICON_SIZE_VP,
+          iconColor: this.storedSecondaryTextColor
         })
       }
+      .width(CLOSE_BUTTON_SIZE_VP)
+      .height(CLOSE_BUTTON_SIZE_VP)
+      .backgroundColor($r('sys.color.ohos_id_color_background_transparent'))
+      .accessibilityText(`关闭${this.resolveTabTitle(tab)}`)
+      .opacity(this.shouldShowClose(tab) ? 1 : 0)
+      .hitTestBehavior(this.shouldShowClose(tab) ? HitTestMode.Default : HitTestMode.None)
+      .enabled(this.shouldShowClose(tab))
+      .onMouse((event: MouseEvent): void => {
+        if (!this.isPrimaryPointerDown(event)) {
+          return;
+        }
+        event.stopPropagation();
+        this.dispatchRowAction(`close:${tab.id}`, (): void => {
+          this.onIntent({ kind: 'close_tab', tabId: tab.id });
+        });
+      })
+      .onTouch((event: TouchEvent): void => {
+        if (event.type !== TouchType.Down) {
+          return;
+        }
+        event.stopPropagation();
+        this.dispatchRowAction(`close:${tab.id}`, (): void => {
+          this.onIntent({ kind: 'close_tab', tabId: tab.id });
+        });
+      })
+      .onClick((): void => {
+        this.dispatchRowAction(`close:${tab.id}`, (): void => {
+          this.onIntent({ kind: 'close_tab', tabId: tab.id });
+        });
+      })
     }
     .width('100%')
     .height('100%')
@@ -372,14 +539,7 @@ export struct BrowserLargeScreenVerticalTabsSidebar {
   @Builder
   private buildNewTabButton() {
     Stack({ alignContent: Alignment.TopStart }) {
-      Row()
-        .width('100%')
-        .height('100%')
-        .backgroundColor(Color.Transparent)
-        .accessibilityText('新建标签页')
-        .onClick((): void => {
-          this.onIntent({ kind: 'new_tab', tabId: '' });
-        })
+      this.buildRowActivator('new_tab:', '新建标签页', '', 'new_tab')
       Row() {
         Column() {
           Stack({ alignContent: Alignment.Center }) {
@@ -410,7 +570,25 @@ export struct BrowserLargeScreenVerticalTabsSidebar {
     }
     .width('100%')
     .height(TAB_ROW_HEIGHT_VP)
-    .margin({ top: 2 })
+    .backgroundColor(this.storedPageBackgroundColor)
+    .hitTestBehavior(HitTestMode.Default)
+    .responseRegion({
+      x: 0,
+      y: -8,
+      width: '100%',
+      height: TAB_ROW_HEIGHT_VP + 16
+    })
+    .onHover((hovered: boolean): void => {
+      if (hovered) {
+        this.notePointerInside();
+      }
+    })
+    .onMouse((event: MouseEvent): void => {
+      this.activateTabFromPointer('', 'new_tab', event);
+    })
+    .onTouch((event: TouchEvent): void => {
+      this.activateTabFromTouch('', 'new_tab', event);
+    })
   }
 
   @Builder
@@ -463,8 +641,28 @@ export struct BrowserLargeScreenVerticalTabsSidebar {
     .height(CLOSE_BUTTON_SIZE_VP)
     .backgroundColor($r('sys.color.ohos_id_color_background_transparent'))
     .accessibilityText(tab.muted ? `取消${this.resolveTabTitle(tab)}静音` : `将${this.resolveTabTitle(tab)}静音`)
+    .onMouse((event: MouseEvent): void => {
+      if (!this.isPrimaryPointerDown(event)) {
+        return;
+      }
+      event.stopPropagation();
+      this.dispatchRowAction(`mute:${tab.id}`, (): void => {
+        this.onIntent({ kind: 'tab_context_action', tabId: tab.id, actionId: 'toggle_mute' });
+      });
+    })
+    .onTouch((event: TouchEvent): void => {
+      if (event.type !== TouchType.Down) {
+        return;
+      }
+      event.stopPropagation();
+      this.dispatchRowAction(`mute:${tab.id}`, (): void => {
+        this.onIntent({ kind: 'tab_context_action', tabId: tab.id, actionId: 'toggle_mute' });
+      });
+    })
     .onClick((): void => {
-      this.onIntent({ kind: 'tab_context_action', tabId: tab.id, actionId: 'toggle_mute' });
+      this.dispatchRowAction(`mute:${tab.id}`, (): void => {
+        this.onIntent({ kind: 'tab_context_action', tabId: tab.id, actionId: 'toggle_mute' });
+      });
     })
   }
 
@@ -551,6 +749,48 @@ export struct BrowserLargeScreenVerticalTabsSidebar {
     })
   }
 
+  private isPrimaryPointerDown(event: MouseEvent): boolean {
+    return event.button === MouseButton.Left && event.action === MouseAction.Press;
+  }
+
+  private activateTabFromPointer(tabId: string, kind: string, event: MouseEvent): void {
+    if (!this.isPrimaryPointerDown(event)) {
+      return;
+    }
+    this.dispatchRowAction(`${kind}:${tabId}`, (): void => {
+      this.dispatchRowKind(kind, tabId);
+    });
+  }
+
+  private activateTabFromTouch(tabId: string, kind: string, event: TouchEvent): void {
+    if (event.type !== TouchType.Down) {
+      return;
+    }
+    this.dispatchRowAction(`${kind}:${tabId}`, (): void => {
+      this.dispatchRowKind(kind, tabId);
+    });
+  }
+
+  private dispatchRowKind(kind: string, tabId: string): void {
+    if (kind === 'select_tab') {
+      this.onIntent({ kind: 'select_tab', tabId: tabId });
+      return;
+    }
+    if (kind === 'new_tab') {
+      this.onIntent({ kind: 'new_tab', tabId: '' });
+    }
+  }
+
+  private dispatchRowAction(actionKey: string, action: () => void): void {
+    const now = Date.now();
+    if (actionKey === this.lastRowActionKey && now - this.lastRowActionAtMs < 120) {
+      return;
+    }
+    this.lastRowActionKey = actionKey;
+    this.lastRowActionAtMs = now;
+    action();
+  }
+
   private resolveHeaderHeightVp(): number {
     return this.collapsed ? 44 : Math.max(44, this.headerHeightVp);
   }
@@ -626,28 +866,44 @@ export struct BrowserLargeScreenVerticalTabsSidebar {
   }
 
   private noteHover(hovered: boolean): void {
-    this.hoverInside = hovered;
+    if (hovered) {
+      this.notePointerInside();
+      return;
+    }
+    this.notePointerMaybeLeft();
+  }
+
+  private notePointerInside(): void {
+    this.hoverInside = true;
+    this.clearPeekCollapseTimer();
     if (!this.collapsed) {
       return;
     }
-    if (hovered) {
-      this.clearPeekCollapseTimer();
-      this.animateSidebarWidth(
-        BROWSER_LARGE_SCREEN_VERTICAL_TABS_EXPANDED_WIDTH_VP,
-        PEEK_EXPAND_DURATION_MS,
-        Curve.FastOutSlowIn
-      );
+    if (this.sidebarWidthVp >= BROWSER_LARGE_SCREEN_VERTICAL_TABS_EXPANDED_WIDTH_VP - 1) {
+      return;
+    }
+    this.animateSidebarWidth(
+      BROWSER_LARGE_SCREEN_VERTICAL_TABS_EXPANDED_WIDTH_VP,
+      PEEK_EXPAND_DURATION_MS,
+      Curve.FastOutSlowIn
+    );
+  }
+
+  private notePointerMaybeLeft(): void {
+    if (!this.collapsed || !this.hoverInside) {
       return;
     }
     this.clearPeekCollapseTimer();
     this.peekCollapseTimer = setTimeout((): void => {
-      if (!this.hoverInside && this.collapsed) {
-        this.animateSidebarWidth(
-          BROWSER_LARGE_SCREEN_VERTICAL_TABS_RAIL_WIDTH_VP,
-          PEEK_COLLAPSE_DURATION_MS,
-          Curve.EaseInOut
-        );
+      if (this.shieldHovered || !this.collapsed) {
+        return;
       }
+      this.hoverInside = false;
+      this.animateSidebarWidth(
+        BROWSER_LARGE_SCREEN_VERTICAL_TABS_RAIL_WIDTH_VP,
+        PEEK_COLLAPSE_DURATION_MS,
+        Curve.EaseInOut
+      );
     }, PEEK_COLLAPSE_DELAY_MS);
   }
 
