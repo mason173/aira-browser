@@ -58,7 +58,8 @@ import {
 } from '../../../services/browser/BrowserLargeScreenWindowChromeService';
 
 const TAB_ICON_SIZE_VP: number = 16;
-const TAB_ROW_HEIGHT_VP: number = 36;
+const TAB_ICON_SLOT_SIZE_VP: number = 36;
+const TAB_ROW_HEIGHT_VP: number = 40;
 const TAB_ROW_INSET_VP: number = 8;
 const HEADER_BUTTON_SIZE_VP: number = 32;
 const CLOSE_BUTTON_SIZE_VP: number = 22;
@@ -205,6 +206,7 @@ export struct BrowserLargeScreenVerticalTabsSidebar {
       .height('100%')
       .flexShrink(0)
       .justifyContent(FlexAlign.Center)
+      .alignItems(HorizontalAlign.Center)
       Row()
         .layoutWeight(1)
         .constraintSize({ minWidth: 0 })
@@ -240,35 +242,20 @@ export struct BrowserLargeScreenVerticalTabsSidebar {
 
   @Builder
   private buildTab(tab: BrowserLargeScreenTabProjection) {
-    Stack({ alignContent: Alignment.Center }) {
+    Stack({ alignContent: Alignment.TopStart }) {
+      // A background is required. Without one, ArkUI only hit-tests the painted
+      // glyphs, so the rest of the row cannot switch tabs.
       Row()
-        .width(`calc(100% - ${TAB_ROW_INSET_VP * 2}vp)`)
+        .width('100%')
         .height('100%')
-        .margin({ left: TAB_ROW_INSET_VP })
-        .borderRadius(10)
-        .backgroundColor(this.resolveTabBackground(tab))
-        .hitTestBehavior(HitTestMode.None)
-      Row() {
-      Column() {
-        Button({ type: ButtonType.Normal }) {
-          this.buildTabIcon(tab)
-        }
-        .width(36)
-        .height(36)
-        .borderRadius(10)
-        .backgroundColor(this.resolveRailIconBackground(tab))
-        .stateEffect(false)
-        .hoverEffect(HoverEffect.None)
+        .backgroundColor(Color.Transparent)
         .accessibilityText(`切换到${this.resolveTabTitle(tab)}`)
         .onClick((): void => {
           this.onIntent({ kind: 'select_tab', tabId: tab.id });
         })
-      }
-      .width(BROWSER_LARGE_SCREEN_VERTICAL_TABS_RAIL_WIDTH_VP)
-      .height(TAB_ROW_HEIGHT_VP)
-      .flexShrink(0)
-      .justifyContent(FlexAlign.Center)
-      Row({ space: 4 }) {
+      this.buildTabHighlight(tab)
+      Row() {
+        this.buildTabIconSlot(tab)
         Text(this.resolveTabTitle(tab))
           .layoutWeight(1)
           .constraintSize({ minWidth: 0 })
@@ -280,41 +267,18 @@ export struct BrowserLargeScreenVerticalTabsSidebar {
           .textOverflow({ overflow: TextOverflow.Ellipsis })
           .ellipsisMode(EllipsisMode.END)
           .wordBreak(WordBreak.BREAK_ALL)
-          .onClick((): void => {
-            this.onIntent({ kind: 'select_tab', tabId: tab.id });
-          })
-        if (tab.audible || tab.muted) {
-          this.buildAudioButton(tab)
-        }
-        if (this.shouldShowClose(tab)) {
-          Button({ type: ButtonType.Circle }) {
-            AiraIcon({
-              airaIconId: 'browser.tabs.delete',
-              iconSize: CLOSE_ICON_SIZE_VP,
-              iconColor: this.storedSecondaryTextColor
-            })
-          }
-          .width(CLOSE_BUTTON_SIZE_VP)
-          .height(CLOSE_BUTTON_SIZE_VP)
-          .backgroundColor($r('sys.color.ohos_id_color_background_transparent'))
-          .accessibilityText(`关闭${this.resolveTabTitle(tab)}`)
-          .onClick((): void => {
-            this.onIntent({ kind: 'close_tab', tabId: tab.id });
-          })
-        }
-      }
-      .layoutWeight(1)
-      .constraintSize({ minWidth: 0 })
-      .height(TAB_ROW_HEIGHT_VP)
-      .padding({ right: TAB_ROW_INSET_VP + 8 })
-      .clip(true)
-      .alignItems(VerticalAlign.Center)
-      .opacity(this.detailOpacity())
-      .hitTestBehavior(this.detailHitTestMode())
+          .opacity(this.detailOpacity())
       }
       .width('100%')
       .height('100%')
+      .padding({
+        right: this.detailActionsVisible() ? TAB_ROW_INSET_VP + CLOSE_BUTTON_SIZE_VP + 8 : 0
+      })
       .alignItems(VerticalAlign.Center)
+      .hitTestBehavior(HitTestMode.None)
+      if (this.detailActionsVisible()) {
+        this.buildTabActions(tab)
+      }
     }
     .width('100%')
     .height(TAB_ROW_HEIGHT_VP)
@@ -325,34 +289,128 @@ export struct BrowserLargeScreenVerticalTabsSidebar {
   }
 
   @Builder
-  private buildNewTabButton() {
-    Row() {
+  private buildTabHighlight(tab: BrowserLargeScreenTabProjection) {
+    if (this.isRailWidth()) {
       Column() {
-        SymbolGlyph($r('sys.symbol.plus'))
-          .fontSize(16)
-          .fontColor([this.storedSecondaryTextColor])
+        Row()
+          .width(TAB_ICON_SLOT_SIZE_VP)
+          .height(TAB_ICON_SLOT_SIZE_VP)
+          .borderRadius(10)
+          .backgroundColor(this.resolveTabBackground(tab))
       }
       .width(BROWSER_LARGE_SCREEN_VERTICAL_TABS_RAIL_WIDTH_VP)
-      .height(TAB_ROW_HEIGHT_VP)
-      .flexShrink(0)
+      .height('100%')
       .justifyContent(FlexAlign.Center)
-      Text('新建标签页')
+      .alignItems(HorizontalAlign.Center)
+      .hitTestBehavior(HitTestMode.None)
+    } else {
+      Row() {
+        Row()
+          .layoutWeight(1)
+          .height(TAB_ICON_SLOT_SIZE_VP)
+          .borderRadius(10)
+          .backgroundColor(this.resolveTabBackground(tab))
+      }
+      .width('100%')
+      .height('100%')
+      .padding({ left: TAB_ROW_INSET_VP, right: TAB_ROW_INSET_VP })
+      .alignItems(VerticalAlign.Center)
+      .hitTestBehavior(HitTestMode.None)
+    }
+  }
+
+  @Builder
+  private buildTabIconSlot(tab: BrowserLargeScreenTabProjection) {
+    Column() {
+      Stack({ alignContent: Alignment.Center }) {
+        this.buildTabIcon(tab)
+      }
+      .width(TAB_ICON_SLOT_SIZE_VP)
+      .height(TAB_ICON_SLOT_SIZE_VP)
+    }
+    .width(BROWSER_LARGE_SCREEN_VERTICAL_TABS_RAIL_WIDTH_VP)
+    .height('100%')
+    .flexShrink(0)
+    .justifyContent(FlexAlign.Center)
+    .alignItems(HorizontalAlign.Center)
+    .hitTestBehavior(HitTestMode.None)
+  }
+
+  @Builder
+  private buildTabActions(tab: BrowserLargeScreenTabProjection) {
+    Row({ space: 2 }) {
+      Blank()
         .layoutWeight(1)
-        .constraintSize({ minWidth: 0 })
-        .fontSize(BROWSER_LARGE_SCREEN_TAB_TITLE_FONT_SIZE_VP)
-        .fontColor(this.storedPrimaryTextColor)
-        .maxLines(1)
-        .opacity(this.detailOpacity())
+        .hitTestBehavior(HitTestMode.None)
+      if (tab.audible || tab.muted) {
+        this.buildAudioButton(tab)
+      }
+      if (this.shouldShowClose(tab)) {
+        Button({ type: ButtonType.Circle }) {
+          AiraIcon({
+            airaIconId: 'browser.tabs.delete',
+            iconSize: CLOSE_ICON_SIZE_VP,
+            iconColor: this.storedSecondaryTextColor
+          })
+        }
+        .width(CLOSE_BUTTON_SIZE_VP)
+        .height(CLOSE_BUTTON_SIZE_VP)
+        .backgroundColor($r('sys.color.ohos_id_color_background_transparent'))
+        .accessibilityText(`关闭${this.resolveTabTitle(tab)}`)
+        .onClick((): void => {
+          this.onIntent({ kind: 'close_tab', tabId: tab.id });
+        })
+      }
+    }
+    .width('100%')
+    .height('100%')
+    .padding({ right: TAB_ROW_INSET_VP })
+    .alignItems(VerticalAlign.Center)
+    .hitTestBehavior(HitTestMode.Transparent)
+  }
+
+  @Builder
+  private buildNewTabButton() {
+    Stack({ alignContent: Alignment.TopStart }) {
+      Row()
+        .width('100%')
+        .height('100%')
+        .backgroundColor(Color.Transparent)
+        .accessibilityText('新建标签页')
+        .onClick((): void => {
+          this.onIntent({ kind: 'new_tab', tabId: '' });
+        })
+      Row() {
+        Column() {
+          Stack({ alignContent: Alignment.Center }) {
+            SymbolGlyph($r('sys.symbol.plus'))
+              .fontSize(16)
+              .fontColor([this.storedSecondaryTextColor])
+          }
+          .width(TAB_ICON_SLOT_SIZE_VP)
+          .height(TAB_ICON_SLOT_SIZE_VP)
+        }
+        .width(BROWSER_LARGE_SCREEN_VERTICAL_TABS_RAIL_WIDTH_VP)
+        .height('100%')
+        .flexShrink(0)
+        .justifyContent(FlexAlign.Center)
+        .alignItems(HorizontalAlign.Center)
+        Text('新建标签页')
+          .layoutWeight(1)
+          .constraintSize({ minWidth: 0 })
+          .fontSize(BROWSER_LARGE_SCREEN_TAB_TITLE_FONT_SIZE_VP)
+          .fontColor(this.storedPrimaryTextColor)
+          .maxLines(1)
+          .opacity(this.detailOpacity())
+      }
+      .width('100%')
+      .height('100%')
+      .alignItems(VerticalAlign.Center)
+      .hitTestBehavior(HitTestMode.None)
     }
     .width('100%')
     .height(TAB_ROW_HEIGHT_VP)
     .margin({ top: 2 })
-    .borderRadius(10)
-    .alignItems(VerticalAlign.Center)
-    .accessibilityText('新建标签页')
-    .onClick((): void => {
-      this.onIntent({ kind: 'new_tab', tabId: '' });
-    })
   }
 
   @Builder
@@ -524,10 +582,12 @@ export struct BrowserLargeScreenVerticalTabsSidebar {
     return faded;
   }
 
-  private detailHitTestMode(): HitTestMode {
-    return this.sidebarWidthVp > BROWSER_LARGE_SCREEN_VERTICAL_TABS_RAIL_WIDTH_VP + 24
-      ? HitTestMode.Default
-      : HitTestMode.None;
+  private isRailWidth(): boolean {
+    return this.sidebarWidthVp <= BROWSER_LARGE_SCREEN_VERTICAL_TABS_RAIL_WIDTH_VP + 1;
+  }
+
+  private detailActionsVisible(): boolean {
+    return this.sidebarWidthVp > BROWSER_LARGE_SCREEN_VERTICAL_TABS_RAIL_WIDTH_VP + 24;
   }
 
   private sidebarBorderWidthVp(): number {
@@ -638,10 +698,6 @@ export struct BrowserLargeScreenVerticalTabsSidebar {
     if (this.hoveredTabId === tab.id) {
       return this.storedControlBackgroundColor;
     }
-    return $r('sys.color.ohos_id_color_background_transparent');
-  }
-
-  private resolveRailIconBackground(_tab: BrowserLargeScreenTabProjection): ResourceColor {
     return $r('sys.color.ohos_id_color_background_transparent');
   }
 
