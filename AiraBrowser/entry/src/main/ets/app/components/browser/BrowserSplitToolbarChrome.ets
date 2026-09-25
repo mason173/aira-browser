@@ -22,6 +22,7 @@ import {
 import { sharedExternalAppSearchPreferencesRepository } from '../../bootstrap/BrowserAppRuntime';
 
 const SPLIT_TOOLBAR_PILL_HEIGHT: number = 46;
+const SPLIT_TOOLBAR_SEARCH_PILL_BORDER: number = 2;
 const SPLIT_TOOLBAR_ADDRESS_HORIZONTAL_MARGIN: number = 16;
 const SPLIT_TOOLBAR_TAB_COUNT_LIMIT: number = 99;
 const SPLIT_TOOLBAR_SELECT_ALL_DELAY_MS: number = 40;
@@ -29,10 +30,16 @@ const SPLIT_TOOLBAR_NAV_BUTTON_WIDTH: number = 48;
 const SPLIT_TOOLBAR_NAV_BUTTON_HEIGHT: number = 44;
 const SPLIT_TOOLBAR_NAV_PRESS_RADIUS: number = 12;
 const SPLIT_TOOLBAR_ICON_SIZE: number = 22;
+const SPLIT_TOOLBAR_HOME_ICON_SIZE: number = 25;
 const SPLIT_TOOLBAR_TAB_BADGE_SIZE: number = 18;
+const SPLIT_TOOLBAR_HOME_TAB_BADGE_SIZE: number = 21;
 const SPLIT_TOOLBAR_TAB_BADGE_RADIUS: number = 4.5;
+const SPLIT_TOOLBAR_HOME_TAB_BADGE_RADIUS: number = 5.25;
 const SPLIT_TOOLBAR_TAB_BADGE_STROKE: number = 2;
 const SPLIT_TOOLBAR_SEARCH_INPUT_ID: string = 'split-toolbar-search-input';
+
+/** `search_only` reuses this search page without mounting the split navigation bar. */
+export type BrowserSplitToolbarSessionMode = 'chrome' | 'search_only';
 
 @Component
 export struct BrowserSplitToolbarChrome {
@@ -40,6 +47,7 @@ export struct BrowserSplitToolbarChrome {
     new BrowserSearchEnginePresentationViewModel();
   private searchInputController: TextInputController = new TextInputController();
   private appliedSearchDismissVersion: number = 0;
+  private appliedSearchOpenRequestVersion: number = 0;
   private externalAppSearchService: ExternalAppSearchService = new ExternalAppSearchService();
   @State private searching: boolean = false;
   @State private query: string = '';
@@ -60,6 +68,15 @@ export struct BrowserSplitToolbarChrome {
   @Prop bottomSafeInsetVp: number = 0;
   @Prop keyboardInsetVp: number = 0;
   @Prop @Watch('handleSearchDismissRequest') searchDismissVersion: number = 0;
+  @Prop @Watch('handleSearchOpenRequest') searchOpenRequestVersion: number = 0;
+  @Prop sessionMode: BrowserSplitToolbarSessionMode = 'chrome';
+  /**
+   * Centered homepage already has a search field. Hide this address row on that home so the two
+   * do not stack. Search still uses the row; web pages keep it.
+   */
+  @Prop suppressHomeAddressBar: boolean = false;
+  /** Negative keeps the split bottom-bar reserve. A homepage search session passes its own. */
+  @Prop bottomChromeReserveVp: number = -1;
   @Prop pageBackgroundColor: ResourceColor = '#FFFFFF';
   @Prop barBackgroundColor: ResourceColor = '#FFFFFF';
   @Prop pressedBackgroundColor: ResourceColor = '#14000000';
@@ -84,15 +101,25 @@ export struct BrowserSplitToolbarChrome {
   onOpenSiteInfo: () => void = () => {};
   onScan: () => void = () => {};
 
+  aboutToAppear(): void {
+    if (this.sessionMode === 'search_only') {
+      this.handleSearchOpenRequest();
+    }
+  }
+
   build() {
     Stack({ alignContent: Alignment.Top }) {
-      if (this.searching) {
+      if (this.searching || this.sessionMode === 'search_only') {
         this.buildSearchSheet()
       }
       Column() {
-        this.buildTopBar()
+        if (this.shouldShowTopBar()) {
+          this.buildTopBar()
+        }
         Blank()
-        this.buildBottomBar()
+        if (this.shouldShowBottomBar()) {
+          this.buildBottomBar()
+        }
       }
       .width('100%')
       .height('100%')
@@ -106,7 +133,7 @@ export struct BrowserSplitToolbarChrome {
   @Builder
   private buildTopBar() {
     Column() {
-      if (this.searching) {
+      if (this.searching || this.sessionMode === 'search_only') {
         this.buildSearchPill()
       } else if (this.homeScene) {
         this.buildHomePill()
@@ -320,7 +347,7 @@ export struct BrowserSplitToolbarChrome {
     .height(SPLIT_TOOLBAR_PILL_HEIGHT)
     .alignItems(VerticalAlign.Center)
     .padding({ left: 8, right: 0 })
-    .border({ width: 1.5, color: this.textColor })
+    .border({ width: SPLIT_TOOLBAR_SEARCH_PILL_BORDER, color: this.textColor })
     .borderRadius(23)
     .clip(true)
     .backgroundColor(this.pageBackgroundColor)
@@ -406,7 +433,7 @@ export struct BrowserSplitToolbarChrome {
     .height('100%')
     .padding({
       top: this.resolveTopInset() + SPLIT_TOOLBAR_ADDRESS_BLOCK_VP,
-      bottom: this.resolveBottomChromeHeight() + Math.max(0, this.keyboardInsetVp)
+      bottom: this.resolveSearchSheetBottomInset() + Math.max(0, this.keyboardInsetVp)
     })
     .justifyContent(FlexAlign.Start)
     .alignItems(HorizontalAlign.Start)
@@ -424,8 +451,8 @@ export struct BrowserSplitToolbarChrome {
         } else {
           this.buildNavButton('browser.toolbar.back', this.canGoBack, 'back')
           this.buildNavButton('browser.toolbar.forward', this.canGoForward, 'forward')
+          this.buildNavButton('browser.toolbar.home', true, 'home')
         }
-        this.buildNavButton('browser.toolbar.home', true, 'home')
         this.buildTabButton()
         this.buildNavButton('browser.toolbar.menu', true, 'menu')
       }
@@ -457,9 +484,9 @@ export struct BrowserSplitToolbarChrome {
           .textAlign(TextAlign.Center)
           .maxLines(1)
       }
-      .width(SPLIT_TOOLBAR_TAB_BADGE_SIZE)
-      .height(SPLIT_TOOLBAR_TAB_BADGE_SIZE)
-      .borderRadius(SPLIT_TOOLBAR_TAB_BADGE_RADIUS)
+      .width(this.resolveTabBadgeSize())
+      .height(this.resolveTabBadgeSize())
+      .borderRadius(this.resolveTabBadgeRadius())
       .border({ width: SPLIT_TOOLBAR_TAB_BADGE_STROKE, color: this.textColor })
       .backgroundColor(Color.Transparent)
     }
@@ -479,7 +506,7 @@ export struct BrowserSplitToolbarChrome {
     Button() {
       AiraIcon({
         airaIconId: iconId,
-        iconSize: SPLIT_TOOLBAR_ICON_SIZE,
+        iconSize: this.resolveNavIconSize(),
         iconColor: enabled ? this.textColor : this.secondaryTextColor
       })
     }
@@ -552,8 +579,18 @@ export struct BrowserSplitToolbarChrome {
     this.closeSearch();
   }
 
+  private handleSearchOpenRequest(): void {
+    if (this.searchOpenRequestVersion <= 0 ||
+      this.searchOpenRequestVersion === this.appliedSearchOpenRequestVersion) {
+      return;
+    }
+    this.appliedSearchOpenRequestVersion = this.searchOpenRequestVersion;
+    this.openSearch('');
+  }
+
   private closeSearch(): void {
-    if (!this.searching && !this.engineMenuOpen) {
+    const sessionOpen = this.searching || this.engineMenuOpen || this.sessionMode === 'search_only';
+    if (!sessionOpen) {
       return;
     }
     this.searching = false;
@@ -600,7 +637,22 @@ export struct BrowserSplitToolbarChrome {
     return `${count}`;
   }
 
+  private resolveNavIconSize(): number {
+    return this.homeScene ? SPLIT_TOOLBAR_HOME_ICON_SIZE : SPLIT_TOOLBAR_ICON_SIZE;
+  }
+
+  private resolveTabBadgeSize(): number {
+    return this.homeScene ? SPLIT_TOOLBAR_HOME_TAB_BADGE_SIZE : SPLIT_TOOLBAR_TAB_BADGE_SIZE;
+  }
+
+  private resolveTabBadgeRadius(): number {
+    return this.homeScene ? SPLIT_TOOLBAR_HOME_TAB_BADGE_RADIUS : SPLIT_TOOLBAR_TAB_BADGE_RADIUS;
+  }
+
   private resolveTabBadgeFontSize(): number {
+    if (this.homeScene) {
+      return this.formatTabCount().length > 1 ? 11 : 13;
+    }
     return this.formatTabCount().length > 1 ? 10 : 12;
   }
 
@@ -626,6 +678,17 @@ export struct BrowserSplitToolbarChrome {
     }
   }
 
+  private shouldShowBottomBar(): boolean {
+    return this.sessionMode !== 'search_only' && !this.searching;
+  }
+
+  private shouldShowTopBar(): boolean {
+    if (this.searching || this.sessionMode === 'search_only') {
+      return true;
+    }
+    return !(this.homeScene && this.suppressHomeAddressBar);
+  }
+
   private resolveTopInset(): number {
     return Math.max(0, this.topSafeInsetVp);
   }
@@ -635,6 +698,16 @@ export struct BrowserSplitToolbarChrome {
   }
 
   private resolveBottomChromeHeight(): number {
+    if (this.bottomChromeReserveVp >= 0) {
+      return this.bottomChromeReserveVp;
+    }
     return SPLIT_TOOLBAR_BOTTOM_BAR_VP + this.resolveBottomInset();
+  }
+
+  private resolveSearchSheetBottomInset(): number {
+    if (this.bottomChromeReserveVp >= 0) {
+      return this.bottomChromeReserveVp;
+    }
+    return this.resolveBottomInset();
   }
 }

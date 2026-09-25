@@ -1,12 +1,17 @@
 import { preferences } from '@kit.ArkData';
 import { AppRuntimeContext } from '../../app/runtime/AppRuntimeContext';
 import {
+  HOME_PAGE_PRESENTATION_HOME_PAGE_STYLE_KEY,
   HOME_PAGE_PRESENTATION_SHOW_FAVORITES_TITLE_KEY,
   HOME_PAGE_PRESENTATION_SHOW_RECENTLY_CLOSED_TITLE_KEY,
   HOME_PAGE_PRESENTATION_SHOW_SETTINGS_BUTTON_KEY,
   HOME_PAGE_PRESENTATION_SHOW_SHORTCUT_NAMES_KEY
 } from '../../common/constants/HomePagePresentationStorageKeys';
-import { HomePagePresentationSettings } from '../../common/models/HomePagePresentationSettingsModels';
+import {
+  BrowserHomePageStyle,
+  HomePagePresentationSettings,
+  normalizeBrowserHomePageStyle
+} from '../../common/models/HomePagePresentationSettingsModels';
 import {
   PersonalizationSettingsChangeOrigin,
   PersonalizationSettingsLocalChangeHandler
@@ -19,7 +24,8 @@ export const DEFAULT_HOME_PAGE_PRESENTATION_SETTINGS: HomePagePresentationSettin
   showFavoritesTitle: true,
   showShortcutNames: true,
   showRecentlyClosedTitle: true,
-  showSettingsButton: true
+  showSettingsButton: true,
+  homePageStyle: 'classic'
 };
 
 export class HomePagePresentationSettingsRepository {
@@ -54,6 +60,12 @@ export class HomePagePresentationSettingsRepository {
     return this.persistSettings(settings, origin);
   }
 
+  async setHomePageStyle(style: BrowserHomePageStyle): Promise<HomePagePresentationSettings> {
+    const next = this.getSettings();
+    next.homePageStyle = normalizeBrowserHomePageStyle(style);
+    return this.persistSettings(next, 'local');
+  }
+
   private async persistSettings(
     settings: HomePagePresentationSettings,
     origin: PersonalizationSettingsChangeOrigin
@@ -74,6 +86,7 @@ export class HomePagePresentationSettingsRepository {
     left: HomePagePresentationSettings,
     right: HomePagePresentationSettings
   ): boolean {
+    // homePageStyle is device-local and must not mark a Personalization snapshot dirty.
     return left.showFavoritesTitle === right.showFavoritesTitle &&
       left.showShortcutNames === right.showShortcutNames &&
       left.showRecentlyClosedTitle === right.showRecentlyClosedTitle &&
@@ -96,6 +109,10 @@ export class HomePagePresentationSettingsRepository {
     AppStorage.setOrCreate(
       HOME_PAGE_PRESENTATION_SHOW_SETTINGS_BUTTON_KEY,
       this.settings.showSettingsButton
+    );
+    AppStorage.setOrCreate(
+      HOME_PAGE_PRESENTATION_HOME_PAGE_STYLE_KEY,
+      this.settings.homePageStyle
     );
   }
 
@@ -125,7 +142,8 @@ export class HomePagePresentationSettingsRepository {
         : DEFAULT_HOME_PAGE_PRESENTATION_SETTINGS.showRecentlyClosedTitle,
       showSettingsButton: typeof settings?.showSettingsButton === 'boolean'
         ? settings.showSettingsButton
-        : DEFAULT_HOME_PAGE_PRESENTATION_SETTINGS.showSettingsButton
+        : DEFAULT_HOME_PAGE_PRESENTATION_SETTINGS.showSettingsButton,
+      homePageStyle: normalizeBrowserHomePageStyle(settings?.homePageStyle)
     };
   }
 
@@ -134,7 +152,8 @@ export class HomePagePresentationSettingsRepository {
       showFavoritesTitle: settings.showFavoritesTitle,
       showShortcutNames: settings.showShortcutNames,
       showRecentlyClosedTitle: settings.showRecentlyClosedTitle,
-      showSettingsButton: settings.showSettingsButton
+      showSettingsButton: settings.showSettingsButton,
+      homePageStyle: normalizeBrowserHomePageStyle(settings.homePageStyle)
     };
   }
 

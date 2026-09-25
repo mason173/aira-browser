@@ -7,6 +7,7 @@ import { CustomHomepageRepository } from '../../data/customhome/CustomHomepageRe
 import { HomePagePresentationSettingsRepository } from '../../data/preferences/HomePagePresentationSettingsRepository';
 import { PreferencesRepository } from '../../data/preferences/PreferencesRepository';
 import { CustomHomepageSettingsCoordinator } from '../customhome/CustomHomepageSettingsCoordinator';
+import { resolveHomePageRecoveryEntries } from '../../services/settings/HomePageSettingsCapabilityPolicy';
 import {
   HomePageRecoveryEntry,
   HomePageRecoveryEntryDecision,
@@ -173,7 +174,7 @@ export class HomePageSettingsCoordinator {
       showFavorites: snapshot.showFavorites,
       showRecentlyClosed: snapshot.showRecentlyClosed,
       showSettingsButton: snapshot.showSettingsButton
-    });
+    }, this.resolveActiveRecoveryEntries());
   }
 
   async ensureRecoveryEntryAvailable(): Promise<void> {
@@ -182,7 +183,7 @@ export class HomePageSettingsCoordinator {
       showFavorites: snapshot.showFavorites,
       showRecentlyClosed: snapshot.showRecentlyClosed,
       showSettingsButton: snapshot.showSettingsButton
-    });
+    }, this.resolveActiveRecoveryEntries());
     if (showSettingsButton === snapshot.showSettingsButton) {
       return;
     }
@@ -256,8 +257,13 @@ export class HomePageSettingsCoordinator {
       showFavoritesTitle: current.showFavoritesTitle,
       showShortcutNames: current.showShortcutNames,
       showRecentlyClosedTitle: current.showRecentlyClosedTitle,
-      showSettingsButton: current.showSettingsButton
+      showSettingsButton: current.showSettingsButton,
+      homePageStyle: current.homePageStyle
     };
+  }
+
+  private resolveActiveRecoveryEntries(): HomePageRecoveryEntry[] {
+    return resolveHomePageRecoveryEntries(this.presentationRepository.getSettings().homePageStyle);
   }
 
   private normalizeRecentlyClosedLimit(limit: number): number {

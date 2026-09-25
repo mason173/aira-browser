@@ -1,9 +1,18 @@
 import {
+  HOME_PAGE_PRESENTATION_HOME_PAGE_STYLE_KEY,
   HOME_PAGE_PRESENTATION_SHOW_FAVORITES_TITLE_KEY,
   HOME_PAGE_PRESENTATION_SHOW_RECENTLY_CLOSED_TITLE_KEY,
   HOME_PAGE_PRESENTATION_SHOW_SETTINGS_BUTTON_KEY,
   HOME_PAGE_PRESENTATION_SHOW_SHORTCUT_NAMES_KEY
 } from '../../../common/constants/HomePagePresentationStorageKeys';
+import {
+  BrowserHomePageStyle,
+  normalizeBrowserHomePageStyle
+} from '../../../common/models/HomePagePresentationSettingsModels';
+import {
+  resolveHomePageSettingsCapabilities,
+  resolveHomePageSettingsRecoveryFooter
+} from '../../../services/settings/HomePageSettingsCapabilityPolicy';
 import {
   HOME_RECENTLY_CLOSED_LIMIT_OPTIONS,
   HomePageSettingsCoordinator,
@@ -71,6 +80,8 @@ export struct HomeNativeSettingsContent {
   @Prop iconAppearanceEnabled: boolean = true;
   @Prop wallpaperLabel: string = '跟随主题色';
   @Prop dialogPresentation: boolean = false;
+  @StorageProp(HOME_PAGE_PRESENTATION_HOME_PAGE_STYLE_KEY)
+  private storedHomePageStyle: string = 'classic';
   @Prop @Watch('refreshState') refreshRevision: number = 0;
   onSettingsChanged?: () => void;
   onOpenWallpaperSettings: () => void = () => {};
@@ -96,8 +107,12 @@ export struct HomeNativeSettingsContent {
     Column({ space: 16 }) {
       this.buildWallpaperSection()
       this.buildFavoritesSection()
-      this.buildRecentlyClosedSection()
-      this.buildSystemSearchSection()
+      if (this.showsRecentlyClosedSettings()) {
+        this.buildRecentlyClosedSection()
+      }
+      if (this.showsSystemSearchSettings()) {
+        this.buildSystemSearchSection()
+      }
       this.buildSettingsButtonSection()
     }
     .width('100%')
@@ -132,6 +147,57 @@ export struct HomeNativeSettingsContent {
 
   @Builder
   private buildFavoritesSection() {
+    if (this.resolveHomePageStyle() === 'centered') {
+      this.buildCenteredFavoritesSection()
+    } else {
+      this.buildClassicFavoritesSection()
+    }
+  }
+
+  @Builder
+  private buildCenteredFavoritesSection() {
+    SettingsSection({
+      title: '收藏设置',
+      secondaryTextColor: this.storedSecondaryTextColor,
+      titleLeftPadding: this.dialogContentInset()
+    }) {
+      SettingsGroupCard({
+        surfaceColor: this.storedSurfaceBackgroundColor,
+        flat: this.dialogPresentation
+      }) {
+        SettingsSwitchRow({
+          title: '显示收藏',
+          checked: this.showFavorites,
+          rowPosition: 'first',
+          isEnabled: this.resolveControlEnabled(),
+          onChange: (checked: boolean) => {
+            this.applyFavoritesVisibility(checked);
+          }
+        })
+        SettingsGroupDivider({ dividerColor: this.storedDividerColor })
+        SettingsSwitchRow({
+          title: '显示图标名称',
+          checked: this.showShortcutNames,
+          rowPosition: 'middle',
+          isEnabled: this.resolveDependentControlEnabled(this.showFavorites),
+          onChange: (checked: boolean) => {
+            this.applyShortcutNamesVisibility(checked);
+          }
+        })
+        SettingsGroupDivider({ dividerColor: this.storedDividerColor })
+        this.buildIconSizeSlider()
+      }
+
+      SettingsFooterText({
+        text: '图标默认圆形，排列固定。',
+        secondaryTextColor: this.storedSecondaryTextColor,
+        horizontalPadding: this.dialogContentInset()
+      })
+    }
+  }
+
+  @Builder
+  private buildClassicFavoritesSection() {
     SettingsSection({
       title: '收藏设置',
       secondaryTextColor: this.storedSecondaryTextColor,
@@ -448,30 +514,32 @@ export struct HomeNativeSettingsContent {
       secondaryTextColor: this.storedSecondaryTextColor,
       titleLeftPadding: this.dialogContentInset()
     }) {
-      SettingsGroupCard({
-        surfaceColor: this.storedSurfaceBackgroundColor,
-        flat: this.dialogPresentation
-      }) {
-        SettingsSwitchRow({
-          title: '显示主页设置按钮',
-          checked: this.showSettingsButton,
-          rowPosition: 'single',
-          isEnabled: this.resolveControlEnabled(),
-          onChange: (checked: boolean) => {
-            const decision = this.coordinator.resolveRecoveryEntryChange('settings_button', checked);
-            if (!decision.allowed) {
-              this.showToast(decision.message);
-              return;
+      if (this.showsSettingsButtonControl()) {
+        SettingsGroupCard({
+          surfaceColor: this.storedSurfaceBackgroundColor,
+          flat: this.dialogPresentation
+        }) {
+          SettingsSwitchRow({
+            title: '显示主页设置按钮',
+            checked: this.showSettingsButton,
+            rowPosition: 'single',
+            isEnabled: this.resolveControlEnabled(),
+            onChange: (checked: boolean) => {
+              const decision = this.coordinator.resolveRecoveryEntryChange('settings_button', checked);
+              if (!decision.allowed) {
+                this.showToast(decision.message);
+                return;
+              }
+              this.showSettingsButton = checked;
+              AppStorage.setOrCreate(HOME_PAGE_PRESENTATION_SHOW_SETTINGS_BUTTON_KEY, checked);
+              this.commit(this.coordinator.setSettingsButtonVisible(checked));
             }
-            this.showSettingsButton = checked;
-            AppStorage.setOrCreate(HOME_PAGE_PRESENTATION_SHOW_SETTINGS_BUTTON_KEY, checked);
-            this.commit(this.coordinator.setSettingsButtonVisible(checked));
-          }
-        })
+          })
+        }
       }
 
       SettingsFooterText({
-        text: '收藏、最近关闭和主页设置按钮至少保留一项。',
+        text: resolveHomePageSettingsRecoveryFooter(this.resolveHomePageStyle()),
         secondaryTextColor: this.storedSecondaryTextColor,
         horizontalPadding: this.dialogContentInset()
       })
@@ -542,6 +610,39 @@ export struct HomeNativeSettingsContent {
       });
     } catch (_error) {
     }
+  }
+
+  private applyFavoritesVisibility(checked: boolean): void {
+    const decision = this.coordinator.resolveRecoveryEntryChange('favorites', checked);
+    if (!decision.allowed) {
+      this.showToast(decision.message);
+      return;
+    }
+    this.showFavorites = checked;
+    this.commit(this.coordinator.setFavoritesVisible(checked));
+  }
+
+  private applyShortcutNamesVisibility(checked: boolean): void {
+    this.showShortcutNames = checked;
+    AppStorage.setOrCreate(HOME_PAGE_PRESENTATION_SHOW_SHORTCUT_NAMES_KEY, checked);
+    this.commit(this.coordinator.setShortcutNamesVisible(checked));
+  }
+
+  private resolveHomePageStyle(): BrowserHomePageStyle {
+    return normalizeBrowserHomePageStyle(this.storedHomePageStyle);
+  }
+
+  private showsRecentlyClosedSettings(): boolean {
+    return resolveHomePageSettingsCapabilities(this.resolveHomePageStyle()).recentlyClosed;
+  }
+
+  private showsSystemSearchSettings(): boolean {
+    return resolveHomePageSettingsCapabilities(this.resolveHomePageStyle()).systemSearch;
+  }
+
+  /** Centered pins an undeletable settings tile, so its sheet has no settings-button switch. */
+  private showsSettingsButtonControl(): boolean {
+    return resolveHomePageSettingsCapabilities(this.resolveHomePageStyle()).settingsButton;
   }
 
   private resolveControlEnabled(): boolean {

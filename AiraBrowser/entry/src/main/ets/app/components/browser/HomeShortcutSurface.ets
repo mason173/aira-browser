@@ -93,7 +93,15 @@ export struct HomeShortcutSurface {
   };
   @Prop gridWidth: number = 0;
   @Prop showAddEntry: boolean = false;
+  /**
+   * The centered frame pins an undeletable settings tile before the add entry, so the
+   * add entry stays the last item. It is not a `ShortcutRecord`, so it can never be
+   * reordered, edited, or removed.
+   */
+  @Prop showPinnedSettingsEntry: boolean = false;
   @Prop alignPartialRowsToStart: boolean = false;
+  /** Negative means use the stored site-icon radius. The centered homepage passes a circle. */
+  @Prop iconCornerRadiusRatio: number = -1;
   @Link contextMenuShortcutId: string;
   @Link shortcutDragActive: boolean;
 
@@ -103,6 +111,8 @@ export struct HomeShortcutSurface {
   private pressedShortcutId: string = '';
   @State
   private addEntryPressed: boolean = false;
+  @State
+  private settingsEntryPressed: boolean = false;
   @State
   private liveShortcuts: ShortcutRecord[] = [];
   private frozenIconsVersion: number = -1;
@@ -126,7 +136,7 @@ export struct HomeShortcutSurface {
 
   build() {
     Column() {
-      if (this.liveShortcuts.length > 0 || this.showAddEntry) {
+      if (this.liveShortcuts.length > 0 || this.showAddEntry || this.showPinnedSettingsEntry) {
         List({ space: this.metrics.rowGap }) {
           ForEach(this.liveShortcuts, (shortcut: ShortcutRecord) => {
             ListItem() {
@@ -181,6 +191,19 @@ export struct HomeShortcutSurface {
               }
             })
 
+          if (this.showPinnedSettingsEntry) {
+            ListItem() {
+              Row() {
+                this.buildPinnedSettingsCard()
+              }
+              .width('100%')
+              .height(this.resolveShortcutRowHeight())
+              .justifyContent(FlexAlign.Center)
+              .alignItems(VerticalAlign.Top)
+            }
+            .height(this.resolveShortcutRowHeight())
+          }
+
           if (this.showAddEntry) {
             ListItem() {
               Row() {
@@ -223,7 +246,8 @@ export struct HomeShortcutSurface {
     }
     .width('100%')
     .alignItems(
-      this.alignPartialRowsToStart && (this.liveShortcuts.length > 0 || this.showAddEntry)
+      this.alignPartialRowsToStart &&
+        (this.liveShortcuts.length > 0 || this.showAddEntry || this.showPinnedSettingsEntry)
         ? HorizontalAlign.Start
         : HorizontalAlign.Center
     )
@@ -370,6 +394,60 @@ export struct HomeShortcutSurface {
     })
   }
 
+  /**
+   * Pinned `主页设置` tile. It sits right before the add entry, which stays last, and is never
+   * part of `liveShortcuts`, so reorder, context menus, and removal cannot reach it.
+   */
+  @Builder
+  private buildPinnedSettingsCard() {
+    Column({ space: this.storedShowShortcutNames ? this.metrics.titleTopGap : 0 }) {
+      this.buildAddEntryIcon(
+        'settings.general',
+        this.viewModel.getShortcutTileSize(this.gridWidth, this.metrics),
+        this.resolveShortcutGlyphSize(this.viewModel.getShortcutTileSize(this.gridWidth, this.metrics))
+      )
+
+      if (this.storedShowShortcutNames) {
+        Text('主页设置')
+          .width('100%')
+          .height(this.metrics.titleBlockHeight)
+          .fontSize(this.viewModel.getShortcutTitleFontSize(this.gridWidth, this.metrics))
+          .lineHeight(Math.max(18, this.metrics.titleBlockHeight))
+          .fontColor(this.resolvePrimaryTextColor())
+          .textShadow(this.textShadow)
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+          .textAlign(TextAlign.Center)
+      }
+    }
+    .width(Math.max(
+      this.viewModel.getShortcutTileSize(this.gridWidth, this.metrics),
+      HOME_SHORTCUT_MIN_INTERACTION_WIDTH_VP,
+      this.metrics.minimumTileSize
+    ))
+    .height(this.resolveShortcutRowHeight())
+    .justifyContent(FlexAlign.Center)
+    .alignItems(HorizontalAlign.Center)
+    .borderRadius(18)
+    .scale({
+      x: this.settingsEntryPressed ? HOME_SHORTCUT_PRESSED_SCALE : 1,
+      y: this.settingsEntryPressed ? HOME_SHORTCUT_PRESSED_SCALE : 1
+    })
+    .opacity(this.settingsEntryPressed ? HOME_SHORTCUT_PRESSED_OPACITY : 1)
+    .animation({
+      duration: this.settingsEntryPressed ? HOME_SHORTCUT_PRESS_DURATION_MS : HOME_SHORTCUT_RELEASE_DURATION_MS,
+      curve: this.settingsEntryPressed ? Curve.EaseOut : 'interpolatingSpring(0, 1, 360, 24)'
+    })
+    .onTouch((event: TouchEvent) => {
+      this.updateSettingsEntryPressed(event.type);
+    })
+    .onClick(() => {
+      if (!this.shortcutDragActive && this.contextMenuShortcutId.length <= 0) {
+        this.onOpenHomeSettings();
+      }
+    })
+  }
+
   @Builder
   private buildAddEntryIcon(iconId: AiraRenderableIconId, size: number, iconSize: number) {
     BrowserFloatingGlassMaterialSurface({
@@ -406,7 +484,7 @@ export struct HomeShortcutSurface {
         fallbackLabel: this.viewModel.getShortcutFallbackLabel(shortcut),
         variant: 'grid',
         iconSize: size,
-        cornerRadiusRatio: this.storedSiteIconCornerRadiusRatio,
+        cornerRadiusRatio: this.resolveIconCornerRadiusRatio(),
         frameBorderWidth: 0,
         contentRatio: this.storedHomeShortcutIconSizeRatio,
         fallbackFontSize: fallbackFontSize,
@@ -561,7 +639,9 @@ export struct HomeShortcutSurface {
   }
 
   private resolvePresentationItemCount(): number {
-    return this.liveShortcuts.length + (this.showAddEntry ? 1 : 0);
+    return this.liveShortcuts.length +
+      (this.showAddEntry ? 1 : 0) +
+      (this.showPinnedSettingsEntry ? 1 : 0);
   }
 
   private resolveShortcutLaneCount(): number {
@@ -721,7 +801,14 @@ export struct HomeShortcutSurface {
   }
 
   private resolveShortcutMaterialRadius(size: number): number {
-    return Math.max(0, Math.round(size * this.storedSiteIconCornerRadiusRatio));
+    return Math.max(0, Math.round(size * this.resolveIconCornerRadiusRatio()));
+  }
+
+  private resolveIconCornerRadiusRatio(): number {
+    if (this.iconCornerRadiusRatio >= 0) {
+      return this.iconCornerRadiusRatio;
+    }
+    return this.storedSiteIconCornerRadiusRatio;
   }
 
   // Home grid tiles are opaque solid surfaces, not blurred glass: the wallpaper
@@ -820,6 +907,7 @@ export struct HomeShortcutSurface {
     this.shortcutDragActive = false;
     this.frozenIconsVersion = -1;
     this.addEntryPressed = false;
+    this.settingsEntryPressed = false;
   }
 
   private handleShortcutClick(shortcut: ShortcutRecord): void {
@@ -884,6 +972,16 @@ export struct HomeShortcutSurface {
     }
     if (type === TouchType.Up || type === TouchType.Cancel) {
       this.addEntryPressed = false;
+    }
+  }
+
+  private updateSettingsEntryPressed(type: TouchType): void {
+    if (type === TouchType.Down) {
+      this.settingsEntryPressed = true;
+      return;
+    }
+    if (type === TouchType.Up || type === TouchType.Cancel) {
+      this.settingsEntryPressed = false;
     }
   }
 

@@ -40,6 +40,7 @@ import {
 import { BrowserRetentionSettingsCoordinator } from '../../../core/settings/BrowserRetentionSettingsCoordinator';
 import { HistoryFeature, HistoryManagementBoundary } from '../../../features/history/HistoryFeature';
 import { SettingsGeneralCoordinator } from '../../../core/settings/SettingsGeneralCoordinator';
+import { HomePageSettingsCoordinator } from '../../../core/settings/HomePageSettingsCoordinator';
 import { SettingsAboutCoordinator } from '../../../core/settings/SettingsAboutCoordinator';
 import {
   SettingsRiskPromptState,

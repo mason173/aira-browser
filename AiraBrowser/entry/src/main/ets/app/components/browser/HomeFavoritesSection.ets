@@ -16,6 +16,9 @@ export struct HomeFavoritesSection {
   @Prop showTitle: boolean = true;
   @Prop minimumWidth: number = 0;
   @Prop alignPartialRowsToStart: boolean = false;
+  @Prop iconCornerRadiusRatio: number = -1;
+  /** The centered frame pins an undeletable settings tile into this grid. */
+  @Prop showPinnedSettingsEntry: boolean = false;
   @Prop shortcuts: HomeShortcutPresentationState = {
     shortcuts: [],
     showAddEntry: false,
@@ -90,7 +93,9 @@ export struct HomeFavoritesSection {
         textShadow: this.theme.textShadow,
         gridWidth: this.resolveShortcutGridWidth(),
         showAddEntry: this.shortcuts.showAddEntry,
+        showPinnedSettingsEntry: this.showPinnedSettingsEntry,
         alignPartialRowsToStart: this.alignPartialRowsToStart,
+        iconCornerRadiusRatio: this.iconCornerRadiusRatio,
         contextMenuShortcutId: $contextMenuShortcutId,
         shortcutDragActive: $shortcutDragActive,
         onAction: (action: HomeShortcutUserAction) => {
@@ -115,7 +120,9 @@ export struct HomeFavoritesSection {
   }
 
   private resolveSectionWidth(): number {
-    const itemCount = this.shortcuts.shortcuts.length + (this.shortcuts.showAddEntry ? 1 : 0);
+    const itemCount = this.shortcuts.shortcuts.length +
+      (this.shortcuts.showAddEntry ? 1 : 0) +
+      (this.showPinnedSettingsEntry ? 1 : 0);
     const occupiedContentWidth = this.shortcutViewModel.getOccupiedGridContentWidth(
       itemCount,
       this.resolveShortcutGridWidth(),

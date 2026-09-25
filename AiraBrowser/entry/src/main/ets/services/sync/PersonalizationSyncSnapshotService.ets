@@ -47,6 +47,7 @@ import { WallpaperRepository } from '../../data/wallpaper/WallpaperRepository';
 import { BUILT_IN_THEME_PALETTES } from '../../features/theme/BrowserThemePalettes';
 import { ActivityContributionService } from '../activity/ActivityContributionService';
 import { HomePageRecoveryEntryPolicyService } from '../settings/HomePageRecoveryEntryPolicyService';
+import { resolveHomePageRecoveryEntries } from '../settings/HomePageSettingsCapabilityPolicy';
 import { HomeShortcutLogicService } from '../shortcuts/HomeShortcutLogicService';
 import {
   PersonalizationSyncCollectionMergeIntent,
@@ -1362,7 +1363,7 @@ export class PersonalizationSyncSnapshotService {
       showFavorites: nextShowFavorites,
       showRecentlyClosed: nextShowRecentlyClosed,
       showSettingsButton: requestedShowSettingsButton
-    });
+    }, resolveHomePageRecoveryEntries(presentation.homePageStyle));
     const repairedRecoveryEntry = nextShowSettingsButton !== requestedShowSettingsButton;
     if (incomingAppearance?.showHomeFavoritesTitle !== undefined ||
       incomingAppearance?.showHomeShortcutNames !== undefined ||

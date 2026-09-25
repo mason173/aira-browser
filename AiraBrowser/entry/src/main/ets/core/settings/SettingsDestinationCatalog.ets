@@ -201,6 +201,8 @@ const GENERAL_TARGETS: SettingsDestinationCatalogTarget[] = [
     '通用 / 外观设置 / 主题模式', 'row', 'theme_mode_system', '', ['系统主题']),
   target('theme_palette', 'appearance_toolbar', 'appearance_toolbar', '主题色',
     '通用 / 外观设置 / 主题模式', 'subpage', '', 'theme_palette', ['调色板'], ['颜色风格']),
+  target('system_homepage_style', 'custom_homepage', 'custom_homepage', '主页样式',
+    '通用 / 自定义主页', 'row', '', '', ['居中主页', '默认主页'], ['搜索主页', '圆形图标']),
   target('app_icon', 'appearance_toolbar', 'appearance_toolbar', '应用图标',
     '通用 / 外观设置 / 图标', 'subpage', '', 'app_icon', ['图标'], ['图标圆角']),
   target('force_dark_web_content', 'appearance_toolbar', 'appearance_toolbar', '强制网页深色',

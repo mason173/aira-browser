@@ -12,6 +12,8 @@ import {
 } from '../../common/models/CustomHomepageModels';
 import { BrowserResolvedThemeMode } from '../../common/models/BrowserModels';
 import { BrowserHomepageBackdropAppearanceState } from '../../common/models/BackdropAppearanceModels';
+import { BrowserHomePageStyle } from '../../common/models/HomePagePresentationSettingsModels';
+import { SYSTEM_HOMEPAGE_STYLE_CATALOG } from './SystemHomepageStyleCatalog';
 
 export interface CustomHomepageChoiceViewState {
   id: string;
@@ -30,8 +32,16 @@ export interface CustomHomepageRemoteRefreshTargetViewState {
   url: string;
 }
 
+/** Built-in homepage card. `isActive` marks the one the new tab currently renders. */
+export interface CustomHomepageSystemChoiceViewState {
+  style: BrowserHomePageStyle;
+  title: string;
+  isActive: boolean;
+}
+
 export interface CustomHomepageSettingsViewState {
   choices: CustomHomepageChoiceViewState[];
+  systemChoices: CustomHomepageSystemChoiceViewState[];
   systemHomepageSelected: boolean;
   customHomepageChromeControlsEnabled: boolean;
   remoteUrlAppearanceControlsEnabled: boolean;
@@ -66,12 +76,14 @@ interface CustomHomepageRemoteUrlSettingsResult {
 export class CustomHomepageSettingsViewModel {
   buildState(
     snapshot: CustomHomepageRepositorySnapshot,
-    resolvedThemeMode: BrowserResolvedThemeMode = 'light'
+    resolvedThemeMode: BrowserResolvedThemeMode = 'light',
+    homePageStyle: BrowserHomePageStyle = 'classic'
   ): CustomHomepageSettingsViewState {
     const settings = snapshot.settings;
     const nativeSettingsAvailability = this.buildNativeHomepageSettingsAvailability(settings);
     return {
       choices: this.buildChoices(settings, resolvedThemeMode),
+      systemChoices: this.buildSystemChoices(homePageStyle, !this.isCustomHomepageSelected(settings)),
       systemHomepageSelected: nativeSettingsAvailability.isEnabled,
       customHomepageChromeControlsEnabled: !nativeSettingsAvailability.isEnabled,
       remoteUrlAppearanceControlsEnabled: this.isSelectedRemoteUrlHomepage(settings),
@@ -88,6 +100,7 @@ export class CustomHomepageSettingsViewModel {
   ): CustomHomepageSettingsViewState {
     return {
       choices: state.choices,
+      systemChoices: state.systemChoices,
       systemHomepageSelected: state.systemHomepageSelected,
       customHomepageChromeControlsEnabled: state.customHomepageChromeControlsEnabled,
       remoteUrlAppearanceControlsEnabled: state.remoteUrlAppearanceControlsEnabled,
@@ -104,6 +117,7 @@ export class CustomHomepageSettingsViewModel {
   ): CustomHomepageSettingsViewState {
     return {
       choices: state.choices,
+      systemChoices: state.systemChoices,
       systemHomepageSelected: state.systemHomepageSelected,
       customHomepageChromeControlsEnabled: state.customHomepageChromeControlsEnabled,
       remoteUrlAppearanceControlsEnabled: state.remoteUrlAppearanceControlsEnabled,
@@ -120,6 +134,7 @@ export class CustomHomepageSettingsViewModel {
   ): CustomHomepageSettingsViewState {
     return {
       choices: state.choices,
+      systemChoices: state.systemChoices,
       systemHomepageSelected: state.systemHomepageSelected,
       customHomepageChromeControlsEnabled: state.customHomepageChromeControlsEnabled,
       remoteUrlAppearanceControlsEnabled: state.remoteUrlAppearanceControlsEnabled,
@@ -136,6 +151,7 @@ export class CustomHomepageSettingsViewModel {
   ): CustomHomepageSettingsViewState {
     return {
       choices: state.choices,
+      systemChoices: state.systemChoices,
       systemHomepageSelected: state.systemHomepageSelected,
       customHomepageChromeControlsEnabled: state.customHomepageChromeControlsEnabled,
       remoteUrlAppearanceControlsEnabled: state.remoteUrlAppearanceControlsEnabled,
@@ -152,6 +168,7 @@ export class CustomHomepageSettingsViewModel {
   ): CustomHomepageSettingsViewState {
     return {
       choices: choices,
+      systemChoices: state.systemChoices,
       systemHomepageSelected: state.systemHomepageSelected,
       customHomepageChromeControlsEnabled: state.customHomepageChromeControlsEnabled,
       remoteUrlAppearanceControlsEnabled: state.remoteUrlAppearanceControlsEnabled,
@@ -453,6 +470,19 @@ export class CustomHomepageSettingsViewModel {
           url: choice.url.trim()
         };
       });
+  }
+
+  private buildSystemChoices(
+    homePageStyle: BrowserHomePageStyle,
+    systemHomepageActive: boolean
+  ): CustomHomepageSystemChoiceViewState[] {
+    return SYSTEM_HOMEPAGE_STYLE_CATALOG.map((entry): CustomHomepageSystemChoiceViewState => {
+      return {
+        style: entry.style,
+        title: entry.title,
+        isActive: systemHomepageActive && entry.style === homePageStyle
+      };
+    });
   }
 
   private buildChoices(

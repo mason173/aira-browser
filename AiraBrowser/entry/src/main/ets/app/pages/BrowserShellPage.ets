@@ -240,7 +240,10 @@ import {
   SPLIT_TOOLBAR_ADDRESS_BLOCK_VP,
   SPLIT_TOOLBAR_BOTTOM_BAR_VP
 } from '../../core/browser/BrowserToolbarChromeStylePolicy';
-import { BrowserSplitToolbarChrome } from '../components/browser/BrowserSplitToolbarChrome';
+import {
+  BrowserSplitToolbarChrome,
+  BrowserSplitToolbarSessionMode
+} from '../components/browser/BrowserSplitToolbarChrome';
 import { BrowserAddressDisplayCoordinator } from '../../core/browser/BrowserAddressDisplayCoordinator';
 import { BrowserThemeModeCoordinator } from '../../core/browser/BrowserThemeModeCoordinator';
 import {
@@ -1066,6 +1069,11 @@ import {
 } from '../../core/browser/SiteReportDialogViewModel';
 import { CustomHomepageSurface } from '../components/customhome/CustomHomepageSurface';
 import { HomeContentSections } from '../components/browser/HomeContentSections';
+import { HOME_PAGE_PRESENTATION_HOME_PAGE_STYLE_KEY } from '../../common/constants/HomePagePresentationStorageKeys';
+import {
+  applyCenteredHomeShortcutLayout,
+  CENTERED_HOME_ICON_CORNER_RADIUS_RATIO
+} from '../../features/newtab/CenteredHomeShortcutLayoutPolicy';
 import { HomeSystemSurface } from '../components/browser/HomeSystemSurface';
 import { PrivateHomeWatermark } from '../components/browser/PrivateHomeWatermark';
 import {
@@ -6017,6 +6025,10 @@ struct BrowserShellPage {
     createBrowserRecentlyClosedApplicationSnapshot();
   @State showHomeShortcuts: boolean = true;
   @State homeShortcutLayoutDensity: BrowserHomeShortcutLayoutDensity = 'standard';
+  @StorageProp(HOME_PAGE_PRESENTATION_HOME_PAGE_STYLE_KEY)
+  private storedHomePageStyle: string = 'classic';
+  @State private topSearchOpenRequestVersion: number = 0;
+  @State private centeredHomeSearchSessionMounted: boolean = false;
   // First-frame Home colors. The literal defaults below are light, so a dark-mode
   // cold start painted a light Home background for the first frame — the "white
   // flash" — until the appearance refresh landed. Resolving the current theme here
@@ -6618,12 +6630,14 @@ struct BrowserShellPage {
         })
       }
 
-      if (this.shouldMountRootBottomPanelHost()) {
+      if (this.shouldMountRootBottomPanelHost() && !this.centeredHomeSearchSessionMounted) {
         this.buildRootBottomPanelHost()
       }
 
       if (this.shouldUseSplitToolbarChrome()) {
         this.buildSplitToolbarChrome()
+      } else if (this.centeredHomeSearchSessionMounted) {
+        this.buildCenteredHomeSearchSession()
       }
 
       if (this.readerModeSessionSnapshot.state.visible) {
@@ -8454,7 +8468,22 @@ struct BrowserShellPage {
 
   @Builder
   private buildSplitToolbarChrome() {
+    this.buildSplitToolbarSearchHost('chrome')
+  }
+
+  @Builder
+  private buildCenteredHomeSearchSession() {
+    this.buildSplitToolbarSearchHost('search_only')
+  }
+
+  @Builder
+  private buildSplitToolbarSearchHost(sessionMode: BrowserSplitToolbarSessionMode) {
     BrowserSplitToolbarChrome({
+      sessionMode: sessionMode,
+      suppressHomeAddressBar: this.isCenteredHomePageStyleActive(),
+      searchOpenRequestVersion: this.topSearchOpenRequestVersion,
+      bottomChromeReserveVp: sessionMode === 'search_only' ?
+        this.resolveCenteredHomeSearchBottomReserveVp() : -1,
       homeScene: this.showHomePage,
       displayAddress: this.resolveSplitToolbarDisplayAddress(),
       editableAddress: this.showHomePage ? '' : this.resolveEditableWebBottomAddress(),
@@ -8555,6 +8584,7 @@ struct BrowserShellPage {
   private handleSplitToolbarSearchSession(active: boolean, query: string): void {
     this.splitToolbarSearchActive = active;
     if (!active) {
+      this.centeredHomeSearchSessionMounted = false;
       this.browserSearchSuggestionCoordinator.beginClosingOverlay();
       this.webBottomAddressFocused = false;
       return;
@@ -8933,8 +8963,20 @@ struct BrowserShellPage {
         accentColor: this.themedHomeAccentColor
       }),
       contextMenuShortcutId: $contextMenuHomeShortcutId,
+      centeredStyle: this.isCenteredHomePageStyleActive(),
+      centeredViewportHeight: this.rootViewportHeight,
+      centeredTopSafeInset: this.resolveHomeContentTopSafeInsetVp(),
+      centeredBottomReserve: this.resolveCenteredHomeBottomReserveVp(),
+      shortcutIconCornerRadiusRatio: this.isCenteredHomePageStyleActive() ?
+        CENTERED_HOME_ICON_CORNER_RADIUS_RATIO : -1,
       onAction: (action) => {
         this.browserTabHomeCoordinator.handleContentAction(action);
+      },
+      onOpenSearch: () => {
+        this.openCenteredHomeSearch();
+      },
+      onScan: () => {
+        void this.scanQrCodeFromBottomPanel();
       }
     })
   }
@@ -9273,7 +9315,7 @@ struct BrowserShellPage {
   }
 
   private buildHomeResponsiveLayoutState(): HomeResponsiveLayoutState {
-    return this.browserTabHomeCoordinator.buildResponsiveLayoutState({
+    const layout = this.browserTabHomeCoordinator.buildResponsiveLayoutState({
       shellFamily: this.browserShellPresentationOperations?.snapshot()?.shellFamily ?? 'phone',
       viewportWidth: this.rootBottomPanelLayoutState.viewport.width,
       viewportHeight: this.rootBottomPanelLayoutState.viewport.height,
@@ -9281,11 +9323,32 @@ struct BrowserShellPage {
       bottomSafeInsetVp: this.homeBottomSafeInsetVp,
       leftSafeInsetVp: this.homeLeftSafeInsetVp,
       rightSafeInsetVp: this.homeRightSafeInsetVp
-    }, this.homeShortcutLayoutDensity);
+    }, this.isCenteredHomePageStyleActive() ? 'compact' : this.homeShortcutLayoutDensity);
+    return this.isCenteredHomePageStyleActive() ? applyCenteredHomeShortcutLayout(layout) : layout;
+  }
+
+  private isCenteredHomePageStyleActive(): boolean {
+    return this.storedHomePageStyle === 'centered';
+  }
+
+  private openCenteredHomeSearch(): void {
+    this.topSearchOpenRequestVersion += 1;
+    if (!this.shouldUseSplitToolbarChrome()) {
+      this.centeredHomeSearchSessionMounted = true;
+    }
+  }
+
+  private resolveCenteredHomeSearchBottomReserveVp(): number {
+    // The floating toolbar is hidden for this session, so only the safe inset stays reserved.
+    return Math.max(0, this.homeBottomSafeInsetVp);
+  }
+
+  private resolveCenteredHomeBottomReserveVp(): number {
+    return this.resolveHomeBottomChromeReserveVp() + Math.max(16, this.homeBottomSafeInsetVp);
   }
 
   private resolveHomeContentTopSafeInsetVp(): number {
-    if (!this.shouldReserveSplitToolbarHomeInsets()) {
+    if (!this.shouldReserveSplitToolbarHomeInsets() || this.isCenteredHomePageStyleActive()) {
       return this.homeTopSafeInsetVp;
     }
     return this.homeTopSafeInsetVp + SPLIT_TOOLBAR_ADDRESS_BLOCK_VP;

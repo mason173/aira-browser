@@ -76,6 +76,9 @@ import browserLargeScreenTabTitleSlotPolicyTest from './BrowserLargeScreenTabTit
 import browserLargeScreenTabStripBlankAreaPolicyTest from './BrowserLargeScreenTabStripBlankAreaPolicy.test';
 import browserLargeScreenVerticalTabsPolicyTest from './BrowserLargeScreenVerticalTabsPolicy.test';
 import browserFullscreenExitHintPolicyTest from './BrowserFullscreenExitHintPolicy.test';
+import centeredHomeShortcutLayoutPolicyTest from './CenteredHomeShortcutLayoutPolicy.test';
+import homePageSettingsCapabilityPolicyTest from './HomePageSettingsCapabilityPolicy.test';
+import systemHomepageStyleCatalogTest from './SystemHomepageStyleCatalog.test';
 import elementInspectionRuntimeScriptServiceTest from './ElementInspectionRuntimeScriptService.test';
 import elementInspectionOutlineMenuLayoutTest from './ElementInspectionOutlineMenuLayout.test';
 import webVideoPictureInPictureBackgroundPolicyTest from './WebVideoPictureInPictureBackgroundPolicy.test';
@@ -157,6 +160,9 @@ export default function tests(): void {
   browserLargeScreenTabStripBlankAreaPolicyTest();
   browserLargeScreenVerticalTabsPolicyTest();
   browserFullscreenExitHintPolicyTest();
+  centeredHomeShortcutLayoutPolicyTest();
+  homePageSettingsCapabilityPolicyTest();
+  systemHomepageStyleCatalogTest();
   elementInspectionRuntimeScriptServiceTest();
   elementInspectionOutlineMenuLayoutTest();
   webVideoPictureInPictureBackgroundPolicyTest();

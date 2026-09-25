@@ -20,8 +20,16 @@ import {
   CustomHomepageChoiceViewState,
   CustomHomepageRemoteRefreshTargetViewState,
   CustomHomepageSettingsViewModel,
-  CustomHomepageSettingsViewState
+  CustomHomepageSettingsViewState,
+  CustomHomepageSystemChoiceViewState
 } from '../../../core/customhome/CustomHomepageSettingsViewModel';
+import { SystemHomepageSelectionService } from '../../../core/customhome/SystemHomepageSelectionService';
+import {
+  BrowserHomePageStyle,
+  normalizeBrowserHomePageStyle
+} from '../../../common/models/HomePagePresentationSettingsModels';
+import { HOME_PAGE_PRESENTATION_HOME_PAGE_STYLE_KEY } from '../../../common/constants/HomePagePresentationStorageKeys';
+import { HomePageSettingsCoordinator } from '../../../core/settings/HomePageSettingsCoordinator';
 import {
   CustomHomepagePreviewLayoutState,
   CustomHomepagePreviewState,
@@ -34,6 +42,7 @@ import {
 import {
   sharedBrowserThemeModeCoordinator,
   sharedCustomHomepageRepository,
+  sharedHomePagePresentationSettingsRepository,
   sharedPreferencesRepository
 } from '../../bootstrap/BrowserAppRuntime';
 import { SettingsHdsMenuAction, SettingsHdsScaffold } from '../settings/SettingsHdsScaffold';
@@ -61,6 +70,7 @@ import {
   SettingsDesktopWorkspaceHeaderAction
 } from '../settings/SettingsDesktopWorkspaceHeader';
 import { CustomHomepagePreviewCards } from './CustomHomepagePreviewCards';
+import { SystemHomepageCards } from './SystemHomepageCards';
 import { CustomHomepageInfoSheet } from './CustomHomepageInfoSheet';
 import {
   BROWSER_THEME_STORAGE_ACCENT_KEY,
@@ -118,6 +128,15 @@ export struct CustomHomepageSettingsScreen {
   private urlService: CustomHomepageUrlService = new CustomHomepageUrlService();
   private coordinator: CustomHomepageSettingsCoordinator =
     new CustomHomepageSettingsCoordinator(sharedCustomHomepageRepository);
+  private systemHomepageSelectionService: SystemHomepageSelectionService = new SystemHomepageSelectionService(
+    this.coordinator,
+    sharedHomePagePresentationSettingsRepository,
+    new HomePageSettingsCoordinator(
+      sharedPreferencesRepository,
+      sharedCustomHomepageRepository,
+      sharedHomePagePresentationSettingsRepository
+    )
+  );
   @Prop presentationMode: CustomHomepageSettingsPresentationMode = 'standalone';
   @Prop desktopPresentation: boolean = false;
   pageBinding: CustomHomepageSettingsPageBinding = new CustomHomepageSettingsPageBinding();
@@ -132,6 +151,7 @@ export struct CustomHomepageSettingsScreen {
   @StorageProp(BROWSER_THEME_STORAGE_SURFACE_BACKGROUND_KEY) private storedSurfaceBackgroundColor: string = '';
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY) private storedPrimaryTextColor: string = '';
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY) private storedSecondaryTextColor: string = '';
+  @StorageProp(HOME_PAGE_PRESENTATION_HOME_PAGE_STYLE_KEY) private storedHomePageStyle: string = 'classic';
   @State private state: CustomHomepageSettingsViewState =
     this.buildThemedState();
   @State private selectedChoiceId: string = this.resolveSelectedChoiceId(this.state);
@@ -436,11 +456,13 @@ export struct CustomHomepageSettingsScreen {
       topPadding: topPadding,
       bottomPadding: bottomPadding
     }) {
+      this.buildSystemHomepageSection()
       this.buildHomepageListSection()
-      this.buildHomepageChromeSection()
-      this.buildHomepageBehaviorSection()
-      this.buildHomepageMaintenanceSection()
-      this.buildRestoreSystemHomepageSection()
+      if (!this.state.systemHomepageSelected) {
+        this.buildHomepageChromeSection()
+        this.buildHomepageBehaviorSection()
+        this.buildHomepageMaintenanceSection()
+      }
       this.buildDeveloperGuideEntry()
     }
   }
@@ -490,8 +512,35 @@ export struct CustomHomepageSettingsScreen {
   }
 
   @Builder
+  private buildSystemHomepageSection() {
+    Column({ space: 10 }) {
+      SettingsSectionTitle({
+        title: '系统主页',
+        secondaryTextColor: this.storedSecondaryTextColor
+      })
+      SystemHomepageCards({
+        choices: this.state.systemChoices,
+        busy: this.busy,
+        layoutState: this.previewLayoutState,
+        onSelect: (style: BrowserHomePageStyle) => {
+          this.selectSystemHomepageStyle(style);
+        }
+      })
+      SettingsFooterText({
+        text: '内置主页随 Aira 更新，不需要下载。',
+        secondaryTextColor: this.storedSecondaryTextColor
+      })
+    }
+    .width('100%')
+  }
+
+  @Builder
   private buildHomepageListSection() {
-    Column({ space: 12 }) {
+    Column({ space: 10 }) {
+      SettingsSectionTitle({
+        title: '第三方主页',
+        secondaryTextColor: this.storedSecondaryTextColor
+      })
       CustomHomepagePreviewCards({
         choices: this.state.choices,
         selectedChoiceId: this.selectedChoiceId,
@@ -513,6 +562,10 @@ export struct CustomHomepageSettingsScreen {
         onRemove: (choice: CustomHomepageChoiceViewState) => {
           this.removeCustomHomepage(choice);
         }
+      })
+      SettingsFooterText({
+        text: '卡片右上角可查看信息、导出或删除。',
+        secondaryTextColor: this.storedSecondaryTextColor
       })
     }
     .width('100%')
@@ -708,42 +761,6 @@ export struct CustomHomepageSettingsScreen {
       }
       SettingsFooterText({
         text: '会重新生成所有网址主页的预览图。',
-        secondaryTextColor: this.storedSecondaryTextColor
-      })
-    }
-    .width('100%')
-    .padding({ top: 4, left: 8, right: 8 })
-  }
-
-  @Builder
-  private buildRestoreSystemHomepageSection() {
-    Column({ space: 10 }) {
-      if (this.desktopPresentation) {
-        SettingsDesktopActionButton({
-          title: '恢复系统主页',
-          isEnabled: !this.busy && !this.state.systemHomepageSelected,
-          accentColor: this.storedAccentColor,
-          onAccentColor: this.storedOnPrimaryColor,
-          hoverBackgroundColor: this.storedPressedBackgroundColor,
-          onAction: () => {
-            this.requestRestoreSystemHomepage();
-          }
-        })
-      } else {
-        SettingsActionButton({
-          title: '恢复系统主页',
-          isEnabled: !this.busy && !this.state.systemHomepageSelected,
-          accentColor: this.storedAccentColor,
-          pressedBackgroundColor: this.storedPressedBackgroundColor,
-          onAction: () => {
-            this.requestRestoreSystemHomepage();
-          }
-        })
-      }
-      SettingsFooterText({
-        text: this.state.systemHomepageSelected
-          ? '当前正在使用 Aira 原生主页。'
-          : '停止使用当前自定义主页，恢复 Aira 原生主页。',
         secondaryTextColor: this.storedSecondaryTextColor
       })
     }
@@ -1086,36 +1103,30 @@ export struct CustomHomepageSettingsScreen {
     );
   }
 
-  private requestRestoreSystemHomepage(): void {
-    if (this.busy || this.state.systemHomepageSelected) {
+  private selectSystemHomepageStyle(style: BrowserHomePageStyle): void {
+    if (this.busy || this.isActiveSystemHomepageStyle(style)) {
       return;
     }
-    showCenteredAlertDialog({
-      title: '恢复系统主页',
-      message: '确定停止使用当前自定义主页并恢复 Aira 原生主页吗？已添加的自定义主页不会被删除，之后仍可重新选择。',
-      autoCancel: true,
-      primaryButton: {
-        value: '取消',
-        action: () => {}
-      },
-      secondaryButton: {
-        value: '恢复',
-        action: () => {
-          this.restoreSystemHomepage();
-        }
-      }
-    });
+    this.busy = true;
+    this.systemHomepageSelectionService.selectSystemHomepageStyle(style)
+      .then(() => {
+        this.refreshState();
+        this.showToast('已切换主页');
+      })
+      .catch((error: Error) => {
+        this.showToast(`切换主页失败：${this.stringifyError(error)}`);
+        this.refreshState();
+      })
+      .finally(() => {
+        this.busy = false;
+      });
   }
 
-  private restoreSystemHomepage(): void {
-    if (this.busy || this.state.systemHomepageSelected) {
-      return;
-    }
-    this.runAction(
-      this.coordinator.selectSystemHomepage(),
-      '已恢复系统主页',
-      '恢复系统主页失败'
+  private isActiveSystemHomepageStyle(style: BrowserHomePageStyle): boolean {
+    const active = this.state.systemChoices.find(
+      (choice: CustomHomepageSystemChoiceViewState): boolean => choice.isActive
     );
+    return active !== undefined && active.style === style;
   }
 
   private refreshRemoteHomepagePreviews(): void {
@@ -1465,7 +1476,11 @@ export struct CustomHomepageSettingsScreen {
   }
 
   private buildThemedState(): CustomHomepageSettingsViewState {
-    return this.viewModel.buildState(sharedCustomHomepageRepository.getSnapshot(), this.resolveCurrentThemeMode());
+    return this.viewModel.buildState(
+      sharedCustomHomepageRepository.getSnapshot(),
+      this.resolveCurrentThemeMode(),
+      normalizeBrowserHomePageStyle(this.storedHomePageStyle)
+    );
   }
 
   private resolveCurrentThemeMode(): BrowserResolvedThemeMode {
