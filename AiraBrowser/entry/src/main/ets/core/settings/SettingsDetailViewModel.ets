@@ -466,7 +466,7 @@ export class SettingsDetailViewModel {
     const result: SettingsDetailGroupState[] = [];
     for (let groupIndex = 0; groupIndex < groups.length; groupIndex += 1) {
       const group = groups[groupIndex];
-      if (group.id === 'page_gestures') {
+      if (group.id === 'page_gestures' || group.id === 'web_bottom_safe_area') {
         continue;
       }
       const filteredRows = group.rows.filter((row: SettingsDetailRowState) => row.id !== 'tab_overview_layout');

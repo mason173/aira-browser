@@ -1,6 +1,8 @@
 # 网页底栏防遮挡（实验室）
 
-入口：设置 → 实验室 → 网页适配 → 网页底栏防遮挡。`webBottomSafeAreaEnabled` 默认 `false`，旧设置或非布尔值也回退为关闭；切换到基本模式时关闭。修改其他实验室设置、代理配置或执行旧版本迁移时保留这个值。
+入口：设置 → 实验室 → 网页适配 → 网页底栏防遮挡（PC / 大屏壳的实验室不显示这一组，见下）。`webBottomSafeAreaEnabled` 默认 `false`，旧设置或非布尔值也回退为关闭；切换到基本模式时关闭。修改其他实验室设置、代理配置或执行旧版本迁移时保留这个值。
+
+PC / 大屏壳（`isLargeScreen`）下 `SettingsDetailViewModel.filterLargeScreenHiddenGroups()` 会跳过整个"网页适配"组：这项只对手机壳的悬浮底栏有意义，大屏壳的 `BrowserWebBottomSafeAreaCoordinator` 本身不生效（`eligible` 已排除 `isLargeScreenShellFamilyActive()`）。隐藏只影响设置界面，已保存的 `webBottomSafeAreaEnabled` 值不变，回到手机壳后按原值继续生效。
 
 ## 行为与边界
 
