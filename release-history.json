@@ -10,6 +10,24 @@
   },
   "history": [
     {
+      "versionName": "3.4.1",
+      "versionCode": 1000465,
+      "releasedAt": "2026-09-25",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery package that keeps the desktop polish going: narrow large-screen tab titles show a readable fragment instead of a bare ellipsis, the tab-style sheet stops flashing on dismiss, top prompts use card width, a click on a native desktop scene closes the omnibox suggestions, and the navigation toolbar gains a webpage translate button plus the omnibox page-controls icon. The lab web-bottom safe-area toggle is hidden on the PC shell, and the Community build adds a Telegram group entry in About. Built from committed HEAD 8a70ea6 plus the 3.4.1 version and release-note changes in the same working tree, signed with the Aira release certificate and the AppGallery release Profile for com.aira.browser, with crash symbols archived. The release-signed APP build passed, and the outer APP signature plus the packed release Profile were verified independently. This records a locally generated formal package and does not claim AppGallery review approval or on-shelf publication.",
+      "artifact": "AiraBrowser/build/outputs/default/Aira-official-v3.4.1-1000465-release-signed.app",
+      "sha256": "c4b0735905ffe8c26de8cd6b19bd5f6d373e93ea798025eb0022d42b02af08a8"
+    },
+    {
+      "versionName": "3.4.0",
+      "versionCode": 1000462,
+      "releasedAt": "2026-09-25",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery package whose desktop element inspection docks beside the page, whose bookmark bar and overflow menus share the desktop shell, and whose large-screen resource, proxy, and userscript surfaces open as centered dialogs. New-window pages no longer open chromeless, and Weibo video takeover stays on the existing surface. Built from HEAD 5f51482 plus the uncommitted desktop and release-note changes in the same working tree, signed with the Aira release certificate and the AppGallery release Profile for com.aira.browser, with crash symbols archived. The release-signed APP build passed, and the outer APP signature plus the packed release Profile were verified independently. This records a locally generated formal package and does not claim AppGallery review approval or on-shelf publication.",
+      "artifact": "AiraBrowser/build/outputs/default/Aira-official-v3.4.0-1000462-release-signed.app",
+      "sha256": "07993221bdff55d766ed047fe63b2c794fdcf21951a1818a6e19a509dfbb01b5"
+    },
+    {
       "versionName": "3.4.0",
       "versionCode": 1000462,
       "releasedAt": "2026-09-25",
