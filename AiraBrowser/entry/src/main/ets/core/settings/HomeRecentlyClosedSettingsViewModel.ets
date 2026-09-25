@@ -52,6 +52,7 @@ export class HomeRecentlyClosedSettingsViewModel {
     const showHomeRecentlyClosed = limit !== HIDDEN_OPTION;
     return {
       bottomToolbarScrollBehavior: current.bottomToolbarScrollBehavior,
+      toolbarChromeStyle: current.toolbarChromeStyle,
       globalImmersionEnabled: current.globalImmersionEnabled,
       alwaysTopImmersionEnabled: current.alwaysTopImmersionEnabled,
       forceDarkWebContentEnabled: current.forceDarkWebContentEnabled,

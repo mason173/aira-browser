@@ -181,6 +181,7 @@ export struct ThemePaletteSettingsContent {
     }
     const nextSettings: BrowserAppearanceSettings = {
       bottomToolbarScrollBehavior: currentSettings.bottomToolbarScrollBehavior,
+      toolbarChromeStyle: currentSettings.toolbarChromeStyle,
       globalImmersionEnabled: currentSettings.globalImmersionEnabled,
       alwaysTopImmersionEnabled: currentSettings.alwaysTopImmersionEnabled,
       forceDarkWebContentEnabled: currentSettings.forceDarkWebContentEnabled,

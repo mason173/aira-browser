@@ -1,5 +1,6 @@
 import {
   BrowserBottomToolbarScrollBehavior,
+  BrowserToolbarChromeStyle,
   BrowserHomeShortcutLayoutDensity,
   BrowserPrivateTabRestorePolicy,
   BrowserStartupRestorePolicy,
@@ -556,6 +557,7 @@ export class PersonalizationSyncSnapshotService {
       themeMode: preferences.themeMode,
       appearance: {
         bottomToolbarScrollBehavior: preferences.appearance.bottomToolbarScrollBehavior,
+        toolbarChromeStyle: preferences.appearance.toolbarChromeStyle,
         globalImmersionEnabled: preferences.appearance.globalImmersionEnabled,
         alwaysTopImmersionEnabled: preferences.appearance.alwaysTopImmersionEnabled,
         forceDarkWebContentEnabled: preferences.appearance.forceDarkWebContentEnabled,
@@ -604,6 +606,7 @@ export class PersonalizationSyncSnapshotService {
       safePayload.appearance = {
         bottomToolbarScrollBehavior:
           this.sanitizeBottomToolbarScrollBehavior(payload.appearance.bottomToolbarScrollBehavior),
+        toolbarChromeStyle: this.sanitizeToolbarChromeStyle(payload.appearance.toolbarChromeStyle),
         globalImmersionEnabled: this.sanitizeBoolean(payload.appearance.globalImmersionEnabled),
         alwaysTopImmersionEnabled: this.sanitizeBoolean(payload.appearance.alwaysTopImmersionEnabled),
         forceDarkWebContentEnabled: this.sanitizeBoolean(payload.appearance.forceDarkWebContentEnabled),
@@ -654,6 +657,12 @@ export class PersonalizationSyncSnapshotService {
     value: BrowserBottomToolbarScrollBehavior | undefined
   ): BrowserBottomToolbarScrollBehavior | undefined {
     return value === 'fixed' || value === 'compact' || value === 'hidden' ? value : undefined;
+  }
+
+  private sanitizeToolbarChromeStyle(
+    value: BrowserToolbarChromeStyle | undefined
+  ): BrowserToolbarChromeStyle | undefined {
+    return value === 'floating' || value === 'split' ? value : undefined;
   }
 
   private sanitizeWallpaperMode(value: WallpaperMode | undefined): WallpaperMode | undefined {
@@ -1320,6 +1329,7 @@ export class PersonalizationSyncSnapshotService {
       await this.dependencies.preferencesRepository.updateAppearanceSettings({
         bottomToolbarScrollBehavior:
           incomingAppearance.bottomToolbarScrollBehavior ?? current.bottomToolbarScrollBehavior,
+        toolbarChromeStyle: incomingAppearance.toolbarChromeStyle ?? current.toolbarChromeStyle,
         globalImmersionEnabled: incomingAppearance.globalImmersionEnabled ?? current.globalImmersionEnabled,
         alwaysTopImmersionEnabled: incomingAppearance.alwaysTopImmersionEnabled ?? current.alwaysTopImmersionEnabled,
         forceDarkWebContentEnabled: incomingAppearance.forceDarkWebContentEnabled ?? current.forceDarkWebContentEnabled,

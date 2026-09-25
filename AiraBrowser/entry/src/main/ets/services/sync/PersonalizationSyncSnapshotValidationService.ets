@@ -149,6 +149,10 @@ export class PersonalizationSyncSnapshotValidationService {
         appearance.bottomToolbarScrollBehavior,
         ['fixed', 'compact', 'hidden']
       ) ||
+      !this.isOptionalAllowedString(
+        appearance.toolbarChromeStyle,
+        ['floating', 'split']
+      ) ||
       !optionalBooleanAppearanceFields.every((field: string): boolean => {
         return this.isOptionalBoolean(appearance[field]);
       }) ||

@@ -36,6 +36,8 @@ export interface BottomToolbarGuideShellFacts {
    */
   deviceFormFactor: BrowserDeviceFormFactor;
   appVisible: boolean;
+  /** The phone lesson explains the floating toolbar. The split frame has no such gesture. */
+  floatingToolbarChromeActive: boolean;
   privacyMode: string;
   promptBlockingFacts: BrowserTransientPromptBlockingFacts;
 }
@@ -199,6 +201,9 @@ export class BottomToolbarGuideCoordinator {
     }
     const facts = this.shell.resolveFacts();
     if (facts.shellFamily !== 'phone') {
+      return false;
+    }
+    if (!facts.floatingToolbarChromeActive) {
       return false;
     }
     // A desktop has no bottom floating toolbar to swipe away, and a cockpit

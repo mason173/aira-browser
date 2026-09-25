@@ -3,6 +3,7 @@ import { DEFAULT_THEME_PALETTE } from '../../../features/theme/palettes/DefaultT
 import { showCenteredAlertDialog } from '../common/CenteredDialogSurface';
 import {
   BrowserBottomToolbarScrollBehavior,
+  BrowserToolbarChromeStyle,
   BrowserToolbarLayoutSettings
 } from '../../../common/models/BrowserModels';
 import {
@@ -122,6 +123,8 @@ export struct BrowserToolbarCustomizationScreen {
     sharedPreferencesRepository.getPreferences().toolbarLayout;
   @State private scrollBehavior: BrowserBottomToolbarScrollBehavior =
     sharedPreferencesRepository.getPreferences().appearance.bottomToolbarScrollBehavior;
+  @State private toolbarChromeStyle: BrowserToolbarChromeStyle =
+    sharedPreferencesRepository.getPreferences().appearance.toolbarChromeStyle;
   @State private state: BrowserToolbarCustomizationState =
     this.viewModel.buildState(sharedPreferencesRepository.getPreferences().toolbarLayout);
   @State private saving: boolean = false;
@@ -257,6 +260,7 @@ export struct BrowserToolbarCustomizationScreen {
       scrollEnabled: true,
       scroller: this.settingsScroller
     }) {
+      this.buildToolbarStyleSection()
       this.buildToolbarPreviewSection()
       this.buildToolbarBehaviorSection()
       if (this.hasCustomizedToolbarSlots()) {
@@ -309,6 +313,82 @@ export struct BrowserToolbarCustomizationScreen {
   }
 
   @Builder
+  private buildToolbarStyleSection() {
+    SettingsSection({
+      title: '工具栏样式',
+      secondaryTextColor: this.storedSecondaryTextColor
+    }) {
+      if (this.desktopPresentation) {
+        SettingsDesktopGroup({ surfaceColor: this.storedSurfaceBackgroundColor }) {
+          SettingsDesktopOptionRow({
+            title: '悬浮工具栏',
+            isSelected: this.toolbarChromeStyle === 'floating',
+            isEnabled: !this.saving,
+            radioGroup: 'browser-toolbar-chrome-style',
+            radioValue: 'floating',
+            primaryTextColor: this.storedPrimaryTextColor,
+            secondaryTextColor: this.storedSecondaryTextColor,
+            hoverBackgroundColor: this.resolvePressedBackgroundColor(),
+            focusColor: this.storedAccentColor,
+            onAction: () => {
+              this.updateToolbarChromeStyle('floating');
+            }
+          })
+          SettingsDesktopDivider({ dividerColor: this.storedDividerColor })
+          SettingsDesktopOptionRow({
+            title: '上下分栏',
+            isSelected: this.toolbarChromeStyle === 'split',
+            isEnabled: !this.saving,
+            radioGroup: 'browser-toolbar-chrome-style',
+            radioValue: 'split',
+            primaryTextColor: this.storedPrimaryTextColor,
+            secondaryTextColor: this.storedSecondaryTextColor,
+            hoverBackgroundColor: this.resolvePressedBackgroundColor(),
+            focusColor: this.storedAccentColor,
+            onAction: () => {
+              this.updateToolbarChromeStyle('split');
+            }
+          })
+        }
+      } else {
+        SettingsGroupCard({ surfaceColor: this.storedSurfaceBackgroundColor }) {
+          SettingsOptionRow({
+            title: '悬浮工具栏',
+            isSelected: this.toolbarChromeStyle === 'floating',
+            radioGroup: 'browser-toolbar-chrome-style',
+            radioValue: 'floating',
+            rowPosition: 'first',
+            primaryTextColor: this.storedPrimaryTextColor,
+            secondaryTextColor: this.storedSecondaryTextColor,
+            pressedBackgroundColor: this.resolvePressedBackgroundColor(),
+            onAction: () => {
+              this.updateToolbarChromeStyle('floating');
+            }
+          })
+          SettingsGroupDivider({ dividerColor: this.storedDividerColor })
+          SettingsOptionRow({
+            title: '上下分栏',
+            isSelected: this.toolbarChromeStyle === 'split',
+            radioGroup: 'browser-toolbar-chrome-style',
+            radioValue: 'split',
+            rowPosition: 'last',
+            primaryTextColor: this.storedPrimaryTextColor,
+            secondaryTextColor: this.storedSecondaryTextColor,
+            pressedBackgroundColor: this.resolvePressedBackgroundColor(),
+            onAction: () => {
+              this.updateToolbarChromeStyle('split');
+            }
+          })
+        }
+      }
+      SettingsFooterText({
+        text: '上下分栏把地址栏放在顶部、导航放在底部，并且始终固定显示。',
+        secondaryTextColor: this.storedSecondaryTextColor
+      })
+    }
+  }
+
+  @Builder
   private buildToolbarBehaviorSection() {
     SettingsSection({
       title: '工具栏行为',
@@ -318,7 +398,9 @@ export struct BrowserToolbarCustomizationScreen {
         SettingsDesktopGroup({ surfaceColor: this.storedSurfaceBackgroundColor }) {
           SettingsDesktopNavigationRow({
             title: '滚动行为',
-            value: this.scrollBehaviorViewModel.formatBehaviorTitle(this.scrollBehavior),
+            value: this.toolbarChromeStyle === 'split' ?
+              '固定' : this.scrollBehaviorViewModel.formatBehaviorTitle(this.scrollBehavior),
+            isEnabled: this.toolbarChromeStyle !== 'split' && !this.saving,
             primaryTextColor: this.storedPrimaryTextColor,
             secondaryTextColor: this.storedSecondaryTextColor,
             hoverBackgroundColor: this.resolvePressedBackgroundColor(),
@@ -332,8 +414,10 @@ export struct BrowserToolbarCustomizationScreen {
         SettingsGroupCard({ surfaceColor: this.storedSurfaceBackgroundColor }) {
           SettingsNavigationRow({
             title: '滚动行为',
-            value: this.scrollBehaviorViewModel.formatBehaviorTitle(this.scrollBehavior),
+            value: this.toolbarChromeStyle === 'split' ?
+              '固定' : this.scrollBehaviorViewModel.formatBehaviorTitle(this.scrollBehavior),
             rowPosition: 'single',
+            isEnabled: this.toolbarChromeStyle !== 'split' && !this.saving,
             primaryTextColor: this.storedPrimaryTextColor,
             secondaryTextColor: this.storedSecondaryTextColor,
             pressedBackgroundColor: this.resolvePressedBackgroundColor(),
@@ -344,7 +428,9 @@ export struct BrowserToolbarCustomizationScreen {
         }
       }
       SettingsFooterText({
-        text: '选择浏览网页时工具栏保持显示、收起为胶囊或完全隐藏。',
+        text: this.toolbarChromeStyle === 'split' ?
+          '上下分栏始终固定显示，不随网页滚动收起。' :
+          '选择浏览网页时工具栏保持显示、收起为胶囊或完全隐藏。',
         secondaryTextColor: this.storedSecondaryTextColor
       })
     }
@@ -667,6 +753,29 @@ export struct BrowserToolbarCustomizationScreen {
     }
   }
 
+  private updateToolbarChromeStyle(style: BrowserToolbarChromeStyle): void {
+    if (this.saving || this.toolbarChromeStyle === style) {
+      return;
+    }
+    const previousStyle = this.toolbarChromeStyle;
+    this.toolbarChromeStyle = style;
+    this.saving = true;
+    this.customizationCoordinator.persistToolbarChromeStyle(
+      style,
+      new BrowserToolbarCustomizationBoundary(this.dataScope, this.privacyMode)
+    )
+      .then((savedStyle: BrowserToolbarChromeStyle) => {
+        this.saving = false;
+        this.toolbarChromeStyle = savedStyle;
+        this.onSettingsChanged?.();
+      })
+      .catch((_error: Error) => {
+        this.saving = false;
+        this.toolbarChromeStyle = previousStyle;
+        this.showToast('工具栏样式更新失败。');
+      });
+  }
+
   private updateScrollBehavior(behavior: BrowserBottomToolbarScrollBehavior): void {
     if (this.saving || this.scrollBehavior === behavior) {
       return;
@@ -834,6 +943,7 @@ export struct BrowserToolbarCustomizationScreen {
     const preferences = sharedPreferencesRepository.getPreferences();
     this.settings = preferences.toolbarLayout;
     this.scrollBehavior = preferences.appearance.bottomToolbarScrollBehavior;
+    this.toolbarChromeStyle = preferences.appearance.toolbarChromeStyle;
     this.state = this.viewModel.buildState(this.settings);
     this.slotSheetRevision += 1;
   }

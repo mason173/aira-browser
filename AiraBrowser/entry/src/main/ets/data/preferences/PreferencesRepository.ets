@@ -9,6 +9,7 @@ import {
   BrowserAppServiceMode,
   BrowserAppearanceSettings,
   BrowserBottomToolbarScrollBehavior,
+  BrowserToolbarChromeStyle,
   BrowserHomeShortcutLayoutDensity,
   BrowserGeneralSettings,
   BrowserCookiePolicySettings,
@@ -202,6 +203,7 @@ export const DEFAULT_READER_MODE_PREFERENCES: ReaderModePreferences = {
 
 export const DEFAULT_BROWSER_APPEARANCE_SETTINGS: BrowserAppearanceSettings = {
   bottomToolbarScrollBehavior: 'compact',
+  toolbarChromeStyle: 'floating',
   globalImmersionEnabled: false,
   alwaysTopImmersionEnabled: false,
   forceDarkWebContentEnabled: true,
@@ -769,12 +771,38 @@ export class PreferencesRepository {
     return this.cachedPreferences;
   }
 
+  async updateToolbarChromeStyle(style: BrowserToolbarChromeStyle): Promise<BrowserPreferences> {
+    const current = this.cachedPreferences.appearance;
+    return this.updateAppearanceSettings({
+      bottomToolbarScrollBehavior: current.bottomToolbarScrollBehavior,
+      toolbarChromeStyle: style === 'split' ? 'split' : 'floating',
+      globalImmersionEnabled: current.globalImmersionEnabled,
+      alwaysTopImmersionEnabled: current.alwaysTopImmersionEnabled,
+      forceDarkWebContentEnabled: current.forceDarkWebContentEnabled,
+      blurPrivateTabPreviews: current.blurPrivateTabPreviews,
+      showHomeRecentlyClosed: current.showHomeRecentlyClosed,
+      showHomeShortcuts: current.showHomeShortcuts,
+      homeRecentlyClosedLimit: current.homeRecentlyClosedLimit,
+      homeShortcutLayoutDensity: current.homeShortcutLayoutDensity,
+      homeShortcutIconSizeRatio: current.homeShortcutIconSizeRatio,
+      siteIconCornerRadiusRatio: current.siteIconCornerRadiusRatio,
+      themePaletteId: current.themePaletteId,
+      tabsOverviewLayoutStyle: current.tabsOverviewLayoutStyle,
+      tabsOverviewCloseButtonAlwaysVisible: current.tabsOverviewCloseButtonAlwaysVisible,
+      showDesktopBookmarkBar: current.showDesktopBookmarkBar,
+      desktopBookmarkBarVisibility: current.desktopBookmarkBarVisibility,
+      verticalTabsEnabled: current.verticalTabsEnabled,
+      verticalTabsCollapsed: current.verticalTabsCollapsed
+    });
+  }
+
   async updateBottomToolbarScrollBehavior(
     behavior: BrowserBottomToolbarScrollBehavior
   ): Promise<BrowserPreferences> {
     const current = this.cachedPreferences.appearance;
     return this.updateAppearanceSettings({
       bottomToolbarScrollBehavior: behavior,
+      toolbarChromeStyle: current.toolbarChromeStyle,
       globalImmersionEnabled: current.globalImmersionEnabled,
       alwaysTopImmersionEnabled: current.alwaysTopImmersionEnabled,
       forceDarkWebContentEnabled: current.forceDarkWebContentEnabled,
@@ -802,6 +830,7 @@ export class PreferencesRepository {
     const current = this.cachedPreferences.appearance;
     return this.updateAppearanceSettings({
       bottomToolbarScrollBehavior: current.bottomToolbarScrollBehavior,
+      toolbarChromeStyle: current.toolbarChromeStyle,
       globalImmersionEnabled: current.globalImmersionEnabled,
       alwaysTopImmersionEnabled: current.alwaysTopImmersionEnabled,
       forceDarkWebContentEnabled: current.forceDarkWebContentEnabled,
@@ -840,6 +869,7 @@ export class PreferencesRepository {
       homeShortcutIconSizeRatio: current.homeShortcutIconSizeRatio,
       siteIconCornerRadiusRatio: current.siteIconCornerRadiusRatio,
       themePaletteId: current.themePaletteId,
+      toolbarChromeStyle: current.toolbarChromeStyle,
       tabsOverviewLayoutStyle: this.normalizeTabsOverviewLayoutStyle(style),
       tabsOverviewCloseButtonAlwaysVisible: closeButtonAlwaysVisible,
       showDesktopBookmarkBar: current.showDesktopBookmarkBar,
@@ -1036,6 +1066,7 @@ export class PreferencesRepository {
       bottomToolbarScrollBehavior: this.normalizeBottomToolbarScrollBehavior(
         settings?.bottomToolbarScrollBehavior
       ),
+      toolbarChromeStyle: this.normalizeToolbarChromeStyle(settings?.toolbarChromeStyle),
       globalImmersionEnabled: typeof settings?.globalImmersionEnabled === 'boolean'
         ? settings.globalImmersionEnabled
         : DEFAULT_BROWSER_APPEARANCE_SETTINGS.globalImmersionEnabled,
@@ -1080,6 +1111,12 @@ export class PreferencesRepository {
         ? settings.verticalTabsCollapsed
         : DEFAULT_BROWSER_APPEARANCE_SETTINGS.verticalTabsCollapsed
     };
+  }
+
+  private normalizeToolbarChromeStyle(
+    value: string | undefined
+  ): BrowserToolbarChromeStyle {
+    return value === 'split' ? 'split' : 'floating';
   }
 
   private normalizeBottomToolbarScrollBehavior(

@@ -29,6 +29,7 @@ import {
   SearchEngineId,
   SearchEngineRecord,
   SearchSuggestion,
+  BrowserToolbarChromeStyle,
   ShortcutRecord,
   BrowserExperimentSettings,
   ExternalAppSearchTargetId,
@@ -224,8 +225,22 @@ import { SearchEngineRoutingMode } from '../../services/search/SearchEngineRouti
 import { BrowserSearchSubmissionHistoryCoordinator } from '../../core/navigation/BrowserSearchSubmissionHistoryCoordinator';
 import { ExternalAppSearchPrivateConfirmation } from '../../services/search/ExternalAppSearchService';
 import {
+  formatTopChromeAddress,
+  isSecureCurrentSiteUrl,
   resolveCurrentSiteUrl
 } from '../../core/browser/AddressDisplayFormatter';
+import {
+  isSplitToolbarChromeActive,
+  resolveSplitToolbarBarBackgroundColor,
+  resolveSplitToolbarCanGoBack,
+  resolveSplitToolbarCanGoForward,
+  resolveSplitToolbarHomeBackdrop,
+  shouldReserveSplitToolbarHomeInsets,
+  shouldSuppressLegacyFloatingToolbar,
+  SPLIT_TOOLBAR_ADDRESS_BLOCK_VP,
+  SPLIT_TOOLBAR_BOTTOM_BAR_VP
+} from '../../core/browser/BrowserToolbarChromeStylePolicy';
+import { BrowserSplitToolbarChrome } from '../components/browser/BrowserSplitToolbarChrome';
 import { BrowserAddressDisplayCoordinator } from '../../core/browser/BrowserAddressDisplayCoordinator';
 import { BrowserThemeModeCoordinator } from '../../core/browser/BrowserThemeModeCoordinator';
 import {
@@ -750,6 +765,7 @@ import {
   BrowserCreateTabOptions,
   BrowserTabRuntimePatch,
   BrowserTabState,
+  isBrowserTabTerminalBackAvailable,
 } from '../../core/tabs/TabManager';
 import {
   AppShortcutNavigationCoordinator,
@@ -3233,6 +3249,9 @@ struct BrowserShellPage {
     },
     endSearchInvocation: (): void => {
       BrowserSearchInvocationRuntime.endCurrent(this.getWindowScopeId(), 'explicit_exit');
+      if (this.splitToolbarSearchActive) {
+        this.dismissSplitToolbarSearch();
+      }
     },
     collapseRootBottomPanel: (): void => {
       this.requestRootBottomPanelCollapse();
@@ -5449,6 +5468,7 @@ struct BrowserShellPage {
           shellFamily: this.browserShellPresentationOperations?.snapshot()?.shellFamily ?? 'phone',
           deviceFormFactor: this.resolveGuideDeviceFormFactor(),
           appVisible: this.isBrowserShellVisible,
+          floatingToolbarChromeActive: this.toolbarChromeStyle !== 'split',
           privacyMode: this.tabScopedEventContextCoordinator.resolveCurrentBoundary().privacyMode,
           promptBlockingFacts: this.buildTransientPromptBlockingFacts()
         };
@@ -6026,6 +6046,10 @@ struct BrowserShellPage {
   @State tabsSheetAccentColor: string = '#0A59F7';
   @State tabsSheetBlurPrivateTabPreviews: boolean = true;
   @State toolbarLayoutVersion: number = 0;
+  @State toolbarChromeStyle: BrowserToolbarChromeStyle =
+    sharedPreferencesRepository.getPreferences().appearance.toolbarChromeStyle;
+  @State splitToolbarSearchActive: boolean = false;
+  @State splitToolbarSearchDismissVersion: number = 0;
   @State contextMenuHomeShortcutId: string = '';
   @State homeShortcutEditDraft: HomeShortcutEditDraft = {
     shortcutId: '',
@@ -6334,6 +6358,11 @@ struct BrowserShellPage {
     applyAppearanceState: (state: BrowserShellLifecycleAppearanceState): void => {
       this.webScrollGlobalImmersionEnabled = state.globalImmersionEnabled;
       this.webScrollAlwaysTopImmersionEnabled = state.alwaysTopImmersionEnabled;
+      this.toolbarChromeStyle = sharedPreferencesRepository.getPreferences().appearance.toolbarChromeStyle;
+      if (this.toolbarChromeStyle === 'split' && !this.isLargeScreenShellFamilyActive()) {
+        this.browserWebScrollInteractionCoordinator.applyBottomToolbarScrollBehavior('fixed', this.activeTabId);
+      }
+      this.alignWebViewportVisualTopInsetAfterSafeAreaSync(true, true);
     },
     applyExperimentSettings: (settings: BrowserExperimentSettings): void => {
       this.webScrollExperimentSettings = settings;
@@ -6591,6 +6620,10 @@ struct BrowserShellPage {
 
       if (this.shouldMountRootBottomPanelHost()) {
         this.buildRootBottomPanelHost()
+      }
+
+      if (this.shouldUseSplitToolbarChrome()) {
+        this.buildSplitToolbarChrome()
       }
 
       if (this.readerModeSessionSnapshot.state.visible) {
@@ -7062,7 +7095,8 @@ struct BrowserShellPage {
         this.customHomepageRuntimeState.transientBackHandlerActive,
       tabsSheetVisible: this.showTabsSheet,
       downloadPromptGuid: this.pendingDownloadPrompt?.guid ?? '',
-      externalNavigationPromptVisible: this.externalNavigationPromptState.visible
+      externalNavigationPromptVisible: this.externalNavigationPromptState.visible,
+      splitToolbarSearchActive: this.splitToolbarSearchActive
     };
   }
 
@@ -7408,6 +7442,10 @@ struct BrowserShellPage {
       privateMode: this.tabScopedEventContextCoordinator.isCurrentBoundaryPrivate(),
       appProxyActive: this.appProxyQuickSheetState.toolbarActive,
       liveBackdropBlurSuppressed: false,
+      restingChromeSuppressed: shouldSuppressLegacyFloatingToolbar(
+        this.toolbarChromeStyle,
+        this.isLargeScreenShellFamilyActive()
+      ),
       addressEditable: !this.buildCurrentDocumentViewerChromeContext().policy.active,
       viewerInfoActionEnabled: this.buildCurrentDocumentViewerChromeContext().policy.active && scene !== 'home',
       homeSuggestions: this.browserSearchSuggestionSnapshot.searchSuggestions,
@@ -7927,10 +7965,14 @@ struct BrowserShellPage {
       Math.max(immersionTopVp, cockpitTopVp),
       WEB_TOP_CHROME_CONTENT_GAP_VP
     );
-    return BrowserWebViewportCoordinator.resolveVisibleTopChromeInset({
+    const visibleTopInsetPx = BrowserWebViewportCoordinator.resolveVisibleTopChromeInset({
       baseTopInsetPx: baseTopInsetPx,
       occupiedChromeHeightPx: this.quickSearchSwitchingPresentation.occupiedHeightPx
     });
+    if (!this.shouldUseSplitToolbarChrome() || this.showHomePage) {
+      return visibleTopInsetPx;
+    }
+    return visibleTopInsetPx + SPLIT_TOOLBAR_ADDRESS_BLOCK_VP;
   }
 
   private isLargeScreenShellFamilyActive(): boolean {
@@ -8022,9 +8064,7 @@ struct BrowserShellPage {
     return BrowserWebViewportCoordinator.resolvePresentation({
       hostHeightPx: this.rootBottomPanelLayoutState.webHostHeight,
       visualTopInsetPx: visualTopInsetPx,
-      visualBottomInsetPx: this.webScrollExperimentSettings.webBottomSafeAreaEnabled &&
-        this.rootKeyboardInsetVp <= 0 && !this.webBottomAddressFocused &&
-        !this.shouldHideRootBottomChromeForImmersion() ? this.webBottomSafeAreaInsetVp : 0,
+      visualBottomInsetPx: this.resolveWebViewportVisualBottomInsetVp(),
       fullViewport: this.buildCurrentDocumentViewerChromeContext().policy.fullViewport,
       largeScreenShellActive: this.isLargeScreenShellFamilyActive(),
       nativeVideoTakeoverActive: this.isAssistantVideoTakeoverActive(),
@@ -8385,6 +8425,177 @@ struct BrowserShellPage {
     .zIndex(TABS_OVERVIEW_OVERLAY_Z_INDEX - 2)
   }
 
+  private shouldUseSplitToolbarChrome(): boolean {
+    return isSplitToolbarChromeActive({
+      style: this.toolbarChromeStyle,
+      largeScreenShellActive: this.isLargeScreenShellFamilyActive(),
+      immersiveChromeHidden: this.shouldHideRootBottomChromeForImmersion(),
+      documentViewerActive: this.buildCurrentDocumentViewerChromeContext().policy.active,
+      readerVisible: this.readerModeSessionSnapshot.state.visible,
+      novelReaderVisible: this.novelReaderSnapshot.visible
+    });
+  }
+
+  private resolveSplitToolbarCanGoBack(): boolean {
+    const tab = this.tabManager.getTab(this.tabs, this.activeTabId);
+    return resolveSplitToolbarCanGoBack(
+      this.showHomePage,
+      this.canGoBack,
+      isBrowserTabTerminalBackAvailable(tab)
+    );
+  }
+
+  private resolveSplitToolbarCanGoForward(): boolean {
+    const tab = this.tabManager.getTab(this.tabs, this.activeTabId);
+    const historyCanGoForward = tab !== undefined && !tab.isHome &&
+      tab.navigationIndex >= 0 && tab.navigationIndex < tab.navigationHistory.length - 1;
+    return resolveSplitToolbarCanGoForward(this.showHomePage, this.canGoForward, historyCanGoForward);
+  }
+
+  @Builder
+  private buildSplitToolbarChrome() {
+    BrowserSplitToolbarChrome({
+      homeScene: this.showHomePage,
+      displayAddress: this.resolveSplitToolbarDisplayAddress(),
+      editableAddress: this.showHomePage ? '' : this.resolveEditableWebBottomAddress(),
+      secure: isSecureCurrentSiteUrl(this.currentUrl, this.addressInput),
+      canGoBack: this.resolveSplitToolbarCanGoBack(),
+      canGoForward: this.resolveSplitToolbarCanGoForward(),
+      tabCount: this.tabCount,
+      pageLoading: this.shouldShowWebLoadingProgress(),
+      suggestions: this.browserSearchSuggestionSnapshot.searchSuggestions,
+      searchEngines: this.availableSearchEngines,
+      selectedEngineId: this.selectedSearchEngine,
+      topSafeInsetVp: this.homeTopSafeInsetVp,
+      bottomSafeInsetVp: this.homeBottomSafeInsetVp,
+      keyboardInsetVp: this.rootAddressKeyboardOverlayInsetVp,
+      searchDismissVersion: this.splitToolbarSearchDismissVersion,
+      pageBackgroundColor: this.themedHomeSurfaceBackground,
+      barBackgroundColor: this.readSplitToolbarBarBackgroundColor(),
+      pressedBackgroundColor: this.themedHomePressedBackground,
+      textColor: this.themedHomeTextPrimaryColor,
+      secondaryTextColor: this.themedHomeTextSecondaryColor,
+      onSearchSessionChange: (active: boolean, query: string): void => {
+        this.handleSplitToolbarSearchSession(active, query);
+      },
+      onSubmit: (rawInput: string): void => {
+        this.submitRootBottomAddressInput(rawInput);
+      },
+      onSelectEngine: (engineId: SearchEngineId): void => {
+        this.browserTabHomeCoordinator.selectSearchEngine(engineId);
+      },
+      onOpenSuggestion: (suggestion: SearchSuggestion): void => {
+        BrowserSearchInvocationRuntime.endCurrent(this.getWindowScopeId(), 'submitted');
+        this.browserShellSearchInvocationAdapter.openSuggestion(suggestion);
+      },
+      onDeleteHistorySuggestion: (suggestion: SearchSuggestion): void => {
+        void this.browserSearchSuggestionCoordinator.deleteHistorySuggestion(suggestion);
+      },
+      onExternalSearch: (targetId: ExternalAppSearchTargetId, query: string): void => {
+        void this.addressSubmissionCoordinator.submitExternalAppSearch(
+          targetId,
+          query,
+          this.selectedSearchEngine
+        );
+      },
+      onBack: (): void => {
+        this.browserMainBackCoordinator.onBackPress(this.browserMainBackHost);
+      },
+      onForward: (): void => {
+        this.browserWebHistoryCommandRuntimeCoordinator.handleRootBottomPanelWebForward();
+      },
+      onOpenBookmarks: (): void => {
+        void this.browserShellRouteCoordinator.openBookmarkManagerPage();
+      },
+      onOpenHistory: (): void => {
+        this.browserShellRouteCoordinator.openHistoryManagerPage();
+      },
+      onHome: (): void => {
+        this.dispatchRootBottomPanelAction('panel', 'home');
+      },
+      onReload: (): void => {
+        this.browserActiveTabRuntimeRestoreCoordinator.reloadActive('user_manual_reload');
+      },
+      onOpenTabs: (): void => {
+        void this.openTabsOverview();
+      },
+      onOpenMenu: (): void => {
+        this.openSplitToolbarMenu();
+      },
+      onOpenSiteInfo: (): void => {
+        this.dispatchRootBottomPanelAction('header', 'siteSecurity');
+      },
+      onScan: (): void => {
+        void this.scanQrCodeFromBottomPanel();
+      }
+    })
+      .width('100%')
+      .height('100%')
+      .zIndex(210)
+      .hitTestBehavior(HitTestMode.Transparent)
+  }
+
+  private resolveSplitToolbarDisplayAddress(): string {
+    const committed = this.resolveCommittedAddressDisplayText(this.currentUrl);
+    const formatted = formatTopChromeAddress(committed);
+    return formatted.length > 0 ? formatted : committed;
+  }
+
+  private readSplitToolbarBarBackgroundColor(): string {
+    const profile = this.browserTabHomeCoordinator.buildHomeSurfaceProfile();
+    const wallpaper = this.resolveHomeWallpaperPresentationState();
+    return resolveSplitToolbarBarBackgroundColor({
+      homeScene: this.showHomePage,
+      backdrop: resolveSplitToolbarHomeBackdrop(wallpaper.kind, profile.foregroundBackdropSource),
+      homeBackgroundColor: this.themedHomeBackground,
+      surfaceBackgroundColor: this.themedHomeSurfaceBackground
+    });
+  }
+
+  private handleSplitToolbarSearchSession(active: boolean, query: string): void {
+    this.splitToolbarSearchActive = active;
+    if (!active) {
+      this.browserSearchSuggestionCoordinator.beginClosingOverlay();
+      this.webBottomAddressFocused = false;
+      return;
+    }
+    if (this.showHomePage) {
+      this.addressInput = query;
+    } else {
+      this.webBottomAddressDraft = query;
+      this.webBottomAddressFocused = true;
+    }
+    this.browserSearchSuggestionCoordinator.beginSearchSession('split-toolbar-search', {
+      query: query,
+      focused: true,
+      protectKeyboardSession: true
+    });
+    this.browserSearchSuggestionCoordinator.updateSearchSessionInput('split-toolbar-search', {
+      query: query,
+      focused: true,
+      protectKeyboardSession: true
+    });
+    this.browserSearchSuggestionCoordinator.refreshDeferred();
+  }
+
+  private dismissSplitToolbarSearch(): void {
+    this.splitToolbarSearchActive = false;
+    this.splitToolbarSearchDismissVersion += 1;
+    this.browserSearchSuggestionCoordinator.beginClosingOverlay();
+    this.webBottomAddressFocused = false;
+  }
+
+  private openSplitToolbarMenu(): void {
+    if (this.browserRootBottomPanelSessionCoordinator.isToolbarSystemSheetClosing()) {
+      return;
+    }
+    this.browserRootBottomPanelSessionCoordinator.beginProgrammaticHomeToolbarHostSession(
+      this.buildRootBottomPanelSessionSnapshot()
+    );
+    this.rootBottomPanelToolbarSystemSheetRequested = true;
+    this.rootBottomPanelToolbarSystemSheetRequestVersion += 1;
+  }
+
   @Builder
   private buildRootBottomPanelHost() {
     BrowserBottomPanelHost({
@@ -8430,8 +8641,10 @@ struct BrowserShellPage {
   @Builder
   private buildRootBottomPanelExpandedScrim() {
     BrowserRootBottomPanelExpandedScrim({
-      scrimOpacity: this.buildRootBottomPanelExpandedScrimState().backdropProgress,
-      blockHitTest: this.buildRootBottomPanelExpandedScrimState().blockHitTest,
+      scrimOpacity: this.shouldUseSplitToolbarChrome() ? 0 :
+        this.buildRootBottomPanelExpandedScrimState().backdropProgress,
+      blockHitTest: this.shouldUseSplitToolbarChrome() ? false :
+        this.buildRootBottomPanelExpandedScrimState().blockHitTest,
       surfaceEligible: this.buildRootBottomPanelExpandedScrimState().surfaceEligible,
       settledVisible: this.buildRootBottomPanelExpandedScrimState().visible,
       pageBackgroundVisible: this.buildRootBottomPanelExpandedScrimState().pageBackgroundVisible,
@@ -8641,7 +8854,7 @@ struct BrowserShellPage {
       contentPresentation: this.buildHomeSurfaceContentPresentationState(),
       errorBottomInsetVp: this.browserTabHomeCoordinator.resolveCustomHomepageErrorBottomInset(
         this.buildHomeResponsiveLayoutState(),
-        BROWSER_BOTTOM_ADDRESS_PANEL_LOW_HEIGHT
+        this.resolveHomeBottomChromeReserveVp()
       ),
       systemEntryButtonVisible: this.browserTabHomeCoordinator
         .buildHomeSystemChromePolicyState().systemEntryButtonVisible,
@@ -8707,7 +8920,7 @@ struct BrowserShellPage {
         recentlyClosed: this.recentlyClosedApplicationSnapshot,
         viewportWidth: this.rootBottomPanelLayoutState.viewport.width,
         viewportHeight: this.rootBottomPanelLayoutState.viewport.height,
-        bottomPanelLowHeight: BROWSER_BOTTOM_ADDRESS_PANEL_LOW_HEIGHT,
+        bottomPanelLowHeight: this.resolveHomeBottomChromeReserveVp(),
         privateMode: this.tabScopedEventContextCoordinator.isCurrentBoundaryPrivate()
       }),
       theme: this.browserTabHomeCoordinator.buildContentThemePresentation({
@@ -9064,11 +9277,40 @@ struct BrowserShellPage {
       shellFamily: this.browserShellPresentationOperations?.snapshot()?.shellFamily ?? 'phone',
       viewportWidth: this.rootBottomPanelLayoutState.viewport.width,
       viewportHeight: this.rootBottomPanelLayoutState.viewport.height,
-      topSafeInsetVp: this.homeTopSafeInsetVp,
+      topSafeInsetVp: this.resolveHomeContentTopSafeInsetVp(),
       bottomSafeInsetVp: this.homeBottomSafeInsetVp,
       leftSafeInsetVp: this.homeLeftSafeInsetVp,
       rightSafeInsetVp: this.homeRightSafeInsetVp
     }, this.homeShortcutLayoutDensity);
+  }
+
+  private resolveHomeContentTopSafeInsetVp(): number {
+    if (!this.shouldReserveSplitToolbarHomeInsets()) {
+      return this.homeTopSafeInsetVp;
+    }
+    return this.homeTopSafeInsetVp + SPLIT_TOOLBAR_ADDRESS_BLOCK_VP;
+  }
+
+  private shouldReserveSplitToolbarHomeInsets(): boolean {
+    return shouldReserveSplitToolbarHomeInsets(
+      this.toolbarChromeStyle,
+      this.isLargeScreenShellFamilyActive()
+    );
+  }
+
+  private resolveHomeBottomChromeReserveVp(): number {
+    return this.shouldReserveSplitToolbarHomeInsets() ?
+      SPLIT_TOOLBAR_BOTTOM_BAR_VP : BROWSER_BOTTOM_ADDRESS_PANEL_LOW_HEIGHT;
+  }
+
+  private resolveWebViewportVisualBottomInsetVp(): number {
+    const systemInsetVp = this.webScrollExperimentSettings.webBottomSafeAreaEnabled &&
+      this.rootKeyboardInsetVp <= 0 && !this.webBottomAddressFocused &&
+      !this.shouldHideRootBottomChromeForImmersion() ? this.webBottomSafeAreaInsetVp : 0;
+    if (!this.shouldUseSplitToolbarChrome() || this.showHomePage || this.rootKeyboardInsetVp > 0) {
+      return systemInsetVp;
+    }
+    return Math.max(systemInsetVp, SPLIT_TOOLBAR_BOTTOM_BAR_VP + this.homeBottomSafeInsetVp);
   }
 
   private applyTabsOverviewThemeState(state: BrowserTabsOverviewThemeState): void {

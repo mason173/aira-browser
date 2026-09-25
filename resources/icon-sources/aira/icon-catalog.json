@@ -5,11 +5,11 @@
     "familyName": "AiraOperationalIcons",
     "fontFile": "vendor/lucide/aira-operational-icons/AiraOperationalIcons.ttf",
     "packagedRawfile": "fonts/aira/aira-operational-icons.ttf",
-    "fontSha256": "c0c5c2e9745b587c53299083a7049e213c3edb3ddf7941cbea2ae869161c4097",
+    "fontSha256": "500e1c0b87bc2e417297aaabb9635b687e8a3c5076cd6a7bcc1220e1744a19cd",
     "selectionFile": "vendor/lucide/aira-operational-icons/selection.json",
-    "selectionSha256": "bc98f3b8f7d59c39f2e3b9f9fcadd6595925db369eef9d4889ec561efa58414a",
+    "selectionSha256": "8d39365660ee77f9fb28fc3bd1c39a053729a9fc44e27dd18e1c7235233c5adf",
     "sourceManifestFile": "vendor/lucide/aira-operational-icons/source-manifest.json",
-    "sourceManifestSha256": "f26656a51b7f2f0414ae67a8781c53bbf043ef665b763a7f6daf7e755c11feff",
+    "sourceManifestSha256": "dc8260ff694fd93b8ad4c401aaea498d841f01f6e03c393daae982f0f3166df9",
     "fontQuarantinedIconIds": [
       "desktopCard.shortcut.history",
       "desktopCard.shortcut.bookmarks",
@@ -348,6 +348,15 @@
         "kind": "font",
         "glyph": "house",
         "reason": "lucide-1.38.0"
+      }
+    },
+    {
+      "id": "browser.toolbar.home",
+      "legacyResourceFamily": "app_toolbar_home",
+      "representation": {
+        "kind": "font",
+        "glyph": "toolbar-home",
+        "reason": "user-provided-home"
       }
     },
     {

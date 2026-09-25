@@ -1,6 +1,7 @@
 import vibrator from '@ohos.vibrator';
 import {
   BrowserBottomToolbarScrollBehavior,
+  BrowserToolbarChromeStyle,
   BrowserDataScope,
   BrowserSessionPrivacyMode,
   BrowserToolbarLayoutSettings
@@ -75,6 +76,15 @@ export class BrowserToolbarCustomizationCoordinator {
     this.ensureDevicePreferenceWriteAllowed(boundary);
     return this.preferencesRepository.updateBottomToolbarScrollBehavior(behavior)
       .then((preferences) => preferences.appearance.bottomToolbarScrollBehavior);
+  }
+
+  persistToolbarChromeStyle(
+    style: BrowserToolbarChromeStyle,
+    boundary: BrowserToolbarCustomizationBoundary
+  ): Promise<BrowserToolbarChromeStyle> {
+    this.ensureDevicePreferenceWriteAllowed(boundary);
+    return this.preferencesRepository.updateToolbarChromeStyle(style)
+      .then((preferences) => preferences.appearance.toolbarChromeStyle);
   }
 
   performReorderFeedback(): void {

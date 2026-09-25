@@ -885,6 +885,15 @@
     "note": "Lucide Operational font source"
   },
   {
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/toolbar-home.svg",
+    "originalSource": "Lucide 1.38.0 / home",
+    "primaryResourceFamily": "app_toolbar_home",
+    "resourceFamilies": [
+      "app_toolbar_home"
+    ],
+    "note": "Lucide Operational font source"
+  },
+  {
     "exportedFile": "vendor/lucide/aira-operational-icons/svg/toolbar-scan.svg",
     "originalSource": "Lucide 1.38.0 / scan-qr-code",
     "primaryResourceFamily": "app_toolbar_scan_qr",

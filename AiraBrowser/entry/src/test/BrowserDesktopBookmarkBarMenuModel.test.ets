@@ -45,6 +45,7 @@ function appearance(
 ): BrowserAppearanceSettings {
   const settings: BrowserAppearanceSettings = {
     bottomToolbarScrollBehavior: 'fixed',
+    toolbarChromeStyle: 'floating',
     globalImmersionEnabled: false,
     alwaysTopImmersionEnabled: false,
     forceDarkWebContentEnabled: false,

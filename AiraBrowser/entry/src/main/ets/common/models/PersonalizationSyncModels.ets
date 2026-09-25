@@ -1,6 +1,7 @@
 import { AiraActivityDailyAggregate } from './ActivityModels';
 import {
   BrowserBottomToolbarScrollBehavior,
+  BrowserToolbarChromeStyle,
   BrowserHomeShortcutLayoutDensity,
   BrowserPrivateTabRestorePolicy,
   BrowserStartupRestorePolicy,
@@ -105,6 +106,7 @@ export interface PersonalizationCorePreferencesPayload {
 
 export interface PersonalizationCoreAppearancePreferences {
   bottomToolbarScrollBehavior?: BrowserBottomToolbarScrollBehavior;
+  toolbarChromeStyle?: BrowserToolbarChromeStyle;
   globalImmersionEnabled?: boolean;
   alwaysTopImmersionEnabled?: boolean;
   forceDarkWebContentEnabled?: boolean;

@@ -67,6 +67,7 @@ function bookmarkNode(id: string, type: 'folder' | 'bookmark', title: string, ur
 function appearance(showDesktopBookmarkBar: boolean): BrowserAppearanceSettings {
   return {
     bottomToolbarScrollBehavior: 'fixed',
+    toolbarChromeStyle: 'floating',
     globalImmersionEnabled: false,
     alwaysTopImmersionEnabled: false,
     forceDarkWebContentEnabled: false,

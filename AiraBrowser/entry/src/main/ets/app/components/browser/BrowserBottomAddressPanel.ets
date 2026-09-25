@@ -436,6 +436,8 @@ export struct BrowserBottomAddressPanel {
   @Prop toolbarLayoutRevision: number = 0;
   /** Window top safe inset, forwarded to the chrome renderer that bounds the search-engine popup. */
   @Prop topSafeInsetVp: number = 0;
+  /** Hides the floating bar while a replacement chrome frame owns the same actions. */
+  @Prop restingChromeSuppressed: boolean = false;
   @Prop
   @Watch('syncToolbarSystemSheetRequest')
   toolbarSystemSheetRequested: boolean = false;
@@ -609,7 +611,8 @@ export struct BrowserBottomAddressPanel {
         floatingTopSurfaceChromeVisible: false,
         floatingHeaderChromeVisible: !this.shouldUseThreeBlockBottomChrome(),
         floatingHeaderPresentationOpacity: this.resolveFloatingHeaderPresentationOpacity(),
-        floatingHeaderInteractionEnabled: this.resolveFloatingHeaderPresentationOpacity() > 0.05,
+        floatingHeaderInteractionEnabled: !this.restingChromeSuppressed &&
+          this.resolveFloatingHeaderPresentationOpacity() > 0.05,
         floatingHeaderHorizontalPadding: this.responsiveState.floatingHeaderHorizontalPadding,
         floatingHeaderPresentationTranslateY: this.liveBottomChromePresentation.floatingSurfaceTranslateY,
         floatingHeaderInteractionWidth: this.resolveFloatingHeaderInteractionWidth(),
@@ -767,7 +770,8 @@ export struct BrowserBottomAddressPanel {
       })
       .width('100%')
       .height('100%')
-      .hitTestBehavior(HitTestMode.Transparent)
+      .opacity(this.restingChromeSuppressed ? 0 : 1)
+      .hitTestBehavior(this.restingChromeSuppressed ? HitTestMode.None : HitTestMode.Transparent)
 
     }
     .width('100%')
@@ -1192,11 +1196,12 @@ export struct BrowserBottomAddressPanel {
       .borderRadius(0)
       .type(InputType.URL)
       .enterKeyType(EnterKeyType.Go)
-      .focusable(this.addressInputAdapterActive)
-      .focusOnTouch(this.addressInputAdapterActive)
-      .enableKeyboardOnFocus(this.addressInputAdapterActive)
+      .focusable(this.addressInputAdapterActive && !this.restingChromeSuppressed)
+      .focusOnTouch(this.addressInputAdapterActive && !this.restingChromeSuppressed)
+      .enableKeyboardOnFocus(this.addressInputAdapterActive && !this.restingChromeSuppressed)
       .stopBackPress(false)
-      .hitTestBehavior(this.addressInputAdapterActive ? HitTestMode.Default : HitTestMode.None)
+      .hitTestBehavior(this.addressInputAdapterActive && !this.restingChromeSuppressed ?
+        HitTestMode.Default : HitTestMode.None)
       .onAppear(() => {
         this.addressInputMounted = true;
         this.requestAddressFocusIfPending();
@@ -2513,6 +2518,9 @@ export struct BrowserBottomAddressPanel {
   }
 
   private enterAddressFocus(notifyInvocation: boolean): void {
+    if (this.restingChromeSuppressed) {
+      return;
+    }
     if (notifyInvocation) {
       this.onAddressFocusPrepare();
     }
@@ -2931,6 +2939,10 @@ export struct BrowserBottomAddressPanel {
   }
 
   private requestAddressFocusIfPending(): void {
+    if (this.restingChromeSuppressed) {
+      this.clearAddressFocusRequest();
+      return;
+    }
     if (!this.pendingAddressFocusRequest || !this.addressInputMounted || !this.addressFocused ||
       !this.addressInputAdapterActive || !this.editingMotionFocusReady ||
       this.addressFocusAttemptCount >= WEB_BOTTOM_INPUT_FOCUS_MAX_ATTEMPTS ||

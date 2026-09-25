@@ -675,6 +675,12 @@
     },
     {
       "properties": {
+        "name": "toolbar-home",
+        "code": 60961
+      }
+    },
+    {
+      "properties": {
         "name": "toolbar-private-mode",
         "code": 60922
       }

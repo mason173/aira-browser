@@ -10,6 +10,7 @@ import {
   BrowserAppServiceMode,
   BrowserAppearanceSettings,
   BrowserBottomToolbarScrollBehavior,
+  BrowserToolbarChromeStyle,
   BrowserGeneralSettings,
   BrowserCookiePolicySettings,
   BrowserPrivateTabRestorePolicy,
@@ -457,11 +458,25 @@ export class ArkPreferencesStorageAdapter implements PreferencesStorageAdapter {
           : defaultValue.verticalTabsEnabled,
         verticalTabsCollapsed: typeof parsed.verticalTabsCollapsed === 'boolean'
           ? parsed.verticalTabsCollapsed
-          : defaultValue.verticalTabsCollapsed
+          : defaultValue.verticalTabsCollapsed,
+        toolbarChromeStyle: this.normalizeToolbarChromeStyle(
+          parsed.toolbarChromeStyle,
+          defaultValue.toolbarChromeStyle
+        )
       };
     } catch (_error) {
       return defaultValue;
     }
+  }
+
+  private normalizeToolbarChromeStyle(
+    value: BrowserToolbarChromeStyle | string | undefined,
+    defaultValue: BrowserToolbarChromeStyle
+  ): BrowserToolbarChromeStyle {
+    if (value === 'split' || value === 'floating') {
+      return value;
+    }
+    return defaultValue === 'split' ? 'split' : 'floating';
   }
 
   private normalizeBottomToolbarScrollBehavior(

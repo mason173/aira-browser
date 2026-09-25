@@ -78,6 +78,7 @@ export class SiteIconAppearanceSettingsViewModel {
   ): BrowserAppearanceSettings {
     return {
       bottomToolbarScrollBehavior: current.bottomToolbarScrollBehavior,
+      toolbarChromeStyle: current.toolbarChromeStyle,
       globalImmersionEnabled: current.globalImmersionEnabled,
       alwaysTopImmersionEnabled: current.alwaysTopImmersionEnabled,
       forceDarkWebContentEnabled: current.forceDarkWebContentEnabled,

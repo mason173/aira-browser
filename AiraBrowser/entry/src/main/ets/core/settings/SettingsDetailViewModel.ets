@@ -303,6 +303,7 @@ export class SettingsDetailViewModel {
     },
     appearance: BrowserAppearanceSettings = {
       bottomToolbarScrollBehavior: 'compact',
+      toolbarChromeStyle: 'floating',
       globalImmersionEnabled: false,
       alwaysTopImmersionEnabled: false,
       forceDarkWebContentEnabled: true,

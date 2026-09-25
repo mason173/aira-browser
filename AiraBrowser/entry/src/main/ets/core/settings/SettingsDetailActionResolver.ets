@@ -165,6 +165,7 @@ export class SettingsDetailActionResolver {
     return {
       bottomToolbarScrollBehavior:
         patch.bottomToolbarScrollBehavior ?? current.bottomToolbarScrollBehavior,
+      toolbarChromeStyle: patch.toolbarChromeStyle ?? current.toolbarChromeStyle,
       globalImmersionEnabled: patch.globalImmersionEnabled ?? current.globalImmersionEnabled,
       alwaysTopImmersionEnabled: patch.alwaysTopImmersionEnabled ?? current.alwaysTopImmersionEnabled,
       forceDarkWebContentEnabled: patch.forceDarkWebContentEnabled ?? current.forceDarkWebContentEnabled,

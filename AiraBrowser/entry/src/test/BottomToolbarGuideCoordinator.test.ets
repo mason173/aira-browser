@@ -104,6 +104,7 @@ class FixtureBottomToolbarGuideShell implements BottomToolbarGuideShell {
     shellFamily: 'phone',
     deviceFormFactor: 'phone',
     appVisible: true,
+    floatingToolbarChromeActive: true,
     privacyMode: 'normal',
     promptBlockingFacts: buildIdlePromptBlockingFacts()
   };

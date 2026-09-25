@@ -131,6 +131,7 @@ export struct BrowserSearchSuggestionsPanel {
     }
     .width('100%')
     .height(height)
+    .align(Alignment.TopStart)
     .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
     .scrollBar(BarState.Off)
   }
@@ -143,6 +144,8 @@ export struct BrowserSearchSuggestionsPanel {
       }, (gridRow: BrowserSearchSuggestionVisualGridRow) => gridRow.key)
     }
     .width('100%')
+    .align(Alignment.TopStart)
+    .justifyContent(FlexAlign.Start)
     .padding({ left: this.horizontalPadding, right: this.horizontalPadding, bottom: bottomPadding })
   }
 

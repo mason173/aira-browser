@@ -229,6 +229,7 @@ export class HomePageSettingsCoordinator {
     const current = this.preferencesRepository.getPreferences().appearance;
     return {
       bottomToolbarScrollBehavior: current.bottomToolbarScrollBehavior,
+      toolbarChromeStyle: current.toolbarChromeStyle,
       globalImmersionEnabled: current.globalImmersionEnabled,
       alwaysTopImmersionEnabled: current.alwaysTopImmersionEnabled,
       forceDarkWebContentEnabled: current.forceDarkWebContentEnabled,

@@ -77,7 +77,7 @@
     {
       "glyph": "bookmarks",
       "sourceFile": "svg/bookmarks.svg",
-      "sourceSha256": "89e93c006acf1020afcdf1a601fb932319e0bc12e73464bb50366293b054e1cc",
+      "sourceSha256": "93bb08dbb1a1008aa01d52175bc4d7389dc524764d67734ac13736e835fbd261",
       "codePoint": 57580,
       "lucideSlug": "book-marked"
     },
@@ -120,7 +120,7 @@
       "glyph": "clock-counter-clockwise",
       "sourceFile": "svg/clock-counter-clockwise.svg",
       "codePoint": 57760,
-      "sourceSha256": "2d25942fda55c333e2424c8fc49b2ff6df640631c4b998c718c5cf19b5c9a684",
+      "sourceSha256": "d5b35e2ee51badb9b9b2e56e4757e1ac217f636ccdfff2a3fa7a6b9a85670150",
       "lucideSlug": "history"
     },
     {
@@ -647,6 +647,13 @@
       "codePoint": 60920,
       "sourceSha256": "7f62776bc7ba4e006173876c2eaf57dc5403173cfb45c86915474f695e59bb4d",
       "lucideSlug": "x"
+    },
+    {
+      "glyph": "toolbar-home",
+      "sourceFile": "svg/toolbar-home.svg",
+      "codePoint": 60961,
+      "sourceSha256": "fd2dbd5e11f048665f47faf9dcbbefe42b031ffd14a134078df7b4208dbece68",
+      "lucideSlug": "home"
     },
     {
       "glyph": "toolbar-scan",

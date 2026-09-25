@@ -44,6 +44,7 @@ export interface BrowserShellBackState {
   tabsSheetVisible: boolean;
   downloadPromptGuid: string;
   externalNavigationPromptVisible: boolean;
+  splitToolbarSearchActive?: boolean;
 }
 
 export class BrowserShellBackCoordinator {
@@ -83,6 +84,9 @@ export class BrowserShellBackCoordinator {
     }
     if (state.tabsSheetVisible) {
       return 'close_tabs_overview';
+    }
+    if (state.splitToolbarSearchActive === true) {
+      return 'dismiss_search_invocation';
     }
     if (state.externalNavigationPromptVisible) {
       return 'dismiss_external_navigation_prompt';
