@@ -74,12 +74,16 @@ export struct HomeContentSections {
 
       this.buildCenteredHeader()
 
+      // Scroll defaults to Alignment.Center, which floats a short icon block in the middle.
+      // Icons must pack from the top of this region and continue downward.
       Scroll(this.homeContentScroller) {
         Column({ space: this.presentation.sectionVerticalGap }) {
           this.buildFavoritesSection()
         }
         .width('100%')
+        .constraintSize({ minHeight: '100%' })
         .alignItems(HorizontalAlign.Start)
+        .justifyContent(FlexAlign.Start)
         .padding({
           left: this.presentation.horizontalPadding,
           right: this.presentation.horizontalPadding,
@@ -89,6 +93,7 @@ export struct HomeContentSections {
       }
       .layoutWeight(1)
       .width('100%')
+      .align(Alignment.TopStart)
       .clip(true)
       .scrollBar(BarState.Off)
       .enableScrollInteraction(!this.shortcutDragActive)
@@ -200,7 +205,7 @@ export struct HomeContentSections {
         showTitle: this.centeredStyle ? false : this.storedShowFavoritesTitle,
         iconCornerRadiusRatio: this.shortcutIconCornerRadiusRatio,
         minimumWidth: this.resolveSectionRailWidth(),
-        alignPartialRowsToStart: this.presentation.useSharedSectionWidth,
+        alignPartialRowsToStart: this.centeredStyle || this.presentation.useSharedSectionWidth,
         showPinnedSettingsEntry: this.centeredStyle,
         shortcuts: this.resolveFavoritesShortcuts(),
         theme: this.theme,

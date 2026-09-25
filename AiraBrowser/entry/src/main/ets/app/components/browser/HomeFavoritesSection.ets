@@ -15,6 +15,11 @@ export struct HomeFavoritesSection {
   @Prop expanded: boolean = true;
   @Prop showTitle: boolean = true;
   @Prop minimumWidth: number = 0;
+  /**
+   * Aligns the grid to the leading edge instead of centering it. A partial row (or a block
+   * of favorites narrower than the rail) would otherwise float in the middle of the page.
+   * The centered homepage always sets this: its icons flow from the top-left downwards.
+   */
   @Prop alignPartialRowsToStart: boolean = false;
   @Prop iconCornerRadiusRatio: number = -1;
   /** The centered frame pins an undeletable settings tile into this grid. */
@@ -74,7 +79,7 @@ export struct HomeFavoritesSection {
       }
     }
     .width(this.resolveSectionWidth())
-    .alignSelf(ItemAlign.Center)
+    .alignSelf(this.alignPartialRowsToStart ? ItemAlign.Start : ItemAlign.Center)
   }
 
   @Builder

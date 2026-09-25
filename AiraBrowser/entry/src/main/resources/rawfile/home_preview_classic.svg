@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 172 340" width="172" height="340" fill="none">
+  <!--
+    默认主页卡片缩略图：收藏图标网格 + 最近关闭列表 + 底部工具栏。
+    透明背景，两块低饱和中性色叠加在卡片底色上，浅色和深色主题都能用：
+      #6B7686 = 语义上的“墨色”（标题、文字占位）
+      #9AA6B8 = 语义上的“块面”（图标、列表项、工具栏）
+    比例参照真实主页（390 : 844 ≈ 172 : 340）。
+  -->
+  <g fill="#6B7686">
+    <rect x="14" y="26" width="34" height="7" rx="3.5" fill-opacity="0.42"/>
+    <rect x="14" y="170" width="44" height="7" rx="3.5" fill-opacity="0.42"/>
+    <rect x="44" y="189" width="62" height="6" rx="3" fill-opacity="0.3"/>
+    <rect x="44" y="199" width="40" height="5" rx="2.5" fill-opacity="0.2"/>
+    <rect x="44" y="217" width="52" height="6" rx="3" fill-opacity="0.3"/>
+    <rect x="44" y="227" width="32" height="5" rx="2.5" fill-opacity="0.2"/>
+    <rect x="44" y="297.5" width="44" height="5" rx="2.5" fill-opacity="0.28"/>
+  </g>
+
+  <g fill="#9AA6B8">
+    <!-- 收藏图标：圆角方块，与站点图标的默认圆角一致 -->
+    <rect x="14" y="44" width="30" height="30" rx="9" fill-opacity="0.2"/>
+    <rect x="52" y="44" width="30" height="30" rx="9" fill-opacity="0.2"/>
+    <rect x="90" y="44" width="30" height="30" rx="9" fill-opacity="0.2"/>
+    <rect x="128" y="44" width="30" height="30" rx="9" fill-opacity="0.2"/>
+    <rect x="14" y="82" width="30" height="30" rx="9" fill-opacity="0.2"/>
+    <rect x="52" y="82" width="30" height="30" rx="9" fill-opacity="0.2"/>
+    <rect x="90" y="82" width="30" height="30" rx="9" fill-opacity="0.2"/>
+    <rect x="128" y="82" width="30" height="30" rx="9" fill-opacity="0.2"/>
+    <rect x="14" y="120" width="30" height="30" rx="9" fill-opacity="0.2"/>
+    <rect x="52" y="120" width="30" height="30" rx="9" fill-opacity="0.2"/>
+    <rect x="90" y="120" width="30" height="30" rx="9" fill-opacity="0.2"/>
+    <rect x="128" y="120" width="30" height="30" rx="9" fill-opacity="0.2"/>
+
+    <!-- 最近关闭记录项 -->
+    <rect x="14" y="186" width="22" height="22" rx="7" fill-opacity="0.16"/>
+    <rect x="14" y="214" width="22" height="22" rx="7" fill-opacity="0.16"/>
+
+    <!-- 底部工具栏：地址条 + 三个操作图标 -->
+    <rect x="12" y="278" width="148" height="44" rx="22" fill-opacity="0.1"/>
+    <rect x="22" y="288" width="86" height="24" rx="12" fill-opacity="0.18"/>
+    <circle cx="34" cy="300" r="5" fill-opacity="0.32"/>
+    <circle cx="122" cy="300" r="4.5" fill-opacity="0.34"/>
+    <circle cx="136" cy="300" r="4.5" fill-opacity="0.34"/>
+    <circle cx="150" cy="300" r="4.5" fill-opacity="0.34"/>
+  </g>
+
+  <rect x="12.5" y="278.5" width="147" height="43" rx="21.5" stroke="#9AA6B8" stroke-opacity="0.16"/>
+</svg>

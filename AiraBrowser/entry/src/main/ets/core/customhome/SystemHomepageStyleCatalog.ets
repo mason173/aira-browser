@@ -17,3 +17,14 @@ export const SYSTEM_HOMEPAGE_STYLE_CATALOG: SystemHomepageStyleEntry[] = [
   { style: 'classic', title: '默认主页' },
   { style: 'centered', title: '居中主页' }
 ];
+
+/**
+ * Packaged card preview for a built-in frame. Both assets are transparent wireframes
+ * sharing one neutral palette, so they read on light and dark surfaces alike.
+ */
+export function resolveSystemHomepagePreviewResource(style: BrowserHomePageStyle): Resource {
+  if (style === 'centered') {
+    return $rawfile('home_preview_centered.svg');
+  }
+  return $rawfile('home_preview_classic.svg');
+}
