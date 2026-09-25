@@ -515,6 +515,14 @@ export class BrowserRuntimeLifecyclePort implements BrowserRuntimeControllerReso
     return this.runtimeSession.getRuntime(tabId);
   }
 
+  ensureTabRuntime(tab: BrowserTabState, windowId: string): EnsureTabRuntimeResult {
+    const result = this.runtimeCoordinator.ensureTabRuntime(tab, windowId);
+    if (result === undefined) {
+      throw new Error('Connected runtime adapter lost its Session before ensureTabRuntime completed.');
+    }
+    return result;
+  }
+
   resolveController(tabId: string, runtime?: WebTabRuntimeRecord): webview.WebviewController | undefined {
     return runtime?.controller ?? this.resolveRuntime(tabId)?.controller;
   }

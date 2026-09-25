@@ -52,6 +52,7 @@ export type SettingsDetailRowAction =
   'open_third_party_notices' |
   'open_community_security_policy' |
   'copy_support_qq_group' |
+  'open_community_telegram' |
   'open_app_review_page' |
   'open_search_settings' |
   'open_password_settings' |
@@ -459,6 +460,8 @@ export class SettingsDetailViewModel {
   /**
    * 大屏（鼠标键盘）下隐藏只对触屏有意义的设置项：
    * - 实验室"页面手势"整组（下拉刷新 / 强制网页缩放 / 智感握姿）
+   * - 实验室"网页适配"整组（网页底栏防遮挡只在手机壳的悬浮底栏下生效，
+   *   PC 模式没有悬浮底栏，控制此行为的开关不显示）
    * - 外观里的"标签页样式"行（大屏标签管理默认平铺，不提供堆叠式切换）
    * 若某组去掉该行后变空且无操作按钮，则整组略过，避免空卡片。
    */
@@ -1069,6 +1072,11 @@ export class SettingsDetailViewModel {
     supportRows.push(
       this.navigationRow('qq_group', '交流QQ群', '1049806927', '', 'copy_support_qq_group')
     );
+    if (AIRA_DISTRIBUTION_CAPABILITY_OWNER.isCommunity()) {
+      supportRows.push(
+        this.navigationRow('telegram_group', '交流Telegram群', 'Telegram', '', 'open_community_telegram')
+      );
+    }
     const groups: SettingsDetailGroupState[] = [
       {
         id: 'identity',

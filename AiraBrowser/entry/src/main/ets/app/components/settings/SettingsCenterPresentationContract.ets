@@ -97,6 +97,7 @@ export type SettingsCenterPresentationIntentKind =
   'open_app_proxy_settings' |
   'open_embedded_subpage' |
   'open_external_url' |
+  'open_url_leaving_settings' |
   'edit_secure_dns_profile' |
   'open_user_script_gallery_source' |
   'scan_login' |
@@ -162,6 +163,12 @@ export class SettingsCenterPresentationIntent {
 
   static openExternalUrl(url: string): SettingsCenterPresentationIntent {
     const intent = new SettingsCenterPresentationIntent('open_external_url');
+    intent.url = url;
+    return intent;
+  }
+
+  static openUrlLeavingSettings(url: string): SettingsCenterPresentationIntent {
+    const intent = new SettingsCenterPresentationIntent('open_url_leaving_settings');
     intent.url = url;
     return intent;
   }

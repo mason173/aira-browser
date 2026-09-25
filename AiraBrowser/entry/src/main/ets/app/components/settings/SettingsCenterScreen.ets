@@ -128,6 +128,8 @@ export struct SettingsCenterScreen {
   onOpenAppProxySettings: () => void = () => {};
   /** Native-tab (PC) shell supplies this so an embedded pane link opens in the browser. */
   onOpenExternalUrl?: (url: string) => void;
+  /** Native-tab (PC) shell supplies this so a link replaces the settings tab. */
+  onOpenUrlLeavingSettings?: (url: string) => void;
   onPrimaryDestinationChanged: (destination: SettingsCenterDestination) => void =
     (_destination: SettingsCenterDestination): void => {};
   private customHomepagePageBinding: CustomHomepageSettingsPageBinding =
@@ -381,6 +383,8 @@ export struct SettingsCenterScreen {
       this.openBrowserUrlFromSettings(intent.url, 'userscript_install');
     } else if (intent.kind === 'open_external_url') {
       this.openExternalUrlFromPane(intent.url);
+    } else if (intent.kind === 'open_url_leaving_settings') {
+      this.openUrlLeavingSettings(intent.url);
     } else if (intent.kind === 'scan_login') {
       if (!this.state.showScanLoginAction) {
         return;
@@ -586,6 +590,18 @@ export struct SettingsCenterScreen {
    * tab's native route, so `router.back` cannot bring the page forward; the shell opens it
    * instead. On a routed settings page the guide opener returns to the browser shell.
    */
+  private openUrlLeavingSettings(value: string): void {
+    const normalizedUrl = value.trim();
+    if (normalizedUrl.length <= 0) {
+      return;
+    }
+    if (this.presentationMode === 'native_tab' && this.onOpenUrlLeavingSettings !== undefined) {
+      this.onOpenUrlLeavingSettings(normalizedUrl);
+      return;
+    }
+    this.navigationCoordinator.openBrowserUrlFromGuide(normalizedUrl, this.buildBoundaryRouteState());
+  }
+
   private openExternalUrlFromPane(value: string): void {
     const normalizedUrl = value.trim();
     if (normalizedUrl.length <= 0) {

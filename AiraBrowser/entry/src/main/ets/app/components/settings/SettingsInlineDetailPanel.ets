@@ -192,6 +192,7 @@ export struct SettingsInlineDetailPanel {
   scroller?: Scroller;
   onOpenAppProxySettings?: () => void;
   onOpenEmbeddedSubpage?: (subpageId: string) => void;
+  onOpenUrlLeavingSettings?: (url: string) => void;
   onSettingsChanged?: () => void;
   @State private state: SettingsDetailState = this.viewModel.buildState('general');
   @State private selectedThemeMode: BrowserThemeMode = sharedBrowserThemeModeCoordinator.resolveCurrentMode();
@@ -494,6 +495,13 @@ export struct SettingsInlineDetailPanel {
       },
       (): void => {
         this.confirmRefreshSiteIcons();
+      },
+      (url: string): boolean => {
+        if (this.onOpenUrlLeavingSettings === undefined) {
+          return false;
+        }
+        this.onOpenUrlLeavingSettings(url);
+        return true;
       }
     );
   }

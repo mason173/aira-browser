@@ -588,7 +588,8 @@ struct SettingsDetailPage {
       },
       (): void => {
         this.confirmRefreshSiteIcons();
-      }
+      },
+      (_url: string): boolean => false
     );
   }
 

@@ -497,7 +497,15 @@ export class BrowserShellPresentationCoordinator {
         closeRightEnabled: tab.contextMenu.closeRightEnabled
       },
       widthVp: tab.widthVp,
-      leftVp: tab.leftVp
+      leftVp: tab.leftVp,
+      titleSlot: {
+        visible: tab.titleSlot.visible,
+        widthVp: tab.titleSlot.widthVp,
+        leadingPaddingVp: tab.titleSlot.leadingPaddingVp,
+        trailingPaddingVp: tab.titleSlot.trailingPaddingVp,
+        iconTextGapVp: tab.titleSlot.iconTextGapVp,
+        contentEndPaddingVp: tab.titleSlot.contentEndPaddingVp
+      }
     };
   }
 }

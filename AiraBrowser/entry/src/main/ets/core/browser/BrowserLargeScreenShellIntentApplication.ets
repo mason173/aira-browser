@@ -137,6 +137,7 @@ export type BrowserLargeScreenNavigationIntentKind =
   'open_saved_page_original' |
   'open_user_script_gallery' |
   'open_external_url' |
+  'open_url_leaving_settings' |
   'update_bookmark_workspace_route' |
   'update_history_workspace_route' |
   'update_settings_workspace_route' |
@@ -811,6 +812,24 @@ export class BrowserLargeScreenShellIntentApplication {
           initialTitle: intent.title?.trim().length ? intent.title as string : targetUrl,
           options: this.dependencies.windowContextCoordinator.resolveCurrentTabSessionBoundary(),
           runtimeOptions: {}
+        });
+      }
+      return;
+    }
+    if (intent.kind === 'open_url_leaving_settings' && intent.url !== undefined) {
+      const targetUrl = intent.url.trim();
+      const settingsTabId = facts.activeTabId.trim();
+      if (targetUrl.length > 0) {
+        void this.dependencies.foregroundTabCreationCoordinator.createNewTab({
+          initialUrl: targetUrl,
+          initialTitle: intent.title?.trim().length ? intent.title as string : targetUrl,
+          options: this.dependencies.windowContextCoordinator.resolveCurrentTabSessionBoundary(),
+          runtimeOptions: {}
+        }).then((createdTabId: string) => {
+          if (createdTabId.length === 0 || settingsTabId.length === 0 || createdTabId === settingsTabId) {
+            return;
+          }
+          void this.dependencies.tabCloseCoordinator.closeDesktopTab(settingsTabId);
         });
       }
       return;

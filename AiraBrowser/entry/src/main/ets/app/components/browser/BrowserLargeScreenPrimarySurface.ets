@@ -251,6 +251,14 @@ export struct BrowserLargeScreenPrimarySurface {
             Stack({ alignContent: Alignment.Top }) {
               this.buildMainStageSurface()
 
+              // Native system pages do not take focus the way a Web node does, so
+              // a click on the page never blurs the omnibox and the suggestion
+              // panel stays open. This layer sits under the top shell, so the
+              // panel itself still receives its own clicks.
+              if (this.shouldDismissOmniboxOnStagePointer()) {
+                this.buildOmniboxStageDismissLayer()
+              }
+
               BrowserLargeScreenWebZoomNotification({
                 snapshot: this.webZoomSnapshot
               })
@@ -483,6 +491,9 @@ export struct BrowserLargeScreenPrimarySurface {
         },
         onOpenExternalUrl: (url: string): void => {
           this.onNavigationIntent({ kind: 'open_external_url', text: '', url: url });
+        },
+        onOpenUrlLeavingSettings: (url: string): void => {
+          this.onNavigationIntent({ kind: 'open_url_leaving_settings', text: '', url: url });
         }
       })
     } else if (this.presentation?.activeTabChrome.scene === 'downloads') {
@@ -548,6 +559,47 @@ export struct BrowserLargeScreenPrimarySurface {
 
   private resolveNativeTabPrivacyMode(): string {
     return this.presentation?.activeTabChrome.privateMode === true ? 'private' : 'regular';
+  }
+
+  private shouldDismissOmniboxOnStagePointer(): boolean {
+    if (!this.omniboxPresentation.editing || this.homeSurfaceVisible) {
+      return false;
+    }
+    const scene = this.presentation?.activeTabChrome.scene;
+    return scene === 'bookmarks' || scene === 'history' || scene === 'settings' ||
+      scene === 'downloads' || scene === 'user_scripts' || scene === 'app_proxy' ||
+      scene === 'saved_pages' || scene === 'bookshelf';
+  }
+
+  private dismissOmniboxFromStagePointer(): void {
+    if (!this.omniboxPresentation.editing) {
+      return;
+    }
+    this.onNavigationIntent({ kind: 'dismiss_omnibox', text: '' });
+  }
+
+  @Builder
+  private buildOmniboxStageDismissLayer() {
+    Column()
+      .width('100%')
+      .height('100%')
+      .backgroundColor(Color.Transparent)
+      .hitTestBehavior(HitTestMode.Block)
+      .onClick((): void => {
+        this.dismissOmniboxFromStagePointer();
+      })
+      .onMouse((event: MouseEvent): void => {
+        if (event.action !== MouseAction.Press) {
+          return;
+        }
+        this.dismissOmniboxFromStagePointer();
+      })
+      .onTouch((event: TouchEvent): void => {
+        if (event.type !== TouchType.Down) {
+          return;
+        }
+        this.dismissOmniboxFromStagePointer();
+      })
   }
 
   @Builder

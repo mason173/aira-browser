@@ -1,4 +1,4 @@
-import { Want, common } from '@kit.AbilityKit';
+import { Want, common, defaultAppManager } from '@kit.AbilityKit';
 import { commentManager } from '@kit.AppGalleryKit';
 import { APP_BUNDLE_NAME } from '../../common/constants/AppVersionInfo';
 
@@ -101,6 +101,14 @@ export class SystemSettingsLaunchService {
       success: false,
       message: '无法打开系统设置，请手动进入设置并开启 Aira 权限。'
     };
+  }
+
+  isCurrentAppDefaultBrowser(): boolean {
+    try {
+      return defaultAppManager.isDefaultApplicationSync(defaultAppManager.ApplicationType.BROWSER);
+    } catch (_error) {
+      return false;
+    }
   }
 
   async openExternalUrl(context: common.UIAbilityContext, url: string): Promise<SystemSettingsLaunchResult> {

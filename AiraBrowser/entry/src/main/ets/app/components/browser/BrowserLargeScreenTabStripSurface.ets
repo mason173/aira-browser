@@ -5,6 +5,13 @@ import {
   BrowserLargeScreenTabStripPresentation
 } from '../../../core/browser/BrowserLargeScreenTabStripViewModel';
 import {
+  BROWSER_LARGE_SCREEN_TAB_ACTION_BUTTON_SIZE_VP,
+  BROWSER_LARGE_SCREEN_TAB_ACTION_GAP_VP,
+  BROWSER_LARGE_SCREEN_TAB_ICON_SIZE_VP,
+  BROWSER_LARGE_SCREEN_TAB_TITLE_FONT_SIZE_VP,
+  resolveBrowserLargeScreenTabDisplayTitle
+} from '../../../core/browser/BrowserLargeScreenTabTitleSlotPolicy';
+import {
   BrowserLargeScreenTabContextActionId,
   BrowserLargeScreenTabStripIntent
 } from '../../../core/browser/BrowserLargeScreenShellIntentApplication';
@@ -60,13 +67,8 @@ import {
 } from '../../../services/browser/BrowserLargeScreenWindowChromeService';
 
 const TAB_HEIGHT_VP: number = 32;
-const TAB_CONTENT_EDGE_PADDING_VP: number = 16;
-const TAB_ICON_SIZE_VP: number = 14;
 const TAB_CLOSE_ICON_SIZE_VP: number = 12;
-const TAB_CLOSE_BUTTON_SIZE_VP: number = 24;
 const TAB_AUDIO_ICON_SIZE_VP: number = 14;
-const TAB_CLOSE_BUTTON_EDGE_PADDING_VP: number =
-  TAB_CONTENT_EDGE_PADDING_VP - (TAB_CLOSE_BUTTON_SIZE_VP - TAB_CLOSE_ICON_SIZE_VP) / 2;
 const TAB_SEPARATOR_HEIGHT_VP: number = 18;
 const TAB_ACTIVE_SHAPE_RADIUS_VP: number = 10;
 const DEFAULT_TAB_STRIP_PRESENTATION: BrowserLargeScreenTabStripPresentation = {
@@ -140,6 +142,7 @@ export struct BrowserLargeScreenTabStripSurface {
           this.buildTab(tab, index)
         }, (tab: BrowserLargeScreenTabProjection): string =>
           `${tab.id}:${tab.active ? 'active' : 'inactive'}:${tab.widthVp}` +
+          `:${tab.titleSlot.visible ? 't' : 'h'}:${tab.titleSlot.widthVp}` +
           `:${tab.pinned ? 'p' : ''}${tab.muted ? 'm' : ''}${tab.audible ? 'a' : ''}:${tab.title}`)
       }
       .width(this.presentation.consumedWidthVp)
@@ -286,13 +289,13 @@ export struct BrowserLargeScreenTabStripSurface {
   private buildTabIcon(tab: BrowserLargeScreenTabProjection) {
     if (tab.loading && !this.hasResolvedSiteIcon(tab.id)) {
       LoadingProgress()
-        .width(TAB_ICON_SIZE_VP)
-        .height(TAB_ICON_SIZE_VP)
+        .width(BROWSER_LARGE_SCREEN_TAB_ICON_SIZE_VP)
+        .height(BROWSER_LARGE_SCREEN_TAB_ICON_SIZE_VP)
         .color(this.storedAccentColor)
     } else if (tab.fallbackIconId !== undefined) {
       AiraIcon({
         airaIconId: tab.fallbackIconId,
-        iconSize: TAB_ICON_SIZE_VP,
+        iconSize: BROWSER_LARGE_SCREEN_TAB_ICON_SIZE_VP,
         iconColor: this.storedSecondaryTextColor
       })
     } else {
@@ -300,7 +303,7 @@ export struct BrowserLargeScreenTabStripSurface {
         iconUri: this.resolveSiteIconState(tab.id)?.path ?? '',
         iconPixelMap: this.resolveSiteIconState(tab.id)?.pixelMap,
         fallbackLabel: resolveSiteIconFallbackLabel(tab.title, tab.url),
-        iconSize: TAB_ICON_SIZE_VP,
+        iconSize: BROWSER_LARGE_SCREEN_TAB_ICON_SIZE_VP,
         cornerRadiusRatio: 0.22,
         frameBorderWidth: 0,
         contentPadding: 0,
@@ -321,24 +324,39 @@ export struct BrowserLargeScreenTabStripSurface {
 
   @Builder
   private buildRegularTabBody(tab: BrowserLargeScreenTabProjection) {
-    Row({ space: 4 }) {
+    Row({ space: BROWSER_LARGE_SCREEN_TAB_ACTION_GAP_VP }) {
       Button({ type: ButtonType.Normal }) {
-        Row({ space: 6 }) {
+        Row({ space: tab.titleSlot.iconTextGapVp }) {
           this.buildTabIcon(tab)
 
-          Text(this.resolveTabTitle(tab))
-            .layoutWeight(1)
-            .fontSize(13)
-            .fontWeight(tab.active ? FontWeight.Medium : FontWeight.Regular)
-            .fontColor(tab.active ? this.storedPrimaryTextColor : this.storedSecondaryTextColor)
-            .maxLines(1)
-            .textOverflow({ overflow: TextOverflow.Ellipsis })
+          if (tab.titleSlot.visible) {
+            // Width is the measured slot, not layoutWeight. An unset width makes
+            // HarmonyOS ellipsize at the first word and leave the rest blank.
+            Text(resolveBrowserLargeScreenTabDisplayTitle(tab.title))
+              .width(tab.titleSlot.widthVp)
+              .constraintSize({ minWidth: 0, maxWidth: tab.titleSlot.widthVp })
+              .fontSize(BROWSER_LARGE_SCREEN_TAB_TITLE_FONT_SIZE_VP)
+              .fontWeight(tab.active ? FontWeight.Medium : FontWeight.Regular)
+              .fontColor(tab.active ? this.storedPrimaryTextColor : this.storedSecondaryTextColor)
+              .maxLines(1)
+              .textAlign(TextAlign.Start)
+              .textOverflow({ overflow: TextOverflow.Ellipsis })
+              .ellipsisMode(EllipsisMode.END)
+              .wordBreak(WordBreak.BREAK_ALL)
+          }
         }
         .width('100%')
+        .justifyContent(FlexAlign.Start)
+        .alignItems(VerticalAlign.Center)
       }
       .layoutWeight(1)
+      .constraintSize({ minWidth: 0 })
       .height(TAB_HEIGHT_VP)
-      .padding({ left: TAB_CONTENT_EDGE_PADDING_VP, right: 4 })
+      .borderWidth(0)
+      .padding({
+        left: tab.titleSlot.leadingPaddingVp,
+        right: tab.titleSlot.contentEndPaddingVp
+      })
       .backgroundColor($r('sys.color.ohos_id_color_background_transparent'))
       .stateEffect(false)
       .hoverEffect(HoverEffect.None)
@@ -359,8 +377,8 @@ export struct BrowserLargeScreenTabStripSurface {
             iconColor: this.storedSecondaryTextColor
           })
         }
-        .width(TAB_CLOSE_BUTTON_SIZE_VP)
-        .height(TAB_CLOSE_BUTTON_SIZE_VP)
+        .width(BROWSER_LARGE_SCREEN_TAB_ACTION_BUTTON_SIZE_VP)
+        .height(BROWSER_LARGE_SCREEN_TAB_ACTION_BUTTON_SIZE_VP)
         .backgroundColor($r('sys.color.ohos_id_color_background_transparent'))
         .stateEffect(true)
         .accessibilityText(`关闭${this.resolveTabTitle(tab)}`)
@@ -371,7 +389,7 @@ export struct BrowserLargeScreenTabStripSurface {
     }
     .width(tab.widthVp)
     .height(TAB_HEIGHT_VP)
-    .padding({ right: TAB_CLOSE_BUTTON_EDGE_PADDING_VP })
+    .padding({ right: tab.titleSlot.trailingPaddingVp })
     .borderRadius({ topLeft: 8, topRight: 8 })
     .backgroundColor(this.resolveTabBackground(tab))
   }
@@ -403,8 +421,8 @@ export struct BrowserLargeScreenTabStripSurface {
         iconColor: this.storedSecondaryTextColor
       })
     }
-    .width(TAB_CLOSE_BUTTON_SIZE_VP)
-    .height(TAB_CLOSE_BUTTON_SIZE_VP)
+    .width(BROWSER_LARGE_SCREEN_TAB_ACTION_BUTTON_SIZE_VP)
+    .height(BROWSER_LARGE_SCREEN_TAB_ACTION_BUTTON_SIZE_VP)
     .backgroundColor($r('sys.color.ohos_id_color_background_transparent'))
     .stateEffect(true)
     .accessibilityText(tab.muted ? `取消${this.resolveTabTitle(tab)}静音` : `将${this.resolveTabTitle(tab)}静音`)
@@ -571,8 +589,7 @@ export struct BrowserLargeScreenTabStripSurface {
   }
 
   private resolveTabTitle(tab: BrowserLargeScreenTabProjection): string {
-    const title = tab.title.trim();
-    return title.length > 0 ? title : '新标签页';
+    return resolveBrowserLargeScreenTabDisplayTitle(tab.title);
   }
 
   private resolveTitleBarHeightVp(): number {

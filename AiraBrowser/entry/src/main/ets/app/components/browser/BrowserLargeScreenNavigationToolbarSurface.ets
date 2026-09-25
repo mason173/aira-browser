@@ -353,6 +353,7 @@ export struct BrowserLargeScreenNavigationToolbarSurface {
             })
 
             if (this.shouldShowBookmarkButton()) {
+              this.buildWebpageTranslateButton()
               BrowserLargeScreenBookmarkPopover({
                 actionEnabled: this.actionSnapshot?.actionInput.bookmarksEnabled === true,
                 actionSelected: this.actionSnapshot?.actionInput.bookmarksActionSelected === true,
@@ -548,7 +549,7 @@ export struct BrowserLargeScreenNavigationToolbarSurface {
   @Builder
   private buildOmniboxLeadingButtonSlot() {
     Stack({ alignContent: Alignment.Center }) {
-      if (this.omniboxPresentation.editing) {
+      if (this.shouldShowOmniboxSearchEngineButton()) {
         BrowserLargeScreenSearchEngineButton({
           presentation: this.searchEnginePresentation,
           viewportWidthVp: this.viewportWidthVp,
@@ -571,10 +572,8 @@ export struct BrowserLargeScreenNavigationToolbarSurface {
     Button({ type: ButtonType.Circle }) {
       Stack({ alignContent: Alignment.Center }) {
         AiraIcon({
-          airaIconId: this.activeTabChrome.privateMode
-            ? 'browser.toolbar.privacyMode'
-            : 'browser.toolbar.connectionSecurity',
-          iconSize: 15,
+          airaIconId: 'browser.omnibox.pageControls',
+          iconSize: 18,
           iconColor: this.storedSecondaryTextColor
         })
       }
@@ -1360,6 +1359,41 @@ export struct BrowserLargeScreenNavigationToolbarSurface {
     return this.inputProfile !== 'touch' && this.activeTabChrome.scene === 'web';
   }
 
+  @Builder
+  private buildWebpageTranslateButton() {
+    Button({ type: ButtonType.Circle }) {
+      AiraIcon({
+        airaIconId: resolveBrowserBottomAddressPanelActionAiraIconId('translate'),
+        iconSize: LARGE_SCREEN_NAVIGATION_ICON_SIZE_VP,
+        iconColor: this.storedSecondaryTextColor
+      })
+    }
+    .width(LARGE_SCREEN_SITE_INFO_BUTTON_SIZE_VP)
+    .height(LARGE_SCREEN_SITE_INFO_BUTTON_SIZE_VP)
+    .backgroundColor($r('sys.color.ohos_id_color_background_transparent'))
+    .stateEffect(this.isWebpageTranslateEnabled())
+    .opacity(this.isWebpageTranslateEnabled() ? 1 : 0.38)
+    .accessibilityText('翻译网页')
+    .onClick(() => {
+      this.dispatchWebpageTranslateAction();
+    })
+  }
+
+  private isWebpageTranslateEnabled(): boolean {
+    return this.actionSnapshot?.actionInput.webpageTranslationEnabled === true;
+  }
+
+  private dispatchWebpageTranslateAction(): void {
+    const actions = this.resolveOverflowActions();
+    for (let index = 0; index < actions.length; index += 1) {
+      if (actions[index].id === 'translate') {
+        this.dispatchOverflowAction(actions[index]);
+        return;
+      }
+    }
+    this.onIntent({ kind: 'open_browser_action', text: '', actionId: 'translate' });
+  }
+
   private buildOverflowMenuItemKey(item: BrowserBottomAddressPanelAction): string {
     return `${item.id}:${item.renderVersion ?? 0}:${item.selected === true ? 1 : 0}:${item.enabled ? 1 : 0}`;
   }
@@ -1558,6 +1592,10 @@ export struct BrowserLargeScreenNavigationToolbarSurface {
       return this.omniboxDraftText;
     }
     return this.activeTabChrome.displayUrl;
+  }
+
+  private shouldShowOmniboxSearchEngineButton(): boolean {
+    return this.omniboxPresentation.editing || this.activeTabChrome.scene === 'home';
   }
 
   private shouldShowSiteInfoProtectionFeedback(): boolean {

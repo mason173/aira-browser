@@ -128,6 +128,7 @@ export type AiraIconId =
   | "settings.siteSettings"
   | "userscripts.defaultIcon"
   | "browser.toolbar.siteInfo"
+  | "browser.omnibox.pageControls"
   | "browser.toolbar.userAgent"
   | "settings.webpageTranslation"
   | "browser.toolbar.translate"
@@ -304,6 +305,7 @@ export type AiraRenderableIconId =
   | "settings.siteSettings"
   | "userscripts.defaultIcon"
   | "browser.toolbar.siteInfo"
+  | "browser.omnibox.pageControls"
   | "browser.toolbar.userAgent"
   | "settings.webpageTranslation"
   | "browser.toolbar.translate"
@@ -484,6 +486,7 @@ export class GeneratedAiraIconCatalog {
       case "settings.siteSettings":
       case "userscripts.defaultIcon":
       case "browser.toolbar.siteInfo":
+      case "browser.omnibox.pageControls":
       case "browser.toolbar.userAgent":
       case "settings.webpageTranslation":
       case "browser.toolbar.translate":
@@ -783,6 +786,8 @@ export class GeneratedAiraIconCatalog {
         return '\uEE09';
       case "browser.toolbar.siteInfo":
         return '\uE288';
+      case "browser.omnibox.pageControls":
+        return '\uEE1E';
       case "browser.toolbar.userAgent":
         return '\uE0F4';
       case "settings.webpageTranslation":

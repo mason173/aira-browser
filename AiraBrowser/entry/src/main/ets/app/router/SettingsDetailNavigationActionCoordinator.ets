@@ -3,7 +3,8 @@ import { APP_ICP_FILING_QUERY_URL } from '../../common/constants/AppVersionInfo'
 import {
   AIRA_COMMUNITY_LICENSE_URL,
   AIRA_COMMUNITY_REPOSITORY_URL,
-  AIRA_COMMUNITY_SECURITY_POLICY_URL
+  AIRA_COMMUNITY_SECURITY_POLICY_URL,
+  AIRA_COMMUNITY_TELEGRAM_URL
 } from '../../common/constants/AiraCommunityProjectLinks';
 import { BrowserBoundaryRouteState } from '../../common/utils/RouteParamUtils';
 import { SettingsDetailActionResolver } from '../../core/settings/SettingsDetailActionResolver';
@@ -20,6 +21,7 @@ export interface SettingsDetailNavigationActionHandlers {
   confirmClearAllSiteData(): void;
   confirmResetSitePermissions(): void;
   confirmRefreshSiteIcons(): void;
+  tryOpenUrlLeavingSettings(url: string): boolean;
 }
 
 export class SettingsDetailNavigationActionCallbackHandlers implements SettingsDetailNavigationActionHandlers {
@@ -31,6 +33,7 @@ export class SettingsDetailNavigationActionCallbackHandlers implements SettingsD
   private confirmClearAllSiteDataHandler: () => void;
   private confirmResetSitePermissionsHandler: () => void;
   private confirmRefreshSiteIconsHandler: () => void;
+  private openUrlLeavingSettingsHandler: (url: string) => boolean;
 
   constructor(
     buildBoundaryRouteStateHandler: () => BrowserBoundaryRouteState,
@@ -40,7 +43,8 @@ export class SettingsDetailNavigationActionCallbackHandlers implements SettingsD
     checkCommunityUpdateHandler: () => void,
     confirmClearAllSiteDataHandler: () => void,
     confirmResetSitePermissionsHandler: () => void,
-    confirmRefreshSiteIconsHandler: () => void
+    confirmRefreshSiteIconsHandler: () => void,
+    openUrlLeavingSettingsHandler: (url: string) => boolean
   ) {
     this.buildBoundaryRouteStateHandler = buildBoundaryRouteStateHandler;
     this.getAbilityContextHandler = getAbilityContextHandler;
@@ -50,6 +54,7 @@ export class SettingsDetailNavigationActionCallbackHandlers implements SettingsD
     this.confirmClearAllSiteDataHandler = confirmClearAllSiteDataHandler;
     this.confirmResetSitePermissionsHandler = confirmResetSitePermissionsHandler;
     this.confirmRefreshSiteIconsHandler = confirmRefreshSiteIconsHandler;
+    this.openUrlLeavingSettingsHandler = openUrlLeavingSettingsHandler;
   }
 
   buildBoundaryRouteState(): BrowserBoundaryRouteState {
@@ -82,6 +87,10 @@ export class SettingsDetailNavigationActionCallbackHandlers implements SettingsD
 
   confirmRefreshSiteIcons(): void {
     this.confirmRefreshSiteIconsHandler();
+  }
+
+  tryOpenUrlLeavingSettings(url: string): boolean {
+    return this.openUrlLeavingSettingsHandler(url);
   }
 }
 
@@ -150,6 +159,10 @@ export class SettingsDetailNavigationActionCoordinator {
     }
     if (action === 'copy_support_qq_group') {
       handlers.openSupportQqGroupDialog();
+      return true;
+    }
+    if (action === 'open_community_telegram') {
+      this.openCommunityTelegram(handlers, boundary);
       return true;
     }
     if (action === 'open_icp_filing_query') {
@@ -298,6 +311,28 @@ export class SettingsDetailNavigationActionCoordinator {
       return true;
     }
     return false;
+  }
+
+  private openCommunityTelegram(
+    handlers: SettingsDetailNavigationActionHandlers,
+    boundary: BrowserBoundaryRouteState
+  ): void {
+    if (this.systemSettingsLaunchService.isCurrentAppDefaultBrowser()) {
+      if (!handlers.tryOpenUrlLeavingSettings(AIRA_COMMUNITY_TELEGRAM_URL)) {
+        this.navigationCoordinator.openBrowserUrlFromGuide(AIRA_COMMUNITY_TELEGRAM_URL, boundary);
+      }
+      return;
+    }
+    this.systemSettingsLaunchService.openExternalUrl(
+      handlers.getAbilityContext(),
+      AIRA_COMMUNITY_TELEGRAM_URL
+    ).then((result) => {
+      if (!result.success) {
+        handlers.showToast('Telegram 群暂时无法打开，请稍后重试。');
+      }
+    }).catch((_error: Error) => {
+      handlers.showToast('Telegram 群暂时无法打开，请稍后重试。');
+    });
   }
 
   private openIcpFilingQuery(handlers: SettingsDetailNavigationActionHandlers): void {

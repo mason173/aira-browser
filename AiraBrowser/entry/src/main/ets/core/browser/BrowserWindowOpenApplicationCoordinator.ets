@@ -64,6 +64,10 @@ export class BrowserWindowOpenApplicationCoordinator {
     return this.windowOpenCoordinator.hasStoredEvent(tabId);
   }
 
+  wasStoredEventClaimed(tabId: string): boolean {
+    return this.windowOpenCoordinator.wasStoredEventClaimed(tabId);
+  }
+
   rejectImmediateEvent(event: OnWindowNewEvent): boolean {
     return this.windowOpenCoordinator.rejectImmediateEvent(event);
   }

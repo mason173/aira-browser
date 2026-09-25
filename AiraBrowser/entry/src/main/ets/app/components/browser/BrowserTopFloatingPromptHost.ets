@@ -175,6 +175,7 @@ export struct BrowserTopFloatingPromptHost {
   @Prop @Watch('reconcileMountedState') state: BrowserTopFloatingPromptHostState =
     HIDDEN_TOP_FLOATING_PROMPT_STATE;
   @State private promptEntered: boolean = false;
+  @State private containerWidthVp: number = 0;
   private promptEnterTimer: number = 0;
   private mountedObserved: boolean = false;
   onAction: (action: BrowserTopFloatingPromptAction) => void =
@@ -192,15 +193,19 @@ export struct BrowserTopFloatingPromptHost {
     Column() {
       if (this.state.mounted) {
         Column() {
-          TopFloatingSwipeDismissContainer({
-            active: this.isPromptPresentationReady(),
-            resetKey: this.resolveSwipeResetKey(),
-            flyoutOffsetYVp: BROWSER_TOP_FLOATING_PROMPT_SWIPE_FLYOUT_OFFSET_Y,
-            onDismissed: () => {
-              this.dismissActivePrompt();
-            }
+          BrowserTopFloatingPromptPresentation({
+            visible: this.isPromptPresentationReady()
           }) {
-            this.buildActivePromptCard()
+            TopFloatingSwipeDismissContainer({
+              active: this.isPromptPresentationReady(),
+              resetKey: this.resolveSwipeResetKey(),
+              flyoutOffsetYVp: BROWSER_TOP_FLOATING_PROMPT_SWIPE_FLYOUT_OFFSET_Y,
+              onDismissed: () => {
+                this.dismissActivePrompt();
+              }
+            }) {
+              this.buildActivePromptCard()
+            }
           }
         }
         .width('100%')
@@ -215,6 +220,12 @@ export struct BrowserTopFloatingPromptHost {
     .width('100%')
     .height('100%')
     .hitTestBehavior(HitTestMode.Default)
+    .onAreaChange((_oldArea: Area, newArea: Area): void => {
+      const nextWidthVp = this.parseAreaDimension(newArea.width);
+      if (nextWidthVp > 0 && nextWidthVp !== this.containerWidthVp) {
+        this.containerWidthVp = nextWidthVp;
+      }
+    })
   }
 
   private reconcileMountedState(): void {
@@ -241,7 +252,12 @@ export struct BrowserTopFloatingPromptHost {
   }
 
   private isPromptPresentationReady(): boolean {
-    return this.resolveActivePromptVisible();
+    return this.containerWidthVp > 0 && this.resolveActivePromptVisible();
+  }
+
+  private parseAreaDimension(value: Length): number {
+    const parsed = Number.parseFloat(`${value}`);
+    return Number.isFinite(parsed) ? parsed : 0;
   }
 
   @Builder
@@ -347,7 +363,7 @@ export struct BrowserTopFloatingPromptHost {
   }
 
   private resolveActivePromptVisible(): boolean {
-    if (!this.promptEntered) {
+    if (!this.promptEntered || this.containerWidthVp <= 0) {
       return false;
     }
     if (this.state.activeKind === 'url_threat') {
@@ -434,6 +450,26 @@ export struct BrowserTopFloatingPromptHost {
       return;
     }
     this.onAction({ type: 'dismiss_background_tab', tabId: this.state.backgroundOpen.tabId });
+  }
+}
+
+@Component
+struct BrowserTopFloatingPromptPresentation {
+  @Prop visible: boolean = false;
+  @BuilderParam content: () => void = this.emptyContent;
+
+  build() {
+    Column() {
+      if (this.visible) {
+        this.content()
+      }
+    }
+    .width('100%')
+    .hitTestBehavior(this.visible ? HitTestMode.Default : HitTestMode.None)
+  }
+
+  @Builder
+  private emptyContent() {
   }
 }
 

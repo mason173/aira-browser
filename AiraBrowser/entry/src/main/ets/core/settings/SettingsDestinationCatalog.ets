@@ -478,6 +478,8 @@ const ADVANCED_TARGETS: SettingsDestinationCatalogTarget[] = [
     'about_details', ['应用市场评论']),
   target('qq_group', 'about', 'about', '交流QQ群', '高级 / 关于Aira / 应用支持', 'subpage', 'qq_group',
     'about_details', ['QQ群']),
+  target('telegram_group', 'about', 'about', '交流Telegram群', '高级 / 关于Aira / 应用支持', 'subpage',
+    'telegram_group', 'about_details', ['Telegram', 'TG群']),
   target('user_agreement', 'about', 'about', '用户服务协议', '高级 / 关于Aira / 协议与合规', 'subpage',
     'user_agreement', 'about_details', ['用户协议']),
   target('privacy_statement', 'about', 'about', '隐私声明', '高级 / 关于Aira / 协议与合规', 'subpage',
@@ -520,6 +522,7 @@ const OFFICIAL_ONLY_SETTINGS_TARGET_IDS: string[] = [
 ];
 
 const COMMUNITY_ONLY_SETTINGS_TARGET_IDS: string[] = [
+  'telegram_group',
   'source_repository',
   'open_source_license',
   'security_policy'

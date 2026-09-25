@@ -176,6 +176,7 @@ export struct SettingsEmbeddedDetailPanel {
   onOpenEmbeddedSubpage?: (subpageId: string) => void;
   onOpenUserScriptGallerySource?: (url: string) => void;
   onOpenExternalUrl?: (url: string) => void;
+  onOpenUrlLeavingSettings?: (url: string) => void;
   onSettingsChanged?: () => void;
   @State private theme: BrowserThemeViewState =
     this.themeViewStateFactory.build(sharedPreferencesRepository.getPreferences());
@@ -389,6 +390,7 @@ export struct SettingsEmbeddedDetailPanel {
         onOpenEmbeddedSubpage: (subpageId: string) => {
           this.onOpenEmbeddedSubpage?.(subpageId);
         },
+        onOpenUrlLeavingSettings: this.onOpenUrlLeavingSettings,
         onSettingsChanged: () => {
           this.handleSettingsChanged();
         }

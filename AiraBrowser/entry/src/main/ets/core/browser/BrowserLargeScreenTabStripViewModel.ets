@@ -1,5 +1,11 @@
 import { AiraRenderableIconId } from '../resources/GeneratedAiraIconCatalog';
 import { BROWSER_LARGE_SCREEN_TITLE_BAR_BASE_HEIGHT_VP } from './BrowserLargeScreenTitleBarTokens';
+import {
+  BrowserLargeScreenTabTitleSlot,
+  BrowserLargeScreenTabTitleSlotInput,
+  HIDDEN_BROWSER_LARGE_SCREEN_TAB_TITLE_SLOT,
+  resolveBrowserLargeScreenTabTitleSlots
+} from './BrowserLargeScreenTabTitleSlotPolicy';
 
 // Pinned tabs collapse to a fixed icon-only footprint on the leading edge and
 // never join the flexible width distribution used for the remaining tabs.
@@ -75,6 +81,7 @@ export interface BrowserLargeScreenTabProjection {
   contextMenu: BrowserLargeScreenTabContextMenuPresentation;
   widthVp: number;
   leftVp: number;
+  titleSlot: BrowserLargeScreenTabTitleSlot;
 }
 
 export interface BrowserLargeScreenTabStripPresentation {
@@ -358,6 +365,17 @@ export class BrowserLargeScreenTabStripViewModel {
     widths: number[],
     allTabs: BrowserLargeScreenTabProjectionInput[]
   ): BrowserLargeScreenTabProjection[] {
+    const titleInputs: BrowserLargeScreenTabTitleSlotInput[] = [];
+    tabs.forEach((tab: BrowserLargeScreenTabProjectionInput, index: number): void => {
+      titleInputs.push({
+        tabWidthVp: widths[index] ?? 0,
+        title: tab.title,
+        pinned: tab.pinned,
+        closable: tab.closable,
+        hasAudioAction: tab.audible || tab.muted
+      });
+    });
+    const titleSlots = resolveBrowserLargeScreenTabTitleSlots(titleInputs);
     const projectedTabs: BrowserLargeScreenTabProjection[] = [];
     let leftVp = 0;
     tabs.forEach((tab: BrowserLargeScreenTabProjectionInput, index: number): void => {
@@ -376,7 +394,8 @@ export class BrowserLargeScreenTabStripViewModel {
         audible: tab.audible,
         contextMenu: this.resolveContextMenuPresentation(tab, allTabs),
         widthVp: widthVp,
-        leftVp: leftVp
+        leftVp: leftVp,
+        titleSlot: titleSlots[index] ?? HIDDEN_BROWSER_LARGE_SCREEN_TAB_TITLE_SLOT
       });
       leftVp += widthVp;
     });

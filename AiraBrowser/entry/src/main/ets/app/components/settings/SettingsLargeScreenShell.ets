@@ -674,6 +674,9 @@ export struct SettingsLargeScreenShell {
         onOpenExternalUrl: (url: string) => {
           this.onIntent(SettingsCenterPresentationIntent.openExternalUrl(url));
         },
+        onOpenUrlLeavingSettings: (url: string) => {
+          this.onIntent(SettingsCenterPresentationIntent.openUrlLeavingSettings(url));
+        },
         onSettingsChanged: () => {
           this.onIntent(SettingsCenterPresentationIntent.settingsChanged());
         }
@@ -897,6 +900,9 @@ export struct SettingsLargeScreenShell {
         },
         onOpenExternalUrl: (url: string) => {
           this.onIntent(SettingsCenterPresentationIntent.openExternalUrl(url));
+        },
+        onOpenUrlLeavingSettings: (url: string) => {
+          this.onIntent(SettingsCenterPresentationIntent.openUrlLeavingSettings(url));
         },
         onSettingsChanged: () => {
           this.onIntent(SettingsCenterPresentationIntent.settingsChanged());
