@@ -5161,6 +5161,22 @@ struct BrowserShellPage {
       },
       dismissWebZoom: (): void => this.largeScreenWebZoomDialogController.close(),
       showMessage: (message: string): void => this.showNativeToast(message),
+      toggleVerticalTabs: (): void => {
+        const current = sharedPreferencesRepository.getPreferences().appearance;
+        void sharedPreferencesRepository.updateVerticalTabsPresentation(
+          current.verticalTabsEnabled !== true,
+          current.verticalTabsCollapsed !== false
+        );
+        syncBrowserThemeAppStorage();
+      },
+      setVerticalTabsCollapsed: (collapsed: boolean): void => {
+        const current = sharedPreferencesRepository.getPreferences().appearance;
+        void sharedPreferencesRepository.updateVerticalTabsPresentation(
+          current.verticalTabsEnabled === true,
+          collapsed
+        );
+        syncBrowserThemeAppStorage();
+      },
       readFacts: () => {
         return {
           windowId: this.getWindowScopeId(),

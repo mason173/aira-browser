@@ -11,6 +11,10 @@ export const BROWSER_DESKTOP_MENU_CORNER_RADIUS_VP: number = 18;
 export const BROWSER_DESKTOP_MENU_COMPACT_WIDTH_VP: number = 188;
 export const BROWSER_DESKTOP_MENU_WIDTH_VP: number = 216;
 export const BROWSER_DESKTOP_MENU_WIDE_WIDTH_VP: number = 248;
+/**
+ * Blank tab-strip menu. "重新打开关闭的标签页" plus "Ctrl + Shift + T" does not fit the wide menu.
+ */
+export const BROWSER_DESKTOP_MENU_TAB_STRIP_BLANK_WIDTH_VP: number = 360;
 export const BROWSER_DESKTOP_MENU_ITEM_CORNER_RADIUS_VP: number = 12;
 export const BROWSER_DESKTOP_MENU_ITEM_HEIGHT_VP: number = 44;
 export const BROWSER_DESKTOP_MENU_TEXT_SIZE_FP: number = 14;

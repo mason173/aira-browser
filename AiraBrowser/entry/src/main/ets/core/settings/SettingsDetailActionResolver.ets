@@ -180,7 +180,9 @@ export class SettingsDetailActionResolver {
       tabsOverviewCloseButtonAlwaysVisible: patch.tabsOverviewCloseButtonAlwaysVisible ??
         current.tabsOverviewCloseButtonAlwaysVisible,
       showDesktopBookmarkBar: patch.showDesktopBookmarkBar ?? current.showDesktopBookmarkBar,
-      desktopBookmarkBarVisibility: patch.desktopBookmarkBarVisibility ?? current.desktopBookmarkBarVisibility
+      desktopBookmarkBarVisibility: patch.desktopBookmarkBarVisibility ?? current.desktopBookmarkBarVisibility,
+      verticalTabsEnabled: patch.verticalTabsEnabled ?? current.verticalTabsEnabled,
+      verticalTabsCollapsed: patch.verticalTabsCollapsed ?? current.verticalTabsCollapsed
     };
   }
 

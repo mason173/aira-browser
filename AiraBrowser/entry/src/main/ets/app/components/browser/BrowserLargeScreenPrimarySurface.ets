@@ -4,12 +4,21 @@ import {
 } from '../../../core/browser/BrowserLargeScreenPresentationViewModel';
 import { BrowserLargeScreenSidePanelSurface } from './BrowserLargeScreenSidePanelSurface';
 import { BrowserLargeScreenTopShellSurface } from './BrowserLargeScreenTopShellSurface';
+import { BrowserLargeScreenVerticalTabsSidebar } from './BrowserLargeScreenVerticalTabsSidebar';
 import { BrowserQuickSearchSwitchBar } from './BrowserQuickSearchSwitchBar';
 import {
   BrowserQuickSearchSwitchingPresentation,
   createHiddenBrowserQuickSearchSwitchingPresentation
 } from '../../../core/search/BrowserQuickSearchSwitchingCoordinator';
-import { BROWSER_THEME_STORAGE_PAGE_BACKGROUND_KEY } from '../../../core/theme/BrowserThemeStorageKeys';
+import {
+  BROWSER_APPEARANCE_STORAGE_VERTICAL_TABS_COLLAPSED_KEY,
+  BROWSER_APPEARANCE_STORAGE_VERTICAL_TABS_ENABLED_KEY,
+  BROWSER_THEME_STORAGE_PAGE_BACKGROUND_KEY
+} from '../../../core/theme/BrowserThemeStorageKeys';
+import {
+  resolveBrowserLargeScreenVerticalTabsLayoutWidthVp,
+  resolveBrowserLargeScreenVerticalTabsToolbarHeightVp
+} from '../../../core/browser/BrowserLargeScreenVerticalTabsPolicy';
 import {
   BrowserLargeScreenOmniboxPresentation,
   createBrowserLargeScreenOmniboxPresentation
@@ -140,6 +149,10 @@ export struct BrowserLargeScreenPrimarySurface {
 
   @StorageProp(BROWSER_THEME_STORAGE_PAGE_BACKGROUND_KEY)
   private storedPageBackgroundColor: string = DEFAULT_THEME_PALETTE.light.pageBackground;
+  @StorageProp(BROWSER_APPEARANCE_STORAGE_VERTICAL_TABS_ENABLED_KEY)
+  private storedVerticalTabsEnabled: boolean = false;
+  @StorageProp(BROWSER_APPEARANCE_STORAGE_VERTICAL_TABS_COLLAPSED_KEY)
+  private storedVerticalTabsCollapsed: boolean = true;
   @State private viewportWidthVp: number = 0;
   @State private viewportHeightVp: number = 0;
   private titleBarWindowChromeLeaseId: string = '';
@@ -194,7 +207,10 @@ export struct BrowserLargeScreenPrimarySurface {
         },
         onBookmarkBarAction: (action: BrowserDesktopBookmarkBarAction): void => {
           this.onBookmarkBarAction(action);
-        }
+        },
+        verticalTabsChrome: this.shouldShowVerticalTabs(),
+        verticalTabsInsetVp: this.resolveVerticalTabsInsetVp(),
+        verticalTabsPinned: this.shouldShowVerticalTabs() && !this.storedVerticalTabsCollapsed
           })
           .zIndex(LARGE_SCREEN_TOP_SHELL_Z_INDEX)
 
@@ -211,13 +227,23 @@ export struct BrowserLargeScreenPrimarySurface {
                 }
               })
             }
-            .width('100%')
+            .width(this.resolveVerticalTabsContentWidth())
             .height(LARGE_SCREEN_QUICK_SEARCH_BAR_HEIGHT_VP)
+            .margin({ left: this.resolveVerticalTabsInsetVp() })
             .backgroundColor(this.storedPageBackgroundColor)
           }
         }
 
           Row({ space: 0 }) {
+            if (this.shouldShowVerticalTabs()) {
+              // Layout slot only. The sidebar itself is a stack sibling so a
+              // hover peek can cover the page without reparenting ArkWeb.
+              Column()
+                .width(this.resolveVerticalTabsInsetVp())
+                .height('100%')
+                .hitTestBehavior(HitTestMode.None)
+            }
+
             if (this.shouldRenderSidePanelOnLeft()) {
               this.buildSidePanelSurface()
             }
@@ -270,12 +296,85 @@ export struct BrowserLargeScreenPrimarySurface {
             this.bottomStatus()
           }
         }
+        if (this.shouldShowVerticalTabs()) {
+          this.buildVerticalTabsSidebar()
+        }
     }
     .width('100%')
     .height('100%')
+    .clip(false)
     .onAreaChange((_oldArea: Area, newArea: Area): void => {
       this.updateViewportSize(newArea);
     })
+  }
+
+  @Builder
+  private buildVerticalTabsSidebar() {
+    if (this.presentation !== undefined) {
+      BrowserLargeScreenVerticalTabsSidebar({
+        windowChromeLeaseId: this.titleBarWindowChromeLeaseId,
+        windowMoveEnabled: this.presentation.tabStrip.windowMoveEnabled,
+        headerHeightVp: this.resolveVerticalTabsToolbarHeightVp(),
+        tabStrip: this.presentation.tabStrip,
+        recentlyClosed: this.recentlyClosed,
+        collapsed: this.storedVerticalTabsCollapsed,
+        onIntent: (intent: BrowserLargeScreenTabStripIntent): void => {
+          this.onTabStripIntent(intent);
+        },
+        onSetCollapsed: (collapsed: boolean): void => {
+          this.onTabStripIntent({
+            kind: 'set_vertical_tabs_collapsed',
+            tabId: '',
+            collapsed: collapsed
+          });
+        }
+      })
+        .position({ x: 0, y: this.resolveVerticalTabsSidebarTopVp() })
+        .height(this.resolveVerticalTabsSidebarHeight())
+        .zIndex(30)
+    }
+  }
+
+  private shouldShowVerticalTabs(): boolean {
+    return this.storedVerticalTabsEnabled &&
+      this.presentation !== undefined &&
+      !this.nativeVideoTakeoverActive &&
+      !this.webFullscreenActive;
+  }
+
+  private resolveVerticalTabsInsetVp(): number {
+    if (!this.shouldShowVerticalTabs()) {
+      return 0;
+    }
+    return resolveBrowserLargeScreenVerticalTabsLayoutWidthVp(true, this.storedVerticalTabsCollapsed);
+  }
+
+  private resolveVerticalTabsSafeTopVp(): number {
+    const inset = this.presentation?.safeTopInsetVp ?? 0;
+    return inset > 0 ? inset : 0;
+  }
+
+  private resolveVerticalTabsToolbarHeightVp(): number {
+    return resolveBrowserLargeScreenVerticalTabsToolbarHeightVp(
+      this.presentation?.tabStrip.titleBarHeightVp ?? 0
+    );
+  }
+
+  private resolveVerticalTabsSidebarTopVp(): number {
+    const safeTop = this.resolveVerticalTabsSafeTopVp();
+    if (!this.storedVerticalTabsCollapsed) {
+      return safeTop;
+    }
+    return safeTop + this.resolveVerticalTabsToolbarHeightVp();
+  }
+
+  private resolveVerticalTabsSidebarHeight(): string {
+    return `calc(100% - ${this.resolveVerticalTabsSidebarTopVp()}vp)`;
+  }
+
+  private resolveVerticalTabsContentWidth(): string {
+    const inset = this.resolveVerticalTabsInsetVp();
+    return inset > 0 ? `calc(100% - ${inset}vp)` : '100%';
   }
 
   private updateViewportSize(area: Area): void {

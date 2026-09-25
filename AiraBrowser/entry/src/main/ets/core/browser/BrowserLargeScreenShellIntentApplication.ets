@@ -34,6 +34,10 @@ import { BrowserWebHistoryCommandRuntimeCoordinator } from './BrowserWebHistoryC
 import { BrowserWebTabsController } from './BrowserWebTabsController';
 import { BrowserWindowSessionContextPort } from './BrowserWindowSessionContextApplication';
 import { BrowserTabState } from '../tabs/TabManager';
+import {
+  BrowserLargeScreenTabStripCloseAllTabFact,
+  planBrowserLargeScreenTabStripCloseAll
+} from './BrowserLargeScreenTabStripBlankAreaPolicy';
 import { SettingsCenterDestination } from '../settings/SettingsCenterViewModel';
 import {
   BrowserLargeScreenWebZoomAction,
@@ -73,7 +77,11 @@ export type BrowserLargeScreenTabStripIntentKind =
   'new_tab' |
   'open_overflow' |
   'restore_recently_closed' |
+  'restore_latest_recently_closed' |
   'request_delete_recently_closed' |
+  'close_all_tabs' |
+  'toggle_vertical_tabs' |
+  'set_vertical_tabs_collapsed' |
   'tab_context_action';
 
 export type BrowserLargeScreenTabContextActionId =
@@ -92,6 +100,7 @@ export interface BrowserLargeScreenTabStripIntent {
   tabId: string;
   recordId?: string;
   actionId?: BrowserLargeScreenTabContextActionId;
+  collapsed?: boolean;
 }
 
 export type BrowserLargeScreenNavigationIntentKind =
@@ -196,6 +205,8 @@ export interface BrowserLargeScreenShellIntentDependencies {
   updateWebZoom: (snapshot: BrowserLargeScreenWebZoomSnapshot) => void;
   dismissWebZoom: () => void;
   showMessage: (message: string) => void;
+  toggleVerticalTabs: () => void;
+  setVerticalTabsCollapsed: (collapsed: boolean) => void;
   readFacts: () => BrowserLargeScreenShellIntentFacts;
 }
 
@@ -212,6 +223,7 @@ export class BrowserLargeScreenShellIntentApplication {
   private readonly searchInvocationAdapter: BrowserLargeScreenSearchInvocationAdapter;
   private readonly tabWindowMoveService: BrowserTabWindowMoveService = new BrowserTabWindowMoveService();
   private movingTabIds: Record<string, boolean> = {};
+  private closingAllTabs: boolean = false;
   private webZoomDialogVisible: boolean = false;
   private webZoomDialogDismissTimer: number = -1;
 
@@ -404,6 +416,22 @@ export class BrowserLargeScreenShellIntentApplication {
       }
       return;
     }
+    if (intent.kind === 'restore_latest_recently_closed') {
+      this.dependencies.tabCloseCoordinator.restoreLatestRecentlyClosedShortcut();
+      return;
+    }
+    if (intent.kind === 'close_all_tabs') {
+      void this.closeAllTabsToHomepage();
+      return;
+    }
+    if (intent.kind === 'toggle_vertical_tabs') {
+      this.dependencies.toggleVerticalTabs();
+      return;
+    }
+    if (intent.kind === 'set_vertical_tabs_collapsed') {
+      this.dependencies.setVerticalTabsCollapsed(intent.collapsed === true);
+      return;
+    }
     if (intent.kind === 'request_delete_recently_closed') {
       const recordId = intent.recordId?.trim() ?? '';
       if (recordId.length > 0) {
@@ -419,6 +447,59 @@ export class BrowserLargeScreenShellIntentApplication {
       return;
     }
     this.dependencies.openOverflow();
+  }
+
+  /**
+   * Equivalent to opening a homepage tab and closing every tab that was already
+   * open, so the window keeps a single homepage tab.
+   */
+  private async closeAllTabsToHomepage(): Promise<void> {
+    if (this.closingAllTabs) {
+      return;
+    }
+    this.closingAllTabs = true;
+    try {
+      const tabs = this.dependencies.tabSwitchCoordinator.resolveTabsSnapshot();
+      const plan = planBrowserLargeScreenTabStripCloseAll(
+        tabs.map((tab: BrowserTabState): BrowserLargeScreenTabStripCloseAllTabFact => {
+          return {
+            id: tab.id,
+            url: tab.url,
+            isHome: tab.isHome
+          };
+        }),
+        this.dependencies.homeUrl
+      );
+      if (!plan.createHomepage) {
+        return;
+      }
+      const createdTabId = await this.dependencies.foregroundTabCreationCoordinator.createNewTab({
+        initialUrl: this.dependencies.homeUrl,
+        initialTitle: this.dependencies.newTabTitle,
+        options: this.dependencies.windowContextCoordinator.resolveCurrentTabSessionBoundary(),
+        runtimeOptions: {},
+        homePresentationMode: 'direct'
+      });
+      const preservedTabId = createdTabId.trim();
+      if (preservedTabId.length <= 0) {
+        return;
+      }
+      const targetTabIds = plan.closeTabIds.filter((tabId: string): boolean => tabId !== preservedTabId);
+      if (targetTabIds.length <= 0) {
+        return;
+      }
+      await this.dependencies.tabSwitchCoordinator.switchToTab(preservedTabId);
+      if (this.dependencies.readFacts().activeTabId !== preservedTabId) {
+        return;
+      }
+      await this.dependencies.tabCloseCoordinator.closeTabsToHomeAfterReveal(
+        targetTabIds,
+        'desktop_tab_strip_close_all',
+        '已关闭所有标签页。'
+      );
+    } finally {
+      this.closingAllTabs = false;
+    }
   }
 
   private async dispatchTabContextAction(

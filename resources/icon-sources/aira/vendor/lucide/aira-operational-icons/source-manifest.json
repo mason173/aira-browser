@@ -899,6 +899,20 @@
       "codePoint": 60956,
       "sourceSha256": "b6f904c7da85e76a1eeffe7588a370d23f21a0bbc8eb91f66db719739db5c4d4",
       "lucideSlug": "user"
+    },
+    {
+      "glyph": "vertical-tabs-expanded",
+      "sourceFile": "svg/vertical-tabs-expanded.svg",
+      "sourceSha256": "e87167d90734bbed39c7f98443254618f125cb3302097f1c81a3126199fa4802",
+      "codePoint": 60959,
+      "lucideSlug": "vertical-tabs-expanded"
+    },
+    {
+      "glyph": "vertical-tabs-collapsed",
+      "sourceFile": "svg/vertical-tabs-collapsed.svg",
+      "sourceSha256": "a7eb0ce288d8284ded4d1fde56ff9e1de5c0492ab3e6a69ecfa8f0ce2c9238bc",
+      "codePoint": 60960,
+      "lucideSlug": "vertical-tabs-collapsed"
     }
   ],
   "package": "@tabler/icons",

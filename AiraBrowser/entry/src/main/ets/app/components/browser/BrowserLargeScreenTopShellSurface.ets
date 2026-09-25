@@ -46,6 +46,9 @@ import {
   BROWSER_LARGE_SCREEN_TITLE_BAR_BASE_HEIGHT_VP
 } from '../../../core/browser/BrowserLargeScreenTitleBarTokens';
 import {
+  resolveBrowserLargeScreenVerticalTabsToolbarHeightVp
+} from '../../../core/browser/BrowserLargeScreenVerticalTabsPolicy';
+import {
   BrowserRecentlyClosedApplicationSnapshot,
   createBrowserRecentlyClosedApplicationSnapshot
 } from '../../../core/browser/BrowserRecentlyClosedApplicationCoordinator';
@@ -108,6 +111,11 @@ export struct BrowserLargeScreenTopShellSurface {
     (_action: BrowserUserScriptApplicationAction): void => {};
   onBookmarkBarAction: (action: BrowserDesktopBookmarkBarAction) => void =
     (_action: BrowserDesktopBookmarkBarAction): void => {};
+  // Vertical tabs replace the horizontal strip. The toolbar becomes the title
+  // row; the bookmark bar stays under it and is inset by the sidebar width.
+  @Prop verticalTabsChrome: boolean = false;
+  @Prop verticalTabsInsetVp: number = 0;
+  @Prop verticalTabsPinned: boolean = false;
 
   @StorageProp(BROWSER_THEME_STORAGE_PAGE_BACKGROUND_KEY)
   private storedPageBackgroundColor: string = DEFAULT_THEME_PALETTE.light.pageBackground;
@@ -115,7 +123,7 @@ export struct BrowserLargeScreenTopShellSurface {
   private storedBookmarkBarVisibility: string = 'always';
   build() {
     Column({ space: 0 }) {
-      if (this.presentation !== undefined) {
+      if (this.presentation !== undefined && !this.verticalTabsChrome) {
         BrowserLargeScreenTabStripSurface({
           windowChromeLeaseId: this.windowChromeLeaseId,
           presentation: this.presentation.tabStrip,
@@ -129,7 +137,7 @@ export struct BrowserLargeScreenTopShellSurface {
         })
         .width('100%')
         .height(this.resolveTitleBarHeightVp())
-      } else {
+      } else if (!this.verticalTabsChrome) {
         Row()
           .width('100%')
           .height(this.resolveTitleBarHeightVp())
@@ -151,6 +159,15 @@ export struct BrowserLargeScreenTopShellSurface {
           viewportWidthVp: this.viewportWidthVp,
           viewportHeightVp: this.viewportHeightVp,
           popupReservedTopVp: this.resolveNavigationPopupTopVp(),
+          titleButtonReserveVp: this.verticalTabsChrome ? this.presentation.tabStrip.titleButtonWidthVp : 0,
+          integratedTitleBarHeightVp: this.verticalTabsChrome ? this.resolveTitleBarHeightVp() : 0,
+          windowMoveEnabled: this.verticalTabsChrome && this.presentation.tabStrip.windowMoveEnabled,
+          windowChromeLeaseId: this.windowChromeLeaseId,
+          blankAreaMenuEnabled: this.verticalTabsChrome,
+          recentlyClosed: this.recentlyClosed,
+          onTabStripIntent: (intent: BrowserLargeScreenTabStripIntent): void => {
+            this.onTabStripIntent(intent);
+          },
           onIntent: (intent: BrowserLargeScreenNavigationIntent): void => {
             this.onNavigationIntent(intent);
           },
@@ -158,10 +175,11 @@ export struct BrowserLargeScreenTopShellSurface {
             this.onUserScriptAction(action);
           }
         })
-        .width('100%')
-        .height(LARGE_SCREEN_NAVIGATION_TOOLBAR_HEIGHT_VP)
+        .width(this.resolveVerticalTabsBandWidth(this.verticalTabsPinned))
+        .height(this.resolveToolbarHeightVp())
+        .margin({ left: this.verticalTabsPinned ? this.verticalTabsInsetVp : 0 })
         .zIndex(LARGE_SCREEN_NAVIGATION_LAYER_Z_INDEX)
-      } else {
+      } else if (!this.verticalTabsChrome) {
         Row()
           .width('100%')
           .height(LARGE_SCREEN_NAVIGATION_TOOLBAR_HEIGHT_VP)
@@ -170,13 +188,16 @@ export struct BrowserLargeScreenTopShellSurface {
       if (this.presentation !== undefined && this.resolveBookmarkBarPainted()) {
         BrowserLargeScreenBookmarkBar({
           privateMode: this.presentation.activeTabChrome.privateMode,
-          availableWidthVp: this.viewportWidthVp,
+          availableWidthVp: this.verticalTabsChrome
+            ? Math.max(0, this.viewportWidthVp - this.verticalTabsInsetVp)
+            : this.viewportWidthVp,
           onAction: (action: BrowserDesktopBookmarkBarAction): void => {
             this.onBookmarkBarAction(action);
           }
         })
-          .width('100%')
+          .width(this.resolveVerticalTabsBandWidth(this.verticalTabsChrome))
           .height(LARGE_SCREEN_BOOKMARK_BAR_HEIGHT_VP)
+          .margin({ left: this.verticalTabsChrome ? this.verticalTabsInsetVp : 0 })
           .zIndex(LARGE_SCREEN_BASE_CHROME_LAYER_Z_INDEX)
       }
     }
@@ -203,13 +224,27 @@ export struct BrowserLargeScreenTopShellSurface {
     const bookmarkBarHeight = this.presentation !== undefined && this.resolveBookmarkBarPainted()
       ? LARGE_SCREEN_BOOKMARK_BAR_HEIGHT_VP
       : 0;
-    return this.resolveTitleBarHeightVp() + LARGE_SCREEN_NAVIGATION_TOOLBAR_HEIGHT_VP + bookmarkBarHeight +
-      this.resolveSafeTopInsetVp();
+    const titleBarHeight = this.verticalTabsChrome ? 0 : this.resolveTitleBarHeightVp();
+    return titleBarHeight + this.resolveToolbarHeightVp() + bookmarkBarHeight + this.resolveSafeTopInsetVp();
   }
 
   private resolveNavigationPopupTopVp(): number {
-    return this.resolveTitleBarHeightVp() + LARGE_SCREEN_NAVIGATION_TOOLBAR_HEIGHT_VP +
-      this.resolveSafeTopInsetVp();
+    const titleBarHeight = this.verticalTabsChrome ? 0 : this.resolveTitleBarHeightVp();
+    return titleBarHeight + this.resolveToolbarHeightVp() + this.resolveSafeTopInsetVp();
+  }
+
+  private resolveToolbarHeightVp(): number {
+    if (!this.verticalTabsChrome) {
+      return LARGE_SCREEN_NAVIGATION_TOOLBAR_HEIGHT_VP;
+    }
+    return resolveBrowserLargeScreenVerticalTabsToolbarHeightVp(this.resolveTitleBarHeightVp());
+  }
+
+  private resolveVerticalTabsBandWidth(inset: boolean): string {
+    if (!inset || this.verticalTabsInsetVp <= 0) {
+      return '100%';
+    }
+    return `calc(100% - ${this.verticalTabsInsetVp}vp)`;
   }
 
   private resolveTitleBarHeightVp(): number {

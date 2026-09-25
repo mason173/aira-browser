@@ -172,7 +172,9 @@ export type AiraIconId =
   | "crossDeviceLink.help"
   | "browser.toolbar.account"
   | "browser.toolbar.zoomOut"
-  | "browser.toolbar.zoomIn";
+  | "browser.toolbar.zoomIn"
+  | "browser.tabs.verticalExpanded"
+  | "browser.tabs.verticalCollapsed";
 
 export type AiraRenderableIconId =
   | "bookmarks.folder"
@@ -346,7 +348,9 @@ export type AiraRenderableIconId =
   | "crossDeviceLink.help"
   | "browser.toolbar.account"
   | "browser.toolbar.zoomOut"
-  | "browser.toolbar.zoomIn";
+  | "browser.toolbar.zoomIn"
+  | "browser.tabs.verticalExpanded"
+  | "browser.tabs.verticalCollapsed";
 
 export const AIRA_ICON_FONT_FAMILY: string = "AiraOperationalIcons";
 export const AIRA_ICON_FONT_RAWFILE_PATH: string = "fonts/aira/aira-operational-icons.ttf";
@@ -525,6 +529,8 @@ export class GeneratedAiraIconCatalog {
       case "browser.toolbar.account":
       case "browser.toolbar.zoomOut":
       case "browser.toolbar.zoomIn":
+      case "browser.tabs.verticalExpanded":
+      case "browser.tabs.verticalCollapsed":
         return true;
       default:
         return false;
@@ -867,6 +873,10 @@ export class GeneratedAiraIconCatalog {
         return '\uEE1B';
       case "browser.toolbar.zoomIn":
         return '\uE3D4';
+      case "browser.tabs.verticalExpanded":
+        return '\uEE1F';
+      case "browser.tabs.verticalCollapsed":
+        return '\uEE20';
       default:
         return '';
     }

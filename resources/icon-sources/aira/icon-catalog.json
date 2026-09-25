@@ -5,11 +5,11 @@
     "familyName": "AiraOperationalIcons",
     "fontFile": "vendor/lucide/aira-operational-icons/AiraOperationalIcons.ttf",
     "packagedRawfile": "fonts/aira/aira-operational-icons.ttf",
-    "fontSha256": "4a6faec5f2b6846a792d223cff5a2e798796b3df0a47f81c89409ea6c1ec08e2",
+    "fontSha256": "f780e9b98ace5f398d1036db1e71df684700e6768144ae48c959c4a56a3f6a4e",
     "selectionFile": "vendor/lucide/aira-operational-icons/selection.json",
-    "selectionSha256": "fc9b59df5ba95836ac8172213c4bc64b9a68ec38fe90ba6d3872cddcf1d77e1d",
+    "selectionSha256": "4b8681956abe69f4fe515fda4c5c9a066d294dc3556a73ade56cf65130080343",
     "sourceManifestFile": "vendor/lucide/aira-operational-icons/source-manifest.json",
-    "sourceManifestSha256": "81c9fb516a5b6467340c5f8517f994bec3da364c150212dec0c5996dc4618ea8",
+    "sourceManifestSha256": "1dfc7434b40577fa240009c50560b1e0fa1ffe024fb8a29611d066b95d2e3ba1",
     "fontQuarantinedIconIds": [
       "desktopCard.shortcut.history",
       "desktopCard.shortcut.bookmarks",
@@ -1635,6 +1635,24 @@
         "kind": "font",
         "glyph": "plus",
         "reason": "large-screen web zoom increase, reusing the existing plus glyph"
+      }
+    },
+    {
+      "id": "browser.tabs.verticalExpanded",
+      "legacyResourceFamily": "app_tabs_vertical_expanded",
+      "representation": {
+        "kind": "font",
+        "glyph": "vertical-tabs-expanded",
+        "reason": "vertical-tabs-chrome"
+      }
+    },
+    {
+      "id": "browser.tabs.verticalCollapsed",
+      "legacyResourceFamily": "app_tabs_vertical_collapsed",
+      "representation": {
+        "kind": "font",
+        "glyph": "vertical-tabs-collapsed",
+        "reason": "vertical-tabs-chrome"
       }
     }
   ],

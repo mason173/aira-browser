@@ -15,7 +15,8 @@ import {
   BROWSER_THEME_STORAGE_PAGE_BACKGROUND_KEY,
   BROWSER_THEME_STORAGE_SURFACE_BACKGROUND_KEY,
   BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY,
-  BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY
+  BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY,
+  BROWSER_APPEARANCE_STORAGE_VERTICAL_TABS_ENABLED_KEY
 } from '../../../core/theme/BrowserThemeStorageKeys';
 import { resolveSiteIconFallbackLabel } from '../../../common/utils/SiteIconFallbackUtils';
 import {
@@ -31,7 +32,15 @@ import {
   BrowserDesktopContextMenuItem,
   buildBrowserDesktopMenuOptions
 } from './BrowserDesktopContextMenu';
-import { BROWSER_DESKTOP_MENU_COMPACT_WIDTH_VP } from '../../../core/browser/BrowserDesktopMenuPresentationTokens';
+import {
+  BROWSER_DESKTOP_MENU_COMPACT_WIDTH_VP,
+  BROWSER_DESKTOP_MENU_TAB_STRIP_BLANK_WIDTH_VP
+} from '../../../core/browser/BrowserDesktopMenuPresentationTokens';
+import {
+  BrowserLargeScreenTabStripBlankMenuItem,
+  BrowserLargeScreenTabStripBlankMenuModel,
+  buildBrowserLargeScreenTabStripBlankMenuModel
+} from '../../../core/browser/BrowserLargeScreenTabStripBlankAreaPolicy';
 import {
   BROWSER_LARGE_SCREEN_TITLE_BAR_ACTION_GAP_VP,
   BROWSER_LARGE_SCREEN_TITLE_BAR_ACTION_SIZE_VP,
@@ -104,6 +113,8 @@ export struct BrowserLargeScreenTabStripSurface {
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY)
   private storedSecondaryTextColor: string = '#5F6875';
 
+  @StorageProp(BROWSER_APPEARANCE_STORAGE_VERTICAL_TABS_ENABLED_KEY)
+  private storedVerticalTabsEnabled: boolean = false;
   @State private hoveredTabId: string = '';
   @State private tabIconStates: SiteIconListRenderState[] = [];
   private siteIconListPresenter: SiteIconListPresenter = new SiteIconListPresenter();
@@ -135,6 +146,11 @@ export struct BrowserLargeScreenTabStripSurface {
       .height(this.resolveTitleBarHeightVp())
       .alignItems(VerticalAlign.Bottom)
       .clip(true)
+      .bindContextMenu(
+        this.buildTabStripBlankContextMenu(),
+        ResponseType.RightClick,
+        buildBrowserDesktopMenuOptions({ preview: MenuPreviewMode.NONE })
+      )
 
       if (this.presentation.newTabVisible) {
         Row()
@@ -159,6 +175,11 @@ export struct BrowserLargeScreenTabStripSurface {
     })
     .alignItems(VerticalAlign.Bottom)
     .backgroundColor(this.storedPageBackgroundColor)
+    .bindContextMenu(
+      this.buildTabStripBlankContextMenu(),
+      ResponseType.RightClick,
+      buildBrowserDesktopMenuOptions({ preview: MenuPreviewMode.NONE })
+    )
   }
 
   @Builder
@@ -191,7 +212,45 @@ export struct BrowserLargeScreenTabStripSurface {
       .onTouch((event: TouchEvent): void => {
         this.handleWindowMoveTouch(event);
       })
+      .bindContextMenu(
+        this.buildTabStripBlankContextMenu(),
+        ResponseType.RightClick,
+        buildBrowserDesktopMenuOptions({ preview: MenuPreviewMode.NONE })
+      )
       .accessibilityText('拖动窗口')
+  }
+
+  /**
+   * Empty title-bar space, not a tab chip. Tab chips keep their own menu, so a
+   * right click on a chip never reaches this list.
+   */
+  @Builder
+  private buildTabStripBlankContextMenu() {
+    BrowserDesktopContextMenu({ menuWidthVp: BROWSER_DESKTOP_MENU_TAB_STRIP_BLANK_WIDTH_VP }) {
+      ForEach(this.buildTabStripBlankMenuModel().groups,
+        (group: BrowserLargeScreenTabStripBlankMenuItem[]): void => {
+          MenuItemGroup() {
+            ForEach(group, (item: BrowserLargeScreenTabStripBlankMenuItem): void => {
+              this.buildTabStripBlankContextMenuItem(item)
+            }, (item: BrowserLargeScreenTabStripBlankMenuItem): string => item.id)
+          }
+        }, (group: BrowserLargeScreenTabStripBlankMenuItem[], groupIndex: number): string =>
+          `tab-strip-blank-${groupIndex}-${group.length}`)
+    }
+  }
+
+  @Builder
+  private buildTabStripBlankContextMenuItem(item: BrowserLargeScreenTabStripBlankMenuItem) {
+    BrowserDesktopContextMenuItem({
+      menuWidthVp: BROWSER_DESKTOP_MENU_TAB_STRIP_BLANK_WIDTH_VP,
+      label: item.label,
+      shortcut: item.shortcut,
+      itemEnabled: item.enabled,
+      checked: item.checked,
+      onAction: (): void => {
+        this.dispatchTabStripBlankMenuItem(item);
+      }
+    })
   }
 
   @Builder
@@ -481,6 +540,34 @@ export struct BrowserLargeScreenTabStripSurface {
     .onClick(() => {
       this.onIntent(intent);
     })
+  }
+
+  private buildTabStripBlankMenuModel(): BrowserLargeScreenTabStripBlankMenuModel {
+    return buildBrowserLargeScreenTabStripBlankMenuModel(
+      this.recentlyClosed.recordCount,
+      this.storedVerticalTabsEnabled
+    );
+  }
+
+  private dispatchTabStripBlankMenuItem(item: BrowserLargeScreenTabStripBlankMenuItem): void {
+    if (!item.enabled || item.actionKind === 'none') {
+      return;
+    }
+    if (item.actionKind === 'new_tab') {
+      this.onIntent({ kind: 'new_tab', tabId: '' });
+      return;
+    }
+    if (item.actionKind === 'restore_latest_recently_closed') {
+      this.onIntent({ kind: 'restore_latest_recently_closed', tabId: '' });
+      return;
+    }
+    if (item.actionKind === 'close_all_tabs') {
+      this.onIntent({ kind: 'close_all_tabs', tabId: '' });
+      return;
+    }
+    if (item.actionKind === 'toggle_vertical_tabs') {
+      this.onIntent({ kind: 'toggle_vertical_tabs', tabId: '' });
+    }
   }
 
   private resolveTabTitle(tab: BrowserLargeScreenTabProjection): string {

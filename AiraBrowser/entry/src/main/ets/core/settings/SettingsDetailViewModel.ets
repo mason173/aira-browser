@@ -316,7 +316,9 @@ export class SettingsDetailViewModel {
       tabsOverviewLayoutStyle: 'grid',
       tabsOverviewCloseButtonAlwaysVisible: false,
       showDesktopBookmarkBar: true,
-      desktopBookmarkBarVisibility: 'always'
+      desktopBookmarkBarVisibility: 'always',
+      verticalTabsEnabled: false,
+      verticalTabsCollapsed: true
     },
     experiments: BrowserExperimentSettings = {
       pauseWebAnimationsDuringScroll: false,

@@ -451,7 +451,13 @@ export class ArkPreferencesStorageAdapter implements PreferencesStorageAdapter {
         desktopBookmarkBarVisibility: normalizeDesktopBookmarkBarVisibility(
           parsed.desktopBookmarkBarVisibility,
           defaultValue.desktopBookmarkBarVisibility
-        )
+        ),
+        verticalTabsEnabled: typeof parsed.verticalTabsEnabled === 'boolean'
+          ? parsed.verticalTabsEnabled
+          : defaultValue.verticalTabsEnabled,
+        verticalTabsCollapsed: typeof parsed.verticalTabsCollapsed === 'boolean'
+          ? parsed.verticalTabsCollapsed
+          : defaultValue.verticalTabsCollapsed
       };
     } catch (_error) {
       return defaultValue;

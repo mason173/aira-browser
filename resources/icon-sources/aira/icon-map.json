@@ -1209,6 +1209,24 @@
     "note": "Lucide Operational font source"
   },
   {
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/vertical-tabs-expanded.svg",
+    "originalSource": "Lucide 1.38.0 / vertical-tabs-expanded",
+    "primaryResourceFamily": "app_tabs_vertical_expanded",
+    "resourceFamilies": [
+      "app_tabs_vertical_expanded"
+    ],
+    "note": "Lucide Operational font source"
+  },
+  {
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/vertical-tabs-collapsed.svg",
+    "originalSource": "Lucide 1.38.0 / vertical-tabs-collapsed",
+    "primaryResourceFamily": "app_tabs_vertical_collapsed",
+    "resourceFamilies": [
+      "app_tabs_vertical_collapsed"
+    ],
+    "note": "Lucide Operational font source"
+  },
+  {
     "exportedFile": "icons/app_widget_shortcut_history__user-provided.svg",
     "originalSource": "user-provided/历史记录.svg",
     "primaryResourceFamily": "app_widget_shortcut_history",

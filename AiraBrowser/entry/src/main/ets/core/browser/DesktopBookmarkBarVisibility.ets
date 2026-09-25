@@ -62,7 +62,9 @@ export function buildDesktopBookmarkBarVisibilitySettings(
     tabsOverviewLayoutStyle: current.tabsOverviewLayoutStyle,
     tabsOverviewCloseButtonAlwaysVisible: current.tabsOverviewCloseButtonAlwaysVisible,
     showDesktopBookmarkBar: visibility !== 'never',
-    desktopBookmarkBarVisibility: visibility
+    desktopBookmarkBarVisibility: visibility,
+    verticalTabsEnabled: current.verticalTabsEnabled,
+    verticalTabsCollapsed: current.verticalTabsCollapsed
   };
 }
 

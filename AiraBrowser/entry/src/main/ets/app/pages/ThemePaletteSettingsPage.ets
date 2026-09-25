@@ -234,7 +234,9 @@ struct ThemePaletteSettingsPage {
       tabsOverviewLayoutStyle: currentSettings.tabsOverviewLayoutStyle,
       tabsOverviewCloseButtonAlwaysVisible: currentSettings.tabsOverviewCloseButtonAlwaysVisible,
       showDesktopBookmarkBar: currentSettings.showDesktopBookmarkBar,
-      desktopBookmarkBarVisibility: currentSettings.desktopBookmarkBarVisibility
+      desktopBookmarkBarVisibility: currentSettings.desktopBookmarkBarVisibility,
+      verticalTabsEnabled: currentSettings.verticalTabsEnabled,
+      verticalTabsCollapsed: currentSettings.verticalTabsCollapsed
     };
     this.isSelectingOption = true;
     this.interactionCoordinator.commitAppearanceSettings({

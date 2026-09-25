@@ -26,3 +26,7 @@ export const BROWSER_APPEARANCE_STORAGE_DESKTOP_BOOKMARK_BAR_VISIBLE_KEY: string
   'browserAppearanceDesktopBookmarkBarVisible';
 export const BROWSER_APPEARANCE_STORAGE_DESKTOP_BOOKMARK_BAR_VISIBILITY_KEY: string =
   'browserAppearanceDesktopBookmarkBarVisibility';
+export const BROWSER_APPEARANCE_STORAGE_VERTICAL_TABS_ENABLED_KEY: string =
+  'browserAppearanceVerticalTabsEnabled';
+export const BROWSER_APPEARANCE_STORAGE_VERTICAL_TABS_COLLAPSED_KEY: string =
+  'browserAppearanceVerticalTabsCollapsed';

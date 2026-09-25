@@ -92,7 +92,9 @@ export class SiteIconAppearanceSettingsViewModel {
       tabsOverviewLayoutStyle: current.tabsOverviewLayoutStyle,
       tabsOverviewCloseButtonAlwaysVisible: current.tabsOverviewCloseButtonAlwaysVisible,
       showDesktopBookmarkBar: current.showDesktopBookmarkBar,
-      desktopBookmarkBarVisibility: current.desktopBookmarkBarVisibility
+      desktopBookmarkBarVisibility: current.desktopBookmarkBarVisibility,
+      verticalTabsEnabled: current.verticalTabsEnabled,
+      verticalTabsCollapsed: current.verticalTabsCollapsed
     };
   }
 

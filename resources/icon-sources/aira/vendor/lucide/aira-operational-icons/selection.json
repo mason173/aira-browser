@@ -729,6 +729,18 @@
     },
     {
       "properties": {
+        "name": "vertical-tabs-collapsed",
+        "code": 60960
+      }
+    },
+    {
+      "properties": {
+        "name": "vertical-tabs-expanded",
+        "code": 60959
+      }
+    },
+    {
+      "properties": {
         "name": "video-assistant-cast",
         "code": 60930
       }

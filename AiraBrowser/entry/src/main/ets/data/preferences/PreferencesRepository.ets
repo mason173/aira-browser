@@ -216,7 +216,9 @@ export const DEFAULT_BROWSER_APPEARANCE_SETTINGS: BrowserAppearanceSettings = {
   tabsOverviewLayoutStyle: 'grid',
   tabsOverviewCloseButtonAlwaysVisible: false,
   showDesktopBookmarkBar: true,
-  desktopBookmarkBarVisibility: 'always'
+  desktopBookmarkBarVisibility: 'always',
+  verticalTabsEnabled: false,
+  verticalTabsCollapsed: true
 };
 
 export const DEFAULT_BROWSER_GENERAL_SETTINGS: BrowserGeneralSettings = {
@@ -787,7 +789,36 @@ export class PreferencesRepository {
       tabsOverviewLayoutStyle: current.tabsOverviewLayoutStyle,
       tabsOverviewCloseButtonAlwaysVisible: current.tabsOverviewCloseButtonAlwaysVisible,
       showDesktopBookmarkBar: current.showDesktopBookmarkBar,
-      desktopBookmarkBarVisibility: current.desktopBookmarkBarVisibility
+      desktopBookmarkBarVisibility: current.desktopBookmarkBarVisibility,
+      verticalTabsEnabled: current.verticalTabsEnabled,
+      verticalTabsCollapsed: current.verticalTabsCollapsed
+    });
+  }
+
+  updateVerticalTabsPresentation(
+    enabled: boolean,
+    collapsed: boolean
+  ): Promise<BrowserPreferences> {
+    const current = this.cachedPreferences.appearance;
+    return this.updateAppearanceSettings({
+      bottomToolbarScrollBehavior: current.bottomToolbarScrollBehavior,
+      globalImmersionEnabled: current.globalImmersionEnabled,
+      alwaysTopImmersionEnabled: current.alwaysTopImmersionEnabled,
+      forceDarkWebContentEnabled: current.forceDarkWebContentEnabled,
+      blurPrivateTabPreviews: current.blurPrivateTabPreviews,
+      showHomeRecentlyClosed: current.showHomeRecentlyClosed,
+      showHomeShortcuts: current.showHomeShortcuts,
+      homeRecentlyClosedLimit: current.homeRecentlyClosedLimit,
+      homeShortcutLayoutDensity: current.homeShortcutLayoutDensity,
+      homeShortcutIconSizeRatio: current.homeShortcutIconSizeRatio,
+      siteIconCornerRadiusRatio: current.siteIconCornerRadiusRatio,
+      themePaletteId: current.themePaletteId,
+      tabsOverviewLayoutStyle: current.tabsOverviewLayoutStyle,
+      tabsOverviewCloseButtonAlwaysVisible: current.tabsOverviewCloseButtonAlwaysVisible,
+      showDesktopBookmarkBar: current.showDesktopBookmarkBar,
+      desktopBookmarkBarVisibility: current.desktopBookmarkBarVisibility,
+      verticalTabsEnabled: enabled,
+      verticalTabsCollapsed: collapsed
     });
   }
 
@@ -812,7 +843,9 @@ export class PreferencesRepository {
       tabsOverviewLayoutStyle: this.normalizeTabsOverviewLayoutStyle(style),
       tabsOverviewCloseButtonAlwaysVisible: closeButtonAlwaysVisible,
       showDesktopBookmarkBar: current.showDesktopBookmarkBar,
-      desktopBookmarkBarVisibility: current.desktopBookmarkBarVisibility
+      desktopBookmarkBarVisibility: current.desktopBookmarkBarVisibility,
+      verticalTabsEnabled: current.verticalTabsEnabled,
+      verticalTabsCollapsed: current.verticalTabsCollapsed
     });
   }
 
@@ -1039,7 +1072,13 @@ export class PreferencesRepository {
       desktopBookmarkBarVisibility: normalizeDesktopBookmarkBarVisibility(
         settings?.desktopBookmarkBarVisibility,
         DEFAULT_BROWSER_APPEARANCE_SETTINGS.desktopBookmarkBarVisibility
-      )
+      ),
+      verticalTabsEnabled: typeof settings?.verticalTabsEnabled === 'boolean'
+        ? settings.verticalTabsEnabled
+        : DEFAULT_BROWSER_APPEARANCE_SETTINGS.verticalTabsEnabled,
+      verticalTabsCollapsed: typeof settings?.verticalTabsCollapsed === 'boolean'
+        ? settings.verticalTabsCollapsed
+        : DEFAULT_BROWSER_APPEARANCE_SETTINGS.verticalTabsCollapsed
     };
   }
 

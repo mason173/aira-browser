@@ -21,8 +21,15 @@ import {
   createBrowserLargeScreenOmniboxPresentation
 } from '../../../core/browser/BrowserLargeScreenSearchInvocationAdapter';
 import {
-  BrowserLargeScreenNavigationIntent
+  BrowserLargeScreenNavigationIntent,
+  BrowserLargeScreenTabStripIntent
 } from '../../../core/browser/BrowserLargeScreenShellIntentApplication';
+import {
+  BROWSER_LARGE_SCREEN_TITLE_BAR_MIN_DRAG_WIDTH_VP
+} from '../../../core/browser/BrowserLargeScreenTitleBarTokens';
+import {
+  sharedBrowserLargeScreenWindowChromeService
+} from '../../../services/browser/BrowserLargeScreenWindowChromeService';
 import {
   BrowserSearchSuggestionSnapshot
 } from '../../../core/browser/BrowserSearchSuggestionCoordinator';
@@ -55,8 +62,24 @@ import {
   BROWSER_THEME_STORAGE_DIVIDER_KEY,
   BROWSER_THEME_STORAGE_SURFACE_BACKGROUND_KEY,
   BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY,
-  BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY
+  BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY,
+  BROWSER_APPEARANCE_STORAGE_VERTICAL_TABS_ENABLED_KEY
 } from '../../../core/theme/BrowserThemeStorageKeys';
+import {
+  BrowserDesktopContextMenu,
+  BrowserDesktopContextMenuItem,
+  buildBrowserDesktopMenuOptions
+} from './BrowserDesktopContextMenu';
+import { BROWSER_DESKTOP_MENU_TAB_STRIP_BLANK_WIDTH_VP } from '../../../core/browser/BrowserDesktopMenuPresentationTokens';
+import {
+  BrowserLargeScreenTabStripBlankMenuItem,
+  BrowserLargeScreenTabStripBlankMenuModel,
+  buildBrowserLargeScreenTabStripBlankMenuModel
+} from '../../../core/browser/BrowserLargeScreenTabStripBlankAreaPolicy';
+import {
+  BrowserRecentlyClosedApplicationSnapshot,
+  createBrowserRecentlyClosedApplicationSnapshot
+} from '../../../core/browser/BrowserRecentlyClosedApplicationCoordinator';
 import { AiraIcon } from '../common/AiraIcon';
 import { AIRA_DISTRIBUTION_CAPABILITY_OWNER } from '../../../common/config/AiraDistributionCapabilityOwner';
 import { BrowserLargeScreenAccountPopover } from './BrowserLargeScreenAccountPopover';
@@ -190,6 +213,19 @@ export struct BrowserLargeScreenNavigationToolbarSurface {
   @Prop viewportWidthVp: number = 0;
   @Prop viewportHeightVp: number = 0;
   @Prop popupReservedTopVp: number = 0;
+  // When the horizontal tab strip is hidden, this row is the window title bar.
+  // Reserve the system three-button area and keep a drag strip beside it.
+  @Prop titleButtonReserveVp: number = 0;
+  @Prop integratedTitleBarHeightVp: number = 0;
+  @Prop windowMoveEnabled: boolean = false;
+  @Prop windowChromeLeaseId: string = '';
+  // Vertical tabs hide the tab strip, so this title row's empty space uses the
+  // same blank-area menu as the horizontal tab strip.
+  @Prop blankAreaMenuEnabled: boolean = false;
+  @Prop recentlyClosed: BrowserRecentlyClosedApplicationSnapshot =
+    createBrowserRecentlyClosedApplicationSnapshot();
+  onTabStripIntent: (intent: BrowserLargeScreenTabStripIntent) => void =
+    (_intent: BrowserLargeScreenTabStripIntent): void => {};
   onIntent: (intent: BrowserLargeScreenNavigationIntent) => void =
     (_intent: BrowserLargeScreenNavigationIntent): void => {};
   onUserScriptAction: (action: BrowserUserScriptApplicationAction) => void =
@@ -209,6 +245,8 @@ export struct BrowserLargeScreenNavigationToolbarSurface {
   private storedPrimaryTextColor: string = '#111318';
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY)
   private storedSecondaryTextColor: string = '#5F6875';
+  @StorageProp(BROWSER_APPEARANCE_STORAGE_VERTICAL_TABS_ENABLED_KEY)
+  private storedVerticalTabsEnabled: boolean = false;
 
   private omniboxController: TextInputController = new TextInputController();
   private focusRequestTimer: number = -1;
@@ -401,21 +439,110 @@ export struct BrowserLargeScreenNavigationToolbarSurface {
         }
 
         this.buildOverflowButton()
+        if (this.windowMoveEnabled) {
+          Row()
+            .width(BROWSER_LARGE_SCREEN_TITLE_BAR_MIN_DRAG_WIDTH_VP)
+            .height('100%')
+            .onTouch((event: TouchEvent): void => {
+              if (event.type === TouchType.Down) {
+                sharedBrowserLargeScreenWindowChromeService.startMovingLease(this.windowChromeLeaseId);
+              }
+            })
+            .bindContextMenu(
+              this.buildTitleBarBlankContextMenu(),
+              ResponseType.RightClick,
+              buildBrowserDesktopMenuOptions({ preview: MenuPreviewMode.NONE })
+            )
+        }
       }
       .width('100%')
-      .height(LARGE_SCREEN_NAVIGATION_TOOLBAR_HEIGHT_VP)
-      .padding({ left: 8, right: 8 })
+      .height(this.resolveToolbarHeightVp())
+      .padding({
+        left: 8,
+        right: this.titleButtonReserveVp > 0 ? 8 + this.titleButtonReserveVp : 8
+      })
       .alignItems(VerticalAlign.Center)
       .backgroundColor(this.storedSurfaceBackgroundColor)
       .border({
         width: { bottom: 1 },
         color: this.storedDividerColor
       })
+      .bindContextMenu(
+        this.buildTitleBarBlankContextMenu(),
+        ResponseType.RightClick,
+        buildBrowserDesktopMenuOptions({ preview: MenuPreviewMode.NONE })
+      )
 
     }
     .width('100%')
-    .height(LARGE_SCREEN_NAVIGATION_TOOLBAR_HEIGHT_VP)
+    .height(this.resolveToolbarHeightVp())
     .clip(false)
+  }
+
+  @Builder
+  private buildTitleBarBlankContextMenu() {
+    if (this.blankAreaMenuEnabled) {
+      BrowserDesktopContextMenu({ menuWidthVp: BROWSER_DESKTOP_MENU_TAB_STRIP_BLANK_WIDTH_VP }) {
+        ForEach(this.buildTitleBarBlankMenuModel().groups,
+          (group: BrowserLargeScreenTabStripBlankMenuItem[]): void => {
+            MenuItemGroup() {
+              ForEach(group, (item: BrowserLargeScreenTabStripBlankMenuItem): void => {
+                this.buildTitleBarBlankContextMenuItem(item)
+              }, (item: BrowserLargeScreenTabStripBlankMenuItem): string => `title-bar-blank-${item.id}`)
+            }
+          }, (group: BrowserLargeScreenTabStripBlankMenuItem[], groupIndex: number): string =>
+            `title-bar-blank-group-${groupIndex}-${group.length}`)
+      }
+    }
+  }
+
+  @Builder
+  private buildTitleBarBlankContextMenuItem(item: BrowserLargeScreenTabStripBlankMenuItem) {
+    BrowserDesktopContextMenuItem({
+      menuWidthVp: BROWSER_DESKTOP_MENU_TAB_STRIP_BLANK_WIDTH_VP,
+      label: item.label,
+      shortcut: item.shortcut,
+      itemEnabled: item.enabled,
+      checked: item.checked,
+      onAction: (): void => {
+        this.dispatchTitleBarBlankMenuItem(item);
+      }
+    })
+  }
+
+  private buildTitleBarBlankMenuModel(): BrowserLargeScreenTabStripBlankMenuModel {
+    return buildBrowserLargeScreenTabStripBlankMenuModel(
+      this.recentlyClosed.recordCount,
+      this.storedVerticalTabsEnabled
+    );
+  }
+
+  private dispatchTitleBarBlankMenuItem(item: BrowserLargeScreenTabStripBlankMenuItem): void {
+    if (!item.enabled || item.actionKind === 'none') {
+      return;
+    }
+    if (item.actionKind === 'new_tab') {
+      this.onTabStripIntent({ kind: 'new_tab', tabId: '' });
+      return;
+    }
+    if (item.actionKind === 'restore_latest_recently_closed') {
+      this.onTabStripIntent({ kind: 'restore_latest_recently_closed', tabId: '' });
+      return;
+    }
+    if (item.actionKind === 'close_all_tabs') {
+      this.onTabStripIntent({ kind: 'close_all_tabs', tabId: '' });
+      return;
+    }
+    if (item.actionKind === 'toggle_vertical_tabs') {
+      this.onTabStripIntent({ kind: 'toggle_vertical_tabs', tabId: '' });
+    }
+  }
+
+  private resolveToolbarHeightVp(): number {
+    if (this.integratedTitleBarHeightVp <= 0) {
+      return LARGE_SCREEN_NAVIGATION_TOOLBAR_HEIGHT_VP;
+    }
+    return Math.max(LARGE_SCREEN_NAVIGATION_TOOLBAR_HEIGHT_VP, this.integratedTitleBarHeightVp);
   }
 
   @Builder

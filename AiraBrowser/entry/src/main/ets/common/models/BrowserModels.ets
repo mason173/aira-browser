@@ -1186,6 +1186,16 @@ export interface BrowserAppearanceSettings {
    * Sync. Absent on installs that only ever stored {@link showDesktopBookmarkBar}.
    */
   desktopBookmarkBarVisibility?: DesktopBookmarkBarVisibility;
+  /**
+   * Device-local PC vertical-tabs switch. Intentionally excluded from Personalization Sync.
+   * Absent means the horizontal tab strip.
+   */
+  verticalTabsEnabled?: boolean;
+  /**
+   * Device-local PC vertical-tabs collapse state. Intentionally excluded from Personalization
+   * Sync. Absent means collapsed (icon rail), matching the approved frame.
+   */
+  verticalTabsCollapsed?: boolean;
 }
 
 export type DesktopBookmarkBarVisibility = 'always' | 'never' | 'new_tab_only';
