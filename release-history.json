@@ -1,14 +1,23 @@
 {
   "latestAppGalleryRelease": {
-    "versionName": "3.3.2",
-    "versionCode": 1000455,
-    "releasedAt": "2026-09-23",
+    "versionName": "3.4.0",
+    "versionCode": 1000462,
+    "releasedAt": "2026-09-25",
     "source": "formal-package-generated",
-    "notes": "Formal AppGallery package whose PC download settings open as a centered dialog, whose chosen download folder is remembered for later ordinary saves, and whose download confirm dialog uses the existing file-type icons. The large-screen toolbar menu and settings icon backgrounds land, Aira Pro is a capability list with two price cards and a 15-day claim, cookies flush before the process is killed, tab-card previews keep their scrolled image, and a third-party homepage no longer flashes blank or light on a cold start. Built from committed HEAD b7abfc4, signed with the Aira release certificate and the AppGallery release Profile for com.aira.browser, with crash symbols archived. The release-signed APP build passed, and the outer APP signature plus the packed release Profile were verified independently. This records a locally generated formal package and does not claim AppGallery review approval or on-shelf publication.",
-    "artifact": "AiraBrowser/build/outputs/default/Aira-official-v3.3.2-1000455-release-signed.app",
-    "sha256": "c547ae7741f654c4e54ae1d5a8dd9c9eb148f2c7fd0b8728f9a6e039f5aa80ae"
+    "notes": "Formal AppGallery package whose desktop element inspection docks beside the page, whose bookmark bar and overflow menus share the desktop shell, and whose large-screen resource, proxy, and userscript surfaces open as centered dialogs. New-window pages no longer open chromeless, and Weibo video takeover stays on the existing surface. Built from HEAD 5f51482 plus the uncommitted desktop and release-note changes in the same working tree, signed with the Aira release certificate and the AppGallery release Profile for com.aira.browser, with crash symbols archived. The release-signed APP build passed, and the outer APP signature plus the packed release Profile were verified independently. This records a locally generated formal package and does not claim AppGallery review approval or on-shelf publication.",
+    "artifact": "AiraBrowser/build/outputs/default/Aira-official-v3.4.0-1000462-release-signed.app",
+    "sha256": "07993221bdff55d766ed047fe63b2c794fdcf21951a1818a6e19a509dfbb01b5"
   },
   "history": [
+    {
+      "versionName": "3.4.0",
+      "versionCode": 1000462,
+      "releasedAt": "2026-09-25",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery package whose desktop element inspection docks beside the page, whose bookmark bar and overflow menus share the desktop shell, and whose large-screen resource, proxy, and userscript surfaces open as centered dialogs. New-window pages no longer open chromeless, and Weibo video takeover stays on the existing surface. Built from HEAD 5f51482 plus the uncommitted desktop and release-note changes in the same working tree, signed with the Aira release certificate and the AppGallery release Profile for com.aira.browser, with crash symbols archived. The release-signed APP build passed, and the outer APP signature plus the packed release Profile were verified independently. This records a locally generated formal package and does not claim AppGallery review approval or on-shelf publication.",
+      "artifact": "AiraBrowser/build/outputs/default/Aira-official-v3.4.0-1000462-release-signed.app",
+      "sha256": "07993221bdff55d766ed047fe63b2c794fdcf21951a1818a6e19a509dfbb01b5"
+    },
     {
       "versionName": "3.3.2",
       "versionCode": 1000455,

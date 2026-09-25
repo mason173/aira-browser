@@ -21,6 +21,12 @@
     },
     {
       "properties": {
+        "name": "adjustments-horizontal",
+        "code": 60958
+      }
+    },
+    {
+      "properties": {
         "name": "app-window",
         "code": 58842
       }

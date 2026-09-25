@@ -1209,6 +1209,15 @@
     "note": "Lucide Operational font source"
   },
   {
+    "exportedFile": "vendor/lucide/aira-operational-icons/svg/adjustments-horizontal.svg",
+    "originalSource": "Lucide 1.38.0 / adjustments-horizontal",
+    "primaryResourceFamily": "app_omnibox_page_controls",
+    "resourceFamilies": [
+      "app_omnibox_page_controls"
+    ],
+    "note": "Lucide Operational font source"
+  },
+  {
     "exportedFile": "vendor/lucide/aira-operational-icons/svg/vertical-tabs-expanded.svg",
     "originalSource": "Lucide 1.38.0 / vertical-tabs-expanded",
     "primaryResourceFamily": "app_tabs_vertical_expanded",

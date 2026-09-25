@@ -901,6 +901,13 @@
       "lucideSlug": "user"
     },
     {
+      "glyph": "adjustments-horizontal",
+      "sourceFile": "svg/adjustments-horizontal.svg",
+      "codePoint": 60958,
+      "sourceSha256": "16d18b7782910ab381f142ce65b83314c99c9b689ba323b79e3ac15cd7cd5f5f",
+      "lucideSlug": "adjustments-horizontal"
+    },
+    {
       "glyph": "vertical-tabs-expanded",
       "sourceFile": "svg/vertical-tabs-expanded.svg",
       "sourceSha256": "e87167d90734bbed39c7f98443254618f125cb3302097f1c81a3126199fa4802",

@@ -129,6 +129,7 @@ vendor/lucide/aira-operational-icons/svg/arrow-right.svg,Lucide 1.38.0 / arrow-r
 vendor/lucide/aira-operational-icons/svg/tools.svg,Lucide 1.38.0 / tools,app_settings_toolbar,app_settings_toolbar,Lucide Operational font source
 vendor/lucide/aira-operational-icons/svg/minus.svg,Lucide 1.38.0 / minus,app_toolbar_zoom_out,app_toolbar_zoom_out,Lucide Operational font source
 vendor/lucide/aira-operational-icons/svg/user.svg,Lucide 1.38.0 / user,app_toolbar_account,app_toolbar_account,Lucide Operational font source
+vendor/lucide/aira-operational-icons/svg/adjustments-horizontal.svg,Lucide 1.38.0 / adjustments-horizontal,app_omnibox_page_controls,app_omnibox_page_controls,Lucide Operational font source
 vendor/lucide/aira-operational-icons/svg/vertical-tabs-expanded.svg,Lucide 1.38.0 / vertical-tabs-expanded,app_tabs_vertical_expanded,app_tabs_vertical_expanded,Lucide Operational font source
 vendor/lucide/aira-operational-icons/svg/vertical-tabs-collapsed.svg,Lucide 1.38.0 / vertical-tabs-collapsed,app_tabs_vertical_collapsed,app_tabs_vertical_collapsed,Lucide Operational font source
 icons/app_widget_shortcut_history__user-provided.svg,user-provided/历史记录.svg,app_widget_shortcut_history,app_widget_shortcut_history,user-provided desktop-card-only source
