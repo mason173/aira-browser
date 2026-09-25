@@ -15,6 +15,13 @@ import {
   sharedBrowserSafeBrowsingThreatPresentationService
 } from '../../services/web/BrowserSafeBrowsingThreatPresentationService';
 import {
+  WEB_VIDEO_PICTURE_IN_PICTURE_ENTER_SOURCE,
+  WEB_VIDEO_PICTURE_IN_PICTURE_LEAVE_SOURCE,
+  WEB_VIDEO_PICTURE_IN_PICTURE_PAGEHIDE_SOURCE,
+  WEB_VIDEO_PICTURE_IN_PICTURE_WEBKIT_ENTER_SOURCE,
+  WEB_VIDEO_PICTURE_IN_PICTURE_WEBKIT_LEAVE_SOURCE
+} from '../../services/video/WebVideoPictureInPictureBackgroundPolicy';
+import {
   WEB_VIDEO_FULLSCREEN_REQUEST_RESULT_EVENT,
   WEB_VIDEO_RUNTIME_ID_PROPERTY
 } from '../../services/video/WebVideoRuntimeProtocol';
@@ -24,10 +31,20 @@ import { AiraLoadScrollJankProbe } from '../../common/debug/AiraLoadScrollJankPr
 
 const HOSTED_WEB_NODE_LOG_DOMAIN: number = 0x0000;
 const HOSTED_WEB_NODE_LOG_TAG: string = 'HostedWebNode';
-const HOSTED_WEB_DOCUMENT_SCRIPT_KEY_VERSION: string = 'hosted-web-document-start-v3';
+const HOSTED_WEB_DOCUMENT_SCRIPT_KEY_VERSION: string = 'hosted-web-document-start-v4';
 const HOSTED_WEB_VIDEO_RUNTIME_ID_PROPERTY_LITERAL: string = JSON.stringify(WEB_VIDEO_RUNTIME_ID_PROPERTY);
 const HOSTED_WEB_VIDEO_FULLSCREEN_REQUEST_RESULT_EVENT_LITERAL: string =
   JSON.stringify(WEB_VIDEO_FULLSCREEN_REQUEST_RESULT_EVENT);
+const HOSTED_WEB_PICTURE_IN_PICTURE_ENTER_SOURCE_LITERAL: string =
+  JSON.stringify(WEB_VIDEO_PICTURE_IN_PICTURE_ENTER_SOURCE);
+const HOSTED_WEB_PICTURE_IN_PICTURE_LEAVE_SOURCE_LITERAL: string =
+  JSON.stringify(WEB_VIDEO_PICTURE_IN_PICTURE_LEAVE_SOURCE);
+const HOSTED_WEB_PICTURE_IN_PICTURE_WEBKIT_ENTER_SOURCE_LITERAL: string =
+  JSON.stringify(WEB_VIDEO_PICTURE_IN_PICTURE_WEBKIT_ENTER_SOURCE);
+const HOSTED_WEB_PICTURE_IN_PICTURE_WEBKIT_LEAVE_SOURCE_LITERAL: string =
+  JSON.stringify(WEB_VIDEO_PICTURE_IN_PICTURE_WEBKIT_LEAVE_SOURCE);
+const HOSTED_WEB_PICTURE_IN_PICTURE_PAGEHIDE_SOURCE_LITERAL: string =
+  JSON.stringify(WEB_VIDEO_PICTURE_IN_PICTURE_PAGEHIDE_SOURCE);
 
 export interface HostedWebNodeCallbacks {
   onControllerAttached: (tabId: string) => void;
@@ -1889,7 +1906,65 @@ const PAGE_BEHAVIOR_SIGNAL_SCRIPT: string = `
     schedule('media_probe_install', 120);
   }
 
+  var pictureInPictureActive = false;
+  var pictureInPictureEnterSource = ${HOSTED_WEB_PICTURE_IN_PICTURE_ENTER_SOURCE_LITERAL};
+  var pictureInPictureLeaveSource = ${HOSTED_WEB_PICTURE_IN_PICTURE_LEAVE_SOURCE_LITERAL};
+  var pictureInPictureWebkitEnterSource = ${HOSTED_WEB_PICTURE_IN_PICTURE_WEBKIT_ENTER_SOURCE_LITERAL};
+  var pictureInPictureWebkitLeaveSource = ${HOSTED_WEB_PICTURE_IN_PICTURE_WEBKIT_LEAVE_SOURCE_LITERAL};
+  var pictureInPicturePageHideSource = ${HOSTED_WEB_PICTURE_IN_PICTURE_PAGEHIDE_SOURCE_LITERAL};
+
+  function readPictureInPictureElement() {
+    try {
+      return document.pictureInPictureElement || document.webkitPictureInPictureElement || null;
+    } catch (_error) {
+      return null;
+    }
+  }
+
+  function reportPictureInPicture(active, reason) {
+    var next = active === true;
+    if (pictureInPictureActive === next) {
+      return;
+    }
+    pictureInPictureActive = next;
+    sendSnapshot({
+      source: String(reason || (next ? pictureInPictureEnterSource : pictureInPictureLeaveSource)),
+      timestamp: Date.now(),
+      isPictureInPicture: next
+    }, true);
+  }
+
+  function bindPictureInPictureSignal(doc) {
+    if (!doc || doc.__airaPictureInPictureSignalBound === true) {
+      return;
+    }
+    try {
+      doc.__airaPictureInPictureSignalBound = true;
+      doc.addEventListener('enterpictureinpicture', function () {
+        reportPictureInPicture(true, pictureInPictureEnterSource);
+      }, true);
+      doc.addEventListener('leavepictureinpicture', function () {
+        reportPictureInPicture(false, pictureInPictureLeaveSource);
+      }, true);
+      doc.addEventListener('webkitpresentationmodechanged', function (event) {
+        var node = event && event.target;
+        var mode = String(node && node.webkitPresentationMode || '');
+        if (mode === 'picture-in-picture') {
+          reportPictureInPicture(true, pictureInPictureWebkitEnterSource);
+          return;
+        }
+        if (pictureInPictureActive && !readPictureInPictureElement()) {
+          reportPictureInPicture(false, pictureInPictureWebkitLeaveSource);
+        }
+      }, true);
+    } catch (_error) {
+    }
+  }
+
   function notifyPageHide() {
+    if (pictureInPictureActive && !readPictureInPictureElement()) {
+      reportPictureInPicture(false, pictureInPicturePageHideSource);
+    }
     screenCaptureTrackCount = 0;
     userEdited = false;
     invalidateEditedContentCache();
@@ -1975,6 +2050,7 @@ const PAGE_BEHAVIOR_SIGNAL_SCRIPT: string = `
     schedule('pageshow', 80);
   }, true);
   window.addEventListener('pagehide', notifyPageHide, true);
+  bindPictureInPictureSignal(document);
   observeMediaDocument(document, 0);
   installMediaPlaybackProbe();
   installScreenCaptureProbe();

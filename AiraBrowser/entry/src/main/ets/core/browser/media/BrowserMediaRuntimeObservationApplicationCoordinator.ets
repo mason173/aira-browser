@@ -2,6 +2,12 @@ import { webview } from '@kit.ArkWeb';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { BrowserTabBackgroundSessionSyncCoordinator } from '../../../services/web/BrowserTabBackgroundSessionSyncCoordinator';
 import {
+  readPictureInPictureBackgroundSignal
+} from '../../../services/video/WebVideoPictureInPictureBackgroundPolicy';
+import {
+  sharedWebVideoPictureInPictureBackgroundKeeper
+} from '../../../services/video/WebVideoPictureInPictureBackgroundKeeper';
+import {
   MediaVideoFrameProbeAdaptResult,
   MediaVideoFrameProbeEvidenceAdapter
 } from '../../../services/media/MediaVideoFrameProbeEvidenceAdapter';
@@ -122,6 +128,7 @@ export class BrowserMediaRuntimeObservationApplicationCoordinator {
 
   clearTab(tabId: string): void {
     const normalizedTabId = tabId.trim();
+    sharedWebVideoPictureInPictureBackgroundKeeper.clearTab(normalizedTabId);
     this.cancelDirectLayoutRevalidation(normalizedTabId);
     this.evidenceCaptureByTabId.delete(normalizedTabId);
     this.videoCompatibilityProfileCatalog.clearTab(normalizedTabId);
@@ -201,6 +208,11 @@ export class BrowserMediaRuntimeObservationApplicationCoordinator {
   handlePageBehaviorSignal(tabId: string, payloadJson: string): void {
     const normalizedTabId = tabId.trim();
     if (normalizedTabId.length <= 0) {
+      return;
+    }
+    const pictureInPictureActive = readPictureInPictureBackgroundSignal(payloadJson);
+    if (pictureInPictureActive !== undefined) {
+      sharedWebVideoPictureInPictureBackgroundKeeper.observe(normalizedTabId, pictureInPictureActive);
       return;
     }
     const isFrameProbePayload = this.frameProbeEvidenceAdapter.isProbePayload(payloadJson);

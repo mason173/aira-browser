@@ -78,6 +78,7 @@ import browserLargeScreenVerticalTabsPolicyTest from './BrowserLargeScreenVertic
 import browserFullscreenExitHintPolicyTest from './BrowserFullscreenExitHintPolicy.test';
 import elementInspectionRuntimeScriptServiceTest from './ElementInspectionRuntimeScriptService.test';
 import elementInspectionOutlineMenuLayoutTest from './ElementInspectionOutlineMenuLayout.test';
+import webVideoPictureInPictureBackgroundPolicyTest from './WebVideoPictureInPictureBackgroundPolicy.test';
 
 export default function tests(): void {
   userScriptValueStateStoreTest();
@@ -158,4 +159,5 @@ export default function tests(): void {
   browserFullscreenExitHintPolicyTest();
   elementInspectionRuntimeScriptServiceTest();
   elementInspectionOutlineMenuLayoutTest();
+  webVideoPictureInPictureBackgroundPolicyTest();
 }
