@@ -26,5 +26,8 @@
   that specific visual capture in the current task.
 - Keep native pages as UI shells and place policy, orchestration, persistence, and transport behavior in their existing
   `core`, `services`, `data`, or `features` owners.
+- User-facing release notes stay short: one summary line plus a few plain items about what changed for the user. No
+  work-report detail, no implementation, file, test, or verification talk. `release-history.json` notes are the exception
+  and keep their provenance record.
 - Run proportional contract checks and `AIRA_DISTRIBUTION=community SKIP_INSTALL=1 ./scripts/build-aira-browser.sh` for
   Community changes when a matching local signing profile is available.
