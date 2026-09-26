@@ -10,6 +10,7 @@ import { WallpaperSettingsContent } from '../wallpaper/WallpaperSettingsScreen';
 import {
   BROWSER_IMMERSIVE_SHEET_HEADER_CONTENT_TOP_INSET,
   BROWSER_SHEET_IMMERSIVE_BOTTOM_PADDING,
+  resolveBrowserSheetHeaderBlurRadius,
   BrowserBottomSheetSurface,
   BrowserImmersiveSheetLayout
 } from './BrowserModalBottomSheet';
@@ -75,6 +76,8 @@ export struct HomePageSettingsContent {
   onClose: () => void = () => {};
   @State private activeView: HomePageSettingsSheetView = 'main';
   @State private wallpaperState: WallpaperSettingsViewState = this.wallpaperCoordinator.getCurrentState();
+  @State private sheetHeaderBlurRadius: number = 0;
+  @State private sheetScrollOffset: number = 0;
 
   aboutToAppear(): void {
     this.refreshWallpaperState();
@@ -116,6 +119,13 @@ export struct HomePageSettingsContent {
   @Builder
   private buildImmersivePhoneLayout() {
     BrowserImmersiveSheetLayout({
+      horizontalPadding: 0,
+      topBlurRadius: this.sheetHeaderBlurRadius,
+      closeVisible: true,
+      closeAccessibilityLabel: '关闭主页设置',
+      onClose: (): void => {
+        this.onClose();
+      },
       scrollContent: () => {
         this.buildPhoneScrollContent()
       },
@@ -146,6 +156,25 @@ export struct HomePageSettingsContent {
     .scrollBar(BarState.Auto)
     .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
     .clip(false)
+    .onAppear(() => {
+      this.resetSheetHeaderBlur();
+    })
+    .onDidScroll((delta: number) => {
+      this.noteSheetScrollDelta(delta);
+    })
+  }
+
+  private noteSheetScrollDelta(delta: number): void {
+    if (!Number.isFinite(delta)) {
+      return;
+    }
+    this.sheetScrollOffset = Math.max(0, this.sheetScrollOffset + delta);
+    this.sheetHeaderBlurRadius = resolveBrowserSheetHeaderBlurRadius(this.sheetScrollOffset);
+  }
+
+  private resetSheetHeaderBlur(): void {
+    this.sheetScrollOffset = 0;
+    this.sheetHeaderBlurRadius = 0;
   }
 
   @Builder

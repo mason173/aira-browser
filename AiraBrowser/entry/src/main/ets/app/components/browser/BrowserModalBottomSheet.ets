@@ -37,11 +37,25 @@ export const BROWSER_MODAL_BOTTOM_SHEET_ACTION_HEIGHT: number = 44;
 export const BROWSER_SHEET_IMMERSIVE_TOP_BLUR_RADIUS: number = 20;
 export const BROWSER_SHEET_IMMERSIVE_BOTTOM_PADDING: number = 24;
 export const BROWSER_SHEET_IMMERSIVE_FOOTER_CLEARANCE: number = 110;
-export const BROWSER_IMMERSIVE_SHEET_HEADER_TOP_INSET: number = 12;
-export const BROWSER_IMMERSIVE_SHEET_HEADER_CONTENT_TOP_INSET: number = 76;
+/** Half-modal title bar: 8vp top padding, 56vp bar, 64vp backplate. */
+export const BROWSER_SHEET_MODAL_TOP_PADDING: number = 8;
+export const BROWSER_SHEET_MODAL_TITLE_BAR_HEIGHT: number = 56;
+export const BROWSER_SHEET_MODAL_HEADER_BUTTON_TOP: number = BROWSER_SHEET_MODAL_TOP_PADDING +
+  (BROWSER_SHEET_MODAL_TITLE_BAR_HEIGHT - 40) / 2;
+export const BROWSER_SHEET_BLUR_SCROLL_RANGE_VP: number = 8;
+export const BROWSER_IMMERSIVE_SHEET_HEADER_TOP_INSET: number = BROWSER_SHEET_MODAL_TOP_PADDING;
+export const BROWSER_IMMERSIVE_SHEET_HEADER_CONTENT_TOP_INSET: number =
+  BROWSER_SHEET_MODAL_TOP_PADDING + BROWSER_SHEET_MODAL_TITLE_BAR_HEIGHT;
 export const BROWSER_FEATURE_SHEET_HEADER_BUTTON_SIZE: number = 40;
 export const BROWSER_FEATURE_SHEET_HEADER_ICON_SIZE: number = 20;
-export const BROWSER_FEATURE_SHEET_HEADER_TITLE_SIZE: number = 24;
+export const BROWSER_FEATURE_SHEET_HEADER_TITLE_SIZE: number = 21;
+export const BROWSER_FEATURE_SHEET_HEADER_ROW_HEIGHT: number = BROWSER_SHEET_MODAL_TITLE_BAR_HEIGHT;
+
+/** Blur stays off at rest and finishes within the first 8vp of upward scroll. */
+export function resolveBrowserSheetHeaderBlurRadius(offset: number): number {
+  const progress = Math.min(1, Math.max(0, offset) / BROWSER_SHEET_BLUR_SCROLL_RANGE_VP);
+  return BROWSER_SHEET_IMMERSIVE_TOP_BLUR_RADIUS * progress;
+}
 const BROWSER_MODAL_BOTTOM_OVERLAY_LOCAL_REVEAL_DELAY_MS: number = 16;
 
 export type BrowserBottomSheetSurfacePresentation = 'bottom_sheet' | 'flat_content';
@@ -327,6 +341,11 @@ export struct BrowserImmersiveSheetLayout {
   @Prop horizontalPadding: number = BROWSER_MODAL_BOTTOM_SHEET_HORIZONTAL_PADDING;
   @Prop footerBottomPadding: number = BROWSER_SHEET_IMMERSIVE_BOTTOM_PADDING;
   @Prop footerVisible: boolean = false;
+  /** 0 hides the top gradient. Scroll-linked sheets pass a radius that starts at 0. */
+  @Prop topBlurRadius: number = 0;
+  @Prop closeVisible: boolean = false;
+  @Prop closeAccessibilityLabel: string = '关闭';
+  onClose: () => void = () => {};
   @BuilderParam scrollContent: () => void = this.emptyContent;
   @BuilderParam header: () => void = this.emptyContent;
   @BuilderParam footer: () => void = this.emptyContent;
@@ -339,7 +358,7 @@ export struct BrowserImmersiveSheetLayout {
         }
         .width('100%')
         .height('100%')
-        .linearGradientBlur(BROWSER_SHEET_IMMERSIVE_TOP_BLUR_RADIUS, {
+        .linearGradientBlur(this.topBlurRadius, {
           fractionStops: [[1, 0], [1, 0.05], [0, 0.14], [0, 1]],
           direction: GradientDirection.Bottom
         })
@@ -369,6 +388,26 @@ export struct BrowserImmersiveSheetLayout {
           bottom: this.footerBottomPadding
         })
         .zIndex(3)
+      }
+
+      if (this.closeVisible) {
+        Stack({ alignContent: Alignment.TopEnd }) {
+          BrowserSheetIconButton({
+            icon: $r('sys.symbol.xmark'),
+            iconSize: BROWSER_FEATURE_SHEET_HEADER_ICON_SIZE,
+            buttonSize: BROWSER_FEATURE_SHEET_HEADER_BUTTON_SIZE,
+            accessibilityLabel: this.closeAccessibilityLabel,
+            immersiveMaterialEnabled: true,
+            onAction: (): void => {
+              this.onClose();
+            }
+          })
+            .margin({ top: BROWSER_SHEET_MODAL_HEADER_BUTTON_TOP, right: 16 })
+        }
+        .width('100%')
+        .height('100%')
+        .hitTestBehavior(HitTestMode.Transparent)
+        .zIndex(4)
       }
     }
     .width('100%')
@@ -619,21 +658,25 @@ export struct BrowserFeatureSheetHeader {
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY) private storedPrimaryTextColor: string = '#111318';
   @Prop title: string = '';
   @Prop titleColor: ResourceColor = '';
+  @Prop showLeadingButton: boolean = false;
   @Prop leadingAccessibilityLabel: string = '返回';
   @Prop trailingVisible: boolean = false;
   @BuilderParam trailing: () => void = this.emptyContent;
   onLeadingAction: () => void = () => {};
 
   build() {
-    Row({ space: 12 }) {
-      BrowserSheetIconButton({
-        airaIconId: 'browser.toolbar.back',
-        iconSize: BROWSER_FEATURE_SHEET_HEADER_ICON_SIZE,
-        iconColor: this.resolveTitleColor(),
-        buttonSize: BROWSER_FEATURE_SHEET_HEADER_BUTTON_SIZE,
-        accessibilityLabel: this.leadingAccessibilityLabel,
-        onAction: this.onLeadingAction
-      })
+    Row({ space: 8 }) {
+      if (this.showLeadingButton) {
+        BrowserSheetIconButton({
+          icon: $r('sys.symbol.chevron_left'),
+          iconSize: BROWSER_FEATURE_SHEET_HEADER_ICON_SIZE,
+          iconColor: this.resolveTitleColor(),
+          buttonSize: BROWSER_FEATURE_SHEET_HEADER_BUTTON_SIZE,
+          accessibilityLabel: this.leadingAccessibilityLabel,
+          immersiveMaterialEnabled: true,
+          onAction: this.onLeadingAction
+        })
+      }
 
       Text(this.title)
         .layoutWeight(1)
@@ -645,15 +688,12 @@ export struct BrowserFeatureSheetHeader {
 
       if (this.trailingVisible) {
         this.trailing()
-      } else {
-        Blank()
-          .width(BROWSER_FEATURE_SHEET_HEADER_BUTTON_SIZE)
-          .height(BROWSER_FEATURE_SHEET_HEADER_BUTTON_SIZE)
       }
     }
     .width('100%')
-    .height(BROWSER_FEATURE_SHEET_HEADER_BUTTON_SIZE)
+    .height(BROWSER_FEATURE_SHEET_HEADER_ROW_HEIGHT)
     .alignItems(VerticalAlign.Center)
+    .padding({ right: 56 })
   }
 
   private resolveTitleColor(): ResourceColor {

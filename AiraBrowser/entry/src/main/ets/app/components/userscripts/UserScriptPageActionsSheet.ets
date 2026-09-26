@@ -6,11 +6,14 @@ import {
 import {
   BrowserUserScriptApplicationAction
 } from '../../../core/userscripts/BrowserUserScriptApplicationCoordinator';
+import { curves } from '@kit.ArkUI';
 import {
   BROWSER_FEATURE_SHEET_HEADER_BUTTON_SIZE,
   BROWSER_FEATURE_SHEET_HEADER_ICON_SIZE,
   BROWSER_IMMERSIVE_SHEET_HEADER_CONTENT_TOP_INSET,
   BROWSER_SHEET_IMMERSIVE_BOTTOM_PADDING,
+  BROWSER_SHEET_MODAL_HEADER_BUTTON_TOP,
+  resolveBrowserSheetHeaderBlurRadius,
   BrowserBottomSheetSurface,
   BrowserFeatureSheetHeader,
   BrowserImmersiveSheetLayout,
@@ -39,6 +42,9 @@ export struct UserScriptPageActionsSheet {
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY) private storedPrimaryTextColor: string = '#111318';
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY) private storedSecondaryTextColor: string = '#5F6875';
   @State private selectedScriptId: string = '';
+  @State private scriptNavigationDirection: string = '';
+  @State private sheetHeaderBlurRadius: number = 0;
+  @State private sheetScrollOffset: number = 0;
   @Prop state: UserScriptPageActionsState = {
     url: '',
     message: '打开网页后会显示当前页脚本菜单。',
@@ -72,7 +78,22 @@ export struct UserScriptPageActionsSheet {
 
   @Builder
   private buildImmersivePhoneLayout() {
+    Stack({ alignContent: Alignment.Top }) {
+      ForEach([this.resolvePhonePageKey()], (pageKey: string) => {
+        this.buildPhonePage(this.resolvePhonePageTransition())
+      }, (pageKey: string) => pageKey)
+
+      this.buildFixedCloseButton()
+    }
+    .width('100%')
+    .height('100%')
+    .clip(true)
+  }
+
+  @Builder
+  private buildPhonePage(pageTransition: TransitionEffect) {
     BrowserImmersiveSheetLayout({
+      topBlurRadius: this.sheetHeaderBlurRadius,
       footerVisible: !this.isScriptDetailVisible(),
       scrollContent: () => {
         this.buildPhoneScrollContent()
@@ -86,6 +107,28 @@ export struct UserScriptPageActionsSheet {
         }
       }
     })
+    .transition(pageTransition)
+  }
+
+  @Builder
+  private buildFixedCloseButton() {
+    Stack({ alignContent: Alignment.TopEnd }) {
+      BrowserSheetIconButton({
+        icon: $r('sys.symbol.xmark'),
+        iconSize: BROWSER_FEATURE_SHEET_HEADER_ICON_SIZE,
+        buttonSize: BROWSER_FEATURE_SHEET_HEADER_BUTTON_SIZE,
+        accessibilityLabel: '关闭当前页脚本',
+        immersiveMaterialEnabled: true,
+        onAction: (): void => {
+          this.onAction({ type: 'dismiss_page_actions' });
+        }
+      })
+        .margin({ top: BROWSER_SHEET_MODAL_HEADER_BUTTON_TOP, right: 16 })
+    }
+    .width('100%')
+    .height('100%')
+    .hitTestBehavior(HitTestMode.Transparent)
+    .zIndex(4)
   }
 
   @Builder
@@ -122,6 +165,12 @@ export struct UserScriptPageActionsSheet {
     .height('100%')
     .scrollBar(BarState.Auto)
     .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
+    .onAppear(() => {
+      this.resetSheetHeaderBlur();
+    })
+    .onDidScroll((delta: number) => {
+      this.noteSheetScrollDelta(delta);
+    })
   }
 
   @Builder
@@ -179,17 +228,14 @@ export struct UserScriptPageActionsSheet {
     BrowserFeatureSheetHeader({
       title: this.resolveHeaderTitle(),
       titleColor: this.storedPrimaryTextColor,
-      leadingAccessibilityLabel: this.isScriptDetailVisible() ? '返回当前页脚本' : '关闭当前页脚本',
+      showLeadingButton: this.isScriptDetailVisible(),
+      leadingAccessibilityLabel: '返回当前页脚本',
       trailingVisible: !this.isScriptDetailVisible(),
       trailing: () => {
         this.buildPhoneHeaderTrailingAction()
       },
-      onLeadingAction: () => {
-        if (this.isScriptDetailVisible()) {
-          this.selectedScriptId = '';
-        } else {
-          this.onAction({ type: 'dismiss_page_actions' });
-        }
+      onLeadingAction: (): void => {
+        this.closeScriptDetail();
       }
     })
   }
@@ -201,6 +247,7 @@ export struct UserScriptPageActionsSheet {
       iconSize: BROWSER_FEATURE_SHEET_HEADER_ICON_SIZE,
       buttonSize: BROWSER_FEATURE_SHEET_HEADER_BUTTON_SIZE,
       accessibilityLabel: '刷新',
+      immersiveMaterialEnabled: true,
       onAction: () => {
         this.onAction({ type: 'refresh_page_actions' });
       }
@@ -215,7 +262,7 @@ export struct UserScriptPageActionsSheet {
           icon: $r('sys.symbol.chevron_left'),
           accessibilityLabel: '返回当前页脚本',
           onAction: () => {
-            this.selectedScriptId = '';
+            this.closeScriptDetail();
           }
         })
       }
@@ -339,7 +386,7 @@ export struct UserScriptPageActionsSheet {
       .borderRadius(this.resolveRowBorderRadius(index, total))
       .padding({ left: 12, right: 16, top: 10, bottom: 10 })
       .onClick(() => {
-        this.selectedScriptId = script.scriptId;
+        this.openScriptDetail(script.scriptId);
       })
 
       if (index < total - 1) {
@@ -411,6 +458,45 @@ export struct UserScriptPageActionsSheet {
       })
     }
     .width('100%')
+  }
+
+  private openScriptDetail(scriptId: string): void {
+    this.scriptNavigationDirection = 'forward';
+    this.selectedScriptId = scriptId;
+  }
+
+  private closeScriptDetail(): void {
+    this.scriptNavigationDirection = 'backward';
+    this.selectedScriptId = '';
+  }
+
+  private resolvePhonePageKey(): string {
+    return this.selectedScriptId.length > 0 ? this.selectedScriptId : 'list';
+  }
+
+  private resolvePhonePageTransition(): TransitionEffect {
+    if (this.scriptNavigationDirection === 'backward') {
+      return TransitionEffect.move(TransitionEdge.START)
+        .animation({ curve: curves.springMotion(0.34, 0.84) });
+    }
+    if (this.scriptNavigationDirection === 'forward') {
+      return TransitionEffect.move(TransitionEdge.END)
+        .animation({ curve: curves.springMotion(0.34, 0.84) });
+    }
+    return TransitionEffect.OPACITY.animation({ duration: 1 });
+  }
+
+  private noteSheetScrollDelta(delta: number): void {
+    if (!Number.isFinite(delta)) {
+      return;
+    }
+    this.sheetScrollOffset = Math.max(0, this.sheetScrollOffset + delta);
+    this.sheetHeaderBlurRadius = resolveBrowserSheetHeaderBlurRadius(this.sheetScrollOffset);
+  }
+
+  private resetSheetHeaderBlur(): void {
+    this.sheetScrollOffset = 0;
+    this.sheetHeaderBlurRadius = 0;
   }
 
   private isScriptDetailVisible(): boolean {

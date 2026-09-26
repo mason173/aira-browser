@@ -235,10 +235,13 @@ import {
   resolveSplitToolbarCanGoBack,
   resolveSplitToolbarCanGoForward,
   resolveSplitToolbarHomeBackdrop,
+  resolveSplitToolbarScrollBehavior,
+  shouldCollapseSplitToolbarForScroll,
   shouldReserveSplitToolbarHomeInsets,
   shouldSuppressLegacyFloatingToolbar,
   SPLIT_TOOLBAR_ADDRESS_BLOCK_VP,
-  SPLIT_TOOLBAR_BOTTOM_BAR_VP
+  SPLIT_TOOLBAR_BOTTOM_BAR_VP,
+  SPLIT_TOOLBAR_SCROLL_COLLAPSE_DURATION_MS
 } from '../../core/browser/BrowserToolbarChromeStylePolicy';
 import {
   BrowserSplitToolbarChrome,
@@ -4596,7 +4599,7 @@ struct BrowserShellPage {
         tabId: this.activeTabId,
         url: this.tabScopedEventContextCoordinator.resolvePageUrl(this.activeTabId),
         controller: this.browserRuntimeLifecyclePort.resolveController(this.activeTabId),
-        eligible: this.isWebPageVisible() && !this.isLargeScreenShellFamilyActive() &&
+        eligible: this.isWebPageVisible() && this.isWebBottomSafeAreaChromeActive() &&
           !this.shouldHideRootBottomChromeForImmersion() &&
           !this.buildCurrentDocumentViewerChromeContext().policy.active &&
           /^https?:\/\//i.test(this.tabScopedEventContextCoordinator.resolvePageUrl(this.activeTabId)),
@@ -5966,15 +5969,18 @@ struct BrowserShellPage {
       addressFocused: this.webBottomAddressFocused,
       currentDetent: this.rootBottomAddressPanelDetent,
       currentPresentation: this.rootBottomPanelPresentationSnapshot.scrollPresentation,
-      bottomToolbarPinnedBySafeArea: this.webViewportPresentation.reservedBottomInsetPx > 0,
+      bottomToolbarPinnedBySafeArea: !this.shouldUseSplitToolbarChrome() &&
+        this.webViewportPresentation.reservedBottomInsetPx > 0,
       tabsSheetVisible: this.showTabsSheet,
       webAppImmersiveMode: this.isWebAppImmersiveMode(),
       fullScreenModeEnabled: this.browserFullscreenSessionPresentation.fullScreenModeEnabled,
       smoothModeRuntimeEnabled: this.webScrollSmoothModeRuntimeEnabled,
       experimentSettings: this.webScrollExperimentSettings
     }),
-    applyBottomChromeDecision: (decision: BrowserBottomChromeWebScrollDecision): void =>
-      this.browserRootBottomPanelSessionCoordinator.applyWebScrollDecision(decision)
+    applyBottomChromeDecision: (decision: BrowserBottomChromeWebScrollDecision): void => {
+      this.browserRootBottomPanelSessionCoordinator.applyWebScrollDecision(decision);
+      this.syncSplitToolbarScrollViewport(decision.changed);
+    }
   };
   private browserWebScrollInteractionCoordinator: BrowserWebScrollInteractionCoordinator =
     new BrowserWebScrollInteractionCoordinator(
@@ -6376,15 +6382,20 @@ struct BrowserShellPage {
     applyAppearanceState: (state: BrowserShellLifecycleAppearanceState): void => {
       this.webScrollGlobalImmersionEnabled = state.globalImmersionEnabled;
       this.webScrollAlwaysTopImmersionEnabled = state.alwaysTopImmersionEnabled;
-      this.toolbarChromeStyle = sharedPreferencesRepository.getPreferences().appearance.toolbarChromeStyle;
+      const appearance = sharedPreferencesRepository.getPreferences().appearance;
+      this.toolbarChromeStyle = appearance.toolbarChromeStyle;
+      this.syncWebBottomSafeAreaEnabled();
       if (this.toolbarChromeStyle === 'split' && !this.isLargeScreenShellFamilyActive()) {
-        this.browserWebScrollInteractionCoordinator.applyBottomToolbarScrollBehavior('fixed', this.activeTabId);
+        this.browserWebScrollInteractionCoordinator.applyBottomToolbarScrollBehavior(
+          resolveSplitToolbarScrollBehavior(appearance.bottomToolbarScrollBehavior),
+          this.activeTabId
+        );
       }
       this.alignWebViewportVisualTopInsetAfterSafeAreaSync(true, true);
     },
     applyExperimentSettings: (settings: BrowserExperimentSettings): void => {
       this.webScrollExperimentSettings = settings;
-      this.browserWebBottomSafeAreaCoordinator.setEnabled(settings.webBottomSafeAreaEnabled);
+      this.syncWebBottomSafeAreaEnabled();
       this.webScrollSmoothModeRuntimeEnabled = settings.pauseWebAnimationsDuringScroll ||
         settings.reduceMediaMotionDuringScroll;
     },
@@ -7989,7 +8000,7 @@ struct BrowserShellPage {
       baseTopInsetPx: baseTopInsetPx,
       occupiedChromeHeightPx: this.quickSearchSwitchingPresentation.occupiedHeightPx
     });
-    if (!this.shouldUseSplitToolbarChrome() || this.showHomePage) {
+    if (!this.shouldUseSplitToolbarChrome() || this.showHomePage || this.shouldCollapseSplitToolbarBars()) {
       return visibleTopInsetPx;
     }
     return visibleTopInsetPx + SPLIT_TOOLBAR_ADDRESS_BLOCK_VP;
@@ -8456,6 +8467,32 @@ struct BrowserShellPage {
     });
   }
 
+  private shouldCollapseSplitToolbarBars(): boolean {
+    return shouldCollapseSplitToolbarForScroll({
+      splitChromeActive: this.shouldUseSplitToolbarChrome(),
+      homeScene: this.showHomePage,
+      addressFocused: this.webBottomAddressFocused,
+      keyboardInsetVp: this.rootKeyboardInsetVp,
+      scrollPresentationHidden: this.rootBottomPanelPresentationSnapshot.scrollPresentation === 'hidden'
+    });
+  }
+
+  private syncSplitToolbarScrollViewport(presentationChanged: boolean): void {
+    if (!presentationChanged || !this.shouldUseSplitToolbarChrome() || this.showHomePage) {
+      return;
+    }
+    const applyGeometry = (): void => {
+      const targetTopInsetPx = this.resolveTargetWebViewportVisualTopInsetPx();
+      this.webViewportVisualTopInset = targetTopInsetPx;
+      this.webViewportVisualTopInsetInitialized = true;
+      this.refreshWebViewportPresentation(targetTopInsetPx);
+    };
+    this.getUIContext().animateTo({
+      duration: SPLIT_TOOLBAR_SCROLL_COLLAPSE_DURATION_MS,
+      curve: Curve.EaseOut
+    }, applyGeometry);
+  }
+
   private resolveSplitToolbarCanGoBack(): boolean {
     const tab = this.tabManager.getTab(this.tabs, this.activeTabId);
     return resolveSplitToolbarCanGoBack(
@@ -8503,6 +8540,7 @@ struct BrowserShellPage {
       topSafeInsetVp: this.homeTopSafeInsetVp,
       bottomSafeInsetVp: this.homeBottomSafeInsetVp,
       keyboardInsetVp: this.rootAddressKeyboardOverlayInsetVp,
+      barsCollapsed: sessionMode === 'chrome' && this.shouldCollapseSplitToolbarBars(),
       searchDismissVersion: this.splitToolbarSearchDismissVersion,
       pageBackgroundColor: this.themedHomeSurfaceBackground,
       barBackgroundColor: this.readSplitToolbarBarBackgroundColor(),
@@ -9387,11 +9425,23 @@ struct BrowserShellPage {
       SPLIT_TOOLBAR_BOTTOM_BAR_VP : BROWSER_BOTTOM_ADDRESS_PANEL_LOW_HEIGHT;
   }
 
+  private isWebBottomSafeAreaChromeActive(): boolean {
+    return this.toolbarChromeStyle !== 'split' && !this.isLargeScreenShellFamilyActive();
+  }
+
+  private syncWebBottomSafeAreaEnabled(): void {
+    this.browserWebBottomSafeAreaCoordinator.setEnabled(
+      this.webScrollExperimentSettings.webBottomSafeAreaEnabled && this.isWebBottomSafeAreaChromeActive()
+    );
+  }
+
   private resolveWebViewportVisualBottomInsetVp(): number {
     const systemInsetVp = this.webScrollExperimentSettings.webBottomSafeAreaEnabled &&
+      this.isWebBottomSafeAreaChromeActive() &&
       this.rootKeyboardInsetVp <= 0 && !this.webBottomAddressFocused &&
       !this.shouldHideRootBottomChromeForImmersion() ? this.webBottomSafeAreaInsetVp : 0;
-    if (!this.shouldUseSplitToolbarChrome() || this.showHomePage || this.rootKeyboardInsetVp > 0) {
+    if (!this.shouldUseSplitToolbarChrome() || this.showHomePage || this.rootKeyboardInsetVp > 0 ||
+      this.shouldCollapseSplitToolbarBars()) {
       return systemInsetVp;
     }
     return Math.max(systemInsetVp, SPLIT_TOOLBAR_BOTTOM_BAR_VP + this.homeBottomSafeInsetVp);

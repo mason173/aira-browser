@@ -461,8 +461,6 @@ export class SettingsDetailViewModel {
   /**
    * 大屏（鼠标键盘）下隐藏只对触屏有意义的设置项：
    * - 实验室"页面手势"整组（下拉刷新 / 强制网页缩放 / 智感握姿）
-   * - 实验室"网页适配"整组（网页底栏防遮挡只在手机壳的悬浮底栏下生效，
-   *   PC 模式没有悬浮底栏，控制此行为的开关不显示）
    * - 外观里的"标签页样式"行（大屏标签管理默认平铺，不提供堆叠式切换）
    * 若某组去掉该行后变空且无操作按钮，则整组略过，避免空卡片。
    */
@@ -470,7 +468,7 @@ export class SettingsDetailViewModel {
     const result: SettingsDetailGroupState[] = [];
     for (let groupIndex = 0; groupIndex < groups.length; groupIndex += 1) {
       const group = groups[groupIndex];
-      if (group.id === 'page_gestures' || group.id === 'web_bottom_safe_area') {
+      if (group.id === 'page_gestures') {
         continue;
       }
       const filteredRows = group.rows.filter((row: SettingsDetailRowState) => row.id !== 'tab_overview_layout');
@@ -1417,21 +1415,6 @@ export class SettingsDetailViewModel {
             )
           ],
           footerText: '下拉刷新会在普通网页顶部下拉时刷新当前页；强制网页缩放会在系统支持时忽略页面 viewport 里的缩放限制；智感握姿会在系统支持时识别握持手，用于优化单手操作布局。'
-        },
-        {
-          id: 'web_bottom_safe_area',
-          title: '网页适配',
-          rows: [
-            this.switchRow(
-              'web_bottom_safe_area',
-              '网页底栏防遮挡',
-              '',
-              'toggle_web_bottom_safe_area',
-              experiments.webBottomSafeAreaEnabled,
-              canEditDevicePreferences
-            )
-          ],
-          footerText: '自动留出空间，避免浏览器悬浮栏挡住网页底部按钮。仅用于手机布局，部分网站可能无法识别。'
         },
         {
           id: 'video_takeover',

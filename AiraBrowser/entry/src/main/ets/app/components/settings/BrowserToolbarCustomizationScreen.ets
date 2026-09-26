@@ -7,6 +7,7 @@ import {
   BrowserToolbarChromeStyle,
   BrowserToolbarLayoutSettings
 } from '../../../common/models/BrowserModels';
+import { resolveSplitToolbarScrollBehavior } from '../../../core/browser/BrowserToolbarChromeStylePolicy';
 import {
   BrowserToolbarScrollBehaviorOptionState,
   BrowserToolbarScrollBehaviorSettingsViewModel
@@ -67,7 +68,8 @@ import {
   SettingsActionButton,
   SettingsNavigationRow,
   SettingsOptionRow,
-  SettingsRowPosition
+  SettingsRowPosition,
+  SettingsSwitchRow
 } from './SettingsRows';
 import {
   SettingsDesktopActionButton,
@@ -86,8 +88,12 @@ import {
   resolveBrowserBottomChromeMaterialTintForMode
 } from '../browser/BrowserFloatingGlassMaterialTokens';
 import {
+  BROWSER_SHEET_IMMERSIVE_BOTTOM_PADDING,
+  BROWSER_SHEET_IMMERSIVE_TOP_BLUR_RADIUS,
+  BrowserImmersiveSheetLayout,
   BrowserSheetIconButton
 } from '../browser/BrowserModalBottomSheet';
+import { BrowserPhoneSettingsSheetHeader } from '../browser/BrowserPhoneSettingsSheetHeader';
 import { CenteredDialogSurface } from '../common/CenteredDialogSurface';
 import { applyDesktopDialogSheetChrome } from '../common/DesktopDialogSheetChrome';
 
@@ -96,10 +102,26 @@ const TOOLBAR_PREVIEW_HEIGHT: number = 52;
 const TOOLBAR_PREVIEW_SECTION_HEIGHT: number = 12 + TOOLBAR_PREVIEW_HEIGHT + 12;
 const TOOLBAR_SLOT_RADIO_GROUP_PREFIX: string = 'browser-toolbar-slot-action';
 const TOOLBAR_CENTER_CAPSULE_RADIO_GROUP: string = 'browser-toolbar-center-capsule-swipe-up';
-type BrowserToolbarSlotSheetMode = 'overview' | 'picker';
+const TOOLBAR_SLOT_PICKER_DESTINATION: string = 'toolbarSlotActionPicker';
+/**
+ * Half-modal title bar from HdsNavigationTitleMode.MODAL: 8vp top padding, 56vp bar, 64vp backplate.
+ * The 40vp button is centered in that bar, so it starts 16vp below the sheet content, level with close.
+ */
+const TOOLBAR_SHEET_MODAL_TOP_PADDING: number = 8;
+const TOOLBAR_SHEET_MODAL_TITLE_BAR_HEIGHT: number = 56;
+const TOOLBAR_SHEET_HEADER_BUTTON_SIZE: number = 40;
+const TOOLBAR_SHEET_HEADER_BUTTON_TOP: number = TOOLBAR_SHEET_MODAL_TOP_PADDING +
+  (TOOLBAR_SHEET_MODAL_TITLE_BAR_HEIGHT - TOOLBAR_SHEET_HEADER_BUTTON_SIZE) / 2;
+const TOOLBAR_SHEET_CONTENT_TOP_INSET: number =
+  TOOLBAR_SHEET_MODAL_TOP_PADDING + TOOLBAR_SHEET_MODAL_TITLE_BAR_HEIGHT;
+/** GRADIENT_BLUR default: blur fades in over the first 8vp of scroll, and is absent at rest. */
+const TOOLBAR_SHEET_BLUR_SCROLL_RANGE_VP: number = 8;
 /** Which question the toolbar's single Sheet is asking. */
 type BrowserToolbarSheetQuestion = 'slot' | 'center_capsule' | 'split_slot';
 export type BrowserToolbarDesktopView = 'overview' | 'scroll_behavior';
+
+class ToolbarSlotPickerParams {
+}
 
 @Component
 export struct BrowserToolbarCustomizationScreen {
@@ -138,6 +160,8 @@ export struct BrowserToolbarCustomizationScreen {
     sharedPreferencesRepository.getPreferences().appearance.bottomToolbarScrollBehavior;
   @State private toolbarChromeStyle: BrowserToolbarChromeStyle =
     sharedPreferencesRepository.getPreferences().appearance.toolbarChromeStyle;
+  @State private webBottomSafeAreaEnabled: boolean =
+    sharedPreferencesRepository.getPreferences().experiments.webBottomSafeAreaEnabled;
   @State private state: BrowserToolbarCustomizationState =
     this.viewModel.buildState(sharedPreferencesRepository.getPreferences().toolbarLayout);
   @State private saving: boolean = false;
@@ -154,15 +178,21 @@ export struct BrowserToolbarCustomizationScreen {
   @State private splitPreviewScene: BrowserSplitToolbarScene = 'home';
   @State private selectedSplitSlotId: BrowserSplitToolbarSlotId = 'homeLeading';
   @State private selectedInteractionKind: BrowserToolbarInteractionKind = 'tap';
-  @State private slotSheetMode: BrowserToolbarSlotSheetMode = 'overview';
-  @State private slotSheetRevision: number = 0;
   /**
-   * One Sheet, two questions.
+   * One Sheet, two questions, and a stack for the choice under a question.
    *
    * A node can only host one sheet, and this screen needs a sheet for the four configurable buttons
    * and one for the middle bar, which has no slot of its own. Binding two sheets to this page left
    * only one of them reachable, so the question is state and the sheet itself is single.
+   * The action list is a NavDestination on this stack, not a rebuilt builder: pushPath is the system
+   * slide, and back pops that destination before the sheet can dismiss.
    */
+  private sheetNavigationStack: NavPathStack = new NavPathStack();
+  private sheetNavigationPopGuardUntilMs: number = 0;
+  private sheetRootScroller: Scroller = new Scroller();
+  private sheetPickerScroller: Scroller = new Scroller();
+  @State private sheetRootBlurRadius: number = 0;
+  @State private sheetPickerBlurRadius: number = 0;
   @State private sheetQuestion: BrowserToolbarSheetQuestion = 'slot';
   @State private sheetVisible: boolean = false;
   @State private desktopView: BrowserToolbarDesktopView = 'overview';
@@ -174,11 +204,11 @@ export struct BrowserToolbarCustomizationScreen {
    * source and twice more inside the loop and the divider condition.
    */
   private scrollBehaviorOptions: BrowserToolbarScrollBehaviorOptionState[] =
-    this.scrollBehaviorViewModel.buildStateForBehavior(
-      sharedPreferencesRepository.getPreferences().appearance.bottomToolbarScrollBehavior).options;
+    this.scrollBehaviorViewModel.buildState(
+      sharedPreferencesRepository.getPreferences().appearance).options;
   private scrollBehaviorFooterText: string =
-    this.scrollBehaviorViewModel.buildStateForBehavior(
-      sharedPreferencesRepository.getPreferences().appearance.bottomToolbarScrollBehavior).footerText;
+    this.scrollBehaviorViewModel.buildState(
+      sharedPreferencesRepository.getPreferences().appearance).footerText;
   /**
    * The preview's presentation, kept until its width or the slot actions change.
    *
@@ -210,11 +240,14 @@ export struct BrowserToolbarCustomizationScreen {
       preferType: this.desktopPresentation ? SheetType.CENTER : SheetType.BOTTOM,
       height: SheetSize.LARGE,
       dragBar: !this.desktopPresentation,
-      showClose: true,
+      showClose: false,
+      onWillDismiss: (action: DismissSheetAction): void => {
+        this.handleSheetWillDismiss(action);
+      },
       onDisappear: () => {
         this.sheetVisible = false;
         this.sheetQuestion = 'slot';
-        this.slotSheetMode = 'overview';
+        this.resetSheetNavigation();
       }
     }, 'm', this.desktopPresentation))
   }
@@ -245,7 +278,7 @@ export struct BrowserToolbarCustomizationScreen {
     Column() {
       if (this.showDesktopHeader) {
         SettingsDesktopWorkspaceHeader({
-          title: this.desktopView === 'scroll_behavior' ? '滚动行为' : '工具栏设置',
+          title: this.desktopView === 'scroll_behavior' ? '滚动时' : '工具栏设置',
           showBackButton: this.desktopView === 'scroll_behavior',
           primaryTextColor: this.storedPrimaryTextColor,
           iconColor: this.storedSecondaryTextColor,
@@ -278,6 +311,9 @@ export struct BrowserToolbarCustomizationScreen {
       this.buildToolbarStyleSection()
       this.buildToolbarPreviewSection()
       this.buildToolbarBehaviorSection()
+      if (this.shouldShowWebBottomSafeAreaSwitch()) {
+        this.buildWebBottomSafeAreaSection()
+      }
       if (this.hasCustomizedToolbarSlots()) {
         this.buildResetButton()
       }
@@ -292,7 +328,7 @@ export struct BrowserToolbarCustomizationScreen {
       bottomPadding: 28
     }) {
       SettingsSection({
-        title: '网页滚动时',
+        title: '浏览网页时',
         secondaryTextColor: this.storedSecondaryTextColor
       }) {
         SettingsDesktopGroup({ surfaceColor: this.storedSurfaceBackgroundColor }) {
@@ -302,7 +338,7 @@ export struct BrowserToolbarCustomizationScreen {
           ) => {
             SettingsDesktopOptionRow({
               title: option.title,
-              isSelected: option.behavior === this.scrollBehavior,
+              isSelected: this.isScrollBehaviorOptionSelected(option.behavior),
               isEnabled: !this.saving,
               radioGroup: 'browser-toolbar-scroll-behavior-workspace',
               radioValue: option.behavior,
@@ -397,7 +433,7 @@ export struct BrowserToolbarCustomizationScreen {
         }
       }
       SettingsFooterText({
-        text: '上下分栏把地址栏放在顶部、导航放在底部，并且始终固定显示。',
+        text: '上下分栏把地址栏放在顶部、导航放在底部。',
         secondaryTextColor: this.storedSecondaryTextColor
       })
     }
@@ -412,10 +448,12 @@ export struct BrowserToolbarCustomizationScreen {
       if (this.desktopPresentation) {
         SettingsDesktopGroup({ surfaceColor: this.storedSurfaceBackgroundColor }) {
           SettingsDesktopNavigationRow({
-            title: '滚动行为',
-            value: this.toolbarChromeStyle === 'split' ?
-              '固定' : this.scrollBehaviorViewModel.formatBehaviorTitle(this.scrollBehavior),
-            isEnabled: this.toolbarChromeStyle !== 'split' && !this.saving,
+            title: '滚动时',
+            value: this.scrollBehaviorViewModel.formatBehaviorTitle(
+              this.scrollBehavior,
+              this.toolbarChromeStyle
+            ),
+            isEnabled: !this.saving,
             primaryTextColor: this.storedPrimaryTextColor,
             secondaryTextColor: this.storedSecondaryTextColor,
             hoverBackgroundColor: this.resolvePressedBackgroundColor(),
@@ -428,11 +466,13 @@ export struct BrowserToolbarCustomizationScreen {
       } else {
         SettingsGroupCard({ surfaceColor: this.storedSurfaceBackgroundColor }) {
           SettingsNavigationRow({
-            title: '滚动行为',
-            value: this.toolbarChromeStyle === 'split' ?
-              '固定' : this.scrollBehaviorViewModel.formatBehaviorTitle(this.scrollBehavior),
+            title: '滚动时',
+            value: this.scrollBehaviorViewModel.formatBehaviorTitle(
+              this.scrollBehavior,
+              this.toolbarChromeStyle
+            ),
             rowPosition: 'single',
-            isEnabled: this.toolbarChromeStyle !== 'split' && !this.saving,
+            isEnabled: !this.saving,
             primaryTextColor: this.storedPrimaryTextColor,
             secondaryTextColor: this.storedSecondaryTextColor,
             pressedBackgroundColor: this.resolvePressedBackgroundColor(),
@@ -444,8 +484,36 @@ export struct BrowserToolbarCustomizationScreen {
       }
       SettingsFooterText({
         text: this.toolbarChromeStyle === 'split' ?
-          '上下分栏始终固定显示，不随网页滚动收起。' :
-          '选择浏览网页时工具栏保持显示、收起为胶囊或完全隐藏。',
+          '向下滚动网页时，可以选择保持上下分栏，或同时收起地址栏和底部工具栏。' :
+          '向下滚动网页时，工具栏可以保持显示、收起为胶囊或完全隐藏。',
+        secondaryTextColor: this.storedSecondaryTextColor
+      })
+    }
+  }
+
+  @Builder
+  private buildWebBottomSafeAreaSection() {
+    SettingsSection({
+      title: '网页适配',
+      secondaryTextColor: this.storedSecondaryTextColor
+    }) {
+      SettingsGroupCard({ surfaceColor: this.storedSurfaceBackgroundColor }) {
+        SettingsSwitchRow({
+          title: '网页底栏防遮挡',
+          titleBadge: 'Beta',
+          checked: this.webBottomSafeAreaEnabled,
+          rowPosition: 'single',
+          isEnabled: !this.saving,
+          primaryTextColor: this.storedPrimaryTextColor,
+          secondaryTextColor: this.storedSecondaryTextColor,
+          pressedBackgroundColor: this.resolvePressedBackgroundColor(),
+          onChange: (checked: boolean): void => {
+            this.updateWebBottomSafeAreaEnabled(checked);
+          }
+        })
+      }
+      SettingsFooterText({
+        text: '自动留出空间，避免悬浮工具栏挡住网页底部按钮。部分网站可能无法识别。',
         secondaryTextColor: this.storedSecondaryTextColor
       })
     }
@@ -582,39 +650,145 @@ export struct BrowserToolbarCustomizationScreen {
 
   @Builder
   private buildActiveSheetContent() {
-    ForEach([this.resolveSheetRenderKey()], (_renderKey: string) => {
-      if (this.sheetQuestion === 'center_capsule') {
-        this.buildCenterCapsuleSwipeUpSheetContent()
-      } else if (this.slotSheetMode === 'picker') {
-        this.buildInteractionActionPicker()
-      } else if (this.sheetQuestion === 'split_slot') {
-        this.buildSplitSlotOverview()
-      } else {
-        this.buildSlotInteractionOverview()
+    Stack({ alignContent: Alignment.TopEnd }) {
+      Navigation(this.sheetNavigationStack) {
+        this.buildSheetRoot()
       }
-    }, (renderKey: string) => renderKey)
-  }
+      .width('100%')
+      .height('100%')
+      .mode(NavigationMode.Stack)
+      .hideTitleBar(true)
+      .hideToolBar(true)
+      .hideNavBar(false)
+      .navDestination(this.buildSheetDestination)
+      .backgroundColor(this.resolveSheetNavigationBackground())
+      .clip(true)
 
-  /**
-   * The middle bar's own question, in the same shape as the slot overview above it: a title and
-   * native single-choice rows inside the group card every other sheet uses.
-   */
-  @Builder
-  private buildCenterCapsuleSwipeUpSheetContent() {
-    Column({ space: 16 }) {
-      Text('中间区域上滑')
-        .width('100%')
-        .fontSize(this.desktopPresentation ? 18 : 21)
-        .fontWeight(this.desktopPresentation ? FontWeight.Medium : FontWeight.Bold)
-        .fontColor(this.storedPrimaryTextColor)
-
-      this.buildCenterCapsuleSwipeUpOptionGroup(
-        this.viewModel.buildCenterCapsuleSwipeUpOptions(this.settings))
+      this.buildSheetCloseButton()
     }
     .width('100%')
     .height('100%')
-    .padding({ left: 16, right: 16, top: 18, bottom: 24 })
-    .backgroundColor(this.desktopPresentation ? Color.Transparent : this.resolvePageBackgroundColor())
+  }
+
+  @Builder
+  private buildSheetCloseButton() {
+    BrowserSheetIconButton({
+      icon: $r('sys.symbol.xmark'),
+      iconSize: 20,
+      buttonSize: 40,
+      iconColor: this.storedPrimaryTextColor,
+      accessibilityLabel: '关闭',
+      immersiveMaterialEnabled: true,
+      onAction: (): void => {
+        this.sheetVisible = false;
+      }
+    })
+    .margin({ top: TOOLBAR_SHEET_HEADER_BUTTON_TOP, right: 16 })
+    .zIndex(3)
+  }
+
+  @Builder
+  private buildSheetRoot() {
+    if (this.sheetQuestion === 'center_capsule') {
+      this.buildCenterCapsuleSwipeUpSheetContent()
+    } else if (this.sheetQuestion === 'split_slot') {
+      this.buildSplitSlotOverview()
+    } else {
+      this.buildSlotInteractionOverview()
+    }
+  }
+
+  @Builder
+  private buildSheetDestination(name: string, _param: Object) {
+    if (name === TOOLBAR_SLOT_PICKER_DESTINATION) {
+      NavDestination() {
+        this.buildInteractionActionPicker()
+      }
+      .width('100%')
+      .height('100%')
+      .hideTitleBar(true)
+      .hideToolBar(true)
+      .backgroundColor(this.resolveSheetNavigationBackground())
+      .onBackPressed(() => {
+        this.popSheetNavigation();
+        return true;
+      })
+    }
+  }
+
+  @Builder
+  private buildToolbarSheetPage(title: string, showBack: boolean, backLabel: string, kind: string) {
+    BrowserImmersiveSheetLayout({
+      horizontalPadding: 0,
+      headerTopInset: TOOLBAR_SHEET_MODAL_TOP_PADDING,
+      topBlurRadius: this.resolveSheetBlurRadius(kind),
+      scrollContent: (): void => {
+        this.buildToolbarSheetScroll(kind)
+      },
+      header: (): void => {
+        this.buildToolbarSheetHeader(title, showBack, backLabel)
+      }
+    })
+  }
+
+  @Builder
+  private buildToolbarSheetHeader(title: string, showBack: boolean, backLabel: string) {
+    BrowserPhoneSettingsSheetHeader({
+      title: title,
+      showBackButton: showBack,
+      backAccessibilityText: backLabel,
+      rowHeight: TOOLBAR_SHEET_MODAL_TITLE_BAR_HEIGHT,
+      onBack: (): void => {
+        this.popSheetNavigation();
+      }
+    })
+  }
+
+  @Builder
+  private buildToolbarSheetScroll(kind: string) {
+    Scroll(this.resolveSheetScroller(kind)) {
+      Column({ space: kind === 'picker' ? 14 : 16 }) {
+        if (kind === 'capsule') {
+          this.buildCenterCapsuleSwipeUpOptionGroup(
+            this.viewModel.buildCenterCapsuleSwipeUpOptions(this.settings))
+        } else if (kind === 'split') {
+          this.buildSplitSlotBody()
+        } else if (kind === 'picker') {
+          this.buildPickerBody()
+        } else {
+          this.buildSlotOverviewBody()
+        }
+      }
+      .width('100%')
+      .constraintSize({ minHeight: '100%' })
+      .padding({
+        left: 16,
+        right: 16,
+        top: TOOLBAR_SHEET_CONTENT_TOP_INSET,
+        bottom: BROWSER_SHEET_IMMERSIVE_BOTTOM_PADDING
+      })
+      .alignItems(HorizontalAlign.Start)
+    }
+    .width('100%')
+    .height('100%')
+    .scrollBar(BarState.Off)
+    .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
+    .onAppear(() => {
+      this.updateSheetHeaderBlur(kind);
+    })
+    .onDidScroll((_delta: number, _state: ScrollState) => {
+      this.updateSheetHeaderBlur(kind);
+    })
+    .clip(false)
+  }
+
+  /**
+   * The middle bar's own question: native single-choice rows inside the group card every other
+   * sheet uses. The title sits in the overlay header so the list can blur under it.
+   */
+  @Builder
+  private buildCenterCapsuleSwipeUpSheetContent() {
+    this.buildToolbarSheetPage('中间区域上滑', false, '', 'capsule')
   }
 
   @Builder
@@ -648,47 +822,32 @@ export struct BrowserToolbarCustomizationScreen {
 
   @Builder
   private buildSplitSlotOverview() {
-    Column({ space: 16 }) {
-      Column({ space: 4 }) {
-        Text(this.resolveSplitSheetTitle())
-          .width('100%')
-          .fontSize(this.desktopPresentation ? 18 : 21)
-          .fontWeight(this.desktopPresentation ? FontWeight.Medium : FontWeight.Bold)
-          .fontColor(this.storedPrimaryTextColor)
+    this.buildToolbarSheetPage(this.resolveSplitSheetTitle(), false, '', 'split')
+  }
 
-        Text('选择要自定义的操作')
-          .width('100%')
-          .fontSize(13)
-          .fontColor(this.storedSecondaryTextColor)
+  @Builder
+  private buildSplitSlotBody() {
+    SettingsGroupCard({
+      surfaceColor: this.storedSurfaceBackgroundColor,
+      desktopPresentation: this.desktopPresentation
+    }) {
+      if (this.resolveSplitDetail().tapLocked) {
+        this.buildLockedInteractionRow(this.resolveSplitDetail().tap, 'first')
+      } else {
+        this.buildInteractionOverviewRow(this.resolveSplitDetail().tap, 'first')
       }
-      .width('100%')
-
-      SettingsGroupCard({
-        surfaceColor: this.storedSurfaceBackgroundColor,
-        desktopPresentation: this.desktopPresentation
-      }) {
-        if (this.resolveSplitDetail().tapLocked) {
-          this.buildLockedInteractionRow(this.resolveSplitDetail().tap, 'first')
-        } else {
-          this.buildInteractionOverviewRow(this.resolveSplitDetail().tap, 'first')
-        }
-        SettingsGroupDivider({ dividerColor: this.storedDividerColor })
-        this.buildInteractionOverviewRow(this.resolveSplitDetail().longPress, 'last')
-      }
-
-      SettingsActionButton({
-        title: '恢复此按钮默认设置',
-        variant: 'tonal',
-        isEnabled: !this.saving && !this.resolveSplitDetail().isProfileDefault,
-        onAction: (): void => {
-          this.resetSelectedSlotAction();
-        }
-      })
+      SettingsGroupDivider({ dividerColor: this.storedDividerColor })
+      this.buildInteractionOverviewRow(this.resolveSplitDetail().longPress, 'last')
     }
-    .width('100%')
-    .height('100%')
-    .padding({ left: 16, right: 16, top: 18, bottom: 24 })
-    .backgroundColor(this.desktopPresentation ? Color.Transparent : this.resolvePageBackgroundColor())
+
+    SettingsActionButton({
+      title: '恢复此按钮默认设置',
+      variant: 'tonal',
+      isEnabled: !this.saving && !this.resolveSplitDetail().isProfileDefault,
+      onAction: (): void => {
+        this.resetSelectedSlotAction();
+      }
+    })
   }
 
   @Builder
@@ -720,52 +879,37 @@ export struct BrowserToolbarCustomizationScreen {
 
   @Builder
   private buildSlotInteractionOverview() {
-    Column({ space: 16 }) {
-      Column({ space: 4 }) {
-        Text(this.resolveSelectedSlotTitle())
-          .width('100%')
-          .fontSize(this.desktopPresentation ? 18 : 21)
-          .fontWeight(this.desktopPresentation ? FontWeight.Medium : FontWeight.Bold)
-          .fontColor(this.storedPrimaryTextColor)
+    this.buildToolbarSheetPage(this.resolveSelectedSlotTitle(), false, '', 'slot')
+  }
 
-        Text('选择要自定义的操作')
-          .width('100%')
-          .fontSize(13)
-          .fontColor(this.storedSecondaryTextColor)
-      }
-      .width('100%')
-
-      SettingsGroupCard({
-        surfaceColor: this.storedSurfaceBackgroundColor,
-        desktopPresentation: this.desktopPresentation
-      }) {
-        this.buildInteractionOverviewRow(this.resolveSelectedSlotAction().tap, 'first')
+  @Builder
+  private buildSlotOverviewBody() {
+    SettingsGroupCard({
+      surfaceColor: this.storedSurfaceBackgroundColor,
+      desktopPresentation: this.desktopPresentation
+    }) {
+      this.buildInteractionOverviewRow(this.resolveSelectedSlotAction().tap, 'first')
+      SettingsGroupDivider({ dividerColor: this.storedDividerColor })
+      if (this.resolveSelectedSlotAction().swipeUp === undefined) {
+        this.buildInteractionOverviewRow(this.resolveSelectedSlotAction().longPress, 'last')
+      } else {
+        this.buildInteractionOverviewRow(this.resolveSelectedSlotAction().longPress, 'middle')
         SettingsGroupDivider({ dividerColor: this.storedDividerColor })
-        if (this.resolveSelectedSlotAction().swipeUp === undefined) {
-          this.buildInteractionOverviewRow(this.resolveSelectedSlotAction().longPress, 'last')
-        } else {
-          this.buildInteractionOverviewRow(this.resolveSelectedSlotAction().longPress, 'middle')
-          SettingsGroupDivider({ dividerColor: this.storedDividerColor })
-          this.buildInteractionOverviewRow(
-            this.resolveSelectedSlotAction().swipeUp as BrowserToolbarSlotInteractionState,
-            'last'
-          )
-        }
+        this.buildInteractionOverviewRow(
+          this.resolveSelectedSlotAction().swipeUp as BrowserToolbarSlotInteractionState,
+          'last'
+        )
       }
-
-      SettingsActionButton({
-        title: '恢复此按钮默认设置',
-        variant: 'tonal',
-        isEnabled: !this.saving && !this.resolveSelectedSlotAction().isProfileDefault,
-        onAction: (): void => {
-          this.resetSelectedSlotAction();
-        }
-      })
     }
-    .width('100%')
-    .height('100%')
-    .padding({ left: 16, right: 16, top: 18, bottom: 24 })
-    .backgroundColor(this.desktopPresentation ? Color.Transparent : this.resolvePageBackgroundColor())
+
+    SettingsActionButton({
+      title: '恢复此按钮默认设置',
+      variant: 'tonal',
+      isEnabled: !this.saving && !this.resolveSelectedSlotAction().isProfileDefault,
+      onAction: (): void => {
+        this.resetSelectedSlotAction();
+      }
+    })
   }
 
   @Builder
@@ -785,64 +929,23 @@ export struct BrowserToolbarCustomizationScreen {
       pressedBackgroundColor: this.resolvePressedBackgroundColor(),
       isEnabled: !this.saving,
       onAction: (): void => {
-        this.selectedInteractionKind = interaction.kind;
-        this.slotSheetMode = 'picker';
+        this.openInteractionPicker(interaction.kind);
       }
     })
   }
 
   @Builder
   private buildInteractionActionPicker() {
-    Column({ space: 12 }) {
-      Row({ space: 8 }) {
-        BrowserSheetIconButton({
-          icon: $r('sys.symbol.chevron_left'),
-          iconSize: 18,
-          buttonSize: 36,
-          actionEnabled: !this.saving,
-          iconColor: this.storedSecondaryTextColor,
-          accessibilityLabel: '返回操作概览',
-          onAction: () => {
-            this.slotSheetMode = 'overview';
-          }
-        })
+    this.buildToolbarSheetPage(this.resolveSelectedInteraction().title, true, '返回', 'picker')
+  }
 
-        Column({ space: 2 }) {
-          Text(this.resolveSelectedInteraction().title)
-            .width('100%')
-            .fontSize(this.desktopPresentation ? 18 : 21)
-            .fontWeight(this.desktopPresentation ? FontWeight.Medium : FontWeight.Bold)
-            .fontColor(this.storedPrimaryTextColor)
-          Text(this.resolveSelectedSlotTitle())
-            .width('100%')
-            .fontSize(13)
-            .fontColor(this.storedSecondaryTextColor)
-        }
-        .layoutWeight(1)
-        .alignItems(HorizontalAlign.Start)
-      }
-      .width('100%')
-      .alignItems(VerticalAlign.Center)
-
-      Scroll() {
-        Column({ space: 14 }) {
-          if (this.resolvePickerGroup('none').length > 0) {
-            this.buildPickerActionGroup('无动作', this.resolvePickerGroup('none'))
-          }
-          this.buildPickerActionGroup('浏览器', this.resolvePickerGroup('header'))
-          this.buildPickerActionGroup('工具栏', this.resolvePickerGroup('panel'))
-        }
-        .width('100%')
-      }
-      .width('100%')
-      .layoutWeight(1)
-      .scrollBar(BarState.Off)
-      .edgeEffect(EdgeEffect.Spring)
+  @Builder
+  private buildPickerBody() {
+    if (this.resolvePickerGroup('none').length > 0) {
+      this.buildPickerActionGroup('无动作', this.resolvePickerGroup('none'))
     }
-    .width('100%')
-    .height('100%')
-    .padding({ left: 16, right: 16, top: 12, bottom: 24 })
-    .backgroundColor(this.desktopPresentation ? Color.Transparent : this.resolvePageBackgroundColor())
+    this.buildPickerActionGroup('浏览器', this.resolvePickerGroup('header'))
+    this.buildPickerActionGroup('工具栏', this.resolvePickerGroup('panel'))
   }
 
   @Builder
@@ -865,6 +968,7 @@ export struct BrowserToolbarCustomizationScreen {
             desktopPresentation: this.desktopPresentation,
             helperText: action.subtitle,
             leadingAiraIconId: action.airaIconId,
+            plainLeadingIcon: true,
             rowPosition: this.resolveSheetRowPosition(index, actions.length),
             isSelected: this.isInteractionActionSelected(action.id),
             isEnabled: !this.saving,
@@ -923,6 +1027,7 @@ export struct BrowserToolbarCustomizationScreen {
     }
     const previousStyle = this.toolbarChromeStyle;
     this.toolbarChromeStyle = style;
+    this.refreshScrollBehaviorCopy();
     this.sheetVisible = false;
     this.saving = true;
     this.customizationCoordinator.persistToolbarChromeStyle(
@@ -937,19 +1042,48 @@ export struct BrowserToolbarCustomizationScreen {
       .catch((_error: Error) => {
         this.saving = false;
         this.toolbarChromeStyle = previousStyle;
+        this.refreshScrollBehaviorCopy();
         this.showToast('工具栏样式更新失败。');
       });
   }
 
+  private shouldShowWebBottomSafeAreaSwitch(): boolean {
+    return !this.desktopPresentation && this.toolbarChromeStyle === 'floating';
+  }
+
+  private updateWebBottomSafeAreaEnabled(enabled: boolean): void {
+    if (this.saving || this.webBottomSafeAreaEnabled === enabled) {
+      return;
+    }
+    const previousEnabled = this.webBottomSafeAreaEnabled;
+    this.webBottomSafeAreaEnabled = enabled;
+    this.saving = true;
+    this.customizationCoordinator.persistWebBottomSafeAreaEnabled(
+      enabled,
+      new BrowserToolbarCustomizationBoundary(this.dataScope, this.privacyMode)
+    )
+      .then((savedEnabled: boolean) => {
+        this.saving = false;
+        this.webBottomSafeAreaEnabled = savedEnabled;
+        this.onSettingsChanged?.();
+      })
+      .catch((_error: Error) => {
+        this.saving = false;
+        this.webBottomSafeAreaEnabled = previousEnabled;
+        this.showToast('网页底栏防遮挡更新失败。');
+      });
+  }
+
   private updateScrollBehavior(behavior: BrowserBottomToolbarScrollBehavior): void {
-    if (this.saving || this.scrollBehavior === behavior) {
+    const nextBehavior = this.resolveScrollBehaviorForStyle(behavior);
+    if (this.saving || this.resolveScrollBehaviorForStyle(this.scrollBehavior) === nextBehavior) {
       return;
     }
     const previousBehavior = this.scrollBehavior;
-    this.scrollBehavior = behavior;
+    this.scrollBehavior = nextBehavior;
     this.saving = true;
     this.customizationCoordinator.persistScrollBehavior(
-      behavior,
+      nextBehavior,
       new BrowserToolbarCustomizationBoundary(this.dataScope, this.privacyMode)
     )
       .then((savedBehavior: BrowserBottomToolbarScrollBehavior) => {
@@ -960,7 +1094,7 @@ export struct BrowserToolbarCustomizationScreen {
       .catch((_error: Error) => {
         this.saving = false;
         this.scrollBehavior = previousBehavior;
-        this.showToast('工具栏滚动行为更新失败。');
+        this.showToast('滚动时的显示更新失败。');
       });
   }
 
@@ -1046,8 +1180,8 @@ export struct BrowserToolbarCustomizationScreen {
     }
     this.selectedSplitSlotId = slotId as BrowserSplitToolbarSlotId;
     this.sheetQuestion = 'split_slot';
-    this.slotSheetMode = 'overview';
     this.selectedInteractionKind = 'tap';
+    this.resetSheetNavigation();
     this.sheetVisible = true;
   }
 
@@ -1067,7 +1201,7 @@ export struct BrowserToolbarCustomizationScreen {
     const kind = this.resolveSplitInteractionKind();
     const before = this.splitViewModel.resolveActionId(this.settings, this.selectedSplitSlotId, kind);
     if (before === actionId) {
-      this.slotSheetMode = 'overview';
+      this.popSheetNavigation();
       return;
     }
     const nextSettings = this.splitViewModel.replaceInteraction(
@@ -1077,7 +1211,7 @@ export struct BrowserToolbarCustomizationScreen {
       actionId
     );
     const after = this.splitViewModel.resolveActionId(nextSettings, this.selectedSplitSlotId, kind);
-    this.slotSheetMode = 'overview';
+    this.popSheetNavigation();
     if (after !== actionId) {
       this.showToast('这个动作已经在这条栏上了。');
       return;
@@ -1089,12 +1223,13 @@ export struct BrowserToolbarCustomizationScreen {
     if (!this.isToolbarSlotId(intent.slotId)) {
       // The preview's middle capsule, which is not one of the four buttons.
       this.sheetQuestion = 'center_capsule';
+      this.resetSheetNavigation();
       this.sheetVisible = true;
       return;
     }
     this.selectedSlotId = intent.slotId as BrowserToolbarSlotId;
     this.sheetQuestion = 'slot';
-    this.slotSheetMode = 'overview';
+    this.resetSheetNavigation();
     this.sheetVisible = true;
   }
 
@@ -1116,7 +1251,7 @@ export struct BrowserToolbarCustomizationScreen {
       this.selectedInteractionKind,
       actionId
     );
-    this.slotSheetMode = 'overview';
+    this.popSheetNavigation();
     this.applySettings(nextSettings);
   }
 
@@ -1201,13 +1336,28 @@ export struct BrowserToolbarCustomizationScreen {
     this.settings = preferences.toolbarLayout;
     this.scrollBehavior = preferences.appearance.bottomToolbarScrollBehavior;
     this.toolbarChromeStyle = preferences.appearance.toolbarChromeStyle;
+    this.webBottomSafeAreaEnabled = preferences.experiments.webBottomSafeAreaEnabled;
+    this.refreshScrollBehaviorCopy();
     this.state = this.viewModel.buildState(this.settings);
-    this.slotSheetRevision += 1;
   }
 
-  private resolveSheetRenderKey(): string {
-    return `${this.sheetQuestion}|${this.slotSheetMode}|${this.selectedSlotId}|${this.selectedSplitSlotId}|` +
-      `${this.splitPreviewScene}|${this.selectedInteractionKind}|${this.slotSheetRevision}`;
+  private refreshScrollBehaviorCopy(): void {
+    const state = this.scrollBehaviorViewModel.buildStateForBehavior(
+      this.scrollBehavior,
+      this.toolbarChromeStyle
+    );
+    this.scrollBehaviorOptions = state.options;
+    this.scrollBehaviorFooterText = state.footerText;
+  }
+
+  private resolveScrollBehaviorForStyle(
+    behavior: BrowserBottomToolbarScrollBehavior
+  ): BrowserBottomToolbarScrollBehavior {
+    return this.toolbarChromeStyle === 'split' ? resolveSplitToolbarScrollBehavior(behavior) : behavior;
+  }
+
+  private isScrollBehaviorOptionSelected(behavior: BrowserBottomToolbarScrollBehavior): boolean {
+    return this.resolveScrollBehaviorForStyle(this.scrollBehavior) === behavior;
   }
 
   private resolvePageBackgroundColor(): ResourceColor {
@@ -1239,6 +1389,82 @@ export struct BrowserToolbarCustomizationScreen {
     return Number.isFinite(parsed) ? parsed : 0;
   }
 
+  private resolveSheetNavigationBackground(): ResourceColor {
+    return this.desktopPresentation ? Color.Transparent : this.resolvePageBackgroundColor();
+  }
+
+  /**
+   * Back inside the sheet belongs to the destination stack.
+   *
+   * The sheet receives the system back before, or as well as, the NavDestination. Pop when a
+   * choice page is showing, and keep that pop from also dismissing the sheet if both callbacks
+   * run. At the root, back closes the sheet as before.
+   */
+  private handleSheetWillDismiss(action: DismissSheetAction): void {
+    if (action.reason === DismissReason.PRESS_BACK && this.popSheetNavigation()) {
+      return;
+    }
+    action.dismiss();
+  }
+
+  private openInteractionPicker(kind: BrowserToolbarInteractionKind): void {
+    this.selectedInteractionKind = kind;
+    if (this.sheetNavigationStack.size() > 0) {
+      return;
+    }
+    this.sheetNavigationStack.pushPathByName(
+      TOOLBAR_SLOT_PICKER_DESTINATION,
+      new ToolbarSlotPickerParams()
+    );
+  }
+
+  private popSheetNavigation(): boolean {
+    const now = Date.now();
+    if (now < this.sheetNavigationPopGuardUntilMs) {
+      return true;
+    }
+    if (this.sheetNavigationStack.size() <= 0) {
+      return false;
+    }
+    this.sheetNavigationPopGuardUntilMs = now + 450;
+    this.sheetNavigationStack.pop();
+    return true;
+  }
+
+  private resetSheetNavigation(): void {
+    this.sheetNavigationPopGuardUntilMs = 0;
+    this.sheetRootBlurRadius = 0;
+    this.sheetPickerBlurRadius = 0;
+    while (this.sheetNavigationStack.pop(false) !== undefined) {
+    }
+  }
+
+  private resolveSheetScroller(kind: string): Scroller {
+    return kind === 'picker' ? this.sheetPickerScroller : this.sheetRootScroller;
+  }
+
+  private resolveSheetBlurRadius(kind: string): number {
+    return kind === 'picker' ? this.sheetPickerBlurRadius : this.sheetRootBlurRadius;
+  }
+
+  /** Blur stays off until content actually moves under the title, then finishes within 8vp. */
+  private updateSheetHeaderBlur(kind: string): void {
+    const offset = Math.max(0, this.resolveSheetScroller(kind).currentOffset().yOffset);
+    const progress = Math.min(1, offset / TOOLBAR_SHEET_BLUR_SCROLL_RANGE_VP);
+    const next = BROWSER_SHEET_IMMERSIVE_TOP_BLUR_RADIUS * progress;
+    if (kind === 'picker') {
+      if (Math.abs(next - this.sheetPickerBlurRadius) < 0.4) {
+        return;
+      }
+      this.sheetPickerBlurRadius = next;
+      return;
+    }
+    if (Math.abs(next - this.sheetRootBlurRadius) < 0.4) {
+      return;
+    }
+    this.sheetRootBlurRadius = next;
+  }
+
   /** The middle bar's choice, saved through the same path the slots use. */
   private applyCenterCapsuleSwipeUpActionId(actionId: string): void {
     if (this.saving) {
@@ -1254,7 +1480,6 @@ export struct BrowserToolbarCustomizationScreen {
     const nextSettings = this.viewModel.normalizeSettings(settings);
     this.settings = nextSettings;
     this.state = this.viewModel.buildState(nextSettings);
-    this.slotSheetRevision += 1;
     this.persistSettings(nextSettings);
   }
 
@@ -1268,7 +1493,6 @@ export struct BrowserToolbarCustomizationScreen {
         this.saving = false;
         this.settings = savedSettings;
         this.state = this.viewModel.buildState(savedSettings);
-        this.slotSheetRevision += 1;
         this.onSettingsChanged?.();
       })
       .catch((_error: Error) => {

@@ -6,11 +6,14 @@ import {
   resolveSplitToolbarCanGoBack,
   resolveSplitToolbarCanGoForward,
   resolveSplitToolbarHomeBackdrop,
+  resolveSplitToolbarScrollBehavior,
+  shouldCollapseSplitToolbarForScroll,
   shouldReserveSplitToolbarHomeInsets,
   shouldSuppressLegacyFloatingToolbar,
   SPLIT_TOOLBAR_ADDRESS_BLOCK_VP,
   SPLIT_TOOLBAR_BOTTOM_BAR_VP
 } from '../main/ets/core/browser/BrowserToolbarChromeStylePolicy';
+import { BrowserToolbarScrollBehaviorSettingsViewModel } from '../main/ets/core/settings/BrowserToolbarScrollBehaviorSettingsViewModel';
 
 describe('BrowserToolbarChromeStylePolicy', () => {
   it('keeps an unknown style on the floating chrome', 0, () => {
@@ -99,5 +102,64 @@ describe('BrowserToolbarChromeStylePolicy', () => {
       homeBackgroundColor: '   ',
       surfaceBackgroundColor: '#FFFFFF'
     })).assertEqual('#FFFFFF');
+  });
+
+  it('keeps split scroll fixed unless the user chose hide, then collapses both bars together', 0, () => {
+    expect(resolveSplitToolbarScrollBehavior('fixed')).assertEqual('fixed');
+    expect(resolveSplitToolbarScrollBehavior('compact')).assertEqual('fixed');
+    expect(resolveSplitToolbarScrollBehavior('hidden')).assertEqual('hidden');
+    const collapsed = {
+      splitChromeActive: true,
+      homeScene: false,
+      addressFocused: false,
+      keyboardInsetVp: 0,
+      scrollPresentationHidden: true
+    };
+    expect(shouldCollapseSplitToolbarForScroll(collapsed)).assertTrue();
+    expect(shouldCollapseSplitToolbarForScroll({
+      splitChromeActive: true,
+      homeScene: true,
+      addressFocused: false,
+      keyboardInsetVp: 0,
+      scrollPresentationHidden: true
+    })).assertFalse();
+    expect(shouldCollapseSplitToolbarForScroll({
+      splitChromeActive: true,
+      homeScene: false,
+      addressFocused: true,
+      keyboardInsetVp: 0,
+      scrollPresentationHidden: true
+    })).assertFalse();
+    expect(shouldCollapseSplitToolbarForScroll({
+      splitChromeActive: true,
+      homeScene: false,
+      addressFocused: false,
+      keyboardInsetVp: 12,
+      scrollPresentationHidden: true
+    })).assertFalse();
+    expect(shouldCollapseSplitToolbarForScroll({
+      splitChromeActive: true,
+      homeScene: false,
+      addressFocused: false,
+      keyboardInsetVp: 0,
+      scrollPresentationHidden: false
+    })).assertFalse();
+    expect(shouldCollapseSplitToolbarForScroll({
+      splitChromeActive: false,
+      homeScene: false,
+      addressFocused: false,
+      keyboardInsetVp: 0,
+      scrollPresentationHidden: true
+    })).assertFalse();
+
+    const viewModel = new BrowserToolbarScrollBehaviorSettingsViewModel();
+    const splitState = viewModel.buildStateForBehavior('compact', 'split');
+    expect(splitState.behavior).assertEqual('fixed');
+    expect(splitState.options.length).assertEqual(2);
+    expect(splitState.options[0].title).assertEqual('固定');
+    expect(splitState.options[1].title).assertEqual('收起地址栏和工具栏');
+    expect(viewModel.formatBehaviorTitle('compact', 'split')).assertEqual('固定');
+    expect(viewModel.formatBehaviorTitle('hidden', 'split')).assertEqual('收起地址栏和工具栏');
+    expect(viewModel.buildStateForBehavior('compact', 'floating').options.length).assertEqual(3);
   });
 });

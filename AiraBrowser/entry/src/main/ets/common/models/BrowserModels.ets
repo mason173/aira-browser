@@ -1176,7 +1176,7 @@ export interface ReaderModePreferences {
 export type BrowserTabsOverviewLayoutStyle = 'grid' | 'horizontal_cards' | 'stack';
 export type BrowserHomeShortcutLayoutDensity = 'standard' | 'compact';
 export type BrowserBottomToolbarScrollBehavior = 'fixed' | 'compact' | 'hidden';
-/** Phone chrome frame. `floating` is the bottom capsule; `split` is a fixed top address bar and bottom nav. */
+/** Phone chrome frame. `floating` is the bottom capsule; `split` is a top address bar and bottom nav. */
 export type BrowserToolbarChromeStyle = 'floating' | 'split';
 
 export interface BrowserAppearanceSettings {

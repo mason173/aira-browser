@@ -210,13 +210,16 @@ if (!/bindSheet\(\$\$this\.clearBrowsingDataSheetVisible/.test(phoneSettingsSour
 }
 const clearContent = fs.readFileSync(
   path.join(ROOT, 'app/components/settings/ClearBrowsingDataDialog.ets'), 'utf8');
-// The phone sheet keeps the immersive layout and draws title + close in one header row, so
-// the two cannot drift apart the way an in-content title plus a platform close button did.
+// The phone sheet uses the shared half-modal header. The close button is the layout overlay,
+// aligned with the title, not a second button drawn inside the title row or by the platform.
 if (!clearContent.includes('BrowserImmersiveSheetLayout')) {
   presentationViolations.push('the clear-data sheet must keep the immersive sheet layout');
 }
-if (!/buildSheetHeader\(\)[\s\S]*?sys\.symbol\.xmark/.test(clearContent)) {
-  presentationViolations.push('the clear-data sheet header must carry the close button next to the title');
+if (!clearContent.includes('BrowserFeatureSheetHeader')) {
+  presentationViolations.push('the clear-data sheet must use the shared half-modal title');
+}
+if (!/BrowserImmersiveSheetLayout\(\{[\s\S]*?closeVisible: true/.test(clearContent)) {
+  presentationViolations.push('the clear-data sheet must use the shared half-modal close button');
 }
 const inlinePanelPath = path.join(ROOT, 'app/components/settings/SettingsInlineDetailPanel.ets');
 const inlinePanelSource = fs.readFileSync(inlinePanelPath, 'utf8');

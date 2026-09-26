@@ -26,6 +26,7 @@ import { AppEmptyState } from '../common/AppEmptyState';
 import { FloatingGlassMaterialSurface } from '../common/FloatingGlassMaterialSurface';
 import {
   BROWSER_SHEET_IMMERSIVE_BOTTOM_PADDING,
+  resolveBrowserSheetHeaderBlurRadius,
   BrowserBottomSheetSurface,
   BrowserFeatureSheetHeader,
   BrowserImmersiveSheetLayout,
@@ -73,7 +74,7 @@ const RESOURCE_IMAGE_PREVIEW_TOP_PADDING: number = 54;
 const RESOURCE_IMAGE_PREVIEW_SIDE_PADDING: number = 16;
 const RESOURCE_TAB_INDEX_VIDEO: number = 0;
 const RESOURCE_TAB_INDEX_OTHER: number = 1;
-const BROWSER_RESOURCE_SHEET_CONTENT_TOP_PADDING: number = 124;
+const BROWSER_RESOURCE_SHEET_CONTENT_TOP_PADDING: number = 136;
 
 function describeKind(candidate: MediaResourceListItem): string {
   if (candidate.acquisition?.mode === 'paired_adaptive') {
@@ -265,11 +266,26 @@ export struct BrowserMediaResourcesSheet {
   @State failedImageCandidateIds: string[] = [];
   private resourceTabSwiperController: SwiperController = new SwiperController();
   onClose: () => void = () => {};
+  @State private sheetHeaderBlurRadius: number = 0;
+  @State private sheetScrollOffset: number = 0;
   onAction: (candidateId: string, action: MediaResourceAction) => void = (_candidateId: string, _action: MediaResourceAction) => {};
 
   aboutToAppear(): void {
     this.pruneFailedImageCandidates();
     this.syncActiveTab();
+  }
+
+  private noteSheetScrollDelta(delta: number): void {
+    if (!Number.isFinite(delta)) {
+      return;
+    }
+    this.sheetScrollOffset = Math.max(0, this.sheetScrollOffset + delta);
+    this.sheetHeaderBlurRadius = resolveBrowserSheetHeaderBlurRadius(this.sheetScrollOffset);
+  }
+
+  private resetSheetHeaderBlur(): void {
+    this.sheetScrollOffset = 0;
+    this.sheetHeaderBlurRadius = 0;
   }
 
   build() {
@@ -293,6 +309,12 @@ export struct BrowserMediaResourcesSheet {
     }) {
       Stack() {
         BrowserImmersiveSheetLayout({
+          topBlurRadius: this.sheetHeaderBlurRadius,
+          closeVisible: true,
+          closeAccessibilityLabel: '关闭资源嗅探',
+          onClose: (): void => {
+            this.onClose();
+          },
           scrollContent: () => {
             this.buildList()
           },
@@ -348,11 +370,7 @@ export struct BrowserMediaResourcesSheet {
     Column({ space: 14 }) {
       BrowserFeatureSheetHeader({
         title: this.buildTitle(),
-        titleColor: this.storedPrimaryTextColor,
-        leadingAccessibilityLabel: '关闭资源嗅探',
-        onLeadingAction: () => {
-          this.onClose();
-        }
+        titleColor: this.storedPrimaryTextColor
       })
 
       this.buildTabs()
@@ -472,6 +490,12 @@ export struct BrowserMediaResourcesSheet {
     .height('100%')
     .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
     .scrollBar(BarState.Auto)
+    .onAppear(() => {
+      this.resetSheetHeaderBlur();
+    })
+    .onDidScroll((delta: number) => {
+      this.noteSheetScrollDelta(delta);
+    })
   }
 
   @Builder

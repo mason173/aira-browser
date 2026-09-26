@@ -205,8 +205,8 @@ export default function settingsDestinationNavigationOwnerTest(): void {
         'Firefox Windows',
         '自定义 UA',
         '始终显示',
-        '滚动时收起',
-        '滚动时隐藏'
+        '收起为胶囊',
+        '完全隐藏'
       ];
       const targetIds: string[] = [
         'default_user_agent',

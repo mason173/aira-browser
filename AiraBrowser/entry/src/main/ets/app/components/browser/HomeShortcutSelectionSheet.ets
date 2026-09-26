@@ -38,6 +38,7 @@ import { SettingsGroupCard, SettingsGroupDivider } from '../settings/SettingsLay
 import { SettingsNavigationRow } from '../settings/SettingsRows';
 import {
   BROWSER_SHEET_IMMERSIVE_BOTTOM_PADDING,
+  resolveBrowserSheetHeaderBlurRadius,
   BrowserBottomSheetSurface,
   BrowserFeatureSheetHeader,
   BrowserImmersiveSheetLayout,
@@ -57,7 +58,7 @@ const HOME_SHORTCUT_SELECTION_ICON_SIZE: number = 42;
 const HOME_SHORTCUT_SELECTION_ACTION_SIZE: number = 40;
 const HOME_SHORTCUT_SELECTION_LIST_CACHE_COUNT: number = 12;
 const HOME_SHORTCUT_BOOKMARK_DESTINATION_NAME: string = 'homeShortcutBookmarkDestination';
-const HOME_SHORTCUT_SELECTION_CONTENT_TOP_PADDING: number = 112;
+const HOME_SHORTCUT_SELECTION_CONTENT_TOP_PADDING: number = 124;
 
 export type HomeShortcutSelectionLayoutMode = 'phone' | 'large_screen';
 
@@ -177,10 +178,25 @@ export struct HomeShortcutSelectionContent {
 
   onAction: (action: HomeShortcutSelectionAction) => void = (_action: HomeShortcutSelectionAction) => {};
   onClose: () => void = () => {};
+  @State private sheetHeaderBlurRadius: number = 0;
+  @State private sheetScrollOffset: number = 0;
 
   aboutToAppear(): void {
     this.bindSiteIconUpdates();
     this.syncBookmarkRows();
+  }
+
+  private noteSheetScrollDelta(delta: number): void {
+    if (!Number.isFinite(delta)) {
+      return;
+    }
+    this.sheetScrollOffset = Math.max(0, this.sheetScrollOffset + delta);
+    this.sheetHeaderBlurRadius = resolveBrowserSheetHeaderBlurRadius(this.sheetScrollOffset);
+  }
+
+  private resetSheetHeaderBlur(): void {
+    this.sheetScrollOffset = 0;
+    this.sheetHeaderBlurRadius = 0;
   }
 
   aboutToReuse(_params: Record<string, Object>): void {
@@ -205,6 +221,12 @@ export struct HomeShortcutSelectionContent {
   @Builder
   private buildPhoneLayout() {
     BrowserImmersiveSheetLayout({
+      topBlurRadius: this.sheetHeaderBlurRadius,
+      closeVisible: true,
+      closeAccessibilityLabel: '关闭添加至首页',
+      onClose: (): void => {
+        this.onClose();
+      },
       scrollContent: () => {
         this.buildActiveSelectionList()
       },
@@ -218,11 +240,7 @@ export struct HomeShortcutSelectionContent {
   private buildPhoneHeader() {
     Column({ space: 14 }) {
       BrowserFeatureSheetHeader({
-        title: '添加至首页',
-        leadingAccessibilityLabel: '关闭添加至首页',
-        onLeadingAction: () => {
-          this.onClose();
-        }
+        title: '添加至首页'
       })
 
       this.buildSelectionTabs()
@@ -306,6 +324,12 @@ export struct HomeShortcutSelectionContent {
         .cachedCount(HOME_SHORTCUT_SELECTION_LIST_CACHE_COUNT)
         .scrollBar(BarState.Auto)
         .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
+        .onAppear(() => {
+          this.resetSheetHeaderBlur();
+        })
+        .onDidScroll((delta: number) => {
+          this.noteSheetScrollDelta(delta);
+        })
       }
     }
     .width('100%')
@@ -433,6 +457,12 @@ export struct HomeShortcutSelectionContent {
         .cachedCount(HOME_SHORTCUT_SELECTION_LIST_CACHE_COUNT, true)
         .scrollBar(BarState.Auto)
         .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
+        .onAppear(() => {
+          this.resetSheetHeaderBlur();
+        })
+        .onDidScroll((delta: number) => {
+          this.noteSheetScrollDelta(delta);
+        })
       }
     }
     .width('100%')

@@ -8,7 +8,8 @@ import {
 import { BrowserSearchEnginePresentationViewModel } from '../../../core/browser/BrowserSearchEnginePresentationViewModel';
 import {
   SPLIT_TOOLBAR_ADDRESS_BLOCK_VP,
-  SPLIT_TOOLBAR_BOTTOM_BAR_VP
+  SPLIT_TOOLBAR_BOTTOM_BAR_VP,
+  SPLIT_TOOLBAR_SCROLL_COLLAPSE_DURATION_MS
 } from '../../../core/browser/BrowserToolbarChromeStylePolicy';
 import { BrowserSplitToolbarButtonPresentation } from '../../../core/browser/BrowserSplitToolbarCustomizationViewModel';
 import { AiraRenderableIconId } from '../../../core/resources/GeneratedAiraIconCatalog';
@@ -70,6 +71,8 @@ export struct BrowserSplitToolbarChrome {
    * do not stack. Search still uses the row; web pages keep it.
    */
   @Prop suppressHomeAddressBar: boolean = false;
+  /** Existing scroll presentation asked both bars to leave. Search keeps the address row. */
+  @Prop barsCollapsed: boolean = false;
   /** Negative keeps the split bottom-bar reserve. A homepage search session passes its own. */
   @Prop bottomChromeReserveVp: number = -1;
   @Prop pageBackgroundColor: ResourceColor = '#FFFFFF';
@@ -143,7 +146,13 @@ export struct BrowserSplitToolbarChrome {
       bottom: 8
     })
     .backgroundColor(this.resolveBarBackground())
-    .hitTestBehavior(HitTestMode.BLOCK_HIERARCHY)
+    .hitTestBehavior(this.shouldCollapseBars() ? HitTestMode.None : HitTestMode.BLOCK_HIERARCHY)
+    .translate({ y: this.shouldCollapseBars() ? -this.resolveCollapsedTopTravel() : 0 })
+    .opacity(this.shouldCollapseBars() ? 0 : 1)
+    .animation({
+      duration: SPLIT_TOOLBAR_SCROLL_COLLAPSE_DURATION_MS,
+      curve: Curve.EaseOut
+    })
     .onTouch((_event: TouchEvent) => {
     })
   }
@@ -456,7 +465,13 @@ export struct BrowserSplitToolbarChrome {
     .width('100%')
     .height(this.resolveBottomChromeHeight())
     .backgroundColor(this.resolveBarBackground())
-    .hitTestBehavior(HitTestMode.BLOCK_HIERARCHY)
+    .hitTestBehavior(this.shouldCollapseBars() ? HitTestMode.None : HitTestMode.BLOCK_HIERARCHY)
+    .translate({ y: this.shouldCollapseBars() ? this.resolveBottomChromeHeight() : 0 })
+    .opacity(this.shouldCollapseBars() ? 0 : 1)
+    .animation({
+      duration: SPLIT_TOOLBAR_SCROLL_COLLAPSE_DURATION_MS,
+      curve: Curve.EaseOut
+    })
     .onTouch((_event: TouchEvent) => {
     })
   }
@@ -550,6 +565,14 @@ export struct BrowserSplitToolbarChrome {
       return true;
     }
     return !(this.homeScene && this.suppressHomeAddressBar);
+  }
+
+  private shouldCollapseBars(): boolean {
+    return this.barsCollapsed && !this.searching && this.sessionMode !== 'search_only';
+  }
+
+  private resolveCollapsedTopTravel(): number {
+    return this.resolveTopInset() + SPLIT_TOOLBAR_ADDRESS_BLOCK_VP;
   }
 
   private resolveTopInset(): number {

@@ -14,6 +14,7 @@ import { BrowserLargeScreenModalHeader } from '../browser/BrowserLargeScreenModa
 import {
   BROWSER_IMMERSIVE_SHEET_HEADER_CONTENT_TOP_INSET,
   BROWSER_SHEET_IMMERSIVE_BOTTOM_PADDING,
+  resolveBrowserSheetHeaderBlurRadius,
   BrowserBottomSheetSurface,
   BrowserFeatureSheetHeader,
   BrowserImmersiveSheetLayout,
@@ -49,6 +50,8 @@ export struct AppProxyQuickSheetContent {
   onToggleGlobalEnabled?: (enabled: boolean) => void;
   onSelectProfile?: (profileId: string) => void;
   onOpenSettings?: () => void;
+  @State private sheetHeaderBlurRadius: number = 0;
+  @State private sheetScrollOffset: number = 0;
 
   build() {
     if (this.layoutMode === 'large_screen') {
@@ -63,6 +66,12 @@ export struct AppProxyQuickSheetContent {
         surfaceColor: this.storedPageBackgroundColor
       }) {
         BrowserImmersiveSheetLayout({
+          topBlurRadius: this.sheetHeaderBlurRadius,
+          closeVisible: true,
+          closeAccessibilityLabel: '关闭应用内代理',
+          onClose: (): void => {
+            this.onClose?.();
+          },
           scrollContent: () => {
             this.buildScrollContent(true)
           },
@@ -107,12 +116,21 @@ export struct AppProxyQuickSheetContent {
   private buildHeader() {
     BrowserFeatureSheetHeader({
       title: '应用内代理',
-      titleColor: this.storedPrimaryTextColor,
-      leadingAccessibilityLabel: '关闭应用内代理',
-      onLeadingAction: () => {
-        this.onClose?.();
-      }
+      titleColor: this.storedPrimaryTextColor
     })
+  }
+
+  private noteSheetScrollDelta(delta: number): void {
+    if (!Number.isFinite(delta)) {
+      return;
+    }
+    this.sheetScrollOffset = Math.max(0, this.sheetScrollOffset + delta);
+    this.sheetHeaderBlurRadius = resolveBrowserSheetHeaderBlurRadius(this.sheetScrollOffset);
+  }
+
+  private resetSheetHeaderBlur(): void {
+    this.sheetScrollOffset = 0;
+    this.sheetHeaderBlurRadius = 0;
   }
 
   @Builder
@@ -136,6 +154,12 @@ export struct AppProxyQuickSheetContent {
     .height('100%')
     .scrollBar(BarState.Auto)
     .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
+    .onAppear(() => {
+      this.resetSheetHeaderBlur();
+    })
+    .onDidScroll((delta: number) => {
+      this.noteSheetScrollDelta(delta);
+    })
   }
 
   @Builder

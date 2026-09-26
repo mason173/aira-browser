@@ -15,6 +15,7 @@ import {
 import {
   BROWSER_IMMERSIVE_SHEET_HEADER_CONTENT_TOP_INSET,
   BROWSER_SHEET_IMMERSIVE_BOTTOM_PADDING,
+  resolveBrowserSheetHeaderBlurRadius,
   BrowserBottomSheetSurface,
   BrowserFeatureSheetHeader,
   BrowserImmersiveSheetLayout
@@ -45,6 +46,8 @@ export struct BrowserScreenOrientationSheet {
   @Prop options: BrowserScreenOrientationOptionState[] = [];
   onClose: () => void = () => {};
   onSelectMode: (mode: BrowserScreenOrientationMode) => void = (_mode: BrowserScreenOrientationMode) => {};
+  @State private sheetHeaderBlurRadius: number = 0;
+  @State private sheetScrollOffset: number = 0;
 
   build() {
     BrowserBottomSheetSurface({
@@ -58,6 +61,12 @@ export struct BrowserScreenOrientationSheet {
     }) {
       if (this.layoutMode === 'phone') {
         BrowserImmersiveSheetLayout({
+          topBlurRadius: this.sheetHeaderBlurRadius,
+          closeVisible: true,
+          closeAccessibilityLabel: '关闭屏幕方向',
+          onClose: (): void => {
+            this.onClose();
+          },
           scrollContent: () => {
             this.buildScrollContent(true)
           },
@@ -75,12 +84,21 @@ export struct BrowserScreenOrientationSheet {
   private buildHeader() {
     BrowserFeatureSheetHeader({
       title: '屏幕方向',
-      titleColor: this.storedPrimaryTextColor,
-      leadingAccessibilityLabel: '关闭屏幕方向',
-      onLeadingAction: () => {
-        this.onClose();
-      }
+      titleColor: this.storedPrimaryTextColor
     })
+  }
+
+  private noteSheetScrollDelta(delta: number): void {
+    if (!Number.isFinite(delta)) {
+      return;
+    }
+    this.sheetScrollOffset = Math.max(0, this.sheetScrollOffset + delta);
+    this.sheetHeaderBlurRadius = resolveBrowserSheetHeaderBlurRadius(this.sheetScrollOffset);
+  }
+
+  private resetSheetHeaderBlur(): void {
+    this.sheetScrollOffset = 0;
+    this.sheetHeaderBlurRadius = 0;
   }
 
   @Builder
@@ -109,6 +127,12 @@ export struct BrowserScreenOrientationSheet {
     .height('100%')
     .scrollBar(BarState.Auto)
     .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
+    .onAppear(() => {
+      this.resetSheetHeaderBlur();
+    })
+    .onDidScroll((delta: number) => {
+      this.noteSheetScrollDelta(delta);
+    })
   }
 
   @Builder

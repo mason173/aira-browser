@@ -13,6 +13,7 @@ import {
   BROWSER_IMMERSIVE_SHEET_HEADER_CONTENT_TOP_INSET,
   BROWSER_SHEET_IMMERSIVE_BOTTOM_PADDING,
   BROWSER_SHEET_IMMERSIVE_FOOTER_CLEARANCE,
+  resolveBrowserSheetHeaderBlurRadius,
   BrowserBottomSheetSurface,
   BrowserFeatureSheetHeader,
   BrowserImmersiveSheetLayout,
@@ -42,6 +43,8 @@ export struct TabOverviewLayoutChoiceSheet {
   onCloseButtonAlwaysVisibleChange: (alwaysVisible: boolean) => void = (_alwaysVisible: boolean) => {};
   onCancel: () => void = () => {};
   onApply: () => void = () => {};
+  @State private sheetHeaderBlurRadius: number = 0;
+  @State private sheetScrollOffset: number = 0;
 
   build() {
     if (this.layoutMode === 'large_screen') {
@@ -66,6 +69,12 @@ export struct TabOverviewLayoutChoiceSheet {
       }) {
         BrowserImmersiveSheetLayout({
           footerVisible: true,
+          topBlurRadius: this.sheetHeaderBlurRadius,
+          closeVisible: true,
+          closeAccessibilityLabel: '关闭标签页样式',
+          onClose: (): void => {
+            this.onCancel();
+          },
           scrollContent: () => {
             this.buildPhoneScrollContent()
           },
@@ -97,12 +106,21 @@ export struct TabOverviewLayoutChoiceSheet {
     // "class constructor cannot called without 'new'" if BrowserFeatureSheetHeader
     // is constructed directly inside a @BuilderParam arrow function.
     BrowserFeatureSheetHeader({
-      title: '标签页样式',
-      leadingAccessibilityLabel: '关闭标签页样式',
-      onLeadingAction: () => {
-        this.onCancel();
-      }
+      title: '标签页样式'
     })
+  }
+
+  private noteSheetScrollDelta(delta: number): void {
+    if (!Number.isFinite(delta)) {
+      return;
+    }
+    this.sheetScrollOffset = Math.max(0, this.sheetScrollOffset + delta);
+    this.sheetHeaderBlurRadius = resolveBrowserSheetHeaderBlurRadius(this.sheetScrollOffset);
+  }
+
+  private resetSheetHeaderBlur(): void {
+    this.sheetScrollOffset = 0;
+    this.sheetHeaderBlurRadius = 0;
   }
 
   @Builder
@@ -162,6 +180,12 @@ export struct TabOverviewLayoutChoiceSheet {
     .scrollBar(BarState.Auto)
     .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
     .clip(false)
+    .onAppear(() => {
+      this.resetSheetHeaderBlur();
+    })
+    .onDidScroll((delta: number) => {
+      this.noteSheetScrollDelta(delta);
+    })
   }
 
   @Builder

@@ -16,6 +16,7 @@ import {
 import {
   BROWSER_IMMERSIVE_SHEET_HEADER_CONTENT_TOP_INSET,
   BROWSER_SHEET_IMMERSIVE_BOTTOM_PADDING,
+  resolveBrowserSheetHeaderBlurRadius,
   BrowserBottomSheetSurface,
   BrowserFeatureSheetHeader,
   BrowserImmersiveSheetLayout,
@@ -50,6 +51,8 @@ export struct BrowserDesktopSiteModeSheet {
   onClose: () => void = () => {};
   onSelectMode: (mode: BrowserDesktopSiteMode) => void = (_mode: BrowserDesktopSiteMode) => {};
   onOpenDefaultUserAgent: () => void = () => {};
+  @State private sheetHeaderBlurRadius: number = 0;
+  @State private sheetScrollOffset: number = 0;
 
   build() {
     BrowserBottomSheetSurface({
@@ -63,6 +66,12 @@ export struct BrowserDesktopSiteModeSheet {
     }) {
       if (this.layoutMode === 'phone') {
         BrowserImmersiveSheetLayout({
+          topBlurRadius: this.sheetHeaderBlurRadius,
+          closeVisible: true,
+          closeAccessibilityLabel: '关闭网站版本',
+          onClose: (): void => {
+            this.onClose();
+          },
           scrollContent: () => {
             this.buildScrollContent(true)
           },
@@ -80,12 +89,21 @@ export struct BrowserDesktopSiteModeSheet {
   private buildHeader() {
     BrowserFeatureSheetHeader({
       title: '网站版本',
-      titleColor: this.storedPrimaryTextColor,
-      leadingAccessibilityLabel: '关闭网站版本',
-      onLeadingAction: () => {
-        this.onClose();
-      }
+      titleColor: this.storedPrimaryTextColor
     })
+  }
+
+  private noteSheetScrollDelta(delta: number): void {
+    if (!Number.isFinite(delta)) {
+      return;
+    }
+    this.sheetScrollOffset = Math.max(0, this.sheetScrollOffset + delta);
+    this.sheetHeaderBlurRadius = resolveBrowserSheetHeaderBlurRadius(this.sheetScrollOffset);
+  }
+
+  private resetSheetHeaderBlur(): void {
+    this.sheetScrollOffset = 0;
+    this.sheetHeaderBlurRadius = 0;
   }
 
   @Builder
@@ -133,6 +151,12 @@ export struct BrowserDesktopSiteModeSheet {
     .height('100%')
     .scrollBar(BarState.Auto)
     .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
+    .onAppear(() => {
+      this.resetSheetHeaderBlur();
+    })
+    .onDidScroll((delta: number) => {
+      this.noteSheetScrollDelta(delta);
+    })
   }
 
   @Builder

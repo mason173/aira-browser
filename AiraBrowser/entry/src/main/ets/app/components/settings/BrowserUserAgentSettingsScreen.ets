@@ -67,6 +67,7 @@ import {
 import {
   BROWSER_IMMERSIVE_SHEET_HEADER_CONTENT_TOP_INSET,
   BROWSER_SHEET_IMMERSIVE_BOTTOM_PADDING,
+  resolveBrowserSheetHeaderBlurRadius,
   BrowserBottomSheetSurface,
   BrowserFeatureSheetHeader,
   BrowserImmersiveSheetLayout,
@@ -128,6 +129,8 @@ export struct BrowserUserAgentSettingsScreen {
   @State errorMessage: string = '';
   @State private showUserAgentNotice: boolean = true;
   @State private highlightedTargetId: string = '';
+  @State private sheetHeaderBlurRadius: number = 0;
+  @State private sheetScrollOffset: number = 0;
   private revealController: SettingsTargetRevealController = new SettingsTargetRevealController(
     (targetId: string): void => {
       this.highlightedTargetId = targetId;
@@ -422,6 +425,12 @@ export struct BrowserUserAgentSettingsScreen {
       }) {
         BrowserImmersiveSheetLayout({
           footerVisible: true,
+          topBlurRadius: this.sheetHeaderBlurRadius,
+          closeVisible: true,
+          closeAccessibilityLabel: '关闭',
+          onClose: (): void => {
+            this.customUserAgentSheetVisible = false;
+          },
           scrollContent: () => {
             this.buildCustomUserAgentScrollContent(BROWSER_IMMERSIVE_SHEET_HEADER_CONTENT_TOP_INSET)
           },
@@ -442,12 +451,21 @@ export struct BrowserUserAgentSettingsScreen {
     // "class constructor cannot called without 'new'" if BrowserFeatureSheetHeader
     // is constructed directly inside a @BuilderParam arrow function.
     BrowserFeatureSheetHeader({
-      title: '自定义 UA',
-      leadingAccessibilityLabel: '关闭',
-      onLeadingAction: () => {
-        this.customUserAgentSheetVisible = false;
-      }
+      title: '自定义 UA'
     })
+  }
+
+  private noteSheetScrollDelta(delta: number): void {
+    if (!Number.isFinite(delta)) {
+      return;
+    }
+    this.sheetScrollOffset = Math.max(0, this.sheetScrollOffset + delta);
+    this.sheetHeaderBlurRadius = resolveBrowserSheetHeaderBlurRadius(this.sheetScrollOffset);
+  }
+
+  private resetSheetHeaderBlur(): void {
+    this.sheetScrollOffset = 0;
+    this.sheetHeaderBlurRadius = 0;
   }
 
   @Builder
@@ -485,6 +503,12 @@ export struct BrowserUserAgentSettingsScreen {
     .scrollBar(BarState.Auto)
     .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
     .clip(false)
+    .onAppear(() => {
+      this.resetSheetHeaderBlur();
+    })
+    .onDidScroll((delta: number) => {
+      this.noteSheetScrollDelta(delta);
+    })
   }
 
   @Builder

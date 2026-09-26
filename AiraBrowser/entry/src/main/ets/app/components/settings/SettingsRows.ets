@@ -917,6 +917,7 @@ export struct SettingsSwitchRow {
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY) private storedPrimaryTextColor: string = '#111318';
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY) private storedSecondaryTextColor: string = '#5F6875';
   @Prop title: ResourceStr = '';
+  @Prop titleBadge: string = '';
   @Prop description: ResourceStr = '';
   @Prop checked: boolean = false;
   @Prop icon?: Resource = undefined;
@@ -1091,8 +1092,20 @@ export struct SettingsSwitchRow {
         )
         .maxLines(1)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
-        .layoutWeight(this.titleActionIcon === undefined ? 1 : 0)
+        .layoutWeight(this.titleActionIcon === undefined && this.titleBadge.length === 0 ? 1 : 0)
         .constraintSize({ maxWidth: this.titleActionIcon === undefined ? '100%' : 180 })
+        .flexShrink(1)
+
+      if (this.titleBadge.length > 0) {
+        Text(this.titleBadge)
+          .fontSize(10)
+          .fontWeight(FontWeight.Medium)
+          .fontColor(this.resolveSecondaryTextColor())
+          .padding({ left: 5, right: 5, top: 1, bottom: 1 })
+          .borderRadius(4)
+          .backgroundColor(this.storedControlBackgroundColor)
+          .flexShrink(0)
+      }
 
       if (this.titleActionIcon !== undefined) {
         this.buildTitleActionButton()
@@ -1184,6 +1197,8 @@ export struct SettingsOptionRow {
   @Prop helperText: ResourceStr = '';
   @Prop leadingAiraIconId: AiraRenderableIconId | undefined = undefined;
   @Prop leadingIcon?: Resource = undefined;
+  /** Toolbar action lists show the glyph alone; other option rows keep the accent plate. */
+  @Prop plainLeadingIcon: boolean = false;
   @Prop leadingImage?: Resource = undefined;
   @Prop rowPosition: SettingsRowPosition = 'single';
   @Prop isSelected: boolean = false;
@@ -1207,26 +1222,32 @@ export struct SettingsOptionRow {
     Row({ space: SETTINGS_ROW_SPACE }) {
       if (this.leadingAiraIconId !== undefined || this.leadingIcon) {
         Stack({ alignContent: Alignment.Center }) {
-          Circle()
-            .width(SETTINGS_ROW_OPTION_ICON_SIZE)
-            .height(SETTINGS_ROW_OPTION_ICON_SIZE)
-            .fill(this.storedAccentColor)
+          if (!this.plainLeadingIcon) {
+            Circle()
+              .width(SETTINGS_ROW_OPTION_ICON_SIZE)
+              .height(SETTINGS_ROW_OPTION_ICON_SIZE)
+              .fill(this.storedAccentColor)
+          }
 
           if (this.leadingAiraIconId !== undefined) {
             AiraIcon({
               airaIconId: this.leadingAiraIconId as AiraRenderableIconId,
-              iconSize: 18,
-              iconColor: this.storedSettingsIconForegroundColor
+              iconSize: this.plainLeadingIcon ? 22 : 18,
+              iconColor: this.plainLeadingIcon
+                ? this.resolvePrimaryTextColor()
+                : this.storedSettingsIconForegroundColor
             })
           } else {
             SymbolGlyph(this.leadingIcon)
-              .fontSize(18)
+              .fontSize(this.plainLeadingIcon ? 22 : 18)
               .fontWeight(FontWeight.Bold)
-              .fontColor([this.storedSettingsIconForegroundColor])
+              .fontColor([this.plainLeadingIcon
+                ? this.resolvePrimaryTextColor()
+                : this.storedSettingsIconForegroundColor])
           }
         }
-        .width(SETTINGS_ROW_OPTION_ICON_SIZE)
-        .height(SETTINGS_ROW_OPTION_ICON_SIZE)
+        .width(this.plainLeadingIcon ? 22 : SETTINGS_ROW_OPTION_ICON_SIZE)
+        .height(this.plainLeadingIcon ? 22 : SETTINGS_ROW_OPTION_ICON_SIZE)
       } else if (this.leadingImage) {
         Stack() {
           Circle()

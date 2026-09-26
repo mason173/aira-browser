@@ -15,10 +15,11 @@ import {
 import {
   BROWSER_IMMERSIVE_SHEET_HEADER_CONTENT_TOP_INSET,
   BROWSER_SHEET_IMMERSIVE_BOTTOM_PADDING,
+  resolveBrowserSheetHeaderBlurRadius,
   BrowserBottomSheetSurface,
+  BrowserFeatureSheetHeader,
   BrowserImmersiveSheetLayout,
-  BrowserSheetActionButton,
-  BrowserSheetIconButton
+  BrowserSheetActionButton
 } from '../browser/BrowserModalBottomSheet';
 import { CENTERED_DIALOG_SYSTEM_TALL_PADDED_SURFACE_MODIFIER } from '../common/CenteredDialogSurface';
 
@@ -36,13 +37,13 @@ export struct ClearBrowsingDataContent {
   @Link selectedTimeRangeId: SettingsBrowsingDataClearTimeRangeId;
   @Link selectedItemIds: SettingsBrowsingDataClearItemId[];
   /**
-   * `sheet` keeps the phone sheet chrome used by the rest of the app: the title sits at the
-   * leading edge under an immersive blurred header and the platform owns the close button.
-   * `dialog` is the PC pane's centered dialog, which centers its own title instead.
+   * `sheet` uses the shared phone half-modal header. `dialog` is the PC pane's centered dialog.
    */
   @Prop layoutMode: 'dialog' | 'sheet' = 'dialog';
   onConfirm: () => void = () => {};
   onCancel: () => void = () => {};
+  @State private sheetHeaderBlurRadius: number = 0;
+  @State private sheetScrollOffset: number = 0;
 
   build() {
     if (this.layoutMode === 'sheet') {
@@ -89,6 +90,12 @@ export struct ClearBrowsingDataContent {
     }) {
       BrowserImmersiveSheetLayout({
         footerVisible: true,
+        topBlurRadius: this.sheetHeaderBlurRadius,
+        closeVisible: true,
+        closeAccessibilityLabel: '关闭',
+        onClose: (): void => {
+          this.onCancel();
+        },
         scrollContent: () => {
           this.buildSheetScrollContent()
         },
@@ -102,29 +109,25 @@ export struct ClearBrowsingDataContent {
     }
   }
 
+  private noteSheetScrollDelta(delta: number): void {
+    if (!Number.isFinite(delta)) {
+      return;
+    }
+    this.sheetScrollOffset = Math.max(0, this.sheetScrollOffset + delta);
+    this.sheetHeaderBlurRadius = resolveBrowserSheetHeaderBlurRadius(this.sheetScrollOffset);
+  }
+
+  private resetSheetHeaderBlur(): void {
+    this.sheetScrollOffset = 0;
+    this.sheetHeaderBlurRadius = 0;
+  }
+
   @Builder
   private buildSheetHeader() {
-    Row({ space: 8 }) {
-      Text(this.dialogState.title)
-        .layoutWeight(1)
-        .fontSize(21)
-        .fontWeight(FontWeight.Bold)
-        .fontColor(this.storedPrimaryTextColor)
-        .maxLines(1)
-        .textOverflow({ overflow: TextOverflow.Ellipsis })
-
-      BrowserSheetIconButton({
-        icon: $r('sys.symbol.xmark'),
-        iconSize: 17,
-        accessibilityLabel: '关闭',
-        onAction: () => {
-          this.onCancel();
-        }
-      })
-    }
-    .width('100%')
-    .height(40)
-    .alignItems(VerticalAlign.Center)
+    BrowserFeatureSheetHeader({
+      title: this.dialogState.title,
+      titleColor: this.storedPrimaryTextColor
+    })
   }
 
   @Builder
@@ -148,6 +151,12 @@ export struct ClearBrowsingDataContent {
     .height('100%')
     .scrollBar(BarState.Auto)
     .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
+    .onAppear(() => {
+      this.resetSheetHeaderBlur();
+    })
+    .onDidScroll((delta: number) => {
+      this.noteSheetScrollDelta(delta);
+    })
     .clip(false)
   }
 

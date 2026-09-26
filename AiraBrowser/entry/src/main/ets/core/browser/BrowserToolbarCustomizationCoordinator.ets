@@ -1,6 +1,7 @@
 import vibrator from '@ohos.vibrator';
 import {
   BrowserBottomToolbarScrollBehavior,
+  BrowserExperimentSettings,
   BrowserToolbarChromeStyle,
   BrowserDataScope,
   BrowserSessionPrivacyMode,
@@ -87,6 +88,17 @@ export class BrowserToolbarCustomizationCoordinator {
       .then((preferences) => preferences.appearance.toolbarChromeStyle);
   }
 
+  persistWebBottomSafeAreaEnabled(
+    enabled: boolean,
+    boundary: BrowserToolbarCustomizationBoundary
+  ): Promise<boolean> {
+    this.ensureDevicePreferenceWriteAllowed(boundary);
+    const current = this.preferencesRepository.getPreferences().experiments;
+    return this.preferencesRepository.updateExperimentSettings(
+      this.copyExperimentSettings(current, enabled)
+    ).then((preferences) => preferences.experiments.webBottomSafeAreaEnabled);
+  }
+
   performReorderFeedback(): void {
     const now = Date.now();
     if (now - this.lastReorderFeedbackAt < TOOLBAR_REORDER_HAPTIC_MIN_INTERVAL_MS) {
@@ -100,6 +112,28 @@ export class BrowserToolbarCustomizationCoordinator {
       usage: 'touch'
     }).catch((_error: Error) => {
     });
+  }
+
+  private copyExperimentSettings(
+    current: BrowserExperimentSettings,
+    webBottomSafeAreaEnabled: boolean
+  ): BrowserExperimentSettings {
+    return {
+      pauseWebAnimationsDuringScroll: current.pauseWebAnimationsDuringScroll,
+      reduceMediaMotionDuringScroll: current.reduceMediaMotionDuringScroll,
+      strengthenAdBlockingForSmoothScroll: current.strengthenAdBlockingForSmoothScroll,
+      pullRefreshEnabled: current.pullRefreshEnabled,
+      forceEnableWebZoom: current.forceEnableWebZoom,
+      webBottomSafeAreaEnabled: webBottomSafeAreaEnabled,
+      smartGripTabsActionsEnabled: current.smartGripTabsActionsEnabled,
+      webVideoTakeoverEnabled: current.webVideoTakeoverEnabled,
+      novelModeEnabled: current.novelModeEnabled,
+      novelAutoTakeoverEnabled: current.novelAutoTakeoverEnabled,
+      appProxyActiveProfileId: current.appProxyActiveProfileId,
+      appProxyProfiles: current.appProxyProfiles,
+      appProxyEnabled: current.appProxyEnabled,
+      appProxy: current.appProxy
+    };
   }
 
   private ensureDevicePreferenceWriteAllowed(boundary: BrowserToolbarCustomizationBoundary): void {

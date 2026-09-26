@@ -13,6 +13,7 @@ import {
   BROWSER_IMMERSIVE_SHEET_HEADER_CONTENT_TOP_INSET,
   BROWSER_SHEET_IMMERSIVE_BOTTOM_PADDING,
   BROWSER_SHEET_IMMERSIVE_FOOTER_CLEARANCE,
+  resolveBrowserSheetHeaderBlurRadius,
   BrowserBottomSheetSurface,
   BrowserFeatureSheetHeader,
   BrowserImmersiveSheetLayout,
@@ -38,6 +39,8 @@ export struct UserScriptRiskConsentSheet {
   @Prop layoutMode: 'phone' | 'large_screen' = 'phone';
   onAccept: () => void = () => {};
   onDecline: () => void = () => {};
+  @State private sheetHeaderBlurRadius: number = 0;
+  @State private sheetScrollOffset: number = 0;
 
   build() {
     BrowserBottomSheetSurface({
@@ -60,6 +63,12 @@ export struct UserScriptRiskConsentSheet {
   private buildImmersivePhoneLayout() {
     BrowserImmersiveSheetLayout({
       footerVisible: true,
+      topBlurRadius: this.sheetHeaderBlurRadius,
+      closeVisible: true,
+      closeAccessibilityLabel: '关闭用户脚本风险提示',
+      onClose: (): void => {
+        this.onDecline();
+      },
       scrollContent: () => {
         this.buildPhoneScrollContent()
       },
@@ -92,18 +101,33 @@ export struct UserScriptRiskConsentSheet {
     .scrollBar(BarState.Auto)
     .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
     .clip(false)
+    .onAppear(() => {
+      this.resetSheetHeaderBlur();
+    })
+    .onDidScroll((delta: number) => {
+      this.noteSheetScrollDelta(delta);
+    })
   }
 
   @Builder
   private buildPhoneHeader() {
     BrowserFeatureSheetHeader({
       title: this.state.title,
-      titleColor: this.storedPrimaryTextColor,
-      leadingAccessibilityLabel: '关闭用户脚本风险提示',
-      onLeadingAction: () => {
-        this.onDecline();
-      }
+      titleColor: this.storedPrimaryTextColor
     })
+  }
+
+  private noteSheetScrollDelta(delta: number): void {
+    if (!Number.isFinite(delta)) {
+      return;
+    }
+    this.sheetScrollOffset = Math.max(0, this.sheetScrollOffset + delta);
+    this.sheetHeaderBlurRadius = resolveBrowserSheetHeaderBlurRadius(this.sheetScrollOffset);
+  }
+
+  private resetSheetHeaderBlur(): void {
+    this.sheetScrollOffset = 0;
+    this.sheetHeaderBlurRadius = 0;
   }
 
   @Builder

@@ -96,7 +96,7 @@ struct BrowserToolbarScrollBehaviorSettingsPage {
   build() {
     Column() {
       SettingsHdsScaffold({
-        title: '滚动行为',
+        title: '滚动时',
         backIconKind: 'back',
         pageBackground: this.storedPageBackgroundColor,
         headerButtonBackground: this.storedPressedBackgroundColor,
@@ -114,7 +114,7 @@ struct BrowserToolbarScrollBehaviorSettingsPage {
           }
         }) {
           SettingsSection({
-            title: '网页滚动时',
+            title: '浏览网页时',
             secondaryTextColor: this.storedSecondaryTextColor
           }) {
             SettingsGroupCard({ surfaceColor: this.storedSurfaceBackgroundColor }) {
@@ -171,7 +171,8 @@ struct BrowserToolbarScrollBehaviorSettingsPage {
       return;
     }
     const previousState = this.state;
-    this.state = this.viewModel.buildStateForBehavior(behavior);
+    const style = sharedPreferencesRepository.getPreferences().appearance.toolbarChromeStyle;
+    this.state = this.viewModel.buildStateForBehavior(behavior, style);
     this.saving = true;
     this.customizationCoordinator.persistScrollBehavior(
       behavior,

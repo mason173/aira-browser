@@ -63,6 +63,7 @@ import { SettingsDesktopWorkspaceHeader } from '../settings/SettingsDesktopWorks
 import {
   BROWSER_IMMERSIVE_SHEET_HEADER_CONTENT_TOP_INSET,
   BROWSER_SHEET_IMMERSIVE_BOTTOM_PADDING,
+  resolveBrowserSheetHeaderBlurRadius,
   BrowserBottomSheetSurface,
   BrowserFeatureSheetHeader,
   BrowserImmersiveSheetLayout
@@ -118,6 +119,8 @@ export struct SyncAdditionalBackupHost {
   @State private state: SyncAdditionalBackupViewState = DEFAULT_ADDITIONAL_BACKUP_STATE;
   @State private isBusy: boolean = false;
   @State private frequencySheetVisible: boolean = false;
+  @State private sheetHeaderBlurRadius: number = 0;
+  @State private sheetScrollOffset: number = 0;
   @State private progressTitle: string = '';
   @State private progressSubtitle: string = '';
   @State private progressValue: number = 0;
@@ -340,6 +343,12 @@ export struct SyncAdditionalBackupHost {
         surfaceColor: this.storedPageBackgroundColor
       }) {
         BrowserImmersiveSheetLayout({
+          topBlurRadius: this.sheetHeaderBlurRadius,
+          closeVisible: true,
+          closeAccessibilityLabel: '关闭',
+          onClose: (): void => {
+            this.frequencySheetVisible = false;
+          },
           scrollContent: () => {
             this.buildFrequencyPhoneScrollContent()
           },
@@ -357,12 +366,21 @@ export struct SyncAdditionalBackupHost {
     // "class constructor cannot called without 'new'" if BrowserFeatureSheetHeader
     // is constructed directly inside a @BuilderParam arrow function.
     BrowserFeatureSheetHeader({
-      title: '备份频率',
-      leadingAccessibilityLabel: '关闭',
-      onLeadingAction: () => {
-        this.frequencySheetVisible = false;
-      }
+      title: '备份频率'
     })
+  }
+
+  private noteSheetScrollDelta(delta: number): void {
+    if (!Number.isFinite(delta)) {
+      return;
+    }
+    this.sheetScrollOffset = Math.max(0, this.sheetScrollOffset + delta);
+    this.sheetHeaderBlurRadius = resolveBrowserSheetHeaderBlurRadius(this.sheetScrollOffset);
+  }
+
+  private resetSheetHeaderBlur(): void {
+    this.sheetScrollOffset = 0;
+    this.sheetHeaderBlurRadius = 0;
   }
 
   @Builder
@@ -412,6 +430,12 @@ export struct SyncAdditionalBackupHost {
     .scrollBar(BarState.Auto)
     .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
     .clip(false)
+    .onAppear(() => {
+      this.resetSheetHeaderBlur();
+    })
+    .onDidScroll((delta: number) => {
+      this.noteSheetScrollDelta(delta);
+    })
   }
 
   @Builder

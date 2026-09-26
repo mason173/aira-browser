@@ -7,6 +7,7 @@ import {
   BROWSER_IMMERSIVE_SHEET_HEADER_CONTENT_TOP_INSET,
   BROWSER_SHEET_IMMERSIVE_BOTTOM_PADDING,
   BROWSER_SHEET_IMMERSIVE_FOOTER_CLEARANCE,
+  resolveBrowserSheetHeaderBlurRadius,
   BrowserBottomSheetSurface,
   BrowserFeatureSheetHeader,
   BrowserImmersiveSheetLayout,
@@ -20,6 +21,8 @@ export struct HistoryVisitDetailsSheet {
   @Prop rows: HistoryDetailRow[] = [];
   copyLink: () => void = () => {};
   onClose: () => void = () => {};
+  @State private sheetHeaderBlurRadius: number = 0;
+  @State private sheetScrollOffset: number = 0;
 
   build() {
     BrowserBottomSheetSurface({
@@ -31,6 +34,12 @@ export struct HistoryVisitDetailsSheet {
     }) {
       BrowserImmersiveSheetLayout({
         footerVisible: true,
+        topBlurRadius: this.sheetHeaderBlurRadius,
+        closeVisible: true,
+        closeAccessibilityLabel: '关闭历史详情',
+        onClose: (): void => {
+          this.onClose();
+        },
         scrollContent: () => {
           this.buildScrollContent()
         },
@@ -67,18 +76,33 @@ export struct HistoryVisitDetailsSheet {
     .scrollBar(BarState.Auto)
     .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
     .clip(false)
+    .onAppear(() => {
+      this.resetSheetHeaderBlur();
+    })
+    .onDidScroll((delta: number) => {
+      this.noteSheetScrollDelta(delta);
+    })
   }
 
   @Builder
   private buildHeader() {
     BrowserFeatureSheetHeader({
       title: '历史详情',
-      titleColor: this.storedPrimaryTextColor,
-      leadingAccessibilityLabel: '关闭历史详情',
-      onLeadingAction: () => {
-        this.onClose();
-      }
+      titleColor: this.storedPrimaryTextColor
     })
+  }
+
+  private noteSheetScrollDelta(delta: number): void {
+    if (!Number.isFinite(delta)) {
+      return;
+    }
+    this.sheetScrollOffset = Math.max(0, this.sheetScrollOffset + delta);
+    this.sheetHeaderBlurRadius = resolveBrowserSheetHeaderBlurRadius(this.sheetScrollOffset);
+  }
+
+  private resetSheetHeaderBlur(): void {
+    this.sheetScrollOffset = 0;
+    this.sheetHeaderBlurRadius = 0;
   }
 
   @Builder

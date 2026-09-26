@@ -15,12 +15,17 @@ import {
   BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY
 } from '../../../core/theme/BrowserThemeStorageKeys';
 import {
+  BROWSER_FEATURE_SHEET_HEADER_BUTTON_SIZE,
+  BROWSER_FEATURE_SHEET_HEADER_ICON_SIZE,
   BROWSER_IMMERSIVE_SHEET_HEADER_CONTENT_TOP_INSET,
   BROWSER_SHEET_IMMERSIVE_BOTTOM_PADDING,
+  BROWSER_SHEET_MODAL_HEADER_BUTTON_TOP,
+  resolveBrowserSheetHeaderBlurRadius,
   BrowserBottomSheetSurface,
   BrowserFeatureSheetHeader,
   BrowserImmersiveSheetLayout,
-  BrowserSheetActionButton
+  BrowserSheetActionButton,
+  BrowserSheetIconButton
 } from './BrowserModalBottomSheet';
 import {
   SettingsNavigationRow,
@@ -68,6 +73,8 @@ export struct BrowserSiteInfoSheet {
     permissionKind?: SitePermissionKind,
     permissionRule?: SitePermissionRule
   ) => void = (_action: BrowserSiteControlsUserAction) => {};
+  @State private sheetHeaderBlurRadius: number = 0;
+  @State private sheetScrollOffset: number = 0;
 
   build() {
     BrowserBottomSheetSurface({
@@ -92,6 +99,8 @@ export struct BrowserSiteInfoSheet {
       ForEach([this.resolvePageKey()], (pageKey: string) => {
         this.buildPage(this.resolvePageTransition())
       }, (pageKey: string) => pageKey)
+
+      this.buildFixedCloseButton()
     }
     .width('100%')
     .height('100%')
@@ -99,10 +108,32 @@ export struct BrowserSiteInfoSheet {
   }
 
   @Builder
+  private buildFixedCloseButton() {
+    Stack({ alignContent: Alignment.TopEnd }) {
+      BrowserSheetIconButton({
+        icon: $r('sys.symbol.xmark'),
+        iconSize: BROWSER_FEATURE_SHEET_HEADER_ICON_SIZE,
+        buttonSize: BROWSER_FEATURE_SHEET_HEADER_BUTTON_SIZE,
+        accessibilityLabel: '关闭站点信息',
+        immersiveMaterialEnabled: true,
+        onAction: (): void => {
+          this.onAction('close');
+        }
+      })
+        .margin({ top: BROWSER_SHEET_MODAL_HEADER_BUTTON_TOP, right: 16 })
+    }
+    .width('100%')
+    .height('100%')
+    .hitTestBehavior(HitTestMode.Transparent)
+    .zIndex(4)
+  }
+
+  @Builder
   private buildPage(pageTransition: TransitionEffect) {
     Stack() {
       BrowserImmersiveSheetLayout({
         footerVisible: this.shouldShowPageFooter(),
+        topBlurRadius: this.sheetHeaderBlurRadius,
         scrollContent: () => {
           this.buildActivePageContent()
         },
@@ -143,6 +174,19 @@ export struct BrowserSiteInfoSheet {
     }
   }
 
+  private noteSheetScrollDelta(delta: number): void {
+    if (!Number.isFinite(delta)) {
+      return;
+    }
+    this.sheetScrollOffset = Math.max(0, this.sheetScrollOffset + delta);
+    this.sheetHeaderBlurRadius = resolveBrowserSheetHeaderBlurRadius(this.sheetScrollOffset);
+  }
+
+  private resetSheetHeaderBlur(): void {
+    this.sheetScrollOffset = 0;
+    this.sheetHeaderBlurRadius = 0;
+  }
+
   private resolvePageKey(): string {
     return this.snapshot.session.mode.length > 0 ? this.snapshot.session.mode : 'overview';
   }
@@ -164,9 +208,10 @@ export struct BrowserSiteInfoSheet {
     BrowserFeatureSheetHeader({
       title: title,
       titleColor: this.storedPrimaryTextColor,
-      leadingAccessibilityLabel: nested ? '返回站点信息' : '关闭站点信息',
-      onLeadingAction: () => {
-        this.onAction(nested ? 'navigate_back' : 'close');
+      showLeadingButton: nested,
+      leadingAccessibilityLabel: '返回站点信息',
+      onLeadingAction: (): void => {
+        this.onAction('navigate_back');
       }
     })
   }
@@ -205,6 +250,12 @@ export struct BrowserSiteInfoSheet {
     .contentEndOffset(this.resolveContentBottomOffset())
     .scrollBar(BarState.Auto)
     .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
+    .onAppear(() => {
+      this.resetSheetHeaderBlur();
+    })
+    .onDidScroll((delta: number) => {
+      this.noteSheetScrollDelta(delta);
+    })
   }
 
   @Builder
@@ -395,6 +446,12 @@ export struct BrowserSiteInfoSheet {
     .contentEndOffset(this.resolveContentBottomOffset())
     .scrollBar(BarState.Auto)
     .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
+    .onAppear(() => {
+      this.resetSheetHeaderBlur();
+    })
+    .onDidScroll((delta: number) => {
+      this.noteSheetScrollDelta(delta);
+    })
   }
 
   @Builder
@@ -515,6 +572,12 @@ export struct BrowserSiteInfoSheet {
     .height('100%')
     .scrollBar(BarState.Auto)
     .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
+    .onAppear(() => {
+      this.resetSheetHeaderBlur();
+    })
+    .onDidScroll((delta: number) => {
+      this.noteSheetScrollDelta(delta);
+    })
   }
 
   @Builder
@@ -711,6 +774,12 @@ export struct BrowserSiteInfoSheet {
     .height('100%')
     .scrollBar(BarState.Auto)
     .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
+    .onAppear(() => {
+      this.resetSheetHeaderBlur();
+    })
+    .onDidScroll((delta: number) => {
+      this.noteSheetScrollDelta(delta);
+    })
   }
 
   @Builder
@@ -817,6 +886,12 @@ export struct BrowserSiteInfoSheet {
     .height('100%')
     .scrollBar(BarState.Auto)
     .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
+    .onAppear(() => {
+      this.resetSheetHeaderBlur();
+    })
+    .onDidScroll((delta: number) => {
+      this.noteSheetScrollDelta(delta);
+    })
   }
 
   @Builder

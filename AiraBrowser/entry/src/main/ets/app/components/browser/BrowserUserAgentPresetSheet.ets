@@ -19,6 +19,7 @@ import {
 import {
   BROWSER_IMMERSIVE_SHEET_HEADER_CONTENT_TOP_INSET,
   BROWSER_SHEET_IMMERSIVE_BOTTOM_PADDING,
+  resolveBrowserSheetHeaderBlurRadius,
   BrowserBottomSheetSurface,
   BrowserFeatureSheetHeader,
   BrowserImmersiveSheetLayout
@@ -53,6 +54,8 @@ export struct BrowserUserAgentPresetSheet {
   onBack: () => void = () => {};
   onSelectPreset: (presetId: BrowserUserAgentPresetId) => void = (_presetId: BrowserUserAgentPresetId) => {};
   onSelectCustomUserAgent: (recordId: string) => void = (_recordId: string) => {};
+  @State private sheetHeaderBlurRadius: number = 0;
+  @State private sheetScrollOffset: number = 0;
 
   build() {
     BrowserBottomSheetSurface({
@@ -67,6 +70,12 @@ export struct BrowserUserAgentPresetSheet {
     }) {
       if (this.layoutMode === 'phone') {
         BrowserImmersiveSheetLayout({
+          topBlurRadius: this.sheetHeaderBlurRadius,
+          closeVisible: true,
+          closeAccessibilityLabel: '关闭网页标识',
+          onClose: (): void => {
+            this.onBack();
+          },
           scrollContent: () => {
             this.buildScrollContent(true)
           },
@@ -85,11 +94,25 @@ export struct BrowserUserAgentPresetSheet {
     BrowserFeatureSheetHeader({
       title: '网页标识',
       titleColor: this.storedPrimaryTextColor,
+      showLeadingButton: true,
       leadingAccessibilityLabel: '返回网站版本',
       onLeadingAction: () => {
         this.onBack();
       }
     })
+  }
+
+  private noteSheetScrollDelta(delta: number): void {
+    if (!Number.isFinite(delta)) {
+      return;
+    }
+    this.sheetScrollOffset = Math.max(0, this.sheetScrollOffset + delta);
+    this.sheetHeaderBlurRadius = resolveBrowserSheetHeaderBlurRadius(this.sheetScrollOffset);
+  }
+
+  private resetSheetHeaderBlur(): void {
+    this.sheetScrollOffset = 0;
+    this.sheetHeaderBlurRadius = 0;
   }
 
   @Builder
@@ -113,6 +136,12 @@ export struct BrowserUserAgentPresetSheet {
     .height('100%')
     .scrollBar(BarState.Auto)
     .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
+    .onAppear(() => {
+      this.resetSheetHeaderBlur();
+    })
+    .onDidScroll((delta: number) => {
+      this.noteSheetScrollDelta(delta);
+    })
   }
 
   @Builder

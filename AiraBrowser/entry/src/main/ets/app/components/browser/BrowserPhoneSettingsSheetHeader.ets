@@ -4,7 +4,7 @@ import {
 import { BrowserSheetIconButton } from './BrowserModalBottomSheet';
 
 const PHONE_SETTINGS_SHEET_HEADER_HEIGHT: number = 40;
-const PHONE_SETTINGS_SHEET_HEADER_BOTTOM_PADDING: number = 14;
+const PHONE_SETTINGS_SHEET_HEADER_ROW_HEIGHT: number = 56;
 
 @Component
 export struct BrowserPhoneSettingsSheetHeader {
@@ -12,6 +12,13 @@ export struct BrowserPhoneSettingsSheetHeader {
   @Prop title: string = '';
   @Prop showBackButton: boolean = false;
   @Prop backAccessibilityText: string = '返回';
+  /** Row height. The 40vp button stays centered in it, so a taller modal bar does not shift the glyph. */
+  @Prop rowHeight: number = PHONE_SETTINGS_SHEET_HEADER_ROW_HEIGHT;
+  /**
+   * Extra space below the row. Kept off the default 40vp bar: padding inside a fixed height
+   * lifts the button and title instead of adding room underneath.
+   */
+  @Prop bottomPadding: number = 0;
   onBack: () => void = (): void => {};
 
   build() {
@@ -39,12 +46,12 @@ export struct BrowserPhoneSettingsSheetHeader {
         .textOverflow({ overflow: TextOverflow.Ellipsis })
     }
     .width('100%')
-    .height(PHONE_SETTINGS_SHEET_HEADER_HEIGHT)
+    .height(this.rowHeight)
     .alignItems(VerticalAlign.Center)
     .padding({
       left: 16,
       right: 56,
-      bottom: PHONE_SETTINGS_SHEET_HEADER_BOTTOM_PADDING
+      bottom: this.bottomPadding
     })
     .zIndex(1)
   }

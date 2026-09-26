@@ -11,6 +11,7 @@ import {
   BROWSER_IMMERSIVE_SHEET_HEADER_CONTENT_TOP_INSET,
   BROWSER_SHEET_IMMERSIVE_BOTTOM_PADDING,
   BROWSER_SHEET_IMMERSIVE_FOOTER_CLEARANCE,
+  resolveBrowserSheetHeaderBlurRadius,
   BrowserFeatureSheetHeader,
   BrowserImmersiveSheetLayout,
   BrowserSheetActionButton,
@@ -47,6 +48,8 @@ export struct SyncSetupStepScaffold {
   onSubmit: () => void = () => {};
   onContentHeight: (heightVp: number) => void = (_heightVp: number) => {};
   @BuilderParam content: () => void = this.emptyContent;
+  @State private sheetHeaderBlurRadius: number = 0;
+  @State private sheetScrollOffset: number = 0;
 
   build() {
     if (this.layoutMode === 'large_screen') {
@@ -124,6 +127,12 @@ export struct SyncSetupStepScaffold {
   private buildImmersivePhoneLayout() {
     BrowserImmersiveSheetLayout({
       footerVisible: this.showSubmitButton,
+      topBlurRadius: this.sheetHeaderBlurRadius,
+      closeVisible: true,
+      closeAccessibilityLabel: '关闭',
+      onClose: (): void => {
+        this.onClose();
+      },
       scrollContent: () => {
         this.buildPhoneScrollContent()
       },
@@ -163,6 +172,12 @@ export struct SyncSetupStepScaffold {
     .scrollBar(BarState.Auto)
     .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
     .clip(false)
+    .onAppear(() => {
+      this.resetSheetHeaderBlur();
+    })
+    .onDidScroll((delta: number) => {
+      this.noteSheetScrollDelta(delta);
+    })
   }
 
   @Builder
@@ -170,15 +185,27 @@ export struct SyncSetupStepScaffold {
     BrowserFeatureSheetHeader({
       title: this.title,
       titleColor: this.storedPrimaryTextColor,
-      leadingAccessibilityLabel: this.showBackButton ? '返回' : '关闭',
-      onLeadingAction: () => {
+      showLeadingButton: this.showBackButton,
+      leadingAccessibilityLabel: '返回',
+      onLeadingAction: (): void => {
         if (this.showBackButton) {
           this.onBack();
-        } else {
-          this.onClose();
         }
       }
     })
+  }
+
+  private noteSheetScrollDelta(delta: number): void {
+    if (!Number.isFinite(delta)) {
+      return;
+    }
+    this.sheetScrollOffset = Math.max(0, this.sheetScrollOffset + delta);
+    this.sheetHeaderBlurRadius = resolveBrowserSheetHeaderBlurRadius(this.sheetScrollOffset);
+  }
+
+  private resetSheetHeaderBlur(): void {
+    this.sheetScrollOffset = 0;
+    this.sheetHeaderBlurRadius = 0;
   }
 
   @Builder

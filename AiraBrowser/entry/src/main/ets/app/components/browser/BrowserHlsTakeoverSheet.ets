@@ -23,6 +23,7 @@ import {
 import {
   BROWSER_IMMERSIVE_SHEET_HEADER_CONTENT_TOP_INSET,
   BROWSER_SHEET_IMMERSIVE_FOOTER_CLEARANCE,
+  resolveBrowserSheetHeaderBlurRadius,
   BrowserBottomSheetSurface,
   BrowserModalBottomOverlay,
   BrowserFeatureSheetHeader,
@@ -62,6 +63,8 @@ struct BrowserHlsTakeoverSheet {
   onCopyUrl: () => void = () => {};
   onCopyContext: () => void = () => {};
   onOpenResources: () => void = () => {};
+  @State private sheetHeaderBlurRadius: number = 0;
+  @State private sheetScrollOffset: number = 0;
 
   build() {
     BrowserBottomSheetSurface({
@@ -74,6 +77,12 @@ struct BrowserHlsTakeoverSheet {
     }) {
       BrowserImmersiveSheetLayout({
         footerVisible: true,
+        topBlurRadius: this.sheetHeaderBlurRadius,
+        closeVisible: true,
+        closeAccessibilityLabel: '关闭',
+        onClose: (): void => {
+          this.onClose();
+        },
         scrollContent: () => {
           this.buildBody()
         },
@@ -91,12 +100,21 @@ struct BrowserHlsTakeoverSheet {
   private buildHeader() {
     BrowserFeatureSheetHeader({
       title: 'HLS 接管准备',
-      titleColor: this.storedPrimaryTextColor,
-      leadingAccessibilityLabel: '关闭 HLS 接管准备',
-      onLeadingAction: () => {
-        this.onClose();
-      }
+      titleColor: this.storedPrimaryTextColor
     })
+  }
+
+  private noteSheetScrollDelta(delta: number): void {
+    if (!Number.isFinite(delta)) {
+      return;
+    }
+    this.sheetScrollOffset = Math.max(0, this.sheetScrollOffset + delta);
+    this.sheetHeaderBlurRadius = resolveBrowserSheetHeaderBlurRadius(this.sheetScrollOffset);
+  }
+
+  private resetSheetHeaderBlur(): void {
+    this.sheetScrollOffset = 0;
+    this.sheetHeaderBlurRadius = 0;
   }
 
   @Builder
@@ -121,6 +139,12 @@ struct BrowserHlsTakeoverSheet {
     .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
     .scrollBar(BarState.Auto)
     .clip(false)
+    .onAppear(() => {
+      this.resetSheetHeaderBlur();
+    })
+    .onDidScroll((delta: number) => {
+      this.noteSheetScrollDelta(delta);
+    })
   }
 
   @Builder
