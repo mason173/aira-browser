@@ -15,6 +15,7 @@ import {
   BrowserFeatureSheetHeader,
   BrowserImmersiveSheetLayout,
   BrowserSheetActionButton,
+  browserSheetHeaderBlurModifier
 } from '../browser/BrowserModalBottomSheet';
 import { BROWSER_LARGE_SCREEN_MODAL_HEADER_HEIGHT_VP } from '../../../core/browser/BrowserModalPresentationTokens';
 
@@ -127,8 +128,7 @@ export struct SyncSetupStepScaffold {
   private buildImmersivePhoneLayout() {
     BrowserImmersiveSheetLayout({
       footerVisible: this.showSubmitButton,
-      topBlurRadius: this.sheetHeaderBlurRadius,
-      closeVisible: true,
+            closeVisible: true,
       closeAccessibilityLabel: '关闭',
       onClose: (): void => {
         this.onClose();
@@ -150,7 +150,7 @@ export struct SyncSetupStepScaffold {
 
   @Builder
   private buildPhoneScrollContent() {
-    Scroll() {
+    Scroll(this.sheetBlurScroller) {
       Column({ space: 12 }) {
         this.buildSummaryText()
         this.content()
@@ -172,11 +172,12 @@ export struct SyncSetupStepScaffold {
     .scrollBar(BarState.Auto)
     .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
     .clip(false)
+    .attributeModifier(browserSheetHeaderBlurModifier(this.sheetHeaderBlurRadius))
     .onAppear(() => {
       this.resetSheetHeaderBlur();
     })
-    .onDidScroll((delta: number) => {
-      this.noteSheetScrollDelta(delta);
+    .onDidScroll((_xOffset: number, yOffset: number) => {
+      this.noteSheetScrollOffset(this.sheetBlurScroller.currentOffset().yOffset);
     })
   }
 
@@ -195,12 +196,18 @@ export struct SyncSetupStepScaffold {
     })
   }
 
-  private noteSheetScrollDelta(delta: number): void {
-    if (!Number.isFinite(delta)) {
+  private sheetBlurScroller: Scroller = new Scroller();
+
+  private noteSheetScrollOffset(offset: number): void {
+    if (!Number.isFinite(offset)) {
       return;
     }
-    this.sheetScrollOffset = Math.max(0, this.sheetScrollOffset + delta);
-    this.sheetHeaderBlurRadius = resolveBrowserSheetHeaderBlurRadius(this.sheetScrollOffset);
+    const next = Math.max(0, offset);
+    if (next === this.sheetScrollOffset) {
+      return;
+    }
+    this.sheetScrollOffset = next;
+    this.sheetHeaderBlurRadius = resolveBrowserSheetHeaderBlurRadius(next);
   }
 
   private resetSheetHeaderBlur(): void {

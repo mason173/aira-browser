@@ -42,7 +42,8 @@ import {
   BrowserBottomSheetSurface,
   BrowserFeatureSheetHeader,
   BrowserImmersiveSheetLayout,
-  BrowserSheetIconButton
+  BrowserSheetIconButton,
+  browserSheetHeaderBlurModifier
 } from './BrowserModalBottomSheet';
 import { BrowserFloatingGlassMaterialSurface } from './BrowserFloatingGlassMaterialSurface';
 import { resolveBrowserFloatingGlassMaterialTintForMode } from './BrowserFloatingGlassMaterialTokens';
@@ -186,12 +187,19 @@ export struct HomeShortcutSelectionContent {
     this.syncBookmarkRows();
   }
 
-  private noteSheetScrollDelta(delta: number): void {
-    if (!Number.isFinite(delta)) {
+  private sheetBlurScroller0: Scroller = new Scroller();
+  private sheetBlurScroller1: Scroller = new Scroller();
+
+  private noteSheetScrollOffset(offset: number): void {
+    if (!Number.isFinite(offset)) {
       return;
     }
-    this.sheetScrollOffset = Math.max(0, this.sheetScrollOffset + delta);
-    this.sheetHeaderBlurRadius = resolveBrowserSheetHeaderBlurRadius(this.sheetScrollOffset);
+    const next = Math.max(0, offset);
+    if (next === this.sheetScrollOffset) {
+      return;
+    }
+    this.sheetScrollOffset = next;
+    this.sheetHeaderBlurRadius = resolveBrowserSheetHeaderBlurRadius(next);
   }
 
   private resetSheetHeaderBlur(): void {
@@ -221,8 +229,7 @@ export struct HomeShortcutSelectionContent {
   @Builder
   private buildPhoneLayout() {
     BrowserImmersiveSheetLayout({
-      topBlurRadius: this.sheetHeaderBlurRadius,
-      closeVisible: true,
+            closeVisible: true,
       closeAccessibilityLabel: '关闭添加至首页',
       onClose: (): void => {
         this.onClose();
@@ -306,7 +313,7 @@ export struct HomeShortcutSelectionContent {
   private buildSystemList() {
     Column() {
       SettingsGroupCard({ surfaceColor: this.storedSurfaceBackgroundColor }) {
-        List({ space: 0 }) {
+        List({ scroller: this.sheetBlurScroller0, space: 0 }) {
           ForEach(this.state.systemRows, (row: HomeShortcutSystemSelectionRow, index: number) => {
             ListItem() {
               this.buildSystemRow(row, index)
@@ -324,11 +331,13 @@ export struct HomeShortcutSelectionContent {
         .cachedCount(HOME_SHORTCUT_SELECTION_LIST_CACHE_COUNT)
         .scrollBar(BarState.Auto)
         .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
+        .clip(this.layoutMode !== 'phone')
+        .attributeModifier(browserSheetHeaderBlurModifier(this.layoutMode === 'phone' ? this.sheetHeaderBlurRadius : 0))
         .onAppear(() => {
           this.resetSheetHeaderBlur();
         })
-        .onDidScroll((delta: number) => {
-          this.noteSheetScrollDelta(delta);
+        .onDidScroll((scrollOffset: number) => {
+          this.noteSheetScrollOffset(this.sheetBlurScroller0.currentOffset().yOffset);
         })
       }
     }
@@ -430,7 +439,7 @@ export struct HomeShortcutSelectionContent {
   private buildBookmarkList(folderId: string) {
     Column() {
       SettingsGroupCard({ surfaceColor: this.storedSurfaceBackgroundColor }) {
-        List({ space: 0 }) {
+        List({ scroller: this.sheetBlurScroller1, space: 0 }) {
           if (folderId.length > 0) {
             ListItem() {
               this.buildBookmarkFolderHeader(folderId)
@@ -457,11 +466,13 @@ export struct HomeShortcutSelectionContent {
         .cachedCount(HOME_SHORTCUT_SELECTION_LIST_CACHE_COUNT, true)
         .scrollBar(BarState.Auto)
         .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
+        .clip(this.layoutMode !== 'phone')
+        .attributeModifier(browserSheetHeaderBlurModifier(this.layoutMode === 'phone' ? this.sheetHeaderBlurRadius : 0))
         .onAppear(() => {
           this.resetSheetHeaderBlur();
         })
-        .onDidScroll((delta: number) => {
-          this.noteSheetScrollDelta(delta);
+        .onDidScroll((scrollOffset: number) => {
+          this.noteSheetScrollOffset(this.sheetBlurScroller1.currentOffset().yOffset);
         })
       }
     }

@@ -18,7 +18,8 @@ import {
   BrowserBottomSheetSurface,
   BrowserFeatureSheetHeader,
   BrowserImmersiveSheetLayout,
-  BrowserSheetActionButton
+  BrowserSheetActionButton,
+  browserSheetHeaderBlurModifier
 } from '../browser/BrowserModalBottomSheet';
 import {
   SettingsGroupCard,
@@ -66,7 +67,6 @@ export struct AppProxyQuickSheetContent {
         surfaceColor: this.storedPageBackgroundColor
       }) {
         BrowserImmersiveSheetLayout({
-          topBlurRadius: this.sheetHeaderBlurRadius,
           closeVisible: true,
           closeAccessibilityLabel: '关闭应用内代理',
           onClose: (): void => {
@@ -120,12 +120,18 @@ export struct AppProxyQuickSheetContent {
     })
   }
 
-  private noteSheetScrollDelta(delta: number): void {
-    if (!Number.isFinite(delta)) {
+  private sheetBlurScroller: Scroller = new Scroller();
+
+  private noteSheetScrollOffset(offset: number): void {
+    if (!Number.isFinite(offset)) {
       return;
     }
-    this.sheetScrollOffset = Math.max(0, this.sheetScrollOffset + delta);
-    this.sheetHeaderBlurRadius = resolveBrowserSheetHeaderBlurRadius(this.sheetScrollOffset);
+    const next = Math.max(0, offset);
+    if (next === this.sheetScrollOffset) {
+      return;
+    }
+    this.sheetScrollOffset = next;
+    this.sheetHeaderBlurRadius = resolveBrowserSheetHeaderBlurRadius(next);
   }
 
   private resetSheetHeaderBlur(): void {
@@ -135,7 +141,7 @@ export struct AppProxyQuickSheetContent {
 
   @Builder
   private buildScrollContent(immersive: boolean) {
-    Scroll() {
+    Scroll(this.sheetBlurScroller) {
       Column({ space: 18 }) {
         this.buildGlobalSwitchSection()
         this.buildProfilesSection()
@@ -154,11 +160,13 @@ export struct AppProxyQuickSheetContent {
     .height('100%')
     .scrollBar(BarState.Auto)
     .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
+    .clip(!immersive)
+    .attributeModifier(browserSheetHeaderBlurModifier(immersive ? this.sheetHeaderBlurRadius : 0))
     .onAppear(() => {
       this.resetSheetHeaderBlur();
     })
-    .onDidScroll((delta: number) => {
-      this.noteSheetScrollDelta(delta);
+    .onDidScroll((_xOffset: number, yOffset: number) => {
+      this.noteSheetScrollOffset(this.sheetBlurScroller.currentOffset().yOffset);
     })
   }
 

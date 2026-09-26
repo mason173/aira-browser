@@ -18,7 +18,8 @@ import {
   BrowserFeatureSheetHeader,
   BrowserImmersiveSheetLayout,
   BrowserSheetActionButton,
-  BrowserSheetIconButton
+  BrowserSheetIconButton,
+  browserSheetHeaderBlurModifier
 } from '../browser/BrowserModalBottomSheet';
 import { AppEmptyState } from '../common/AppEmptyState';
 import { SiteIconView } from '../common/SiteIconView';
@@ -93,8 +94,7 @@ export struct UserScriptPageActionsSheet {
   @Builder
   private buildPhonePage(pageTransition: TransitionEffect) {
     BrowserImmersiveSheetLayout({
-      topBlurRadius: this.sheetHeaderBlurRadius,
-      footerVisible: !this.isScriptDetailVisible(),
+            footerVisible: !this.isScriptDetailVisible(),
       scrollContent: () => {
         this.buildPhoneScrollContent()
       },
@@ -133,7 +133,7 @@ export struct UserScriptPageActionsSheet {
 
   @Builder
   private buildPhoneScrollContent() {
-    Scroll() {
+    Scroll(this.sheetBlurScroller) {
       Column({ space: 16 }) {
         if (this.state.scripts.length > 0) {
           if (this.isScriptDetailVisible()) {
@@ -165,11 +165,13 @@ export struct UserScriptPageActionsSheet {
     .height('100%')
     .scrollBar(BarState.Auto)
     .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
+    .clip(false)
+    .attributeModifier(browserSheetHeaderBlurModifier(this.sheetHeaderBlurRadius))
     .onAppear(() => {
       this.resetSheetHeaderBlur();
     })
-    .onDidScroll((delta: number) => {
-      this.noteSheetScrollDelta(delta);
+    .onDidScroll((_xOffset: number, yOffset: number) => {
+      this.noteSheetScrollOffset(this.sheetBlurScroller.currentOffset().yOffset);
     })
   }
 
@@ -486,12 +488,18 @@ export struct UserScriptPageActionsSheet {
     return TransitionEffect.OPACITY.animation({ duration: 1 });
   }
 
-  private noteSheetScrollDelta(delta: number): void {
-    if (!Number.isFinite(delta)) {
+  private sheetBlurScroller: Scroller = new Scroller();
+
+  private noteSheetScrollOffset(offset: number): void {
+    if (!Number.isFinite(offset)) {
       return;
     }
-    this.sheetScrollOffset = Math.max(0, this.sheetScrollOffset + delta);
-    this.sheetHeaderBlurRadius = resolveBrowserSheetHeaderBlurRadius(this.sheetScrollOffset);
+    const next = Math.max(0, offset);
+    if (next === this.sheetScrollOffset) {
+      return;
+    }
+    this.sheetScrollOffset = next;
+    this.sheetHeaderBlurRadius = resolveBrowserSheetHeaderBlurRadius(next);
   }
 
   private resetSheetHeaderBlur(): void {

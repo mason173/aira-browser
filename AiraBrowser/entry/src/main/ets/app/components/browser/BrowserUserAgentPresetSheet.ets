@@ -22,7 +22,8 @@ import {
   resolveBrowserSheetHeaderBlurRadius,
   BrowserBottomSheetSurface,
   BrowserFeatureSheetHeader,
-  BrowserImmersiveSheetLayout
+  BrowserImmersiveSheetLayout,
+  browserSheetHeaderBlurModifier
 } from './BrowserModalBottomSheet';
 import {
   SettingsOptionRow,
@@ -70,7 +71,6 @@ export struct BrowserUserAgentPresetSheet {
     }) {
       if (this.layoutMode === 'phone') {
         BrowserImmersiveSheetLayout({
-          topBlurRadius: this.sheetHeaderBlurRadius,
           closeVisible: true,
           closeAccessibilityLabel: '关闭网页标识',
           onClose: (): void => {
@@ -102,12 +102,18 @@ export struct BrowserUserAgentPresetSheet {
     })
   }
 
-  private noteSheetScrollDelta(delta: number): void {
-    if (!Number.isFinite(delta)) {
+  private sheetBlurScroller: Scroller = new Scroller();
+
+  private noteSheetScrollOffset(offset: number): void {
+    if (!Number.isFinite(offset)) {
       return;
     }
-    this.sheetScrollOffset = Math.max(0, this.sheetScrollOffset + delta);
-    this.sheetHeaderBlurRadius = resolveBrowserSheetHeaderBlurRadius(this.sheetScrollOffset);
+    const next = Math.max(0, offset);
+    if (next === this.sheetScrollOffset) {
+      return;
+    }
+    this.sheetScrollOffset = next;
+    this.sheetHeaderBlurRadius = resolveBrowserSheetHeaderBlurRadius(next);
   }
 
   private resetSheetHeaderBlur(): void {
@@ -117,7 +123,7 @@ export struct BrowserUserAgentPresetSheet {
 
   @Builder
   private buildScrollContent(immersive: boolean) {
-    Scroll() {
+    Scroll(this.sheetBlurScroller) {
       Column({ space: 14 }) {
         this.buildOptionGroup('移动端网页', this.mobileOptions)
         this.buildOptionGroup('桌面端网页', this.desktopOptions)
@@ -136,11 +142,13 @@ export struct BrowserUserAgentPresetSheet {
     .height('100%')
     .scrollBar(BarState.Auto)
     .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
+    .clip(!immersive)
+    .attributeModifier(browserSheetHeaderBlurModifier(immersive ? this.sheetHeaderBlurRadius : 0))
     .onAppear(() => {
       this.resetSheetHeaderBlur();
     })
-    .onDidScroll((delta: number) => {
-      this.noteSheetScrollDelta(delta);
+    .onDidScroll((_xOffset: number, yOffset: number) => {
+      this.noteSheetScrollOffset(this.sheetBlurScroller.currentOffset().yOffset);
     })
   }
 

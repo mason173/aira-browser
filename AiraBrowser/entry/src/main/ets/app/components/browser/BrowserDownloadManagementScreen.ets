@@ -64,6 +64,7 @@ import { FloatingGlassMaterialSurface } from '../common/FloatingGlassMaterialSur
 import { resolveFloatingGlassMaterialTintForMode } from '../common/FloatingGlassMaterialTokens';
 import { BROWSER_WINDOW_SAFE_TOP_INSET_STORAGE_KEY } from '../../../core/browser/BrowserWindowAvoidAreaCoordinator';
 import { FloatingSelectionToolbar } from '../common/FloatingSelectionToolbar';
+import { browserSheetHeaderBlurModifier } from './BrowserModalBottomSheet';
 import {
   MANAGEMENT_LARGE_SCREEN_ROW_GAP,
   MANAGEMENT_LARGE_SCREEN_ROW_INSET,
@@ -732,10 +733,7 @@ export struct BrowserDownloadManagementScreen {
     }
     .width('100%')
     .height('100%')
-    .linearGradientBlur(this.presentationMode === 'native_tab' ? 0 : DOWNLOAD_IMMERSIVE_TOP_BLUR_RADIUS, {
-      fractionStops: [[1, 0], [1, 0.05], [0, 0.14], [0, 1]],
-      direction: GradientDirection.Bottom
-    })
+    .attributeModifier(browserSheetHeaderBlurModifier(this.presentationMode === 'native_tab' ? 0 : DOWNLOAD_IMMERSIVE_TOP_BLUR_RADIUS))
     .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
     .scrollBar(BarState.Auto)
     .expandSafeArea([SafeAreaType.SYSTEM, SafeAreaType.CUTOUT], this.resolveSystemSafeAreaEdges())

@@ -4,6 +4,7 @@ import {
 } from '../../../core/browser/BrowserWebViewportCoordinator';
 
 import { BrowserWebSafeAreaBackground } from './BrowserWebSafeAreaBackground';
+import { browserSheetHeaderBlurModifier } from './BrowserModalBottomSheet';
 
 // Same blur strength as the immersive settings, bookmark, and history lists.
 const WEB_SCROLL_TOP_BLUR_RADIUS: number = 20;
@@ -58,10 +59,7 @@ export struct BrowserWebViewportSurfaceHost {
           // No unconditional geometry animation: the immersion owner opts in only
           // for scrolling. Native history restores still settle in one layout pass.
           .clip(true)
-          .linearGradientBlur(this.presentation.scrollHiddenTopBlurHeightPx > 0 ? WEB_SCROLL_TOP_BLUR_RADIUS : 0, {
-            fractionStops: BrowserWebViewportCoordinator.resolveTopBlurFractionStops(this.presentation),
-            direction: GradientDirection.Bottom
-          })
+          .attributeModifier(browserSheetHeaderBlurModifier(this.presentation.scrollHiddenTopBlurHeightPx > 0 ? WEB_SCROLL_TOP_BLUR_RADIUS : 0, BrowserWebViewportCoordinator.resolveTopBlurFractionStops(this.presentation)))
 
           this.loadingProgress()
         }

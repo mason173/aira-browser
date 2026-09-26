@@ -24,6 +24,8 @@ import {
 import { DESKTOP_DIALOG_PADDING_VP } from '../../../core/browser/BrowserDialogPresentationTokens';
 import { AppEmptyState } from '../common/AppEmptyState';
 import { FloatingGlassMaterialSurface } from '../common/FloatingGlassMaterialSurface';
+import { HdsImmersiveMaterialSurface } from '../common/HdsImmersiveMaterialSurface';
+import { isHdsMaterialAvailable } from '../common/HdsImmersiveMaterialTokens';
 import {
   BROWSER_SHEET_IMMERSIVE_BOTTOM_PADDING,
   resolveBrowserSheetHeaderBlurRadius,
@@ -31,7 +33,8 @@ import {
   BrowserFeatureSheetHeader,
   BrowserImmersiveSheetLayout,
   BrowserSheetActionButton,
-  BrowserSheetIconButton
+  BrowserSheetIconButton,
+  browserSheetHeaderBlurModifier
 } from './BrowserModalBottomSheet';
 import { BrowserLargeScreenModalHeader } from './BrowserLargeScreenModalHeader';
 import {
@@ -75,6 +78,8 @@ const RESOURCE_IMAGE_PREVIEW_SIDE_PADDING: number = 16;
 const RESOURCE_TAB_INDEX_VIDEO: number = 0;
 const RESOURCE_TAB_INDEX_OTHER: number = 1;
 const BROWSER_RESOURCE_SHEET_CONTENT_TOP_PADDING: number = 136;
+const RESOURCE_TAB_BAR_HEIGHT: number = 36;
+const RESOURCE_TAB_BAR_HORIZONTAL_PADDING: number = 16;
 
 function describeKind(candidate: MediaResourceListItem): string {
   if (candidate.acquisition?.mode === 'paired_adaptive') {
@@ -268,6 +273,7 @@ export struct BrowserMediaResourcesSheet {
   onClose: () => void = () => {};
   @State private sheetHeaderBlurRadius: number = 0;
   @State private sheetScrollOffset: number = 0;
+  @State private tabBarWidth: number = 1;
   onAction: (candidateId: string, action: MediaResourceAction) => void = (_candidateId: string, _action: MediaResourceAction) => {};
 
   aboutToAppear(): void {
@@ -275,12 +281,18 @@ export struct BrowserMediaResourcesSheet {
     this.syncActiveTab();
   }
 
-  private noteSheetScrollDelta(delta: number): void {
-    if (!Number.isFinite(delta)) {
+  private sheetBlurScroller: Scroller = new Scroller();
+
+  private noteSheetScrollOffset(offset: number): void {
+    if (!Number.isFinite(offset)) {
       return;
     }
-    this.sheetScrollOffset = Math.max(0, this.sheetScrollOffset + delta);
-    this.sheetHeaderBlurRadius = resolveBrowserSheetHeaderBlurRadius(this.sheetScrollOffset);
+    const next = Math.max(0, offset);
+    if (next === this.sheetScrollOffset) {
+      return;
+    }
+    this.sheetScrollOffset = next;
+    this.sheetHeaderBlurRadius = resolveBrowserSheetHeaderBlurRadius(next);
   }
 
   private resetSheetHeaderBlur(): void {
@@ -309,7 +321,6 @@ export struct BrowserMediaResourcesSheet {
     }) {
       Stack() {
         BrowserImmersiveSheetLayout({
-          topBlurRadius: this.sheetHeaderBlurRadius,
           closeVisible: true,
           closeAccessibilityLabel: '关闭资源嗅探',
           onClose: (): void => {
@@ -380,40 +391,50 @@ export struct BrowserMediaResourcesSheet {
 
   @Builder
   private buildTabs() {
-    SegmentedTabs({
-      options: this.buildTabOptions(),
-      selectedId: this.activeTab,
-      barHeight: 36,
-      itemHeight: 30,
-      fontSize: 12,
-      barPadding: 3,
-      secondaryTextColor: this.storedSecondaryTextColor,
-      onSelect: (id: string) => {
-        this.activeTab = id as MediaResourceSurfaceTab;
-        this.syncSwiperToActiveTab(true);
-      }
-    })
+    Column() {
+      this.buildTabBar(true)
+    }
     .width('100%')
+    .padding({
+      left: RESOURCE_TAB_BAR_HORIZONTAL_PADDING,
+      right: RESOURCE_TAB_BAR_HORIZONTAL_PADDING
+    })
+    .onAreaChange((_oldArea: Area, newArea: Area) => {
+      // The immersive plate needs the bar's concrete width. A zero measurement collapses it.
+      this.tabBarWidth = Math.max(1, Number(newArea.width) - RESOURCE_TAB_BAR_HORIZONTAL_PADDING * 2);
+    })
   }
 
   @Builder
   private buildLargeScreenTabs() {
+    this.buildTabBar(false)
+  }
+
+  @Builder
+  private buildTabBar(immersive: boolean) {
     FloatingGlassMaterialSurface({
       surfaceWidth: '100%',
-      surfaceHeight: 36,
-      surfaceRadius: 18,
+      surfaceHeight: RESOURCE_TAB_BAR_HEIGHT,
+      surfaceRadius: RESOURCE_TAB_BAR_HEIGHT / 2,
       tintColor: resolveFloatingGlassMaterialTintForMode(this.storedResolvedThemeMode),
       fallbackColor: this.storedControlBackgroundColor,
+      hostMaterialActive: immersive && this.shouldUseHdsMaterial(),
       backgroundBlurEnabled: false
     }) {
+      if (immersive && this.shouldUseHdsMaterial()) {
+        HdsImmersiveMaterialSurface({
+          plateWidth: this.tabBarWidth,
+          plateHeight: RESOURCE_TAB_BAR_HEIGHT,
+          plateRadius: RESOURCE_TAB_BAR_HEIGHT / 2
+        })
+      }
       SegmentedTabs({
         options: this.buildTabOptions(),
         selectedId: this.activeTab,
-        barHeight: 36,
-        itemHeight: 30,
+        barHeight: RESOURCE_TAB_BAR_HEIGHT,
+        itemHeight: RESOURCE_TAB_BAR_HEIGHT - 6,
         fontSize: 14,
         barPadding: 3,
-        secondaryTextColor: this.storedSecondaryTextColor,
         fallbackColor: $r('sys.color.ohos_id_color_background_transparent'),
         barMaterialEnabled: false,
         onSelect: (id: string) => {
@@ -422,8 +443,12 @@ export struct BrowserMediaResourcesSheet {
         }
       })
         .width('100%')
-        .height(36)
+        .height(RESOURCE_TAB_BAR_HEIGHT)
     }
+  }
+
+  private shouldUseHdsMaterial(): boolean {
+    return isHdsMaterialAvailable();
   }
 
   @Builder
@@ -446,7 +471,7 @@ export struct BrowserMediaResourcesSheet {
 
   @Builder
   private buildResourcePage(tab: MediaResourceSurfaceTab) {
-    Scroll() {
+    Scroll(this.sheetBlurScroller) {
       Column() {
         if (this.filteredCandidatesForTab(tab).length === 0 && this.scanning) {
           AppEmptyState({
@@ -490,11 +515,13 @@ export struct BrowserMediaResourcesSheet {
     .height('100%')
     .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
     .scrollBar(BarState.Auto)
+    .clip(this.layoutMode !== 'phone')
+    .attributeModifier(browserSheetHeaderBlurModifier(this.layoutMode === 'phone' ? this.sheetHeaderBlurRadius : 0))
     .onAppear(() => {
       this.resetSheetHeaderBlur();
     })
-    .onDidScroll((delta: number) => {
-      this.noteSheetScrollDelta(delta);
+    .onDidScroll((_xOffset: number, yOffset: number) => {
+      this.noteSheetScrollOffset(this.sheetBlurScroller.currentOffset().yOffset);
     })
   }
 

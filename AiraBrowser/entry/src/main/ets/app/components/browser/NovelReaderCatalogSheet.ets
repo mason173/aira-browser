@@ -13,7 +13,8 @@ import { APP_STANDARD_HORIZONTAL_PADDING } from '../common/AppLayoutTokens';
 import { AiraIcon } from '../common/AiraIcon';
 import {
   BROWSER_SHEET_IMMERSIVE_TOP_BLUR_RADIUS,
-  BrowserSheetActionButton
+  BrowserSheetActionButton,
+  browserSheetHeaderBlurModifier
 } from './BrowserModalBottomSheet';
 
 const NOVEL_CATALOG_IMMERSIVE_CONTENT_TOP_PADDING: number = 146;
@@ -103,10 +104,7 @@ export struct NovelReaderCatalogSheet {
           top: NOVEL_CATALOG_IMMERSIVE_CONTENT_TOP_PADDING
         })
         .divider({ strokeWidth: 0.5, color: this.storedDividerColor })
-        .linearGradientBlur(BROWSER_SHEET_IMMERSIVE_TOP_BLUR_RADIUS, {
-          fractionStops: [[1, 0], [1, 0.05], [0, 0.14], [0, 1]],
-          direction: GradientDirection.Bottom
-        })
+        .attributeModifier(browserSheetHeaderBlurModifier(BROWSER_SHEET_IMMERSIVE_TOP_BLUR_RADIUS))
       }
 
       Column() {

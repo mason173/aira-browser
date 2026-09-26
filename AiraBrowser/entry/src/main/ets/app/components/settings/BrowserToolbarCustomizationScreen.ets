@@ -91,7 +91,8 @@ import {
   BROWSER_SHEET_IMMERSIVE_BOTTOM_PADDING,
   BROWSER_SHEET_IMMERSIVE_TOP_BLUR_RADIUS,
   BrowserImmersiveSheetLayout,
-  BrowserSheetIconButton
+  BrowserSheetIconButton,
+  browserSheetHeaderBlurModifier
 } from '../browser/BrowserModalBottomSheet';
 import { BrowserPhoneSettingsSheetHeader } from '../browser/BrowserPhoneSettingsSheetHeader';
 import { CenteredDialogSurface } from '../common/CenteredDialogSurface';
@@ -721,7 +722,6 @@ export struct BrowserToolbarCustomizationScreen {
     BrowserImmersiveSheetLayout({
       horizontalPadding: 0,
       headerTopInset: TOOLBAR_SHEET_MODAL_TOP_PADDING,
-      topBlurRadius: this.resolveSheetBlurRadius(kind),
       scrollContent: (): void => {
         this.buildToolbarSheetScroll(kind)
       },
@@ -773,10 +773,11 @@ export struct BrowserToolbarCustomizationScreen {
     .height('100%')
     .scrollBar(BarState.Off)
     .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
+    .attributeModifier(browserSheetHeaderBlurModifier(this.resolveSheetBlurRadius(kind)))
     .onAppear(() => {
       this.updateSheetHeaderBlur(kind);
     })
-    .onDidScroll((_delta: number, _state: ScrollState) => {
+    .onDidScroll(() => {
       this.updateSheetHeaderBlur(kind);
     })
     .clip(false)

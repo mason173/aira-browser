@@ -51,10 +51,50 @@ export const BROWSER_FEATURE_SHEET_HEADER_ICON_SIZE: number = 20;
 export const BROWSER_FEATURE_SHEET_HEADER_TITLE_SIZE: number = 21;
 export const BROWSER_FEATURE_SHEET_HEADER_ROW_HEIGHT: number = BROWSER_SHEET_MODAL_TITLE_BAR_HEIGHT;
 
-/** Blur stays off at rest and finishes within the first 8vp of upward scroll. */
+const BROWSER_SHEET_HEADER_BLUR_STOPS: Array<[number, number]> = [[1, 0], [1, 0.05], [0, 0.14], [0, 1]];
+
+/**
+ * Blur stays off at rest and finishes within the first 8vp of upward scroll.
+ * Pass the Scroll or List's currentOffset().yOffset, not an accumulated frame delta.
+ * Apply the result with browserSheetHeaderBlurModifier on that scroller. A parent
+ * wrapper does not blur a scrolling child, and attaching linearGradientBlur at
+ * radius 0 still creates a blur node, so the modifier omits it until the radius
+ * is above 0.
+ */
 export function resolveBrowserSheetHeaderBlurRadius(offset: number): number {
-  const progress = Math.min(1, Math.max(0, offset) / BROWSER_SHEET_BLUR_SCROLL_RANGE_VP);
+  if (!Number.isFinite(offset) || offset <= 0) {
+    return 0;
+  }
+  const progress = Math.min(1, offset / BROWSER_SHEET_BLUR_SCROLL_RANGE_VP);
   return BROWSER_SHEET_IMMERSIVE_TOP_BLUR_RADIUS * progress;
+}
+
+/** Skips the blur node entirely while the title area is at rest. */
+export class BrowserSheetHeaderBlurModifier implements AttributeModifier<CommonAttribute> {
+  private readonly radius: number;
+  private readonly fractionStops: Array<[number, number]>;
+
+  constructor(radius: number, fractionStops?: Array<[number, number]>) {
+    this.radius = radius;
+    this.fractionStops = fractionStops !== undefined ? fractionStops : BROWSER_SHEET_HEADER_BLUR_STOPS;
+  }
+
+  applyNormalAttribute(instance: CommonAttribute): void {
+    if (this.radius <= 0) {
+      return;
+    }
+    instance.linearGradientBlur(this.radius, {
+      fractionStops: this.fractionStops,
+      direction: GradientDirection.Bottom
+    });
+  }
+}
+
+export function browserSheetHeaderBlurModifier(
+  radius: number,
+  fractionStops?: Array<[number, number]>
+): BrowserSheetHeaderBlurModifier {
+  return new BrowserSheetHeaderBlurModifier(radius, fractionStops);
 }
 const BROWSER_MODAL_BOTTOM_OVERLAY_LOCAL_REVEAL_DELAY_MS: number = 16;
 
@@ -341,8 +381,6 @@ export struct BrowserImmersiveSheetLayout {
   @Prop horizontalPadding: number = BROWSER_MODAL_BOTTOM_SHEET_HORIZONTAL_PADDING;
   @Prop footerBottomPadding: number = BROWSER_SHEET_IMMERSIVE_BOTTOM_PADDING;
   @Prop footerVisible: boolean = false;
-  /** 0 hides the top gradient. Scroll-linked sheets pass a radius that starts at 0. */
-  @Prop topBlurRadius: number = 0;
   @Prop closeVisible: boolean = false;
   @Prop closeAccessibilityLabel: string = '关闭';
   onClose: () => void = () => {};
@@ -358,10 +396,6 @@ export struct BrowserImmersiveSheetLayout {
         }
         .width('100%')
         .height('100%')
-        .linearGradientBlur(this.topBlurRadius, {
-          fractionStops: [[1, 0], [1, 0.05], [0, 0.14], [0, 1]],
-          direction: GradientDirection.Bottom
-        })
 
         Column() {
           this.header()

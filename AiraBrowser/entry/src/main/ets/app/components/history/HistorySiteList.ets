@@ -17,6 +17,7 @@ import {
   BROWSER_THEME_STORAGE_SURFACE_BACKGROUND_KEY,
   BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY
 } from '../../../core/theme/BrowserThemeStorageKeys';
+import { browserSheetHeaderBlurModifier } from '../browser/BrowserModalBottomSheet';
 import {
   SiteIconListRenderState,
   SiteIconListTarget
@@ -69,10 +70,7 @@ export struct HistorySiteList {
     .height('100%')
     .padding({ left: 16, right: 16, bottom: 4 })
     .contentStartOffset(this.contentStartOffset)
-    .linearGradientBlur(HISTORY_SITE_LIST_TOP_BLUR_RADIUS, {
-      fractionStops: [[1, 0], [1, 0.05], [0, 0.14], [0, 1]],
-      direction: GradientDirection.Bottom
-    })
+    .attributeModifier(browserSheetHeaderBlurModifier(HISTORY_SITE_LIST_TOP_BLUR_RADIUS))
     .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
     .scrollBar(BarState.Auto)
     .cachedCount(HISTORY_SITE_LIST_CACHE_COUNT)

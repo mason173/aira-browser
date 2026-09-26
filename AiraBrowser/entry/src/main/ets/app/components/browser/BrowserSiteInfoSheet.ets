@@ -25,7 +25,8 @@ import {
   BrowserFeatureSheetHeader,
   BrowserImmersiveSheetLayout,
   BrowserSheetActionButton,
-  BrowserSheetIconButton
+  BrowserSheetIconButton,
+  browserSheetHeaderBlurModifier
 } from './BrowserModalBottomSheet';
 import {
   SettingsNavigationRow,
@@ -133,7 +134,6 @@ export struct BrowserSiteInfoSheet {
     Stack() {
       BrowserImmersiveSheetLayout({
         footerVisible: this.shouldShowPageFooter(),
-        topBlurRadius: this.sheetHeaderBlurRadius,
         scrollContent: () => {
           this.buildActivePageContent()
         },
@@ -174,12 +174,22 @@ export struct BrowserSiteInfoSheet {
     }
   }
 
-  private noteSheetScrollDelta(delta: number): void {
-    if (!Number.isFinite(delta)) {
+  private sheetBlurScroller0: Scroller = new Scroller();
+  private sheetBlurScroller1: Scroller = new Scroller();
+  private sheetBlurScroller2: Scroller = new Scroller();
+  private sheetBlurScroller3: Scroller = new Scroller();
+  private sheetBlurScroller4: Scroller = new Scroller();
+
+  private noteSheetScrollOffset(offset: number): void {
+    if (!Number.isFinite(offset)) {
       return;
     }
-    this.sheetScrollOffset = Math.max(0, this.sheetScrollOffset + delta);
-    this.sheetHeaderBlurRadius = resolveBrowserSheetHeaderBlurRadius(this.sheetScrollOffset);
+    const next = Math.max(0, offset);
+    if (next === this.sheetScrollOffset) {
+      return;
+    }
+    this.sheetScrollOffset = next;
+    this.sheetHeaderBlurRadius = resolveBrowserSheetHeaderBlurRadius(next);
   }
 
   private resetSheetHeaderBlur(): void {
@@ -218,7 +228,7 @@ export struct BrowserSiteInfoSheet {
 
   @Builder
   private buildSecurityReportContent() {
-    List({ space: 12 }) {
+    List({ scroller: this.sheetBlurScroller0, space: 12 }) {
       ListItem() {
         this.buildSecurityMetricRow()
       }
@@ -250,11 +260,13 @@ export struct BrowserSiteInfoSheet {
     .contentEndOffset(this.resolveContentBottomOffset())
     .scrollBar(BarState.Auto)
     .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
+    .clip(false)
+    .attributeModifier(browserSheetHeaderBlurModifier(this.sheetHeaderBlurRadius))
     .onAppear(() => {
       this.resetSheetHeaderBlur();
     })
-    .onDidScroll((delta: number) => {
-      this.noteSheetScrollDelta(delta);
+    .onDidScroll((scrollOffset: number) => {
+      this.noteSheetScrollOffset(this.sheetBlurScroller0.currentOffset().yOffset);
     })
   }
 
@@ -417,7 +429,7 @@ export struct BrowserSiteInfoSheet {
 
   @Builder
   private buildOverviewList() {
-    List({ space: 14 }) {
+    List({ scroller: this.sheetBlurScroller1, space: 14 }) {
       if (this.snapshot.isPrivateMode) {
         ListItem() {
           this.buildPrivateSessionGroup()
@@ -446,11 +458,13 @@ export struct BrowserSiteInfoSheet {
     .contentEndOffset(this.resolveContentBottomOffset())
     .scrollBar(BarState.Auto)
     .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
+    .clip(false)
+    .attributeModifier(browserSheetHeaderBlurModifier(this.sheetHeaderBlurRadius))
     .onAppear(() => {
       this.resetSheetHeaderBlur();
     })
-    .onDidScroll((delta: number) => {
-      this.noteSheetScrollDelta(delta);
+    .onDidScroll((scrollOffset: number) => {
+      this.noteSheetScrollOffset(this.sheetBlurScroller1.currentOffset().yOffset);
     })
   }
 
@@ -548,7 +562,7 @@ export struct BrowserSiteInfoSheet {
 
   @Builder
   private buildPermissionOptionList(kind: SitePermissionKind) {
-    Scroll() {
+    Scroll(this.sheetBlurScroller2) {
       Column({ space: 12 }) {
         SettingsGroupCard({ surfaceColor: this.storedSurfaceBackgroundColor }) {
           ForEach(this.getPermissionOptions(kind), (option: SitePermissionRuleOption, index: number) => {
@@ -572,11 +586,13 @@ export struct BrowserSiteInfoSheet {
     .height('100%')
     .scrollBar(BarState.Auto)
     .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
+    .clip(false)
+    .attributeModifier(browserSheetHeaderBlurModifier(this.sheetHeaderBlurRadius))
     .onAppear(() => {
       this.resetSheetHeaderBlur();
     })
-    .onDidScroll((delta: number) => {
-      this.noteSheetScrollDelta(delta);
+    .onDidScroll((_xOffset: number, yOffset: number) => {
+      this.noteSheetScrollOffset(this.sheetBlurScroller2.currentOffset().yOffset);
     })
   }
 
@@ -725,7 +741,7 @@ export struct BrowserSiteInfoSheet {
 
   @Builder
   private buildAdBlockLogContent() {
-    Scroll() {
+    Scroll(this.sheetBlurScroller3) {
       Column({ space: 8 }) {
         SettingsGroupCard({ surfaceColor: this.storedSurfaceBackgroundColor }) {
           this.buildAdBlockLogSummaryRow()
@@ -774,11 +790,13 @@ export struct BrowserSiteInfoSheet {
     .height('100%')
     .scrollBar(BarState.Auto)
     .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
+    .clip(false)
+    .attributeModifier(browserSheetHeaderBlurModifier(this.sheetHeaderBlurRadius))
     .onAppear(() => {
       this.resetSheetHeaderBlur();
     })
-    .onDidScroll((delta: number) => {
-      this.noteSheetScrollDelta(delta);
+    .onDidScroll((_xOffset: number, yOffset: number) => {
+      this.noteSheetScrollOffset(this.sheetBlurScroller3.currentOffset().yOffset);
     })
   }
 
@@ -849,7 +867,7 @@ export struct BrowserSiteInfoSheet {
 
   @Builder
   private buildCertificateDetailList() {
-    Scroll() {
+    Scroll(this.sheetBlurScroller4) {
       Column() {
         SettingsGroupCard({ surfaceColor: this.storedSurfaceBackgroundColor }) {
           this.buildCertificateDetailRow('连接状态', this.snapshot.session.certificate.detailStatus, 0, 9)
@@ -886,11 +904,13 @@ export struct BrowserSiteInfoSheet {
     .height('100%')
     .scrollBar(BarState.Auto)
     .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
+    .clip(false)
+    .attributeModifier(browserSheetHeaderBlurModifier(this.sheetHeaderBlurRadius))
     .onAppear(() => {
       this.resetSheetHeaderBlur();
     })
-    .onDidScroll((delta: number) => {
-      this.noteSheetScrollDelta(delta);
+    .onDidScroll((_xOffset: number, yOffset: number) => {
+      this.noteSheetScrollOffset(this.sheetBlurScroller4.currentOffset().yOffset);
     })
   }
 

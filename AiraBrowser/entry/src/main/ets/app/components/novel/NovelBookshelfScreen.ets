@@ -51,6 +51,7 @@ import {
 } from '../../../services/share/BrowserClipboardService';
 import { WebPageShareService } from '../../../services/share/WebPageShareService';
 import { BROWSER_WINDOW_SAFE_TOP_INSET_STORAGE_KEY } from '../../../core/browser/BrowserWindowAvoidAreaCoordinator';
+import { browserSheetHeaderBlurModifier } from '../browser/BrowserModalBottomSheet';
 
 const NOVEL_BOOKSHELF_BOTTOM_PADDING: number = 32;
 const NOVEL_BOOKSHELF_CONTEXT_MENU_DISMISS_DELAY_MS: number = 120;
@@ -337,10 +338,7 @@ export struct NovelBookshelfScreen {
       top: this.resolveGridContentTopInset(),
       bottom: NOVEL_BOOKSHELF_BOTTOM_PADDING
     })
-    .linearGradientBlur(this.resolveTopBlurRadius(), {
-      fractionStops: [[1, 0], [1, 0.05], [0, 0.14], [0, 1]],
-      direction: GradientDirection.Bottom
-    })
+    .attributeModifier(browserSheetHeaderBlurModifier(this.resolveTopBlurRadius()))
     .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
     .scrollBar(BarState.Auto)
   }
@@ -363,10 +361,7 @@ export struct NovelBookshelfScreen {
       top: this.resolveGridContentTopInset(),
       bottom: NOVEL_BOOKSHELF_BOTTOM_PADDING
     })
-    .linearGradientBlur(this.resolveTopBlurRadius(), {
-      fractionStops: [[1, 0], [1, 0.05], [0, 0.14], [0, 1]],
-      direction: GradientDirection.Bottom
-    })
+    .attributeModifier(browserSheetHeaderBlurModifier(this.resolveTopBlurRadius()))
     .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
     .scrollBar(BarState.Auto)
     .expandSafeArea(

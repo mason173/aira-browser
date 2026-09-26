@@ -17,7 +17,8 @@ import {
   BrowserBottomSheetSurface,
   BrowserFeatureSheetHeader,
   BrowserImmersiveSheetLayout,
-  BrowserSheetActionButton
+  BrowserSheetActionButton,
+  browserSheetHeaderBlurModifier
 } from '../browser/BrowserModalBottomSheet';
 const AD_BLOCK_RISK_SHEET_MAX_WIDTH: number = 540;
 const AD_BLOCK_RISK_BODY_MAX_HEIGHT: number = 420;
@@ -62,8 +63,7 @@ export struct AdBlockRiskConsentSheet {
   private buildImmersivePhoneLayout() {
     BrowserImmersiveSheetLayout({
       footerVisible: true,
-      topBlurRadius: this.sheetHeaderBlurRadius,
-      closeVisible: true,
+            closeVisible: true,
       closeAccessibilityLabel: '关闭广告拦截风险提示',
       onClose: (): void => {
         this.onDecline();
@@ -82,7 +82,7 @@ export struct AdBlockRiskConsentSheet {
 
   @Builder
   private buildPhoneScrollContent() {
-    Scroll() {
+    Scroll(this.sheetBlurScroller) {
       Column() {
         this.buildRiskContent()
       }
@@ -100,11 +100,12 @@ export struct AdBlockRiskConsentSheet {
     .scrollBar(BarState.Auto)
     .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
     .clip(false)
+    .attributeModifier(browserSheetHeaderBlurModifier(this.sheetHeaderBlurRadius))
     .onAppear(() => {
       this.resetSheetHeaderBlur();
     })
-    .onDidScroll((delta: number) => {
-      this.noteSheetScrollDelta(delta);
+    .onDidScroll((_xOffset: number, yOffset: number) => {
+      this.noteSheetScrollOffset(this.sheetBlurScroller.currentOffset().yOffset);
     })
   }
 
@@ -116,12 +117,18 @@ export struct AdBlockRiskConsentSheet {
     })
   }
 
-  private noteSheetScrollDelta(delta: number): void {
-    if (!Number.isFinite(delta)) {
+  private sheetBlurScroller: Scroller = new Scroller();
+
+  private noteSheetScrollOffset(offset: number): void {
+    if (!Number.isFinite(offset)) {
       return;
     }
-    this.sheetScrollOffset = Math.max(0, this.sheetScrollOffset + delta);
-    this.sheetHeaderBlurRadius = resolveBrowserSheetHeaderBlurRadius(this.sheetScrollOffset);
+    const next = Math.max(0, offset);
+    if (next === this.sheetScrollOffset) {
+      return;
+    }
+    this.sheetScrollOffset = next;
+    this.sheetHeaderBlurRadius = resolveBrowserSheetHeaderBlurRadius(next);
   }
 
   private resetSheetHeaderBlur(): void {

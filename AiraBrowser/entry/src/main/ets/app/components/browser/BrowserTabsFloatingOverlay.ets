@@ -85,6 +85,7 @@ import {
 import { AppChromeIconTone } from '../../../core/resources/AppIconResources';
 import { BrowserWindowRuntime } from '../../runtime/BrowserWindowRuntime';
 import { SiteIconListRenderState } from '../../../core/siteicons/SiteIconListPresenter';
+import { browserSheetHeaderBlurModifier } from './BrowserModalBottomSheet';
 
 const FLOATING_TABS_HORIZONTAL_PADDING: number = 16;
 const FLOATING_TABS_TOP_PADDING: number = 28;
@@ -637,10 +638,7 @@ export struct BrowserTabsFloatingOverlay {
       .width('100%')
       .height('100%')
       .opacity(this.resolveSurfaceProgress())
-      .linearGradientBlur(FLOATING_TABS_TOP_BLUR_RADIUS, {
-        fractionStops: FLOATING_TABS_TOP_BLUR_STOPS,
-        direction: GradientDirection.Bottom
-      })
+      .attributeModifier(browserSheetHeaderBlurModifier(FLOATING_TABS_TOP_BLUR_RADIUS, FLOATING_TABS_TOP_BLUR_STOPS))
       .hitTestBehavior((this.interactionEnabled && !this.exiting && !this.closeAllExitActive) ?
         HitTestMode.Default : HitTestMode.None)
       .zIndex(FLOATING_TABS_CROSS_DEVICE_LAYER_Z_INDEX)
@@ -699,10 +697,7 @@ export struct BrowserTabsFloatingOverlay {
       top: this.resolveContentTopPadding(),
       bottom: this.resolveContentBottomPadding()
     })
-    .linearGradientBlur(FLOATING_TABS_TOP_BLUR_RADIUS, {
-      fractionStops: FLOATING_TABS_TOP_BLUR_STOPS,
-      direction: GradientDirection.Bottom
-    })
+    .attributeModifier(browserSheetHeaderBlurModifier(FLOATING_TABS_TOP_BLUR_RADIUS, FLOATING_TABS_TOP_BLUR_STOPS))
     .scrollBar(BarState.Off)
     .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
     .hitTestBehavior((this.interactionEnabled && !this.closeAllExitActive) ?
@@ -753,10 +748,7 @@ export struct BrowserTabsFloatingOverlay {
       left: FLOATING_TABS_HORIZONTAL_PADDING,
       right: FLOATING_TABS_HORIZONTAL_PADDING
     })
-    .linearGradientBlur(FLOATING_TABS_TOP_BLUR_RADIUS, {
-      fractionStops: FLOATING_TABS_TOP_BLUR_STOPS,
-      direction: GradientDirection.Bottom
-    })
+    .attributeModifier(browserSheetHeaderBlurModifier(FLOATING_TABS_TOP_BLUR_RADIUS, FLOATING_TABS_TOP_BLUR_STOPS))
     .scrollBar(BarState.Off)
     .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
     .clip(false)
@@ -789,10 +781,7 @@ export struct BrowserTabsFloatingOverlay {
     // only while a card is in a vertical dismiss flight, otherwise the fly-out is cut at the stack
     // edge and reads as an instant vanish.
     .clip(this.deckSwipeTabId.length <= 0)
-    .linearGradientBlur(FLOATING_TABS_TOP_BLUR_RADIUS, {
-      fractionStops: FLOATING_TABS_TOP_BLUR_STOPS,
-      direction: GradientDirection.Bottom
-    })
+    .attributeModifier(browserSheetHeaderBlurModifier(FLOATING_TABS_TOP_BLUR_RADIUS, FLOATING_TABS_TOP_BLUR_STOPS))
     .hitTestBehavior(this.canInteractWithDeck() ? HitTestMode.Transparent : HitTestMode.None)
     .zIndex(FLOATING_TABS_CARDS_Z_INDEX)
     .gesture(

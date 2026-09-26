@@ -66,7 +66,8 @@ import {
   resolveBrowserSheetHeaderBlurRadius,
   BrowserBottomSheetSurface,
   BrowserFeatureSheetHeader,
-  BrowserImmersiveSheetLayout
+  BrowserImmersiveSheetLayout,
+  browserSheetHeaderBlurModifier
 } from '../browser/BrowserModalBottomSheet';
 import { applyDesktopDialogSheetChrome } from '../common/DesktopDialogSheetChrome';
 
@@ -343,7 +344,6 @@ export struct SyncAdditionalBackupHost {
         surfaceColor: this.storedPageBackgroundColor
       }) {
         BrowserImmersiveSheetLayout({
-          topBlurRadius: this.sheetHeaderBlurRadius,
           closeVisible: true,
           closeAccessibilityLabel: '关闭',
           onClose: (): void => {
@@ -370,12 +370,18 @@ export struct SyncAdditionalBackupHost {
     })
   }
 
-  private noteSheetScrollDelta(delta: number): void {
-    if (!Number.isFinite(delta)) {
+  private sheetBlurScroller: Scroller = new Scroller();
+
+  private noteSheetScrollOffset(offset: number): void {
+    if (!Number.isFinite(offset)) {
       return;
     }
-    this.sheetScrollOffset = Math.max(0, this.sheetScrollOffset + delta);
-    this.sheetHeaderBlurRadius = resolveBrowserSheetHeaderBlurRadius(this.sheetScrollOffset);
+    const next = Math.max(0, offset);
+    if (next === this.sheetScrollOffset) {
+      return;
+    }
+    this.sheetScrollOffset = next;
+    this.sheetHeaderBlurRadius = resolveBrowserSheetHeaderBlurRadius(next);
   }
 
   private resetSheetHeaderBlur(): void {
@@ -406,7 +412,7 @@ export struct SyncAdditionalBackupHost {
 
   @Builder
   private buildFrequencyPhoneScrollContent() {
-    Scroll() {
+    Scroll(this.sheetBlurScroller) {
       Column({ space: 12 }) {
         Text('选择额外备份自动执行的时间间隔。')
           .width('100%')
@@ -430,11 +436,12 @@ export struct SyncAdditionalBackupHost {
     .scrollBar(BarState.Auto)
     .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
     .clip(false)
+    .attributeModifier(browserSheetHeaderBlurModifier(this.sheetHeaderBlurRadius))
     .onAppear(() => {
       this.resetSheetHeaderBlur();
     })
-    .onDidScroll((delta: number) => {
-      this.noteSheetScrollDelta(delta);
+    .onDidScroll((_xOffset: number, yOffset: number) => {
+      this.noteSheetScrollOffset(this.sheetBlurScroller.currentOffset().yOffset);
     })
   }
 

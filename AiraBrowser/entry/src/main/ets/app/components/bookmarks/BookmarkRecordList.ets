@@ -28,6 +28,7 @@ import {
   BookmarkRecordActionId,
   BookmarkRecordActionView
 } from '../../../core/bookmarks/BookmarkRecordActionViewModel';
+import { browserSheetHeaderBlurModifier } from '../browser/BrowserModalBottomSheet';
 import {
   SiteIconListRenderState,
   SiteIconListTarget
@@ -173,10 +174,7 @@ export struct BookmarkRecordList {
       right: 16
     })
     .contentStartOffset(this.contentStartOffset)
-    .linearGradientBlur(BOOKMARK_LIST_TOP_BLUR_RADIUS, {
-      fractionStops: [[1, 0], [1, 0.05], [0, 0.14], [0, 1]],
-      direction: GradientDirection.Bottom
-    })
+    .attributeModifier(browserSheetHeaderBlurModifier(BOOKMARK_LIST_TOP_BLUR_RADIUS))
     .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
     .enableScrollInteraction(this.draggingNodeId.length === 0)
     .scrollBar(BarState.Off)

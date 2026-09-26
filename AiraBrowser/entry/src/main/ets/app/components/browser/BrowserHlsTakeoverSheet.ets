@@ -29,6 +29,7 @@ import {
   BrowserFeatureSheetHeader,
   BrowserImmersiveSheetLayout,
   BrowserSheetActionButton,
+  browserSheetHeaderBlurModifier
 } from './BrowserModalBottomSheet';
 import {
   BROWSER_MODAL_BOTTOM_OVERLAY_Z_INDEX,
@@ -77,7 +78,6 @@ struct BrowserHlsTakeoverSheet {
     }) {
       BrowserImmersiveSheetLayout({
         footerVisible: true,
-        topBlurRadius: this.sheetHeaderBlurRadius,
         closeVisible: true,
         closeAccessibilityLabel: '关闭',
         onClose: (): void => {
@@ -104,12 +104,18 @@ struct BrowserHlsTakeoverSheet {
     })
   }
 
-  private noteSheetScrollDelta(delta: number): void {
-    if (!Number.isFinite(delta)) {
+  private sheetBlurScroller: Scroller = new Scroller();
+
+  private noteSheetScrollOffset(offset: number): void {
+    if (!Number.isFinite(offset)) {
       return;
     }
-    this.sheetScrollOffset = Math.max(0, this.sheetScrollOffset + delta);
-    this.sheetHeaderBlurRadius = resolveBrowserSheetHeaderBlurRadius(this.sheetScrollOffset);
+    const next = Math.max(0, offset);
+    if (next === this.sheetScrollOffset) {
+      return;
+    }
+    this.sheetScrollOffset = next;
+    this.sheetHeaderBlurRadius = resolveBrowserSheetHeaderBlurRadius(next);
   }
 
   private resetSheetHeaderBlur(): void {
@@ -119,7 +125,7 @@ struct BrowserHlsTakeoverSheet {
 
   @Builder
   private buildBody() {
-    Scroll() {
+    Scroll(this.sheetBlurScroller) {
       Column({ space: 12 }) {
         this.buildCandidateCard()
         this.buildParseCard()
@@ -139,11 +145,12 @@ struct BrowserHlsTakeoverSheet {
     .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
     .scrollBar(BarState.Auto)
     .clip(false)
+    .attributeModifier(browserSheetHeaderBlurModifier(this.sheetHeaderBlurRadius))
     .onAppear(() => {
       this.resetSheetHeaderBlur();
     })
-    .onDidScroll((delta: number) => {
-      this.noteSheetScrollDelta(delta);
+    .onDidScroll((_xOffset: number, yOffset: number) => {
+      this.noteSheetScrollOffset(this.sheetBlurScroller.currentOffset().yOffset);
     })
   }
 

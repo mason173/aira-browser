@@ -34,6 +34,7 @@ import {
   SiteIconListTarget
 } from '../../../core/siteicons/SiteIconListPresenter';
 import { AiraIcon } from '../common/AiraIcon';
+import { browserSheetHeaderBlurModifier } from '../browser/BrowserModalBottomSheet';
 
 const HISTORY_TIMELINE_CACHE_COUNT: number = 4;
 const HISTORY_TIMELINE_GROUP_PADDING: number = 4;
@@ -135,10 +136,7 @@ export struct HistoryTimelineList {
     .height('100%')
     .padding({ left: 16, right: 16, bottom: 4 })
     .contentStartOffset(this.contentStartOffset)
-    .linearGradientBlur(HISTORY_TIMELINE_TOP_BLUR_RADIUS, {
-      fractionStops: [[1, 0], [1, 0.05], [0, 0.14], [0, 1]],
-      direction: GradientDirection.Bottom
-    })
+    .attributeModifier(browserSheetHeaderBlurModifier(HISTORY_TIMELINE_TOP_BLUR_RADIUS))
     .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
     .scrollBar(BarState.Off)
     .cachedCount(HISTORY_TIMELINE_CACHE_COUNT)
