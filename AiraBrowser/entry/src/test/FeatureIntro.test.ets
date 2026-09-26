@@ -2,6 +2,13 @@ import { describe, expect, it } from '@ohos/hypium';
 import { FeatureIntroViewModel } from '../main/ets/core/onboarding/FeatureIntroViewModel';
 import { resolveFeatureIntroLayout } from '../main/ets/core/onboarding/FeatureIntroLayoutPolicy';
 import {
+  clampFeatureIntroGateDrag,
+  featureIntroGateBackdropColor,
+  isFeatureIntroGateUnlocked,
+  resolveFeatureIntroGateLogoTop,
+  resolveFeatureIntroGateTravel
+} from '../main/ets/core/onboarding/FeatureIntroGatePolicy';
+import {
   resolveFeatureIntroExitDestination,
   resolveInitialOnboardingDestination
 } from '../main/ets/core/onboarding/FeatureIntroRoutePolicy';
@@ -30,6 +37,33 @@ export default function featureIntroTest(): void {
       expect(viewModel.isLast(2)).assertFalse();
       expect(viewModel.actionLabel(3)).assertEqual('立即体验');
       expect(viewModel.isLast(3)).assertTrue();
+      expect(viewModel.gateActionLabel()).assertEqual('向右滑动开始使用');
+      expect(viewModel.gateSkipLabel()).assertEqual('跳过');
+    });
+  });
+
+  describe('featureIntroGate', () => {
+    it('uses a black backdrop in dark mode and white otherwise', 0, () => {
+      expect(featureIntroGateBackdropColor('dark')).assertEqual('#000000');
+      expect(featureIntroGateBackdropColor('light')).assertEqual('#FFFFFF');
+    });
+
+    it('unlocks only after the knob travels almost the full track', 0, () => {
+      const travel = resolveFeatureIntroGateTravel(320);
+
+      expect(clampFeatureIntroGateDrag(-20, travel)).assertEqual(0);
+      expect(clampFeatureIntroGateDrag(travel + 40, travel)).assertEqual(travel);
+      expect(isFeatureIntroGateUnlocked(travel * 0.5, travel)).assertFalse();
+      expect(isFeatureIntroGateUnlocked(travel * 0.86, travel)).assertTrue();
+      expect(isFeatureIntroGateUnlocked(10, 0)).assertFalse();
+    });
+
+    it('keeps the logo in the upper middle without covering the slider', 0, () => {
+      const phoneTop = resolveFeatureIntroGateLogoTop(844, 36, 108);
+      const shortTop = resolveFeatureIntroGateLogoTop(480, 24, 96);
+
+      expect(phoneTop).assertEqual(236);
+      expect(shortTop < 480 - 96 - 120).assertTrue();
     });
   });
 

@@ -29,6 +29,8 @@ const FEATURE_INTRO_SLIDES: FeatureIntroSlide[] = [
 
 const FEATURE_INTRO_NEXT_LABEL: string = '下一步';
 const FEATURE_INTRO_DONE_LABEL: string = '立即体验';
+const FEATURE_INTRO_GATE_LABEL: string = '向右滑动开始使用';
+const FEATURE_INTRO_GATE_SKIP_LABEL: string = '跳过';
 
 export class FeatureIntroViewModel {
   slides(): FeatureIntroSlide[] {
@@ -37,6 +39,14 @@ export class FeatureIntroViewModel {
 
   actionLabel(index: number): string {
     return this.isLast(index) ? FEATURE_INTRO_DONE_LABEL : FEATURE_INTRO_NEXT_LABEL;
+  }
+
+  gateActionLabel(): string {
+    return FEATURE_INTRO_GATE_LABEL;
+  }
+
+  gateSkipLabel(): string {
+    return FEATURE_INTRO_GATE_SKIP_LABEL;
   }
 
   isLast(index: number): boolean {

@@ -20,7 +20,7 @@ export const FEATURE_INTRO_CONTENT_RESERVE_VP: number = 236;
 export const FEATURE_INTRO_MIN_VIDEO_HEIGHT_VP: number = 96;
 export const FEATURE_INTRO_MAX_VIDEO_HEIGHT_VP: number = 440;
 export const FEATURE_INTRO_BOTTOM_PADDING_VP: number = 24;
-export const FEATURE_INTRO_PAGE_BACKGROUND_COLOR: string = '#FFFFFF';
+
 
 /**
  * One intro video later fills this slot with cover. The slot keeps a 9:8 shape

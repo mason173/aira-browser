@@ -38,6 +38,26 @@ export class FeatureIntroCoordinator {
       });
   }
 
+  skipToBrowser(): void {
+    if (this.leaving) {
+      return;
+    }
+    this.leaving = true;
+    const leave = (): void => {
+      this.host.leave('browser');
+    };
+    sharedFeatureIntroRepository.completeCurrentVersion()
+      .then((): Promise<void> => {
+        return sharedStartupWelcomeIntroRepository.completeCurrentVersion().then((): void => undefined);
+      })
+      .then((): void => {
+        leave();
+      })
+      .catch((_error: Error) => {
+        leave();
+      });
+  }
+
   abandonLeave(): void {
     this.leaving = false;
   }
