@@ -94,6 +94,8 @@ export class BrowserWebScrollInteractionCoordinator {
   private recentScrollGestureUntilAt: number = 0;
   private programmaticScrollSuppressedUntilAt: number = 0;
   private lastScrollY: number = 0;
+  private splitAddressBarScrollNotePending: boolean = false;
+  private splitAddressBarScrollNoteTrack: boolean = false;
   private viewportCorrectionTabId: string = '';
   private viewportCorrectionRemainingPx: number = 0;
   private viewportCorrectionUntilAt: number = 0;
@@ -136,6 +138,7 @@ export class BrowserWebScrollInteractionCoordinator {
     if (viewportCorrection) {
       this.dependencies.bottomChromeScrollCoordinator.reset(tabId, scrollY);
       this.dependencies.topImmersionSessionCoordinator.resetScrollBaseline(tabId, scrollY);
+      this.queueSplitAddressBarScrollNote(false);
       return;
     }
     if (interaction.kind !== 'user') {
@@ -144,6 +147,7 @@ export class BrowserWebScrollInteractionCoordinator {
       );
       this.dependencies.bottomChromeScrollCoordinator.reset(tabId, scrollY);
       this.dependencies.topImmersionSessionCoordinator.resetScrollBaseline(tabId, scrollY);
+      this.queueSplitAddressBarScrollNote(false);
       if (interaction.reason === 'programmatic_suppressed') {
         this.restoreBottomChromeScrollPresentation(facts, 'programmatic_scroll_restore');
       }
@@ -155,6 +159,7 @@ export class BrowserWebScrollInteractionCoordinator {
     AiraScrollOscProbe.markSignal(
       `global:${tabId}`, scrollY, scrollY - probePreviousY, decision.reason, interaction.reason
     );
+    this.queueSplitAddressBarScrollNote(true);
     this.shell.applyBottomChromeDecision(decision);
     this.dependencies.topImmersionSessionCoordinator.handleScroll(
       tabId,
@@ -379,6 +384,23 @@ export class BrowserWebScrollInteractionCoordinator {
   beginHistoryReturnQuietWindow(now: number = Date.now()): void {
     this.cancelPendingSettle();
     this.suppressProgrammaticScroll(now);
+  }
+
+  takeSplitAddressBarScrollNote(): boolean {
+    if (!this.splitAddressBarScrollNotePending) {
+      return false;
+    }
+    this.splitAddressBarScrollNotePending = false;
+    return true;
+  }
+
+  wasSplitAddressBarScrollTracked(): boolean {
+    return this.splitAddressBarScrollNoteTrack;
+  }
+
+  private queueSplitAddressBarScrollNote(track: boolean): void {
+    this.splitAddressBarScrollNotePending = true;
+    this.splitAddressBarScrollNoteTrack = track;
   }
 
   getLastScrollY(): number {

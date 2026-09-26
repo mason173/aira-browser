@@ -235,8 +235,10 @@ import {
   resolveSplitToolbarCanGoBack,
   resolveSplitToolbarCanGoForward,
   resolveSplitToolbarHomeBackdrop,
+  canCollapseSplitAddressBarForTopImmersion,
   resolveSplitToolbarScrollBehavior,
   shouldCollapseSplitToolbarForScroll,
+  SplitAddressBarImmersionScrollCoordinator,
   shouldReserveSplitToolbarHomeInsets,
   shouldSuppressLegacyFloatingToolbar,
   SPLIT_TOOLBAR_ADDRESS_BLOCK_VP,
@@ -6391,6 +6393,7 @@ struct BrowserShellPage {
           this.activeTabId
         );
       }
+      this.noteSplitAddressBarScroll(this.activeTabId, this.browserWebScrollInteractionCoordinator.getLastScrollY(), false);
       this.alignWebViewportVisualTopInsetAfterSafeAreaSync(true, true);
     },
     applyExperimentSettings: (settings: BrowserExperimentSettings): void => {
@@ -8000,7 +8003,8 @@ struct BrowserShellPage {
       baseTopInsetPx: baseTopInsetPx,
       occupiedChromeHeightPx: this.quickSearchSwitchingPresentation.occupiedHeightPx
     });
-    if (!this.shouldUseSplitToolbarChrome() || this.showHomePage || this.shouldCollapseSplitToolbarBars()) {
+    if (!this.shouldUseSplitToolbarChrome() || this.showHomePage || this.shouldCollapseSplitToolbarBars() ||
+      this.splitAddressBarCollapsedByImmersion) {
       return visibleTopInsetPx;
     }
     return visibleTopInsetPx + SPLIT_TOOLBAR_ADDRESS_BLOCK_VP;
@@ -8477,6 +8481,45 @@ struct BrowserShellPage {
     });
   }
 
+  private splitAddressBarImmersionScrollCoordinator: SplitAddressBarImmersionScrollCoordinator =
+    new SplitAddressBarImmersionScrollCoordinator();
+  @State private splitAddressBarCollapsedByImmersion: boolean = false;
+
+  private canCollapseSplitAddressBarForTopImmersion(): boolean {
+    return canCollapseSplitAddressBarForTopImmersion({
+      splitChromeActive: this.shouldUseSplitToolbarChrome(),
+      homeScene: this.showHomePage,
+      addressFocused: this.webBottomAddressFocused,
+      keyboardInsetVp: this.rootKeyboardInsetVp,
+      topImmersionEnabled: this.webScrollGlobalImmersionEnabled || this.webScrollAlwaysTopImmersionEnabled
+    });
+  }
+
+  private consumeSplitAddressBarScrollNote(tabId: string): void {
+    if (!this.browserWebScrollInteractionCoordinator.takeSplitAddressBarScrollNote()) {
+      return;
+    }
+    this.noteSplitAddressBarScroll(
+      tabId,
+      this.browserWebScrollInteractionCoordinator.getLastScrollY(),
+      this.browserWebScrollInteractionCoordinator.wasSplitAddressBarScrollTracked()
+    );
+  }
+
+  private noteSplitAddressBarScroll(tabId: string, scrollOffsetY: number, track: boolean): void {
+    const decision = this.splitAddressBarImmersionScrollCoordinator.handleScroll({
+      tabId: tabId,
+      scrollOffsetY: scrollOffsetY,
+      eligible: this.canCollapseSplitAddressBarForTopImmersion(),
+      track: track
+    });
+    if (!decision.changed || this.splitAddressBarCollapsedByImmersion === decision.collapsed) {
+      return;
+    }
+    this.splitAddressBarCollapsedByImmersion = decision.collapsed;
+    this.syncSplitToolbarScrollViewport(true);
+  }
+
   private syncSplitToolbarScrollViewport(presentationChanged: boolean): void {
     if (!presentationChanged || !this.shouldUseSplitToolbarChrome() || this.showHomePage) {
       return;
@@ -8541,6 +8584,15 @@ struct BrowserShellPage {
       bottomSafeInsetVp: this.homeBottomSafeInsetVp,
       keyboardInsetVp: this.rootAddressKeyboardOverlayInsetVp,
       barsCollapsed: sessionMode === 'chrome' && this.shouldCollapseSplitToolbarBars(),
+      addressBarCollapsed: sessionMode === 'chrome' && this.splitAddressBarCollapsedByImmersion,
+      tabSwipeEnabled: sessionMode === 'chrome' && this.isAddressBarTabSwipeSceneEnabled() &&
+        !this.addressBarTabSwipeState.loadingPlaceholder,
+      tabSwipeActive: this.addressBarTabSwipeState.stage !== 'idle' &&
+        !this.addressBarTabSwipeState.loadingPlaceholder,
+      tabSwipeOffsetRatio: this.addressBarTabSwipeState.offsetX / (this.addressBarTabSwipeState.width + 12),
+      tabSwipeTargetAddress: this.addressBarTabSwipeState.targetAddress,
+      tabSwipeDirection: this.addressBarTabSwipeState.direction,
+      onTabSwipe: (event) => this.browserAddressBarTabSwipeCoordinator.handle(event),
       searchDismissVersion: this.splitToolbarSearchDismissVersion,
       pageBackgroundColor: this.themedHomeSurfaceBackground,
       barBackgroundColor: this.readSplitToolbarBarBackgroundColor(),
@@ -11212,6 +11264,7 @@ struct BrowserShellPage {
         sharedBrowsingActivitySignal.markBrowsingInteraction();
         this.browserWebBottomSafeAreaCoordinator.handleScroll(tabId);
         this.browserWebScrollInteractionCoordinator.handleScroll(tabId, event.yOffset);
+        this.consumeSplitAddressBarScrollNote(tabId);
       },
       onTouch: (tabId: string, event: TouchEvent) => {
         sharedBrowsingActivitySignal.markBrowsingInteraction();

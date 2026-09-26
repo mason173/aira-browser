@@ -6,8 +6,10 @@ import {
   resolveSplitToolbarCanGoBack,
   resolveSplitToolbarCanGoForward,
   resolveSplitToolbarHomeBackdrop,
+  canCollapseSplitAddressBarForTopImmersion,
   resolveSplitToolbarScrollBehavior,
   shouldCollapseSplitToolbarForScroll,
+  SplitAddressBarImmersionScrollCoordinator,
   shouldReserveSplitToolbarHomeInsets,
   shouldSuppressLegacyFloatingToolbar,
   SPLIT_TOOLBAR_ADDRESS_BLOCK_VP,
@@ -161,5 +163,59 @@ describe('BrowserToolbarChromeStylePolicy', () => {
     expect(viewModel.formatBehaviorTitle('compact', 'split')).assertEqual('固定');
     expect(viewModel.formatBehaviorTitle('hidden', 'split')).assertEqual('收起地址栏和工具栏');
     expect(viewModel.buildStateForBehavior('compact', 'floating').options.length).assertEqual(3);
+  });
+
+  it('collapses only the split address bar while top immersion is on and the page scrolls up', 0, () => {
+    expect(canCollapseSplitAddressBarForTopImmersion({
+      splitChromeActive: true,
+      homeScene: false,
+      addressFocused: false,
+      keyboardInsetVp: 0,
+      topImmersionEnabled: true
+    })).assertTrue();
+    expect(canCollapseSplitAddressBarForTopImmersion({
+      splitChromeActive: true,
+      homeScene: false,
+      addressFocused: false,
+      keyboardInsetVp: 0,
+      topImmersionEnabled: false
+    })).assertFalse();
+    expect(canCollapseSplitAddressBarForTopImmersion({
+      splitChromeActive: false,
+      homeScene: false,
+      addressFocused: false,
+      keyboardInsetVp: 0,
+      topImmersionEnabled: true
+    })).assertFalse();
+
+    const coordinator = new SplitAddressBarImmersionScrollCoordinator();
+    expect(coordinator.handleScroll({
+      tabId: 'tab',
+      scrollOffsetY: 0,
+      eligible: true,
+      track: true
+    }).collapsed).assertFalse();
+    expect(coordinator.handleScroll({
+      tabId: 'tab',
+      scrollOffsetY: 40,
+      eligible: true,
+      track: true
+    }).collapsed).assertTrue();
+    const kept = coordinator.handleScroll({
+      tabId: 'tab',
+      scrollOffsetY: 200,
+      eligible: true,
+      track: false
+    });
+    expect(kept.collapsed).assertTrue();
+    expect(kept.changed).assertFalse();
+    const restored = coordinator.handleScroll({
+      tabId: 'tab',
+      scrollOffsetY: 150,
+      eligible: true,
+      track: true
+    });
+    expect(restored.collapsed).assertFalse();
+    expect(restored.changed).assertTrue();
   });
 });

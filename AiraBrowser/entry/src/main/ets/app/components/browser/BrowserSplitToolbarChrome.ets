@@ -11,6 +11,7 @@ import {
   SPLIT_TOOLBAR_BOTTOM_BAR_VP,
   SPLIT_TOOLBAR_SCROLL_COLLAPSE_DURATION_MS
 } from '../../../core/browser/BrowserToolbarChromeStylePolicy';
+import { BrowserAddressBarTabSwipeEvent } from '../../../core/browser/BrowserAddressBarTabSwipePolicy';
 import { BrowserSplitToolbarButtonPresentation } from '../../../core/browser/BrowserSplitToolbarCustomizationViewModel';
 import { AiraRenderableIconId } from '../../../core/resources/GeneratedAiraIconCatalog';
 import { AiraIcon } from '../common/AiraIcon';
@@ -73,6 +74,20 @@ export struct BrowserSplitToolbarChrome {
   @Prop suppressHomeAddressBar: boolean = false;
   /** Existing scroll presentation asked both bars to leave. Search keeps the address row. */
   @Prop barsCollapsed: boolean = false;
+  /** Top immersion asked only the address row to leave. The bottom bar stays. */
+  @Prop addressBarCollapsed: boolean = false;
+  /** Same tab swipe as the floating address bar. The shell owns the switch. */
+  @Prop tabSwipeEnabled: boolean = false;
+  @Prop tabSwipeActive: boolean = false;
+  @Prop tabSwipeOffsetRatio: number = 0;
+  @Prop tabSwipeTargetAddress: string = '';
+  @Prop tabSwipeDirection: number = 0;
+  onTabSwipe: (event: BrowserAddressBarTabSwipeEvent) => void =
+    (_event: BrowserAddressBarTabSwipeEvent) => {};
+  @State private addressSwipeTextWidth: number = 0;
+  private tabSwipeGestureStarted: boolean = false;
+  private tabSwipeLastOffsetX: number = 0;
+  private tabSwipeLastOffsetY: number = 0;
   /** Negative keeps the split bottom-bar reserve. A homepage search session passes its own. */
   @Prop bottomChromeReserveVp: number = -1;
   @Prop pageBackgroundColor: ResourceColor = '#FFFFFF';
@@ -146,9 +161,9 @@ export struct BrowserSplitToolbarChrome {
       bottom: 8
     })
     .backgroundColor(this.resolveBarBackground())
-    .hitTestBehavior(this.shouldCollapseBars() ? HitTestMode.None : HitTestMode.BLOCK_HIERARCHY)
-    .translate({ y: this.shouldCollapseBars() ? -this.resolveCollapsedTopTravel() : 0 })
-    .opacity(this.shouldCollapseBars() ? 0 : 1)
+    .hitTestBehavior(this.shouldCollapseAddressBar() ? HitTestMode.None : HitTestMode.BLOCK_HIERARCHY)
+    .translate({ y: this.shouldCollapseAddressBar() ? -this.resolveCollapsedTopTravel() : 0 })
+    .opacity(this.shouldCollapseAddressBar() ? 0 : 1)
     .animation({
       duration: SPLIT_TOOLBAR_SCROLL_COLLAPSE_DURATION_MS,
       curve: Curve.EaseOut
@@ -224,8 +239,19 @@ export struct BrowserSplitToolbarChrome {
       Row()
         .width('100%')
         .height('100%')
-        .onClick(() => {
-          this.openSearch(this.editableAddress);
+        .gesture(
+          GestureGroup(
+            GestureMode.Exclusive,
+            PanGesture({ fingers: 1, direction: PanDirection.Horizontal, distance: 12 })
+              .onActionStart((event: GestureEvent) => { this.startTabSwipe(event); })
+              .onActionUpdate((event: GestureEvent) => { this.emitTabSwipe('update', event); })
+              .onActionEnd((event: GestureEvent) => { this.emitTabSwipe('end', event); })
+              .onActionCancel(() => { this.cancelTabSwipe(); }),
+            TapGesture().onAction(() => { this.openSearch(this.editableAddress); })
+          )
+        )
+        .onGestureJudgeBegin((info: GestureInfo, event: BaseGestureEvent) => {
+          return this.judgeTabSwipe(info, event);
         })
 
       Row() {
@@ -246,14 +272,23 @@ export struct BrowserSplitToolbarChrome {
           this.onOpenSiteInfo();
         })
 
-        Text(this.displayAddress)
-          .layoutWeight(1)
-          .fontSize(16)
-          .fontColor(this.textColor)
-          .textAlign(TextAlign.Center)
-          .maxLines(1)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
-          .hitTestBehavior(HitTestMode.None)
+        Stack({ alignContent: Alignment.Center }) {
+          this.buildAddressSwipeLine(this.displayAddress, this.resolveAddressSwipeOffset())
+          if (this.tabSwipeActive && this.tabSwipeTargetAddress.length > 0) {
+            this.buildAddressSwipeLine(this.tabSwipeTargetAddress,
+              this.resolveAddressSwipeOffset() - this.tabSwipeDirection * this.addressSwipeTextWidth)
+          }
+        }
+        .layoutWeight(1)
+        .height('100%')
+        .clip(true)
+        .hitTestBehavior(HitTestMode.None)
+        .onAreaChange((_old: Area, area: Area) => {
+          const width = area.width as number;
+          if (Number.isFinite(width) && width > 0 && width !== this.addressSwipeTextWidth) {
+            this.addressSwipeTextWidth = width;
+          }
+        })
 
         Button() {
           AiraIcon({
@@ -569,6 +604,87 @@ export struct BrowserSplitToolbarChrome {
 
   private shouldCollapseBars(): boolean {
     return this.barsCollapsed && !this.searching && this.sessionMode !== 'search_only';
+  }
+
+  private shouldCollapseAddressBar(): boolean {
+    return !this.homeScene && (this.barsCollapsed || this.addressBarCollapsed) &&
+      !this.searching && this.sessionMode !== 'search_only';
+  }
+
+  @Builder
+  private buildAddressSwipeLine(text: string, offsetX: number) {
+    Text(text)
+      .width('100%')
+      .fontSize(16)
+      .fontColor(this.textColor)
+      .textAlign(TextAlign.Center)
+      .maxLines(1)
+      .textOverflow({ overflow: TextOverflow.Ellipsis })
+      .translate({ x: offsetX })
+      .hitTestBehavior(HitTestMode.None)
+  }
+
+  private resolveAddressSwipeOffset(): number {
+    if (!this.tabSwipeActive) {
+      return 0;
+    }
+    const width = this.addressSwipeTextWidth > 0 ? this.addressSwipeTextWidth : 1;
+    const ratio = Number.isFinite(this.tabSwipeOffsetRatio) ?
+      Math.max(-1, Math.min(1, this.tabSwipeOffsetRatio)) : 0;
+    const offset = ratio * width;
+    return this.tabSwipeTargetAddress.length > 0 ? offset : Math.max(-24, Math.min(24, offset));
+  }
+
+  private judgeTabSwipe(info: GestureInfo, event: BaseGestureEvent): GestureJudgeResult {
+    if (info.type !== GestureControl.GestureType.PAN_GESTURE) {
+      return this.tabSwipeActive || this.tabSwipeGestureStarted ?
+        GestureJudgeResult.REJECT : GestureJudgeResult.CONTINUE;
+    }
+    if (this.tabSwipeGestureStarted) {
+      return GestureJudgeResult.CONTINUE;
+    }
+    const pan = event as PanGestureEvent;
+    return this.tabSwipeEnabled && !this.tabSwipeActive && !this.searching &&
+      Math.abs(pan.offsetX) > 1.2 * Math.abs(pan.offsetY) ?
+      GestureJudgeResult.CONTINUE : GestureJudgeResult.REJECT;
+  }
+
+  private startTabSwipe(event: GestureEvent): void {
+    if (!this.tabSwipeEnabled || this.tabSwipeActive || this.searching || this.tabSwipeGestureStarted) {
+      return;
+    }
+    this.tabSwipeGestureStarted = true;
+    this.emitTabSwipe('start', event);
+  }
+
+  private emitTabSwipe(phase: 'start' | 'update' | 'end', event: GestureEvent): void {
+    if (!this.tabSwipeGestureStarted) {
+      return;
+    }
+    this.tabSwipeLastOffsetX = Number.isFinite(event.offsetX) ? event.offsetX : 0;
+    this.tabSwipeLastOffsetY = Number.isFinite(event.offsetY) ? event.offsetY : 0;
+    if (phase === 'end') {
+      this.tabSwipeGestureStarted = false;
+    }
+    this.onTabSwipe({
+      phase,
+      offsetX: this.tabSwipeLastOffsetX,
+      offsetY: this.tabSwipeLastOffsetY,
+      velocityX: Number.isFinite(event.velocityX) ? event.velocityX : 0
+    });
+  }
+
+  private cancelTabSwipe(): void {
+    if (!this.tabSwipeGestureStarted) {
+      return;
+    }
+    this.tabSwipeGestureStarted = false;
+    this.onTabSwipe({
+      phase: 'cancel',
+      offsetX: this.tabSwipeLastOffsetX,
+      offsetY: this.tabSwipeLastOffsetY,
+      velocityX: 0
+    });
   }
 
   private resolveCollapsedTopTravel(): number {
