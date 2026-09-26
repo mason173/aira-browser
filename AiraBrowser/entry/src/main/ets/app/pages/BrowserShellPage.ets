@@ -10720,6 +10720,10 @@ struct BrowserShellPage {
   }
 
   private handleInterceptRequest(tabId: string, event: OnInterceptRequestEvent): WebResourceResponse | null {
+    const htmlFileResponse = this.documentViewerService.tryBuildHtmlFileResponse(event.request);
+    if (htmlFileResponse !== null) {
+      return htmlFileResponse;
+    }
     const response = this.browserSiteControlsRuntimeCoordinator.handleInterceptRequest(tabId, event.request);
     if (response === null) {
       const pageUrlForObserve = this.tabScopedEventContextCoordinator.resolvePageUrl(tabId);

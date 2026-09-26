@@ -1,3 +1,5 @@
+import { documentViewerHtmlFileTransport } from '../viewer/DocumentViewerHtmlFileTransport';
+
 export const TELEGRAM_WEB_NO_SERVICE_WORKER_PARAM: string = 'noServiceWorker';
 
 interface ParsedTelegramUrl {
@@ -19,7 +21,8 @@ export class TelegramWebCompatibilityService {
   }
 
   resolveVisibleUrl(url: string): string {
-    return url;
+    const viewerUrl = documentViewerHtmlFileTransport.resolveVisibleUrl(url);
+    return viewerUrl.length > 0 ? viewerUrl : url;
   }
 
   shouldRewriteMainFrameNavigation(url: string): boolean {

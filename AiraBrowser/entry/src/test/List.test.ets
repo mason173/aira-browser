@@ -83,6 +83,7 @@ import elementInspectionRuntimeScriptServiceTest from './ElementInspectionRuntim
 import elementInspectionOutlineMenuLayoutTest from './ElementInspectionOutlineMenuLayout.test';
 import webVideoPictureInPictureBackgroundPolicyTest from './WebVideoPictureInPictureBackgroundPolicy.test';
 import browserSplitToolbarCustomizationPolicyTest from './BrowserSplitToolbarCustomizationPolicy.test';
+import documentViewerHtmlFileTransportTest from './DocumentViewerHtmlFileTransport.test';
 
 export default function tests(): void {
   userScriptValueStateStoreTest();
@@ -168,4 +169,5 @@ export default function tests(): void {
   elementInspectionOutlineMenuLayoutTest();
   webVideoPictureInPictureBackgroundPolicyTest();
   browserSplitToolbarCustomizationPolicyTest();
+  documentViewerHtmlFileTransportTest();
 }

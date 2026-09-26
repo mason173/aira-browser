@@ -12,6 +12,7 @@ import { BrowserTabScopedEventContextCoordinator } from './BrowserTabScopedEvent
 import {
   sharedBrowserHttpsFirstNavigationService
 } from '../../services/web/BrowserHttpsFirstNavigationService';
+import { documentViewerHtmlFileTransport } from '../../services/viewer/DocumentViewerHtmlFileTransport';
 
 /**
  * How long a rewritten main-frame navigation waits before it is issued.
@@ -64,6 +65,14 @@ export class BrowserWebNavigationInterceptionCoordinator {
     input: BrowserWebNavigationMainFrameInput,
     host: BrowserWebNavigationInterceptionHost
   ): BrowserWebComponentWebUrlDecision {
+    if (documentViewerHtmlFileTransport.isTransportUrl(input.targetUrl)) {
+      const visibleUrl = documentViewerHtmlFileTransport.resolveVisibleUrl(input.targetUrl);
+      return {
+        action: 'allow_web',
+        targetUrl: visibleUrl.length > 0 ? visibleUrl : input.targetUrl,
+        reason: 'document_viewer_html_file'
+      };
+    }
     const context = this.tabScopedEventContextCoordinator.resolveContext(input.tabId);
     const isHttpFallbackBypass = sharedBrowserHttpsFirstNavigationService.beginMainFrameNavigation(
       input.tabId,

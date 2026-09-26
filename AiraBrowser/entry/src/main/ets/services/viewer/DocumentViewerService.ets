@@ -3,6 +3,8 @@ import { util } from '@kit.ArkTS';
 import { TabRecord } from '../../common/models/BrowserModels';
 import { BrowserWebLoadDataPayload } from '../../core/browser/BrowserWebLoadCoordinator';
 import { MarkdownDocumentViewerService } from '../markdown/MarkdownDocumentViewerService';
+import { documentViewerHtmlFileTransport } from './DocumentViewerHtmlFileTransport';
+import { buildDocumentViewerHtmlFileResponse } from './DocumentViewerHtmlFileResponse';
 
 export const DOCUMENT_VIEWER_URL_PREFIX: string = 'aira://document-viewer';
 
@@ -56,6 +58,7 @@ interface DocumentViewerHtmlInput {
 }
 
 const DOCUMENT_VIEWER_READ_CHUNK_BYTES: number = 1024 * 1024;
+const DOCUMENT_VIEWER_HTML_INLINE_MAX_BYTES: number = 1024 * 1024;
 const DOCUMENT_VIEWER_CHROME_POLICY_CACHE_LIMIT: number = 32;
 
 export class DocumentViewerService {
@@ -85,6 +88,40 @@ export class DocumentViewerService {
       return true;
     }
     return url.trim().startsWith(DOCUMENT_VIEWER_URL_PREFIX);
+  }
+
+  isHtmlDocumentViewerUrl(url: string): boolean {
+    const info = this.parseViewerUrl(url);
+    return info !== undefined && info.kind === 'html';
+  }
+
+  isHtmlFileTransportUrl(url: string): boolean {
+    return documentViewerHtmlFileTransport.isTransportUrl(url);
+  }
+
+  resolveHtmlFileTransportUrl(url: string): string {
+    const normalized = url.trim();
+    if (documentViewerHtmlFileTransport.isTransportUrl(normalized)) {
+      return normalized;
+    }
+    const info = this.parseViewerUrl(normalized);
+    if (info === undefined || info.kind !== 'html' || info.fileUri.trim().length === 0) {
+      return normalized;
+    }
+    const transportUrl = documentViewerHtmlFileTransport.register(normalized, info.fileUri);
+    return transportUrl.length > 0 ? transportUrl : normalized;
+  }
+
+  tryBuildHtmlFileResponse(request: WebResourceRequest): WebResourceResponse | null {
+    let requestUrl = '';
+    let isMainFrame = false;
+    try {
+      requestUrl = request.getRequestUrl();
+      isMainFrame = request.isMainFrame();
+    } catch (_error) {
+      return null;
+    }
+    return buildDocumentViewerHtmlFileResponse(requestUrl, isMainFrame);
   }
 
   parseViewerUrl(url: string): DocumentViewerInfo | undefined {
@@ -215,6 +252,9 @@ export class DocumentViewerService {
       return undefined;
     }
     try {
+      if (info.kind === 'html') {
+        await this.rejectOversizedHtmlFile(info.fileUri);
+      }
       const text = await this.readTextFile(info.fileUri);
       if (info.kind === 'html') {
         const html = text.trim().length > 0 ? text : this.buildHtml({
@@ -319,6 +359,17 @@ export class DocumentViewerService {
       baseUrl: DOCUMENT_VIEWER_URL_PREFIX,
       historyUrl: historyUrl
     };
+  }
+
+  private async rejectOversizedHtmlFile(uri: string): Promise<void> {
+    const stat = await fileIo.stat(uri);
+    if (stat.isDirectory()) {
+      throw new Error('请选择文件。');
+    }
+    const totalBytes = Math.max(0, Math.floor(stat.size));
+    if (totalBytes > DOCUMENT_VIEWER_HTML_INLINE_MAX_BYTES) {
+      throw new Error('这个 HTML 文件太大，无法整份读入。');
+    }
   }
 
   private async readTextFile(uri: string): Promise<string> {

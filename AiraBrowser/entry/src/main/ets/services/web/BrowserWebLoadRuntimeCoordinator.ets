@@ -169,7 +169,8 @@ export class BrowserWebLoadRuntimeCoordinator implements BrowserWebLoadExecution
   }
 
   resolveRuntimeLoadUrl(targetUrl: string, tabId: string): string {
-    return this.dependencies.visibleUrlService.resolveLoadUrl(targetUrl);
+    const loadedUrl = this.dependencies.visibleUrlService.resolveLoadUrl(targetUrl);
+    return this.dependencies.resolveDocumentViewerService().resolveHtmlFileTransportUrl(loadedUrl);
   }
 
   syncEventContext(tabId: string, targetUrl: string, strict: boolean): void {
@@ -246,7 +247,8 @@ export class BrowserWebLoadRuntimeCoordinator implements BrowserWebLoadExecution
       runtimeTargetUrl,
       clearHistory
     );
-    if (this.dependencies.resolveOfflineFastFailureCoordinator().applyIfNeeded(tabId, runtimeTargetUrl)) {
+    if (!this.dependencies.resolveDocumentViewerService().isHtmlFileTransportUrl(runtimeTargetUrl) &&
+      this.dependencies.resolveOfflineFastFailureCoordinator().applyIfNeeded(tabId, runtimeTargetUrl)) {
       hilog.info(
         BROWSER_HOME_SUBMIT_DIAGNOSTIC_DOMAIN,
         BROWSER_HOME_SUBMIT_DIAGNOSTIC_TAG,
@@ -738,6 +740,22 @@ export class BrowserWebLoadRuntimeCoordinator implements BrowserWebLoadExecution
           if (archiveUri.length > 0) {
             this.loadUrlForTab(tabId, archiveUri, true, false, true, 'SavedPageArchive');
           }
+        })
+        .catch((_error: Error): void => {});
+      return;
+    }
+    const documentViewerService = this.dependencies.resolveDocumentViewerService();
+    if (documentViewerService.isHtmlDocumentViewerUrl(targetUrl)) {
+      Promise.resolve()
+        .then((): void => {
+          if (!this.isTabStillTargetingUrl(tabId, targetUrl)) {
+            return;
+          }
+          const transportUrl = documentViewerService.resolveHtmlFileTransportUrl(targetUrl);
+          if (transportUrl === targetUrl.trim()) {
+            return;
+          }
+          this.loadUrlForTab(tabId, transportUrl, true, false, true, 'DocumentViewerHtmlFile');
         })
         .catch((_error: Error): void => {});
       return;
