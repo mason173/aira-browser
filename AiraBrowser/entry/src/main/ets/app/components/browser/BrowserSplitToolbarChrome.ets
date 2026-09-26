@@ -28,7 +28,6 @@ const SPLIT_TOOLBAR_PILL_HEIGHT: number = 46;
 const SPLIT_TOOLBAR_SEARCH_PILL_BORDER: number = 2;
 const SPLIT_TOOLBAR_ADDRESS_HORIZONTAL_MARGIN: number = 16;
 const SPLIT_TOOLBAR_TAB_COUNT_LIMIT: number = 99;
-const SPLIT_TOOLBAR_SELECT_ALL_DELAY_MS: number = 40;
 const SPLIT_TOOLBAR_NAV_BUTTON_WIDTH: number = 48;
 const SPLIT_TOOLBAR_NAV_BUTTON_HEIGHT: number = 44;
 const SPLIT_TOOLBAR_NAV_PRESS_RADIUS: number = 12;
@@ -37,6 +36,7 @@ const SPLIT_TOOLBAR_TAB_BADGE_SIZE: number = 21;
 const SPLIT_TOOLBAR_TAB_BADGE_RADIUS: number = 5.25;
 const SPLIT_TOOLBAR_TAB_BADGE_STROKE: number = 2;
 const SPLIT_TOOLBAR_SEARCH_INPUT_ID: string = 'split-toolbar-search-input';
+const SPLIT_TOOLBAR_SELECT_ALL_DELAY_MS: number = 50;
 
 /** `search_only` reuses this search page without mounting the split navigation bar. */
 export type BrowserSplitToolbarSessionMode = 'chrome' | 'search_only';
@@ -46,6 +46,8 @@ export struct BrowserSplitToolbarChrome {
   private searchEnginePresentation: BrowserSearchEnginePresentationViewModel =
     new BrowserSearchEnginePresentationViewModel();
   private searchInputController: TextInputController = new TextInputController();
+  private addressSelectAllTimeout: number = -1;
+  @State private selectAllAddressOnOpen: boolean = false;
   private appliedSearchDismissVersion: number = 0;
   private appliedSearchOpenRequestVersion: number = 0;
   private externalAppSearchService: ExternalAppSearchService = new ExternalAppSearchService();
@@ -142,13 +144,19 @@ export struct BrowserSplitToolbarChrome {
   @Builder
   private buildTopBar() {
     Column() {
-      if (this.searching || this.sessionMode === 'search_only') {
+      Stack() {
         this.buildSearchPill()
-      } else if (this.homeScene) {
-        this.buildHomePill()
-      } else {
-        this.buildAddressPill()
+        if (!this.searching && this.sessionMode !== 'search_only') {
+          if (this.homeScene) {
+            this.buildHomePill()
+          } else {
+            this.buildAddressPill()
+          }
+        }
       }
+      .width('100%')
+      .height(SPLIT_TOOLBAR_PILL_HEIGHT)
+
       if (this.engineMenuOpen) {
         this.buildEngineMenu()
       }
@@ -180,6 +188,7 @@ export struct BrowserSplitToolbarChrome {
         .height('100%')
         .onClick(() => {
           this.openSearch('');
+          this.focusSearchInput();
         })
 
       Row() {
@@ -247,7 +256,10 @@ export struct BrowserSplitToolbarChrome {
               .onActionUpdate((event: GestureEvent) => { this.emitTabSwipe('update', event); })
               .onActionEnd((event: GestureEvent) => { this.emitTabSwipe('end', event); })
               .onActionCancel(() => { this.cancelTabSwipe(); }),
-            TapGesture().onAction(() => { this.openSearch(this.editableAddress); })
+            TapGesture().onAction(() => {
+              this.openSearch(this.editableAddress);
+              this.focusSearchInput();
+            })
           )
         )
         .onGestureJudgeBegin((info: GestureInfo, event: BaseGestureEvent) => {
@@ -357,9 +369,20 @@ export struct BrowserSplitToolbarChrome {
         .focusable(true)
         .enableKeyboardOnFocus(true)
         .onAppear(() => {
-          focusControl.requestFocus(SPLIT_TOOLBAR_SEARCH_INPUT_ID);
+          if (this.sessionMode === 'search_only') {
+            this.focusSearchInput();
+          }
+        })
+        .onEditChange((editing: boolean) => {
+          if (editing) {
+            this.finishAddressSelectAll();
+          }
         })
         .onChange((value: string) => {
+          if (value === this.query) {
+            return;
+          }
+          this.selectAllAddressOnOpen = false;
           this.query = value;
           this.onSearchSessionChange(true, value);
         })
@@ -458,6 +481,9 @@ export struct BrowserSplitToolbarChrome {
             this.searching = false;
             this.engineMenuOpen = false;
             this.query = '';
+            this.selectAllAddressOnOpen = false;
+            this.clearAddressSelectAllTimeout();
+            this.releaseSearchInputFocus();
             this.onSearchSessionChange(false, '');
             this.onExternalSearch(targetId, query);
           }
@@ -512,21 +538,51 @@ export struct BrowserSplitToolbarChrome {
   }
 
   private openSearch(prefill: string): void {
+    this.clearAddressSelectAllTimeout();
     this.query = prefill;
+    this.selectAllAddressOnOpen = prefill.length > 0;
     this.searching = true;
     this.engineMenuOpen = false;
     this.onSearchSessionChange(true, prefill);
-    setTimeout(() => {
-      if (!this.searching) {
+  }
+
+  private focusSearchInput(): void {
+    if (!this.searching) {
+      return;
+    }
+    focusControl.requestFocus(SPLIT_TOOLBAR_SEARCH_INPUT_ID);
+  }
+
+  private releaseSearchInputFocus(): void {
+    focusControl.requestFocus('');
+  }
+
+  private finishAddressSelectAll(): void {
+    if (!this.selectAllAddressOnOpen || this.addressSelectAllTimeout >= 0) {
+      return;
+    }
+    const length = this.query.length;
+    if (length <= 0) {
+      return;
+    }
+    this.selectAllAddressOnOpen = false;
+    this.addressSelectAllTimeout = setTimeout(() => {
+      this.addressSelectAllTimeout = -1;
+      if (!this.searching || this.query.length !== length) {
         return;
       }
-      focusControl.requestFocus(SPLIT_TOOLBAR_SEARCH_INPUT_ID);
-      if (prefill.length > 0) {
-        this.searchInputController.setTextSelection(0, prefill.length, {
-          menuPolicy: MenuPolicy.HIDE
-        });
-      }
+      this.searchInputController.setTextSelection(0, length, {
+        menuPolicy: MenuPolicy.HIDE
+      });
     }, SPLIT_TOOLBAR_SELECT_ALL_DELAY_MS);
+  }
+
+  private clearAddressSelectAllTimeout(): void {
+    if (this.addressSelectAllTimeout < 0) {
+      return;
+    }
+    clearTimeout(this.addressSelectAllTimeout);
+    this.addressSelectAllTimeout = -1;
   }
 
   private handleSearchDismissRequest(): void {
@@ -554,6 +610,9 @@ export struct BrowserSplitToolbarChrome {
     this.searching = false;
     this.engineMenuOpen = false;
     this.query = '';
+    this.selectAllAddressOnOpen = false;
+    this.clearAddressSelectAllTimeout();
+    this.releaseSearchInputFocus();
     this.onSearchSessionChange(false, '');
   }
 
@@ -565,6 +624,9 @@ export struct BrowserSplitToolbarChrome {
     this.searching = false;
     this.engineMenuOpen = false;
     this.query = '';
+    this.selectAllAddressOnOpen = false;
+    this.clearAddressSelectAllTimeout();
+    this.releaseSearchInputFocus();
     this.onSearchSessionChange(false, '');
     this.onSubmit(trimmed);
   }
@@ -573,6 +635,9 @@ export struct BrowserSplitToolbarChrome {
     this.searching = false;
     this.engineMenuOpen = false;
     this.query = '';
+    this.selectAllAddressOnOpen = false;
+    this.clearAddressSelectAllTimeout();
+    this.releaseSearchInputFocus();
     this.onSearchSessionChange(false, '');
     this.onOpenSuggestion(suggestion);
   }
