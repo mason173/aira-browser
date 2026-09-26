@@ -1,4 +1,5 @@
 import { BrowserToolbarPreview } from './BrowserToolbarPreview';
+import { BrowserSplitToolbarButtonRow } from '../browser/BrowserSplitToolbarChrome';
 import { DEFAULT_THEME_PALETTE } from '../../../features/theme/palettes/DefaultThemePalette';
 import { showCenteredAlertDialog } from '../common/CenteredDialogSurface';
 import {
@@ -21,6 +22,16 @@ import {
   BrowserToolbarSlotInteractionState,
   BrowserToolbarSlotId
 } from '../../../core/browser/BrowserToolbarCustomizationViewModel';
+import {
+  BrowserSplitToolbarCustomizationViewModel,
+  BrowserSplitToolbarSlotDetail
+} from '../../../core/browser/BrowserSplitToolbarCustomizationViewModel';
+import {
+  BrowserSplitToolbarInteractionKind,
+  BrowserSplitToolbarScene,
+  BrowserSplitToolbarSlotId,
+  isSplitToolbarSlotId
+} from '../../../core/browser/BrowserSplitToolbarCustomizationPolicy';
 import {
   BrowserBottomChromePresentation,
   BrowserBottomChromePresentationViewModel,
@@ -87,12 +98,14 @@ const TOOLBAR_SLOT_RADIO_GROUP_PREFIX: string = 'browser-toolbar-slot-action';
 const TOOLBAR_CENTER_CAPSULE_RADIO_GROUP: string = 'browser-toolbar-center-capsule-swipe-up';
 type BrowserToolbarSlotSheetMode = 'overview' | 'picker';
 /** Which question the toolbar's single Sheet is asking. */
-type BrowserToolbarSheetQuestion = 'slot' | 'center_capsule';
+type BrowserToolbarSheetQuestion = 'slot' | 'center_capsule' | 'split_slot';
 export type BrowserToolbarDesktopView = 'overview' | 'scroll_behavior';
 
 @Component
 export struct BrowserToolbarCustomizationScreen {
   private viewModel: BrowserToolbarCustomizationViewModel = new BrowserToolbarCustomizationViewModel();
+  private splitViewModel: BrowserSplitToolbarCustomizationViewModel =
+    new BrowserSplitToolbarCustomizationViewModel();
   private chromePresentationViewModel: BrowserBottomChromePresentationViewModel =
     new BrowserBottomChromePresentationViewModel();
   private scrollBehaviorViewModel: BrowserToolbarScrollBehaviorSettingsViewModel =
@@ -138,6 +151,8 @@ export struct BrowserToolbarCustomizationScreen {
    */
   @State private toolbarPreviewWidth: number = 0;
   @State private selectedSlotId: BrowserToolbarSlotId = 'leading';
+  @State private splitPreviewScene: BrowserSplitToolbarScene = 'home';
+  @State private selectedSplitSlotId: BrowserSplitToolbarSlotId = 'homeLeading';
   @State private selectedInteractionKind: BrowserToolbarInteractionKind = 'tap';
   @State private slotSheetMode: BrowserToolbarSlotSheetMode = 'overview';
   @State private slotSheetRevision: number = 0;
@@ -446,38 +461,112 @@ export struct BrowserToolbarCustomizationScreen {
         surfaceColor: this.storedSurfaceBackgroundColor,
         desktopPresentation: this.desktopPresentation
       }) {
-        Column() {
-          if (this.toolbarPreviewWidth > 1) {
-            BrowserToolbarPreview({
-              presentation: this.buildToolbarPreviewPresentation(),
-              surfaceColor: this.storedSurfaceBackgroundColor,
-              iconColor: resolveBrowserBottomNeutralPrimaryColor(this.storedResolvedThemeMode),
-              textColor: resolveBrowserBottomNeutralPrimaryColor(this.storedResolvedThemeMode),
-              viewportColor: resolveBrowserBottomNeutralPressedColor(this.storedResolvedThemeMode),
-              edgeHighlightColor: this.resolvePreviewEdgeHighlightColor(),
-              onIntent: (intent: BrowserBottomChromeTapIntent): void => {
-                this.handleToolbarPreviewIntent(intent);
-              }
-            })
-              .width('100%')
-              .height(TOOLBAR_PREVIEW_HEIGHT)
-          }
+        if (this.toolbarChromeStyle === 'split') {
+          this.buildSplitToolbarPreview()
+        } else {
+          this.buildFloatingToolbarPreview()
         }
-        .width('100%')
-        .height(TOOLBAR_PREVIEW_SECTION_HEIGHT)
-        .padding({ top: 12, bottom: 12 })
-        .onAreaChange((_oldArea: Area, newArea: Area) => {
-          const width = this.parseAreaDimension(newArea.width);
-          if (width > 1 && Math.abs(width - this.toolbarPreviewWidth) > 1) {
-            this.toolbarPreviewWidth = width;
-          }
-        })
       }
       SettingsFooterText({
-        text: '点击按钮可分别设置单击、长按和两侧按钮上滑动作。',
+        text: this.resolvePreviewFooterText(),
         secondaryTextColor: this.storedSecondaryTextColor
       })
     }
+  }
+
+  @Builder
+  private buildFloatingToolbarPreview() {
+    Column() {
+      if (this.toolbarPreviewWidth > 1) {
+        BrowserToolbarPreview({
+          presentation: this.buildToolbarPreviewPresentation(),
+          surfaceColor: this.storedSurfaceBackgroundColor,
+          iconColor: resolveBrowserBottomNeutralPrimaryColor(this.storedResolvedThemeMode),
+          textColor: resolveBrowserBottomNeutralPrimaryColor(this.storedResolvedThemeMode),
+          viewportColor: resolveBrowserBottomNeutralPressedColor(this.storedResolvedThemeMode),
+          edgeHighlightColor: this.resolvePreviewEdgeHighlightColor(),
+          onIntent: (intent: BrowserBottomChromeTapIntent): void => {
+            this.handleToolbarPreviewIntent(intent);
+          }
+        })
+          .width('100%')
+          .height(TOOLBAR_PREVIEW_HEIGHT)
+      }
+    }
+    .width('100%')
+    .height(TOOLBAR_PREVIEW_SECTION_HEIGHT)
+    .padding({ top: 12, bottom: 12 })
+    .onAreaChange((_oldArea: Area, newArea: Area) => {
+      const width = this.parseAreaDimension(newArea.width);
+      if (width > 1 && Math.abs(width - this.toolbarPreviewWidth) > 1) {
+        this.toolbarPreviewWidth = width;
+      }
+    })
+  }
+
+  @Builder
+  private buildSplitToolbarPreview() {
+    Column({ space: 12 }) {
+      this.buildSplitSceneSwitch()
+      BrowserSplitToolbarButtonRow({
+        buttons: this.splitViewModel.buildPresentations(
+          this.settings,
+          this.splitPreviewScene,
+          true,
+          true
+        ),
+        homeScene: this.splitPreviewScene === 'home',
+        tabCount: 1,
+        textColor: this.storedPrimaryTextColor,
+        secondaryTextColor: this.storedSecondaryTextColor,
+        pressedBackgroundColor: this.resolvePressedBackgroundColor(),
+        onTap: (slotId: string): void => {
+          this.openSplitSlotSheet(slotId);
+        },
+        onLongPress: (slotId: string): void => {
+          this.openSplitSlotSheet(slotId);
+        }
+      })
+        .width('100%')
+        .height(56)
+    }
+    .width('100%')
+    .padding({ left: 8, right: 8, top: 12, bottom: 12 })
+  }
+
+  @Builder
+  private buildSplitSceneSwitch() {
+    Row() {
+      this.buildSplitSceneChip('home', '主页')
+      this.buildSplitSceneChip('web', '网页')
+    }
+    .width('100%')
+    .height(36)
+    .borderRadius(18)
+    .clip(true)
+    .padding(2)
+    .backgroundColor(this.resolvePressedBackgroundColor())
+  }
+
+  @Builder
+  private buildSplitSceneChip(scene: BrowserSplitToolbarScene, title: string) {
+    Button() {
+      Text(title)
+        .fontSize(14)
+        .fontWeight(this.splitPreviewScene === scene ? FontWeight.Medium : FontWeight.Regular)
+        .fontColor(this.splitPreviewScene === scene ?
+          this.storedPrimaryTextColor : this.storedSecondaryTextColor)
+    }
+    .layoutWeight(1)
+    .height(32)
+    .backgroundColor(this.splitPreviewScene === scene ?
+      this.storedSurfaceBackgroundColor : Color.Transparent)
+    .borderRadius(16)
+    .type(ButtonType.Normal)
+    .stateEffect(false)
+    .onClick(() => {
+      this.selectSplitPreviewScene(scene);
+    })
   }
 
   @Builder
@@ -498,6 +587,8 @@ export struct BrowserToolbarCustomizationScreen {
         this.buildCenterCapsuleSwipeUpSheetContent()
       } else if (this.slotSheetMode === 'picker') {
         this.buildInteractionActionPicker()
+      } else if (this.sheetQuestion === 'split_slot') {
+        this.buildSplitSlotOverview()
       } else {
         this.buildSlotInteractionOverview()
       }
@@ -553,6 +644,78 @@ export struct BrowserToolbarCustomizationScreen {
         }
       }, (option: BrowserToolbarCenterCapsuleSwipeUpOptionState) => option.actionId)
     }
+  }
+
+  @Builder
+  private buildSplitSlotOverview() {
+    Column({ space: 16 }) {
+      Column({ space: 4 }) {
+        Text(this.resolveSplitSheetTitle())
+          .width('100%')
+          .fontSize(this.desktopPresentation ? 18 : 21)
+          .fontWeight(this.desktopPresentation ? FontWeight.Medium : FontWeight.Bold)
+          .fontColor(this.storedPrimaryTextColor)
+
+        Text('选择要自定义的操作')
+          .width('100%')
+          .fontSize(13)
+          .fontColor(this.storedSecondaryTextColor)
+      }
+      .width('100%')
+
+      SettingsGroupCard({
+        surfaceColor: this.storedSurfaceBackgroundColor,
+        desktopPresentation: this.desktopPresentation
+      }) {
+        if (this.resolveSplitDetail().tapLocked) {
+          this.buildLockedInteractionRow(this.resolveSplitDetail().tap, 'first')
+        } else {
+          this.buildInteractionOverviewRow(this.resolveSplitDetail().tap, 'first')
+        }
+        SettingsGroupDivider({ dividerColor: this.storedDividerColor })
+        this.buildInteractionOverviewRow(this.resolveSplitDetail().longPress, 'last')
+      }
+
+      SettingsActionButton({
+        title: '恢复此按钮默认设置',
+        variant: 'tonal',
+        isEnabled: !this.saving && !this.resolveSplitDetail().isProfileDefault,
+        onAction: (): void => {
+          this.resetSelectedSlotAction();
+        }
+      })
+    }
+    .width('100%')
+    .height('100%')
+    .padding({ left: 16, right: 16, top: 18, bottom: 24 })
+    .backgroundColor(this.desktopPresentation ? Color.Transparent : this.resolvePageBackgroundColor())
+  }
+
+  @Builder
+  private buildLockedInteractionRow(
+    interaction: BrowserToolbarSlotInteractionState,
+    rowPosition: SettingsRowPosition
+  ) {
+    Row() {
+      Text(interaction.title)
+        .fontSize(this.desktopPresentation ? 15 : 16)
+        .fontWeight(this.desktopPresentation ? FontWeight.Regular : FontWeight.Medium)
+        .fontColor(this.storedPrimaryTextColor)
+        .layoutWeight(1)
+      Text(`固定为${interaction.action.title}`)
+        .fontSize(this.desktopPresentation ? 13 : 14)
+        .fontColor(this.storedSecondaryTextColor)
+        .maxLines(1)
+        .textOverflow({ overflow: TextOverflow.Ellipsis })
+    }
+    .width('100%')
+    .padding({
+      left: 16,
+      right: 16,
+      top: rowPosition === 'first' ? 14 : 14,
+      bottom: 14
+    })
+    .alignItems(VerticalAlign.Center)
   }
 
   @Builder
@@ -705,7 +868,8 @@ export struct BrowserToolbarCustomizationScreen {
             rowPosition: this.resolveSheetRowPosition(index, actions.length),
             isSelected: this.isInteractionActionSelected(action.id),
             isEnabled: !this.saving,
-            radioGroup: `${TOOLBAR_SLOT_RADIO_GROUP_PREFIX}-${this.selectedSlotId}-${this.selectedInteractionKind}`,
+            radioGroup: `${TOOLBAR_SLOT_RADIO_GROUP_PREFIX}-${this.sheetQuestion}-` +
+              `${this.selectedSlotId}-${this.selectedSplitSlotId}-${this.selectedInteractionKind}`,
             radioValue: action.id,
             onAction: (): void => {
               this.selectInteractionAction(action.id);
@@ -759,6 +923,7 @@ export struct BrowserToolbarCustomizationScreen {
     }
     const previousStyle = this.toolbarChromeStyle;
     this.toolbarChromeStyle = style;
+    this.sheetVisible = false;
     this.saving = true;
     this.customizationCoordinator.persistToolbarChromeStyle(
       style,
@@ -805,7 +970,9 @@ export struct BrowserToolbarCustomizationScreen {
     }
     showCenteredAlertDialog({
       title: '恢复默认工具栏',
-      message: '会恢复四个按钮的单击、长按和上滑设置，不会改变展开工具栏的快捷入口顺序。',
+      message: this.toolbarChromeStyle === 'split' ?
+        '会恢复上下分栏底部按钮的单击和长按设置，不会改变悬浮工具栏。' :
+        '会恢复四个按钮的单击、长按和上滑设置，不会改变展开工具栏的快捷入口顺序。',
       autoCancel: true,
       primaryButton: {
         value: '取消',
@@ -815,7 +982,9 @@ export struct BrowserToolbarCustomizationScreen {
       secondaryButton: {
         value: '恢复默认',
         action: () => {
-          this.applySettings(this.viewModel.resetAllSlotActions(this.settings));
+          this.applySettings(this.toolbarChromeStyle === 'split' ?
+            this.splitViewModel.resetAll(this.settings) :
+            this.viewModel.resetAllSlotActions(this.settings));
         }
       }
     });
@@ -853,6 +1022,69 @@ export struct BrowserToolbarCustomizationScreen {
     return presentation;
   }
 
+  private resolvePreviewFooterText(): string {
+    if (this.toolbarChromeStyle !== 'split') {
+      return '点击按钮可分别设置单击、长按和两侧按钮上滑动作。';
+    }
+    if (this.splitPreviewScene === 'home') {
+      return '左侧两个按钮可自定义单击和长按。标签页和菜单的单击固定。';
+    }
+    return '主页按钮可自定义。返回、前进、标签页和菜单的单击固定，长按仍可设置。';
+  }
+
+  private selectSplitPreviewScene(scene: BrowserSplitToolbarScene): void {
+    if (this.splitPreviewScene === scene) {
+      return;
+    }
+    this.splitPreviewScene = scene;
+    this.sheetVisible = false;
+  }
+
+  private openSplitSlotSheet(slotId: string): void {
+    if (!isSplitToolbarSlotId(slotId)) {
+      return;
+    }
+    this.selectedSplitSlotId = slotId as BrowserSplitToolbarSlotId;
+    this.sheetQuestion = 'split_slot';
+    this.slotSheetMode = 'overview';
+    this.selectedInteractionKind = 'tap';
+    this.sheetVisible = true;
+  }
+
+  private resolveSplitDetail(): BrowserSplitToolbarSlotDetail {
+    return this.splitViewModel.buildSlotDetail(this.settings, this.selectedSplitSlotId) as BrowserSplitToolbarSlotDetail;
+  }
+
+  private resolveSplitSheetTitle(): string {
+    return this.resolveSplitDetail().sheetTitle;
+  }
+
+  private resolveSplitInteractionKind(): BrowserSplitToolbarInteractionKind {
+    return this.selectedInteractionKind === 'longPress' ? 'longPress' : 'tap';
+  }
+
+  private selectSplitInteractionAction(actionId: BrowserToolbarInteractionActionId): void {
+    const kind = this.resolveSplitInteractionKind();
+    const before = this.splitViewModel.resolveActionId(this.settings, this.selectedSplitSlotId, kind);
+    if (before === actionId) {
+      this.slotSheetMode = 'overview';
+      return;
+    }
+    const nextSettings = this.splitViewModel.replaceInteraction(
+      this.settings,
+      this.selectedSplitSlotId,
+      kind,
+      actionId
+    );
+    const after = this.splitViewModel.resolveActionId(nextSettings, this.selectedSplitSlotId, kind);
+    this.slotSheetMode = 'overview';
+    if (after !== actionId) {
+      this.showToast('这个动作已经在这条栏上了。');
+      return;
+    }
+    this.applySettings(nextSettings);
+  }
+
   private handleToolbarPreviewIntent(intent: BrowserBottomChromeTapIntent): void {
     if (!this.isToolbarSlotId(intent.slotId)) {
       // The preview's middle capsule, which is not one of the four buttons.
@@ -874,6 +1106,10 @@ export struct BrowserToolbarCustomizationScreen {
     if (this.saving) {
       return;
     }
+    if (this.sheetQuestion === 'split_slot') {
+      this.selectSplitInteractionAction(actionId);
+      return;
+    }
     const nextSettings = this.viewModel.replaceSlotInteraction(
       this.settings,
       this.selectedSlotId,
@@ -888,7 +1124,9 @@ export struct BrowserToolbarCustomizationScreen {
     if (this.saving) {
       return;
     }
-    const nextSettings = this.viewModel.resetSlotAction(this.settings, this.selectedSlotId);
+    const nextSettings = this.sheetQuestion === 'split_slot' ?
+      this.splitViewModel.resetSlot(this.settings, this.selectedSplitSlotId) :
+      this.viewModel.resetSlotAction(this.settings, this.selectedSlotId);
     this.applySettings(nextSettings);
   }
 
@@ -897,10 +1135,17 @@ export struct BrowserToolbarCustomizationScreen {
   }
 
   private resolveSelectedSlotTitle(): string {
+    if (this.sheetQuestion === 'split_slot') {
+      return this.resolveSplitSheetTitle();
+    }
     return this.resolveSelectedSlotAction().slotTitle;
   }
 
   private resolveSelectedInteraction(): BrowserToolbarSlotInteractionState {
+    if (this.sheetQuestion === 'split_slot') {
+      const detail = this.resolveSplitDetail();
+      return this.selectedInteractionKind === 'longPress' ? detail.longPress : detail.tap;
+    }
     return this.viewModel.findSlotInteraction(
       this.state,
       this.selectedSlotId,
@@ -915,11 +1160,20 @@ export struct BrowserToolbarCustomizationScreen {
   private resolvePickerGroup(
     dispatchKind: 'none' | 'header' | 'panel'
   ): BrowserToolbarInteractionActionState[] {
-    return this.viewModel.buildInteractionActionCatalog(
-      this.settings,
-      this.selectedSlotId,
-      this.selectedInteractionKind
-    ).filter((action: BrowserToolbarInteractionActionState): boolean => action.dispatchKind === dispatchKind);
+    const catalog = this.sheetQuestion === 'split_slot' ?
+      this.splitViewModel.buildActionCatalog(
+        this.settings,
+        this.selectedSplitSlotId,
+        this.resolveSplitInteractionKind()
+      ) :
+      this.viewModel.buildInteractionActionCatalog(
+        this.settings,
+        this.selectedSlotId,
+        this.selectedInteractionKind
+      );
+    return catalog.filter((action: BrowserToolbarInteractionActionState): boolean => {
+      return action.dispatchKind === dispatchKind;
+    });
   }
 
   private resolveSheetRowPosition(index: number, count: number): SettingsRowPosition {
@@ -936,6 +1190,9 @@ export struct BrowserToolbarCustomizationScreen {
   }
 
   private hasCustomizedToolbarSlots(): boolean {
+    if (this.toolbarChromeStyle === 'split') {
+      return this.splitViewModel.hasCustomizations(this.settings);
+    }
     return this.state.slotActions.some((slot: BrowserToolbarSlotActionState): boolean => !slot.isProfileDefault);
   }
 
@@ -949,8 +1206,8 @@ export struct BrowserToolbarCustomizationScreen {
   }
 
   private resolveSheetRenderKey(): string {
-    return `${this.sheetQuestion}|${this.slotSheetMode}|${this.selectedSlotId}|` +
-      `${this.selectedInteractionKind}|${this.slotSheetRevision}`;
+    return `${this.sheetQuestion}|${this.slotSheetMode}|${this.selectedSlotId}|${this.selectedSplitSlotId}|` +
+      `${this.splitPreviewScene}|${this.selectedInteractionKind}|${this.slotSheetRevision}`;
   }
 
   private resolvePageBackgroundColor(): ResourceColor {

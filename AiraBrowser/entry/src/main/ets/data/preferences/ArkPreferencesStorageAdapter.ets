@@ -964,6 +964,30 @@ export class ArkPreferencesStorageAdapter implements PreferencesStorageAdapter {
         // parse — which silently reverted it to `tools` on every cold start.
         centerCapsuleSwipeUpActionId: String(parsed.centerCapsuleSwipeUpActionId ??
           defaultValue.centerCapsuleSwipeUpActionId ?? 'tools'),
+        splitHomeLeadingTapActionId: String(parsed.splitHomeLeadingTapActionId ??
+          defaultValue.splitHomeLeadingTapActionId ?? ''),
+        splitHomeLeadingLongPressActionId: String(parsed.splitHomeLeadingLongPressActionId ??
+          defaultValue.splitHomeLeadingLongPressActionId ?? 'none'),
+        splitHomeSecondaryTapActionId: String(parsed.splitHomeSecondaryTapActionId ??
+          defaultValue.splitHomeSecondaryTapActionId ?? ''),
+        splitHomeSecondaryLongPressActionId: String(parsed.splitHomeSecondaryLongPressActionId ??
+          defaultValue.splitHomeSecondaryLongPressActionId ?? 'none'),
+        splitHomeTabsLongPressActionId: String(parsed.splitHomeTabsLongPressActionId ??
+          defaultValue.splitHomeTabsLongPressActionId ?? 'none'),
+        splitHomeMenuLongPressActionId: String(parsed.splitHomeMenuLongPressActionId ??
+          defaultValue.splitHomeMenuLongPressActionId ?? 'none'),
+        splitWebHomeTapActionId: String(parsed.splitWebHomeTapActionId ??
+          defaultValue.splitWebHomeTapActionId ?? ''),
+        splitWebHomeLongPressActionId: String(parsed.splitWebHomeLongPressActionId ??
+          defaultValue.splitWebHomeLongPressActionId ?? 'none'),
+        splitWebBackLongPressActionId: String(parsed.splitWebBackLongPressActionId ??
+          defaultValue.splitWebBackLongPressActionId ?? 'none'),
+        splitWebForwardLongPressActionId: String(parsed.splitWebForwardLongPressActionId ??
+          defaultValue.splitWebForwardLongPressActionId ?? 'none'),
+        splitWebTabsLongPressActionId: String(parsed.splitWebTabsLongPressActionId ??
+          defaultValue.splitWebTabsLongPressActionId ?? 'none'),
+        splitWebMenuLongPressActionId: String(parsed.splitWebMenuLongPressActionId ??
+          defaultValue.splitWebMenuLongPressActionId ?? 'none'),
         updatedAt: this.normalizeNonNegativeTimestamp(parsed.updatedAt, defaultValue.updatedAt)
       };
     } catch (_error) {

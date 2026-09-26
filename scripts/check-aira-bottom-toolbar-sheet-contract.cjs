@@ -204,4 +204,109 @@ assertContract(unparsedFields.length === 0,
 assertContract(storageAdapter.includes('centerCapsuleSwipeUpActionId: String(parsed.centerCapsuleSwipeUpActionId ??'),
   'The middle bar swipe-up choice must be parsed back, not left to default.');
 
+const preferencesRepository = fs.readFileSync(path.join(repoRoot,
+  'AiraBrowser/entry/src/main/ets/data/preferences/PreferencesRepository.ets'), 'utf8');
+const toolbarViewModel = fs.readFileSync(path.join(repoRoot,
+  'AiraBrowser/entry/src/main/ets/core/browser/BrowserToolbarCustomizationViewModel.ets'), 'utf8');
+const splitPolicy = fs.readFileSync(path.join(repoRoot,
+  'AiraBrowser/entry/src/main/ets/core/browser/BrowserSplitToolbarCustomizationPolicy.ets'), 'utf8');
+const toolbarSettingsScreen = fs.readFileSync(path.join(repoRoot,
+  'AiraBrowser/entry/src/main/ets/app/components/settings/BrowserToolbarCustomizationScreen.ets'), 'utf8');
+const splitChrome = fs.readFileSync(path.join(repoRoot,
+  'AiraBrowser/entry/src/main/ets/app/components/browser/BrowserSplitToolbarChrome.ets'), 'utf8');
+const normalizeBody = preferencesRepository.slice(
+  preferencesRepository.indexOf('private normalizeToolbarLayoutSettings('),
+  preferencesRepository.indexOf('private normalizeToolbarSlotActionId('));
+const mergeBody = preferencesRepository.slice(
+  preferencesRepository.indexOf('async updateToolbarLayoutSettings('),
+  preferencesRepository.indexOf('async updateSitePermissionDefaultSettings('));
+const floatingNormalizeStart = toolbarViewModel.indexOf(
+  'normalizeSettings(settings: BrowserToolbarLayoutSettings)');
+const floatingNormalizeBody = toolbarViewModel.slice(
+  floatingNormalizeStart,
+  toolbarViewModel.indexOf('getCatalogActionIds(): BrowserBottomAddressPanelActionId[]', floatingNormalizeStart));
+const cloneBody = splitPolicy.slice(
+  splitPolicy.indexOf('export function cloneBrowserToolbarLayoutSettings('),
+  splitPolicy.indexOf('export function resolveSplitToolbarTapActionId('));
+const droppedFields = toolbarModelFields.filter(field => {
+  return !normalizeBody.includes(`${field}:`) ||
+    !mergeBody.includes(field) ||
+    !cloneBody.includes(`${field}:`);
+});
+assertContract(droppedFields.length === 0,
+  `Toolbar layout fields must survive normalize, merge and clone; missing: ${droppedFields.join(', ')}`);
+assertContract(floatingNormalizeBody.includes('cloneBrowserToolbarLayoutSettings') &&
+  floatingNormalizeBody.includes('normalizeSplitToolbarSettings'),
+  'Floating toolbar normalize must keep split bottom-bar slots.');
+assertContract(toolbarSettingsScreen.includes("this.toolbarChromeStyle === 'split'") &&
+  toolbarSettingsScreen.includes('buildSplitToolbarPreview') &&
+  toolbarSettingsScreen.includes('buildSplitSceneChip') &&
+  toolbarSettingsScreen.includes('openSplitSlotSheet'),
+  'Split toolbar settings must preview the split bottom bar and open a slot sheet from it.');
+assertContract(splitChrome.includes('onButtonTap') &&
+  splitChrome.includes('BrowserSplitToolbarButtonRow') &&
+  shellPage.includes('handleSplitToolbarButton') &&
+  shellPage.includes('resolveSplitToolbarButtons'),
+  'The live split bottom bar must render the saved buttons and dispatch their actions.');
+assertContract(!personalizationSyncSnapshot.includes('splitHomeLeadingTapActionId'),
+  'Split bottom-bar slots stay on the device, like the floating slot gestures.');
+
+const ts = require(process.env.DEVECO_TYPESCRIPT_PATH ||
+  '/Applications/DevEco-Studio.app/Contents/tools/hvigor/hvigor/node_modules/typescript/lib/typescript.js');
+const vm = require('node:vm');
+const assert = require('node:assert/strict');
+
+function loadEts(relative, requireDependency) {
+  const filename = path.join(repoRoot, relative);
+  const compiled = ts.transpileModule(fs.readFileSync(filename, 'utf8'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+    fileName: filename,
+    reportDiagnostics: true
+  });
+  const errors = (compiled.diagnostics || []).filter(item => item.category === ts.DiagnosticCategory.Error);
+  assert.equal(errors.length, 0, `Transpile errors in ${relative}`);
+  const module = { exports: {} };
+  vm.runInNewContext(compiled.outputText, {
+    module,
+    exports: module.exports,
+    require: requireDependency
+  }, { filename });
+  return module.exports;
+}
+
+const policyExports = loadEts(
+  'AiraBrowser/entry/src/main/ets/core/browser/BrowserSplitToolbarCustomizationPolicy.ets',
+  (name) => {
+    throw new Error(`Split toolbar policy must not import ${name}`);
+  });
+let cases = 0;
+const suite = loadEts(
+  'AiraBrowser/entry/src/test/BrowserSplitToolbarCustomizationPolicy.test.ets',
+  (name) => {
+    if (name === '@ohos/hypium') {
+      return {
+        describe: (_name, body) => body(),
+        it: (name, _flags, body) => {
+          try {
+            body();
+            cases += 1;
+          } catch (error) {
+            throw new Error(name, { cause: error });
+          }
+        },
+        expect: (value) => ({
+          assertEqual: (expected) => assert.equal(value, expected),
+          assertTrue: () => assert.equal(value, true),
+          assertFalse: () => assert.equal(value, false)
+        })
+      };
+    }
+    if (name.endsWith('BrowserSplitToolbarCustomizationPolicy')) {
+      return policyExports;
+    }
+    throw new Error(`Unexpected test import ${name}`);
+  });
+suite.default();
+assert.equal(cases, 3, 'Split toolbar policy tests must all run.');
+
 console.log('Bottom toolbar system Sheet contract passed.');

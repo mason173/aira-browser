@@ -10,6 +10,7 @@ import {
   SPLIT_TOOLBAR_ADDRESS_BLOCK_VP,
   SPLIT_TOOLBAR_BOTTOM_BAR_VP
 } from '../../../core/browser/BrowserToolbarChromeStylePolicy';
+import { BrowserSplitToolbarButtonPresentation } from '../../../core/browser/BrowserSplitToolbarCustomizationViewModel';
 import { AiraRenderableIconId } from '../../../core/resources/GeneratedAiraIconCatalog';
 import { AiraIcon } from '../common/AiraIcon';
 import { BrowserSearchSuggestionsPanel } from './BrowserSearchSuggestionsPanel';
@@ -29,12 +30,9 @@ const SPLIT_TOOLBAR_SELECT_ALL_DELAY_MS: number = 40;
 const SPLIT_TOOLBAR_NAV_BUTTON_WIDTH: number = 48;
 const SPLIT_TOOLBAR_NAV_BUTTON_HEIGHT: number = 44;
 const SPLIT_TOOLBAR_NAV_PRESS_RADIUS: number = 12;
-const SPLIT_TOOLBAR_ICON_SIZE: number = 22;
-const SPLIT_TOOLBAR_HOME_ICON_SIZE: number = 25;
-const SPLIT_TOOLBAR_TAB_BADGE_SIZE: number = 18;
-const SPLIT_TOOLBAR_HOME_TAB_BADGE_SIZE: number = 21;
-const SPLIT_TOOLBAR_TAB_BADGE_RADIUS: number = 4.5;
-const SPLIT_TOOLBAR_HOME_TAB_BADGE_RADIUS: number = 5.25;
+const SPLIT_TOOLBAR_ICON_SIZE: number = 25;
+const SPLIT_TOOLBAR_TAB_BADGE_SIZE: number = 21;
+const SPLIT_TOOLBAR_TAB_BADGE_RADIUS: number = 5.25;
 const SPLIT_TOOLBAR_TAB_BADGE_STROKE: number = 2;
 const SPLIT_TOOLBAR_SEARCH_INPUT_ID: string = 'split-toolbar-search-input';
 
@@ -52,13 +50,10 @@ export struct BrowserSplitToolbarChrome {
   @State private searching: boolean = false;
   @State private query: string = '';
   @State private engineMenuOpen: boolean = false;
-  @State private pressedAction: string = '';
   @Prop homeScene: boolean = true;
   @Prop displayAddress: string = '';
   @Prop editableAddress: string = '';
   @Prop secure: boolean = true;
-  @Prop canGoBack: boolean = false;
-  @Prop canGoForward: boolean = false;
   @Prop tabCount: number = 1;
   @Prop pageLoading: boolean = false;
   @Prop suggestions: SearchSuggestion[] = [];
@@ -90,14 +85,10 @@ export struct BrowserSplitToolbarChrome {
   onDeleteHistorySuggestion: (suggestion: SearchSuggestion) => void = (_suggestion: SearchSuggestion) => {};
   onExternalSearch: (targetId: ExternalAppSearchTargetId, query: string) => void =
     (_targetId: ExternalAppSearchTargetId, _query: string) => {};
-  onBack: () => void = () => {};
-  onForward: () => void = () => {};
-  onOpenBookmarks: () => void = () => {};
-  onOpenHistory: () => void = () => {};
-  onHome: () => void = () => {};
+  @Prop buttons: BrowserSplitToolbarButtonPresentation[] = [];
   onReload: () => void = () => {};
-  onOpenTabs: () => void = () => {};
-  onOpenMenu: () => void = () => {};
+  onButtonTap: (slotId: string) => void = (_slotId: string) => {};
+  onButtonLongPress: (slotId: string) => void = (_slotId: string) => {};
   onOpenSiteInfo: () => void = () => {};
   onScan: () => void = () => {};
 
@@ -444,112 +435,29 @@ export struct BrowserSplitToolbarChrome {
   @Builder
   private buildBottomBar() {
     Stack() {
-      Row() {
-        if (this.homeScene) {
-          this.buildNavButton('browser.shortcut.bookmarks', true, 'bookmarks')
-          this.buildNavButton('browser.shortcut.history', true, 'history')
-        } else {
-          this.buildNavButton('browser.toolbar.back', this.canGoBack, 'back')
-          this.buildNavButton('browser.toolbar.forward', this.canGoForward, 'forward')
-          this.buildNavButton('browser.toolbar.home', true, 'home')
+      BrowserSplitToolbarButtonRow({
+        buttons: this.buttons,
+        homeScene: this.homeScene,
+        tabCount: this.tabCount,
+        textColor: this.textColor,
+        secondaryTextColor: this.secondaryTextColor,
+        pressedBackgroundColor: this.pressedBackgroundColor,
+        onTap: (slotId: string): void => {
+          this.onButtonTap(slotId);
+        },
+        onLongPress: (slotId: string): void => {
+          this.onButtonLongPress(slotId);
         }
-        this.buildTabButton()
-        this.buildNavButton('browser.toolbar.menu', true, 'menu')
-      }
-      .width('100%')
-      .height('100%')
-      .padding({ bottom: this.resolveBottomInset() })
-      .justifyContent(FlexAlign.SpaceAround)
-      .alignItems(VerticalAlign.Center)
-      .hitTestBehavior(HitTestMode.BLOCK_HIERARCHY)
-      .onTouch((_event: TouchEvent) => {
       })
+        .width('100%')
+        .height('100%')
+        .padding({ bottom: this.resolveBottomInset() })
     }
     .width('100%')
     .height(this.resolveBottomChromeHeight())
     .backgroundColor(this.resolveBarBackground())
     .hitTestBehavior(HitTestMode.BLOCK_HIERARCHY)
     .onTouch((_event: TouchEvent) => {
-    })
-  }
-
-  @Builder
-  private buildTabButton() {
-    Button() {
-      Stack({ alignContent: Alignment.Center }) {
-        Text(this.formatTabCount())
-          .fontSize(this.resolveTabBadgeFontSize())
-          .fontWeight(FontWeight.Medium)
-          .fontColor(this.textColor)
-          .textAlign(TextAlign.Center)
-          .maxLines(1)
-      }
-      .width(this.resolveTabBadgeSize())
-      .height(this.resolveTabBadgeSize())
-      .borderRadius(this.resolveTabBadgeRadius())
-      .border({ width: SPLIT_TOOLBAR_TAB_BADGE_STROKE, color: this.textColor })
-      .backgroundColor(Color.Transparent)
-    }
-    .width(SPLIT_TOOLBAR_NAV_BUTTON_WIDTH)
-    .height(SPLIT_TOOLBAR_NAV_BUTTON_HEIGHT)
-    .type(ButtonType.Normal)
-    .buttonStyle(ButtonStyleMode.TEXTUAL)
-    .backgroundColor(Color.Transparent)
-    .stateEffect(false)
-    .onClick(() => {
-      this.onOpenTabs();
-    })
-  }
-
-  @Builder
-  private buildNavButton(iconId: AiraRenderableIconId, enabled: boolean, action: string) {
-    Button() {
-      AiraIcon({
-        airaIconId: iconId,
-        iconSize: this.resolveNavIconSize(),
-        iconColor: enabled ? this.textColor : this.secondaryTextColor
-      })
-    }
-    .width(SPLIT_TOOLBAR_NAV_BUTTON_WIDTH)
-    .height(SPLIT_TOOLBAR_NAV_BUTTON_HEIGHT)
-    .type(ButtonType.Normal)
-    .buttonStyle(ButtonStyleMode.TEXTUAL)
-    .backgroundColor(this.resolvePressedBackground(action))
-    .borderRadius(SPLIT_TOOLBAR_NAV_PRESS_RADIUS)
-    .clip(true)
-    .stateEffect(false)
-    .enabled(enabled)
-    .onTouch((event: TouchEvent) => {
-      this.updatePressedAction(action, event.type, enabled);
-    })
-    .onClick(() => {
-      if (!enabled) {
-        return;
-      }
-      if (action === 'back') {
-        this.onBack();
-        return;
-      }
-      if (action === 'forward') {
-        this.onForward();
-        return;
-      }
-      if (action === 'bookmarks') {
-        this.closeSearch();
-        this.onOpenBookmarks();
-        return;
-      }
-      if (action === 'history') {
-        this.closeSearch();
-        this.onOpenHistory();
-        return;
-      }
-      if (action === 'home') {
-        this.closeSearch();
-        this.onHome();
-        return;
-      }
-      this.onOpenMenu();
     })
   }
 
@@ -629,53 +537,8 @@ export struct BrowserSplitToolbarChrome {
     });
   }
 
-  private formatTabCount(): string {
-    const count = Math.max(0, Math.floor(this.tabCount));
-    if (count > SPLIT_TOOLBAR_TAB_COUNT_LIMIT) {
-      return `${SPLIT_TOOLBAR_TAB_COUNT_LIMIT}`;
-    }
-    return `${count}`;
-  }
-
-  private resolveNavIconSize(): number {
-    return this.homeScene ? SPLIT_TOOLBAR_HOME_ICON_SIZE : SPLIT_TOOLBAR_ICON_SIZE;
-  }
-
-  private resolveTabBadgeSize(): number {
-    return this.homeScene ? SPLIT_TOOLBAR_HOME_TAB_BADGE_SIZE : SPLIT_TOOLBAR_TAB_BADGE_SIZE;
-  }
-
-  private resolveTabBadgeRadius(): number {
-    return this.homeScene ? SPLIT_TOOLBAR_HOME_TAB_BADGE_RADIUS : SPLIT_TOOLBAR_TAB_BADGE_RADIUS;
-  }
-
-  private resolveTabBadgeFontSize(): number {
-    if (this.homeScene) {
-      return this.formatTabCount().length > 1 ? 11 : 13;
-    }
-    return this.formatTabCount().length > 1 ? 10 : 12;
-  }
-
   private resolveBarBackground(): ResourceColor {
     return this.searching ? this.pageBackgroundColor : this.barBackgroundColor;
-  }
-
-  private resolvePressedBackground(action: string): ResourceColor {
-    return this.pressedAction === action ? this.pressedBackgroundColor : this.resolveBarBackground();
-  }
-
-  private updatePressedAction(action: string, type: TouchType, enabled: boolean): void {
-    if (!enabled) {
-      this.pressedAction = '';
-      return;
-    }
-    if (type === TouchType.Down) {
-      this.pressedAction = action;
-      return;
-    }
-    if (type === TouchType.Up || type === TouchType.Cancel) {
-      this.pressedAction = '';
-    }
   }
 
   private shouldShowBottomBar(): boolean {
@@ -709,5 +572,138 @@ export struct BrowserSplitToolbarChrome {
       return this.bottomChromeReserveVp;
     }
     return this.resolveBottomInset();
+  }
+}
+
+const SPLIT_TOOLBAR_BUTTON_LONG_PRESS_MS: number = 450;
+
+/** The split bottom row, shared by the live bar and the settings preview. */
+@Component
+export struct BrowserSplitToolbarButtonRow {
+  @Prop buttons: BrowserSplitToolbarButtonPresentation[] = [];
+  @Prop homeScene: boolean = true;
+  @Prop tabCount: number = 1;
+  @Prop textColor: ResourceColor = '#111111';
+  @Prop secondaryTextColor: ResourceColor = '#8A8A8E';
+  @Prop pressedBackgroundColor: ResourceColor = '#14000000';
+  onTap: (slotId: string) => void = (_slotId: string) => {};
+  onLongPress: (slotId: string) => void = (_slotId: string) => {};
+  @State private pressedSlotId: string = '';
+
+  build() {
+    Row() {
+      ForEach(this.buttons, (button: BrowserSplitToolbarButtonPresentation) => {
+        this.buildButton(button)
+      }, (button: BrowserSplitToolbarButtonPresentation): string => {
+        return `${button.slotId}:${button.actionId}:${button.enabled}:${button.iconId}`;
+      })
+    }
+    .width('100%')
+    .height('100%')
+    .justifyContent(FlexAlign.SpaceAround)
+    .alignItems(VerticalAlign.Center)
+  }
+
+  @Builder
+  private buildButton(button: BrowserSplitToolbarButtonPresentation) {
+    Button() {
+      if (button.usesTabBadge) {
+        this.buildTabBadge(button.enabled)
+      } else {
+        AiraIcon({
+          airaIconId: button.iconId,
+          iconSize: this.resolveNavIconSize(),
+          iconColor: button.enabled ? this.textColor : this.secondaryTextColor
+        })
+      }
+    }
+    .width(SPLIT_TOOLBAR_NAV_BUTTON_WIDTH)
+    .height(SPLIT_TOOLBAR_NAV_BUTTON_HEIGHT)
+    .type(ButtonType.Normal)
+    .buttonStyle(ButtonStyleMode.TEXTUAL)
+    .backgroundColor(this.pressedSlotId === button.slotId ? this.pressedBackgroundColor : Color.Transparent)
+    .borderRadius(SPLIT_TOOLBAR_NAV_PRESS_RADIUS)
+    .clip(true)
+    .stateEffect(false)
+    .enabled(button.enabled)
+    .accessibilityText(button.title)
+    .onTouch((event: TouchEvent) => {
+      this.updatePressed(button.slotId, event.type, button.enabled);
+    })
+    .gesture(
+      GestureGroup(
+        GestureMode.Exclusive,
+        LongPressGesture({ fingers: 1, repeat: false, duration: SPLIT_TOOLBAR_BUTTON_LONG_PRESS_MS })
+          .onAction(() => {
+            if (!button.enabled) {
+              return;
+            }
+            this.onLongPress(button.slotId);
+          }),
+        TapGesture({ count: 1 })
+          .onAction(() => {
+            if (!button.enabled) {
+              return;
+            }
+            this.onTap(button.slotId);
+          })
+      )
+    )
+  }
+
+  @Builder
+  private buildTabBadge(enabled: boolean) {
+    Text(this.formatTabCount())
+      .fontSize(this.resolveTabBadgeFontSize())
+      .fontWeight(FontWeight.Medium)
+      .fontColor(enabled ? this.textColor : this.secondaryTextColor)
+      .textAlign(TextAlign.Center)
+      .maxLines(1)
+      .width(this.resolveTabBadgeSize())
+      .height(this.resolveTabBadgeSize())
+      .borderRadius(this.resolveTabBadgeRadius())
+      .border({
+        width: SPLIT_TOOLBAR_TAB_BADGE_STROKE,
+        color: enabled ? this.textColor : this.secondaryTextColor
+      })
+      .backgroundColor(Color.Transparent)
+  }
+
+  private formatTabCount(): string {
+    const count = Math.max(0, Math.floor(this.tabCount));
+    if (count > SPLIT_TOOLBAR_TAB_COUNT_LIMIT) {
+      return `${SPLIT_TOOLBAR_TAB_COUNT_LIMIT}`;
+    }
+    return `${count}`;
+  }
+
+  private resolveNavIconSize(): number {
+    return SPLIT_TOOLBAR_ICON_SIZE;
+  }
+
+  private resolveTabBadgeSize(): number {
+    return SPLIT_TOOLBAR_TAB_BADGE_SIZE;
+  }
+
+  private resolveTabBadgeRadius(): number {
+    return SPLIT_TOOLBAR_TAB_BADGE_RADIUS;
+  }
+
+  private resolveTabBadgeFontSize(): number {
+    return this.formatTabCount().length > 1 ? 11 : 13;
+  }
+
+  private updatePressed(slotId: string, type: TouchType, enabled: boolean): void {
+    if (!enabled) {
+      this.pressedSlotId = '';
+      return;
+    }
+    if (type === TouchType.Down) {
+      this.pressedSlotId = slotId;
+      return;
+    }
+    if (type === TouchType.Up || type === TouchType.Cancel) {
+      this.pressedSlotId = '';
+    }
   }
 }

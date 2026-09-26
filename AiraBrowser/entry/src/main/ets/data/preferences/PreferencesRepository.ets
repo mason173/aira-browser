@@ -104,6 +104,18 @@ export const DEFAULT_BROWSER_TOOLBAR_LAYOUT_SETTINGS: BrowserToolbarLayoutSettin
   leadingSlotSwipeUpActionId: 'home',
   tabsSlotSwipeUpActionId: 'home',
   centerCapsuleSwipeUpActionId: 'tools',
+  splitHomeLeadingTapActionId: '',
+  splitHomeLeadingLongPressActionId: 'none',
+  splitHomeSecondaryTapActionId: '',
+  splitHomeSecondaryLongPressActionId: 'none',
+  splitHomeTabsLongPressActionId: 'none',
+  splitHomeMenuLongPressActionId: 'none',
+  splitWebHomeTapActionId: '',
+  splitWebHomeLongPressActionId: 'none',
+  splitWebBackLongPressActionId: 'none',
+  splitWebForwardLongPressActionId: 'none',
+  splitWebTabsLongPressActionId: 'none',
+  splitWebMenuLongPressActionId: 'none',
   updatedAt: 0
 };
 
@@ -960,6 +972,30 @@ export class PreferencesRepository {
       centerCapsuleSwipeUpActionId: settings.centerCapsuleSwipeUpActionId !== undefined ?
         this.normalizeCenterCapsuleSwipeUpActionId(settings.centerCapsuleSwipeUpActionId) :
         current.centerCapsuleSwipeUpActionId,
+      splitHomeLeadingTapActionId: settings.splitHomeLeadingTapActionId !== undefined ?
+        settings.splitHomeLeadingTapActionId : current.splitHomeLeadingTapActionId,
+      splitHomeLeadingLongPressActionId: settings.splitHomeLeadingLongPressActionId !== undefined ?
+        settings.splitHomeLeadingLongPressActionId : current.splitHomeLeadingLongPressActionId,
+      splitHomeSecondaryTapActionId: settings.splitHomeSecondaryTapActionId !== undefined ?
+        settings.splitHomeSecondaryTapActionId : current.splitHomeSecondaryTapActionId,
+      splitHomeSecondaryLongPressActionId: settings.splitHomeSecondaryLongPressActionId !== undefined ?
+        settings.splitHomeSecondaryLongPressActionId : current.splitHomeSecondaryLongPressActionId,
+      splitHomeTabsLongPressActionId: settings.splitHomeTabsLongPressActionId !== undefined ?
+        settings.splitHomeTabsLongPressActionId : current.splitHomeTabsLongPressActionId,
+      splitHomeMenuLongPressActionId: settings.splitHomeMenuLongPressActionId !== undefined ?
+        settings.splitHomeMenuLongPressActionId : current.splitHomeMenuLongPressActionId,
+      splitWebHomeTapActionId: settings.splitWebHomeTapActionId !== undefined ?
+        settings.splitWebHomeTapActionId : current.splitWebHomeTapActionId,
+      splitWebHomeLongPressActionId: settings.splitWebHomeLongPressActionId !== undefined ?
+        settings.splitWebHomeLongPressActionId : current.splitWebHomeLongPressActionId,
+      splitWebBackLongPressActionId: settings.splitWebBackLongPressActionId !== undefined ?
+        settings.splitWebBackLongPressActionId : current.splitWebBackLongPressActionId,
+      splitWebForwardLongPressActionId: settings.splitWebForwardLongPressActionId !== undefined ?
+        settings.splitWebForwardLongPressActionId : current.splitWebForwardLongPressActionId,
+      splitWebTabsLongPressActionId: settings.splitWebTabsLongPressActionId !== undefined ?
+        settings.splitWebTabsLongPressActionId : current.splitWebTabsLongPressActionId,
+      splitWebMenuLongPressActionId: settings.splitWebMenuLongPressActionId !== undefined ?
+        settings.splitWebMenuLongPressActionId : current.splitWebMenuLongPressActionId,
       updatedAt: settings.updatedAt
     };
     const normalizedToolbarLayoutSettings = this.normalizeToolbarLayoutSettings(mergedSettings);
@@ -1495,6 +1531,54 @@ export class PreferencesRepository {
       tabsSlotSwipeUpActionId: this.normalizeToolbarInteractionActionId(
         settings?.tabsSlotSwipeUpActionId,
         'home',
+        true
+      ),
+      splitHomeLeadingTapActionId: this.normalizeToolbarSlotActionId(settings?.splitHomeLeadingTapActionId),
+      splitHomeLeadingLongPressActionId: this.normalizeToolbarInteractionActionId(
+        settings?.splitHomeLeadingLongPressActionId,
+        'none',
+        true
+      ),
+      splitHomeSecondaryTapActionId: this.normalizeToolbarSlotActionId(settings?.splitHomeSecondaryTapActionId),
+      splitHomeSecondaryLongPressActionId: this.normalizeToolbarInteractionActionId(
+        settings?.splitHomeSecondaryLongPressActionId,
+        'none',
+        true
+      ),
+      splitHomeTabsLongPressActionId: this.normalizeToolbarInteractionActionId(
+        settings?.splitHomeTabsLongPressActionId,
+        'none',
+        true
+      ),
+      splitHomeMenuLongPressActionId: this.normalizeToolbarInteractionActionId(
+        settings?.splitHomeMenuLongPressActionId,
+        'none',
+        true
+      ),
+      splitWebHomeTapActionId: this.normalizeToolbarSlotActionId(settings?.splitWebHomeTapActionId),
+      splitWebHomeLongPressActionId: this.normalizeToolbarInteractionActionId(
+        settings?.splitWebHomeLongPressActionId,
+        'none',
+        true
+      ),
+      splitWebBackLongPressActionId: this.normalizeToolbarInteractionActionId(
+        settings?.splitWebBackLongPressActionId,
+        'none',
+        true
+      ),
+      splitWebForwardLongPressActionId: this.normalizeToolbarInteractionActionId(
+        settings?.splitWebForwardLongPressActionId,
+        'none',
+        true
+      ),
+      splitWebTabsLongPressActionId: this.normalizeToolbarInteractionActionId(
+        settings?.splitWebTabsLongPressActionId,
+        'none',
+        true
+      ),
+      splitWebMenuLongPressActionId: this.normalizeToolbarInteractionActionId(
+        settings?.splitWebMenuLongPressActionId,
+        'none',
         true
       ),
       updatedAt: this.normalizeNonNegativeTimestamp(settings?.updatedAt)

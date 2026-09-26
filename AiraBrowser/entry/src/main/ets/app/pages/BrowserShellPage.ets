@@ -244,6 +244,10 @@ import {
   BrowserSplitToolbarChrome,
   BrowserSplitToolbarSessionMode
 } from '../components/browser/BrowserSplitToolbarChrome';
+import {
+  BrowserSplitToolbarButtonPresentation,
+  BrowserSplitToolbarCustomizationViewModel
+} from '../../core/browser/BrowserSplitToolbarCustomizationViewModel';
 import { BrowserAddressDisplayCoordinator } from '../../core/browser/BrowserAddressDisplayCoordinator';
 import { BrowserThemeModeCoordinator } from '../../core/browser/BrowserThemeModeCoordinator';
 import {
@@ -2586,6 +2590,8 @@ struct BrowserShellPage {
       },
       showActionRejection: (message: string): void => this.showNativeToast(message)
     });
+  private splitToolbarCustomizationViewModel: BrowserSplitToolbarCustomizationViewModel =
+    new BrowserSplitToolbarCustomizationViewModel();
   private browserRootBottomPanelSessionCoordinator: BrowserRootBottomPanelSessionCoordinator =
     new BrowserRootBottomPanelSessionCoordinator({
       publishPresentationSnapshot: (snapshot: BrowserRootBottomPanelPresentationSnapshot): void => {
@@ -8488,9 +8494,8 @@ struct BrowserShellPage {
       displayAddress: this.resolveSplitToolbarDisplayAddress(),
       editableAddress: this.showHomePage ? '' : this.resolveEditableWebBottomAddress(),
       secure: isSecureCurrentSiteUrl(this.currentUrl, this.addressInput),
-      canGoBack: this.resolveSplitToolbarCanGoBack(),
-      canGoForward: this.resolveSplitToolbarCanGoForward(),
       tabCount: this.tabCount,
+      buttons: this.resolveSplitToolbarButtons(),
       pageLoading: this.shouldShowWebLoadingProgress(),
       suggestions: this.browserSearchSuggestionSnapshot.searchSuggestions,
       searchEngines: this.availableSearchEngines,
@@ -8527,29 +8532,14 @@ struct BrowserShellPage {
           this.selectedSearchEngine
         );
       },
-      onBack: (): void => {
-        this.browserMainBackCoordinator.onBackPress(this.browserMainBackHost);
-      },
-      onForward: (): void => {
-        this.browserWebHistoryCommandRuntimeCoordinator.handleRootBottomPanelWebForward();
-      },
-      onOpenBookmarks: (): void => {
-        void this.browserShellRouteCoordinator.openBookmarkManagerPage();
-      },
-      onOpenHistory: (): void => {
-        this.browserShellRouteCoordinator.openHistoryManagerPage();
-      },
-      onHome: (): void => {
-        this.dispatchRootBottomPanelAction('panel', 'home');
-      },
       onReload: (): void => {
         this.browserActiveTabRuntimeRestoreCoordinator.reloadActive('user_manual_reload');
       },
-      onOpenTabs: (): void => {
-        void this.openTabsOverview();
+      onButtonTap: (slotId: string): void => {
+        this.handleSplitToolbarButton(slotId, 'tap');
       },
-      onOpenMenu: (): void => {
-        this.openSplitToolbarMenu();
+      onButtonLongPress: (slotId: string): void => {
+        this.handleSplitToolbarButton(slotId, 'longPress');
       },
       onOpenSiteInfo: (): void => {
         this.dispatchRootBottomPanelAction('header', 'siteSecurity');
@@ -8613,6 +8603,37 @@ struct BrowserShellPage {
     this.splitToolbarSearchDismissVersion += 1;
     this.browserSearchSuggestionCoordinator.beginClosingOverlay();
     this.webBottomAddressFocused = false;
+  }
+
+  private resolveSplitToolbarButtons(): BrowserSplitToolbarButtonPresentation[] {
+    if (this.toolbarLayoutVersion < 0) {
+      return [];
+    }
+    return this.splitToolbarCustomizationViewModel.buildPresentations(
+      sharedPreferencesRepository.getPreferences().toolbarLayout,
+      this.showHomePage ? 'home' : 'web',
+      this.resolveSplitToolbarCanGoBack(),
+      this.resolveSplitToolbarCanGoForward()
+    );
+  }
+
+  private handleSplitToolbarButton(slotId: string, kind: 'tap' | 'longPress'): void {
+    const action = this.splitToolbarCustomizationViewModel.resolveDispatchAction(
+      sharedPreferencesRepository.getPreferences().toolbarLayout,
+      slotId,
+      kind
+    );
+    if (action === undefined || action.id === 'none' || action.dispatchKind === 'none') {
+      return;
+    }
+    if (action.id !== 'webBack' && action.id !== 'webForward') {
+      this.dismissSplitToolbarSearch();
+    }
+    if (action.id === 'bottomChromeMenu') {
+      this.openSplitToolbarMenu();
+      return;
+    }
+    this.dispatchRootBottomPanelAction(action.dispatchKind === 'header' ? 'header' : 'panel', action.id);
   }
 
   private openSplitToolbarMenu(): void {

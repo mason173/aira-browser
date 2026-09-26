@@ -1,5 +1,9 @@
 import { BrowserToolbarLayoutSettings } from '../../common/models/BrowserModels';
 import {
+  cloneBrowserToolbarLayoutSettings,
+  normalizeSplitToolbarSettings
+} from './BrowserSplitToolbarCustomizationPolicy';
+import {
   DEFAULT_BROWSER_TOOLBAR_LAYOUT_SETTINGS
 } from '../../data/preferences/PreferencesRepository';
 import {
@@ -174,22 +178,19 @@ export class BrowserToolbarCustomizationViewModel {
 
   resetAllSlotActions(settings: BrowserToolbarLayoutSettings): BrowserToolbarLayoutSettings {
     const normalizedSettings = this.normalizeSettings(settings);
-    return this.normalizeSettings({
-      primaryActionIds: normalizedSettings.primaryActionIds,
-      secondaryActionIds: normalizedSettings.secondaryActionIds,
-      leadingSlotActionId: '',
-      menuSlotActionId: '',
-      refreshSlotActionId: '',
-      tabsSlotActionId: '',
-      leadingSlotLongPressActionId: 'none',
-      menuSlotLongPressActionId: 'none',
-      refreshSlotLongPressActionId: 'none',
-      tabsSlotLongPressActionId: 'none',
-      leadingSlotSwipeUpActionId: 'home',
-      tabsSlotSwipeUpActionId: 'home',
-      centerCapsuleSwipeUpActionId: 'tools',
-      updatedAt: normalizedSettings.updatedAt
-    });
+    const reset = cloneBrowserToolbarLayoutSettings(normalizedSettings);
+    reset.leadingSlotActionId = '';
+    reset.menuSlotActionId = '';
+    reset.refreshSlotActionId = '';
+    reset.tabsSlotActionId = '';
+    reset.leadingSlotLongPressActionId = 'none';
+    reset.menuSlotLongPressActionId = 'none';
+    reset.refreshSlotLongPressActionId = 'none';
+    reset.tabsSlotLongPressActionId = 'none';
+    reset.leadingSlotSwipeUpActionId = 'home';
+    reset.tabsSlotSwipeUpActionId = 'home';
+    reset.centerCapsuleSwipeUpActionId = 'tools';
+    return this.normalizeSettings(reset);
   }
 
   findSlotAction(
@@ -242,22 +243,31 @@ export class BrowserToolbarCustomizationViewModel {
   }
 
   buildDefaultSettings(): BrowserToolbarLayoutSettings {
-    return {
-      primaryActionIds: DEFAULT_BROWSER_TOOLBAR_LAYOUT_SETTINGS.primaryActionIds.slice(),
-      secondaryActionIds: [],
-      leadingSlotActionId: '',
-      menuSlotActionId: '',
-      refreshSlotActionId: '',
-      tabsSlotActionId: '',
-      leadingSlotLongPressActionId: 'none',
-      menuSlotLongPressActionId: 'none',
-      refreshSlotLongPressActionId: 'none',
-      tabsSlotLongPressActionId: 'none',
-      leadingSlotSwipeUpActionId: 'home',
-      tabsSlotSwipeUpActionId: 'home',
-      centerCapsuleSwipeUpActionId: 'tools',
-      updatedAt: Date.now()
-    };
+    const settings = cloneBrowserToolbarLayoutSettings(DEFAULT_BROWSER_TOOLBAR_LAYOUT_SETTINGS);
+    settings.primaryActionIds = DEFAULT_BROWSER_TOOLBAR_LAYOUT_SETTINGS.primaryActionIds.slice();
+    settings.secondaryActionIds = [];
+    settings.updatedAt = Date.now();
+    return settings;
+  }
+
+  /** Action ids a toolbar button may be set to, not including `none`. */
+  listSelectableInteractionActionIds(): BrowserToolbarInteractionActionId[] {
+    const ids: BrowserToolbarInteractionActionId[] = [];
+    TOOLBAR_CORE_ACTION_IDS.forEach((actionId: BrowserToolbarCoreActionId): void => {
+      ids.push(actionId);
+    });
+    this.getCatalogActionIds().forEach((actionId: BrowserBottomAddressPanelActionId): void => {
+      ids.push(actionId);
+    });
+    return ids;
+  }
+
+  presentInteractionAction(actionId: BrowserToolbarInteractionActionId): BrowserToolbarInteractionActionState {
+    return this.buildInteractionActionState(actionId);
+  }
+
+  isSelectableInteractionAction(actionId: string): boolean {
+    return this.isInteractionActionId(actionId);
   }
 
   normalizeSettings(settings: BrowserToolbarLayoutSettings): BrowserToolbarLayoutSettings {
@@ -267,23 +277,25 @@ export class BrowserToolbarCustomizationViewModel {
     const missingActionIds = this.getCatalogActionIds().filter((actionId: BrowserBottomAddressPanelActionId) => {
       return !normalizedActionIds.includes(actionId);
     });
-    return {
-      primaryActionIds: normalizedActionIds.concat(missingActionIds),
-      secondaryActionIds: [],
-      leadingSlotActionId: this.normalizeTapActionId('leading', settings.leadingSlotActionId),
-      menuSlotActionId: this.normalizeTapActionId('menu', settings.menuSlotActionId),
-      refreshSlotActionId: this.normalizeTapActionId('refresh', settings.refreshSlotActionId),
-      tabsSlotActionId: this.normalizeTapActionId('tabs', settings.tabsSlotActionId),
-      leadingSlotLongPressActionId: this.normalizeGestureActionId(settings.leadingSlotLongPressActionId, 'none'),
-      menuSlotLongPressActionId: this.normalizeGestureActionId(settings.menuSlotLongPressActionId, 'none'),
-      refreshSlotLongPressActionId: this.normalizeGestureActionId(settings.refreshSlotLongPressActionId, 'none'),
-      tabsSlotLongPressActionId: this.normalizeGestureActionId(settings.tabsSlotLongPressActionId, 'none'),
-      leadingSlotSwipeUpActionId: this.normalizeGestureActionId(settings.leadingSlotSwipeUpActionId, 'home'),
-      tabsSlotSwipeUpActionId: this.normalizeGestureActionId(settings.tabsSlotSwipeUpActionId, 'home'),
-      centerCapsuleSwipeUpActionId: this.normalizeCenterCapsuleSwipeUpActionId(
-        settings.centerCapsuleSwipeUpActionId),
-      updatedAt: Number(settings.updatedAt) > 0 ? Math.floor(Number(settings.updatedAt)) : 0
-    };
+    const normalized = cloneBrowserToolbarLayoutSettings(settings);
+    normalized.primaryActionIds = normalizedActionIds.concat(missingActionIds);
+    normalized.secondaryActionIds = [];
+    normalized.leadingSlotActionId = this.normalizeTapActionId('leading', settings.leadingSlotActionId);
+    normalized.menuSlotActionId = this.normalizeTapActionId('menu', settings.menuSlotActionId);
+    normalized.refreshSlotActionId = this.normalizeTapActionId('refresh', settings.refreshSlotActionId);
+    normalized.tabsSlotActionId = this.normalizeTapActionId('tabs', settings.tabsSlotActionId);
+    normalized.leadingSlotLongPressActionId = this.normalizeGestureActionId(settings.leadingSlotLongPressActionId, 'none');
+    normalized.menuSlotLongPressActionId = this.normalizeGestureActionId(settings.menuSlotLongPressActionId, 'none');
+    normalized.refreshSlotLongPressActionId = this.normalizeGestureActionId(settings.refreshSlotLongPressActionId, 'none');
+    normalized.tabsSlotLongPressActionId = this.normalizeGestureActionId(settings.tabsSlotLongPressActionId, 'none');
+    normalized.leadingSlotSwipeUpActionId = this.normalizeGestureActionId(settings.leadingSlotSwipeUpActionId, 'home');
+    normalized.tabsSlotSwipeUpActionId = this.normalizeGestureActionId(settings.tabsSlotSwipeUpActionId, 'home');
+    normalized.centerCapsuleSwipeUpActionId = this.normalizeCenterCapsuleSwipeUpActionId(
+      settings.centerCapsuleSwipeUpActionId);
+    normalized.updatedAt = Number(settings.updatedAt) > 0 ? Math.floor(Number(settings.updatedAt)) : 0;
+    return normalizeSplitToolbarSettings(normalized, (actionId: string): boolean => {
+      return this.isInteractionActionId(actionId);
+    });
   }
 
   getCatalogActionIds(): BrowserBottomAddressPanelActionId[] {
@@ -404,21 +416,11 @@ export class BrowserToolbarCustomizationViewModel {
     primaryActionIds: string[],
     updatedAt: number
   ): BrowserToolbarLayoutSettings {
-    return {
-      primaryActionIds: primaryActionIds.slice(),
-      secondaryActionIds: settings.secondaryActionIds.slice(),
-      leadingSlotActionId: settings.leadingSlotActionId,
-      menuSlotActionId: settings.menuSlotActionId,
-      refreshSlotActionId: settings.refreshSlotActionId,
-      tabsSlotActionId: settings.tabsSlotActionId,
-      leadingSlotLongPressActionId: settings.leadingSlotLongPressActionId,
-      menuSlotLongPressActionId: settings.menuSlotLongPressActionId,
-      refreshSlotLongPressActionId: settings.refreshSlotLongPressActionId,
-      tabsSlotLongPressActionId: settings.tabsSlotLongPressActionId,
-      leadingSlotSwipeUpActionId: settings.leadingSlotSwipeUpActionId,
-      tabsSlotSwipeUpActionId: settings.tabsSlotSwipeUpActionId,
-      updatedAt
-    };
+    const copied = cloneBrowserToolbarLayoutSettings(settings);
+    copied.primaryActionIds = primaryActionIds.slice();
+    copied.secondaryActionIds = settings.secondaryActionIds.slice();
+    copied.updatedAt = updatedAt;
+    return copied;
   }
 
   private resolveStoredInteractionActionId(

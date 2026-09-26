@@ -82,6 +82,7 @@ import systemHomepageStyleCatalogTest from './SystemHomepageStyleCatalog.test';
 import elementInspectionRuntimeScriptServiceTest from './ElementInspectionRuntimeScriptService.test';
 import elementInspectionOutlineMenuLayoutTest from './ElementInspectionOutlineMenuLayout.test';
 import webVideoPictureInPictureBackgroundPolicyTest from './WebVideoPictureInPictureBackgroundPolicy.test';
+import browserSplitToolbarCustomizationPolicyTest from './BrowserSplitToolbarCustomizationPolicy.test';
 
 export default function tests(): void {
   userScriptValueStateStoreTest();
@@ -166,4 +167,5 @@ export default function tests(): void {
   elementInspectionRuntimeScriptServiceTest();
   elementInspectionOutlineMenuLayoutTest();
   webVideoPictureInPictureBackgroundPolicyTest();
+  browserSplitToolbarCustomizationPolicyTest();
 }
