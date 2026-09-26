@@ -405,7 +405,6 @@ export class SettingsDetailViewModel {
     },
     siteIconRefreshing: boolean = false,
     appServiceMode: BrowserAppServiceMode = 'full',
-    hideTopSafeAreaSettings: boolean = false,
     isLargeScreen: boolean = false,
     tabletInterfaceModeVisible: boolean = false,
     tabletInterfaceModeLabel: string = '自动',
@@ -442,7 +441,6 @@ export class SettingsDetailViewModel {
       about,
       siteIconRefreshing,
       appServiceMode,
-      hideTopSafeAreaSettings,
       tabletInterfaceModeVisible,
       tabletInterfaceModeLabel,
       secureDnsSummaryLabel,
@@ -504,7 +502,6 @@ export class SettingsDetailViewModel {
     about: SettingsAboutDisplayState,
     siteIconRefreshing: boolean,
     appServiceMode: BrowserAppServiceMode,
-    hideTopSafeAreaSettings: boolean,
     tabletInterfaceModeVisible: boolean,
     tabletInterfaceModeLabel: string,
     secureDnsSummaryLabel: string,
@@ -557,7 +554,6 @@ export class SettingsDetailViewModel {
           appearance,
           canEditDevicePreferences,
           isPrivateContext,
-          hideTopSafeAreaSettings,
           tabletInterfaceModeVisible,
           tabletInterfaceModeLabel,
           isLargeScreen
@@ -1207,7 +1203,6 @@ export class SettingsDetailViewModel {
     appearance: BrowserAppearanceSettings,
     canEditDevicePreferences: boolean,
     isPrivateContext: boolean,
-    hideTopSafeAreaSettings: boolean,
     tabletInterfaceModeVisible: boolean,
     tabletInterfaceModeLabel: string,
     isLargeScreen: boolean
@@ -1329,51 +1324,12 @@ export class SettingsDetailViewModel {
         footerText: '仅在平板和桌面窗口显示，设置保存在本设备。'
       });
     }
-    if (!hideTopSafeAreaSettings) {
-      groups.push({
-        id: 'scroll_top_immersion',
-        title: '顶部沉浸',
-        rows: [
-          this.switchRow(
-            'global_immersion',
-            '滚动时顶部沉浸',
-            '',
-            'toggle_global_immersion',
-            appearance.globalImmersionEnabled,
-            canEditDevicePreferences && !appearance.alwaysTopImmersionEnabled
-          )
-        ],
-        footerText: this.buildScrollTopImmersionFooter(canEditDevicePreferences)
-      });
-      groups.push({
-        id: 'always_top_immersion',
-        title: '',
-        rows: [
-          this.switchRow(
-            'always_top_immersion',
-            '始终顶部沉浸',
-            '',
-            'toggle_always_top_immersion',
-            appearance.alwaysTopImmersionEnabled,
-            canEditDevicePreferences
-          )
-        ],
-        footerText: '网页内容始终延伸到屏幕顶部，不单独保留顶部安全区域。'
-      });
-    }
     return {
       id: 'appearance_toolbar',
       title: '外观设置',
       actionButtons: [],
       groups: groups
     };
-  }
-
-  private buildScrollTopImmersionFooter(canEditDevicePreferences: boolean): string {
-    if (!canEditDevicePreferences) {
-      return '私密中不改全局设置。';
-    }
-    return '向下滚动网页时收起顶部安全区域，向上滚动或停止后恢复。';
   }
 
   private buildExperimentsState(

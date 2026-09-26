@@ -32,7 +32,6 @@ export interface SettingsDetailStateBuildInput {
   retentionSettings: BrowserRetentionSettings;
   siteIconRefreshing: boolean;
   appServiceMode: BrowserAppServiceMode;
-  hideTopSafeAreaSettings?: boolean;
   isLargeScreen?: boolean;
   tabletInterfaceModeVisible?: boolean;
   tabletInterfaceModeLabel?: string;
@@ -127,7 +126,6 @@ export class SettingsDetailStateBuilder {
       },
       input.siteIconRefreshing,
       input.appServiceMode,
-      input.hideTopSafeAreaSettings === true,
       input.isLargeScreen === true,
       input.tabletInterfaceModeVisible === true,
       input.tabletInterfaceModeLabel ?? '自动',

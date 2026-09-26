@@ -1,5 +1,6 @@
 import vibrator from '@ohos.vibrator';
 import {
+  BrowserAppearanceSettings,
   BrowserBottomToolbarScrollBehavior,
   BrowserExperimentSettings,
   BrowserToolbarChromeStyle,
@@ -11,6 +12,11 @@ import { PreferencesRepository } from '../../data/preferences/PreferencesReposit
 import { BrowserPrivacyEffectPolicyService } from '../../services/privacy/BrowserPrivacyEffectPolicyService';
 import { BrowserBottomAddressPanelActionId } from './BrowserBottomAddressPanelViewModel';
 import { BrowserProfileBoundaryService } from './BrowserProfileBoundaryService';
+import {
+  resolveTopImmersionPreference,
+  ToolbarTopImmersionPreference,
+  ToolbarTopImmersionSwitch
+} from './BrowserToolbarChromeStylePolicy';
 import { BrowserToolbarCustomizationViewModel } from './BrowserToolbarCustomizationViewModel';
 
 const TOOLBAR_REORDER_HAPTIC_DURATION_MS: number = 18;
@@ -86,6 +92,24 @@ export class BrowserToolbarCustomizationCoordinator {
     this.ensureDevicePreferenceWriteAllowed(boundary);
     return this.preferencesRepository.updateToolbarChromeStyle(style)
       .then((preferences) => preferences.appearance.toolbarChromeStyle);
+  }
+
+  persistTopImmersion(
+    kind: ToolbarTopImmersionSwitch,
+    enabled: boolean,
+    boundary: BrowserToolbarCustomizationBoundary
+  ): Promise<BrowserAppearanceSettings> {
+    this.ensureDevicePreferenceWriteAllowed(boundary);
+    const current = this.preferencesRepository.getPreferences().appearance;
+    const preference: ToolbarTopImmersionPreference = {
+      globalImmersionEnabled: current.globalImmersionEnabled,
+      alwaysTopImmersionEnabled: current.alwaysTopImmersionEnabled
+    };
+    const next = resolveTopImmersionPreference(preference, kind, enabled);
+    return this.preferencesRepository.updateTopImmersionSettings(
+      next.globalImmersionEnabled,
+      next.alwaysTopImmersionEnabled
+    ).then((preferences) => preferences.appearance);
   }
 
   persistWebBottomSafeAreaEnabled(

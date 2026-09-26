@@ -10,10 +10,12 @@ import {
   ScrollEffectType,
   TitleSize
 } from '@kit.UIDesignKit';
-import { LengthMetrics } from '@kit.ArkUI';
+import { LengthMetrics, window } from '@kit.ArkUI';
 import { BrowserStatusBarStyleService } from '../../../services/browser/BrowserStatusBarStyleService';
 import { SettingsTopSafeInsetService } from '../../../services/settings/SettingsTopSafeInsetService';
 import { SettingsContentFrame } from './SettingsContentFrame';
+import { SettingsHeaderScrollRegistry } from './SettingsHeaderScrollRegistry';
+import { BROWSER_SHEET_BLUR_SCROLL_RANGE_VP } from '../browser/BrowserModalBottomSheet';
 import { SettingsContentKind } from '../../../core/settings/SettingsContentLayoutPolicy';
 import { DEFAULT_THEME_PALETTE } from '../../../features/theme/palettes/DefaultThemePalette';
 import { AiraRenderableIconId } from '../../../core/resources/GeneratedAiraIconCatalog';
@@ -47,6 +49,12 @@ const SETTINGS_TITLE_BAR_TEXT_ACTION_FONT_SIZE: number = 14;
 export struct SettingsHdsScaffold {
   private statusBarStyleService: BrowserStatusBarStyleService = new BrowserStatusBarStyleService();
   private topSafeInsetService: SettingsTopSafeInsetService = new SettingsTopSafeInsetService();
+  private boundAvoidAreaWindow?: window.Window = undefined;
+  private avoidAreaBindGeneration: number = 0;
+  private readonly avoidAreaChangeCallback: (options: window.AvoidAreaOptions) => void =
+    (_options: window.AvoidAreaOptions): void => {
+      this.refreshTopSafeInset();
+    };
   @StorageProp(BROWSER_THEME_STORAGE_RESOLVED_MODE_KEY) @Watch('syncStatusBarContentStyle')
   private storedResolvedThemeMode: string = 'light';
   @Prop title: string = '';
@@ -79,6 +87,9 @@ export struct SettingsHdsScaffold {
   /** Keep the title bar from painting a blur band over the content beneath it. */
   @Prop suppressContentBlur: boolean = false;
   scrollers: Array<Scroller> = [];
+  @Provide('settingsHeaderScrollRegistry') scrollRegistry: SettingsHeaderScrollRegistry =
+    new SettingsHeaderScrollRegistry();
+  @State private registeredScrollers: Scroller[] = [];
   @State private topSafeInsetVp: number = 0;
   onBack: () => void = (): void => {};
   onMenuAction: () => void = (): void => {};
@@ -86,7 +97,15 @@ export struct SettingsHdsScaffold {
 
   aboutToAppear(): void {
     this.syncStatusBarContentStyle();
-    this.refreshTopSafeInset();
+    this.bindTopSafeInsetUpdates();
+    this.scrollRegistry.setListener(() => {
+      this.registeredScrollers = this.scrollRegistry.scrollers.slice();
+    });
+  }
+
+  aboutToDisappear(): void {
+    this.avoidAreaBindGeneration += 1;
+    this.unbindTopSafeInsetUpdates();
   }
 
   build() {
@@ -111,7 +130,14 @@ export struct SettingsHdsScaffold {
 
   @Builder
   private buildScaffoldWithTitleBar() {
-    Stack() {
+    Column() {
+      // Fullscreen layout starts under the status bar. Official clearance is
+      // getWindowAvoidArea(TYPE_SYSTEM).topRect.height, applied here so the
+      // title does not depend on HdsNavDestination.avoidLayoutSafeArea.
+      Blank()
+        .width('100%')
+        .height(this.useTopSafeInset ? this.resolveTopSafeInset() : 0)
+      Stack() {
       HdsNavDestination() {
         this.buildContentFrame()
       }
@@ -136,20 +162,21 @@ export struct SettingsHdsScaffold {
             showType: DividerShowType.AUTO
           }
         },
-        avoidLayoutSafeArea: true,
+        avoidLayoutSafeArea: false,
         enableComponentSafeArea: true,
         style: {
           scrollEffectOpts: {
-            enableScrollEffect: !this.suppressContentBlur,
+            enableScrollEffect: this.resolveHeaderBlurEnabled(),
             scrollEffectType: ScrollEffectType.IMMERSIVE_GRADIENT_BLUR,
             blurEffectiveStartOffset: LengthMetrics.vp(0),
-            blurEffectiveEndOffset: LengthMetrics.vp(this.suppressContentBlur ? 0 : 72)
+            blurEffectiveEndOffset: LengthMetrics.vp(this.resolveHeaderBlurEnabled() ?
+              BROWSER_SHEET_BLUR_SCROLL_RANGE_VP : 0)
           },
           blurStrategy: BlurStrategy.ADAPTIVE,
           originalStyle: {
             backgroundStyle: {
               backgroundColor: Color.Transparent,
-              maskExtraHeight: this.suppressContentBlur ? 0 : 40,
+              maskExtraHeight: 0,
               blurRadius: 0
             },
             contentStyle: {
@@ -172,8 +199,8 @@ export struct SettingsHdsScaffold {
           scrollEffectStyle: {
             backgroundStyle: {
               backgroundColor: Color.Transparent,
-              maskExtraHeight: this.suppressContentBlur ? 0 : 40,
-              blurRadius: this.suppressContentBlur ? 0 : 28
+              maskExtraHeight: this.resolveHeaderBlurEnabled() ? 40 : 0,
+              blurRadius: this.resolveHeaderBlurEnabled() ? 28 : 0
             },
             contentStyle: {
               titleStyle: {
@@ -199,10 +226,10 @@ export struct SettingsHdsScaffold {
         }
       })
       .titleMode(HdsNavDestinationTitleMode.MINI)
-      .bindToScrollable(this.scrollers)
+      .bindToScrollable(this.resolveTitleBarScrollers())
       .ignoreLayoutSafeArea(
         [LayoutSafeAreaType.SYSTEM],
-        [LayoutSafeAreaEdge.TOP, LayoutSafeAreaEdge.BOTTOM]
+        [LayoutSafeAreaEdge.BOTTOM]
       )
       .hideBackButton(!this.showBackButton)
       .onBackPressed(() => {
@@ -211,6 +238,9 @@ export struct SettingsHdsScaffold {
       })
 
       this.buildGlassTitleActions()
+      }
+      .width('100%')
+      .layoutWeight(1)
     }
     .width('100%')
     .height('100%')
@@ -538,6 +568,37 @@ export struct SettingsHdsScaffold {
       });
   }
 
+  private bindTopSafeInsetUpdates(): void {
+    const generation = this.avoidAreaBindGeneration + 1;
+    this.avoidAreaBindGeneration = generation;
+    this.unbindTopSafeInsetUpdates();
+    this.refreshTopSafeInset();
+    window.getLastWindow(this.getUIContext().getHostContext() as common.UIAbilityContext)
+      .then((mainWindow: window.Window) => {
+        if (generation !== this.avoidAreaBindGeneration) {
+          return;
+        }
+        this.boundAvoidAreaWindow = mainWindow;
+        try {
+          mainWindow.on('avoidAreaChange', this.avoidAreaChangeCallback);
+        } catch (_error) {
+        }
+      })
+      .catch(() => {
+      });
+  }
+
+  private unbindTopSafeInsetUpdates(): void {
+    if (this.boundAvoidAreaWindow === undefined) {
+      return;
+    }
+    try {
+      this.boundAvoidAreaWindow.off('avoidAreaChange', this.avoidAreaChangeCallback);
+    } catch (_error) {
+    }
+    this.boundAvoidAreaWindow = undefined;
+  }
+
   private syncStatusBarContentStyle(): void {
     this.statusBarStyleService.applyLightContentStyle(
       this.getUIContext().getHostContext() as common.UIAbilityContext,
@@ -549,6 +610,17 @@ export struct SettingsHdsScaffold {
     return Math.max(0, Math.ceil(this.topSafeInsetVp));
   }
 
+  private resolveHeaderBlurEnabled(): boolean {
+    return !this.suppressContentBlur && this.resolveTitleBarScrollers().length > 0;
+  }
+
+  private resolveTitleBarScrollers(): Scroller[] {
+    if (this.scrollers.length > 0) {
+      return this.scrollers;
+    }
+    return this.registeredScrollers;
+  }
+
   private resolveBackLabel(): string {
     return this.backIconKind === 'close' ? '关闭设置' : '返回设置';
   }
@@ -558,7 +630,9 @@ export struct SettingsHdsScaffold {
   }
 
   private resolveCustomMenuActionButtonTop(): number {
-    return (this.useTopSafeInset ? this.resolveTopSafeInset() : 0) + SETTINGS_TITLE_BAR_CUSTOM_MENU_BUTTON_TOP;
+    // The scaffold already pads by the status-bar inset. The 8vp is the
+    // button's place inside the 56vp title bar, not another status-bar offset.
+    return SETTINGS_TITLE_BAR_CUSTOM_MENU_BUTTON_TOP;
   }
 
   private shouldShowTrailingTitleActions(): boolean {

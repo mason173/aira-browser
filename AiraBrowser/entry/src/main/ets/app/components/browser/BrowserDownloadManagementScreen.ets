@@ -64,7 +64,7 @@ import { FloatingGlassMaterialSurface } from '../common/FloatingGlassMaterialSur
 import { resolveFloatingGlassMaterialTintForMode } from '../common/FloatingGlassMaterialTokens';
 import { BROWSER_WINDOW_SAFE_TOP_INSET_STORAGE_KEY } from '../../../core/browser/BrowserWindowAvoidAreaCoordinator';
 import { FloatingSelectionToolbar } from '../common/FloatingSelectionToolbar';
-import { browserSheetHeaderBlurModifier } from './BrowserModalBottomSheet';
+import { browserSheetHeaderBlurModifier, resolveBrowserSheetHeaderBlurRadius } from './BrowserModalBottomSheet';
 import {
   MANAGEMENT_LARGE_SCREEN_ROW_GAP,
   MANAGEMENT_LARGE_SCREEN_ROW_INSET,
@@ -104,8 +104,43 @@ const DOWNLOAD_FILTER_LAYOUT_HEIGHT: number = 54;
 const DOWNLOAD_FILTER_TO_CONTENT_GAP: number = 4;
 const DOWNLOAD_EMBEDDED_FILTER_TOP_INSET: number = 8;
 const DOWNLOAD_IMMERSIVE_TITLE_TO_CONTENT_GAP: number = 16;
-const DOWNLOAD_IMMERSIVE_TOP_BLUR_RADIUS: number = 20;
 const DOWNLOAD_CONTEXT_MENU_DISMISS_DELAY_MS: number = 240;
+
+class DownloadGroupScrollers {
+  private readonly inProgress: Scroller = new Scroller();
+  private readonly completed: Scroller = new Scroller();
+  private readonly failed: Scroller = new Scroller();
+  private readonly paused: Scroller = new Scroller();
+  private readonly pending: Scroller = new Scroller();
+  private readonly canceled: Scroller = new Scroller();
+  private readonly removed: Scroller = new Scroller();
+  private readonly all: Scroller = new Scroller();
+
+  scrollerFor(group: string): Scroller {
+    if (group === 'completed') {
+      return this.completed;
+    }
+    if (group === 'failed') {
+      return this.failed;
+    }
+    if (group === 'paused') {
+      return this.paused;
+    }
+    if (group === 'pending') {
+      return this.pending;
+    }
+    if (group === 'canceled') {
+      return this.canceled;
+    }
+    if (group === 'removed') {
+      return this.removed;
+    }
+    if (group === 'all') {
+      return this.all;
+    }
+    return this.inProgress;
+  }
+}
 const DOWNLOAD_SELECTION_TOOLBAR_FLOAT_BOTTOM: number = 36;
 
 @Component
@@ -147,6 +182,8 @@ export struct BrowserDownloadManagementScreen {
   @State isSelectionMode: boolean = false;
   @State selectedGuids: string[] = [];
   @State private downloadSettingsDialogRevision: number = 0;
+  @State private headerBlurRadius: number = 0;
+  private groupScrollers: DownloadGroupScrollers = new DownloadGroupScrollers();
   @LocalStorageProp(BROWSER_WINDOW_SAFE_TOP_INSET_STORAGE_KEY) private topSafeInsetVp: number = 0;
   private downloadSettingsDialogOpen: boolean = false;
   private pageActive: boolean = true;
@@ -713,7 +750,7 @@ export struct BrowserDownloadManagementScreen {
 
   @Builder
   private buildDownloadGroupPage(group: DownloadQueryGroup, centerEmptyStateInViewport: boolean) {
-    Scroll() {
+    Scroll(this.groupScrollers.scrollerFor(group)) {
       Column({ space: 14 }) {
         if (this.isSessionEphemeral) {
           this.buildPrivateBoundaryCard()
@@ -733,9 +770,14 @@ export struct BrowserDownloadManagementScreen {
     }
     .width('100%')
     .height('100%')
-    .attributeModifier(browserSheetHeaderBlurModifier(this.presentationMode === 'native_tab' ? 0 : DOWNLOAD_IMMERSIVE_TOP_BLUR_RADIUS))
+    .attributeModifier(browserSheetHeaderBlurModifier(this.presentationMode === 'native_tab' ? 0 : this.headerBlurRadius))
     .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
     .scrollBar(BarState.Auto)
+    .onDidScroll(() => {
+      this.headerBlurRadius = resolveBrowserSheetHeaderBlurRadius(
+        this.groupScrollers.scrollerFor(group).currentOffset().yOffset
+      );
+    })
     .expandSafeArea([SafeAreaType.SYSTEM, SafeAreaType.CUTOUT], this.resolveSystemSafeAreaEdges())
   }
 

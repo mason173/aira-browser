@@ -62,7 +62,7 @@ export struct BrowserTabsOverviewClearButton {
       }) {
         Stack({ alignContent: Alignment.Center }) {
           AiraIcon({
-            airaIconId: 'browser.tabs.delete',
+            airaIconId: 'browser.tabs.overviewClose',
             iconSize: BROWSER_TABS_OVERVIEW_CLEAR_BUTTON_ICON_SIZE,
             iconColor: this.resolvePrimaryColor()
           })

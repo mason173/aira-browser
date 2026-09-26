@@ -374,7 +374,6 @@ export struct SettingsInlineDetailPanel {
       retentionSettings: this.retentionSettings,
       siteIconRefreshing: this.siteIconRefreshing,
       appServiceMode: appServiceModeOverride ?? sharedPreferencesRepository.getPreferences().appServiceMode,
-      hideTopSafeAreaSettings: this.shellFamily === 'large_screen',
       isLargeScreen: this.shellFamily === 'large_screen',
       tabletInterfaceModeVisible: tabletInterfaceModeState.visible,
       tabletInterfaceModeLabel: tabletInterfaceModeState.selectedLabel,

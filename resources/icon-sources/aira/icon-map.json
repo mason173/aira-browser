@@ -877,7 +877,7 @@
   },
   {
     "exportedFile": "vendor/lucide/aira-operational-icons/svg/tabs-overview-close-all.svg",
-    "originalSource": "Lucide 1.38.0 / x",
+    "originalSource": "Lucide 1.38.0 / trash",
     "primaryResourceFamily": "app_tabs_overview_close",
     "resourceFamilies": [
       "app_tabs_overview_close"

@@ -237,6 +237,7 @@ import {
   resolveSplitToolbarHomeBackdrop,
   canCollapseSplitAddressBarForTopImmersion,
   resolveSplitToolbarScrollBehavior,
+  shouldApplyAlwaysTopImmersion,
   shouldCollapseSplitToolbarForScroll,
   SplitAddressBarImmersionScrollCoordinator,
   shouldReserveSplitToolbarHomeInsets,
@@ -3700,7 +3701,7 @@ struct BrowserShellPage {
         tabsSheetVisible: this.showTabsSheet,
         scrollTopImmersionEnabled: this.webScrollGlobalImmersionEnabled &&
           !this.isLargeScreenShellFamilyActive(),
-        alwaysTopImmersionEnabled: this.webScrollAlwaysTopImmersionEnabled &&
+        alwaysTopImmersionEnabled: this.isAlwaysTopImmersionEnabled() &&
           !this.isLargeScreenShellFamilyActive(),
         fullScreenModeEnabled: this.browserFullscreenSessionPresentation.fullScreenModeEnabled,
         webAppTopSafeAreaHidden: this.shouldHideWebAppTopSafeArea(),
@@ -6394,6 +6395,7 @@ struct BrowserShellPage {
         );
       }
       this.noteSplitAddressBarScroll(this.activeTabId, this.browserWebScrollInteractionCoordinator.getLastScrollY(), false);
+      this.browserWebTopImmersionSessionCoordinator.syncPolicy('appearance');
       this.alignWebViewportVisualTopInsetAfterSafeAreaSync(true, true);
     },
     applyExperimentSettings: (settings: BrowserExperimentSettings): void => {
@@ -8491,7 +8493,7 @@ struct BrowserShellPage {
       homeScene: this.showHomePage,
       addressFocused: this.webBottomAddressFocused,
       keyboardInsetVp: this.rootKeyboardInsetVp,
-      topImmersionEnabled: this.webScrollGlobalImmersionEnabled || this.webScrollAlwaysTopImmersionEnabled
+      topImmersionEnabled: this.webScrollGlobalImmersionEnabled || this.isAlwaysTopImmersionEnabled()
     });
   }
 
@@ -11556,7 +11558,7 @@ struct BrowserShellPage {
   }
 
   private isTopImmersionPreferenceEnabled(): boolean {
-    return this.webScrollGlobalImmersionEnabled || this.webScrollAlwaysTopImmersionEnabled;
+    return this.webScrollGlobalImmersionEnabled || this.isAlwaysTopImmersionEnabled();
   }
 
   // Distinct from isTopImmersionPreferenceEnabled: scroll-driven immersion keeps the strip while the
@@ -11566,7 +11568,10 @@ struct BrowserShellPage {
   }
 
   private isAlwaysTopImmersionEnabled(): boolean {
-    return this.webScrollAlwaysTopImmersionEnabled;
+    return shouldApplyAlwaysTopImmersion(
+      this.webScrollAlwaysTopImmersionEnabled,
+      this.shouldUseSplitToolbarChrome()
+    );
   }
 
   private refreshActivePageExperimentRuntimes(): void {

@@ -835,6 +835,34 @@ export class PreferencesRepository {
     });
   }
 
+  async updateTopImmersionSettings(
+    globalImmersionEnabled: boolean,
+    alwaysTopImmersionEnabled: boolean
+  ): Promise<BrowserPreferences> {
+    const current = this.cachedPreferences.appearance;
+    return this.updateAppearanceSettings({
+      bottomToolbarScrollBehavior: current.bottomToolbarScrollBehavior,
+      toolbarChromeStyle: current.toolbarChromeStyle,
+      globalImmersionEnabled: globalImmersionEnabled,
+      alwaysTopImmersionEnabled: alwaysTopImmersionEnabled,
+      forceDarkWebContentEnabled: current.forceDarkWebContentEnabled,
+      blurPrivateTabPreviews: current.blurPrivateTabPreviews,
+      showHomeRecentlyClosed: current.showHomeRecentlyClosed,
+      showHomeShortcuts: current.showHomeShortcuts,
+      homeRecentlyClosedLimit: current.homeRecentlyClosedLimit,
+      homeShortcutLayoutDensity: current.homeShortcutLayoutDensity,
+      homeShortcutIconSizeRatio: current.homeShortcutIconSizeRatio,
+      siteIconCornerRadiusRatio: current.siteIconCornerRadiusRatio,
+      themePaletteId: current.themePaletteId,
+      tabsOverviewLayoutStyle: current.tabsOverviewLayoutStyle,
+      tabsOverviewCloseButtonAlwaysVisible: current.tabsOverviewCloseButtonAlwaysVisible,
+      showDesktopBookmarkBar: current.showDesktopBookmarkBar,
+      desktopBookmarkBarVisibility: current.desktopBookmarkBarVisibility,
+      verticalTabsEnabled: current.verticalTabsEnabled,
+      verticalTabsCollapsed: current.verticalTabsCollapsed
+    });
+  }
+
   updateVerticalTabsPresentation(
     enabled: boolean,
     collapsed: boolean

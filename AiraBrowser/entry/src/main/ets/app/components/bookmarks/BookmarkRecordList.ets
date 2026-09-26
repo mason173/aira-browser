@@ -28,7 +28,7 @@ import {
   BookmarkRecordActionId,
   BookmarkRecordActionView
 } from '../../../core/bookmarks/BookmarkRecordActionViewModel';
-import { browserSheetHeaderBlurModifier } from '../browser/BrowserModalBottomSheet';
+import { browserSheetHeaderBlurModifier, resolveBrowserSheetHeaderBlurRadius } from '../browser/BrowserModalBottomSheet';
 import {
   SiteIconListRenderState,
   SiteIconListTarget
@@ -38,7 +38,6 @@ const BOOKMARK_LIST_CACHE_COUNT: number = 24;
 const BOOKMARK_LIST_ROW_SPACE: number = 2;
 const BOOKMARK_LIST_ROW_PRESS_RADIUS: number = 18;
 const BOOKMARK_LIST_TOP_PADDING: number = 0;
-const BOOKMARK_LIST_TOP_BLUR_RADIUS: number = 20;
 const BOOKMARK_FOLDER_ICON_PLAYBACK_WINDOW_MS: number = 1600;
 const BOOKMARK_EDIT_ROW_STRIDE: number = RECORD_LIST_ROW_HEIGHT + BOOKMARK_LIST_ROW_SPACE;
 const BOOKMARK_EDIT_DROP_ANIMATION_MS: number = 150;
@@ -65,6 +64,7 @@ export struct BookmarkRecordList {
   @Prop clipToViewport: boolean = false;
   @Prop contentStartOffset: number = BOOKMARK_LIST_TOP_PADDING;
   scroller: Scroller = new Scroller();
+  @State private headerBlurRadius: number = 0;
   private iconLookupSource: SiteIconListRenderState[] = [];
   private iconLookup: Record<string, SiteIconListRenderState | undefined> = {};
   private selectedNodeIdLookupSource: string[] = [];
@@ -174,7 +174,7 @@ export struct BookmarkRecordList {
       right: 16
     })
     .contentStartOffset(this.contentStartOffset)
-    .attributeModifier(browserSheetHeaderBlurModifier(BOOKMARK_LIST_TOP_BLUR_RADIUS))
+    .attributeModifier(browserSheetHeaderBlurModifier(this.headerBlurRadius))
     .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
     .enableScrollInteraction(this.draggingNodeId.length === 0)
     .scrollBar(BarState.Off)
@@ -184,7 +184,9 @@ export struct BookmarkRecordList {
       this.onScrollVisibleRange(start, end);
     })
     .onDidScroll((_scrollDelta: number, _scrollState: ScrollState) => {
-      this.onScrollOffsetChange(this.scroller.currentOffset().yOffset);
+      const offset = this.scroller.currentOffset().yOffset;
+      this.headerBlurRadius = resolveBrowserSheetHeaderBlurRadius(offset);
+      this.onScrollOffsetChange(offset);
     })
     .onAreaChange((_oldArea: Area, newArea: Area) => {
       this.listGlobalTop = Number(newArea.globalPosition.y);

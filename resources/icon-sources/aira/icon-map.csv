@@ -92,7 +92,7 @@ vendor/lucide/aira-operational-icons/svg/browser-address-expanded-share.svg,Luci
 vendor/lucide/aira-operational-icons/svg/browser-address-expanded-edit.svg,Lucide 1.38.0 / pencil,app_browser_address_expanded_edit,app_browser_address_expanded_edit,Lucide Operational font source
 vendor/lucide/aira-operational-icons/svg/browser-address-expanded-copy.svg,Lucide 1.38.0 / copy,app_browser_address_expanded_copy,app_browser_address_expanded_copy,Lucide Operational font source
 vendor/lucide/aira-operational-icons/svg/tabs-overview-new.svg,Lucide 1.38.0 / square-plus,app_tabs_overview_add,app_tabs_overview_add,Lucide Operational font source
-vendor/lucide/aira-operational-icons/svg/tabs-overview-close-all.svg,Lucide 1.38.0 / x,app_tabs_overview_close,app_tabs_overview_close,Lucide Operational font source
+vendor/lucide/aira-operational-icons/svg/tabs-overview-close-all.svg,Lucide 1.38.0 / trash,app_tabs_overview_close,app_tabs_overview_close,Lucide Operational font source
 vendor/lucide/aira-operational-icons/svg/toolbar-home.svg,Lucide 1.38.0 / home,app_toolbar_home,app_toolbar_home,Lucide Operational font source
 vendor/lucide/aira-operational-icons/svg/toolbar-scan.svg,Lucide 1.38.0 / scan-qr-code,app_toolbar_scan_qr,app_toolbar_scan_qr,Lucide Operational font source
 vendor/lucide/aira-operational-icons/svg/toolbar-private-mode.svg,Lucide 1.38.0 / venetian-mask,app_toolbar_privacy_mode,app_toolbar_privacy_mode,Lucide Operational font source

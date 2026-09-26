@@ -12,9 +12,9 @@ import {
 import { APP_STANDARD_HORIZONTAL_PADDING } from '../common/AppLayoutTokens';
 import { AiraIcon } from '../common/AiraIcon';
 import {
-  BROWSER_SHEET_IMMERSIVE_TOP_BLUR_RADIUS,
   BrowserSheetActionButton,
-  browserSheetHeaderBlurModifier
+  browserSheetHeaderBlurModifier,
+  resolveBrowserSheetHeaderBlurRadius
 } from './BrowserModalBottomSheet';
 
 const NOVEL_CATALOG_IMMERSIVE_CONTENT_TOP_PADDING: number = 146;
@@ -43,6 +43,7 @@ export struct NovelReaderCatalogSheet {
     (_startOrdinal: number, _endOrdinal: number): void => {};
   @State private expandedCatalogRangeStarts: number[] = [0];
   private catalogScroller: Scroller = new Scroller();
+  @State private headerBlurRadius: number = 0;
 
   build() {
     Stack({ alignContent: Alignment.TopStart }) {
@@ -104,7 +105,10 @@ export struct NovelReaderCatalogSheet {
           top: NOVEL_CATALOG_IMMERSIVE_CONTENT_TOP_PADDING
         })
         .divider({ strokeWidth: 0.5, color: this.storedDividerColor })
-        .attributeModifier(browserSheetHeaderBlurModifier(BROWSER_SHEET_IMMERSIVE_TOP_BLUR_RADIUS))
+        .attributeModifier(browserSheetHeaderBlurModifier(this.headerBlurRadius))
+        .onDidScroll(() => {
+          this.headerBlurRadius = resolveBrowserSheetHeaderBlurRadius(this.catalogScroller.currentOffset().yOffset);
+        })
       }
 
       Column() {

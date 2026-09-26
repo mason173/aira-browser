@@ -34,10 +34,17 @@ export function resolveWindowTopAvoidAreaInsetVp(
   }
 }
 
+/**
+ * Status-bar clearance in vp for a fullscreen window.
+ * Official immersive layout reads getWindowAvoidArea(TYPE_SYSTEM).topRect.height
+ * and converts that px height with px2vp. It is not gated on AvoidArea.visible:
+ * a transparent status bar can report visible=false while topRect.height is still
+ * the overlap. Cutout height is included so a punch-hole is cleared too.
+ */
 export function resolveWindowTopSafeInsetVp(mainWindow: window.Window): number {
   return Math.max(
-    resolveWindowTopAvoidAreaInsetVp(mainWindow, window.AvoidAreaType.TYPE_SYSTEM),
-    resolveWindowTopAvoidAreaInsetVp(mainWindow, window.AvoidAreaType.TYPE_CUTOUT)
+    resolveWindowTopAvoidAreaGeometryInsetVp(mainWindow, window.AvoidAreaType.TYPE_SYSTEM),
+    resolveWindowTopAvoidAreaGeometryInsetVp(mainWindow, window.AvoidAreaType.TYPE_CUTOUT)
   );
 }
 

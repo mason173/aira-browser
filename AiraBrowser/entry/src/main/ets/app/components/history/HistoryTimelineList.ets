@@ -34,14 +34,13 @@ import {
   SiteIconListTarget
 } from '../../../core/siteicons/SiteIconListPresenter';
 import { AiraIcon } from '../common/AiraIcon';
-import { browserSheetHeaderBlurModifier } from '../browser/BrowserModalBottomSheet';
+import { browserSheetHeaderBlurModifier, resolveBrowserSheetHeaderBlurRadius } from '../browser/BrowserModalBottomSheet';
 
 const HISTORY_TIMELINE_CACHE_COUNT: number = 4;
 const HISTORY_TIMELINE_GROUP_PADDING: number = 4;
 const HISTORY_TIMELINE_DELETE_ACTION_WIDTH: number = 72;
 const HISTORY_TIMELINE_DELETE_BUTTON_SIZE: number = 40;
 const HISTORY_TIMELINE_DELETE_ACTION_DISTANCE: number = 56;
-const HISTORY_TIMELINE_TOP_BLUR_RADIUS: number = 20;
 @Component
 export struct HistoryTimelineList {
   @StorageProp(BROWSER_APPEARANCE_STORAGE_SITE_ICON_CORNER_RATIO_KEY) private storedSiteIconCornerRadiusRatio: number = 0.3;
@@ -49,6 +48,7 @@ export struct HistoryTimelineList {
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY) private storedSecondaryTextColor: string = '#5F6875';
   dataSource: HistoryTimelineDataSource = new HistoryTimelineDataSource();
   listScroller: ListScroller = new ListScroller();
+  @State private headerBlurRadius: number = 0;
   @Prop icons: SiteIconListRenderState[] = [];
   @Prop bookmarkedVisitIds: string[] = [];
   @Prop homeShortcutVisitIds: string[] = [];
@@ -136,7 +136,7 @@ export struct HistoryTimelineList {
     .height('100%')
     .padding({ left: 16, right: 16, bottom: 4 })
     .contentStartOffset(this.contentStartOffset)
-    .attributeModifier(browserSheetHeaderBlurModifier(HISTORY_TIMELINE_TOP_BLUR_RADIUS))
+    .attributeModifier(browserSheetHeaderBlurModifier(this.headerBlurRadius))
     .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
     .scrollBar(BarState.Off)
     .cachedCount(HISTORY_TIMELINE_CACHE_COUNT)
@@ -149,7 +149,9 @@ export struct HistoryTimelineList {
       );
     })
     .onDidScroll((_scrollDelta: number, _scrollState: ScrollState) => {
-      this.onScrollOffsetChange(this.listScroller.currentOffset().yOffset);
+      const offset = this.listScroller.currentOffset().yOffset;
+      this.headerBlurRadius = resolveBrowserSheetHeaderBlurRadius(offset);
+      this.onScrollOffsetChange(offset);
     })
     .onReachEnd(() => {
       this.onReachEnd();

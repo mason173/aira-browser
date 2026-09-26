@@ -7,7 +7,15 @@ import {
   BrowserToolbarChromeStyle,
   BrowserToolbarLayoutSettings
 } from '../../../common/models/BrowserModels';
-import { resolveSplitToolbarScrollBehavior } from '../../../core/browser/BrowserToolbarChromeStylePolicy';
+import {
+  resolveScrollTopImmersionFooter,
+  resolveSplitToolbarScrollBehavior,
+  resolveTopImmersionPreference,
+  shouldShowAlwaysTopImmersionSetting,
+  shouldShowToolbarTopImmersionSettings,
+  ToolbarTopImmersionPreference,
+  ToolbarTopImmersionSwitch
+} from '../../../core/browser/BrowserToolbarChromeStylePolicy';
 import {
   BrowserToolbarScrollBehaviorOptionState,
   BrowserToolbarScrollBehaviorSettingsViewModel
@@ -163,6 +171,10 @@ export struct BrowserToolbarCustomizationScreen {
     sharedPreferencesRepository.getPreferences().appearance.toolbarChromeStyle;
   @State private webBottomSafeAreaEnabled: boolean =
     sharedPreferencesRepository.getPreferences().experiments.webBottomSafeAreaEnabled;
+  @State private globalImmersionEnabled: boolean =
+    sharedPreferencesRepository.getPreferences().appearance.globalImmersionEnabled;
+  @State private alwaysTopImmersionEnabled: boolean =
+    sharedPreferencesRepository.getPreferences().appearance.alwaysTopImmersionEnabled;
   @State private state: BrowserToolbarCustomizationState =
     this.viewModel.buildState(sharedPreferencesRepository.getPreferences().toolbarLayout);
   @State private saving: boolean = false;
@@ -312,6 +324,9 @@ export struct BrowserToolbarCustomizationScreen {
       this.buildToolbarStyleSection()
       this.buildToolbarPreviewSection()
       this.buildToolbarBehaviorSection()
+      if (this.shouldShowTopImmersionSettings()) {
+        this.buildTopImmersionSection()
+      }
       if (this.shouldShowWebBottomSafeAreaSwitch()) {
         this.buildWebBottomSafeAreaSection()
       }
@@ -489,6 +504,53 @@ export struct BrowserToolbarCustomizationScreen {
           '向下滚动网页时，工具栏可以保持显示、收起为胶囊或完全隐藏。',
         secondaryTextColor: this.storedSecondaryTextColor
       })
+    }
+  }
+
+  @Builder
+  private buildTopImmersionSection() {
+    SettingsSection({
+      title: '顶部沉浸',
+      secondaryTextColor: this.storedSecondaryTextColor
+    }) {
+      SettingsGroupCard({ surfaceColor: this.storedSurfaceBackgroundColor }) {
+        SettingsSwitchRow({
+          title: '滚动时顶部沉浸',
+          checked: this.globalImmersionEnabled,
+          rowPosition: 'single',
+          isEnabled: !this.saving && this.isScrollTopImmersionSwitchEnabled(),
+          primaryTextColor: this.storedPrimaryTextColor,
+          secondaryTextColor: this.storedSecondaryTextColor,
+          pressedBackgroundColor: this.resolvePressedBackgroundColor(),
+          onChange: (checked: boolean): void => {
+            this.updateTopImmersion('scroll', checked);
+          }
+        })
+      }
+      SettingsFooterText({
+        text: resolveScrollTopImmersionFooter(this.toolbarChromeStyle),
+        secondaryTextColor: this.storedSecondaryTextColor
+      })
+      if (this.shouldShowAlwaysTopImmersionSwitch()) {
+        SettingsGroupCard({ surfaceColor: this.storedSurfaceBackgroundColor }) {
+          SettingsSwitchRow({
+            title: '始终顶部沉浸',
+            checked: this.alwaysTopImmersionEnabled,
+            rowPosition: 'single',
+            isEnabled: !this.saving,
+            primaryTextColor: this.storedPrimaryTextColor,
+            secondaryTextColor: this.storedSecondaryTextColor,
+            pressedBackgroundColor: this.resolvePressedBackgroundColor(),
+            onChange: (checked: boolean): void => {
+              this.updateTopImmersion('always', checked);
+            }
+          })
+        }
+        SettingsFooterText({
+          text: '网页内容始终延伸到屏幕顶部，不单独保留顶部安全区域。',
+          secondaryTextColor: this.storedSecondaryTextColor
+        })
+      }
     }
   }
 
@@ -1052,6 +1114,57 @@ export struct BrowserToolbarCustomizationScreen {
     return !this.desktopPresentation && this.toolbarChromeStyle === 'floating';
   }
 
+  private shouldShowTopImmersionSettings(): boolean {
+    return shouldShowToolbarTopImmersionSettings(this.desktopPresentation);
+  }
+
+  private shouldShowAlwaysTopImmersionSwitch(): boolean {
+    return shouldShowAlwaysTopImmersionSetting(this.toolbarChromeStyle);
+  }
+
+  private isScrollTopImmersionSwitchEnabled(): boolean {
+    return this.toolbarChromeStyle === 'split' || !this.alwaysTopImmersionEnabled;
+  }
+
+  private updateTopImmersion(kind: ToolbarTopImmersionSwitch, enabled: boolean): void {
+    if (this.saving) {
+      return;
+    }
+    if (kind === 'scroll' && this.globalImmersionEnabled === enabled) {
+      return;
+    }
+    if (kind === 'always' && this.alwaysTopImmersionEnabled === enabled) {
+      return;
+    }
+    const previousGlobal = this.globalImmersionEnabled;
+    const previousAlways = this.alwaysTopImmersionEnabled;
+    const current: ToolbarTopImmersionPreference = {
+      globalImmersionEnabled: previousGlobal,
+      alwaysTopImmersionEnabled: previousAlways
+    };
+    const next = resolveTopImmersionPreference(current, kind, enabled);
+    this.globalImmersionEnabled = next.globalImmersionEnabled;
+    this.alwaysTopImmersionEnabled = next.alwaysTopImmersionEnabled;
+    this.saving = true;
+    this.customizationCoordinator.persistTopImmersion(
+      kind,
+      enabled,
+      new BrowserToolbarCustomizationBoundary(this.dataScope, this.privacyMode)
+    )
+      .then((appearance) => {
+        this.saving = false;
+        this.globalImmersionEnabled = appearance.globalImmersionEnabled;
+        this.alwaysTopImmersionEnabled = appearance.alwaysTopImmersionEnabled;
+        this.onSettingsChanged?.();
+      })
+      .catch((_error: Error) => {
+        this.saving = false;
+        this.globalImmersionEnabled = previousGlobal;
+        this.alwaysTopImmersionEnabled = previousAlways;
+        this.showToast('顶部沉浸更新失败。');
+      });
+  }
+
   private updateWebBottomSafeAreaEnabled(enabled: boolean): void {
     if (this.saving || this.webBottomSafeAreaEnabled === enabled) {
       return;
@@ -1338,6 +1451,8 @@ export struct BrowserToolbarCustomizationScreen {
     this.scrollBehavior = preferences.appearance.bottomToolbarScrollBehavior;
     this.toolbarChromeStyle = preferences.appearance.toolbarChromeStyle;
     this.webBottomSafeAreaEnabled = preferences.experiments.webBottomSafeAreaEnabled;
+    this.globalImmersionEnabled = preferences.appearance.globalImmersionEnabled;
+    this.alwaysTopImmersionEnabled = preferences.appearance.alwaysTopImmersionEnabled;
     this.refreshScrollBehaviorCopy();
     this.state = this.viewModel.buildState(this.settings);
   }

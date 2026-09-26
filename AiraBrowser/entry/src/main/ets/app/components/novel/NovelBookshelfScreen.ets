@@ -51,7 +51,7 @@ import {
 } from '../../../services/share/BrowserClipboardService';
 import { WebPageShareService } from '../../../services/share/WebPageShareService';
 import { BROWSER_WINDOW_SAFE_TOP_INSET_STORAGE_KEY } from '../../../core/browser/BrowserWindowAvoidAreaCoordinator';
-import { browserSheetHeaderBlurModifier } from '../browser/BrowserModalBottomSheet';
+import { browserSheetHeaderBlurModifier, resolveBrowserSheetHeaderBlurRadius } from '../browser/BrowserModalBottomSheet';
 
 const NOVEL_BOOKSHELF_BOTTOM_PADDING: number = 32;
 const NOVEL_BOOKSHELF_CONTEXT_MENU_DISMISS_DELAY_MS: number = 120;
@@ -60,7 +60,6 @@ const NOVEL_BOOKSHELF_HEADER_HEIGHT: number = 40;
 const NOVEL_BOOKSHELF_HEADER_TO_TABS_GAP: number = 12;
 const NOVEL_BOOKSHELF_TABS_HEIGHT: number = 36;
 const NOVEL_BOOKSHELF_TABS_TO_CONTENT_GAP: number = 16;
-const NOVEL_BOOKSHELF_TOP_BLUR_RADIUS: number = 20;
 const NOVEL_BOOKSHELF_CATEGORY_OPTIONS: SegmentedTabOption[] = [
   { id: 'novel', title: '小说' },
   { id: 'comic', title: '漫画' }
@@ -93,6 +92,7 @@ export struct NovelBookshelfScreen {
   private readonly clipboardService: BrowserClipboardService = new BrowserClipboardService();
   private readonly shareService: WebPageShareService = new WebPageShareService();
   private readonly gridScroller: Scroller = new Scroller();
+  @State private headerBlurRadius: number = 0;
   @Prop presentationMode: 'page' | 'native_tab' = 'page';
   @Prop persistentAccessAllowed: boolean = false;
   @Prop layoutMode: NovelBookshelfLayoutMode = 'phone';
@@ -341,6 +341,9 @@ export struct NovelBookshelfScreen {
     .attributeModifier(browserSheetHeaderBlurModifier(this.resolveTopBlurRadius()))
     .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
     .scrollBar(BarState.Auto)
+    .onDidScroll(() => {
+      this.noteGridScroll();
+    })
   }
 
   @Builder
@@ -364,6 +367,9 @@ export struct NovelBookshelfScreen {
     .attributeModifier(browserSheetHeaderBlurModifier(this.resolveTopBlurRadius()))
     .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
     .scrollBar(BarState.Auto)
+    .onDidScroll(() => {
+      this.noteGridScroll();
+    })
     .expandSafeArea(
       this.presentationMode === 'native_tab' ? [] : [SafeAreaType.SYSTEM, SafeAreaType.CUTOUT],
       this.presentationMode === 'native_tab' ? [] : [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM]
@@ -535,7 +541,11 @@ export struct NovelBookshelfScreen {
   }
 
   private resolveTopBlurRadius(): number {
-    return this.presentationMode === 'native_tab' ? 0 : NOVEL_BOOKSHELF_TOP_BLUR_RADIUS;
+    return this.presentationMode === 'native_tab' ? 0 : this.headerBlurRadius;
+  }
+
+  private noteGridScroll(): void {
+    this.headerBlurRadius = resolveBrowserSheetHeaderBlurRadius(this.gridScroller.currentOffset().yOffset);
   }
 
   private setDesktopView(view: NovelBookshelfDesktopView): void {

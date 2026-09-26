@@ -17,7 +17,7 @@ import {
   BROWSER_THEME_STORAGE_SURFACE_BACKGROUND_KEY,
   BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY
 } from '../../../core/theme/BrowserThemeStorageKeys';
-import { browserSheetHeaderBlurModifier } from '../browser/BrowserModalBottomSheet';
+import { browserSheetHeaderBlurModifier, resolveBrowserSheetHeaderBlurRadius } from '../browser/BrowserModalBottomSheet';
 import {
   SiteIconListRenderState,
   SiteIconListTarget
@@ -25,7 +25,6 @@ import {
 
 const HISTORY_SITE_LIST_CACHE_COUNT: number = 8;
 const HISTORY_SITE_LIST_GROUP_PADDING: number = 4;
-const HISTORY_SITE_LIST_TOP_BLUR_RADIUS: number = 20;
 const HISTORY_SITE_ROW_HEIGHT: number = 68;
 
 @Component
@@ -34,6 +33,7 @@ export struct HistorySiteList {
   @StorageProp(BROWSER_THEME_STORAGE_SURFACE_BACKGROUND_KEY) private storedSurfaceBackgroundColor: string = '#FFFFFF';
   dataSource: HistorySiteListDataSource = new HistorySiteListDataSource();
   listScroller: Scroller = new Scroller();
+  @State private headerBlurRadius: number = 0;
   @Prop icons: SiteIconListRenderState[] = [];
   @Prop selectedSiteKeys: string[] = [];
   @Prop isSelectionMode: boolean = false;
@@ -70,7 +70,7 @@ export struct HistorySiteList {
     .height('100%')
     .padding({ left: 16, right: 16, bottom: 4 })
     .contentStartOffset(this.contentStartOffset)
-    .attributeModifier(browserSheetHeaderBlurModifier(HISTORY_SITE_LIST_TOP_BLUR_RADIUS))
+    .attributeModifier(browserSheetHeaderBlurModifier(this.headerBlurRadius))
     .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
     .scrollBar(BarState.Auto)
     .cachedCount(HISTORY_SITE_LIST_CACHE_COUNT)
@@ -78,7 +78,9 @@ export struct HistorySiteList {
       this.onScrollVisibleRange(start, end);
     })
     .onDidScroll((_scrollDelta: number, _scrollState: ScrollState) => {
-      this.onScrollOffsetChange(this.listScroller.currentOffset().yOffset);
+      const offset = this.listScroller.currentOffset().yOffset;
+      this.headerBlurRadius = resolveBrowserSheetHeaderBlurRadius(offset);
+      this.onScrollOffsetChange(offset);
     })
     .expandSafeArea(
       [SafeAreaType.SYSTEM, SafeAreaType.CUTOUT],

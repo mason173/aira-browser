@@ -17,6 +17,8 @@ import { AiraIcon } from './AiraIcon';
 import { FloatingGlassMaterialSurface } from './FloatingGlassMaterialSurface';
 import { HdsImmersiveMaterialSurface } from './HdsImmersiveMaterialSurface';
 import { isHdsMaterialAvailable } from './HdsImmersiveMaterialTokens';
+import { SettingsHeaderScrollRegistry } from '../settings/SettingsHeaderScrollRegistry';
+import { BROWSER_SHEET_BLUR_SCROLL_RANGE_VP } from '../browser/BrowserModalBottomSheet';
 import {
   createFloatingGlassMaterialIfAvailable,
   resolveFloatingGlassMaterialBackgroundColor,
@@ -68,12 +70,18 @@ export struct ManagementHdsScaffold {
   @Prop titleBarMenuMaxCount: number = MANAGEMENT_TITLE_BAR_OVERFLOW_ICON_COUNT;
   @Prop elevateTitleActions: boolean = false;
   scrollers: Array<Scroller> = [];
+  @Provide('settingsHeaderScrollRegistry') scrollRegistry: SettingsHeaderScrollRegistry =
+    new SettingsHeaderScrollRegistry();
+  @State private registeredScrollers: Scroller[] = [];
   @State private topSafeInsetVp: number = 0;
   onBack: () => void = (): void => {};
   @BuilderParam content: () => void = this.emptyContent;
 
   aboutToAppear(): void {
     this.refreshTopSafeInset();
+    this.scrollRegistry.setListener(() => {
+      this.registeredScrollers = this.scrollRegistry.scrollers.slice();
+    });
   }
 
   build() {
@@ -101,6 +109,10 @@ export struct ManagementHdsScaffold {
     if (this.immersiveContent) {
       this.buildImmersiveScaffold()
     } else {
+      Column() {
+        Blank()
+          .width('100%')
+          .height(this.useTopSafeInset ? this.resolveTopSafeInset() : 0)
       Stack({ alignContent: Alignment.TopStart }) {
         HdsNavDestination() {
           this.content()
@@ -126,20 +138,21 @@ export struct ManagementHdsScaffold {
             showType: DividerShowType.AUTO
           }
         },
-        avoidLayoutSafeArea: true,
+        avoidLayoutSafeArea: false,
         enableComponentSafeArea: true,
         style: {
           scrollEffectOpts: {
-            enableScrollEffect: true,
+            enableScrollEffect: this.resolveHeaderBlurEnabled(),
             scrollEffectType: ScrollEffectType.IMMERSIVE_GRADIENT_BLUR,
             blurEffectiveStartOffset: LengthMetrics.vp(0),
-            blurEffectiveEndOffset: LengthMetrics.vp(72)
+            blurEffectiveEndOffset: LengthMetrics.vp(this.resolveHeaderBlurEnabled() ?
+              BROWSER_SHEET_BLUR_SCROLL_RANGE_VP : 0)
           },
           blurStrategy: BlurStrategy.ADAPTIVE,
           originalStyle: {
             backgroundStyle: {
               backgroundColor: Color.Transparent,
-              maskExtraHeight: 40,
+              maskExtraHeight: 0,
               blurRadius: 0
             },
             contentStyle: {
@@ -162,8 +175,8 @@ export struct ManagementHdsScaffold {
           scrollEffectStyle: {
             backgroundStyle: {
               backgroundColor: Color.Transparent,
-              maskExtraHeight: 40,
-              blurRadius: 28
+              maskExtraHeight: this.resolveHeaderBlurEnabled() ? 40 : 0,
+              blurRadius: this.resolveHeaderBlurEnabled() ? 28 : 0
             },
             contentStyle: {
               titleStyle: {
@@ -189,10 +202,10 @@ export struct ManagementHdsScaffold {
         }
         })
         .titleMode(HdsNavDestinationTitleMode.MINI)
-        .bindToScrollable(this.scrollers)
+        .bindToScrollable(this.resolveTitleBarScrollers())
         .ignoreLayoutSafeArea(
           [LayoutSafeAreaType.SYSTEM],
-          [LayoutSafeAreaEdge.TOP, LayoutSafeAreaEdge.BOTTOM]
+          [LayoutSafeAreaEdge.BOTTOM]
         )
         .hideBackButton(!this.showBackButton)
         .onBackPressed(() => {
@@ -203,8 +216,12 @@ export struct ManagementHdsScaffold {
         this.buildGlassTitleActions()
       }
       .width('100%')
+      .layoutWeight(1)
+      }
+      .width('100%')
       .height('100%')
       .layoutWeight(this.fillRemainingHeight ? 1 : 0)
+      .backgroundColor(this.pageBackground)
     }
   }
 
@@ -483,6 +500,17 @@ export struct ManagementHdsScaffold {
     return Math.max(0, Math.ceil(this.topSafeInsetVp));
   }
 
+  private resolveHeaderBlurEnabled(): boolean {
+    return this.resolveTitleBarScrollers().length > 0;
+  }
+
+  private resolveTitleBarScrollers(): Scroller[] {
+    if (this.scrollers.length > 0) {
+      return this.scrollers;
+    }
+    return this.registeredScrollers;
+  }
+
   private resolveBackLabel(): string {
     return this.backIconKind === 'close' ? '关闭' : '返回';
   }
@@ -492,7 +520,13 @@ export struct ManagementHdsScaffold {
   }
 
   private resolveTitleActionTop(): number {
-    return (this.useTopSafeInset ? this.resolveTopSafeInset() : 0) + MANAGEMENT_TITLE_ACTION_TOP_INSET;
+    // Immersive pages draw their own title over a full-bleed page, so the
+    // status-bar inset stays on the title. The HDS title bar is padded by the
+    // scaffold instead, and only needs the 8vp place inside the 56vp bar.
+    if (this.immersiveContent) {
+      return (this.useTopSafeInset ? this.resolveTopSafeInset() : 0) + MANAGEMENT_TITLE_ACTION_TOP_INSET;
+    }
+    return MANAGEMENT_TITLE_ACTION_TOP_INSET;
   }
 
   /**

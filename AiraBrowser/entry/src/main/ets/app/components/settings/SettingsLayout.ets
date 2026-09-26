@@ -5,6 +5,7 @@ import {
 } from '../../../core/theme/BrowserThemeStorageKeys';
 import { APP_STANDARD_HORIZONTAL_PADDING } from '../common/AppLayoutTokens';
 import { sharedBrowsingActivitySignal } from '../../../common/activity/BrowsingActivitySignal';
+import { SettingsHeaderScrollRegistry } from './SettingsHeaderScrollRegistry';
 
 const SETTINGS_SECTION_TITLE_LEFT_PADDING: number = 6;
 const SETTINGS_GROUP_CORNER_RADIUS: number = 22;
@@ -22,11 +23,18 @@ export struct SettingsScrollBody {
   @Prop scrollInteractionEnabled: boolean = true;
   @Prop clipContent: boolean = false;
   scroller?: Scroller;
+  @Consume('settingsHeaderScrollRegistry') scrollRegistry: SettingsHeaderScrollRegistry =
+    new SettingsHeaderScrollRegistry();
+  private ownedScroller: Scroller = new Scroller();
   onContentAreaChanged: (area: Area) => void = (_area: Area) => {};
   @BuilderParam content: () => void = this.emptyContent;
 
+  aboutToAppear(): void {
+    this.scrollRegistry.bind(this.resolveScroller());
+  }
+
   build() {
-    Scroll(this.scroller) {
+    Scroll(this.resolveScroller()) {
       Column({ space: this.contentSpace }) {
         this.content()
       }
@@ -64,6 +72,10 @@ export struct SettingsScrollBody {
     .clip(this.clipContent)
   }
 
+  private resolveScroller(): Scroller {
+    return this.scroller !== undefined ? this.scroller : this.ownedScroller;
+  }
+
   @Builder
   private emptyContent() {
   }
@@ -84,11 +96,18 @@ export struct SettingsPresentationScrollBody {
   @Prop scrollInteractionEnabled: boolean = true;
   @Prop clipContent: boolean = false;
   scroller?: Scroller;
+  @Consume('settingsHeaderScrollRegistry') scrollRegistry: SettingsHeaderScrollRegistry =
+    new SettingsHeaderScrollRegistry();
+  private ownedScroller: Scroller = new Scroller();
   onContentAreaChanged: (area: Area) => void = (_area: Area) => {};
   @BuilderParam content: () => void = this.emptyContent;
 
+  aboutToAppear(): void {
+    this.scrollRegistry.bind(this.resolveScroller());
+  }
+
   build() {
-    Scroll(this.scroller) {
+    Scroll(this.resolveScroller()) {
       Column({ space: this.contentSpace }) {
         this.content()
       }
@@ -118,6 +137,10 @@ export struct SettingsPresentationScrollBody {
     })
     .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
     .clip(this.desktopPresentation || this.clipContent)
+  }
+
+  private resolveScroller(): Scroller {
+    return this.scroller !== undefined ? this.scroller : this.ownedScroller;
   }
 
   @Builder

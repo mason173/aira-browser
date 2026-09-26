@@ -7,7 +7,12 @@ import {
   resolveSplitToolbarCanGoForward,
   resolveSplitToolbarHomeBackdrop,
   canCollapseSplitAddressBarForTopImmersion,
+  resolveScrollTopImmersionFooter,
   resolveSplitToolbarScrollBehavior,
+  resolveTopImmersionPreference,
+  shouldApplyAlwaysTopImmersion,
+  shouldShowAlwaysTopImmersionSetting,
+  shouldShowToolbarTopImmersionSettings,
   shouldCollapseSplitToolbarForScroll,
   SplitAddressBarImmersionScrollCoordinator,
   shouldReserveSplitToolbarHomeInsets,
@@ -163,6 +168,27 @@ describe('BrowserToolbarChromeStylePolicy', () => {
     expect(viewModel.formatBehaviorTitle('compact', 'split')).assertEqual('固定');
     expect(viewModel.formatBehaviorTitle('hidden', 'split')).assertEqual('收起地址栏和工具栏');
     expect(viewModel.buildStateForBehavior('compact', 'floating').options.length).assertEqual(3);
+  });
+
+  it('keeps always-on top immersion off the split toolbar without clearing it', 0, () => {
+    expect(shouldShowToolbarTopImmersionSettings(false)).assertTrue();
+    expect(shouldShowToolbarTopImmersionSettings(true)).assertFalse();
+    expect(shouldShowAlwaysTopImmersionSetting('floating')).assertTrue();
+    expect(shouldShowAlwaysTopImmersionSetting('split')).assertFalse();
+    expect(shouldApplyAlwaysTopImmersion(true, false)).assertTrue();
+    expect(shouldApplyAlwaysTopImmersion(true, true)).assertFalse();
+    expect(shouldApplyAlwaysTopImmersion(false, false)).assertFalse();
+    expect(resolveScrollTopImmersionFooter('split').indexOf('底部工具栏保持显示') >= 0).assertTrue();
+    expect(resolveScrollTopImmersionFooter('floating').indexOf('顶部安全区域') >= 0).assertTrue();
+
+    const stored = resolveTopImmersionPreference({
+      globalImmersionEnabled: false,
+      alwaysTopImmersionEnabled: true
+    }, 'scroll', false);
+    expect(stored.alwaysTopImmersionEnabled).assertTrue();
+    const turnedOn = resolveTopImmersionPreference(stored, 'scroll', true);
+    expect(turnedOn.globalImmersionEnabled).assertTrue();
+    expect(turnedOn.alwaysTopImmersionEnabled).assertFalse();
   });
 
   it('collapses only the split address bar while top immersion is on and the page scrolls up', 0, () => {

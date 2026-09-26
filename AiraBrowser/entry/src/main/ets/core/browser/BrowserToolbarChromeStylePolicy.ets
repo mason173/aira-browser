@@ -116,6 +116,52 @@ export function canCollapseSplitAddressBarForTopImmersion(
     input.topImmersionEnabled;
 }
 
+export type ToolbarTopImmersionSwitch = 'scroll' | 'always';
+
+export interface ToolbarTopImmersionPreference {
+  globalImmersionEnabled: boolean;
+  alwaysTopImmersionEnabled: boolean;
+}
+
+/** Phone toolbar settings own these switches. Desktop has no top address bar to immerse. */
+export function shouldShowToolbarTopImmersionSettings(desktopPresentation: boolean): boolean {
+  return !desktopPresentation;
+}
+
+/** Always-on immersion would leave the split address bar with nowhere to return. */
+export function shouldShowAlwaysTopImmersionSetting(style: BrowserToolbarChromeStyle): boolean {
+  return style !== 'split';
+}
+
+export function shouldApplyAlwaysTopImmersion(enabled: boolean, splitChromeActive: boolean): boolean {
+  return enabled && !splitChromeActive;
+}
+
+export function resolveScrollTopImmersionFooter(style: BrowserToolbarChromeStyle): string {
+  if (style === 'split') {
+    return '向下滚动网页时只收起顶部地址栏，底部工具栏保持显示。向上滚动或停止后恢复。';
+  }
+  return '向下滚动网页时收起顶部安全区域，向上滚动或停止后恢复。';
+}
+
+/** Turning one on clears the other. Hiding a switch does not clear its stored value. */
+export function resolveTopImmersionPreference(
+  current: ToolbarTopImmersionPreference,
+  kind: ToolbarTopImmersionSwitch,
+  enabled: boolean
+): ToolbarTopImmersionPreference {
+  if (kind === 'always') {
+    return {
+      globalImmersionEnabled: enabled ? false : current.globalImmersionEnabled,
+      alwaysTopImmersionEnabled: enabled
+    };
+  }
+  return {
+    globalImmersionEnabled: enabled,
+    alwaysTopImmersionEnabled: enabled ? false : current.alwaysTopImmersionEnabled
+  };
+}
+
 export interface SplitAddressBarImmersionScrollInput {
   tabId: string;
   scrollOffsetY: number;

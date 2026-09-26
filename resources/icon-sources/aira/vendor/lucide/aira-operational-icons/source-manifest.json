@@ -645,8 +645,8 @@
       "glyph": "tabs-overview-close-all",
       "sourceFile": "svg/tabs-overview-close-all.svg",
       "codePoint": 60920,
-      "sourceSha256": "7f62776bc7ba4e006173876c2eaf57dc5403173cfb45c86915474f695e59bb4d",
-      "lucideSlug": "x"
+      "sourceSha256": "01f414d952c83e38e987f047caa7671d12c2c637c7d96f206370f4fb09ea6a2a",
+      "lucideSlug": "trash"
     },
     {
       "glyph": "toolbar-home",
