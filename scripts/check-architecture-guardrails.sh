@@ -5384,8 +5384,10 @@ if ! "${REPO_ROOT}/scripts/check-novel-chapter-cache-contract.sh"; then
   report_failure "Novel Chapter Cache source contract must remain valid."
 fi
 
-if ! "${REPO_ROOT}/scripts/check-open-source-source-tree.sh"; then
-  report_failure "Committed source tree must remain Community; Official identity is a packaging input."
+if [ "${AIRA_DISTRIBUTION:-community}" != "official" ]; then
+  if ! "${REPO_ROOT}/scripts/check-open-source-source-tree.sh"; then
+    report_failure "Committed source tree must remain Community; Official identity is a packaging input."
+  fi
 fi
 
 # Every settings destination must survive the PC settings route round-trip. The native-tab

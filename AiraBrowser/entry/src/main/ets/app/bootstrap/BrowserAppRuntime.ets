@@ -118,6 +118,7 @@ import { resolveDesktopBookmarkBarVisibility } from '../../core/browser/DesktopB
 import { resolveAiraHuaweiAccountIdentity } from '../../common/models/AiraSyncModels';
 import {
   BROWSER_APPEARANCE_STORAGE_HOME_SHORTCUT_ICON_SIZE_RATIO_KEY,
+  BROWSER_APPEARANCE_STORAGE_HOME_SHORTCUT_LAYOUT_DENSITY_KEY,
   BROWSER_APPEARANCE_STORAGE_SITE_ICON_CORNER_RATIO_KEY,
   BROWSER_APPEARANCE_STORAGE_TABS_OVERVIEW_CLOSE_BUTTON_ALWAYS_VISIBLE_KEY,
   BROWSER_APPEARANCE_STORAGE_DESKTOP_BOOKMARK_BAR_VISIBLE_KEY,
@@ -1374,6 +1375,10 @@ export function syncBrowserThemeAppStorage(): void {
   AppStorage.setOrCreate(
     BROWSER_APPEARANCE_STORAGE_HOME_SHORTCUT_ICON_SIZE_RATIO_KEY,
     preferences.appearance.homeShortcutIconSizeRatio
+  );
+  AppStorage.setOrCreate(
+    BROWSER_APPEARANCE_STORAGE_HOME_SHORTCUT_LAYOUT_DENSITY_KEY,
+    preferences.appearance.homeShortcutLayoutDensity
   );
   AppStorage.setOrCreate(
     BROWSER_APPEARANCE_STORAGE_SITE_ICON_CORNER_RATIO_KEY,

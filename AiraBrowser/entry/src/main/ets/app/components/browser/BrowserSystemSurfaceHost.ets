@@ -7,7 +7,7 @@ import {
   HomeShortcutSelectionAction,
   HomeShortcutSelectionState
 } from '../../../core/shortcuts/HomeShortcutSelectionCoordinator';
-import { HomePageSettingsDialog } from './HomePageSettingsSheet';
+import { HomePageSettingsDialog, homePageSettingsSheetNavigation } from './HomePageSettingsSheet';
 import { HomeShortcutSelectionDialog } from './HomeShortcutSelectionDialog';
 import { UserScriptInstallDialog } from '../userscripts/UserScriptInstallDialog';
 import { UserScriptPackageSuccessResult } from '../../../core/userscripts/UserScriptPackageLifecycleCoordinator';
@@ -107,6 +107,9 @@ export struct BrowserSystemSurfaceHost {
     cornerRadius: CENTERED_DIALOG_CORNER_RADIUS_VP,
     width: resolveCenteredDialogControllerWidth('m'),
     onWillDismiss: (_dismissDialogAction: DismissDialogAction): void => {
+      if (homePageSettingsSheetNavigation.tryConsumeBack()) {
+        return;
+      }
       this.onCloseRequested();
     }
   });

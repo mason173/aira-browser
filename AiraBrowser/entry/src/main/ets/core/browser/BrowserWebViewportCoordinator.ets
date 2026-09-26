@@ -133,13 +133,14 @@ export class BrowserWebViewportCoordinator {
   }
 
   static resolveTopBlurFractionStops(presentation: BrowserWebViewportPresentationState): FractionStop[] {
-    const fraction = Math.min(1, Math.max(0, presentation.scrollHiddenTopBlurHeightPx) /
-      Math.max(1, presentation.contentHeightPx));
-    if (fraction <= 0) {
+    const contentHeightPx = Math.max(1, presentation.contentHeightPx);
+    const blurHeightPx = Math.max(0, presentation.scrollHiddenTopBlurHeightPx);
+    if (blurHeightPx <= 0) {
       return [[0, 0], [0, 1]];
     }
-    // Preserve the settings/list gradient's 0.05 / 0.14 plateau ratio, but
-    // end the blur at the projected height instead of 14% of the whole screen.
+    // Full blur starts on the first pixel under the safe strip. An offset
+    // here leaves a sharp band between the strip and the gradient.
+    const fraction = Math.min(1, blurHeightPx / contentHeightPx);
     const stops: FractionStop[] = [[1, 0], [1, fraction * 5 / 14], [0, fraction]];
     if (fraction < 1) {
       stops.push([0, 1]);

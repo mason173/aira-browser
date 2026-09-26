@@ -1050,7 +1050,7 @@ import {
 import { DesktopLoginConfirmSheetContent } from '../components/settings/DesktopLoginConfirmSheetContent';
 import { HomeShortcutSelectionSheet } from '../components/browser/HomeShortcutSelectionSheet';
 import { BrowserSystemSurfaceHost } from '../components/browser/BrowserSystemSurfaceHost';
-import { HomePageSettingsSheet } from '../components/browser/HomePageSettingsSheet';
+import { HomePageSettingsSheet, homePageSettingsSheetNavigation } from '../components/browser/HomePageSettingsSheet';
 import { ReaderModeOverlay } from '../components/browser/ReaderModeOverlay';
 import { NovelReaderSurfaceHost } from '../components/browser/NovelReaderSurfaceHost';
 import {
@@ -2499,6 +2499,7 @@ struct BrowserShellPage {
           return;
         case 'apply_closed_overview_reset':
           this.showTabsSheet = false;
+          this.browserWebTopImmersionSessionCoordinator.syncPolicy('tabs-overview');
           return;
         case 'play_tabs_overview_arkui_animation':
           animateTo({
@@ -2525,6 +2526,7 @@ struct BrowserShellPage {
             }
           }
           this.showTabsSheet = effect.shouldShowTabsSheet;
+          this.browserWebTopImmersionSessionCoordinator.syncPolicy('tabs-overview');
           this.reconcileExternalNavigationPromptForCurrentPage();
           return;
       }
@@ -3663,6 +3665,9 @@ struct BrowserShellPage {
     resolveVisibleTopInsetPx: (): number => this.getWebTopChromeStableInsetPx(),
     applyPresentation: (visible: boolean, targetTopInsetPx: number, _source: string,
       animationDurationMs: number): void => {
+      if (this.browserPageForeground === false) {
+        return;
+      }
       if (!this.webViewportVisualTopInsetInitialized) {
         this.webViewportVisualTopInset = this.getWebViewportVisualTopInsetPx();
         this.webViewportVisualTopInsetInitialized = true;
@@ -3688,6 +3693,9 @@ struct BrowserShellPage {
       );
     },
     scheduleSafeInsetSettle: (source: string): void => {
+      if (!this.browserPageForeground) {
+        return;
+      }
       this.scheduleWebSafeInsetSettleSync(`${source}-status-bar-settle`);
     }
   };
@@ -3695,7 +3703,7 @@ struct BrowserShellPage {
     new BrowserWebTopImmersionSessionCoordinator({
       resolveFacts: (): BrowserWebTopImmersionFacts => ({
         activeTabId: this.activeTabId,
-        browserShellVisible: this.isBrowserShellVisible,
+        browserShellVisible: this.isBrowserShellVisible && this.browserPageForeground,
         webPageVisible: this.isWebPageVisible(),
         homePageVisible: this.showHomePage,
         tabsSheetVisible: this.showTabsSheet,
@@ -6142,6 +6150,7 @@ struct BrowserShellPage {
   @State private startupHomeSurfacePending: boolean = false;
   private hasHandledInitialPageShow: boolean = false;
   private isBrowserShellVisible: boolean = false;
+  private browserPageForeground: boolean = true;
   private webSessionTransitionToken: number = 0;
   private currentRuntimeRetentionPlan: WebRuntimeRetentionPlan = {
     activeTabId: '',
@@ -6569,15 +6578,20 @@ struct BrowserShellPage {
   }
 
   onPageShow(): void {
+    this.browserPageForeground = true;
+    this.browserWebTopImmersionSessionCoordinator.holdCoveredStatusBarForPageReturn();
     this.browserShellLifecycleCoordinator.handlePageShow();
     this.browserWebBottomSafeAreaCoordinator.setVisible(true);
     void this.checkClientUpdatePolicy();
   }
 
   onPageHide(): void {
+    this.browserWebTopImmersionSessionCoordinator.cancelCoveredStatusBarHold();
+    this.browserPageForeground = false;
     this.browserAddressBarTabSwipeCoordinator.cancel();
     this.browserTabSwipePreviewCoordinator.suspend();
     this.browserWebBottomSafeAreaCoordinator.setVisible(false);
+    this.browserWebTopImmersionSessionCoordinator.releaseCoveredPage('page-hide');
   }
 
   private checkClientUpdatePolicy(): Promise<void> {
@@ -6892,6 +6906,14 @@ struct BrowserShellPage {
       title: resolveReadingExperienceSystemSheetTitle(this.browserTransientSurfaceSnapshot.systemSheet.type),
       dragBar: true,
       showClose: this.browserTransientSurfaceCoordinator.shouldShowSystemSheetClose(),
+      onWillDismiss: (action: DismissSheetAction): void => {
+        if (action.reason === DismissReason.PRESS_BACK &&
+          this.browserTransientSurfaceSnapshot.systemSheet.type === 'homeSettings' &&
+          homePageSettingsSheetNavigation.tryConsumeBack()) {
+          return;
+        }
+        action.dismiss();
+      },
       onWillDisappear: () => {
         this.browserTransientSurfaceCoordinator.handleSystemSheetWillDisappear();
       },
@@ -6909,6 +6931,9 @@ struct BrowserShellPage {
       return this.tabsOverviewSessionCoordinator.handleShellKeyEvent(this.showTabsSheet, event);
     })
     .onAreaChange((_oldArea: Area, newArea: Area) => {
+      if (!this.browserPageForeground) {
+        return;
+      }
       this.rootViewportLeft = Math.round(this.parseAreaPosition(newArea.globalPosition.x));
       this.rootViewportTop = Math.round(this.parseAreaPosition(newArea.globalPosition.y));
       const nextViewportWidth = Math.max(1, Math.round(this.parseAreaDimension(newArea.width)));
@@ -9343,6 +9368,9 @@ struct BrowserShellPage {
   }
 
   private syncWindowSafeInsetsForShell(forceWebTopInsetAlign: boolean = false): void {
+    if (!this.browserPageForeground) {
+      return;
+    }
     window.getLastWindow(this.getAbilityContext())
       .then((mainWindow: window.Window) => {
         const syncResult = this.browserWindowAvoidAreaCoordinator.syncStorageWithResult(
@@ -10529,6 +10557,9 @@ struct BrowserShellPage {
         privateModeVisible: this.tabScopedEventContextCoordinator.isCurrentBoundaryPrivate(),
         onWallpaperChanged: (): void => {
           this.browserTabHomeCoordinator.refreshWallpaperPresentation();
+        },
+        onClose: (): void => {
+          this.closeSystemSheet();
         }
       })
     } else if (this.browserTransientSurfaceSnapshot.systemSheet.type === 'desktopLoginConfirm') {

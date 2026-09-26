@@ -17,6 +17,8 @@ export const BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY: string = 'browserThemeTextP
 export const BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY: string = 'browserThemeTextSecondaryColor';
 export const BROWSER_APPEARANCE_STORAGE_HOME_SHORTCUT_ICON_SIZE_RATIO_KEY: string =
   'browserAppearanceHomeShortcutIconSizeRatio';
+export const BROWSER_APPEARANCE_STORAGE_HOME_SHORTCUT_LAYOUT_DENSITY_KEY: string =
+  'browserAppearanceHomeShortcutLayoutDensity';
 export const BROWSER_APPEARANCE_STORAGE_SITE_ICON_CORNER_RATIO_KEY: string = 'browserAppearanceSiteIconCornerRadiusRatio';
 export const BROWSER_APPEARANCE_STORAGE_TABS_OVERVIEW_LAYOUT_STYLE_KEY: string =
   'browserAppearanceTabsOverviewLayoutStyle';

@@ -212,12 +212,20 @@ const resolveBlur = () => blur.coordinator.resolveScrollHiddenTopBlurHeightVp(ge
 assert.equal(resolveBlur(), 0, 'Visible top chrome must not blur Web content');
 blur.hide();
 assert.equal(resolveBlur(), 72, 'Blur height must be 1.5 times the visible cutout + gap, without quick-search height');
-for (const field of ['alwaysTopImmersionEnabled', 'fullScreenModeEnabled', 'webAppTopSafeAreaHidden',
+for (const field of ['fullScreenModeEnabled', 'webAppTopSafeAreaHidden',
   'assistantVideoTakeoverActive', 'homePageVisible', 'tabsSheetVisible']) {
   blur.facts[field] = true;
   assert.equal(resolveBlur(), 0, `${field} must not enable scroll blur`);
   blur.facts[field] = false;
 }
+blur.facts.scrollTopImmersionEnabled = false;
+blur.facts.alwaysTopImmersionEnabled = true;
+blur.facts.statusBarVisible = true;
+assert.equal(resolveBlur(), 0, 'Always-on immersion must not blur before the top has collapsed');
+blur.facts.statusBarVisible = false;
+assert.equal(resolveBlur(), 72, 'Always-on immersion blurs once the top has collapsed');
+blur.facts.alwaysTopImmersionEnabled = false;
+blur.facts.scrollTopImmersionEnabled = true;
 blur.facts.scrollTopImmersionEnabled = false;
 assert.equal(resolveBlur(), 0);
 blur.facts.scrollTopImmersionEnabled = true;
@@ -230,6 +238,8 @@ const blurred = BrowserWebViewportCoordinator.resolvePresentation(viewportInput)
 assert.equal(blurred.contentTopPx, 0, 'Blur must not restore occupied top space');
 assert.equal(blurred.contentHeightPx, 800, 'Blur must not resize the Web viewport');
 const stops = BrowserWebViewportCoordinator.resolveTopBlurFractionStops(blurred);
+assert.equal(stops[0][0], 1);
+assert.equal(stops[0][1], 0, 'Full blur begins on the safe-strip edge, with no gap');
 assert.equal(stops[2][0], 0);
 assert.equal(stops[2][1] * blurred.contentHeightPx, 72, 'Blur must end at 1.5 times the safe-area height');
 for (let i = 1; i < stops.length; i++) assert.ok(stops[i][1] > stops[i - 1][1]);
@@ -429,6 +439,7 @@ for (const bottomInset of [0, 101]) {
   }
 }
 console.log('Top immersion: ordinary and bottom-reserved pages reject viewport feedback and preserve gesture/inertia behavior.');
+
 
 const refreshStart = shellSource.indexOf('private refreshWebViewportPresentation(');
 const refreshEnd = shellSource.indexOf('private setWebBottomAddressFocused(', refreshStart);

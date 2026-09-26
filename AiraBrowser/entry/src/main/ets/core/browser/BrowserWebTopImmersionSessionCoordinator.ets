@@ -6,6 +6,7 @@ const TOP_IMMERSION_LOG_DOMAIN: number = 0x0000;
 // Keep the established device-log filter channel stable after moving ownership out of BrowserShellPage.
 const TOP_IMMERSION_DEVICE_LOG_TAG: string = 'BrowserShellPage';
 const TOP_IMMERSION_SCROLL_TRANSITION_MS: number = 180;
+const COVERED_PAGE_STATUS_BAR_HOLD_MS: number = 450;
 const TOP_IMMERSION_BLUR_HEIGHT_SCALE: number = 1.5;
 
 type BrowserWebTopImmersionForcedReason =
@@ -82,6 +83,9 @@ export class BrowserWebTopImmersionSessionCoordinator {
   private appliedVisibilityInitialized: boolean = false;
   private visibilityRequestGeneration: number = 0;
   private pendingWindowOperationCount: number = 0;
+  private coveredPagePendingRestore: boolean = false;
+  private coveredStatusBarHoldUntilMs: number = 0;
+  private coveredStatusBarHoldTimer: number = -1;
   private visibilityTask: Promise<void> = Promise.resolve();
 
   constructor(
@@ -110,8 +114,11 @@ export class BrowserWebTopImmersionSessionCoordinator {
     contentGapVp: number
   ): number {
     const facts = this.dependencies.resolveFacts();
-    if (!this.isEligibleWebSurface(facts) || !facts.scrollTopImmersionEnabled ||
-      facts.statusBarVisible || this.resolveForcedReason(facts) !== 'none' ||
+    const forcedReason = this.resolveForcedReason(facts);
+    const immersionCollapsed = !facts.statusBarVisible &&
+      (facts.scrollTopImmersionEnabled || facts.alwaysTopImmersionEnabled);
+    if (!this.isEligibleWebSurface(facts) || !immersionCollapsed ||
+      forcedReason === 'fullscreen' || forcedReason === 'webapp' || forcedReason === 'assistant' ||
       this.visibilityOverride !== undefined) {
       return 0;
     }
@@ -185,6 +192,9 @@ export class BrowserWebTopImmersionSessionCoordinator {
     const facts = this.dependencies.resolveFacts();
     const host = this.dependencies.host;
     this.syncActiveSurface(facts);
+    if (!facts.browserShellVisible) {
+      return;
+    }
     const forcedReason = this.resolveForcedReason(facts);
     if (forcedReason !== 'none') {
       const scrollProvesForcedSurfaceReady = forcedReason === 'fullscreen' || forcedReason === 'assistant';
@@ -258,6 +268,77 @@ export class BrowserWebTopImmersionSessionCoordinator {
       respectForcedImmersion: false,
       resetScrollBaseline: true
     });
+  }
+
+  /**
+   * Another page is covering the browser. Show the status bar for that page, but
+   * leave the web viewport where it is. Resizing it during the transition stutters
+   * the animation.
+   */
+  releaseCoveredPage(source: string): void {
+    const facts = this.dependencies.resolveFacts();
+    this.scrollCoordinator.reset(facts.activeTabId, facts.scrollOffsetY);
+    this.pendingHide = undefined;
+    this.desiredVisible = true;
+    this.coveredPagePendingRestore = true;
+    const requestGeneration = ++this.visibilityRequestGeneration;
+    this.enqueueWindowVisibility(true, source, this.dependencies.host, requestGeneration, true, true);
+  }
+
+  /**
+   * The browser page is back, but the page that covered it is still leaving.
+   * Keep the status bar up until that transition ends, then match the web page again.
+   */
+  holdCoveredStatusBarForPageReturn(): void {
+    if (!this.coveredPagePendingRestore) {
+      return;
+    }
+    this.coveredPagePendingRestore = false;
+    this.clearCoveredStatusBarHold();
+    this.coveredStatusBarHoldUntilMs = Date.now() + COVERED_PAGE_STATUS_BAR_HOLD_MS;
+    this.coveredStatusBarHoldTimer = setTimeout((): void => {
+      this.coveredStatusBarHoldTimer = -1;
+      this.coveredStatusBarHoldUntilMs = 0;
+      const facts = this.dependencies.resolveFacts();
+      if (!facts.browserShellVisible) {
+        return;
+      }
+      this.restoreCoveredPage('page-show');
+      this.syncPolicy('page-show');
+    }, COVERED_PAGE_STATUS_BAR_HOLD_MS);
+  }
+
+  cancelCoveredStatusBarHold(): void {
+    this.clearCoveredStatusBarHold();
+  }
+
+  private clearCoveredStatusBarHold(): void {
+    if (this.coveredStatusBarHoldTimer >= 0) {
+      clearTimeout(this.coveredStatusBarHoldTimer);
+      this.coveredStatusBarHoldTimer = -1;
+    }
+    this.coveredStatusBarHoldUntilMs = 0;
+  }
+
+  private isCoveredStatusBarHeld(): boolean {
+    return Date.now() < this.coveredStatusBarHoldUntilMs;
+  }
+
+  /**
+   * The browser is visible again. Put the status bar back in line with the web
+   * page, still without resizing it. The following policy sync applies the real mode.
+   */
+  restoreCoveredPage(source: string): void {
+    const facts = this.dependencies.resolveFacts();
+    if (this.desiredVisible === facts.statusBarVisible) {
+      return;
+    }
+    this.desiredVisible = facts.statusBarVisible;
+    this.pendingHide = undefined;
+    const requestGeneration = ++this.visibilityRequestGeneration;
+    this.enqueueWindowVisibility(
+      facts.statusBarVisible, source, this.dependencies.host, requestGeneration, true, true
+    );
   }
 
   requestVisibilityIntent(
@@ -429,7 +510,8 @@ export class BrowserWebTopImmersionSessionCoordinator {
     source: string,
     host: BrowserWebTopImmersionSessionHost,
     requestGeneration: number,
-    forceApply: boolean
+    forceApply: boolean,
+    skipSafeInsetSettle: boolean = false
   ): void {
     if (!forceApply && this.pendingWindowOperationCount <= 0 &&
       this.appliedVisibilityInitialized && this.appliedVisible === visible) {
@@ -443,6 +525,9 @@ export class BrowserWebTopImmersionSessionCoordinator {
         if (requestGeneration !== this.visibilityRequestGeneration || this.desiredVisible !== visible) {
           return;
         }
+        if (!visible && this.isCoveredStatusBarHeld()) {
+          return;
+        }
         return host.applyWindowVisibility(visible, source, (): boolean => {
           return requestGeneration === this.visibilityRequestGeneration && this.desiredVisible === visible;
         })
@@ -452,7 +537,8 @@ export class BrowserWebTopImmersionSessionCoordinator {
             }
             this.appliedVisible = visible;
             this.appliedVisibilityInitialized = true;
-            if (requestGeneration === this.visibilityRequestGeneration && this.desiredVisible === visible) {
+            if (!skipSafeInsetSettle &&
+              requestGeneration === this.visibilityRequestGeneration && this.desiredVisible === visible) {
               host.scheduleSafeInsetSettle(source);
             }
           });

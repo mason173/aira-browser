@@ -248,6 +248,7 @@ export class BrowserTransientSurfaceCoordinator {
   shouldShowSystemSheetClose(): boolean {
     return this.systemSheetType !== 'releaseNotice' &&
       this.systemSheetType !== 'userScriptInstall' &&
+      this.systemSheetType !== 'homeSettings' &&
       this.resolveCustomBottomSurfaceForSystemSheet(this.systemSheetType) === undefined;
   }
 

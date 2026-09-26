@@ -14,6 +14,11 @@ const SETTINGS_GROUP_VERTICAL_PADDING: number = 4;
 const SETTINGS_GROUP_DIVIDER_HORIZONTAL_MARGIN: number = 16;
 export const SETTINGS_DESKTOP_SCROLLBAR_GUTTER: number = APP_STANDARD_HORIZONTAL_PADDING;
 
+/** @Provide cannot hold a Scroller directly, so the shared instance lives in this holder. */
+class SettingsHeaderBlurScrollerRef {
+  scroller: Scroller = new Scroller();
+}
+
 /**
  * Shares one Scroller between a settings title bar and the scroll under it.
  * The title bar binds this object on the first frame; the scroll body uses it
@@ -21,8 +26,14 @@ export const SETTINGS_DESKTOP_SCROLLBAR_GUTTER: number = APP_STANDARD_HORIZONTAL
  */
 @Component
 export struct SettingsHeaderBlurScope {
-  @Provide('settingsHeaderBlurScroller') headerBlurScroller: Scroller = new Scroller();
+  headerBlurScroller: Scroller = new Scroller();
+  @Provide('settingsHeaderBlurScroller') headerBlurScrollerRef: SettingsHeaderBlurScrollerRef =
+    new SettingsHeaderBlurScrollerRef();
   @BuilderParam content: () => void = this.emptyContent;
+
+  aboutToAppear(): void {
+    this.headerBlurScrollerRef.scroller = this.headerBlurScroller;
+  }
 
   build() {
     this.content()
@@ -44,7 +55,8 @@ export struct SettingsScrollBody {
   scroller?: Scroller;
   @Consume('settingsHeaderScrollRegistry') scrollRegistry: SettingsHeaderScrollRegistry =
     new SettingsHeaderScrollRegistry();
-  @Consume('settingsHeaderBlurScroller') headerBlurScroller: Scroller = new Scroller();
+  @Consume('settingsHeaderBlurScroller') headerBlurScrollerRef: SettingsHeaderBlurScrollerRef =
+    new SettingsHeaderBlurScrollerRef();
   onContentAreaChanged: (area: Area) => void = (_area: Area) => {};
   @BuilderParam content: () => void = this.emptyContent;
 
@@ -92,7 +104,7 @@ export struct SettingsScrollBody {
   }
 
   private resolveScroller(): Scroller {
-    return this.scroller !== undefined ? this.scroller : this.headerBlurScroller;
+    return this.scroller !== undefined ? this.scroller : this.headerBlurScrollerRef.scroller;
   }
 
   @Builder
@@ -117,7 +129,8 @@ export struct SettingsPresentationScrollBody {
   scroller?: Scroller;
   @Consume('settingsHeaderScrollRegistry') scrollRegistry: SettingsHeaderScrollRegistry =
     new SettingsHeaderScrollRegistry();
-  @Consume('settingsHeaderBlurScroller') headerBlurScroller: Scroller = new Scroller();
+  @Consume('settingsHeaderBlurScroller') headerBlurScrollerRef: SettingsHeaderBlurScrollerRef =
+    new SettingsHeaderBlurScrollerRef();
   onContentAreaChanged: (area: Area) => void = (_area: Area) => {};
   @BuilderParam content: () => void = this.emptyContent;
 
@@ -159,7 +172,7 @@ export struct SettingsPresentationScrollBody {
   }
 
   private resolveScroller(): Scroller {
-    return this.scroller !== undefined ? this.scroller : this.headerBlurScroller;
+    return this.scroller !== undefined ? this.scroller : this.headerBlurScrollerRef.scroller;
   }
 
   @Builder

@@ -48,7 +48,12 @@ export struct BrowserWebViewportSurfaceHost {
           this.topChrome()
 
           Column() {
-            this.content()
+            Column() {
+              this.content()
+            }
+            .width('100%')
+            .height('100%')
+            .attributeModifier(browserSheetHeaderBlurModifier(this.presentation.scrollHiddenTopBlurHeightPx > 0 ? WEB_SCROLL_TOP_BLUR_RADIUS : 0, BrowserWebViewportCoordinator.resolveTopBlurFractionStops(this.presentation)))
           }
           .width('100%')
           .height(this.presentation.fillParentHeight ? '100%' : Math.max(1, this.presentation.contentHeightPx))
@@ -56,10 +61,9 @@ export struct BrowserWebViewportSurfaceHost {
             x: 0,
             y: this.presentation.fillParentHeight ? 0 : this.presentation.contentTopPx
           })
-          // No unconditional geometry animation: the immersion owner opts in only
-          // for scrolling. Native history restores still settle in one layout pass.
+          // Clip after the blur so the kernel cannot paint up into the safe strip.
+          // No unconditional geometry animation: history restores still settle in one pass.
           .clip(true)
-          .attributeModifier(browserSheetHeaderBlurModifier(this.presentation.scrollHiddenTopBlurHeightPx > 0 ? WEB_SCROLL_TOP_BLUR_RADIUS : 0, BrowserWebViewportCoordinator.resolveTopBlurFractionStops(this.presentation)))
 
           this.loadingProgress()
         }
