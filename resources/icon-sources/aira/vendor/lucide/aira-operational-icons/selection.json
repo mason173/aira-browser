@@ -327,6 +327,12 @@
     },
     {
       "properties": {
+        "name": "home-settings",
+        "code": 60962
+      }
+    },
+    {
+      "properties": {
         "name": "house",
         "code": 58050
       }

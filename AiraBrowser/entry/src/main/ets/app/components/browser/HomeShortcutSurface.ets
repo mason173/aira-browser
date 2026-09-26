@@ -402,7 +402,7 @@ export struct HomeShortcutSurface {
   private buildPinnedSettingsCard() {
     Column({ space: this.storedShowShortcutNames ? this.metrics.titleTopGap : 0 }) {
       this.buildAddEntryIcon(
-        'settings.general',
+        'browser.home.settings',
         this.viewModel.getShortcutTileSize(this.gridWidth, this.metrics),
         this.resolveShortcutGlyphSize(this.viewModel.getShortcutTileSize(this.gridWidth, this.metrics))
       )

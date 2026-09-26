@@ -569,7 +569,7 @@ export class CustomHomepageRuntimeCoordinator {
     if (action === 'open_homepage_settings') {
       this.dependencies.routeCoordinator.openSimpleRoute(
         CUSTOM_HOMEPAGE_SETTINGS_ROUTE,
-        '打开自定义主页设置失败'
+        '打开主页设置失败'
       );
       return;
     }
@@ -621,7 +621,7 @@ export class CustomHomepageRuntimeCoordinator {
       case 'open_homepage_settings':
         this.dependencies.routeCoordinator.openSimpleRoute(
           CUSTOM_HOMEPAGE_SETTINGS_ROUTE,
-          '打开自定义主页设置失败'
+          '打开主页设置失败'
         );
         return;
       case 'open_url':

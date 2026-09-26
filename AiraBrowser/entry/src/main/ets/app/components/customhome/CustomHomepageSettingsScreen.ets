@@ -18,6 +18,7 @@ import {
 } from '../../../core/customhome/CustomHomepageRemoteWarmupCoordinator';
 import {
   CustomHomepageChoiceViewState,
+  CustomHomepageItemChromeViewState,
   CustomHomepageRemoteRefreshTargetViewState,
   CustomHomepageSettingsViewModel,
   CustomHomepageSettingsViewState,
@@ -43,8 +44,15 @@ import {
   sharedBrowserThemeModeCoordinator,
   sharedCustomHomepageRepository,
   sharedHomePagePresentationSettingsRepository,
-  sharedPreferencesRepository
+  sharedPreferencesRepository,
+  sharedRecentlyClosedTabRepository,
+  sharedShortcutRepository,
+  sharedWallpaperRepository
 } from '../../bootstrap/BrowserAppRuntime';
+import { HomeShortcutLogicService } from '../../../services/shortcuts/HomeShortcutLogicService';
+import { WallpaperPresentationService } from '../../../services/wallpaper/WallpaperPresentationService';
+import { CustomHomepagePicker } from './CustomHomepagePicker';
+import { HomepagePreviewClosedItem } from './SystemHomepageLivePreview';
 import { SettingsHdsMenuAction, SettingsHdsScaffold } from '../settings/SettingsHdsScaffold';
 import {
   SettingsActionButton,
@@ -56,6 +64,7 @@ import {
   SettingsGroupCard,
   SettingsGroupDivider,
   SettingsPresentationScrollBody,
+  SettingsSection,
   SettingsSectionTitle
 } from '../settings/SettingsLayout';
 import {
@@ -99,7 +108,15 @@ import {
   CustomHomepageUrlService,
   CustomHomepageUrlValidationResult
 } from '../../../services/customhome/CustomHomepageUrlService';
-import { BrowserResolvedThemeMode } from '../../../common/models/BrowserModels';
+import { BrowserResolvedThemeMode, ShortcutRecord } from '../../../common/models/BrowserModels';
+import { BrowserRecentlyClosedTabRecord } from '../../../core/browser/BrowserRecentlyClosedTabsService';
+import { SiteIconUriCacheEntry } from '../../../common/models/SiteIconModels';
+import { SiteIconService } from '../../../services/siteicons/SiteIconService';
+import {
+  DEFAULT_HOME_WALLPAPER_PRESENTATION_STATE,
+  HomeWallpaperPresentationState,
+  WallpaperRepositorySnapshot
+} from '../../../common/models/WallpaperModels';
 import { BrowserHomepageBackdropAppearanceState } from '../../../common/models/BackdropAppearanceModels';
 import { CustomHomepageItem } from '../../../common/models/CustomHomepageModels';
 import {
@@ -135,8 +152,10 @@ export struct CustomHomepageSettingsScreen {
       sharedPreferencesRepository,
       sharedCustomHomepageRepository,
       sharedHomePagePresentationSettingsRepository
-    )
+    ),
+    sharedPreferencesRepository
   );
+  private shortcutLogicService: HomeShortcutLogicService = new HomeShortcutLogicService();
   @Prop presentationMode: CustomHomepageSettingsPresentationMode = 'standalone';
   @Prop desktopPresentation: boolean = false;
   pageBinding: CustomHomepageSettingsPageBinding = new CustomHomepageSettingsPageBinding();
@@ -176,13 +195,30 @@ export struct CustomHomepageSettingsScreen {
   @State private previewViewportWidth: number = 390;
   @State private previewViewportHeight: number = 844;
   @State private previewAvailableWidth: number = 358;
-  @State private previewLayoutState: CustomHomepagePreviewLayoutState = this.previewViewModel.buildLayoutState({
-    formFactor: this.environmentService.resolveNativeState().formFactor,
-    viewportWidth: 390,
-    viewportHeight: 844,
-    availableWidth: 358
-  });
+  @State private previewLayoutState: CustomHomepagePreviewLayoutState =
+    this.previewViewModel.buildCarouselLayoutState({
+      viewportWidth: 390,
+      viewportHeight: 844,
+      availableWidth: 358,
+      availableHeight: 640
+    });
+  @State private previewShortcuts: ShortcutRecord[] = [];
+  @State private previewShowsShortcuts: boolean = true;
+  @State private previewWallpaper: HomeWallpaperPresentationState = DEFAULT_HOME_WALLPAPER_PRESENTATION_STATE;
+  @State private previewClosedItems: HomepagePreviewClosedItem[] = [];
+  @State private previewShowsRecentlyClosed: boolean = true;
+  @State private previewContentRevision: number = 0;
+  @State private carouselFocusedIndex: number = 0;
+  @State private carouselJumpToken: number = 0;
+  @State private pickerBodyHeight: number = 0;
+  @State private homepageSettingsSheetVisible: boolean = false;
+  @State private homepageSettingsItemId: string = '';
+  @State private homepageSettingsChrome: CustomHomepageItemChromeViewState =
+    this.viewModel.buildEmptyItemChromeState();
+  private carouselFocusedKey: string = '';
+  private carouselPositioned: boolean = false;
   private siteIconScheduleVersion: number = 0;
+  private closedIconScheduleVersion: number = 0;
   private externalImportPresentationHost: CustomHomepageExternalImportPresentationHost = {
     presentPrepared: (item: CustomHomepageItem, actionLabel: string): void => {
       this.homepageInfoActionLabel = actionLabel;
@@ -282,11 +318,13 @@ export struct CustomHomepageSettingsScreen {
     this.coordinator.attachExternalImportPresentation(this.externalImportPresentationHost);
     this.refreshState();
     this.refreshPreviewWindowViewport();
+    this.refreshPreviewShortcuts();
   }
 
   private handlePageShow(): void {
     this.refreshState();
     this.refreshPreviewWindowViewport();
+    this.refreshPreviewShortcuts();
     this.coordinator.consumePendingExternalImportPresentation();
   }
 
@@ -310,6 +348,10 @@ export struct CustomHomepageSettingsScreen {
     if (this.remoteHomepageProgressDialogOpen && this.remoteHomepageProgressInProgress) {
       return true;
     }
+    if (this.homepageSettingsSheetVisible) {
+      this.homepageSettingsSheetVisible = false;
+      return true;
+    }
     if (this.homepageInfoSheetVisible) {
       this.homepageInfoSheetVisible = false;
       return true;
@@ -323,23 +365,43 @@ export struct CustomHomepageSettingsScreen {
 
   build() {
     Stack() {
+      this.buildSettingsPageBody()
+    }
+    .width('100%')
+    .height('100%')
+    .bindSheet(
+      $$this.homepageSettingsSheetVisible,
+      this.buildHomepageSettingsSheet(),
+      this.buildHomepageSettingsSheetOptions()
+    )
+  }
+
+  @Builder
+  private buildSettingsPageBody() {
+    Stack() {
       if (this.presentationMode === 'embedded') {
         this.buildEmbeddedSettingsSurface()
       } else {
-        SettingsHdsScaffold({
-          title: '自定义主页',
-          backIconKind: 'back',
-          pageBackground: this.storedPageBackgroundColor,
-          headerButtonBackground: this.storedPressedBackgroundColor,
-          primaryTextColor: this.storedPrimaryTextColor,
-          dividerColor: this.storedDividerColor,
-          menuActions: this.buildHeaderActions(),
-          onBack: () => {
-            this.handlePageBack();
+        Column() {
+          SettingsHdsScaffold({
+            title: '主页设置',
+            backIconKind: 'back',
+            pageBackground: this.resolveSettingsCanvasColor(),
+            headerButtonBackground: this.storedPressedBackgroundColor,
+            primaryTextColor: this.storedPrimaryTextColor,
+            dividerColor: this.storedDividerColor,
+            menuActions: this.buildHeaderActions(),
+            collapseMenuActions: true,
+            suppressContentBlur: true,
+            onBack: () => {
+              this.handlePageBack();
+            }
+          }) {
+            this.buildHomepagePickerSurface()
           }
-        }) {
-          this.buildSettingsScrollBody(16, 36)
         }
+        .width('100%')
+        .height('100%')
       }
 
       if (this.previewState.choiceId.length > 0 && this.resolvePreviewChoiceIndex() >= 0) {
@@ -374,7 +436,7 @@ export struct CustomHomepageSettingsScreen {
     }
     .width('100%')
     .height('100%')
-    .backgroundColor(this.storedPageBackgroundColor)
+    .backgroundColor(this.resolveSettingsCanvasColor())
     .onAreaChange((_oldArea: Area, _newArea: Area) => {
       this.refreshPreviewWindowViewport();
     })
@@ -395,12 +457,12 @@ export struct CustomHomepageSettingsScreen {
     Column({ space: 12 }) {
       if (this.desktopPresentation) {
         SettingsDesktopWorkspaceHeader({
-          title: '自定义主页',
+          title: '主页设置',
           showTitle: false,
           primaryTextColor: this.storedPrimaryTextColor,
           iconColor: this.storedSecondaryTextColor,
           buttonBackgroundColor: this.storedPressedBackgroundColor,
-          primaryActionText: '添加网址',
+          primaryActionText: '添加网址主页',
           primaryActionLabel: '添加网址主页',
           primaryActionEnabled: !this.busy,
           menuActions: this.buildDesktopHeaderActions(),
@@ -423,7 +485,7 @@ export struct CustomHomepageSettingsScreen {
               this.importHtmlFile();
             })
 
-          Button('添加网址')
+          Button('添加网址主页')
             .height(36)
             .type(ButtonType.Normal)
             .buttonStyle(ButtonStyleMode.TEXTUAL)
@@ -441,30 +503,350 @@ export struct CustomHomepageSettingsScreen {
         .justifyContent(FlexAlign.End)
       }
 
-      this.buildSettingsScrollBody(0, 28)
+      Column() {
+        this.buildHomepagePickerSurface()
+      }
+      .width('100%')
+      .layoutWeight(1)
     }
     .width('100%')
     .height('100%')
     .padding({ top: 4 })
-    .backgroundColor(this.storedPageBackgroundColor)
+    .backgroundColor(this.resolveSettingsCanvasColor())
   }
 
   @Builder
-  private buildSettingsScrollBody(topPadding: number, bottomPadding: number) {
-    SettingsPresentationScrollBody({
-      desktopPresentation: this.desktopPresentation,
-      topPadding: topPadding,
-      bottomPadding: bottomPadding
-    }) {
-      this.buildSystemHomepageSection()
-      this.buildHomepageListSection()
-      if (!this.state.systemHomepageSelected) {
-        this.buildHomepageChromeSection()
-        this.buildHomepageBehaviorSection()
-        this.buildHomepageMaintenanceSection()
+  private buildHomepagePickerSurface() {
+    CustomHomepagePicker({
+      cards: this.viewModel.buildCarouselCards(this.state),
+      choices: this.state.choices,
+      layoutState: this.previewLayoutState,
+      shortcuts: this.previewShortcuts,
+      showShortcuts: this.previewShowsShortcuts,
+      wallpaper: this.previewWallpaper,
+      closedItems: this.previewClosedItems,
+      showRecentlyClosed: this.previewShowsRecentlyClosed,
+      previewRevision: this.previewContentRevision,
+      pageBackground: this.resolveSettingsCanvasColor(),
+      focusedIndex: this.carouselFocusedIndex,
+      jumpToken: this.carouselJumpToken,
+      busy: this.busy,
+      onCardFocus: (index: number) => {
+        this.onCarouselFocus(index);
+      },
+      onApply: () => {
+        this.applyFocusedHomepage();
+      },
+      onOpenSettings: (choice: CustomHomepageChoiceViewState) => {
+        this.openHomepageSettings(choice);
       }
-      this.buildDeveloperGuideEntry()
+    })
+    .width('100%')
+    .height('100%')
+    .onAreaChange((_oldArea: Area, newArea: Area) => {
+      this.updatePickerArea(newArea);
+    })
+  }
+
+  private buildHomepageSettingsSheetOptions(): SheetOptions {
+    return applyDesktopDialogSheetChrome({
+      preferType: this.presentationMode === 'embedded' ? SheetType.CENTER : SheetType.BOTTOM,
+      height: this.presentationMode === 'embedded' ? SheetSize.FIT_CONTENT : '72%',
+      title: this.buildHomepageSettingsSheetTitle(),
+      dragBar: this.presentationMode !== 'embedded',
+      showClose: true,
+      backgroundColor: this.storedPageBackgroundColor,
+      onDisappear: () => {
+        this.homepageSettingsItemId = '';
+      }
+    }, 'm', this.presentationMode === 'embedded');
+  }
+
+  private buildHomepageSettingsSheetTitle(): SheetTitleOptions {
+    return {
+      title: '主页设置'
+    };
+  }
+
+  @Builder
+  private buildHomepageSettingsSheet() {
+    Column() {
+      SettingsPresentationScrollBody({
+        desktopPresentation: false,
+        topPadding: 4,
+        bottomPadding: 28,
+        contentSpace: 16
+      }) {
+        SettingsSection({
+          title: '这个主页',
+          secondaryTextColor: this.storedSecondaryTextColor
+        }) {
+          this.buildHomepageSettingsActions()
+        }
+        SettingsSection({
+          title: '主页系统入口',
+          secondaryTextColor: this.storedSecondaryTextColor
+        }) {
+          this.buildHomepageSettingsChrome()
+        }
+        if (this.homepageSettingsChrome.isRemoteUrl) {
+          this.buildHomepageSettingsAppearance()
+          this.buildHomepageSettingsMaintenance()
+        }
+        this.buildDeveloperGuideEntry()
+      }
     }
+    .width('100%')
+    .height('100%')
+  }
+
+  @Builder
+  private buildHomepageSettingsActions() {
+    if (this.desktopPresentation) {
+      SettingsDesktopGroup({ surfaceColor: this.storedSurfaceBackgroundColor }) {
+        SettingsDesktopNavigationRow({
+          title: '查看信息',
+          primaryTextColor: this.storedPrimaryTextColor,
+          secondaryTextColor: this.storedSecondaryTextColor,
+          hoverBackgroundColor: this.storedPressedBackgroundColor,
+          focusColor: this.storedAccentColor,
+          onAction: () => {
+            this.openFocusedHomepageInfo();
+          }
+        })
+        SettingsDesktopDivider({ dividerColor: this.storedDividerColor })
+        SettingsDesktopNavigationRow({
+          title: '导出',
+          primaryTextColor: this.storedPrimaryTextColor,
+          secondaryTextColor: this.storedSecondaryTextColor,
+          hoverBackgroundColor: this.storedPressedBackgroundColor,
+          focusColor: this.storedAccentColor,
+          onAction: () => {
+            this.exportFocusedHomepage();
+          }
+        })
+        SettingsDesktopDivider({ dividerColor: this.storedDividerColor })
+        SettingsDesktopNavigationRow({
+          title: '删除',
+          primaryTextColor: this.storedPrimaryTextColor,
+          secondaryTextColor: this.storedSecondaryTextColor,
+          hoverBackgroundColor: this.storedPressedBackgroundColor,
+          focusColor: this.storedAccentColor,
+          onAction: () => {
+            this.removeFocusedHomepage();
+          }
+        })
+      }
+    } else {
+      SettingsGroupCard({ surfaceColor: this.storedSurfaceBackgroundColor }) {
+        SettingsNavigationRow({
+          title: '查看信息',
+          rowPosition: 'first',
+          primaryTextColor: this.storedPrimaryTextColor,
+          secondaryTextColor: this.storedSecondaryTextColor,
+          pressedBackgroundColor: this.storedPressedBackgroundColor,
+          onAction: () => {
+            this.openFocusedHomepageInfo();
+          }
+        })
+        SettingsGroupDivider({ dividerColor: this.storedDividerColor })
+        SettingsNavigationRow({
+          title: '导出',
+          rowPosition: 'middle',
+          primaryTextColor: this.storedPrimaryTextColor,
+          secondaryTextColor: this.storedSecondaryTextColor,
+          pressedBackgroundColor: this.storedPressedBackgroundColor,
+          onAction: () => {
+            this.exportFocusedHomepage();
+          }
+        })
+        SettingsGroupDivider({ dividerColor: this.storedDividerColor })
+        SettingsNavigationRow({
+          title: '删除',
+          rowPosition: 'last',
+          primaryTextColor: this.storedPrimaryTextColor,
+          secondaryTextColor: this.storedSecondaryTextColor,
+          pressedBackgroundColor: this.storedPressedBackgroundColor,
+          onAction: () => {
+            this.removeFocusedHomepage();
+          }
+        })
+      }
+    }
+  }
+
+  @Builder
+  private buildHomepageSettingsChrome() {
+    if (this.desktopPresentation) {
+      SettingsDesktopGroup({ surfaceColor: this.storedSurfaceBackgroundColor }) {
+        SettingsDesktopSwitchRow({
+          title: '在此主页显示系统搜索',
+          checked: this.homepageSettingsChrome.showSystemSearchBar,
+          isEnabled: !this.systemChromeBusy,
+          primaryTextColor: this.storedPrimaryTextColor,
+          secondaryTextColor: this.storedSecondaryTextColor,
+          hoverBackgroundColor: this.storedPressedBackgroundColor,
+          focusColor: this.storedAccentColor,
+          onChange: (checked: boolean) => {
+            this.updateFocusedHomepageSearchBar(checked);
+          }
+        })
+        SettingsDesktopDivider({ dividerColor: this.storedDividerColor })
+        SettingsDesktopSwitchRow({
+          title: '滚动时显示或隐藏',
+          checked: this.homepageSettingsChrome.hideToolbarOnScroll,
+          isEnabled: !this.systemChromeBusy && this.homepageSettingsChrome.showSystemSearchBar,
+          primaryTextColor: this.storedPrimaryTextColor,
+          secondaryTextColor: this.storedSecondaryTextColor,
+          hoverBackgroundColor: this.storedPressedBackgroundColor,
+          focusColor: this.storedAccentColor,
+          onChange: (checked: boolean) => {
+            this.updateFocusedHomepageHideToolbarOnScroll(checked);
+          }
+        })
+        SettingsDesktopDivider({ dividerColor: this.storedDividerColor })
+        SettingsDesktopSwitchRow({
+          title: '显示系统入口按钮',
+          checked: this.homepageSettingsChrome.showSystemEntryButton,
+          isEnabled: !this.systemChromeBusy,
+          primaryTextColor: this.storedPrimaryTextColor,
+          secondaryTextColor: this.storedSecondaryTextColor,
+          hoverBackgroundColor: this.storedPressedBackgroundColor,
+          focusColor: this.storedAccentColor,
+          onChange: (checked: boolean) => {
+            this.updateFocusedHomepageSystemEntryButton(checked);
+          }
+        })
+      }
+    } else {
+      SettingsGroupCard({ surfaceColor: this.storedSurfaceBackgroundColor }) {
+        SettingsSwitchRow({
+          title: '在此主页显示系统搜索',
+          checked: this.homepageSettingsChrome.showSystemSearchBar,
+          rowPosition: 'first',
+          isEnabled: !this.systemChromeBusy,
+          primaryTextColor: this.storedPrimaryTextColor,
+          secondaryTextColor: this.storedSecondaryTextColor,
+          pressedBackgroundColor: this.storedPressedBackgroundColor,
+          onChange: (checked: boolean) => {
+            this.updateFocusedHomepageSearchBar(checked);
+          }
+        })
+        SettingsGroupDivider({ dividerColor: this.storedDividerColor })
+        SettingsSwitchRow({
+          title: '滚动时显示或隐藏',
+          checked: this.homepageSettingsChrome.hideToolbarOnScroll,
+          rowPosition: 'middle',
+          isEnabled: !this.systemChromeBusy && this.homepageSettingsChrome.showSystemSearchBar,
+          primaryTextColor: this.storedPrimaryTextColor,
+          secondaryTextColor: this.storedSecondaryTextColor,
+          pressedBackgroundColor: this.storedPressedBackgroundColor,
+          onChange: (checked: boolean) => {
+            this.updateFocusedHomepageHideToolbarOnScroll(checked);
+          }
+        })
+        SettingsGroupDivider({ dividerColor: this.storedDividerColor })
+        SettingsSwitchRow({
+          title: '显示系统入口按钮',
+          checked: this.homepageSettingsChrome.showSystemEntryButton,
+          rowPosition: 'last',
+          isEnabled: !this.systemChromeBusy,
+          primaryTextColor: this.storedPrimaryTextColor,
+          secondaryTextColor: this.storedSecondaryTextColor,
+          pressedBackgroundColor: this.storedPressedBackgroundColor,
+          onChange: (checked: boolean) => {
+            this.updateFocusedHomepageSystemEntryButton(checked);
+          }
+        })
+      }
+    }
+    SettingsFooterText({
+      text: '以上设置只保存到这个第三方主页。系统入口按钮只在第三方主页上显示。',
+      secondaryTextColor: this.storedSecondaryTextColor
+    })
+  }
+
+  @Builder
+  private buildHomepageSettingsAppearance() {
+    Column({ space: 10 }) {
+      SettingsSectionTitle({
+        title: '主页行为',
+        secondaryTextColor: this.storedSecondaryTextColor
+      })
+      if (this.desktopPresentation) {
+        SettingsDesktopGroup({ surfaceColor: this.storedSurfaceBackgroundColor }) {
+          SettingsDesktopSwitchRow({
+            title: '尝试强制深色模式',
+            checked: this.homepageSettingsChrome.forceDarkRemoteUrlHomepage,
+            isEnabled: !this.systemChromeBusy,
+            primaryTextColor: this.storedPrimaryTextColor,
+            secondaryTextColor: this.storedSecondaryTextColor,
+            hoverBackgroundColor: this.storedPressedBackgroundColor,
+            focusColor: this.storedAccentColor,
+            onChange: (checked: boolean) => {
+              this.updateFocusedHomepageForceDarkMode(checked);
+            }
+          })
+        }
+      } else {
+        SettingsGroupCard({ surfaceColor: this.storedSurfaceBackgroundColor }) {
+          SettingsSwitchRow({
+            title: '尝试强制深色模式',
+            checked: this.homepageSettingsChrome.forceDarkRemoteUrlHomepage,
+            rowPosition: 'single',
+            isEnabled: !this.systemChromeBusy,
+            primaryTextColor: this.storedPrimaryTextColor,
+            secondaryTextColor: this.storedSecondaryTextColor,
+            pressedBackgroundColor: this.storedPressedBackgroundColor,
+            onChange: (checked: boolean) => {
+              this.updateFocusedHomepageForceDarkMode(checked);
+            }
+          })
+        }
+      }
+      SettingsFooterText({
+        text: '强制深色模式仅对网址主页生效。',
+        secondaryTextColor: this.storedSecondaryTextColor
+      })
+    }
+    .width('100%')
+  }
+
+  @Builder
+  private buildHomepageSettingsMaintenance() {
+    Column({ space: 10 }) {
+      SettingsSectionTitle({
+        title: '维护',
+        secondaryTextColor: this.storedSecondaryTextColor
+      })
+      if (this.desktopPresentation) {
+        SettingsDesktopActionButton({
+          title: '刷新主页预览图',
+          isEnabled: !this.busy,
+          accentColor: this.storedAccentColor,
+          onAccentColor: this.storedOnPrimaryColor,
+          hoverBackgroundColor: this.storedPressedBackgroundColor,
+          onAction: () => {
+            this.refreshRemoteHomepagePreviews();
+          }
+        })
+      } else {
+        SettingsActionButton({
+          title: '刷新主页预览图',
+          isEnabled: !this.busy,
+          accentColor: this.storedAccentColor,
+          pressedBackgroundColor: this.storedPressedBackgroundColor,
+          onAction: () => {
+            this.refreshRemoteHomepagePreviews();
+          }
+        })
+      }
+      SettingsFooterText({
+        text: '会重新生成所有网址主页的预览图。',
+        secondaryTextColor: this.storedSecondaryTextColor
+      })
+    }
+    .width('100%')
   }
 
   @Builder
@@ -770,25 +1152,25 @@ export struct CustomHomepageSettingsScreen {
 
   private buildHeaderActions(): SettingsHdsMenuAction[] {
     return [{
-      label: '导入主页',
-      airaIconId: 'browser.tabs.add',
-      enabled: !this.busy,
+      label: '开发文档',
+      airaIconId: 'browser.toolbar.savedPages',
+      enabled: true,
       action: () => {
-        this.importHtmlFile();
+        this.openDeveloperGuide();
       }
     }, {
-      label: '添加网址',
+      label: '添加网址主页',
       airaIconId: 'browser.toolbar.copyLink',
       enabled: !this.busy,
       action: () => {
         this.openRemoteHomepageDialog();
       }
     }, {
-      label: '开发文档',
-      airaIconId: 'browser.toolbar.savedPages',
-      enabled: true,
+      label: '导入主页',
+      airaIconId: 'browser.tabs.add',
+      enabled: !this.busy,
       action: () => {
-        this.openDeveloperGuide();
+        this.importHtmlFile();
       }
     }];
   }
@@ -811,6 +1193,10 @@ export struct CustomHomepageSettingsScreen {
 
   private handlePageBack(): void {
     if (this.remoteHomepageProgressDialogOpen && this.remoteHomepageProgressInProgress) {
+      return;
+    }
+    if (this.homepageSettingsSheetVisible) {
+      this.homepageSettingsSheetVisible = false;
       return;
     }
     if (this.previewState.choiceId.length > 0) {
@@ -946,20 +1332,25 @@ export struct CustomHomepageSettingsScreen {
     this.navigationCoordinator.backToBrowserShell(routeParams);
   }
 
-  private refreshState(): void {
+  private refreshState(followCarouselSelection: boolean = false): void {
+    const follow = followCarouselSelection || !this.carouselPositioned;
     this.coordinator.ensureReady()
       .then(() => {
-        this.state = this.buildThemedState();
-        this.selectedChoiceId = this.resolveSelectedChoiceId(this.state);
-        this.bumpHomepageListRevision();
-        this.scheduleSiteIconHydration();
+        this.applyRefreshedHomepageState(follow);
       })
-      .catch((error: Error) => {
-        this.state = this.buildThemedState();
-        this.selectedChoiceId = this.resolveSelectedChoiceId(this.state);
-        this.bumpHomepageListRevision();
-        this.scheduleSiteIconHydration();
+      .catch((_error: Error) => {
+        this.applyRefreshedHomepageState(follow);
       });
+  }
+
+  private applyRefreshedHomepageState(followCarouselSelection: boolean): void {
+    this.state = this.buildThemedState();
+    this.selectedChoiceId = this.resolveSelectedChoiceId(this.state);
+    this.bumpHomepageListRevision();
+    this.scheduleSiteIconHydration();
+    this.syncCarouselFocus(followCarouselSelection);
+    this.reloadHomepageSettingsChrome();
+    this.carouselPositioned = true;
   }
 
   private importHtmlFile(): void {
@@ -970,9 +1361,7 @@ export struct CustomHomepageSettingsScreen {
     this.busy = true;
     this.coordinator.importCustomHomepage(context)
       .then((result: CustomHomepageImportResult) => {
-        this.state = this.buildThemedState();
-        this.selectedChoiceId = this.resolveSelectedChoiceId(this.state);
-        this.bumpHomepageListRevision();
+        this.applyRefreshedHomepageState(result.imported);
         if (result.imported) {
           this.showToast(result.updated ? '已更新自定义主页' : '已导入自定义主页');
         }
@@ -1030,10 +1419,7 @@ export struct CustomHomepageSettingsScreen {
     this.remoteHomepageProgressController.begin('正在准备主页', '正在后台打开网页');
     this.coordinator.addRemoteHomepage(validation.normalizedUrl)
       .then((result: CustomHomepageRemoteAddResult) => {
-        this.state = this.buildThemedState();
-        this.selectedChoiceId = this.resolveSelectedChoiceId(this.state);
-        this.bumpHomepageListRevision();
-        this.scheduleSiteIconHydration();
+        this.applyRefreshedHomepageState(true);
         this.remoteHomepageProgressController.update('正在准备主页', '正在生成预览图', 36);
         this.remoteHomepageWarmupPurpose = 'add';
         this.remoteHomepageWarmupTask = this.warmupCoordinator.buildTask(result.itemId, result.url);
@@ -1483,6 +1869,28 @@ export struct CustomHomepageSettingsScreen {
     );
   }
 
+  private resolveSettingsCanvasColor(): string {
+    if (this.resolveCurrentThemeMode() !== 'light') {
+      return this.storedPageBackgroundColor;
+    }
+    return this.deepenLightCanvasColor(this.storedPageBackgroundColor);
+  }
+
+  private deepenLightCanvasColor(color: string): string {
+    const normalized = color.trim();
+    if (!/^#[0-9A-Fa-f]{6}$/.test(normalized)) {
+      return normalized.length > 0 ? normalized : '#E0E2E5';
+    }
+    const factor = 0.9;
+    return `#${this.toCanvasHex(parseInt(normalized.substring(1, 3), 16) * factor)}${this.toCanvasHex(parseInt(normalized.substring(3, 5), 16) * factor)}${this.toCanvasHex(parseInt(normalized.substring(5, 7), 16) * factor)}`;
+  }
+
+  private toCanvasHex(channel: number): string {
+    const clamped = Math.max(0, Math.min(255, Math.round(channel)));
+    const hex = clamped.toString(16);
+    return hex.length < 2 ? `0${hex}` : hex;
+  }
+
   private resolveCurrentThemeMode(): BrowserResolvedThemeMode {
     if (this.storedResolvedThemeMode === 'dark') {
       return 'dark';
@@ -1500,11 +1908,14 @@ export struct CustomHomepageSettingsScreen {
   }
 
   private refreshPreviewLayoutState(): void {
-    this.previewLayoutState = this.previewViewModel.buildLayoutState({
-      formFactor: this.environmentService.resolveNativeState().formFactor,
+    const availableHeight = this.pickerBodyHeight > 0 ?
+      this.pickerBodyHeight :
+      Math.max(320, this.previewViewportHeight - 120);
+    this.previewLayoutState = this.previewViewModel.buildCarouselLayoutState({
       viewportWidth: this.previewViewportWidth,
       viewportHeight: this.previewViewportHeight,
-      availableWidth: this.previewAvailableWidth
+      availableWidth: this.previewAvailableWidth > 0 ? this.previewAvailableWidth : this.previewViewportWidth,
+      availableHeight: availableHeight
     });
   }
 
@@ -1525,6 +1936,382 @@ export struct CustomHomepageSettingsScreen {
   private parseAreaDimension(value: Length): number {
     const parsed = Number.parseFloat(`${value}`);
     return Number.isFinite(parsed) ? Math.max(1, Math.round(parsed)) : 1;
+  }
+
+  private updatePickerArea(area: Area): void {
+    const nextHeight = this.parseAreaDimension(area.height);
+    const nextWidth = this.parseAreaDimension(area.width);
+    let changed = false;
+    if (nextHeight !== this.pickerBodyHeight) {
+      this.pickerBodyHeight = nextHeight;
+      changed = true;
+    }
+    if (nextWidth !== this.previewAvailableWidth) {
+      this.previewAvailableWidth = nextWidth;
+      changed = true;
+    }
+    if (changed) {
+      this.refreshPreviewLayoutState();
+    }
+  }
+
+  private refreshPreviewShortcuts(): void {
+    const appearance = sharedPreferencesRepository.getPreferences().appearance;
+    this.previewShowsShortcuts = appearance.showHomeShortcuts;
+    this.previewShowsRecentlyClosed = appearance.showHomeRecentlyClosed;
+    void this.loadPreviewSurface()
+      .then(() => {
+        this.notePreviewSurfaceChanged();
+      })
+      .catch((_error: Error) => {
+        this.applyCachedPreviewSurface();
+        this.notePreviewSurfaceChanged();
+      });
+  }
+
+  private notePreviewSurfaceChanged(): void {
+    this.previewContentRevision = this.previewContentRevision + 1;
+    this.carouselJumpToken = this.carouselJumpToken + 1;
+  }
+
+  private loadPreviewSurface(): Promise<void> {
+    return sharedShortcutRepository.initialize()
+      .then(() => sharedShortcutRepository.refresh())
+      .then((shortcuts: ShortcutRecord[]) => {
+        this.previewShortcuts = this.shortcutLogicService.filterAppOwnedShortcuts(shortcuts);
+        return sharedWallpaperRepository.initialize();
+      })
+      .then((snapshot: WallpaperRepositorySnapshot) => {
+        this.previewWallpaper = new WallpaperPresentationService().buildPresentationState(snapshot);
+        return sharedRecentlyClosedTabRepository.refresh();
+      })
+      .then((records: BrowserRecentlyClosedTabRecord[]): void => {
+        this.previewClosedItems = this.buildPreviewClosedItems(records);
+      });
+  }
+
+  private applyCachedPreviewSurface(): void {
+    this.previewShortcuts = this.shortcutLogicService.filterAppOwnedShortcuts(sharedShortcutRepository.listAll());
+    this.previewWallpaper = new WallpaperPresentationService()
+      .buildPresentationState(sharedWallpaperRepository.getSnapshot());
+    this.previewClosedItems = this.buildPreviewClosedItems(sharedRecentlyClosedTabRepository.listRecords());
+  }
+
+  private buildPreviewClosedItems(records: BrowserRecentlyClosedTabRecord[]): HomepagePreviewClosedItem[] {
+    const siteIconService = new SiteIconService();
+    const visibleRecords = records.slice(0, 2);
+    const items: HomepagePreviewClosedItem[] = [];
+    visibleRecords.forEach((record: BrowserRecentlyClosedTabRecord) => {
+      const url = this.resolveClosedRecordUrl(record);
+      const title = record.tab.title.trim();
+      items.push({
+        key: record.id,
+        title: title.length > 0 ? title : (url.length > 0 ? url : '未命名标签页'),
+        subtitle: this.shortcutLogicService.extractDomainFromUrl(url),
+        iconUri: this.resolveClosedRecordIconUri(record, url, siteIconService)
+      });
+    });
+    this.schedulePreviewClosedIconHydration(visibleRecords);
+    return items;
+  }
+
+  private resolveClosedRecordIconUri(
+    record: BrowserRecentlyClosedTabRecord,
+    url: string,
+    siteIconService: SiteIconService
+  ): string {
+    const storedIcon = (record.siteIconUri ?? '').trim();
+    if (storedIcon.length > 0) {
+      return storedIcon;
+    }
+    return siteIconService.peekUri(url);
+  }
+
+  private schedulePreviewClosedIconHydration(records: BrowserRecentlyClosedTabRecord[]): void {
+    const pending = records.filter((record: BrowserRecentlyClosedTabRecord): boolean => {
+      return this.resolveClosedRecordUrl(record).length > 0 && (record.siteIconUri ?? '').trim().length === 0;
+    });
+    if (pending.length <= 0) {
+      return;
+    }
+    const scheduleVersion = this.closedIconScheduleVersion + 1;
+    this.closedIconScheduleVersion = scheduleVersion;
+    const urls = pending.map((record: BrowserRecentlyClosedTabRecord): string => this.resolveClosedRecordUrl(record));
+    void new SiteIconService().resolveCachedUris(urls).then((entries: SiteIconUriCacheEntry[]): void => {
+      if (this.closedIconScheduleVersion !== scheduleVersion) {
+        return;
+      }
+      this.applyPreviewClosedIcons(pending, entries);
+    });
+  }
+
+  private applyPreviewClosedIcons(
+    records: BrowserRecentlyClosedTabRecord[],
+    entries: SiteIconUriCacheEntry[]
+  ): void {
+    let changed = false;
+    const next: HomepagePreviewClosedItem[] = [];
+    this.previewClosedItems.forEach((item: HomepagePreviewClosedItem) => {
+      if (item.iconUri.length > 0) {
+        next.push(item);
+        return;
+      }
+      const record = records.find((candidate: BrowserRecentlyClosedTabRecord): boolean => candidate.id === item.key);
+      const url = record === undefined ? '' : this.resolveClosedRecordUrl(record);
+      const entry = entries.find((candidate: SiteIconUriCacheEntry): boolean => candidate.url === url);
+      const iconUri = entry === undefined ? '' : entry.uri.trim();
+      if (iconUri.length <= 0) {
+        next.push(item);
+        return;
+      }
+      changed = true;
+      next.push({
+        key: item.key,
+        title: item.title,
+        subtitle: item.subtitle,
+        iconUri: iconUri
+      });
+    });
+    if (changed) {
+      this.previewClosedItems = next;
+    }
+  }
+
+  private resolveClosedRecordUrl(record: BrowserRecentlyClosedTabRecord): string {
+    const url = (record.tab.url ?? '').trim();
+    if (url.length > 0) {
+      return url;
+    }
+    const lastGoodUrl = (record.tab.lastGoodUrl ?? '').trim();
+    if (lastGoodUrl.length > 0) {
+      return lastGoodUrl;
+    }
+    return (record.tab.pendingUrl ?? '').trim();
+  }
+
+  private syncCarouselFocus(followSelection: boolean): void {
+    const cards = this.viewModel.buildCarouselCards(this.state);
+    if (cards.length <= 0) {
+      this.carouselFocusedIndex = 0;
+      this.carouselFocusedKey = '';
+      return;
+    }
+    const preferredKey = followSelection ? '' : this.carouselFocusedKey;
+    const index = this.viewModel.resolveCarouselIndex(cards, preferredKey);
+    const nextKey = cards[index].key;
+    const shouldJump = followSelection || !this.carouselPositioned || nextKey !== this.carouselFocusedKey ||
+      index !== this.carouselFocusedIndex;
+    this.carouselFocusedIndex = index;
+    this.carouselFocusedKey = nextKey;
+    if (shouldJump) {
+      this.carouselJumpToken = this.carouselJumpToken + 1;
+    }
+  }
+
+  private onCarouselFocus(index: number): void {
+    const cards = this.viewModel.buildCarouselCards(this.state);
+    if (index < 0 || index >= cards.length || cards[index].key === this.carouselFocusedKey) {
+      return;
+    }
+    this.carouselFocusedIndex = index;
+    this.carouselFocusedKey = cards[index].key;
+  }
+
+  private applyFocusedHomepage(): void {
+    const cards = this.viewModel.buildCarouselCards(this.state);
+    if (this.carouselFocusedIndex < 0 || this.carouselFocusedIndex >= cards.length) {
+      return;
+    }
+    const card = cards[this.carouselFocusedIndex];
+    if (card.isCurrent) {
+      return;
+    }
+    if (card.kind === 'system') {
+      this.selectSystemHomepageStyle(card.systemStyle);
+      return;
+    }
+    const choice = this.state.choices.find((item: CustomHomepageChoiceViewState): boolean => {
+      return item.id === card.choiceId;
+    });
+    if (choice !== undefined) {
+      this.applyFocusedCustomHomepage(choice);
+    }
+  }
+
+  private applyFocusedCustomHomepage(choice: CustomHomepageChoiceViewState): void {
+    if (this.busy || choice.id === this.selectedChoiceId) {
+      return;
+    }
+    const previousState = this.state;
+    const previousSelectedChoiceId = this.selectedChoiceId;
+    this.applySelectedChoiceId(choice.id);
+    this.runSelectionAction(
+      this.coordinator.selectCustomHomepage(choice.id),
+      previousState,
+      previousSelectedChoiceId,
+      '已切换主页',
+      '切换主页失败',
+      false
+    );
+  }
+
+  private openHomepageSettings(choice: CustomHomepageChoiceViewState): void {
+    this.homepageSettingsItemId = choice.id;
+    this.reloadHomepageSettingsChrome();
+    this.homepageSettingsSheetVisible = true;
+  }
+
+  private reloadHomepageSettingsChrome(): void {
+    if (this.homepageSettingsItemId.length <= 0) {
+      return;
+    }
+    this.homepageSettingsChrome = this.viewModel.buildItemChromeState(
+      sharedCustomHomepageRepository.getSnapshot().settings,
+      this.homepageSettingsItemId
+    );
+  }
+
+  private resolveHomepageSettingsChoice(): CustomHomepageChoiceViewState | undefined {
+    return this.state.choices.find((choice: CustomHomepageChoiceViewState): boolean => {
+      return choice.id === this.homepageSettingsItemId;
+    });
+  }
+
+  private openFocusedHomepageInfo(): void {
+    const choice = this.resolveHomepageSettingsChoice();
+    this.homepageSettingsSheetVisible = false;
+    if (choice !== undefined) {
+      this.openHomepageInfo(choice);
+    }
+  }
+
+  private exportFocusedHomepage(): void {
+    const choice = this.resolveHomepageSettingsChoice();
+    this.homepageSettingsSheetVisible = false;
+    if (choice !== undefined) {
+      this.exportCustomHomepage(choice);
+    }
+  }
+
+  private removeFocusedHomepage(): void {
+    const choice = this.resolveHomepageSettingsChoice();
+    this.homepageSettingsSheetVisible = false;
+    if (choice !== undefined) {
+      this.removeCustomHomepage(choice);
+    }
+  }
+
+  private updateFocusedHomepageSearchBar(visible: boolean): void {
+    this.updateFocusedHomepageChrome('search', visible);
+  }
+
+  private updateFocusedHomepageSystemEntryButton(visible: boolean): void {
+    this.updateFocusedHomepageChrome('entry', visible);
+  }
+
+  private updateFocusedHomepageForceDarkMode(enabled: boolean): void {
+    this.updateFocusedHomepageChrome('dark', enabled);
+  }
+
+  private updateFocusedHomepageHideToolbarOnScroll(enabled: boolean): void {
+    if (!this.homepageSettingsChrome.showSystemSearchBar) {
+      return;
+    }
+    this.updateFocusedHomepageChrome('scroll', enabled);
+  }
+
+  private updateFocusedHomepageChrome(
+    field: 'search' | 'entry' | 'dark' | 'scroll',
+    value: boolean
+  ): void {
+    const itemId = this.homepageSettingsItemId;
+    if (itemId.length <= 0 || this.systemChromeBusy) {
+      return;
+    }
+    const previous = this.homepageSettingsChrome;
+    if (!this.focusedChromeWouldChange(previous, field, value)) {
+      return;
+    }
+    this.homepageSettingsChrome = this.copyFocusedChrome(previous, field, value);
+    this.systemChromeBusy = true;
+    this.runFocusedHomepageChromeUpdate(itemId, field, value)
+      .then(() => {
+        this.reloadHomepageSettingsChrome();
+        this.state = this.buildThemedState();
+        this.showToast(this.resolveFocusedChromeMessage(field, value));
+      })
+      .catch((error: Error) => {
+        this.homepageSettingsChrome = previous;
+        this.showToast(`更新主页设置失败：${this.stringifyError(error)}`);
+      })
+      .finally(() => {
+        this.systemChromeBusy = false;
+      });
+  }
+
+  private focusedChromeWouldChange(
+    chrome: CustomHomepageItemChromeViewState,
+    field: 'search' | 'entry' | 'dark' | 'scroll',
+    value: boolean
+  ): boolean {
+    if (field === 'search') {
+      return chrome.showSystemSearchBar !== value;
+    }
+    if (field === 'entry') {
+      return chrome.showSystemEntryButton !== value;
+    }
+    if (field === 'dark') {
+      return chrome.forceDarkRemoteUrlHomepage !== value;
+    }
+    return chrome.hideToolbarOnScroll !== value;
+  }
+
+  private copyFocusedChrome(
+    chrome: CustomHomepageItemChromeViewState,
+    field: 'search' | 'entry' | 'dark' | 'scroll',
+    value: boolean
+  ): CustomHomepageItemChromeViewState {
+    return {
+      itemId: chrome.itemId,
+      showSystemSearchBar: field === 'search' ? value : chrome.showSystemSearchBar,
+      showSystemEntryButton: field === 'entry' ? value : chrome.showSystemEntryButton,
+      forceDarkRemoteUrlHomepage: field === 'dark' ? value : chrome.forceDarkRemoteUrlHomepage,
+      hideToolbarOnScroll: field === 'scroll' ? value : chrome.hideToolbarOnScroll,
+      isRemoteUrl: chrome.isRemoteUrl
+    };
+  }
+
+  private runFocusedHomepageChromeUpdate(
+    itemId: string,
+    field: 'search' | 'entry' | 'dark' | 'scroll',
+    value: boolean
+  ): Promise<void> {
+    if (field === 'search') {
+      return this.coordinator.updateItemHomepageSearchBar(itemId, value);
+    }
+    if (field === 'entry') {
+      return this.coordinator.updateItemHomepageSystemEntryButton(itemId, value);
+    }
+    if (field === 'dark') {
+      return this.coordinator.updateItemHomepageForceDarkMode(itemId, value);
+    }
+    return this.coordinator.updateItemHomepageHideToolbarOnScroll(itemId, value);
+  }
+
+  private resolveFocusedChromeMessage(
+    field: 'search' | 'entry' | 'dark' | 'scroll',
+    value: boolean
+  ): string {
+    if (field === 'search') {
+      return value ? '已在此主页显示系统搜索' : '已在此主页隐藏系统搜索';
+    }
+    if (field === 'entry') {
+      return value ? '已显示系统入口按钮' : '已隐藏系统入口按钮';
+    }
+    if (field === 'dark') {
+      return value ? '网址主页强制深色已开启' : '网址主页将尊重网页原本外观';
+    }
+    return value ? '当前主页已启用滚动显示或隐藏' : '当前主页已关闭滚动显示或隐藏';
   }
 
   private showToast(message: string): void {

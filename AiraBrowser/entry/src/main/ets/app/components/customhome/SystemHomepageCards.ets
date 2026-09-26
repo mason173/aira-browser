@@ -36,6 +36,7 @@ export struct SystemHomepageCards {
     listHeight: 372,
     cardGap: 18,
     cardRadius: 18,
+    sidePeek: 0,
     orientation: 'portrait'
   };
 

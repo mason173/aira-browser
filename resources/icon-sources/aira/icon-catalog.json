@@ -5,11 +5,11 @@
     "familyName": "AiraOperationalIcons",
     "fontFile": "vendor/lucide/aira-operational-icons/AiraOperationalIcons.ttf",
     "packagedRawfile": "fonts/aira/aira-operational-icons.ttf",
-    "fontSha256": "500e1c0b87bc2e417297aaabb9635b687e8a3c5076cd6a7bcc1220e1744a19cd",
+    "fontSha256": "7c1b782c9f9048c90cef9c0cfc4ee0ec8096ba14ea1b1d16522a54aa524fa8e4",
     "selectionFile": "vendor/lucide/aira-operational-icons/selection.json",
-    "selectionSha256": "8d39365660ee77f9fb28fc3bd1c39a053729a9fc44e27dd18e1c7235233c5adf",
+    "selectionSha256": "00030ae477ab80f7d628b28393ecf3ce54f00e26b5f5cf705c9c07295fc6d514",
     "sourceManifestFile": "vendor/lucide/aira-operational-icons/source-manifest.json",
-    "sourceManifestSha256": "dc8260ff694fd93b8ad4c401aaea498d841f01f6e03c393daae982f0f3166df9",
+    "sourceManifestSha256": "e3783536ea49e2f763f179c04b353dce43601309058dc7e677ec57ec4ffd5074",
     "fontQuarantinedIconIds": [
       "desktopCard.shortcut.history",
       "desktopCard.shortcut.bookmarks",
@@ -357,6 +357,15 @@
         "kind": "font",
         "glyph": "toolbar-home",
         "reason": "user-provided-home"
+      }
+    },
+    {
+      "id": "browser.home.settings",
+      "legacyResourceFamily": "app_home_settings",
+      "representation": {
+        "kind": "font",
+        "glyph": "home-settings",
+        "reason": "user-provided-home-settings"
       }
     },
     {
@@ -2108,7 +2117,7 @@
           "iconId": "settings.toolbar"
         },
         {
-          "title": "自定义主页",
+          "title": "主页设置",
           "iconId": "settings.customHomepage"
         },
         {
@@ -2211,7 +2220,7 @@
           "iconId": "settings.toolbar"
         },
         {
-          "title": "自定义主页",
+          "title": "主页设置",
           "iconId": "settings.customHomepage"
         },
         {

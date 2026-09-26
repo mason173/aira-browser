@@ -1,4 +1,5 @@
 import { BrowserHomePageStyle } from '../../common/models/HomePagePresentationSettingsModels';
+import { BrowserToolbarChromeStyle } from '../../common/models/BrowserModels';
 
 /**
  * Built-in homepage frames offered on the 自定义主页 page.
@@ -14,8 +15,8 @@ export interface SystemHomepageStyleEntry {
 }
 
 export const SYSTEM_HOMEPAGE_STYLE_CATALOG: SystemHomepageStyleEntry[] = [
-  { style: 'classic', title: '默认主页' },
-  { style: 'centered', title: '居中主页' }
+  { style: 'classic', title: '经典主页' },
+  { style: 'centered', title: '简约主页' }
 ];
 
 /**
@@ -27,4 +28,12 @@ export function resolveSystemHomepagePreviewResource(style: BrowserHomePageStyle
     return $rawfile('home_preview_centered.svg');
   }
   return $rawfile('home_preview_classic.svg');
+}
+
+/**
+ * Built-in frames ship with a matching toolbar. Classic keeps the floating capsule;
+ * centered uses the split top search and bottom navigation.
+ */
+export function resolveSystemHomepageToolbarChrome(style: BrowserHomePageStyle): BrowserToolbarChromeStyle {
+  return style === 'centered' ? 'split' : 'floating';
 }

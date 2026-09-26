@@ -832,7 +832,7 @@ export class CustomHomepageBridgeCoordinator {
         routeCoordinator.openSimpleRoute(DOWNLOAD_SETTINGS_ROUTE, '打开下载设置失败');
         return true;
       case 'custom_homepage_settings':
-        routeCoordinator.openSimpleRoute(CUSTOM_HOMEPAGE_SETTINGS_ROUTE, '打开自定义主页设置失败');
+        routeCoordinator.openSimpleRoute(CUSTOM_HOMEPAGE_SETTINGS_ROUTE, '打开主页设置失败');
         return true;
       case 'general_settings':
         routeCoordinator.openSettingsDetailPage('general');

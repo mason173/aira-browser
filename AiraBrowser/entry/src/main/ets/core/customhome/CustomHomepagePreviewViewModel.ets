@@ -35,7 +35,15 @@ export interface CustomHomepagePreviewLayoutState {
   listHeight: number;
   cardGap: number;
   cardRadius: number;
+  sidePeek: number;
   orientation: CustomHomepagePreviewOrientation;
+}
+
+export interface CustomHomepageCarouselLayoutInput {
+  viewportWidth: number;
+  viewportHeight: number;
+  availableWidth: number;
+  availableHeight: number;
 }
 
 const CUSTOM_HOMEPAGE_PHONE_CARD_WIDTH: number = 172;
@@ -73,7 +81,48 @@ export class CustomHomepagePreviewViewModel {
       listHeight: cardHeight + CUSTOM_HOMEPAGE_PREVIEW_TITLE_HEIGHT + CUSTOM_HOMEPAGE_PREVIEW_TITLE_GAP,
       cardGap: CUSTOM_HOMEPAGE_PREVIEW_CARD_GAP,
       cardRadius: CUSTOM_HOMEPAGE_PREVIEW_CARD_RADIUS,
+      sidePeek: 0,
       orientation: orientation
+    };
+  }
+
+  /**
+   * Size one carousel card from the device aspect ratio, then fit it into the picker
+   * so the neighboring card can still peek in from the side.
+   */
+  buildCarouselLayoutState(input: CustomHomepageCarouselLayoutInput): CustomHomepagePreviewLayoutState {
+    const viewportWidth = Math.max(1, input.viewportWidth);
+    const viewportHeight = Math.max(1, input.viewportHeight);
+    const availableWidth = Math.max(1, input.availableWidth);
+    const availableHeight = Math.max(1, input.availableHeight);
+    const aspect = viewportWidth / viewportHeight;
+    const sidePeek = Math.max(16, Math.round(availableWidth * 0.075));
+    const cardGap = 16;
+    const titleBlock = 36;
+    const actionBlock = 100;
+    const contentHeight = Math.max(180, availableHeight - titleBlock - actionBlock);
+    const maxWidth = Math.max(120, availableWidth - sidePeek * 2);
+    let cardWidth = maxWidth;
+    let cardHeight = cardWidth / aspect;
+    if (cardHeight > contentHeight) {
+      cardHeight = contentHeight;
+      cardWidth = cardHeight * aspect;
+    }
+    cardWidth = Math.max(120, Math.round(cardWidth));
+    cardHeight = Math.max(160, Math.round(cardWidth / aspect));
+    if (cardHeight > contentHeight) {
+      cardHeight = Math.max(160, Math.round(contentHeight));
+      cardWidth = Math.max(120, Math.round(cardHeight * aspect));
+    }
+    const radius = Math.max(16, Math.min(32, Math.round(cardWidth * 0.08)));
+    return {
+      cardWidth: cardWidth,
+      cardHeight: cardHeight,
+      listHeight: cardHeight,
+      cardGap: cardGap,
+      cardRadius: radius,
+      sidePeek: sidePeek,
+      orientation: this.resolveOrientation(viewportWidth, viewportHeight)
     };
   }
 

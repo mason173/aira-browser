@@ -1,7 +1,9 @@
 import { BrowserHomePageStyle } from '../../common/models/HomePagePresentationSettingsModels';
 import { HomePagePresentationSettingsRepository } from '../../data/preferences/HomePagePresentationSettingsRepository';
+import { PreferencesRepository } from '../../data/preferences/PreferencesRepository';
 import { CustomHomepageSettingsCoordinator } from './CustomHomepageSettingsCoordinator';
 import { HomePageSettingsCoordinator } from '../settings/HomePageSettingsCoordinator';
+import { resolveSystemHomepageToolbarChrome } from './SystemHomepageStyleCatalog';
 
 /**
  * Picking a built-in homepage writes two device-local stores: which homepage the new tab
@@ -16,20 +18,24 @@ export class SystemHomepageSelectionService {
   private customHomepageCoordinator: CustomHomepageSettingsCoordinator;
   private presentationRepository: HomePagePresentationSettingsRepository;
   private recoveryEntryGuard: HomePageSettingsCoordinator;
+  private preferencesRepository: PreferencesRepository;
 
   constructor(
     customHomepageCoordinator: CustomHomepageSettingsCoordinator,
     presentationRepository: HomePagePresentationSettingsRepository,
-    recoveryEntryGuard: HomePageSettingsCoordinator
+    recoveryEntryGuard: HomePageSettingsCoordinator,
+    preferencesRepository: PreferencesRepository
   ) {
     this.customHomepageCoordinator = customHomepageCoordinator;
     this.presentationRepository = presentationRepository;
     this.recoveryEntryGuard = recoveryEntryGuard;
+    this.preferencesRepository = preferencesRepository;
   }
 
   async selectSystemHomepageStyle(style: BrowserHomePageStyle): Promise<void> {
     await this.customHomepageCoordinator.selectSystemHomepage();
     await this.presentationRepository.setHomePageStyle(style);
+    await this.preferencesRepository.updateToolbarChromeStyle(resolveSystemHomepageToolbarChrome(style));
     await this.recoveryEntryGuard.ensureRecoveryEntryAvailable();
   }
 }

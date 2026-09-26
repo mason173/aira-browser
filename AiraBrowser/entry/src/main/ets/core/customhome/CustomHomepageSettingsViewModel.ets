@@ -39,6 +39,26 @@ export interface CustomHomepageSystemChoiceViewState {
   isActive: boolean;
 }
 
+export type CustomHomepageCarouselCardKind = 'system' | 'custom';
+
+export interface CustomHomepageCarouselCard {
+  key: string;
+  kind: CustomHomepageCarouselCardKind;
+  title: string;
+  systemStyle: BrowserHomePageStyle;
+  choiceId: string;
+  isCurrent: boolean;
+}
+
+export interface CustomHomepageItemChromeViewState {
+  itemId: string;
+  showSystemSearchBar: boolean;
+  showSystemEntryButton: boolean;
+  forceDarkRemoteUrlHomepage: boolean;
+  hideToolbarOnScroll: boolean;
+  isRemoteUrl: boolean;
+}
+
 export interface CustomHomepageSettingsViewState {
   choices: CustomHomepageChoiceViewState[];
   systemChoices: CustomHomepageSystemChoiceViewState[];
@@ -179,6 +199,89 @@ export class CustomHomepageSettingsViewModel {
     };
   }
 
+  buildCarouselCards(state: CustomHomepageSettingsViewState): CustomHomepageCarouselCard[] {
+    const systemCards: CustomHomepageCarouselCard[] = state.systemChoices.map(
+      (choice: CustomHomepageSystemChoiceViewState): CustomHomepageCarouselCard => {
+        return {
+          key: `system:${choice.style}`,
+          kind: 'system',
+          title: choice.title,
+          systemStyle: choice.style,
+          choiceId: '',
+          isCurrent: choice.isActive
+        };
+      }
+    );
+    const customCards: CustomHomepageCarouselCard[] = state.choices.map(
+      (choice: CustomHomepageChoiceViewState): CustomHomepageCarouselCard => {
+        return {
+          key: `custom:${choice.id}`,
+          kind: 'custom',
+          title: choice.title,
+          systemStyle: 'classic',
+          choiceId: choice.id,
+          isCurrent: choice.isSelected
+        };
+      }
+    );
+    return systemCards.concat(customCards);
+  }
+
+  resolveCarouselIndex(cards: CustomHomepageCarouselCard[], preferredKey: string): number {
+    if (preferredKey.length > 0) {
+      for (let index = 0; index < cards.length; index++) {
+        if (cards[index].key === preferredKey) {
+          return index;
+        }
+      }
+    }
+    for (let index = 0; index < cards.length; index++) {
+      if (cards[index].isCurrent) {
+        return index;
+      }
+    }
+    return 0;
+  }
+
+  buildEmptyItemChromeState(): CustomHomepageItemChromeViewState {
+    return {
+      itemId: '',
+      showSystemSearchBar: true,
+      showSystemEntryButton: false,
+      forceDarkRemoteUrlHomepage: true,
+      hideToolbarOnScroll: false,
+      isRemoteUrl: false
+    };
+  }
+
+  buildItemChromeState(settings: CustomHomepageSettings, itemId: string): CustomHomepageItemChromeViewState {
+    const item = this.findItem(settings, itemId);
+    return {
+      itemId: item !== undefined ? item.id : '',
+      showSystemSearchBar: resolveCustomHomepageItemBooleanById(
+        settings.showSystemSearchBarByItemId,
+        itemId,
+        true
+      ),
+      showSystemEntryButton: resolveCustomHomepageItemBooleanById(
+        settings.showSystemEntryButtonByItemId,
+        itemId,
+        false
+      ),
+      forceDarkRemoteUrlHomepage: resolveCustomHomepageItemBooleanById(
+        settings.forceDarkWebContentByItemId,
+        itemId,
+        true
+      ),
+      hideToolbarOnScroll: resolveCustomHomepageItemBooleanById(
+        settings.hideToolbarOnScrollByItemId,
+        itemId,
+        false
+      ),
+      isRemoteUrl: item !== undefined && item.kind === 'remote_url'
+    };
+  }
+
   buildNativeHomepageSettingsAvailability(
     settings: CustomHomepageSettings
   ): CustomHomepageNativeSettingsAvailabilityState {
@@ -186,8 +289,8 @@ export class CustomHomepageSettingsViewModel {
     return {
       isEnabled: isEnabled,
       footerText: isEnabled ?
-        '图标外观、壁纸和系统搜索设置仅对 Aira 原生主页生效；第三方主页在“自定义主页”中单独设置。' :
-        '当前正在使用第三方主页，Aira 原生主页设置暂不可调整；当前主页的显示与滚动行为可在“自定义主页”中设置。'
+        '图标外观、壁纸和系统搜索设置仅对 Aira 原生主页生效；第三方主页在“主页设置”中单独设置。' :
+        '当前正在使用第三方主页，Aira 原生主页设置暂不可调整；当前主页的显示与滚动行为可在“主页设置”中设置。'
     };
   }
 

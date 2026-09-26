@@ -19,52 +19,60 @@ export class CustomHomepagePreferenceService {
     current: CustomHomepageSettings,
     visible: boolean
   ): CustomHomepageSettings {
-    const selectedItemId = this.resolveSelectedItemId(current);
-    if (selectedItemId.length <= 0) {
-      return current;
-    }
-    const preferences = this.buildPreferenceState(current);
-    preferences.showSystemSearchBarByItemId[selectedItemId] = visible;
-    return this.buildSettings(current, preferences);
+    return this.buildItemSystemSearchBarSettings(current, this.resolveSelectedItemId(current), visible);
+  }
+
+  buildItemSystemSearchBarSettings(
+    current: CustomHomepageSettings,
+    itemId: string,
+    visible: boolean
+  ): CustomHomepageSettings {
+    return this.writeItemBoolean(current, itemId, 'search', visible);
   }
 
   buildSelectedSystemEntryButtonSettings(
     current: CustomHomepageSettings,
     visible: boolean
   ): CustomHomepageSettings {
-    const selectedItemId = this.resolveSelectedItemId(current);
-    if (selectedItemId.length <= 0) {
-      return current;
-    }
-    const preferences = this.buildPreferenceState(current);
-    preferences.showSystemEntryButtonByItemId[selectedItemId] = visible;
-    return this.buildSettings(current, preferences);
+    return this.buildItemSystemEntryButtonSettings(current, this.resolveSelectedItemId(current), visible);
+  }
+
+  buildItemSystemEntryButtonSettings(
+    current: CustomHomepageSettings,
+    itemId: string,
+    visible: boolean
+  ): CustomHomepageSettings {
+    return this.writeItemBoolean(current, itemId, 'entry', visible);
   }
 
   buildSelectedForceDarkSettings(
     current: CustomHomepageSettings,
     enabled: boolean
   ): CustomHomepageSettings {
-    const selectedItemId = this.resolveSelectedItemId(current);
-    if (selectedItemId.length <= 0) {
-      return current;
-    }
-    const preferences = this.buildPreferenceState(current);
-    preferences.forceDarkWebContentByItemId[selectedItemId] = enabled;
-    return this.buildSettings(current, preferences);
+    return this.buildItemForceDarkSettings(current, this.resolveSelectedItemId(current), enabled);
+  }
+
+  buildItemForceDarkSettings(
+    current: CustomHomepageSettings,
+    itemId: string,
+    enabled: boolean
+  ): CustomHomepageSettings {
+    return this.writeItemBoolean(current, itemId, 'dark', enabled);
   }
 
   buildSelectedHideToolbarOnScrollSettings(
     current: CustomHomepageSettings,
     enabled: boolean
   ): CustomHomepageSettings {
-    const selectedItemId = this.resolveSelectedItemId(current);
-    if (selectedItemId.length <= 0) {
-      return current;
-    }
-    const preferences = this.buildPreferenceState(current);
-    preferences.hideToolbarOnScrollByItemId[selectedItemId] = enabled;
-    return this.buildSettings(current, preferences);
+    return this.buildItemHideToolbarOnScrollSettings(current, this.resolveSelectedItemId(current), enabled);
+  }
+
+  buildItemHideToolbarOnScrollSettings(
+    current: CustomHomepageSettings,
+    itemId: string,
+    enabled: boolean
+  ): CustomHomepageSettings {
+    return this.writeItemBoolean(current, itemId, 'scroll', enabled);
   }
 
   buildSystemHomepageSearchBarSettings(
@@ -82,6 +90,30 @@ export class CustomHomepagePreferenceService {
   ): CustomHomepageSettings {
     const preferences = this.buildPreferenceState(current);
     preferences.hideToolbarOnScroll = enabled;
+    return this.buildSettings(current, preferences);
+  }
+
+  private writeItemBoolean(
+    current: CustomHomepageSettings,
+    itemId: string,
+    field: 'search' | 'entry' | 'dark' | 'scroll',
+    value: boolean
+  ): CustomHomepageSettings {
+    const normalizedId = itemId.trim();
+    const itemExists = current.items.some((item: CustomHomepageItem): boolean => item.id === normalizedId);
+    if (normalizedId.length <= 0 || !itemExists) {
+      return current;
+    }
+    const preferences = this.buildPreferenceState(current);
+    if (field === 'search') {
+      preferences.showSystemSearchBarByItemId[normalizedId] = value;
+    } else if (field === 'entry') {
+      preferences.showSystemEntryButtonByItemId[normalizedId] = value;
+    } else if (field === 'dark') {
+      preferences.forceDarkWebContentByItemId[normalizedId] = value;
+    } else {
+      preferences.hideToolbarOnScrollByItemId[normalizedId] = value;
+    }
     return this.buildSettings(current, preferences);
   }
 

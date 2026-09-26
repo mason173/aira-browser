@@ -927,6 +927,13 @@
       "sourceSha256": "a7eb0ce288d8284ded4d1fde56ff9e1de5c0492ab3e6a69ecfa8f0ce2c9238bc",
       "codePoint": 60960,
       "lucideSlug": "vertical-tabs-collapsed"
+    },
+    {
+      "glyph": "home-settings",
+      "sourceFile": "svg/home-settings.svg",
+      "codePoint": 60962,
+      "sourceSha256": "a49a419ddecee0d2c7e83855db2d3de73dd0173cdc2bcab3e825b431aa4c1162",
+      "lucideSlug": "home-settings"
     }
   ],
   "package": "@tabler/icons",

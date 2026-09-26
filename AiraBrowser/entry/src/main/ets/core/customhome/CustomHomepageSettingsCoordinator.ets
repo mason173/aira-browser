@@ -148,6 +148,34 @@ export class CustomHomepageSettingsCoordinator {
     );
   }
 
+  async updateItemHomepageSearchBar(itemId: string, visible: boolean): Promise<void> {
+    const snapshot = await this.ensureSnapshot();
+    await this.repository.saveSettings(
+      this.preferenceService.buildItemSystemSearchBarSettings(snapshot.settings, itemId, visible)
+    );
+  }
+
+  async updateItemHomepageSystemEntryButton(itemId: string, visible: boolean): Promise<void> {
+    const snapshot = await this.ensureSnapshot();
+    await this.repository.saveSettings(
+      this.preferenceService.buildItemSystemEntryButtonSettings(snapshot.settings, itemId, visible)
+    );
+  }
+
+  async updateItemHomepageForceDarkMode(itemId: string, enabled: boolean): Promise<void> {
+    const snapshot = await this.ensureSnapshot();
+    await this.repository.saveSettings(
+      this.preferenceService.buildItemForceDarkSettings(snapshot.settings, itemId, enabled)
+    );
+  }
+
+  async updateItemHomepageHideToolbarOnScroll(itemId: string, enabled: boolean): Promise<void> {
+    const snapshot = await this.ensureSnapshot();
+    await this.repository.saveSettings(
+      this.preferenceService.buildItemHideToolbarOnScrollSettings(snapshot.settings, itemId, enabled)
+    );
+  }
+
   async updateHideToolbarOnScroll(enabled: boolean): Promise<void> {
     const snapshot = await this.ensureSnapshot();
     await this.repository.saveSettings(

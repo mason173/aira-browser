@@ -114,7 +114,7 @@ export class SettingsCenterViewModel {
               '',
               canReadDevicePreferences
             ),
-            this.buildRow('custom_homepage', '自定义主页'),
+            this.buildRow('custom_homepage', '主页设置'),
             this.buildRow('toolbar_customization', '工具栏设置', '', canReadDevicePreferences)
           ]
         },

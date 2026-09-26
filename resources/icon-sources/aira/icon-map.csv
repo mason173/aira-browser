@@ -133,6 +133,7 @@ vendor/lucide/aira-operational-icons/svg/user.svg,Lucide 1.38.0 / user,app_toolb
 vendor/lucide/aira-operational-icons/svg/adjustments-horizontal.svg,Lucide 1.38.0 / adjustments-horizontal,app_omnibox_page_controls,app_omnibox_page_controls,Lucide Operational font source
 vendor/lucide/aira-operational-icons/svg/vertical-tabs-expanded.svg,Lucide 1.38.0 / vertical-tabs-expanded,app_tabs_vertical_expanded,app_tabs_vertical_expanded,Lucide Operational font source
 vendor/lucide/aira-operational-icons/svg/vertical-tabs-collapsed.svg,Lucide 1.38.0 / vertical-tabs-collapsed,app_tabs_vertical_collapsed,app_tabs_vertical_collapsed,Lucide Operational font source
+vendor/lucide/aira-operational-icons/svg/home-settings.svg,Lucide 1.38.0 / home-settings,app_home_settings,app_home_settings,Lucide Operational font source
 icons/app_widget_shortcut_history__user-provided.svg,user-provided/历史记录.svg,app_widget_shortcut_history,app_widget_shortcut_history,user-provided desktop-card-only source
 icons/app_widget_shortcut_bookmarks__user-provided.svg,user-provided/书签.svg,app_widget_shortcut_bookmarks,app_widget_shortcut_bookmarks,user-provided desktop-card-only source
 icons/app_widget_shortcut_downloads__user-provided.svg,user-provided/下载.svg,app_widget_shortcut_downloads,app_widget_shortcut_downloads,user-provided desktop-card-only source

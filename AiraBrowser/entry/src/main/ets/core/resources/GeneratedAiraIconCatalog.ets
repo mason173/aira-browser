@@ -31,6 +31,7 @@ export type AiraIconId =
   | "settings.customHomepage"
   | "browser.shortcut.home"
   | "browser.toolbar.home"
+  | "browser.home.settings"
   | "membership.inviteRecordClock"
   | "settings.themeMode.dark"
   | "membership.gift"
@@ -209,6 +210,7 @@ export type AiraRenderableIconId =
   | "settings.customHomepage"
   | "browser.shortcut.home"
   | "browser.toolbar.home"
+  | "browser.home.settings"
   | "membership.inviteRecordClock"
   | "settings.themeMode.dark"
   | "membership.gift"
@@ -391,6 +393,7 @@ export class GeneratedAiraIconCatalog {
       case "settings.customHomepage":
       case "browser.shortcut.home":
       case "browser.toolbar.home":
+      case "browser.home.settings":
       case "membership.inviteRecordClock":
       case "settings.themeMode.dark":
       case "membership.gift":
@@ -595,6 +598,8 @@ export class GeneratedAiraIconCatalog {
         return '\uE2C2';
       case "browser.toolbar.home":
         return '\uEE21';
+      case "browser.home.settings":
+        return '\uEE22';
       case "membership.inviteRecordClock":
         return '\uE19A';
       case "settings.themeMode.dark":

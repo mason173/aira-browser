@@ -74,6 +74,10 @@ export struct SettingsHdsScaffold {
   @Prop menuActionEnabled: boolean = true;
   @Prop menuActionBadgeVisible: boolean = false;
   @Prop menuActions: SettingsHdsMenuAction[] = [];
+  /** One trailing more button that opens these actions, instead of one icon per action. */
+  @Prop collapseMenuActions: boolean = false;
+  /** Keep the title bar from painting a blur band over the content beneath it. */
+  @Prop suppressContentBlur: boolean = false;
   scrollers: Array<Scroller> = [];
   @State private topSafeInsetVp: number = 0;
   onBack: () => void = (): void => {};
@@ -136,16 +140,16 @@ export struct SettingsHdsScaffold {
         enableComponentSafeArea: true,
         style: {
           scrollEffectOpts: {
-            enableScrollEffect: true,
+            enableScrollEffect: !this.suppressContentBlur,
             scrollEffectType: ScrollEffectType.IMMERSIVE_GRADIENT_BLUR,
             blurEffectiveStartOffset: LengthMetrics.vp(0),
-            blurEffectiveEndOffset: LengthMetrics.vp(72)
+            blurEffectiveEndOffset: LengthMetrics.vp(this.suppressContentBlur ? 0 : 72)
           },
           blurStrategy: BlurStrategy.ADAPTIVE,
           originalStyle: {
             backgroundStyle: {
               backgroundColor: Color.Transparent,
-              maskExtraHeight: 40,
+              maskExtraHeight: this.suppressContentBlur ? 0 : 40,
               blurRadius: 0
             },
             contentStyle: {
@@ -168,8 +172,8 @@ export struct SettingsHdsScaffold {
           scrollEffectStyle: {
             backgroundStyle: {
               backgroundColor: Color.Transparent,
-              maskExtraHeight: 40,
-              blurRadius: 28
+              maskExtraHeight: this.suppressContentBlur ? 0 : 40,
+              blurRadius: this.suppressContentBlur ? 0 : 28
             },
             contentStyle: {
               titleStyle: {
@@ -271,7 +275,9 @@ export struct SettingsHdsScaffold {
       if (this.menuActionText.length > 0) {
         this.buildGlassTextAction()
       }
-      if (this.menuActions.length > 0) {
+      if (this.menuActions.length > 0 && this.collapseMenuActions) {
+        this.buildCollapsedMenuAction()
+      } else if (this.menuActions.length > 0) {
         ForEach(this.menuActions, (menuAction: SettingsHdsMenuAction) => {
           this.buildGlassMenuAction(menuAction)
         }, (menuAction: SettingsHdsMenuAction) => menuAction.label)
@@ -334,6 +340,48 @@ export struct SettingsHdsScaffold {
     .height(SETTINGS_TITLE_BAR_TEXT_ACTION_HEIGHT)
     .borderRadius(SETTINGS_TITLE_BAR_TEXT_ACTION_HEIGHT / 2)
     .backgroundColor(this.resolveTitleActionBackground())
+  }
+
+  @Builder
+  private buildCollapsedMenuAction() {
+    Stack({ alignContent: Alignment.Center }) {
+      if (this.shouldUseHdsMaterial()) {
+        this.buildTitleActionMaterialPlate()
+      }
+      Button() {
+        AiraIcon({
+          airaIconId: 'browser.toolbar.more',
+          iconSize: SETTINGS_TITLE_BAR_ACTION_ICON_SIZE,
+          iconColor: this.resolveTitleActionIconColor()
+        })
+      }
+      .width(SETTINGS_TITLE_BAR_CUSTOM_MENU_BUTTON_SIZE)
+      .height(SETTINGS_TITLE_BAR_CUSTOM_MENU_BUTTON_SIZE)
+      .type(ButtonType.Normal)
+      .stateEffect(true)
+      .backgroundColor(this.resolveTitleActionBackground())
+      .borderRadius(SETTINGS_TITLE_BAR_CUSTOM_MENU_BUTTON_SIZE / 2)
+      .accessibilityText('更多操作')
+      .bindMenu(this.buildCollapsedMenu())
+    }
+    .width(SETTINGS_TITLE_BAR_CUSTOM_MENU_BUTTON_SIZE)
+    .height(SETTINGS_TITLE_BAR_CUSTOM_MENU_BUTTON_SIZE)
+    .borderRadius(SETTINGS_TITLE_BAR_CUSTOM_MENU_BUTTON_SIZE / 2)
+  }
+
+  @Builder
+  private buildCollapsedMenu() {
+    Menu() {
+      ForEach(this.menuActions, (menuAction: SettingsHdsMenuAction) => {
+        MenuItem({ content: menuAction.label })
+          .enabled(menuAction.enabled !== false)
+          .onClick(() => {
+            if (menuAction.enabled !== false) {
+              menuAction.action();
+            }
+          })
+      }, (menuAction: SettingsHdsMenuAction) => menuAction.label)
+    }
   }
 
   @Builder
