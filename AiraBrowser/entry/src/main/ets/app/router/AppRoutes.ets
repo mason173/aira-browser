@@ -1,5 +1,6 @@
 export const BROWSER_SHELL_ROUTE: string = 'app/pages/BrowserShellPage';
 export const STARTUP_WELCOME_INTRO_ROUTE: string = 'app/pages/StartupWelcomeIntroPage';
+export const FEATURE_INTRO_ROUTE: string = 'app/pages/FeatureIntroPage';
 export const BOOKMARK_MANAGER_ROUTE: string = 'app/pages/BookmarkManagerPage';
 export const BOOKMARK_FOLDER_ICON_PREVIEW_ROUTE: string = 'app/pages/BookmarkFolderIconPreviewPage';
 export const HISTORY_MANAGER_ROUTE: string = 'app/pages/HistoryManagerPage';

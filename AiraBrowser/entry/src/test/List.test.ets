@@ -64,6 +64,7 @@ import historySelectionMoreMenuTest from './HistorySelectionMoreMenu.test';
 import huaweiIapProductCatalogTest from './HuaweiIapProductCatalog.test';
 import airaProComplimentaryClaimPolicyTest from './AiraProComplimentaryClaimPolicy.test';
 import startupWelcomeIntroTest from './StartupWelcomeIntro.test';
+import featureIntroTest from './FeatureIntro.test';
 import browserWebTopSafeAreaColorTest from './BrowserWebTopSafeAreaColor.test';
 import browserSearchEnginePopupLayoutViewModelTest from './BrowserSearchEnginePopupLayoutViewModel.test';
 import browserTabsOverviewSwipeDismissPolicyTest from './BrowserTabsOverviewSwipeDismissPolicy.test';
@@ -150,6 +151,7 @@ export default function tests(): void {
   huaweiIapProductCatalogTest();
   airaProComplimentaryClaimPolicyTest();
   startupWelcomeIntroTest();
+  featureIntroTest();
   browserWebTopSafeAreaColorTest();
   browserSearchEnginePopupLayoutViewModelTest();
   browserTabsOverviewSwipeDismissPolicyTest();

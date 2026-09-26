@@ -49,6 +49,7 @@ import { UserScriptValueDiagnosticEvent } from '../../features/userscripts/UserS
 import { WallpaperRepository } from '../../data/wallpaper/WallpaperRepository';
 import { CustomHomepageRepository } from '../../data/customhome/CustomHomepageRepository';
 import { StartupWelcomeIntroRepository } from '../../data/onboarding/StartupWelcomeIntroRepository';
+import { FeatureIntroRepository } from '../../data/onboarding/FeatureIntroRepository';
 import { GestureOnboardingPromptRepository } from '../../data/onboarding/GestureOnboardingPromptRepository';
 import { AppReviewPromptRepository } from '../../data/review/AppReviewPromptRepository';
 import { ActivityRepository } from '../../data/activity/ActivityRepository';
@@ -316,6 +317,7 @@ export const sharedBrowserSecurityReportMetricsRepository: BrowserSecurityReport
 export const sharedWallpaperRepository: WallpaperRepository = new WallpaperRepository();
 export const sharedCustomHomepageRepository: CustomHomepageRepository = new CustomHomepageRepository();
 export const sharedStartupWelcomeIntroRepository: StartupWelcomeIntroRepository = new StartupWelcomeIntroRepository();
+export const sharedFeatureIntroRepository: FeatureIntroRepository = new FeatureIntroRepository();
 export const sharedGestureOnboardingPromptRepository: GestureOnboardingPromptRepository =
   new GestureOnboardingPromptRepository();
 export const sharedBrowserGestureOnboardingPromptCoordinator: BrowserGestureOnboardingPromptCoordinator =
@@ -769,6 +771,8 @@ export function initializeBrowserAppFirstPaintReadiness(abilityContext: common.U
             })),
           measureStartupStep('startup_intro_repository', () =>
             sharedStartupWelcomeIntroRepository.initialize().then((): void => undefined)),
+          measureStartupStep('feature_intro_repository', () =>
+            sharedFeatureIntroRepository.initialize().then((): void => undefined)),
           measureStartupStep('gesture_onboarding_repository', () =>
             sharedGestureOnboardingPromptRepository.initialize().then((): void => undefined)),
           measureStartupStep('aira_sync_config_store', () =>

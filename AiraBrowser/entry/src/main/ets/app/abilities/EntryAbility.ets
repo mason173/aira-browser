@@ -28,13 +28,15 @@ import {
   sharedSitePolicyService,
   sharedSyncExperienceCoordinator,
   sharedStartupWelcomeIntroRepository,
+  sharedFeatureIntroRepository,
   sharedTabSessionRepository,
   sharedUserScriptInstallSessionCoordinator
 } from '../bootstrap/BrowserAppRuntime';
 import { AiraLoadScrollJankProbe } from '../../common/debug/AiraLoadScrollJankProbe';
 import { AiraNavForensicsProbe } from '../../common/debug/AiraNavForensicsProbe';
 import { AppRuntimeContext } from '../runtime/AppRuntimeContext';
-import { BROWSER_SHELL_ROUTE, STARTUP_WELCOME_INTRO_ROUTE } from '../router/AppRoutes';
+import { BROWSER_SHELL_ROUTE, FEATURE_INTRO_ROUTE, STARTUP_WELCOME_INTRO_ROUTE } from '../router/AppRoutes';
+import { resolveInitialOnboardingDestination } from '../../core/onboarding/FeatureIntroRoutePolicy';
 import { BrowserTabSessionRuntime } from '../runtime/BrowserTabSessionRuntime';
 import {
   BrowserWindowAvoidAreaCoordinator,
@@ -828,10 +830,22 @@ export default class EntryAbility extends UIAbility {
           ? undefined
           : this.browserWindowPresentationProfileInputService.resolve(this.browserPresentationMainWindow);
         BrowserWindowRuntime.prepareInitialShellPresentation(this.pageStorage, presentationInput);
-        return sharedStartupWelcomeIntroRepository.hasCompletedCurrentVersion()
-          ? BROWSER_SHELL_ROUTE
-          : STARTUP_WELCOME_INTRO_ROUTE;
+        return this.resolveInitialRoute();
       });
+  }
+
+  private resolveInitialRoute(): string {
+    const destination = resolveInitialOnboardingDestination(
+      sharedFeatureIntroRepository.hasCompletedCurrentVersion(),
+      sharedStartupWelcomeIntroRepository.hasCompletedCurrentVersion()
+    );
+    if (destination === 'feature_intro') {
+      return FEATURE_INTRO_ROUTE;
+    }
+    if (destination === 'startup_welcome') {
+      return STARTUP_WELCOME_INTRO_ROUTE;
+    }
+    return BROWSER_SHELL_ROUTE;
   }
 
   private waitForInitialBrowserPresentationFacts(): Promise<void> {

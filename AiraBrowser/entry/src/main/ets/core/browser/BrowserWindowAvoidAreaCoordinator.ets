@@ -48,6 +48,25 @@ export function resolveWindowTopSafeInsetVp(mainWindow: window.Window): number {
   );
 }
 
+export function resolveWindowBottomSafeInsetVp(mainWindow: window.Window): number {
+  return Math.max(
+    resolveWindowBottomAvoidAreaGeometryInsetVp(mainWindow, window.AvoidAreaType.TYPE_NAVIGATION_INDICATOR),
+    resolveWindowBottomAvoidAreaGeometryInsetVp(mainWindow, window.AvoidAreaType.TYPE_SYSTEM),
+    resolveWindowBottomAvoidAreaGeometryInsetVp(mainWindow, window.AvoidAreaType.TYPE_FLOAT_NAVIGATION)
+  );
+}
+
+function resolveWindowBottomAvoidAreaGeometryInsetVp(
+  mainWindow: window.Window,
+  type: window.AvoidAreaType
+): number {
+  try {
+    return pxToVp(mainWindow.getWindowAvoidArea(type).bottomRect.height);
+  } catch (_error) {
+    return 0;
+  }
+}
+
 export const BROWSER_WINDOW_SAFE_TOP_INSET_STORAGE_KEY: string = 'browser_window_safe_top_inset_vp';
 export const BROWSER_WINDOW_SAFE_SYSTEM_TOP_INSET_STORAGE_KEY: string = 'browser_window_safe_system_top_inset_vp';
 export const BROWSER_WINDOW_SAFE_CUTOUT_TOP_INSET_STORAGE_KEY: string = 'browser_window_safe_cutout_top_inset_vp';
