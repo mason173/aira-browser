@@ -83,6 +83,7 @@ export struct WebAppDetailSettingsScreen {
   onToggleExternalNavigation?: (policy: string, followDefault: boolean) => void;
   onResetSite?: () => void;
   @Prop siteRenderVersion: number = 0;
+  private contentScroller: Scroller = new Scroller();
 
   build() {
     if (this.presentationMode === 'embedded' && !this.desktopPresentation) {
@@ -101,6 +102,7 @@ export struct WebAppDetailSettingsScreen {
         primaryTextColor: this.storedPrimaryTextColor,
         dividerColor: this.storedDividerColor,
         showPrivateIndicator: isPrivateBoundaryRoute(this.dataScope, this.privacyMode),
+        scrollers: [this.contentScroller],
         onBack: () => {
           this.onBack?.();
         }
@@ -163,7 +165,8 @@ export struct WebAppDetailSettingsScreen {
     SettingsPresentationScrollBody({
       desktopPresentation: this.desktopPresentation,
       topPadding: this.presentationMode === 'embedded' ? 0 : 16,
-      bottomPadding: 28
+      bottomPadding: 28,
+      scroller: this.contentScroller
     }) {
       this.buildHero()
       if (this.state.exists) {

@@ -102,6 +102,7 @@ struct BrowserToolbarScrollBehaviorSettingsPage {
         headerButtonBackground: this.storedPressedBackgroundColor,
         primaryTextColor: this.storedPrimaryTextColor,
         dividerColor: this.storedDividerColor,
+        scrollers: [this.settingsScroller],
         onBack: () => {
           this.navigationCoordinator.back();
         }

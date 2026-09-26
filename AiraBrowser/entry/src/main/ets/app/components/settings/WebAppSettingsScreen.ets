@@ -44,6 +44,7 @@ export struct WebAppSettingsScreen {
   @Prop presentationMode: WebAppSettingsPresentationMode = 'standalone';
   @Prop desktopPresentation: boolean = false;
   @State private pressedShortcutId: string = '';
+  private contentScroller: Scroller = new Scroller();
   onBack?: () => void;
   onOpenItem?: (shortcutId: string) => void;
 
@@ -64,6 +65,7 @@ export struct WebAppSettingsScreen {
         primaryTextColor: this.storedPrimaryTextColor,
         dividerColor: this.storedDividerColor,
         showPrivateIndicator: isPrivateBoundaryRoute(this.dataScope, this.privacyMode),
+        scrollers: [this.contentScroller],
         onBack: () => {
           this.onBack?.();
         }
@@ -94,7 +96,8 @@ export struct WebAppSettingsScreen {
     SettingsPresentationScrollBody({
       desktopPresentation: this.desktopPresentation,
       topPadding: this.presentationMode === 'embedded' ? 0 : 16,
-      bottomPadding: 28
+      bottomPadding: 28,
+      scroller: this.contentScroller
     }) {
       if (this.state.items.length > 0) {
         this.buildInstalledSection()

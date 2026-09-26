@@ -106,6 +106,7 @@ export struct UserScriptsScreen {
   @State private desktopContentWidthVp: number = 0;
   @State private desktopQuery: string = '';
   @State private desktopFilter: string = 'all';
+  private contentScroller: Scroller = new Scroller();
   onAddFromUrl: () => void = () => {};
   onImportFromFile: () => void = () => {};
   onEditSource: () => void = () => {};
@@ -150,6 +151,7 @@ export struct UserScriptsScreen {
           showTitleBar: this.showTitleBar,
           useTopSafeInset: this.useTopSafeInset,
           menuActions: this.buildHeaderMenuActions(),
+          scrollers: [this.contentScroller],
           onBack: () => {
             this.onBack();
           }
@@ -359,7 +361,7 @@ export struct UserScriptsScreen {
 
   @Builder
   private buildContent() {
-    Scroll() {
+    Scroll(this.contentScroller) {
       Column({ space: 16 }) {
         if (this.showNotice) {
           SettingsNoticeCard({

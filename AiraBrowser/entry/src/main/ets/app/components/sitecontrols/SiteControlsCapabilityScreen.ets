@@ -55,6 +55,7 @@ export struct SiteControlsCapabilityScreen {
   @StorageProp(BROWSER_THEME_STORAGE_SURFACE_BACKGROUND_KEY) private storedSurfaceBackgroundColor: string = '#FFFFFF';
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY) private storedPrimaryTextColor: string = '#111318';
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY) private storedSecondaryTextColor: string = '#5F6875';
+  private listScroller: Scroller = new Scroller();
   @Watch('syncSiteIcons')
   @Prop state: SiteControlsListState = {
     query: '',
@@ -128,6 +129,7 @@ export struct SiteControlsCapabilityScreen {
       primaryTextColor: this.storedPrimaryTextColor,
       dividerColor: this.storedDividerColor,
       showPrivateIndicator: isPrivateBoundaryRoute(this.dataScope, this.privacyMode),
+      scrollers: [this.listScroller],
       onBack: () => {
         this.onClose?.();
       }
@@ -143,7 +145,7 @@ export struct SiteControlsCapabilityScreen {
 
   @Builder
   private buildPageList() {
-    List({ space: 18 }) {
+    List({ scroller: this.listScroller, space: 18 }) {
       ListItem() {
         this.buildSearchSection()
       }

@@ -50,6 +50,7 @@ export struct UserScriptDetailScreen {
   onBack: () => void = () => {
     router.back();
   };
+  private contentScroller: Scroller = new Scroller();
   @Prop showBackButton: boolean = true;
   @Prop showTitleBar: boolean = true;
   @Prop useTopSafeInset: boolean = true;
@@ -81,11 +82,12 @@ export struct UserScriptDetailScreen {
         useTopSafeInset: this.useTopSafeInset,
         fillRemainingHeight: this.desktopPresentation,
         menuActions: [],
+        scrollers: [this.contentScroller],
         onBack: () => {
           this.onBack();
         }
       }) {
-        Scroll() {
+        Scroll(this.contentScroller) {
           Column({ space: 18 }) {
             this.buildStatusCard()
             this.buildRowsSection('元数据', this.state.metadataRows)

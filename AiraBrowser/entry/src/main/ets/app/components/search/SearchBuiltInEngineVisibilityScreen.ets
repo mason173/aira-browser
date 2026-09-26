@@ -59,6 +59,7 @@ export struct SearchBuiltInEngineVisibilityScreen {
       showTitleBar: !this.desktopPresentation,
       useTopSafeInset: this.useTopSafeInset,
       desktopPresentation: this.desktopPresentation,
+      scrollers: [this.settingsScroller],
       onBack: () => {
         this.onBack();
       }

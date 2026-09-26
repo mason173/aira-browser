@@ -14,6 +14,25 @@ const SETTINGS_GROUP_VERTICAL_PADDING: number = 4;
 const SETTINGS_GROUP_DIVIDER_HORIZONTAL_MARGIN: number = 16;
 export const SETTINGS_DESKTOP_SCROLLBAR_GUTTER: number = APP_STANDARD_HORIZONTAL_PADDING;
 
+/**
+ * Shares one Scroller between a settings title bar and the scroll under it.
+ * The title bar binds this object on the first frame; the scroll body uses it
+ * when the page did not bring its own.
+ */
+@Component
+export struct SettingsHeaderBlurScope {
+  @Provide('settingsHeaderBlurScroller') headerBlurScroller: Scroller = new Scroller();
+  @BuilderParam content: () => void = this.emptyContent;
+
+  build() {
+    this.content()
+  }
+
+  @Builder
+  private emptyContent() {
+  }
+}
+
 @Component
 export struct SettingsScrollBody {
   @Prop contentSpace: number = 16;
@@ -25,7 +44,7 @@ export struct SettingsScrollBody {
   scroller?: Scroller;
   @Consume('settingsHeaderScrollRegistry') scrollRegistry: SettingsHeaderScrollRegistry =
     new SettingsHeaderScrollRegistry();
-  private ownedScroller: Scroller = new Scroller();
+  @Consume('settingsHeaderBlurScroller') headerBlurScroller: Scroller = new Scroller();
   onContentAreaChanged: (area: Area) => void = (_area: Area) => {};
   @BuilderParam content: () => void = this.emptyContent;
 
@@ -73,7 +92,7 @@ export struct SettingsScrollBody {
   }
 
   private resolveScroller(): Scroller {
-    return this.scroller !== undefined ? this.scroller : this.ownedScroller;
+    return this.scroller !== undefined ? this.scroller : this.headerBlurScroller;
   }
 
   @Builder
@@ -98,7 +117,7 @@ export struct SettingsPresentationScrollBody {
   scroller?: Scroller;
   @Consume('settingsHeaderScrollRegistry') scrollRegistry: SettingsHeaderScrollRegistry =
     new SettingsHeaderScrollRegistry();
-  private ownedScroller: Scroller = new Scroller();
+  @Consume('settingsHeaderBlurScroller') headerBlurScroller: Scroller = new Scroller();
   onContentAreaChanged: (area: Area) => void = (_area: Area) => {};
   @BuilderParam content: () => void = this.emptyContent;
 
@@ -140,7 +159,7 @@ export struct SettingsPresentationScrollBody {
   }
 
   private resolveScroller(): Scroller {
-    return this.scroller !== undefined ? this.scroller : this.ownedScroller;
+    return this.scroller !== undefined ? this.scroller : this.headerBlurScroller;
   }
 
   @Builder

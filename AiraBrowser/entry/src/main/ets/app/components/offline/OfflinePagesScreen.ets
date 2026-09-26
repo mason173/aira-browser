@@ -75,6 +75,7 @@ export struct OfflinePagesScreen {
   });
   private viewModel: OfflinePageListViewModel = new OfflinePageListViewModel();
   private siteIconListPresenter: SiteIconListPresenter = new SiteIconListPresenter();
+  private contentScroller: Scroller = new Scroller();
   private linkActionService: OfflinePageLinkActionService = new OfflinePageLinkActionService();
   private exportService: OfflinePageExportService = new OfflinePageExportService(sharedOfflinePageRepository);
 
@@ -124,6 +125,7 @@ export struct OfflinePagesScreen {
         dividerColor: this.storedDividerColor,
         showPrivateIndicator: this.isSessionEphemeral(),
         menuActions: this.buildHeaderMenuActions(),
+        scrollers: [this.contentScroller],
         onBack: () => {
           router.back();
         }
@@ -134,7 +136,7 @@ export struct OfflinePagesScreen {
           } else if (this.listState.empty) {
             this.buildStatus(this.listState.message)
           } else {
-            Scroll() {
+            Scroll(this.contentScroller) {
               Column({ space: 10 }) {
                 ForEach(this.listState.items, (item: OfflinePageListItem) => {
                   this.buildItem(item)

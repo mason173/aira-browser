@@ -278,6 +278,7 @@ export struct BrowserToolbarCustomizationScreen {
       primaryTextColor: this.storedPrimaryTextColor,
       dividerColor: this.storedDividerColor,
       contentKind: 'canvas',
+      scrollers: [this.settingsScroller],
       onBack: () => {
         this.onBack?.();
       }

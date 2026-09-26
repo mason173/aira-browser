@@ -80,6 +80,7 @@ export struct WebpageTranslationSettingsScreen {
       showBackButton: this.showBackButton,
       showTitleBar: this.showTitleBar,
       useTopSafeInset: this.useTopSafeInset,
+      scrollers: [this.settingsScroller],
       onBack: () => {
         this.navigationCoordinator.back();
       }

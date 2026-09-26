@@ -109,6 +109,7 @@ export struct SearchSettingsScreen {
       useTopSafeInset: this.useTopSafeInset,
       contentKind: this.contentKind,
       desktopPresentation: this.desktopPresentation,
+      scrollers: [this.settingsScroller],
       onBack: () => {
         this.navigationCoordinator.back();
       }

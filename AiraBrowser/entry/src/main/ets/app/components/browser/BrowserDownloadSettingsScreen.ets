@@ -180,6 +180,7 @@ export struct BrowserDownloadSettingsScreen {
       showTitleBar: this.showTitleBar,
       useTopSafeInset: this.useTopSafeInset,
       desktopPresentation: this.embeddedInDialog,
+      scrollers: [this.settingsScroller],
       onBack: () => {
         this.handleBack(DOWNLOAD_SETTINGS_MAIN_DESTINATION);
       }

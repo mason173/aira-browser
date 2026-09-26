@@ -17,6 +17,7 @@ import { AiraIcon } from './AiraIcon';
 import { FloatingGlassMaterialSurface } from './FloatingGlassMaterialSurface';
 import { HdsImmersiveMaterialSurface } from './HdsImmersiveMaterialSurface';
 import { isHdsMaterialAvailable } from './HdsImmersiveMaterialTokens';
+import { SettingsHeaderBlurScope } from '../settings/SettingsLayout';
 import { SettingsHeaderScrollRegistry } from '../settings/SettingsHeaderScrollRegistry';
 import { BROWSER_SHEET_BLUR_SCROLL_RANGE_VP } from '../browser/BrowserModalBottomSheet';
 import {
@@ -70,6 +71,7 @@ export struct ManagementHdsScaffold {
   @Prop titleBarMenuMaxCount: number = MANAGEMENT_TITLE_BAR_OVERFLOW_ICON_COUNT;
   @Prop elevateTitleActions: boolean = false;
   scrollers: Array<Scroller> = [];
+  private fallbackScroller: Scroller = new Scroller();
   @Provide('settingsHeaderScrollRegistry') scrollRegistry: SettingsHeaderScrollRegistry =
     new SettingsHeaderScrollRegistry();
   @State private registeredScrollers: Scroller[] = [];
@@ -115,7 +117,9 @@ export struct ManagementHdsScaffold {
           .height(this.useTopSafeInset ? this.resolveTopSafeInset() : 0)
       Stack({ alignContent: Alignment.TopStart }) {
         HdsNavDestination() {
-          this.content()
+          SettingsHeaderBlurScope({ headerBlurScroller: this.fallbackScroller }) {
+            this.content()
+          }
         }
         .width('100%')
         .height('100%')
@@ -508,7 +512,10 @@ export struct ManagementHdsScaffold {
     if (this.scrollers.length > 0) {
       return this.scrollers;
     }
-    return this.registeredScrollers;
+    if (this.registeredScrollers.length > 0) {
+      return this.registeredScrollers;
+    }
+    return [this.fallbackScroller];
   }
 
   private resolveBackLabel(): string {

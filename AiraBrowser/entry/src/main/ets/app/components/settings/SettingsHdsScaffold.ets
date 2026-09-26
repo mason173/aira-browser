@@ -14,6 +14,7 @@ import { LengthMetrics, window } from '@kit.ArkUI';
 import { BrowserStatusBarStyleService } from '../../../services/browser/BrowserStatusBarStyleService';
 import { SettingsTopSafeInsetService } from '../../../services/settings/SettingsTopSafeInsetService';
 import { SettingsContentFrame } from './SettingsContentFrame';
+import { SettingsHeaderBlurScope } from './SettingsLayout';
 import { SettingsHeaderScrollRegistry } from './SettingsHeaderScrollRegistry';
 import { BROWSER_SHEET_BLUR_SCROLL_RANGE_VP } from '../browser/BrowserModalBottomSheet';
 import { SettingsContentKind } from '../../../core/settings/SettingsContentLayoutPolicy';
@@ -87,6 +88,7 @@ export struct SettingsHdsScaffold {
   /** Keep the title bar from painting a blur band over the content beneath it. */
   @Prop suppressContentBlur: boolean = false;
   scrollers: Array<Scroller> = [];
+  private fallbackScroller: Scroller = new Scroller();
   @Provide('settingsHeaderScrollRegistry') scrollRegistry: SettingsHeaderScrollRegistry =
     new SettingsHeaderScrollRegistry();
   @State private registeredScrollers: Scroller[] = [];
@@ -250,8 +252,10 @@ export struct SettingsHdsScaffold {
 
   @Builder
   private buildContentFrame() {
-    SettingsContentFrame({ kind: this.desktopPresentation ? 'unframed' : this.contentKind }) {
-      this.content()
+    SettingsHeaderBlurScope({ headerBlurScroller: this.fallbackScroller }) {
+      SettingsContentFrame({ kind: this.desktopPresentation ? 'unframed' : this.contentKind }) {
+        this.content()
+      }
     }
   }
 
@@ -618,7 +622,10 @@ export struct SettingsHdsScaffold {
     if (this.scrollers.length > 0) {
       return this.scrollers;
     }
-    return this.registeredScrollers;
+    if (this.registeredScrollers.length > 0) {
+      return this.registeredScrollers;
+    }
+    return [this.fallbackScroller];
   }
 
   private resolveBackLabel(): string {
