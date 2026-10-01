@@ -7661,12 +7661,16 @@ struct BrowserShellPage {
       return state;
     }
     // The moving picture is the saved snapshot. Home must not show through the
-    // margins around it while that picture shrinks or grows.
+    // margins around it while that picture shrinks or grows — but the wallpaper
+    // subtree stays mounted and suppressed here: tearing it down mid-morph is what
+    // made the video flash when the overview closed back onto home. The large
+    // screen keeps its web/home swap via the suppression-aware surface predicate.
     return {
-      homeLayerMounted: false,
-      homeLiveContentMounted: false,
-      homeBackdropLayerMounted: false,
+      homeLayerMounted: true,
+      homeLiveContentMounted: true,
+      homeBackdropLayerMounted: state.homeBackdropLayerMounted,
       homeLayerInteractive: false,
+      homeLiveContentSuppressed: true,
       webLayerMounted: state.webLayerMounted,
       webLayerInteractive: state.webLayerInteractive,
       cardsLayerMounted: state.cardsLayerMounted,

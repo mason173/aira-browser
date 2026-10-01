@@ -9,6 +9,10 @@
 export struct BrowserPhonePrimarySurface {
   @Prop homeLiveContentMounted: boolean = false;
   @Prop homeBackdropLayerMounted: boolean = false;
+  // Suppressed = mounted but painted invisible and untouchable. The card picture
+  // morph keeps the wallpaper subtree alive this way instead of unmounting it,
+  // which tore the video surface down and flashed on return to home.
+  @Prop homeLiveContentSuppressed: boolean = false;
   @Prop webLayerMounted: boolean = false;
   @Prop webLayerOpacity: number = 1;
 
@@ -19,11 +23,25 @@ export struct BrowserPhonePrimarySurface {
   build() {
     Stack({ alignContent: Alignment.Top }) {
       if (this.homeLiveContentMounted) {
-        this.homeSurface()
+        Stack({ alignContent: Alignment.Top }) {
+          this.homeSurface()
+        }
+        .width('100%')
+        .height('100%')
+        .opacity(this.homeLiveContentSuppressed ? 0 : 1)
+        .enabled(!this.homeLiveContentSuppressed)
+        .accessibilityLevel(this.homeLiveContentSuppressed ? 'no-hide-descendants' : 'auto')
       }
 
       if (this.homeBackdropLayerMounted) {
-        this.homeBackdropSurface()
+        Stack({ alignContent: Alignment.Top }) {
+          this.homeBackdropSurface()
+        }
+        .width('100%')
+        .height('100%')
+        .opacity(this.homeLiveContentSuppressed ? 0 : 1)
+        .enabled(!this.homeLiveContentSuppressed)
+        .accessibilityLevel(this.homeLiveContentSuppressed ? 'no-hide-descendants' : 'auto')
       }
 
       if (this.webLayerMounted) {

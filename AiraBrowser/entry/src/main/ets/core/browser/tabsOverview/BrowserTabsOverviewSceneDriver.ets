@@ -39,6 +39,10 @@ export interface BrowserTabsOverviewSceneRenderState {
   homeLiveContentMounted: boolean;
   homeBackdropLayerMounted: boolean;
   homeLayerInteractive: boolean;
+  // Mounts the home subtree while painting it invisible and untouchable. The card
+  // picture morph uses it to keep the wallpaper video alive across the overview
+  // transition instead of tearing the surface down and flashing on return.
+  homeLiveContentSuppressed: boolean;
   webLayerMounted: boolean;
   webLayerInteractive: boolean;
   cardsLayerMounted: boolean;
@@ -51,7 +55,9 @@ export function shouldUseHomeSurfaceForLargeScreen(
   showHomePage: boolean,
   renderState: BrowserTabsOverviewSceneRenderState
 ): boolean {
-  return showHomePage || (renderState.cardsLayerMounted && renderState.homeLiveContentMounted);
+  return showHomePage ||
+    (renderState.cardsLayerMounted && renderState.homeLiveContentMounted &&
+      !renderState.homeLiveContentSuppressed);
 }
 
 /**
@@ -162,6 +168,7 @@ export class BrowserTabsOverviewSceneDriver {
       homeLiveContentMounted: homeLiveContentMounted,
       homeBackdropLayerMounted: homeLayerMounted && !homeLiveContentMounted,
       homeLayerInteractive: input.showHomePage && !tabsSceneVisible,
+      homeLiveContentSuppressed: false,
       webLayerMounted: this.shouldMountWebLayer(currentSceneState, input, tabsSceneVisible),
       webLayerInteractive: !input.showHomePage && !tabsSceneVisible,
       cardsLayerMounted: input.showTabsSheet,

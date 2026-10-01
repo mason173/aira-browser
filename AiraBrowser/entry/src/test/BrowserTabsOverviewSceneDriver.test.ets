@@ -81,6 +81,27 @@ export default function browserTabsOverviewSceneDriverTest(): void {
       expect(shouldUseHomeSurfaceForLargeScreen(true, residentHomeRenderState)).assertTrue();
     });
 
+    it('keeps a suppressed home subtree out of the large-screen home path', 0, () => {
+      const driver = new BrowserTabsOverviewSceneDriver();
+      const renderState = driver.buildRenderState({
+        sceneState: {
+          phase: 'settled',
+          backgroundMode: 'home',
+          openedFromHome: false,
+          activeTabIdAtOpen: 'tab-1',
+          morphCoveredTabId: ''
+        },
+        showHomePage: false,
+        showTabsSheet: true,
+        keepHomeResident: false
+      });
+
+      // The driver itself never suppresses; the card-morph resolver in the shell does.
+      expect(renderState.homeLiveContentSuppressed).assertFalse();
+      renderState.homeLiveContentSuppressed = true;
+      expect(shouldUseHomeSurfaceForLargeScreen(false, renderState)).assertFalse();
+    });
+
     it('drops the resident home surface when closing onto a web tab', 0, () => {
       const driver = new BrowserTabsOverviewSceneDriver();
       const renderState = driver.buildRenderState({
