@@ -53,6 +53,7 @@ const DEFAULT_BROWSER_TABS_OVERVIEW_SCENE_RENDER_STATE: BrowserTabsOverviewScene
   homeLiveContentMounted: false,
   homeBackdropLayerMounted: false,
   homeLayerInteractive: false,
+  homeLiveContentSuppressed: false,
   webLayerMounted: false,
   webLayerInteractive: false,
   cardsLayerMounted: false,
@@ -194,6 +195,7 @@ export struct BrowserShellPrimarySurfaceHost {
       BrowserPhonePrimarySurface({
         homeLiveContentMounted: this.tabsOverviewSceneRenderState.homeLiveContentMounted,
         homeBackdropLayerMounted: this.tabsOverviewSceneRenderState.homeBackdropLayerMounted,
+        homeLiveContentSuppressed: this.tabsOverviewSceneRenderState.homeLiveContentSuppressed,
         webLayerMounted: this.tabsOverviewSceneRenderState.webLayerMounted,
         homeSurface: () => {
           this.buildHomeSurface()
