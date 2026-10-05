@@ -125,6 +125,24 @@ export default function browserLargeScreenToolbarMenuViewModelTest(): void {
       expect(containsAction(plan, 'sendToDesktop')).assertFalse();
     });
 
+    it('keeps the desktop settings row when the phone toolbar no longer carries it', 0, () => {
+      const phoneActions = desktopActions().filter((action: BrowserBottomAddressPanelAction): boolean =>
+        action.id !== 'settings');
+      const plan = projectBrowserLargeScreenPointerToolbarMenu(phoneActions, true);
+      const preferences = entriesOf(plan, 'preferences');
+      const settings = preferences.find((entry: BrowserLargeScreenToolbarMenuEntry): boolean =>
+        entry.action.id === 'settings');
+
+      expect(entryIds(preferences).join(',')).assertEqual('scanQr,appProxySettings,newPrivateTab,settings');
+      expect(resourceStrKey(settings?.action.title)).assertEqual(
+        resourceStrKey($r('app.string.bottom_panel_action_settings'))
+      );
+      expect(settings?.action.airaIconId).assertEqual('browser.shortcut.settings');
+      expect(settings?.action.enabled).assertTrue();
+      expect(settings?.showsSelection).assertFalse();
+      expect(settings?.activation).assertEqual('browser_action');
+    });
+
     it('keeps page tools in the same menu when there is no web page', 0, () => {
       const plan = projectBrowserLargeScreenPointerToolbarMenu(desktopActions(), false);
 

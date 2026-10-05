@@ -3,6 +3,7 @@ import {
   BrowserBottomAddressPanelActionId,
   BrowserBottomAddressPanelViewModel
 } from './BrowserBottomAddressPanelViewModel';
+import { BrowserBottomPanelActionCatalog } from './BrowserBottomPanelActionCatalog';
 import { BrowserBottomPanelActionSnapshot } from './BrowserBottomPanelActionPresentationCoordinator';
 import { BrowserLargeScreenInputProfile } from './BrowserLargeScreenTabStripViewModel';
 import {
@@ -318,13 +319,35 @@ function projectEntries(
 ): BrowserLargeScreenToolbarMenuEntry[] {
   const entries: BrowserLargeScreenToolbarMenuEntry[] = [];
   actionIds.forEach((actionId: BrowserBottomAddressPanelActionId): void => {
-    const action = findAction(actions, actionId);
+    const action = findAction(actions, actionId) ?? resolveFixedDesktopMenuAction(actionId);
     if (action === undefined) {
       return;
     }
     entries.push(projectEntry(action, webZoomAvailable));
   });
   return entries;
+}
+
+/**
+ * The fixed pointer menu's own Settings row. The phone toolbar catalog supplies the live action
+ * while it still carries one; Settings no longer is one — it moved into the phone toolbar sheet
+ * header — so the pointer "..." menu keeps building its own row instead of losing the entry.
+ */
+function resolveFixedDesktopMenuAction(
+  actionId: BrowserBottomAddressPanelActionId
+): BrowserBottomAddressPanelAction | undefined {
+  if (actionId !== 'settings') {
+    return undefined;
+  }
+  return {
+    id: 'settings',
+    title: BrowserBottomPanelActionCatalog.title('settings'),
+    trailingText: BrowserBottomPanelActionCatalog.subtitle('settings'),
+    icon: $r('sys.symbol.gearshape_fill'),
+    airaIconId: BrowserBottomPanelActionCatalog.iconId('settings'),
+    enabled: true,
+    disabledMessage: ''
+  };
 }
 
 function projectEntry(
