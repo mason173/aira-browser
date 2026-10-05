@@ -52,6 +52,19 @@ export default function browserWebToolbarClearancePolicyTest(): void {
       expect(removeScript.indexOf('var px = 0') >= 0).assertTrue();
     });
 
+    it('skips the spacer when the container lays its children out sideways', 0, () => {
+      const applyScript = WebToolbarClearanceScriptService.buildApplyScript(94);
+      // The spacer is a full-width sibling. In a row flex or grid container it would push the real
+      // content off screen instead of adding scroll room, so the script must refuse to insert it.
+      expect(applyScript.indexOf('runtime.extendsFlow') >= 0).assertTrue();
+      expect(applyScript.indexOf("display === 'grid' || display === 'inline-grid'") >= 0).assertTrue();
+      expect(applyScript.indexOf("flexDirection === 'column' || style.flexDirection === 'column-reverse'"))
+        .assertTrue();
+      // Both the initial ensure() and the mutation observer's repair path must consult the guard.
+      const guardCalls = applyScript.split('runtime.extendsFlow(document.body)').length - 1;
+      expect(guardCalls).assertEqual(2);
+    });
+
     it('applies once until the document is replaced or the clearance changes', 0, () => {
       const scripts: string[] = [];
       let overlayActive = true;

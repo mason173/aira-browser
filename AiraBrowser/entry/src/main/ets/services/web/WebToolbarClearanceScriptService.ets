@@ -3,7 +3,10 @@ const TOOLBAR_CLEARANCE_ELEMENT_ID: string = 'aira-toolbar-clearance';
 /**
  * Extends the root scroll range by a trailing spacer. Geometry stays out of page CSS rules:
  * a locked viewport (overflow hidden and not already scrolling) is left alone, because a spacer
- * there would steal layout instead of adding scroll room. Fixed page bars are not moved.
+ * there would steal layout instead of adding scroll room. A parent that lays its children out
+ * sideways (row flex, grid) is left alone too: the spacer would become a full-width sibling and
+ * push the real content off the screen instead of adding scroll room below it. Fixed page bars
+ * are not moved.
  */
 export class WebToolbarClearanceScriptService {
   static buildApplyScript(clearancePx: number): string {
@@ -46,9 +49,25 @@ export class WebToolbarClearanceScriptService {
               runtime.observedBody = null;
             }
           };
+          runtime.extendsFlow = function(parent) {
+            try {
+              if (!parent) return false;
+              var style = getComputedStyle(parent);
+              var display = style.display;
+              if (display === 'flex' || display === 'inline-flex') {
+                return style.flexDirection === 'column' || style.flexDirection === 'column-reverse';
+              }
+              // Row flex and grid put the spacer beside the real content, so a centered page
+              // (body flex + justify-center) is pushed off the screen instead of the spacer
+              // adding scroll room below it.
+              if (display === 'grid' || display === 'inline-grid') return false;
+              return true;
+            } catch (_) { return false; }
+          };
           runtime.insert = function(next) {
             var body = document.body;
             if (!body) return;
+            if (!runtime.extendsFlow(body)) { runtime.clear(); return; }
             var node = document.getElementById(id);
             if (!node) {
               node = document.createElement('div');
@@ -77,6 +96,7 @@ export class WebToolbarClearanceScriptService {
               if (!(runtime.px > 0) || runtime.locked()) return;
               if (!document.body) return;
               if (runtime.observedBody !== document.body) runtime.bind();
+              if (!runtime.extendsFlow(document.body)) { runtime.clear(); return; }
               if (document.getElementById(id) === null) runtime.insert(runtime.px);
               } finally {
                 if (window.__airaFreezeCostAdd) window.__airaFreezeCostAdd('toolbarObs', costStarted);
@@ -92,7 +112,7 @@ export class WebToolbarClearanceScriptService {
               document.addEventListener('DOMContentLoaded', function() { runtime.ensure(); }, { once: true });
               return;
             }
-            if (!(runtime.px > 0) || runtime.locked()) {
+            if (!(runtime.px > 0) || runtime.locked() || !runtime.extendsFlow(document.body)) {
               runtime.clear();
               return;
             }
