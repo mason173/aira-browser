@@ -499,7 +499,11 @@ export struct SystemHomepageLivePreview {
         .justifyContent(FlexAlign.Start)
         .clip(true)
 
-        this.buildFloatingToolbar()
+        if (this.style === 'search_dock') {
+          this.buildDockToolbar()
+        } else {
+          this.buildFloatingToolbar()
+        }
       }
       .width('100%')
       .height('100%')
@@ -890,6 +894,61 @@ export struct SystemHomepageLivePreview {
     .margin({ bottom: this.unit(25) })
     .alignSelf(ItemAlign.Center)
     .alignItems(VerticalAlign.Center)
+  }
+
+  /**
+   * 搜索导航主页 rest toolbar: an edge-to-edge dock band with a search box on top and a fixed
+   * navigation row below, instead of the classic floating capsule.
+   */
+  @Builder
+  private buildDockToolbar() {
+    Column() {
+      Row() {
+        AiraIcon({
+          airaIconId: 'browser.toolbar.search',
+          iconSize: this.unit(16),
+          iconColor: this.storedSecondaryTextColor
+        })
+        Text(previewText($r('app.string.aira_search_card_placeholder'), '搜索或输入网址'))
+          .fontSize(this.unit(13))
+          .fontColor(this.storedSecondaryTextColor)
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+          .textAlign(TextAlign.Center)
+          .layoutWeight(1)
+        AiraIcon({
+          airaIconId: 'browser.toolbar.scanQr',
+          iconSize: this.unit(16),
+          iconColor: this.storedSecondaryTextColor
+        })
+      }
+      .width('100%')
+      .height(this.unit(34))
+      .padding({ left: this.unit(12), right: this.unit(12) })
+      .borderRadius(this.unit(17))
+      .backgroundColor(this.resolveContentBackground())
+      .alignItems(VerticalAlign.Center)
+
+      Row() {
+        this.buildToolbarIcon('browser.toolbar.back')
+        this.buildToolbarIcon('browser.toolbar.forward')
+        this.buildToolbarIcon('browser.toolbar.menu')
+        this.buildTabBadge()
+        this.buildToolbarIcon('browser.toolbar.home')
+      }
+      .width('100%')
+      .height(this.unit(40))
+      .justifyContent(FlexAlign.SpaceEvenly)
+      .alignItems(VerticalAlign.Center)
+    }
+    .width('100%')
+    .padding({
+      left: this.unit(12),
+      right: this.unit(12),
+      top: this.unit(6),
+      bottom: this.unit(8)
+    })
+    .backgroundColor(this.resolveSplitBarBackground())
   }
 
   @Builder
