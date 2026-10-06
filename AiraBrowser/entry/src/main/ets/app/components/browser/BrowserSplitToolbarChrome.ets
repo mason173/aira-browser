@@ -673,7 +673,13 @@ export struct BrowserSplitToolbarChrome {
           this.buildDockSearchHistory()
         }
 
-        this.buildDockSearchEditor()
+        // The editor is a full-width pill; the wrapper owns the side inset so the pill itself
+        // never reaches the screen edge (a 100%-wide row plus a margin would overflow instead).
+        Column() {
+          this.buildDockSearchEditor()
+        }
+        .width('100%')
+        .padding({ left: DOCK_SEARCH_EDGE_PADDING, right: DOCK_SEARCH_EDGE_PADDING })
       }
       .width('100%')
       .height('100%')
@@ -879,8 +885,7 @@ export struct BrowserSplitToolbarChrome {
     .backgroundColor(this.pageBackgroundColor)
     .borderRadius(DOCK_SEARCH_EDITOR_HEIGHT / 2)
     .margin({
-      left: DOCK_SEARCH_EDGE_PADDING,
-      right: DOCK_SEARCH_EDGE_PADDING,
+      // The wrapper owns the side inset; only the vertical gaps live here.
       // Gap above the field, so the last suggestion row never sits flush against it.
       top: DOCK_SEARCH_EDITOR_TOP_GAP,
       bottom: DOCK_SEARCH_EDITOR_BOTTOM_GAP
