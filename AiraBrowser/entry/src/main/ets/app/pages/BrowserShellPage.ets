@@ -9292,6 +9292,7 @@ struct BrowserShellPage {
       buttons: this.resolveSplitToolbarButtons(),
       pageLoading: this.shouldShowWebLoadingProgress(),
       suggestions: this.browserSearchSuggestionSnapshot.searchSuggestions,
+      dockSearchHistory: this.resolveDockSearchHistorySuggestions(),
       searchEngines: this.availableSearchEngines,
       selectedEngineId: this.selectedSearchEngine,
       topSafeInsetVp: this.homeTopSafeInsetVp,
@@ -9342,6 +9343,9 @@ struct BrowserShellPage {
       onDeleteHistorySuggestion: (suggestion: SearchSuggestion): void => {
         void this.browserSearchSuggestionCoordinator.deleteHistorySuggestion(suggestion);
       },
+      onClearSearchHistory: (): void => {
+        void this.browserSearchSuggestionCoordinator.clearHistorySuggestions();
+      },
       onExternalSearch: (targetId: ExternalAppSearchTargetId, query: string): void => {
         void this.addressSubmissionCoordinator.submitExternalAppSearch(
           targetId,
@@ -9375,6 +9379,18 @@ struct BrowserShellPage {
     const committed = this.resolveCommittedAddressDisplayText(this.currentUrl);
     const formatted = formatTopChromeAddress(committed);
     return formatted.length > 0 ? formatted : committed;
+  }
+
+  /**
+   * Dock search page history. The suggestion feed already merges history with bookmarks, tabs and
+   * shortcuts; the dock shows one history list, so it keeps only the history rows.
+   */
+  private resolveDockSearchHistorySuggestions(): SearchSuggestion[] {
+    return this.browserSearchSuggestionSnapshot.searchSuggestions.filter(
+      (suggestion: SearchSuggestion): boolean => {
+        return suggestion.source === 'history' || suggestion.source === 'search_history';
+      }
+    );
   }
 
   private readSplitToolbarBarBackgroundColor(): string {

@@ -12661,6 +12661,14 @@
       "value": "搜尋導覽"
     },
     {
+      "name": "dock_search_history_clear",
+      "value": "清除搜尋歷史"
+    },
+    {
+      "name": "dock_search_history_title",
+      "value": "搜尋歷史"
+    },
+    {
       "name": "toolbar_settings_style_footer",
       "value": "上下分欄把位址列放在頂部、導覽放在底部；搜尋導覽把搜尋框放在底部導覽按鈕的上方，不佔用頂部。"
     },

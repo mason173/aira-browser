@@ -64,6 +64,10 @@ const SPLIT_TOOLBAR_TAB_BADGE_RADIUS: number = 5.25;
 const SPLIT_TOOLBAR_TAB_BADGE_STROKE: number = 2;
 const SPLIT_TOOLBAR_SEARCH_INPUT_ID: string = 'split-toolbar-search-input';
 const SPLIT_TOOLBAR_SELECT_ALL_DELAY_MS: number = 50;
+/** Dock search page: side inset, editor pill height, and the gap it keeps above the keyboard. */
+const DOCK_SEARCH_EDGE_PADDING: number = 16;
+const DOCK_SEARCH_EDITOR_HEIGHT: number = 46;
+const DOCK_SEARCH_EDITOR_BOTTOM_GAP: number = 10;
 
 /** `search_only` reuses this search page without mounting the split navigation bar. */
 export type BrowserSplitToolbarSessionMode = 'chrome' | 'search_only';
@@ -88,6 +92,8 @@ export struct BrowserSplitToolbarChrome {
   @Prop tabCount: number = 1;
   @Prop pageLoading: boolean = false;
   @Prop suggestions: SearchSuggestion[] = [];
+  /** Dock search page history list. The floating bar's suggestions arrive through `suggestions`. */
+  @Prop dockSearchHistory: SearchSuggestion[] = [];
   @Prop searchEngines: SearchEngineRecord[] = [];
   @Prop selectedEngineId: SearchEngineId = 'bing';
   @Prop topSafeInsetVp: number = 0;
@@ -165,6 +171,8 @@ export struct BrowserSplitToolbarChrome {
   onSelectEngine: (engineId: SearchEngineId) => void = (_engineId: SearchEngineId) => {};
   onOpenSuggestion: (suggestion: SearchSuggestion) => void = (_suggestion: SearchSuggestion) => {};
   onDeleteHistorySuggestion: (suggestion: SearchSuggestion) => void = (_suggestion: SearchSuggestion) => {};
+  /** Dock search page clears the stored search terms from its history header. */
+  onClearSearchHistory: () => void = () => {};
   onExternalSearch: (targetId: ExternalAppSearchTargetId, query: string) => void =
     (_targetId: ExternalAppSearchTargetId, _query: string) => {};
   @Prop buttons: BrowserSplitToolbarButtonPresentation[] = [];
@@ -188,7 +196,11 @@ export struct BrowserSplitToolbarChrome {
   build() {
     Stack({ alignContent: Alignment.Top }) {
       if (this.shouldShowSearchSheet()) {
-        this.buildSearchSheet()
+        if (this.chromeStyle === 'dock' && !this.usesHomeSearchGeometry()) {
+          this.buildDockSearchPage()
+        } else {
+          this.buildSearchSheet()
+        }
       }
       Column() {
         if (this.shouldShowTopBar()) {
@@ -519,7 +531,27 @@ export struct BrowserSplitToolbarChrome {
         })
         .hitTestBehavior(HitTestMode.None)
 
-      Row({ space: 8 }) {
+      this.buildSearchInputContent()
+    }
+    .width('100%')
+    .height(SPLIT_TOOLBAR_PILL_HEIGHT)
+    .alignContent(Alignment.Center)
+    .border({
+      width: bindHomeGeometry && !this.suppressHomeAddressBar ? 1.5 : SPLIT_TOOLBAR_SEARCH_PILL_BORDER,
+      color: bindHomeGeometry && !this.suppressHomeAddressBar ? this.secondaryTextColor : this.textColor
+    })
+    .borderRadius(23)
+    .clip(true)
+    .backgroundColor(Color.Transparent)
+    .id(bindHomeGeometry ? 'centered-home-search-target' : 'split-toolbar-search-pill')
+    .geometryTransition(bindHomeGeometry ? CENTERED_HOME_SEARCH_GEOMETRY_ID : '')
+    .transition(bindHomeGeometry ? this.resolveSearchPillTransition() : TransitionEffect.IDENTITY)
+  }
+
+  /** Engine icon, the search field, and the cancel button. Shared by the split and dock search rows. */
+  @Builder
+  private buildSearchInputContent() {
+    Row({ space: 8 }) {
       Button() {
         Image(this.searchEnginePresentation.resolveIcon(this.selectedEngineId))
           .width(22)
@@ -599,25 +631,251 @@ export struct BrowserSplitToolbarChrome {
         .onClick(() => {
           this.closeSearch();
         })
+    }
+    .width('100%')
+    .height('100%')
+    .alignItems(VerticalAlign.Center)
+    .padding({ left: 8, right: 0 })
+  }
+
+  /**
+   * Dock search page. The resting page hides the dock rows and shows the editor at the bottom, with
+   * the search history above it and the keyboard below. The suggestions ride above the field while
+   * typing, then swap back to the history list when the field is empty.
+   */
+  @Builder
+  private buildDockSearchPage() {
+    Stack({ alignContent: Alignment.Bottom }) {
+      Column() {
+        if (this.shouldShowDockSuggestions()) {
+          BrowserSearchSuggestionsPanel({
+            suggestions: this.resolveDockQuerySuggestions(),
+            layoutMode: 'topDown',
+            horizontalPadding: DOCK_SEARCH_EDGE_PADDING,
+            scrollEnabled: true,
+            blankAreaBackEnabled: false,
+            regularRowHeight: BROWSER_SEARCH_LIST_ROW_CONTENT_FRAME_HEIGHT,
+            regularRowContentFrameHeight: BROWSER_SEARCH_LIST_ROW_CONTENT_FRAME_HEIGHT,
+            cardBackgroundColor: this.pageBackgroundColor,
+            onOpenSuggestion: (suggestion: SearchSuggestion) => {
+              this.openSuggestion(suggestion);
+            },
+            onDeleteHistorySuggestion: (suggestion: SearchSuggestion) => {
+              this.onDeleteHistorySuggestion(suggestion);
+            }
+          })
+            .width('100%')
+            .layoutWeight(1)
+        } else {
+          this.buildDockSearchHistory()
+        }
+
+        this.buildDockSearchEditor()
       }
       .width('100%')
       .height('100%')
-      .alignItems(VerticalAlign.Center)
-      .padding({ left: 8, right: 0 })
+
+      if (this.engineMenuOpen) {
+        Column() {
+          this.buildEngineMenu()
+        }
+        .width('100%')
+        .padding({ left: DOCK_SEARCH_EDGE_PADDING, right: DOCK_SEARCH_EDGE_PADDING })
+        .margin({ bottom: DOCK_SEARCH_EDITOR_HEIGHT + DOCK_SEARCH_EDITOR_BOTTOM_GAP })
+      }
     }
     .width('100%')
-    .height(SPLIT_TOOLBAR_PILL_HEIGHT)
-    .alignContent(Alignment.Center)
-    .border({
-      width: bindHomeGeometry && !this.suppressHomeAddressBar ? 1.5 : SPLIT_TOOLBAR_SEARCH_PILL_BORDER,
-      color: bindHomeGeometry && !this.suppressHomeAddressBar ? this.secondaryTextColor : this.textColor
+    .height('100%')
+    .padding({
+      top: this.resolveTopInset(),
+      // The keyboard lifts the editor; the gesture inset keeps it clear when there is none.
+      bottom: Math.max(Math.max(0, this.keyboardInsetVp), this.resolveBottomInset())
     })
-    .borderRadius(23)
+    .backgroundColor(this.dockBarBackgroundColor)
+    .hitTestBehavior(HitTestMode.Default)
+  }
+
+  /** Search history as a titled card of terms, above the dock editor. */
+  @Builder
+  private buildDockSearchHistory() {
+    Scroll() {
+      Column() {
+        Row() {
+        Text($r('app.string.dock_search_history_title'))
+          .fontSize(16)
+          .fontWeight(FontWeight.Medium)
+          .fontColor(this.textColor)
+          .layoutWeight(1)
+          .maxLines(1)
+        if (this.dockSearchHistory.length > 0) {
+          Button() {
+            AiraIcon({
+              airaIconId: 'browser.tabs.delete',
+              iconSize: 20,
+              iconColor: this.secondaryTextColor
+            })
+          }
+          .width(36)
+          .height(36)
+          .type(ButtonType.Circle)
+          .buttonStyle(ButtonStyleMode.TEXTUAL)
+          .backgroundColor(Color.Transparent)
+          .stateEffect(false)
+          .accessibilityText(resolveAppResourceText($r('app.string.dock_search_history_clear')))
+          .onClick(() => {
+            this.onClearSearchHistory();
+          })
+        }
+      }
+      .width('100%')
+      .height(40)
+      .alignItems(VerticalAlign.Center)
+
+      if (this.dockSearchHistory.length > 0) {
+        Column() {
+          ForEach(this.dockSearchHistory, (suggestion: SearchSuggestion, index: number) => {
+            this.buildDockHistoryRow(suggestion, index === 0, index === this.dockSearchHistory.length - 1)
+          }, (suggestion: SearchSuggestion): string => suggestion.id)
+        }
+        .width('100%')
+        .backgroundColor(this.pageBackgroundColor)
+        .borderRadius(16)
+        .clip(true)
+      }
+      }
+      .width('100%')
+      .alignItems(HorizontalAlign.Start)
+      .justifyContent(FlexAlign.Start)
+      .padding({ left: DOCK_SEARCH_EDGE_PADDING, right: DOCK_SEARCH_EDGE_PADDING, top: 8 })
+    }
+    .width('100%')
+    .layoutWeight(1)
+    .align(Alignment.TopStart)
+    .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
+    .scrollBar(BarState.Off)
+  }
+
+  @Builder
+  private buildDockHistoryRow(suggestion: SearchSuggestion, isFirst: boolean, isLast: boolean) {
+    Column() {
+      Row({ space: 12 }) {
+        AiraIcon({
+          airaIconId: 'membership.inviteRecordClock',
+          iconSize: 20,
+          iconColor: this.secondaryTextColor
+        })
+        Text(suggestion.title.length > 0 ? suggestion.title : suggestion.target)
+          .layoutWeight(1)
+          .fontSize(16)
+          .fontColor(this.textColor)
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+        AiraIcon({
+          airaIconId: 'browser.toolbar.fillAddress',
+          iconSize: 18,
+          iconColor: this.secondaryTextColor
+        })
+      }
+      .width('100%')
+      .height(52)
+      .padding({ left: 14, right: 14 })
+      .alignItems(VerticalAlign.Center)
+      .onClick(() => {
+        this.openSuggestion(suggestion);
+      })
+
+      if (!isLast) {
+        Divider()
+          .color(this.secondaryTextColor)
+          .opacity(0.2)
+          .margin({ left: 46 })
+      }
+    }
+    .width('100%')
+    .borderRadius(isFirst || isLast ? 16 : 0)
     .clip(true)
-    .backgroundColor(Color.Transparent)
-    .id(bindHomeGeometry ? 'centered-home-search-target' : 'split-toolbar-search-pill')
-    .geometryTransition(bindHomeGeometry ? CENTERED_HOME_SEARCH_GEOMETRY_ID : '')
-    .transition(bindHomeGeometry ? this.resolveSearchPillTransition() : TransitionEffect.IDENTITY)
+  }
+
+  /** Bottom editor: the search field in a white pill, with the engine icon and the scan shortcut. */
+  @Builder
+  private buildDockSearchEditor() {
+    Row({ space: 8 }) {
+      Button() {
+        Image(this.searchEnginePresentation.resolveIcon(this.selectedEngineId))
+          .width(22)
+          .height(22)
+          .objectFit(ImageFit.Contain)
+      }
+      .width(32)
+      .height(32)
+      .type(ButtonType.Circle)
+      .buttonStyle(ButtonStyleMode.TEXTUAL)
+      .backgroundColor(Color.Transparent)
+      .onClick(() => {
+        this.engineMenuOpen = !this.engineMenuOpen;
+      })
+
+      TextInput({ text: this.query, placeholder: $r('app.string.aira_search_card_placeholder'), controller: this.searchInputController })
+        .id(SPLIT_TOOLBAR_SEARCH_INPUT_ID)
+        .layoutWeight(1)
+        .constraintSize({ minWidth: 0 })
+        .height(36)
+        .fontSize(16)
+        .halfLeading(true)
+        .fontColor(this.textColor)
+        .placeholderColor(this.secondaryTextColor)
+        .backgroundColor(Color.Transparent)
+        .padding({ left: 0, right: 0, top: 0, bottom: 0 })
+        .border({ width: 0, color: Color.Transparent })
+        .borderRadius(0)
+        .showUnderline(false)
+        .maxLines(1)
+        .focusable(true)
+        .enableKeyboardOnFocus(true)
+        .onAppear(() => {
+          this.scheduleSearchInputFocus();
+        })
+        .onEditChange((editing: boolean) => {
+          if (editing) {
+            this.scheduleSeededSelectAll();
+          }
+        })
+        .onChange((value: string) => {
+          if (value === this.query) {
+            return;
+          }
+          this.seededSelectAll = false;
+          this.query = value;
+          this.onSearchDraftChange(value);
+        })
+        .onSubmit((_enterKey: EnterKeyType) => {
+          this.submitQuery(this.query);
+        })
+
+      Button() {
+        AiraIcon({
+          airaIconId: 'browser.toolbar.scanQr',
+          iconSize: 20,
+          iconColor: this.secondaryTextColor
+        })
+      }
+      .width(32)
+      .height(32)
+      .type(ButtonType.Circle)
+      .buttonStyle(ButtonStyleMode.TEXTUAL)
+      .backgroundColor(Color.Transparent)
+      .stateEffect(false)
+      .onClick(() => {
+        this.onScan();
+      })
+    }
+    .width('100%')
+    .height(DOCK_SEARCH_EDITOR_HEIGHT)
+    .padding({ left: 10, right: 6 })
+    .alignItems(VerticalAlign.Center)
+    .backgroundColor(this.pageBackgroundColor)
+    .borderRadius(DOCK_SEARCH_EDITOR_HEIGHT / 2)
+    .margin({ left: DOCK_SEARCH_EDGE_PADDING, right: DOCK_SEARCH_EDGE_PADDING, bottom: DOCK_SEARCH_EDITOR_BOTTOM_GAP })
   }
 
   @Builder
@@ -1002,9 +1260,10 @@ export struct BrowserSplitToolbarChrome {
   }
 
   private shouldShowTopBar(): boolean {
-    // The dock frame has no resting top bar: its search pill sits in the bottom block. It still
-    // borrows the top row for the search page, because that field is the search session's input.
-    if (this.chromeStyle === 'dock' && !this.searching && this.sessionMode !== 'search_only') {
+    // The dock frame has no top bar at all. Its resting search pill lives in the bottom block, and
+    // its search page keeps the field at the bottom above the keyboard, so neither state borrows
+    // the top row. The centered-home geometry host is the one exception and keeps the split rule.
+    if (this.chromeStyle === 'dock' && !this.usesHomeSearchGeometry()) {
       return false;
     }
     if (this.homeScene && this.suppressHomeAddressBar) {
@@ -1022,6 +1281,22 @@ export struct BrowserSplitToolbarChrome {
       return this.searching || this.centeredSearchPresented;
     }
     return this.searching || this.sessionMode === 'search_only';
+  }
+
+  /** Typing in the dock search editor swaps the history list for the query suggestions. */
+  private shouldShowDockSuggestions(): boolean {
+    return this.query.trim().length > 0 && this.resolveDockQuerySuggestions().length > 0;
+  }
+
+  /**
+   * Query suggestions for the dock page. The panel's history rows are the floating toolbar's
+   * history source; the dock keeps history as its own empty-input page, so it drops those rows and
+   * shows one history list.
+   */
+  private resolveDockQuerySuggestions(): SearchSuggestion[] {
+    return this.suggestions.filter((suggestion: SearchSuggestion): boolean => {
+      return suggestion.source !== 'history' && suggestion.source !== 'search_history';
+    });
   }
 
   private shouldMountCenteredSearchGeometryHost(): boolean {

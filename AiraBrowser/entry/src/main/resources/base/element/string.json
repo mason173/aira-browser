@@ -12661,6 +12661,14 @@
       "value": "搜索导航"
     },
     {
+      "name": "dock_search_history_clear",
+      "value": "清除搜索历史"
+    },
+    {
+      "name": "dock_search_history_title",
+      "value": "搜索历史"
+    },
+    {
       "name": "toolbar_settings_style_footer",
       "value": "上下分栏把地址栏放在顶部、导航放在底部；搜索导航把搜索框放在底部导航按钮的上方，不占用顶部。"
     },

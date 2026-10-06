@@ -12661,6 +12661,14 @@
       "value": "Search dock"
     },
     {
+      "name": "dock_search_history_clear",
+      "value": "Clear search history"
+    },
+    {
+      "name": "dock_search_history_title",
+      "value": "Search history"
+    },
+    {
       "name": "toolbar_settings_style_footer",
       "value": "Split bars put the address bar at the top and navigation at the bottom. Search dock puts the search box directly above the bottom navigation buttons, with no top bar."
     },
