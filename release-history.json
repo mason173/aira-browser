@@ -1,14 +1,23 @@
 {
   "latestAppGalleryRelease": {
-    "versionName": "3.6.2",
-    "versionCode": 1000493,
-    "releasedAt": "2026-10-05",
+    "versionName": "3.6.3",
+    "versionCode": 1000496,
+    "releasedAt": "2026-10-06",
     "source": "formal-package-generated",
-    "notes": "Formal AppGallery package that fixes a multi-second freeze while a page is scanned for video, by leaving text/event-stream requests to the kernel, and installs a userscript's plain JavaScript @require dependencies instead of rejecting them for a missing userscript header. Video detection does less probe work and indexes its evidence. Built from committed HEAD 7a27077 plus the 3.6.2 (1000493) version and release-note changes in the same working tree, signed with the Aira release certificate and the AppGallery release Profile for com.aira.browser, with crash symbols archived. The release-signed APP build passed. This records a locally generated formal package and does not claim AppGallery review approval or on-shelf publication.",
-    "artifact": "AiraBrowser/build/outputs/default/Aira-official-v3.6.2-1000493-release-signed.app",
-    "sha256": "bd953dddca82301f472b41dba282bb678186e1967903c07ef2bdf348a13d17f1"
+    "notes": "Formal AppGallery package that adds the Search dock toolbar style and its matching home page, grows search suggestions upward to show more, lists recently visited pages in the search history, and lets every non-Tabs button in the split and search-dock bars customize its tap. Built from committed HEAD 41f0525 with the 3.6.3 (1000496) version and release-note changes in the same working tree, signed with the Aira release certificate and the AppGallery release Profile for com.aira.browser, with crash symbols archived. The release-signed APP build and hap-sign-tool verify-app both passed. This records a locally generated formal package and does not claim AppGallery review approval or on-shelf publication.",
+    "artifact": "AiraBrowser/build/outputs/default/Aira-official-v3.6.3-1000496-release-signed.app",
+    "sha256": "343147e18fb741d12ff9e08ee80988e3f5bcca297ae31f77fea6e3e77204db5b"
   },
   "history": [
+    {
+      "versionName": "3.6.3",
+      "versionCode": 1000496,
+      "releasedAt": "2026-10-06",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery package that adds the Search dock toolbar style and its matching home page, grows search suggestions upward to show more, lists recently visited pages in the search history, and lets every non-Tabs button in the split and search-dock bars customize its tap. Built from committed HEAD 41f0525 with the 3.6.3 (1000496) version and release-note changes in the same working tree, signed with the Aira release certificate and the AppGallery release Profile for com.aira.browser, with crash symbols archived. The release-signed APP build and hap-sign-tool verify-app both passed. This records a locally generated formal package and does not claim AppGallery review approval or on-shelf publication.",
+      "artifact": "AiraBrowser/build/outputs/default/Aira-official-v3.6.3-1000496-release-signed.app",
+      "sha256": "343147e18fb741d12ff9e08ee80988e3f5bcca297ae31f77fea6e3e77204db5b"
+    },
     {
       "versionName": "3.6.2",
       "versionCode": 1000493,

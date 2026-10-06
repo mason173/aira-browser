@@ -1,5 +1,17 @@
 # Changelog
 
+## 3.6.3 (1000496)
+
+2026-10-06
+
+This release adds a Search dock toolbar style with its matching home page, and makes search suggestions and history more useful.
+
+- A new Search dock toolbar style puts the search box above the bottom navigation buttons, and those buttons can be customized.
+- Home settings gains a Search dock home page that pairs with that toolbar style.
+- Search suggestions now grow upward from the input and show up to eight.
+- Search history shows recently visited pages as well as searched terms.
+- In the split and search-dock bars, every button except Tabs can now have its tap customized.
+
 ## 3.6.2 (1000493)
 
 2026-10-05

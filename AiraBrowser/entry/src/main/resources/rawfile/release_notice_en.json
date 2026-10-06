@@ -1,13 +1,15 @@
 {
   "enabled": true,
-  "noticeId": "aira-3.6.2-1000493",
-  "title": "Aira 3.6.2 update",
-  "updatedAt": "2026-10-05",
-  "summary": "This release fixes the freeze while a page is checked for video, and lets userscript dependencies install.",
+  "noticeId": "aira-3.6.3-1000496",
+  "title": "Aira 3.6.3 update",
+  "updatedAt": "2026-10-06",
+  "summary": "This release adds a Search dock toolbar style with its matching home page, and makes search suggestions and history more useful.",
   "items": [
-    "Search pages and similar pages no longer freeze for a few seconds while video is detected.",
-    "Installing a userscript now also stores its plain JavaScript dependency libraries instead of rejecting them for a missing userscript header.",
-    "Video detection uses less power and reports its result sooner."
+    "A new Search dock toolbar style puts the search box above the bottom navigation buttons, and those buttons can be customized.",
+    "Home settings gains a Search dock home page that pairs with that toolbar style.",
+    "Search suggestions now grow upward from the input and show up to eight.",
+    "Search history shows recently visited pages as well as searched terms.",
+    "In the split and search-dock bars, every button except Tabs can now have its tap customized."
   ],
   "actionLabel": "View changelog"
 }
