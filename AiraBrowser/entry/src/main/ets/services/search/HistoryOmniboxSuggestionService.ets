@@ -37,6 +37,17 @@ export class HistoryOmniboxSuggestionService {
     });
   }
 
+  /** Recently visited pages, newest first. Drives the empty search field's history list. */
+  buildRecentSuggestions(limit: number = HISTORY_OMNIBOX_VISIBLE_LIMIT): SearchSuggestion[] {
+    const normalizedLimit = Math.max(0, Math.floor(limit));
+    if (normalizedLimit === 0) {
+      return [];
+    }
+    return this.index.listRecent(normalizedLimit).map((entry: HistoryOmniboxEntry): SearchSuggestion => {
+      return this.toSuggestion(entry);
+    });
+  }
+
   noteVisit(visit: HistoryVisit): void {
     const entry = this.entryFromVisit(visit);
     if (entry === undefined) {

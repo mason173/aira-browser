@@ -133,6 +133,27 @@ export class HistoryOmniboxIndex {
     this.pushTokens(slotIndex, slot, true);
   }
 
+  /**
+   * Most recently visited live entries, newest first. This is the resting list an empty search
+   * field shows; `match` is the typed-query path and needs a query.
+   */
+  listRecent(limit: number): HistoryOmniboxEntry[] {
+    const normalizedLimit = Math.max(0, Math.floor(limit));
+    if (normalizedLimit === 0 || this.liveCount === 0) {
+      return [];
+    }
+    const entries: HistoryOmniboxEntry[] = [];
+    for (let index = 0; index < this.slots.length; index += 1) {
+      if (this.slots[index].live) {
+        entries.push(this.slots[index].entry);
+      }
+    }
+    entries.sort((left: HistoryOmniboxEntry, right: HistoryOmniboxEntry): number => {
+      return right.lastVisitAt - left.lastVisitAt;
+    });
+    return entries.slice(0, normalizedLimit);
+  }
+
   match(query: string, limit: number, now: number = Date.now()): HistoryOmniboxMatch[] {
     const normalizedLimit = Math.max(0, Math.floor(limit));
     this.examined = 0;

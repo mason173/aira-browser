@@ -754,12 +754,12 @@ export struct BrowserSplitToolbarChrome {
       }
       .width('100%')
       .alignItems(HorizontalAlign.Start)
-      .justifyContent(FlexAlign.Start)
       .padding({ left: DOCK_SEARCH_EDGE_PADDING, right: DOCK_SEARCH_EDGE_PADDING, top: 8 })
     }
     .width('100%')
     .layoutWeight(1)
-    .align(Alignment.TopStart)
+    // Rest the history against the editor above the keyboard, not against the top of the page.
+    .align(Alignment.BottomStart)
     .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
     .scrollBar(BarState.Off)
   }

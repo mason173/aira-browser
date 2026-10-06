@@ -1,7 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 172 340" width="172" height="340" fill="none">
   <!--
     搜索导航主页卡片缩略图：经典主页内容（收藏网格 + 最近关闭列表）+ 底部搜索导航停靠栏。
-    与经典主页卡片同一套中性色：
+    与经典主页卡片的区别就在底部：经典是内缩的悬浮胶囊，这里是贴边到底的停靠栏，
+    上面一条搜索框、下面一排固定导航按钮。
       #6B7686 = 语义上的“墨色”（标题、文字占位）
       #9AA6B8 = 语义上的“块面”（图标、列表项、停靠栏）
     比例参照真实主页（390 : 844 ≈ 172 : 340）。
@@ -35,18 +36,18 @@
     <rect x="14" y="238" width="22" height="22" rx="7" fill-opacity="0.16"/>
   </g>
 
-  <!-- 底部搜索导航停靠栏：搜索框 + 一排导航按钮，底部贴边 -->
-  <g fill="#9AA6B8">
-    <rect x="12" y="252" width="148" height="34" rx="17" fill-opacity="0.08"/>
-    <!-- 搜索框 -->
-    <rect x="22" y="258" width="128" height="20" rx="10" fill-opacity="0.2"/>
-    <circle cx="34" cy="268" r="4" fill-opacity="0.34"/>
-    <rect x="46" y="265" width="52" height="6" rx="3" fill-opacity="0.3"/>
-    <!-- 导航按钮 -->
-    <circle cx="30" cy="296" r="4.5" fill-opacity="0.34"/>
-    <circle cx="58" cy="296" r="4.5" fill-opacity="0.34"/>
-    <circle cx="86" cy="296" r="4.5" fill-opacity="0.34"/>
-    <rect x="107" y="291" width="10" height="10" rx="2.5" fill-opacity="0.3"/>
-    <circle cx="142" cy="296" r="4.5" fill-opacity="0.34"/>
+  <!-- 底部停靠栏：贴左右和底边，内缩的悬浮胶囊换成通栏底栏 -->
+  <rect x="0" y="276" width="172" height="64" fill="#9AA6B8" fill-opacity="0.08"/>
+  <!-- 搜索框 -->
+  <rect x="16" y="284" width="140" height="18" rx="9" fill="#9AA6B8" fill-opacity="0.16"/>
+  <circle cx="27" cy="293" r="4" fill="#9AA6B8" fill-opacity="0.42"/>
+  <rect x="40" y="290" width="58" height="6" rx="3" fill="#9AA6B8" fill-opacity="0.3"/>
+  <!-- 固定导航按钮 -->
+  <g fill="#9AA6B8" fill-opacity="0.4">
+    <circle cx="24" cy="321" r="4.5"/>
+    <circle cx="56" cy="321" r="4.5"/>
+    <circle cx="88" cy="321" r="4.5"/>
+    <rect x="113" y="316" width="10" height="10" rx="2.5"/>
+    <circle cx="148" cy="321" r="4.5"/>
   </g>
 </svg>

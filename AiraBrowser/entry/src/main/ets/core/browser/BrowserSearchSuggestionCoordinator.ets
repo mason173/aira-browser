@@ -431,6 +431,14 @@ export class BrowserSearchSuggestionCoordinator {
       this.buildBrowsingHistorySuggestions(query, runtimeSource),
       SEARCH_QUERY_HISTORY_VISIBLE_LIMIT
     );
+    // With nothing typed the list is a history list, not a suggestion dropdown, so it also offers
+    // the pages the user recently visited. It is not the address-bar browsing-history suggestion
+    // toggle: those are typed-query rows, and this card is the resting history the user asked for.
+    suggestions = this.mergeSearchSuggestions(
+      suggestions,
+      this.buildRestingBrowsingHistorySuggestions(query, runtimeSource),
+      SEARCH_QUERY_HISTORY_VISIBLE_LIMIT
+    );
     suggestions = this.mergeSearchSuggestions(
       suggestions,
       this.searchQueryHistoryService.buildSuggestions(suggestionInput),
@@ -510,10 +518,38 @@ export class BrowserSearchSuggestionCoordinator {
       source.boundary.dataScope !== 'session_ephemeral';
   }
 
+  /** A private or ephemeral boundary never keeps or shows a visited-page history. */
+  private allowsHistoryData(source: BrowserSearchSuggestionRuntimeSource): boolean {
+    return source.boundary.privacyMode !== 'private' &&
+      source.boundary.dataScope !== 'session_ephemeral';
+  }
+
+  /**
+   * Recently visited pages for the resting (empty-query) list, newest first. This is the user's
+   * history, so it is not gated by the address-bar browsing-history suggestion toggle; it is only
+   * withheld on a private or ephemeral boundary.
+   */
+  private buildRestingBrowsingHistorySuggestions(
+    query: string,
+    source: BrowserSearchSuggestionRuntimeSource
+  ): SearchSuggestion[] {
+    if (query.trim().length > 0 || !this.allowsHistoryData(source)) {
+      return [];
+    }
+    const activeUrl = (source.activeTab?.url ?? '').trim().toLowerCase();
+    return this.historyOmniboxSuggestionService
+      .buildRecentSuggestions(SEARCH_QUERY_HISTORY_VISIBLE_LIMIT)
+      .filter((suggestion: SearchSuggestion): boolean => {
+        return activeUrl.length === 0 || suggestion.target.trim().toLowerCase() !== activeUrl;
+      });
+  }
+
   private refreshBrowsingHistoryIndex(query: string): void {
     const runtimeSource = this.buildRuntimeSource();
     const generation = this.beginBrowsingHistoryHydration();
-    if (!this.shouldUseBrowsingHistory(runtimeSource)) {
+    // The resting list shows recent visits, so the index must load whenever history data is
+    // allowed, not only when the typed-query browsing-history suggestion toggle is on.
+    if (!this.allowsHistoryData(runtimeSource)) {
       return;
     }
     this.historyOmniboxSuggestionService.ensureLoaded()

@@ -109,6 +109,23 @@ describe('BrowserToolbarChromeStylePolicy', () => {
     });
     expect(splitReserve.bottomVp).assertEqual(SPLIT_TOOLBAR_BOTTOM_BAR_VP + 12);
     expect(splitReserve.topVp).assertEqual(36 + SPLIT_TOOLBAR_ADDRESS_BLOCK_VP);
+
+    // Whatever the gesture inset, the page's bottom reserve equals the dock block the chrome
+    // paints. A smaller reserve is what would leave the page under the fixed dock.
+    for (const insetVp of [0, 12, 16, 24, 34]) {
+      const reserve = resolveSplitToolbarWebReserve({
+        statusBarStripVp: 36,
+        statusBarVisible: true,
+        stackedChromeHeightVp: 0,
+        addressRowSafeInsetVp: 36,
+        bottomRowSafeInsetVp: insetVp,
+        contentGapVp: 16,
+        addressRowPainted: false,
+        bottomRowPainted: true,
+        bottomBlockHeightVp: DOCK_TOOLBAR_BOTTOM_BLOCK_VP
+      });
+      expect(reserve.bottomVp).assertEqual(DOCK_TOOLBAR_BOTTOM_BLOCK_VP + insetVp);
+    }
   });
 
   it('activates split chrome only for an ordinary phone browsing frame', 0, () => {
