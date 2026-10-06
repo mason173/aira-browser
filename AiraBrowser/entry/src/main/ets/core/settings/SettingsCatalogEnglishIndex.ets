@@ -325,6 +325,7 @@ const SETTINGS_CATALOG_ENGLISH_INDEX: Map<string, string> = new Map<string, stri
   ['系统默认浏览器', 'System default browser'],
   ['显示语言', 'Display language'],
   ['经典主页', 'Classic home page'],
+  ['搜索导航主页', 'Search dock home page'],
   ['缓存', 'Cache'],
   ['编辑服务配置', 'Edit service setup'],
   ['网络', 'Network'],
