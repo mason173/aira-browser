@@ -49,9 +49,9 @@ export interface BrowserSplitToolbarDispatchAction {
 }
 
 /**
- * The `dock` style paints one fixed five-button bottom row for both scenes: back, forward, menu,
- * tabs, home. The slots are the split web slots so they reuse the same icons, tab badge and
- * dispatch, but the order is fixed and none of them is user-customizable.
+ * The `dock` style paints one bottom row: back, forward, menu, tabs, home. The slots are the split
+ * web slots, so the dock reuses the split web bar's icons, tab badge, dispatch, and customization
+ * sheets; only the painted order differs.
  */
 const DOCK_TOOLBAR_SLOT_ORDER: BrowserSplitToolbarSlotId[] =
   ['webBack', 'webForward', 'webMenu', 'webTabs', 'webHome'];
@@ -89,51 +89,28 @@ export class BrowserSplitToolbarCustomizationViewModel {
   }
 
   /**
-   * Fixed bottom dock of the `dock` style. Back and forward carry their availability; the rest are
-   * always on. Reading the slot defaults directly keeps a stored split customization from leaking
-   * into the dock row, which is the same frame but not the same bar.
+   * Presentation of the `dock` style's bottom row. The dock shares the split web bar's slots and
+   * settings, so a tap or long press resolves exactly like the split web bar; only the painted
+   * order is the dock's.
    */
   buildDockPresentations(
+    settings: BrowserToolbarLayoutSettings,
     canGoBack: boolean,
     canGoForward: boolean
   ): BrowserSplitToolbarButtonPresentation[] {
+    const bySlot: Map<string, BrowserSplitToolbarButtonPresentation> = new Map();
+    this.buildPresentations(settings, 'web', canGoBack, canGoForward).forEach(
+      (presentation: BrowserSplitToolbarButtonPresentation): void => {
+        bySlot.set(presentation.slotId, presentation);
+      });
     const result: BrowserSplitToolbarButtonPresentation[] = [];
     DOCK_TOOLBAR_SLOT_ORDER.forEach((slotId: BrowserSplitToolbarSlotId): void => {
-      const slot = findSplitToolbarSlot(slotId);
-      if (slot === undefined) {
-        return;
+      const presentation = bySlot.get(slotId);
+      if (presentation !== undefined) {
+        result.push(presentation);
       }
-      const actionId = slot.defaultTapActionId;
-      const action = this.actions.presentInteractionAction(actionId as BrowserToolbarInteractionActionId);
-      result.push({
-        slotId,
-        actionId,
-        title: action.title,
-        iconId: this.resolveIcon(slot, actionId, action.airaIconId),
-        usesTabBadge: slot.usesTabBadge,
-        enabled: splitToolbarActionEnabled(actionId, canGoBack, canGoForward)
-      });
     });
     return result;
-  }
-
-  /** Dispatch of a fixed dock button. A long press on the dock has no action. */
-  resolveDockDispatch(slotId: string, kind: BrowserSplitToolbarInteractionKind): BrowserSplitToolbarDispatchAction | undefined {
-    if (kind === 'longPress') {
-      return undefined;
-    }
-    const slot = findSplitToolbarSlot(slotId);
-    if (slot === undefined || !DOCK_TOOLBAR_SLOT_ORDER.includes(slot.id)) {
-      return undefined;
-    }
-    const action = this.actions.presentInteractionAction(slot.defaultTapActionId as BrowserToolbarInteractionActionId);
-    if (action.isNone) {
-      return undefined;
-    }
-    return {
-      id: action.id,
-      dispatchKind: action.dispatchKind
-    };
   }
 
   buildSlotDetail(

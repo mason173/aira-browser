@@ -12741,10 +12741,6 @@
       "value": "主页按钮可自定义。返回、前进、标签页和菜单的单击固定，长按仍可设置。"
     },
     {
-      "name": "toolbar_settings_preview_footer_dock",
-      "value": "底部导航按钮固定，不能自定义。"
-    },
-    {
       "name": "toolbar_settings_capsule_swipe_title",
       "value": "中间区域上滑"
     },
@@ -12767,10 +12763,6 @@
     {
       "name": "toolbar_settings_reset_dialog_floating",
       "value": "会恢复四个按钮的单击、长按和上滑设置，不会改变展开工具栏的快捷入口顺序。"
-    },
-    {
-      "name": "toolbar_settings_reset_dialog_dock",
-      "value": "搜索导航的按钮固定，没有可恢复的自定义设置。"
     },
     {
       "name": "toolbar_settings_error_style",

@@ -12741,10 +12741,6 @@
       "value": "主頁按鈕可自定義。返回、前進、標籤頁和選單的單擊固定，長按仍可設定。"
     },
     {
-      "name": "toolbar_settings_preview_footer_dock",
-      "value": "底部導覽按鈕固定，不能自定義。"
-    },
-    {
       "name": "toolbar_settings_capsule_swipe_title",
       "value": "中間區域上滑"
     },
@@ -12767,10 +12763,6 @@
     {
       "name": "toolbar_settings_reset_dialog_floating",
       "value": "會恢復四個按鈕的單擊、長按和上滑設定，不會改變展開工具欄的快捷入口順序。"
-    },
-    {
-      "name": "toolbar_settings_reset_dialog_dock",
-      "value": "搜尋導覽的按鈕固定，沒有可恢復的自定義設定。"
     },
     {
       "name": "toolbar_settings_error_style",

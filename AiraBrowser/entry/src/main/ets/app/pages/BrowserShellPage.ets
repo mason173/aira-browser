@@ -9677,6 +9677,7 @@ struct BrowserShellPage {
     }
     if (this.toolbarChromeStyle === 'dock') {
       return this.splitToolbarCustomizationViewModel.buildDockPresentations(
+        sharedPreferencesRepository.getPreferences().toolbarLayout,
         this.resolveSplitToolbarCanGoBack(),
         this.resolveSplitToolbarCanGoForward()
       );
@@ -9690,13 +9691,12 @@ struct BrowserShellPage {
   }
 
   private handleSplitToolbarButton(slotId: string, kind: 'tap' | 'longPress'): void {
-    const action = this.toolbarChromeStyle === 'dock' ?
-      this.splitToolbarCustomizationViewModel.resolveDockDispatch(slotId, kind) :
-      this.splitToolbarCustomizationViewModel.resolveDispatchAction(
-        sharedPreferencesRepository.getPreferences().toolbarLayout,
-        slotId,
-        kind
-      );
+    // The dock shares the split web bar's slots and settings, so both styles dispatch the same way.
+    const action = this.splitToolbarCustomizationViewModel.resolveDispatchAction(
+      sharedPreferencesRepository.getPreferences().toolbarLayout,
+      slotId,
+      kind
+    );
     if (action === undefined || action.id === 'none' || action.dispatchKind === 'none') {
       return;
     }

@@ -12741,10 +12741,6 @@
       "value": "Home can be customized. Back, Forward, Tabs, and Menu taps stay fixed; long press can still be set."
     },
     {
-      "name": "toolbar_settings_preview_footer_dock",
-      "value": "The bottom navigation buttons are fixed and cannot be customized."
-    },
-    {
       "name": "toolbar_settings_capsule_swipe_title",
       "value": "Swipe up on the center"
     },
@@ -12767,10 +12763,6 @@
     {
       "name": "toolbar_settings_reset_dialog_floating",
       "value": "Restores tap, long-press, and swipe-up settings for the four buttons. Shortcut order in the expanded toolbar is left unchanged."
-    },
-    {
-      "name": "toolbar_settings_reset_dialog_dock",
-      "value": "The search dock buttons are fixed and have no customizations to restore."
     },
     {
       "name": "toolbar_settings_error_style",

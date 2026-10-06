@@ -826,8 +826,8 @@ export struct BrowserToolbarCustomizationScreen {
   }
 
   /**
-   * The dock style paints a resting search box over a fixed five-button row. The preview shows
-   * both, and the buttons are inert: the dock has no customizable slots to open.
+   * The dock style paints a resting search box over a five-button row. The row shares the split web
+   * bar's slots, so tapping a button opens the same customization sheet the split preview uses.
    */
   @Builder
   private buildDockToolbarPreview() {
@@ -860,12 +860,18 @@ export struct BrowserToolbarCustomizationScreen {
       .shadow({ radius: 6, color: '#14000000', offsetY: 2 })
 
       BrowserSplitToolbarButtonRow({
-        buttons: this.splitViewModel.buildDockPresentations(true, true),
+        buttons: this.splitViewModel.buildDockPresentations(this.settings, true, true),
         homeScene: false,
         tabCount: 1,
         textColor: this.storedPrimaryTextColor,
         secondaryTextColor: this.storedSecondaryTextColor,
-        pressedBackgroundColor: this.resolvePressedBackgroundColor()
+        pressedBackgroundColor: this.resolvePressedBackgroundColor(),
+        onTap: (slotId: string): void => {
+          this.openSplitSlotSheet(slotId);
+        },
+        onLongPress: (slotId: string): void => {
+          this.openSplitSlotSheet(slotId);
+        }
       })
         .width('100%')
         .height(46)
@@ -1419,11 +1425,9 @@ export struct BrowserToolbarCustomizationScreen {
     }
     showCenteredAlertDialog({
       title: $r('app.string.toolbar_settings_reset_dialog_title'),
-      message: this.toolbarChromeStyle === 'dock' ?
-        $r('app.string.toolbar_settings_reset_dialog_dock') :
-        this.toolbarChromeStyle === 'split' ?
-          $r('app.string.toolbar_settings_reset_dialog_split') :
-          $r('app.string.toolbar_settings_reset_dialog_floating'),
+      message: isSplitFamilyStyle(this.toolbarChromeStyle) ?
+        $r('app.string.toolbar_settings_reset_dialog_split') :
+        $r('app.string.toolbar_settings_reset_dialog_floating'),
       autoCancel: true,
       primaryButton: {
         value: $r('app.string.settings_account_cancel'),
@@ -1433,7 +1437,7 @@ export struct BrowserToolbarCustomizationScreen {
       secondaryButton: {
         value: $r('app.string.toolbar_settings_reset'),
         action: () => {
-          this.applySettings(this.toolbarChromeStyle === 'split' ?
+          this.applySettings(isSplitFamilyStyle(this.toolbarChromeStyle) ?
             this.splitViewModel.resetAll(this.settings) :
             this.viewModel.resetAllSlotActions(this.settings));
         }
@@ -1474,8 +1478,9 @@ export struct BrowserToolbarCustomizationScreen {
   }
 
   private resolvePreviewFooterText(): ResourceStr {
+    // The dock row is the split web bar, so it carries the split web customization note.
     if (this.toolbarChromeStyle === 'dock') {
-      return $r('app.string.toolbar_settings_preview_footer_dock');
+      return $r('app.string.toolbar_settings_preview_footer_split_web');
     }
     if (this.toolbarChromeStyle !== 'split') {
       return $r('app.string.toolbar_settings_preview_footer_floating');
@@ -1695,11 +1700,8 @@ export struct BrowserToolbarCustomizationScreen {
   }
 
   private hasCustomizedToolbarSlots(): boolean {
-    if (this.toolbarChromeStyle === 'dock') {
-      // The dock row is fixed: it has no slot to customize, so there is nothing to reset.
-      return false;
-    }
-    if (this.toolbarChromeStyle === 'split') {
+    // The dock shares the split web bar's slots, so it has the same customizations to reset.
+    if (isSplitFamilyStyle(this.toolbarChromeStyle)) {
       return this.splitViewModel.hasCustomizations(this.settings);
     }
     return this.state.slotActions.some((slot: BrowserToolbarSlotActionState): boolean => !slot.isProfileDefault);
