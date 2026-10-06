@@ -11,9 +11,17 @@ export const normalizeChromeBookmarkUrl = (url: string): string => {
   if (!ENCODED_WHITESPACE_SCHEMES.has(scheme)) {
     return restoredBookmarklet;
   }
-  return restoredBookmarklet.replace(/[ \t\r\n]/g, (char) => (
+  const encoded = restoredBookmarklet.replace(/[ \t\r\n]/g, (char) => (
     `%${char.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0')}`
   ));
+  try {
+    // Browser bookmark read-back serializes IDNs, default ports, paths and escapes.
+    // Use the same representation for shared snapshot writes and local verification.
+    return new URL(encoded).href;
+  } catch {
+    // Keep malformed input visible to the existing validation instead of dropping it.
+    return encoded;
+  }
 };
 
 export const canonicalizeSnapshotBookmarkUrls = <T extends {

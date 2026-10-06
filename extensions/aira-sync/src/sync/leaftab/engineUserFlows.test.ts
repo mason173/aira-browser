@@ -4,6 +4,7 @@ import {
   type LeafTabSyncBaselineStore,
 } from './baseline';
 import { LeafTabSyncEngine } from './engine';
+import { assertLeafTabBookmarkTreeMatchesSnapshot } from './snapshot';
 import {
   LEAFTAB_SYNC_TOMBSTONE_RETENTION_MS,
   LeafTabSyncTombstoneLifecycle,
@@ -318,6 +319,60 @@ afterEach(() => {
 });
 
 describe('Airatab realistic bookmark sync flows', () => {
+  test('a remote IDN bookmark survives browser serialization, commits its baseline, and converges on retry', async () => {
+    const remoteSnapshot = createSnapshot('phone-a', [{ id: 'international' }]);
+    remoteSnapshot.bookmarkItems.international.url = 'https://例子.测试';
+    const remote = remoteWith(remoteSnapshot);
+    let local = createSnapshot('desktop-a');
+    const baselineStore = new MemoryBaselineStore();
+    let verified = 0;
+    const engine = new LeafTabSyncEngine({
+      deviceId: 'desktop-a',
+      remoteStore: remote,
+      baselineStore,
+      historyLifecycle: new LeafTabSyncTombstoneLifecycle(new MemoryHistoryStore()),
+      buildLocalSnapshot: async () => clone(local),
+      applyLocalSnapshot: async (snapshot) => {
+        local = clone(snapshot);
+        Object.values(local.bookmarkItems).forEach((item) => {
+          // Simulate the browser's serialized read-back, independently of the sync normalizer.
+          item.url = new URL(item.url).href;
+        });
+      },
+      verifyLocalSnapshot: async (snapshot) => {
+        assertLeafTabBookmarkTreeMatchesSnapshot({
+          folders: Object.values(local.bookmarkFolders).map((folder) => ({
+            entityId: folder.id, localNodeId: folder.id, parentId: folder.parentId, title: folder.title,
+          })),
+          items: Object.values(local.bookmarkItems).map((item) => ({
+            entityId: item.id, localNodeId: item.id, parentId: item.parentId, title: item.title, url: item.url,
+          })),
+          orderIdsByParent: Object.fromEntries(
+            Object.entries(local.bookmarkOrders).map(([key, order]) => [key, order.ids]),
+          ),
+          nodeIdToEntityId: {},
+        }, snapshot);
+        verified += 1;
+      },
+      createEmptySnapshot: () => createSnapshot('desktop-a'),
+    });
+
+    await engine.sync();
+    expect(verified).toBe(1);
+    expect(Object.keys(local.bookmarkItems)).toEqual(['international']);
+    expect(local.bookmarkItems.international.url).toBe('https://xn--fsqu00a.xn--0zwm56d/');
+    expect(baselineStore.value?.snapshot?.bookmarkItems.international.url)
+      .toBe('https://xn--fsqu00a.xn--0zwm56d/');
+    expect(baselineStore.value?.commitId).toBe(remote.state.commitId);
+    const writeCount = remote.writeCount;
+    const baselineSaveCount = baselineStore.saveCount;
+
+    const second = await engine.sync();
+    expect(second.kind).toBe('noop');
+    expect(remote.writeCount).toBe(writeCount);
+    expect(baselineStore.saveCount).toBe(baselineSaveCount);
+  });
+
   test('a new user with only local bookmarks publishes the first remote state', async () => {
     const remote = new MemoryRemoteStore();
     const flow = await runSync({

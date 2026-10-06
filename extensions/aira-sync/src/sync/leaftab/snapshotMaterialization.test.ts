@@ -55,7 +55,45 @@ const EXPECTED_SNAPSHOT: LeafTabSyncSnapshot = {
   tombstones: {},
 };
 
+const treeWithUrl = (url: string): LeafTabBookmarkTreeDraft => ({
+  folders: [{
+    entityId: 'browser_root_toolbar', localNodeId: '1', parentId: null, title: '书签栏',
+  }],
+  items: [{
+    entityId: 'item_a', localNodeId: '10', parentId: 'browser_root_toolbar', title: 'Aira', url,
+  }],
+  orderIdsByParent: { __root__: ['browser_root_toolbar'], browser_root_toolbar: ['item_a'] },
+  nodeIdToEntityId: { '1': 'browser_root_toolbar', '10': 'item_a' },
+});
+
+const snapshotWithUrl = (url: string): LeafTabSyncSnapshot => ({
+  ...EXPECTED_SNAPSHOT,
+  bookmarkItems: { item_a: { ...EXPECTED_SNAPSHOT.bookmarkItems.item_a, url } },
+});
+
 describe('assertLeafTabBookmarkTreeMatchesSnapshot', () => {
+  test.each([
+    ['https://例子.测试', 'https://xn--fsqu00a.xn--0zwm56d/'],
+    ['https://EXAMPLE.COM:443', 'https://example.com/'],
+    ['https://example.com/中文', 'https://example.com/%E4%B8%AD%E6%96%87'],
+  ])('accepts browser serialization of a remote URL: %s', (remoteUrl, browserUrl) => {
+    expect(() => assertLeafTabBookmarkTreeMatchesSnapshot(
+      treeWithUrl(browserUrl), snapshotWithUrl(remoteUrl),
+    )).not.toThrow();
+  });
+
+  test.each([
+    ['https://example.com/path', 'https://example.com/path/'],
+    ['https://example.com/a%2Fb', 'https://example.com/a/b'],
+    ['https://example.com/?q=1', 'https://example.com/?q=2'],
+    ['https://example.com/#one', 'https://example.com/#two'],
+    ['https://example.com:8443/', 'https://example.com/'],
+  ])('still rejects a genuinely different applied URL: %s', (remoteUrl, browserUrl) => {
+    expect(() => assertLeafTabBookmarkTreeMatchesSnapshot(
+      treeWithUrl(browserUrl), snapshotWithUrl(remoteUrl),
+    )).toThrow('本地书签落地校验未通过');
+  });
+
   test('rejects an apply that silently omits a remote bookmark', () => {
     const incompleteTree: LeafTabBookmarkTreeDraft = {
       folders: [{
