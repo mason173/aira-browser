@@ -1,5 +1,14 @@
 # Changelog
 
+## 3.6.3 (1000499)
+
+2026-10-06
+
+This release fixes two issues with the account capsule and download settings.
+
+- A long nickname no longer pushes the membership badge out of the account capsule; the name truncates instead.
+- Opening download settings on the PC build no longer crashes.
+
 ## 3.6.3 (1000496)
 
 2026-10-06

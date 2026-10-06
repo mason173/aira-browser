@@ -1,14 +1,23 @@
 {
   "latestAppGalleryRelease": {
     "versionName": "3.6.3",
-    "versionCode": 1000496,
+    "versionCode": 1000499,
     "releasedAt": "2026-10-06",
     "source": "formal-package-generated",
-    "notes": "Formal AppGallery package that adds the Search dock toolbar style and its matching home page, grows search suggestions upward to show more, lists recently visited pages in the search history, and lets every non-Tabs button in the split and search-dock bars customize its tap. Built from committed HEAD 41f0525 with the 3.6.3 (1000496) version and release-note changes in the same working tree, signed with the Aira release certificate and the AppGallery release Profile for com.aira.browser, with crash symbols archived. The release-signed APP build and hap-sign-tool verify-app both passed. This records a locally generated formal package and does not claim AppGallery review approval or on-shelf publication.",
-    "artifact": "AiraBrowser/build/outputs/default/Aira-official-v3.6.3-1000496-release-signed.app",
-    "sha256": "343147e18fb741d12ff9e08ee80988e3f5bcca297ae31f77fea6e3e77204db5b"
+    "notes": "Formal AppGallery package that keeps the membership badge inside the account capsule when the nickname is long, by letting only the name truncate, and stops the download settings dialog from crashing on the PC surface by reusing one CustomDialogController instead of rebuilding it. Built from committed HEAD 7448829 with the 3.6.3 (1000499) version and release-note changes in the same working tree, signed with the Aira release certificate and the AppGallery release Profile for com.aira.browser, with crash symbols archived. The release-signed APP build and hap-sign-tool verify-app both passed. This records a locally generated formal package and does not claim AppGallery review approval or on-shelf publication.",
+    "artifact": "AiraBrowser/build/outputs/default/Aira-official-v3.6.3-1000499-release-signed.app",
+    "sha256": "6e4b5fabae031384ee9d9e45c09887213fb7462a9efc1fc456e4322b8a27beb8"
   },
   "history": [
+    {
+      "versionName": "3.6.3",
+      "versionCode": 1000499,
+      "releasedAt": "2026-10-06",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery package that keeps the membership badge inside the account capsule when the nickname is long, by letting only the name truncate, and stops the download settings dialog from crashing on the PC surface by reusing one CustomDialogController instead of rebuilding it. Built from committed HEAD 7448829 with the 3.6.3 (1000499) version and release-note changes in the same working tree, signed with the Aira release certificate and the AppGallery release Profile for com.aira.browser, with crash symbols archived. The release-signed APP build and hap-sign-tool verify-app both passed. This records a locally generated formal package and does not claim AppGallery review approval or on-shelf publication.",
+      "artifact": "AiraBrowser/build/outputs/default/Aira-official-v3.6.3-1000499-release-signed.app",
+      "sha256": "6e4b5fabae031384ee9d9e45c09887213fb7462a9efc1fc456e4322b8a27beb8"
+    },
     {
       "versionName": "3.6.3",
       "versionCode": 1000496,
