@@ -1023,7 +1023,7 @@ export class DownloadV2Service {
       targetPlan.completionExportPolicy
     );
     const sourceSnapshot = requestToCreate.platformSnapshot;
-    const downloadDriver = this.resolveInitialDownloadDriver();
+    const downloadDriver = this.resolveInitialDownloadDriver(requestToCreate.method, requestToCreate.url);
     this.downloadTriggerDiagnosticsService.recordDriverSelection(requestToCreate, downloadDriver);
     const preparedTask = this.engine.synchronizeTask(queuedTask.guid, {
       resolvedFileName: targetPlan.fileName,
@@ -1072,7 +1072,19 @@ export class DownloadV2Service {
     return preparedTask ?? this.engine.findTask(queuedTask.guid);
   }
 
-  private resolveInitialDownloadDriver(): DownloadV2Driver {
+  private resolveInitialDownloadDriver(method: string, url: string): DownloadV2Driver {
+    // Non-GET requests (POST "download a copy" flows such as Office on the web) cannot be
+    // replayed through libcurl because ArkWeb does not expose the request body, so ArkWeb
+    // finishes those itself.
+    if (method.trim().toUpperCase() !== 'GET') {
+      return 'arkweb';
+    }
+    // blob:/data: and other non-http(s) URLs only resolve inside the renderer that produced
+    // them, so libcurl cannot fetch them either; ArkWeb writes those itself.
+    const normalized = url.trim().toLowerCase();
+    if (!normalized.startsWith('http://') && !normalized.startsWith('https://')) {
+      return 'arkweb';
+    }
     return 'libcurl';
   }
 

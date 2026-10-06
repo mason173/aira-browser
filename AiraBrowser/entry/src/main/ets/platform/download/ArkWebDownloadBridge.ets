@@ -131,6 +131,9 @@ export class ArkWebDownloadBridge implements PlatformDownloadAdapter {
     snapshot: PlatformDownloadSnapshot,
     targetPath: string
   ): Promise<PlatformDownloadSnapshot | undefined> {
+    if (this.requiresNativeDownload(snapshot)) {
+      return this.startNativeArkWebDownload(snapshot.guid, targetPath);
+    }
     const createdTask = await this.libcurlAdapter.startDirectDownload(snapshot, targetPath);
     if (createdTask === undefined) {
       return undefined;
@@ -149,6 +152,9 @@ export class ArkWebDownloadBridge implements PlatformDownloadAdapter {
     }
     try {
       const snapshot = this.readSnapshot(item);
+      if (this.requiresNativeDownload(snapshot)) {
+        return this.startNativeArkWebDownload(guid, targetPath) !== undefined;
+      }
       const createdTask = await this.libcurlAdapter.startDirectDownload(snapshot, targetPath);
       if (createdTask === undefined) {
         return false;
@@ -174,6 +180,10 @@ export class ArkWebDownloadBridge implements PlatformDownloadAdapter {
     platformTaskToken?: string,
     hlsSegmentConcurrency?: number
   ): Promise<boolean> {
+    const item = this.itemsByGuid[guid];
+    if (item !== undefined && this.requiresNativeDownload(this.readSnapshot(item))) {
+      return Promise.resolve(this.startNativeArkWebDownload(guid, targetPath) !== undefined);
+    }
     return this.libcurlAdapter.retryDownload(
       guid,
       targetPath,
@@ -498,6 +508,68 @@ export class ArkWebDownloadBridge implements PlatformDownloadAdapter {
       // ArkWeb may already have stopped this provisional item after handoff.
     }
     this.itemsByGuid[guid] = undefined;
+  }
+
+  private requiresNativeDownload(snapshot: PlatformDownloadSnapshot): boolean {
+    const method = snapshot.method?.trim().toUpperCase() ?? 'GET';
+    if (method !== 'GET') {
+      return true;
+    }
+    // Blob and data URLs resolve only inside the renderer that produced them (a generated file
+    // saved through URL.createObjectURL or a data: href with a download attribute), so libcurl
+    // can never fetch them and its http/https-only transfer rejects them outright. ArkWeb already
+    // owns the download item and can write those bytes itself, so route every non-http(s) download
+    // to the native path.
+    return !this.isHttpUrl(snapshot.url);
+  }
+
+  private isHttpUrl(url: string): boolean {
+    const normalized = url.trim().toLowerCase();
+    return normalized.startsWith('http://') || normalized.startsWith('https://');
+  }
+
+  private startNativeArkWebDownload(guid: string, targetPath: string): PlatformDownloadSnapshot | undefined {
+    const normalizedGuid = guid.trim();
+    if (normalizedGuid.length <= 0 || targetPath.trim().length <= 0) {
+      return undefined;
+    }
+    const item = this.itemsByGuid[normalizedGuid];
+    if (item === undefined) {
+      hilog.warn(
+        DOWNLOAD_BRIDGE_DOMAIN,
+        DOWNLOAD_BRIDGE_TAG,
+        'native start missing item guid=%{public}s',
+        normalizedGuid
+      );
+      return undefined;
+    }
+    try {
+      // Non-GET requests (for example Office-on-the-web "download a copy") cannot be
+      // replayed through libcurl because ArkWeb does not expose the request body, so let
+      // ArkWeb finish the download it already owns. Keeping the item tracked lets the
+      // existing delegate callbacks drive progress and completion.
+      item.start(targetPath);
+    } catch (error) {
+      hilog.warn(
+        DOWNLOAD_BRIDGE_DOMAIN,
+        DOWNLOAD_BRIDGE_TAG,
+        'native start failed guid=%{public}s error=%{public}s',
+        normalizedGuid,
+        JSON.stringify(error)
+      );
+      return undefined;
+    }
+    const snapshot = this.readSnapshot(item);
+    hilog.info(
+      DOWNLOAD_BRIDGE_DOMAIN,
+      DOWNLOAD_BRIDGE_TAG,
+      'native start guid=%{public}s method=%{public}s state=%{public}s path=%{public}s',
+      normalizedGuid,
+      snapshot.method ?? '',
+      snapshot.state,
+      targetPath
+    );
+    return snapshot;
   }
 
 }

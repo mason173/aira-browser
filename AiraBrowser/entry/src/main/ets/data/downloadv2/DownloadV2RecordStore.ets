@@ -179,6 +179,8 @@ export function normalizeDownloadV2DriverValue(value?: string): DownloadV2Driver
   switch (normalized) {
     case 'libcurl':
       return 'libcurl';
+    case 'arkweb':
+      return 'arkweb';
     default:
       return undefined;
   }

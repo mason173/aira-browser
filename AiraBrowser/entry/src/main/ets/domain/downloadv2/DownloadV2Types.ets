@@ -33,7 +33,8 @@ export type DownloadV2ResumeCapability =
   'live_resume';
 
 export type DownloadV2Driver =
-  'libcurl';
+  'libcurl' |
+  'arkweb';
 
 export type DownloadV2ResumeMode =
   'none' |
