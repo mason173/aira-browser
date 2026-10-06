@@ -1116,8 +1116,9 @@ export struct BrowserBottomAddressPanel {
     Button({ type: ButtonType.Normal }) {
       Row({ space: 10 }) {
         this.buildToolbarSystemSheetAccountAvatar()
-        // Name and badge form one leading group so the tier reads as part of the name. Only the
-        // chevron is pushed to the trailing edge, by a spacer rather than by weighting the name.
+        // Name and badge form one leading group so the tier reads as part of the name. The group
+        // takes the space between the avatar and the chevron, and only the name shrinks with an
+        // ellipsis, so a long nickname can never push the badge out of the capsule.
         Row({ space: 6 }) {
           Text(this.liveAccountCapsule.label)
             .fontSize(15)
@@ -1126,12 +1127,18 @@ export struct BrowserBottomAddressPanel {
             .maxLines(1)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
             .constraintSize({ maxWidth: WEB_BOTTOM_TOOLBAR_SHEET_ACCOUNT_NAME_MAX_WIDTH })
+            .flexShrink(1)
           if (this.liveAccountCapsule.membershipBadge !== 'none') {
-            SettingsMembershipBadge({ kind: this.liveAccountCapsule.membershipBadge })
+            // The badge keeps its full size; only the name gives way.
+            Row() {
+              SettingsMembershipBadge({ kind: this.liveAccountCapsule.membershipBadge })
+            }
+            .flexShrink(0)
           }
+          Blank().layoutWeight(1)
         }
+        .layoutWeight(1)
         .alignItems(VerticalAlign.Center)
-        Blank().layoutWeight(1)
         AiraIcon({
           airaIconId: 'browser.toolbar.chevronRight',
           iconSize: WEB_BOTTOM_TOOLBAR_SHEET_ACCOUNT_CHEVRON_SIZE,
