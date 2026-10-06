@@ -993,18 +993,26 @@ export class ArkPreferencesStorageAdapter implements PreferencesStorageAdapter {
           defaultValue.splitHomeSecondaryLongPressActionId ?? 'none'),
         splitHomeTabsLongPressActionId: String(parsed.splitHomeTabsLongPressActionId ??
           defaultValue.splitHomeTabsLongPressActionId ?? 'none'),
+        splitHomeMenuTapActionId: String(parsed.splitHomeMenuTapActionId ??
+          defaultValue.splitHomeMenuTapActionId ?? ''),
         splitHomeMenuLongPressActionId: String(parsed.splitHomeMenuLongPressActionId ??
           defaultValue.splitHomeMenuLongPressActionId ?? 'none'),
         splitWebHomeTapActionId: String(parsed.splitWebHomeTapActionId ??
           defaultValue.splitWebHomeTapActionId ?? ''),
         splitWebHomeLongPressActionId: String(parsed.splitWebHomeLongPressActionId ??
           defaultValue.splitWebHomeLongPressActionId ?? 'none'),
+        splitWebBackTapActionId: String(parsed.splitWebBackTapActionId ??
+          defaultValue.splitWebBackTapActionId ?? ''),
         splitWebBackLongPressActionId: String(parsed.splitWebBackLongPressActionId ??
           defaultValue.splitWebBackLongPressActionId ?? 'none'),
+        splitWebForwardTapActionId: String(parsed.splitWebForwardTapActionId ??
+          defaultValue.splitWebForwardTapActionId ?? ''),
         splitWebForwardLongPressActionId: String(parsed.splitWebForwardLongPressActionId ??
           defaultValue.splitWebForwardLongPressActionId ?? 'none'),
         splitWebTabsLongPressActionId: String(parsed.splitWebTabsLongPressActionId ??
           defaultValue.splitWebTabsLongPressActionId ?? 'none'),
+        splitWebMenuTapActionId: String(parsed.splitWebMenuTapActionId ??
+          defaultValue.splitWebMenuTapActionId ?? ''),
         splitWebMenuLongPressActionId: String(parsed.splitWebMenuLongPressActionId ??
           defaultValue.splitWebMenuLongPressActionId ?? 'none'),
         updatedAt: this.normalizeNonNegativeTimestamp(parsed.updatedAt, defaultValue.updatedAt)

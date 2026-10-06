@@ -12734,11 +12734,11 @@
     },
     {
       "name": "toolbar_settings_preview_footer_split_home",
-      "value": "The two buttons on the left can customize tap and long press. Tabs and Menu taps stay fixed."
+      "value": "Bookmarks, History, and Menu can customize tap and long press. The Tabs tap stays fixed."
     },
     {
       "name": "toolbar_settings_preview_footer_split_web",
-      "value": "Home can be customized. Back, Forward, Tabs, and Menu taps stay fixed; long press can still be set."
+      "value": "Back, Forward, Home, and Menu can customize tap and long press. The Tabs tap stays fixed."
     },
     {
       "name": "toolbar_settings_capsule_swipe_title",

@@ -7,7 +7,9 @@ export type BrowserSplitToolbarScene = 'home' | 'web';
  * Slots of the split bottom bar.
  *
  * Home is bookmarks, history, tabs, menu. Web is back, forward, home, tabs, menu.
- * Tabs, menu, back and forward keep a fixed tap. The other three taps can be replaced.
+ * Only the tab buttons keep a fixed tap: opening the tabs overview from the bar has to stay on
+ * the button that carries the count, or that count loses its meaning. Every other tap, including
+ * back, forward, home and menu, can be replaced; long press is free on every slot.
  */
 export type BrowserSplitToolbarSlotId =
   'homeLeading' |
@@ -34,12 +36,12 @@ const SPLIT_TOOLBAR_SLOTS: BrowserSplitToolbarSlotDefinition[] = [
   { id: 'homeLeading', scene: 'home', defaultTapActionId: 'openBookmarks', tapLocked: false, usesTabBadge: false },
   { id: 'homeSecondary', scene: 'home', defaultTapActionId: 'history', tapLocked: false, usesTabBadge: false },
   { id: 'homeTabs', scene: 'home', defaultTapActionId: 'openTabs', tapLocked: true, usesTabBadge: true },
-  { id: 'homeMenu', scene: 'home', defaultTapActionId: 'bottomChromeMenu', tapLocked: true, usesTabBadge: false },
-  { id: 'webBack', scene: 'web', defaultTapActionId: 'webBack', tapLocked: true, usesTabBadge: false },
-  { id: 'webForward', scene: 'web', defaultTapActionId: 'webForward', tapLocked: true, usesTabBadge: false },
+  { id: 'homeMenu', scene: 'home', defaultTapActionId: 'bottomChromeMenu', tapLocked: false, usesTabBadge: false },
+  { id: 'webBack', scene: 'web', defaultTapActionId: 'webBack', tapLocked: false, usesTabBadge: false },
+  { id: 'webForward', scene: 'web', defaultTapActionId: 'webForward', tapLocked: false, usesTabBadge: false },
   { id: 'webHome', scene: 'web', defaultTapActionId: 'home', tapLocked: false, usesTabBadge: false },
   { id: 'webTabs', scene: 'web', defaultTapActionId: 'openTabs', tapLocked: true, usesTabBadge: true },
-  { id: 'webMenu', scene: 'web', defaultTapActionId: 'bottomChromeMenu', tapLocked: true, usesTabBadge: false }
+  { id: 'webMenu', scene: 'web', defaultTapActionId: 'bottomChromeMenu', tapLocked: false, usesTabBadge: false }
 ];
 
 export function splitToolbarSlotDefinitions(): BrowserSplitToolbarSlotDefinition[] {
@@ -101,12 +103,16 @@ export function cloneBrowserToolbarLayoutSettings(
     splitHomeSecondaryTapActionId: settings.splitHomeSecondaryTapActionId,
     splitHomeSecondaryLongPressActionId: settings.splitHomeSecondaryLongPressActionId,
     splitHomeTabsLongPressActionId: settings.splitHomeTabsLongPressActionId,
+    splitHomeMenuTapActionId: settings.splitHomeMenuTapActionId,
     splitHomeMenuLongPressActionId: settings.splitHomeMenuLongPressActionId,
     splitWebHomeTapActionId: settings.splitWebHomeTapActionId,
     splitWebHomeLongPressActionId: settings.splitWebHomeLongPressActionId,
+    splitWebBackTapActionId: settings.splitWebBackTapActionId,
     splitWebBackLongPressActionId: settings.splitWebBackLongPressActionId,
+    splitWebForwardTapActionId: settings.splitWebForwardTapActionId,
     splitWebForwardLongPressActionId: settings.splitWebForwardLongPressActionId,
     splitWebTabsLongPressActionId: settings.splitWebTabsLongPressActionId,
+    splitWebMenuTapActionId: settings.splitWebMenuTapActionId,
     splitWebMenuLongPressActionId: settings.splitWebMenuLongPressActionId,
     updatedAt: settings.updatedAt
   };
@@ -121,6 +127,14 @@ export function resolveSplitToolbarTapActionId(
   const index = splitToolbarSlotsForScene(sceneOf(slotId))
     .findIndex((slot: BrowserSplitToolbarSlotDefinition): boolean => slot.id === slotId);
   return index >= 0 ? resolved[index] : '';
+}
+
+/** The raw stored tap for a slot, '' when the slot keeps its default or its tap is locked. */
+export function resolveStoredSplitToolbarTapActionId(
+  settings: BrowserToolbarLayoutSettings,
+  slotId: BrowserSplitToolbarSlotId
+): string {
+  return readTap(settings, slotId);
 }
 
 export function resolveSplitToolbarLongPressActionId(
@@ -195,7 +209,11 @@ export function resetAllSplitToolbarSlots(
   const next = cloneBrowserToolbarLayoutSettings(settings);
   writeTap(next, 'homeLeading', '');
   writeTap(next, 'homeSecondary', '');
+  writeTap(next, 'homeMenu', '');
+  writeTap(next, 'webBack', '');
+  writeTap(next, 'webForward', '');
   writeTap(next, 'webHome', '');
+  writeTap(next, 'webMenu', '');
   writeLongPress(next, 'homeLeading', 'none');
   writeLongPress(next, 'homeSecondary', 'none');
   writeLongPress(next, 'homeTabs', 'none');
@@ -223,7 +241,11 @@ export function normalizeSplitToolbarSettings(
 export function hasSplitToolbarCustomizations(settings: BrowserToolbarLayoutSettings): boolean {
   return readTap(settings, 'homeLeading').trim().length > 0 ||
     readTap(settings, 'homeSecondary').trim().length > 0 ||
+    readTap(settings, 'homeMenu').trim().length > 0 ||
+    readTap(settings, 'webBack').trim().length > 0 ||
+    readTap(settings, 'webForward').trim().length > 0 ||
     readTap(settings, 'webHome').trim().length > 0 ||
+    readTap(settings, 'webMenu').trim().length > 0 ||
     isCustomLongPress(settings, 'homeLeading') ||
     isCustomLongPress(settings, 'homeSecondary') ||
     isCustomLongPress(settings, 'homeTabs') ||
@@ -292,7 +314,11 @@ function sanitizeStoredTaps(
 ): void {
   writeTap(settings, 'homeLeading', sanitizeTap(readTap(settings, 'homeLeading'), isKnownAction));
   writeTap(settings, 'homeSecondary', sanitizeTap(readTap(settings, 'homeSecondary'), isKnownAction));
+  writeTap(settings, 'homeMenu', sanitizeTap(readTap(settings, 'homeMenu'), isKnownAction));
+  writeTap(settings, 'webBack', sanitizeTap(readTap(settings, 'webBack'), isKnownAction));
+  writeTap(settings, 'webForward', sanitizeTap(readTap(settings, 'webForward'), isKnownAction));
   writeTap(settings, 'webHome', sanitizeTap(readTap(settings, 'webHome'), isKnownAction));
+  writeTap(settings, 'webMenu', sanitizeTap(readTap(settings, 'webMenu'), isKnownAction));
 }
 
 function sanitizeTap(actionId: string, isKnownAction: (actionId: string) => boolean): string {
@@ -343,15 +369,13 @@ function isCustomLongPress(settings: BrowserToolbarLayoutSettings, slotId: Brows
 }
 
 function readTap(settings: BrowserToolbarLayoutSettings, slotId: BrowserSplitToolbarSlotId): string {
-  if (slotId === 'homeLeading') {
-    return settings.splitHomeLeadingTapActionId ?? '';
-  }
-  if (slotId === 'homeSecondary') {
-    return settings.splitHomeSecondaryTapActionId ?? '';
-  }
-  if (slotId === 'webHome') {
-    return settings.splitWebHomeTapActionId ?? '';
-  }
+  if (slotId === 'homeLeading') return settings.splitHomeLeadingTapActionId ?? '';
+  if (slotId === 'homeSecondary') return settings.splitHomeSecondaryTapActionId ?? '';
+  if (slotId === 'homeMenu') return settings.splitHomeMenuTapActionId ?? '';
+  if (slotId === 'webBack') return settings.splitWebBackTapActionId ?? '';
+  if (slotId === 'webForward') return settings.splitWebForwardTapActionId ?? '';
+  if (slotId === 'webHome') return settings.splitWebHomeTapActionId ?? '';
+  if (slotId === 'webMenu') return settings.splitWebMenuTapActionId ?? '';
   return '';
 }
 
@@ -360,17 +384,13 @@ function writeTap(
   slotId: BrowserSplitToolbarSlotId,
   actionId: string
 ): void {
-  if (slotId === 'homeLeading') {
-    settings.splitHomeLeadingTapActionId = actionId;
-    return;
-  }
-  if (slotId === 'homeSecondary') {
-    settings.splitHomeSecondaryTapActionId = actionId;
-    return;
-  }
-  if (slotId === 'webHome') {
-    settings.splitWebHomeTapActionId = actionId;
-  }
+  if (slotId === 'homeLeading') settings.splitHomeLeadingTapActionId = actionId;
+  if (slotId === 'homeSecondary') settings.splitHomeSecondaryTapActionId = actionId;
+  if (slotId === 'homeMenu') settings.splitHomeMenuTapActionId = actionId;
+  if (slotId === 'webBack') settings.splitWebBackTapActionId = actionId;
+  if (slotId === 'webForward') settings.splitWebForwardTapActionId = actionId;
+  if (slotId === 'webHome') settings.splitWebHomeTapActionId = actionId;
+  if (slotId === 'webMenu') settings.splitWebMenuTapActionId = actionId;
 }
 
 function readLongPress(settings: BrowserToolbarLayoutSettings, slotId: BrowserSplitToolbarSlotId): string {

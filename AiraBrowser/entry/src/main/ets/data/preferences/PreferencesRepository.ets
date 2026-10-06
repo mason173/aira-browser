@@ -110,12 +110,16 @@ export const DEFAULT_BROWSER_TOOLBAR_LAYOUT_SETTINGS: BrowserToolbarLayoutSettin
   splitHomeSecondaryTapActionId: '',
   splitHomeSecondaryLongPressActionId: 'none',
   splitHomeTabsLongPressActionId: 'none',
+  splitHomeMenuTapActionId: '',
   splitHomeMenuLongPressActionId: 'none',
   splitWebHomeTapActionId: '',
   splitWebHomeLongPressActionId: 'none',
+  splitWebBackTapActionId: '',
   splitWebBackLongPressActionId: 'none',
+  splitWebForwardTapActionId: '',
   splitWebForwardLongPressActionId: 'none',
   splitWebTabsLongPressActionId: 'none',
+  splitWebMenuTapActionId: '',
   splitWebMenuLongPressActionId: 'none',
   updatedAt: 0
 };
@@ -1085,18 +1089,26 @@ export class PreferencesRepository {
         settings.splitHomeSecondaryLongPressActionId : current.splitHomeSecondaryLongPressActionId,
       splitHomeTabsLongPressActionId: settings.splitHomeTabsLongPressActionId !== undefined ?
         settings.splitHomeTabsLongPressActionId : current.splitHomeTabsLongPressActionId,
+      splitHomeMenuTapActionId: settings.splitHomeMenuTapActionId !== undefined ?
+        settings.splitHomeMenuTapActionId : current.splitHomeMenuTapActionId,
       splitHomeMenuLongPressActionId: settings.splitHomeMenuLongPressActionId !== undefined ?
         settings.splitHomeMenuLongPressActionId : current.splitHomeMenuLongPressActionId,
       splitWebHomeTapActionId: settings.splitWebHomeTapActionId !== undefined ?
         settings.splitWebHomeTapActionId : current.splitWebHomeTapActionId,
       splitWebHomeLongPressActionId: settings.splitWebHomeLongPressActionId !== undefined ?
         settings.splitWebHomeLongPressActionId : current.splitWebHomeLongPressActionId,
+      splitWebBackTapActionId: settings.splitWebBackTapActionId !== undefined ?
+        settings.splitWebBackTapActionId : current.splitWebBackTapActionId,
       splitWebBackLongPressActionId: settings.splitWebBackLongPressActionId !== undefined ?
         settings.splitWebBackLongPressActionId : current.splitWebBackLongPressActionId,
+      splitWebForwardTapActionId: settings.splitWebForwardTapActionId !== undefined ?
+        settings.splitWebForwardTapActionId : current.splitWebForwardTapActionId,
       splitWebForwardLongPressActionId: settings.splitWebForwardLongPressActionId !== undefined ?
         settings.splitWebForwardLongPressActionId : current.splitWebForwardLongPressActionId,
       splitWebTabsLongPressActionId: settings.splitWebTabsLongPressActionId !== undefined ?
         settings.splitWebTabsLongPressActionId : current.splitWebTabsLongPressActionId,
+      splitWebMenuTapActionId: settings.splitWebMenuTapActionId !== undefined ?
+        settings.splitWebMenuTapActionId : current.splitWebMenuTapActionId,
       splitWebMenuLongPressActionId: settings.splitWebMenuLongPressActionId !== undefined ?
         settings.splitWebMenuLongPressActionId : current.splitWebMenuLongPressActionId,
       updatedAt: settings.updatedAt
@@ -1658,6 +1670,7 @@ export class PreferencesRepository {
         'none',
         true
       ),
+      splitHomeMenuTapActionId: this.normalizeToolbarSlotActionId(settings?.splitHomeMenuTapActionId),
       splitHomeMenuLongPressActionId: this.normalizeToolbarInteractionActionId(
         settings?.splitHomeMenuLongPressActionId,
         'none',
@@ -1669,11 +1682,13 @@ export class PreferencesRepository {
         'none',
         true
       ),
+      splitWebBackTapActionId: this.normalizeToolbarSlotActionId(settings?.splitWebBackTapActionId),
       splitWebBackLongPressActionId: this.normalizeToolbarInteractionActionId(
         settings?.splitWebBackLongPressActionId,
         'none',
         true
       ),
+      splitWebForwardTapActionId: this.normalizeToolbarSlotActionId(settings?.splitWebForwardTapActionId),
       splitWebForwardLongPressActionId: this.normalizeToolbarInteractionActionId(
         settings?.splitWebForwardLongPressActionId,
         'none',
@@ -1684,6 +1699,7 @@ export class PreferencesRepository {
         'none',
         true
       ),
+      splitWebMenuTapActionId: this.normalizeToolbarSlotActionId(settings?.splitWebMenuTapActionId),
       splitWebMenuLongPressActionId: this.normalizeToolbarInteractionActionId(
         settings?.splitWebMenuLongPressActionId,
         'none',

@@ -12,6 +12,7 @@ import {
   resetSplitToolbarSlot,
   resolveSplitToolbarLongPressActionId,
   resolveSplitToolbarTapActionId,
+  resolveStoredSplitToolbarTapActionId,
   splitToolbarActionEnabled,
   splitToolbarSlotsForScene
 } from './BrowserSplitToolbarCustomizationPolicy';
@@ -251,9 +252,7 @@ export class BrowserSplitToolbarCustomizationViewModel {
     tapActionId: string,
     longPressActionId: string
   ): boolean {
-    const storedTap = slot.id === 'homeLeading' ? (settings.splitHomeLeadingTapActionId ?? '') :
-      slot.id === 'homeSecondary' ? (settings.splitHomeSecondaryTapActionId ?? '') :
-        slot.id === 'webHome' ? (settings.splitWebHomeTapActionId ?? '') : '';
+    const storedTap = resolveStoredSplitToolbarTapActionId(settings, slot.id);
     return (slot.tapLocked || storedTap.trim().length === 0) &&
       tapActionId === slot.defaultTapActionId &&
       longPressActionId === 'none';

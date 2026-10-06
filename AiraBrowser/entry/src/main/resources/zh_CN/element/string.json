@@ -12734,11 +12734,11 @@
     },
     {
       "name": "toolbar_settings_preview_footer_split_home",
-      "value": "左侧两个按钮可自定义单击和长按。标签页和菜单的单击固定。"
+      "value": "书签、历史和菜单按钮可自定义单击和长按。标签页的单击固定。"
     },
     {
       "name": "toolbar_settings_preview_footer_split_web",
-      "value": "主页按钮可自定义。返回、前进、标签页和菜单的单击固定，长按仍可设置。"
+      "value": "返回、前进、主页和菜单按钮可自定义单击和长按。标签页的单击固定。"
     },
     {
       "name": "toolbar_settings_capsule_swipe_title",

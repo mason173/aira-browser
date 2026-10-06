@@ -1114,20 +1114,24 @@ export interface BrowserToolbarLayoutSettings {
   tabsSlotSwipeUpActionId?: string;
   /**
    * Split bottom bar, stored apart from the floating slots above. Empty tap means that slot's
-   * default. Long press defaults to `none`. Tabs, menu, back and forward taps are not stored:
-   * those clicks stay fixed.
+   * default. Long press defaults to `none`. Only the tab buttons keep a fixed tap: the tabs
+   * overview has to stay on the button that carries the count. Every other tap is stored here.
    */
   splitHomeLeadingTapActionId?: string;
   splitHomeLeadingLongPressActionId?: string;
   splitHomeSecondaryTapActionId?: string;
   splitHomeSecondaryLongPressActionId?: string;
   splitHomeTabsLongPressActionId?: string;
+  splitHomeMenuTapActionId?: string;
   splitHomeMenuLongPressActionId?: string;
   splitWebHomeTapActionId?: string;
   splitWebHomeLongPressActionId?: string;
+  splitWebBackTapActionId?: string;
   splitWebBackLongPressActionId?: string;
+  splitWebForwardTapActionId?: string;
   splitWebForwardLongPressActionId?: string;
   splitWebTabsLongPressActionId?: string;
+  splitWebMenuTapActionId?: string;
   splitWebMenuLongPressActionId?: string;
   updatedAt: number;
 }

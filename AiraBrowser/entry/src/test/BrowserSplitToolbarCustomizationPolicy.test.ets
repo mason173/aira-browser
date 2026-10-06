@@ -67,10 +67,27 @@ export default function browserSplitToolbarCustomizationPolicyTest(): void {
       );
       expect(resolveSplitToolbarTapActionId(duplicate, 'homeSecondary', isKnownAction)).assertEqual('history');
 
-      const locked = replaceSplitToolbarInteraction(
+      // Back, forward and menu taps are now replaceable, like home. Only the tabs tap stays fixed,
+      // because the count badge lives on that button.
+      const replacedBack = replaceSplitToolbarInteraction(
         settings, 'webBack', 'tap', 'downloads', isKnownAction
       );
-      expect(resolveSplitToolbarTapActionId(locked, 'webBack', isKnownAction)).assertEqual('webBack');
+      expect(resolveSplitToolbarTapActionId(replacedBack, 'webBack', isKnownAction)).assertEqual('downloads');
+      const replacedMenu = replaceSplitToolbarInteraction(
+        settings, 'webMenu', 'tap', 'webReload', isKnownAction
+      );
+      expect(resolveSplitToolbarTapActionId(replacedMenu, 'webMenu', isKnownAction)).assertEqual('webReload');
+
+      const lockedTabs = replaceSplitToolbarInteraction(
+        settings, 'webTabs', 'tap', 'downloads', isKnownAction
+      );
+      expect(resolveSplitToolbarTapActionId(lockedTabs, 'webTabs', isKnownAction)).assertEqual('openTabs');
+      const lockedHomeTabs = replaceSplitToolbarInteraction(
+        settings, 'homeTabs', 'tap', 'downloads', isKnownAction
+      );
+      expect(resolveSplitToolbarTapActionId(lockedHomeTabs, 'homeTabs', isKnownAction)).assertEqual('openTabs');
+
+      // A tap another slot already shows is refused, locked or not.
       expect(resolveSplitToolbarTapActionId(
         replaceSplitToolbarInteraction(settings, 'webHome', 'tap', 'webBack', isKnownAction),
         'webHome',
