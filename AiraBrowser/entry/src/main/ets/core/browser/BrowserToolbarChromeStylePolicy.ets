@@ -23,15 +23,55 @@ export const SPLIT_TOOLBAR_BOTTOM_BAR_VP: number = 56;
 /** Matches the floating toolbar's scroll transition, so both bars leave and return together. */
 export const SPLIT_TOOLBAR_SCROLL_COLLAPSE_DURATION_MS: number = 180;
 
+/**
+ * The `dock` frame is the split family anchored to the bottom: one search pill row directly above
+ * the navigation row, with no top address bar. These are the dock-only measurements, in vp.
+ */
+/** Dock search pill row. Shorter than the split address pill, so the dock block stays low. */
+export const DOCK_TOOLBAR_PILL_ROW_VP: number = 40;
+/** Gap the dock keeps above its search pill row, inside the block, in vp. */
+export const DOCK_TOOLBAR_PILL_ROW_TOP_GAP_VP: number = 4;
+/** Gap the dock keeps between its search pill row and the navigation row below it, in vp. */
+export const DOCK_TOOLBAR_PILL_ROW_GAP_VP: number = 2;
+/**
+ * Dock navigation row. Shorter than the split nav row: the block is a bottom dock, so the icon
+ * row sits lower, closer to the gesture area, and the whole block stops covering the page.
+ */
+export const DOCK_TOOLBAR_NAV_ROW_VP: number = 46;
+/** Painted content height of the whole dock block above the system gesture inset, in vp. */
+export const DOCK_TOOLBAR_BOTTOM_BLOCK_VP: number =
+  DOCK_TOOLBAR_PILL_ROW_TOP_GAP_VP + DOCK_TOOLBAR_PILL_ROW_VP +
+  DOCK_TOOLBAR_PILL_ROW_GAP_VP + DOCK_TOOLBAR_NAV_ROW_VP;
+
+/** Painted height of the dock block, including the system gesture inset, in vp. */
+export function resolveDockToolbarBottomBlockHeightVp(bottomSafeInsetVp: number): number {
+  return DOCK_TOOLBAR_BOTTOM_BLOCK_VP + Math.max(0, Math.ceil(toFiniteVp(bottomSafeInsetVp)));
+}
+
+/** Bottom reserve the web page keeps for the dock block, in vp. */
+export function resolveDockToolbarBottomReserveVp(bottomSafeInsetVp: number): number {
+  return resolveDockToolbarBottomBlockHeightVp(bottomSafeInsetVp);
+}
+
 /** Painted height of the split address row, including its own top safe padding, in vp. */
 export function resolveSplitToolbarTopRowHeightVp(topSafeInsetVp: number): number {
   return Math.max(0, Math.ceil(toFiniteVp(topSafeInsetVp))) +
     SPLIT_TOOLBAR_PILL_ROW_VP + SPLIT_TOOLBAR_TOP_ROW_BOTTOM_GAP_VP;
 }
 
-/** Painted height of the split bottom row, including the system gesture inset, in vp. */
-export function resolveSplitToolbarBottomRowHeightVp(bottomSafeInsetVp: number): number {
-  return SPLIT_TOOLBAR_BOTTOM_BAR_VP + Math.max(0, Math.ceil(toFiniteVp(bottomSafeInsetVp)));
+/**
+ * Painted height of the bottom row, including the system gesture inset, in vp.
+ *
+ * The split row is the plain navigation row. The dock stacks its search pill row on top of that
+ * same row, so it passes its own taller block height; every other caller keeps the split default.
+ */
+export function resolveSplitToolbarBottomRowHeightVp(
+  bottomSafeInsetVp: number,
+  bottomBlockHeightVp: number = SPLIT_TOOLBAR_BOTTOM_BAR_VP
+): number {
+  const blockVp = Number.isFinite(bottomBlockHeightVp) && bottomBlockHeightVp > 0 ?
+    bottomBlockHeightVp : SPLIT_TOOLBAR_BOTTOM_BAR_VP;
+  return blockVp + Math.max(0, Math.ceil(toFiniteVp(bottomSafeInsetVp)));
 }
 
 /**
@@ -43,9 +83,12 @@ export function resolveSplitToolbarTopRowReserveVp(topSafeInsetVp: number, _cont
   return resolveSplitToolbarTopRowHeightVp(topSafeInsetVp);
 }
 
-/** Bottom reserve the web page keeps for the split bottom row, in vp. */
-export function resolveSplitToolbarBottomReserveVp(bottomSafeInsetVp: number): number {
-  return resolveSplitToolbarBottomRowHeightVp(bottomSafeInsetVp);
+/** Bottom reserve the web page keeps for the bottom row, in vp. */
+export function resolveSplitToolbarBottomReserveVp(
+  bottomSafeInsetVp: number,
+  bottomBlockHeightVp: number = SPLIT_TOOLBAR_BOTTOM_BAR_VP
+): number {
+  return resolveSplitToolbarBottomRowHeightVp(bottomSafeInsetVp, bottomBlockHeightVp);
 }
 
 export interface SplitToolbarWebReserveInput {
@@ -67,6 +110,12 @@ export interface SplitToolbarWebReserveInput {
   addressRowPainted: boolean;
   /** The bottom row is on screen for this frame (not home, not scrolled away). */
   bottomRowPainted: boolean;
+  /**
+   * Painted height of the bottom block above its safe inset, in vp. Omitted by the split frame,
+   * which is the plain navigation row. The dock stacks its search pill row on top of that row and
+   * passes its own taller block, so the page still meets the bottom of what is really painted.
+   */
+  bottomBlockHeightVp?: number;
 }
 
 export interface SplitToolbarWebReserve {
@@ -99,7 +148,8 @@ export function resolveSplitToolbarWebReserve(input: SplitToolbarWebReserveInput
     statusBarStripVp + contentGapVp;
   return {
     topVp: stackedHeightVp + addressRowClearanceVp,
-    bottomVp: input.bottomRowPainted ? resolveSplitToolbarBottomReserveVp(input.bottomRowSafeInsetVp) : 0
+    bottomVp: input.bottomRowPainted ?
+      resolveSplitToolbarBottomReserveVp(input.bottomRowSafeInsetVp, input.bottomBlockHeightVp) : 0
   };
 }
 
@@ -122,7 +172,7 @@ export interface SplitToolbarChromeActivityInput {
  * it must not unmount the bars or the legacy floating toolbar flashes back in.
  */
 export function isSplitToolbarChromeActive(input: SplitToolbarChromeActivityInput): boolean {
-  return input.style === 'split' &&
+  return isSplitFamilyStyle(input.style) &&
     !input.largeScreenShellActive &&
     !input.immersiveChromeHidden &&
     !input.documentViewerActive &&
@@ -156,7 +206,17 @@ function isSplitToolbarPhoneStyleSelected(
   style: BrowserToolbarChromeStyle,
   largeScreenShellActive: boolean
 ): boolean {
-  return style === 'split' && !largeScreenShellActive;
+  return isSplitFamilyStyle(style) && !largeScreenShellActive;
+}
+
+/**
+ * The two-row phone chrome frame. `split` and `dock` share the frame geometry, the reserves, the
+ * scroll and top-immersion rules, and the settings behaviors; they differ only in what the rows
+ * paint. Every frame decision goes through this instead of comparing to `'split'` alone, so a new
+ * family member cannot be half-integrated.
+ */
+export function isSplitFamilyStyle(style: BrowserToolbarChromeStyle): boolean {
+  return style === 'split' || style === 'dock';
 }
 
 /**
@@ -225,7 +285,7 @@ export function shouldShowToolbarTopImmersionSettings(desktopPresentation: boole
 
 /** Always-on immersion would leave the split address bar with nowhere to return. */
 export function shouldShowAlwaysTopImmersionSetting(style: BrowserToolbarChromeStyle): boolean {
-  return style !== 'split';
+  return !isSplitFamilyStyle(style);
 }
 
 export function shouldApplyAlwaysTopImmersion(enabled: boolean, splitChromeActive: boolean): boolean {
@@ -233,7 +293,7 @@ export function shouldApplyAlwaysTopImmersion(enabled: boolean, splitChromeActiv
 }
 
 export function resolveScrollTopImmersionFooter(style: BrowserToolbarChromeStyle): ResourceStr {
-  if (style === 'split') {
+  if (isSplitFamilyStyle(style)) {
     return $r('app.string.toolbar_settings_immersion_footer_split');
   }
   return $r('app.string.toolbar_settings_immersion_footer_floating');
@@ -329,7 +389,10 @@ export class SplitAddressBarImmersionScrollCoordinator {
 export function normalizeToolbarChromeStyle(
   value: BrowserToolbarChromeStyle | string | undefined
 ): BrowserToolbarChromeStyle {
-  return value === 'split' ? 'split' : 'floating';
+  if (value === 'split' || value === 'dock') {
+    return value;
+  }
+  return 'floating';
 }
 
 /**
@@ -416,5 +479,5 @@ export function shouldRouteCenteredHomeSearchToFloatingToolbar(
   centeredHomeFrame: boolean,
   largeScreenShellActive: boolean
 ): boolean {
-  return centeredHomeFrame && !largeScreenShellActive && style !== 'split';
+  return centeredHomeFrame && !largeScreenShellActive && !isSplitFamilyStyle(style);
 }

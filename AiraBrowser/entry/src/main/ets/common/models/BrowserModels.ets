@@ -1182,8 +1182,11 @@ export interface ReaderModePreferences {
 export type BrowserTabsOverviewLayoutStyle = 'grid' | 'horizontal_cards' | 'stack' | 'list';
 export type BrowserHomeShortcutLayoutDensity = 'standard' | 'compact';
 export type BrowserBottomToolbarScrollBehavior = 'fixed' | 'compact' | 'hidden';
-/** Phone chrome frame. `floating` is the bottom capsule; `split` is a top address bar and bottom nav. */
-export type BrowserToolbarChromeStyle = 'floating' | 'split';
+/**
+ * Phone chrome frame. `floating` is the bottom capsule; `split` is a top address bar and bottom nav;
+ * `dock` is the same two-row frame with a resting search box and a fixed five-button bottom dock.
+ */
+export type BrowserToolbarChromeStyle = 'floating' | 'split' | 'dock';
 
 export interface BrowserAppearanceSettings {
   bottomToolbarScrollBehavior: BrowserBottomToolbarScrollBehavior;

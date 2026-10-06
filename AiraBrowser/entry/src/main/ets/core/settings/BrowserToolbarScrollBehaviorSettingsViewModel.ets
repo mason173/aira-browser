@@ -3,7 +3,10 @@ import {
   BrowserBottomToolbarScrollBehavior,
   BrowserToolbarChromeStyle
 } from '../../common/models/BrowserModels';
-import { resolveSplitToolbarScrollBehavior } from '../browser/BrowserToolbarChromeStylePolicy';
+import {
+  isSplitFamilyStyle,
+  resolveSplitToolbarScrollBehavior
+} from '../browser/BrowserToolbarChromeStylePolicy';
 
 export interface BrowserToolbarScrollBehaviorOptionState {
   behavior: BrowserBottomToolbarScrollBehavior;
@@ -44,7 +47,7 @@ export class BrowserToolbarScrollBehaviorSettingsViewModel {
     behavior: BrowserBottomToolbarScrollBehavior,
     style: BrowserToolbarChromeStyle = 'floating'
   ): BrowserToolbarScrollBehaviorSettingsState {
-    if (style === 'split') {
+    if (isSplitFamilyStyle(style)) {
       return {
         behavior: resolveSplitToolbarScrollBehavior(behavior),
         options: SPLIT_TOOLBAR_SCROLL_BEHAVIOR_OPTIONS.slice(),
@@ -62,13 +65,14 @@ export class BrowserToolbarScrollBehaviorSettingsViewModel {
     behavior: BrowserBottomToolbarScrollBehavior,
     style: BrowserToolbarChromeStyle = 'floating'
   ): ResourceStr {
-    const resolved = style === 'split' ? resolveSplitToolbarScrollBehavior(behavior) : behavior;
-    const options = style === 'split' ?
+    const splitFamily = isSplitFamilyStyle(style);
+    const resolved = splitFamily ? resolveSplitToolbarScrollBehavior(behavior) : behavior;
+    const options = splitFamily ?
       SPLIT_TOOLBAR_SCROLL_BEHAVIOR_OPTIONS : BROWSER_TOOLBAR_SCROLL_BEHAVIOR_OPTIONS;
     const option = options.find(
       (item: BrowserToolbarScrollBehaviorOptionState): boolean => item.behavior === resolved
     );
-    return option?.title ?? (style === 'split' ?
+    return option?.title ?? (splitFamily ?
       $r('app.string.toolbar_settings_scroll_split_fixed') :
       $r('app.string.toolbar_settings_scroll_fixed'));
   }

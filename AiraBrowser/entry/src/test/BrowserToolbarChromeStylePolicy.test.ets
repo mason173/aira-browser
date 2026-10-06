@@ -1,8 +1,13 @@
 import { describe, expect, it } from '@ohos/hypium';
 import { isAppString } from '../main/ets/core/resources/AppResourceText';
 import {
+  DOCK_TOOLBAR_BOTTOM_BLOCK_VP,
+  DOCK_TOOLBAR_NAV_ROW_VP,
+  DOCK_TOOLBAR_PILL_ROW_VP,
+  isSplitFamilyStyle,
   isSplitToolbarChromeActive,
   normalizeToolbarChromeStyle,
+  resolveDockToolbarBottomReserveVp,
   resolveSplitToolbarBarBackgroundColor,
   resolveSplitToolbarCanGoBack,
   resolveSplitToolbarCanGoForward,
@@ -38,6 +43,72 @@ describe('BrowserToolbarChromeStylePolicy', () => {
     expect(normalizeToolbarChromeStyle(undefined)).assertEqual('floating');
     expect(normalizeToolbarChromeStyle('compact')).assertEqual('floating');
     expect(normalizeToolbarChromeStyle('split')).assertEqual('split');
+    expect(normalizeToolbarChromeStyle('dock')).assertEqual('dock');
+  });
+
+  it('treats split and dock as one phone frame family', 0, () => {
+    expect(isSplitFamilyStyle('split')).assertTrue();
+    expect(isSplitFamilyStyle('dock')).assertTrue();
+    expect(isSplitFamilyStyle('floating')).assertFalse();
+    // The dock shares the split frame, so the split chrome mounts and the legacy floating
+    // toolbar stays suppressed for it too.
+    expect(isSplitToolbarChromeActive({
+      style: 'dock',
+      largeScreenShellActive: false,
+      immersiveChromeHidden: false,
+      documentViewerActive: false,
+      readerVisible: false,
+      novelReaderVisible: false
+    })).assertTrue();
+    expect(shouldSuppressLegacyFloatingToolbar('dock', false)).assertTrue();
+    expect(shouldReserveSplitToolbarHomeInsets('dock', false)).assertTrue();
+    expect(shouldRouteCenteredHomeSearchToFloatingToolbar('dock', true, false)).assertFalse();
+    // Always-on immersion has no separate top bar to drive, and the immersion footer is the
+    // split one for both frame members.
+    expect(shouldShowAlwaysTopImmersionSetting('dock')).assertFalse();
+    expect(isAppString(resolveScrollTopImmersionFooter('dock'),
+      $r('app.string.toolbar_settings_immersion_footer_split'))).assertTrue();
+    // The dock keeps the split scroll behavior: only hide is honored.
+    expect(resolveSplitToolbarScrollBehavior('compact')).assertEqual('fixed');
+  });
+
+  it('stacks the dock search row above the navigation row and reserves the whole block', 0, () => {
+    // The dock block is taller than the plain split nav row: it carries the search pill row too.
+    expect(DOCK_TOOLBAR_BOTTOM_BLOCK_VP).assertLarger(SPLIT_TOOLBAR_BOTTOM_BAR_VP);
+    // Both dock rows are shorter than their split counterparts, so the whole block stays low.
+    expect(DOCK_TOOLBAR_PILL_ROW_VP).assertLarger(0);
+    expect(SPLIT_TOOLBAR_PILL_ROW_VP).assertLarger(DOCK_TOOLBAR_PILL_ROW_VP);
+    expect(SPLIT_TOOLBAR_BOTTOM_BAR_VP).assertLarger(DOCK_TOOLBAR_NAV_ROW_VP);
+    // The bottom block reserve grows with the system gesture inset, exactly like the split row.
+    expect(resolveDockToolbarBottomReserveVp(0)).assertEqual(DOCK_TOOLBAR_BOTTOM_BLOCK_VP);
+    expect(resolveDockToolbarBottomReserveVp(12)).assertEqual(DOCK_TOOLBAR_BOTTOM_BLOCK_VP + 12);
+    // A web page on the dock frame clears that whole block on its bottom edge, and nothing on top.
+    const dockReserve = resolveSplitToolbarWebReserve({
+      statusBarStripVp: 36,
+      statusBarVisible: true,
+      stackedChromeHeightVp: 0,
+      addressRowSafeInsetVp: 36,
+      bottomRowSafeInsetVp: 12,
+      contentGapVp: 16,
+      addressRowPainted: false,
+      bottomRowPainted: true,
+      bottomBlockHeightVp: DOCK_TOOLBAR_BOTTOM_BLOCK_VP
+    });
+    expect(dockReserve.bottomVp).assertEqual(DOCK_TOOLBAR_BOTTOM_BLOCK_VP + 12);
+    expect(dockReserve.topVp).assertEqual(36 + 16);
+    // Without the block height the reserve is the plain split row, so existing frames are unchanged.
+    const splitReserve = resolveSplitToolbarWebReserve({
+      statusBarStripVp: 36,
+      statusBarVisible: true,
+      stackedChromeHeightVp: 0,
+      addressRowSafeInsetVp: 36,
+      bottomRowSafeInsetVp: 12,
+      contentGapVp: 16,
+      addressRowPainted: true,
+      bottomRowPainted: true
+    });
+    expect(splitReserve.bottomVp).assertEqual(SPLIT_TOOLBAR_BOTTOM_BAR_VP + 12);
+    expect(splitReserve.topVp).assertEqual(36 + SPLIT_TOOLBAR_ADDRESS_BLOCK_VP);
   });
 
   it('activates split chrome only for an ordinary phone browsing frame', 0, () => {

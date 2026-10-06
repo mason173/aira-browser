@@ -492,10 +492,10 @@ export class ArkPreferencesStorageAdapter implements PreferencesStorageAdapter {
     value: BrowserToolbarChromeStyle | string | undefined,
     defaultValue: BrowserToolbarChromeStyle
   ): BrowserToolbarChromeStyle {
-    if (value === 'split' || value === 'floating') {
+    if (value === 'split' || value === 'dock' || value === 'floating') {
       return value;
     }
-    return defaultValue === 'split' ? 'split' : 'floating';
+    return defaultValue === 'split' || defaultValue === 'dock' ? defaultValue : 'floating';
   }
 
   private normalizeBottomToolbarScrollBehavior(

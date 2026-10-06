@@ -669,7 +669,7 @@ export class PersonalizationSyncSnapshotService {
   private sanitizeToolbarChromeStyle(
     value: BrowserToolbarChromeStyle | undefined
   ): BrowserToolbarChromeStyle | undefined {
-    return value === 'floating' || value === 'split' ? value : undefined;
+    return value === 'floating' || value === 'split' || value === 'dock' ? value : undefined;
   }
 
   private sanitizeWallpaperMode(value: WallpaperMode | undefined): WallpaperMode | undefined {

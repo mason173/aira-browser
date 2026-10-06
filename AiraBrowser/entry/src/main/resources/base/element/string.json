@@ -12657,8 +12657,12 @@
       "value": "上下分栏"
     },
     {
+      "name": "toolbar_settings_style_dock",
+      "value": "搜索导航"
+    },
+    {
       "name": "toolbar_settings_style_footer",
-      "value": "上下分栏把地址栏放在顶部、导航放在底部。"
+      "value": "上下分栏把地址栏放在顶部、导航放在底部；搜索导航把搜索框放在底部导航按钮的上方，不占用顶部。"
     },
     {
       "name": "toolbar_settings_behavior_section",
@@ -12671,6 +12675,10 @@
     {
       "name": "toolbar_settings_behavior_footer_floating",
       "value": "向下滚动网页时，工具栏可以保持显示、收起为胶囊或完全隐藏。"
+    },
+    {
+      "name": "toolbar_settings_behavior_footer_dock",
+      "value": "向下滚动网页时，可以选择保持搜索导航，或同时收起搜索框和底部导航。"
     },
     {
       "name": "toolbar_settings_top_immersion_section",
@@ -12725,6 +12733,10 @@
       "value": "主页按钮可自定义。返回、前进、标签页和菜单的单击固定，长按仍可设置。"
     },
     {
+      "name": "toolbar_settings_preview_footer_dock",
+      "value": "底部导航按钮固定，不能自定义。"
+    },
+    {
       "name": "toolbar_settings_capsule_swipe_title",
       "value": "中间区域上滑"
     },
@@ -12747,6 +12759,10 @@
     {
       "name": "toolbar_settings_reset_dialog_floating",
       "value": "会恢复四个按钮的单击、长按和上滑设置，不会改变展开工具栏的快捷入口顺序。"
+    },
+    {
+      "name": "toolbar_settings_reset_dialog_dock",
+      "value": "搜索导航的按钮固定，没有可恢复的自定义设置。"
     },
     {
       "name": "toolbar_settings_error_style",

@@ -8,6 +8,11 @@ import {
 } from '../../../common/models/BrowserModels';
 import { BrowserSearchEnginePresentationViewModel } from '../../../core/browser/BrowserSearchEnginePresentationViewModel';
 import {
+  DOCK_TOOLBAR_BOTTOM_BLOCK_VP,
+  DOCK_TOOLBAR_NAV_ROW_VP,
+  DOCK_TOOLBAR_PILL_ROW_GAP_VP,
+  DOCK_TOOLBAR_PILL_ROW_TOP_GAP_VP,
+  DOCK_TOOLBAR_PILL_ROW_VP,
   SPLIT_TOOLBAR_ADDRESS_BLOCK_VP,
   SPLIT_TOOLBAR_ADDRESS_HORIZONTAL_MARGIN_VP,
   SPLIT_TOOLBAR_BOTTOM_BAR_VP,
@@ -43,6 +48,12 @@ const SPLIT_TOOLBAR_PILL_HEIGHT: number = SPLIT_TOOLBAR_PILL_ROW_VP;
 const SPLIT_TOOLBAR_TOP_ROW_BOTTOM_GAP: number = SPLIT_TOOLBAR_TOP_ROW_BOTTOM_GAP_VP;
 const SPLIT_TOOLBAR_SEARCH_PILL_BORDER: number = 2;
 const SPLIT_TOOLBAR_ADDRESS_HORIZONTAL_MARGIN: number = SPLIT_TOOLBAR_ADDRESS_HORIZONTAL_MARGIN_VP;
+/** Dock search pill row and gaps, matching the dock block height the policy reserves. */
+const DOCK_TOOLBAR_PILL_ROW_HEIGHT: number = DOCK_TOOLBAR_PILL_ROW_VP;
+const DOCK_TOOLBAR_NAV_ROW_HEIGHT: number = DOCK_TOOLBAR_NAV_ROW_VP;
+const DOCK_TOOLBAR_PILL_ROW_TOP_GAP: number = DOCK_TOOLBAR_PILL_ROW_TOP_GAP_VP;
+const DOCK_TOOLBAR_PILL_ROW_GAP: number = DOCK_TOOLBAR_PILL_ROW_GAP_VP;
+const DOCK_TOOLBAR_BOTTOM_BLOCK: number = DOCK_TOOLBAR_BOTTOM_BLOCK_VP;
 const SPLIT_TOOLBAR_TAB_COUNT_LIMIT: number = 99;
 const SPLIT_TOOLBAR_NAV_BUTTON_WIDTH: number = 48;
 const SPLIT_TOOLBAR_NAV_BUTTON_HEIGHT: number = 44;
@@ -90,6 +101,11 @@ export struct BrowserSplitToolbarChrome {
     new BrowserSplitToolbarSearchOpen(0, '', false);
   @Prop sessionMode: BrowserSplitToolbarSessionMode = 'chrome';
   /**
+   * The two-row frame has one geometry and two paints. `split` keeps the bordered address pill and
+   * its customizable bar; `dock` rests as a search box and leaves the fixed dock to the bottom row.
+   */
+  @Prop chromeStyle: 'split' | 'dock' = 'split';
+  /**
    * The centered homepage already has a search field, so that home hides this row. Minimal keeps
    * the row: the line opens search, and the scan button stays on the right. Web pages keep it too.
    */
@@ -126,6 +142,11 @@ export struct BrowserSplitToolbarChrome {
   @Prop bottomChromeReserveVp: number = -1;
   @Prop pageBackgroundColor: ResourceColor = '#FFFFFF';
   @Prop barBackgroundColor: ResourceColor = '#FFFFFF';
+  /**
+   * Dock block backplate. The dock paints the neutral page tone so its white search box reads as a
+   * floating field, instead of the split row's surface color. A wallpaper home clears it.
+   */
+  @Prop dockBarBackgroundColor: ResourceColor = '#F2F3F5';
   @Prop pressedBackgroundColor: ResourceColor = '#14000000';
   @Prop textColor: ResourceColor = '#111111';
   @Prop secondaryTextColor: ResourceColor = '#8A8A8E';
@@ -175,7 +196,11 @@ export struct BrowserSplitToolbarChrome {
         }
         Blank()
         if (this.shouldShowBottomBar()) {
-          this.buildBottomBar()
+          if (this.chromeStyle === 'dock') {
+            this.buildDockBottomBlock()
+          } else {
+            this.buildBottomBar()
+          }
         }
       }
       .width('100%')
@@ -316,6 +341,79 @@ export struct BrowserSplitToolbarChrome {
     .borderRadius(23)
     .backgroundColor(this.resolveBarBackground())
     .clip(true)
+  }
+
+  /**
+   * Dock-style resting row: one rounded search box with a magnifier, centered text and a scan
+   * button. It carries no per-button taps, so the whole box opens search. The web scene shows the
+   * page address, the home scene the search placeholder.
+   */
+  @Builder
+  private buildDockPill() {
+    Stack() {
+      Row()
+        .width('100%')
+        .height('100%')
+        .onClick(() => {
+          this.onRequestSearchOpen();
+        })
+
+      Row() {
+        AiraIcon({
+          airaIconId: 'browser.toolbar.search',
+          iconSize: 20,
+          iconColor: this.secondaryTextColor
+        })
+
+        Text(this.resolveDockPillText())
+          .layoutWeight(1)
+          .fontSize(16)
+          .fontColor(this.resolveDockPillIsPlaceholder() ? this.secondaryTextColor : this.textColor)
+          .textAlign(TextAlign.Center)
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+          .hitTestBehavior(HitTestMode.None)
+
+        Button() {
+          AiraIcon({
+            airaIconId: 'browser.toolbar.scanQr',
+            iconSize: 20,
+            iconColor: this.secondaryTextColor
+          })
+        }
+        .width(32)
+        .height(32)
+        .type(ButtonType.Circle)
+        .buttonStyle(ButtonStyleMode.TEXTUAL)
+        .backgroundColor(Color.Transparent)
+        .stateEffect(false)
+        .onClick(() => {
+          this.onScan();
+        })
+      }
+      .width('100%')
+      .height('100%')
+      .padding({ left: 14, right: 6 })
+      .alignItems(VerticalAlign.Center)
+      .hitTestBehavior(HitTestMode.Transparent)
+    }
+    .width('100%')
+    .height(DOCK_TOOLBAR_PILL_ROW_HEIGHT)
+    .borderRadius(DOCK_TOOLBAR_PILL_ROW_HEIGHT / 2)
+    .backgroundColor(this.pageBackgroundColor)
+    .shadow({ radius: 6, color: '#14000000', offsetY: 2 })
+    .clip(true)
+  }
+
+  private resolveDockPillText(): ResourceStr {
+    if (this.resolveDockPillIsPlaceholder()) {
+      return $r('app.string.aira_search_card_placeholder');
+    }
+    return this.displayAddress;
+  }
+
+  private resolveDockPillIsPlaceholder(): boolean {
+    return this.homeScene || this.displayAddress.trim().length === 0;
   }
 
   @Builder
@@ -662,6 +760,60 @@ export struct BrowserSplitToolbarChrome {
     })
   }
 
+  /**
+   * The dock bottom block: the resting search pill directly above the fixed navigation row, both
+   * on one opaque backplate. There is no top bar, so the whole block collapses as one piece when
+   * the scroll presentation asks the bars to leave.
+   */
+  @Builder
+  private buildDockBottomBlock() {
+    Column() {
+      Column() {
+        this.buildDockPill()
+      }
+      .width('100%')
+      .padding({
+        left: SPLIT_TOOLBAR_ADDRESS_HORIZONTAL_MARGIN,
+        right: SPLIT_TOOLBAR_ADDRESS_HORIZONTAL_MARGIN,
+        top: DOCK_TOOLBAR_PILL_ROW_TOP_GAP,
+        bottom: DOCK_TOOLBAR_PILL_ROW_GAP
+      })
+
+      BrowserSplitToolbarButtonRow({
+        buttons: this.buttons,
+        homeScene: this.homeScene,
+        tabCount: this.tabCount,
+        textColor: this.resolveHomeChromeIconColor(),
+        secondaryTextColor: this.resolveHomeChromeSecondaryIconColor(),
+        pressedBackgroundColor: this.resolveHomeChromePressedColor(),
+        onTap: (slotId: string): void => {
+          this.onButtonTap(slotId);
+        },
+        onLongPress: (slotId: string): void => {
+          this.onButtonLongPress(slotId);
+        }
+      })
+        .width('100%')
+        .height(DOCK_TOOLBAR_NAV_ROW_HEIGHT)
+
+      Blank()
+        .width('100%')
+        .height(this.resolveBottomInset())
+    }
+    .width('100%')
+    .height(this.resolveBottomChromeHeight())
+    .backgroundColor(this.resolveBarBackground())
+    .hitTestBehavior(this.shouldCollapseBars() ? HitTestMode.None : HitTestMode.BLOCK_HIERARCHY)
+    .translate({ y: this.shouldCollapseBars() ? this.resolveBottomChromeHeight() : 0 })
+    .opacity(this.shouldCollapseBars() ? 0 : 1)
+    .animation({
+      duration: SPLIT_TOOLBAR_SCROLL_COLLAPSE_DURATION_MS,
+      curve: Curve.EaseOut
+    })
+    .onTouch((_event: TouchEvent) => {
+    })
+  }
+
   private openSearch(prefill: string, selectAll: boolean): void {
     this.clearAddressSelectAllTimeout();
     this.query = prefill;
@@ -823,6 +975,9 @@ export struct BrowserSplitToolbarChrome {
   }
 
   private resolveBarBackground(): ResourceColor {
+    if (this.chromeStyle === 'dock') {
+      return this.dockBarBackgroundColor;
+    }
     return this.searching ? this.pageBackgroundColor : this.barBackgroundColor;
   }
 
@@ -847,6 +1002,11 @@ export struct BrowserSplitToolbarChrome {
   }
 
   private shouldShowTopBar(): boolean {
+    // The dock frame has no resting top bar: its search pill sits in the bottom block. It still
+    // borrows the top row for the search page, because that field is the search session's input.
+    if (this.chromeStyle === 'dock' && !this.searching && this.sessionMode !== 'search_only') {
+      return false;
+    }
     if (this.homeScene && this.suppressHomeAddressBar) {
       return false;
     }
@@ -1040,7 +1200,12 @@ export struct BrowserSplitToolbarChrome {
     if (this.bottomChromeReserveVp >= 0) {
       return this.bottomChromeReserveVp;
     }
-    return SPLIT_TOOLBAR_BOTTOM_BAR_VP + this.resolveBottomInset();
+    return this.resolveBottomBlockHeight() + this.resolveBottomInset();
+  }
+
+  /** The dock stacks its search row over the navigation row; the split frame is the nav row alone. */
+  private resolveBottomBlockHeight(): number {
+    return this.chromeStyle === 'dock' ? DOCK_TOOLBAR_BOTTOM_BLOCK : SPLIT_TOOLBAR_BOTTOM_BAR_VP;
   }
 
   private resolveSearchSheetBottomInset(): number {

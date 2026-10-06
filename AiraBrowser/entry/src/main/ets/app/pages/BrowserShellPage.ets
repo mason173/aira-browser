@@ -238,6 +238,8 @@ import {
   resolveCurrentSiteUrl
 } from '../../core/browser/AddressDisplayFormatter';
 import {
+  DOCK_TOOLBAR_BOTTOM_BLOCK_VP,
+  isSplitFamilyStyle,
   isSplitToolbarChromeActive,
   resolveSplitToolbarBarBackgroundColor,
   resolveSplitToolbarCanGoBack,
@@ -5706,7 +5708,7 @@ struct BrowserShellPage {
           // waits until the user is looking at it, and never over the homepage.
           appVisible: this.isBrowserShellVisible && this.browserPageForeground,
           webPageVisible: this.isWebPageVisible(),
-          floatingToolbarChromeActive: this.toolbarChromeStyle !== 'split',
+          floatingToolbarChromeActive: !isSplitFamilyStyle(this.toolbarChromeStyle),
           privacyMode: this.tabScopedEventContextCoordinator.resolveCurrentBoundary().privacyMode,
           promptBlockingFacts: this.buildTransientPromptBlockingFacts()
         };
@@ -6671,7 +6673,7 @@ struct BrowserShellPage {
       this.syncWebBottomSafeAreaEnabled();
       this.browserWebBottomSafeAreaCoordinator.requestCheck(this.activeTabId);
       this.syncWebToolbarClearance();
-      if (this.toolbarChromeStyle === 'split' && !this.isLargeScreenShellFamilyActive()) {
+      if (isSplitFamilyStyle(this.toolbarChromeStyle) && !this.isLargeScreenShellFamilyActive()) {
         this.browserWebScrollInteractionCoordinator.applyBottomToolbarScrollBehavior(
           resolveSplitToolbarScrollBehavior(appearance.bottomToolbarScrollBehavior),
           this.activeTabId
@@ -8613,12 +8615,16 @@ struct BrowserShellPage {
       addressRowSafeInsetVp: this.homeTopSafeInsetVp,
       bottomRowSafeInsetVp: this.homeBottomSafeInsetVp,
       contentGapVp: WEB_TOP_CHROME_CONTENT_GAP_VP,
-      addressRowPainted: rowsOnScreen && splitFrameActive && !this.splitAddressBarCollapsedByImmersion,
-      bottomRowPainted: rowsOnScreen && splitFrameActive
+      // The dock frame has no top row: its search pill lives in the bottom block, so the page
+      // never clears an address row for it.
+      addressRowPainted: rowsOnScreen && splitFrameActive && !this.usesDockToolbarChrome() &&
+        !this.splitAddressBarCollapsedByImmersion,
+      bottomRowPainted: rowsOnScreen && splitFrameActive,
+      bottomBlockHeightVp: this.resolveBottomChromeBlockVp()
     }).topVp;
   }
 
-  /** Bottom edge the web page keeps for the split bottom row that is on screen. */
+  /** Bottom edge the web page keeps for the bottom row (or dock block) that is on screen. */
   private resolveChromeRowBottomReservePx(): number {
     const splitFrameActive = this.isSplitToolbarChromeActiveHere();
     const rowsOnScreen = this.shouldUseSplitToolbarChrome() && !this.shouldCollapseSplitToolbarBars();
@@ -8629,9 +8635,20 @@ struct BrowserShellPage {
       addressRowSafeInsetVp: this.homeTopSafeInsetVp,
       bottomRowSafeInsetVp: this.homeBottomSafeInsetVp,
       contentGapVp: WEB_TOP_CHROME_CONTENT_GAP_VP,
-      addressRowPainted: rowsOnScreen && splitFrameActive && !this.splitAddressBarCollapsedByImmersion,
-      bottomRowPainted: rowsOnScreen && splitFrameActive
+      addressRowPainted: rowsOnScreen && splitFrameActive && !this.usesDockToolbarChrome() &&
+        !this.splitAddressBarCollapsedByImmersion,
+      bottomRowPainted: rowsOnScreen && splitFrameActive,
+      bottomBlockHeightVp: this.resolveBottomChromeBlockVp()
     }).bottomVp;
+  }
+
+  /** Painted height of the bottom block above its safe inset: the dock block, else the nav row. */
+  private resolveBottomChromeBlockVp(): number {
+    return this.usesDockToolbarChrome() ? DOCK_TOOLBAR_BOTTOM_BLOCK_VP : SPLIT_TOOLBAR_BOTTOM_BAR_VP;
+  }
+
+  private usesDockToolbarChrome(): boolean {
+    return this.toolbarChromeStyle === 'dock' && !this.isLargeScreenShellFamilyActive();
   }
 
   /**
@@ -9260,6 +9277,7 @@ struct BrowserShellPage {
   private buildSplitToolbarSearchHost(sessionMode: BrowserSplitToolbarSessionMode) {
     BrowserSplitToolbarChrome({
       sessionMode: sessionMode,
+      chromeStyle: this.toolbarChromeStyle === 'dock' ? 'dock' : 'split',
       suppressHomeAddressBar: this.shouldSuppressSplitHomeAddressBar(),
       homeSearchGeometry: this.isCenteredHomePageStyleActive(),
       centeredSearchPresented: this.centeredHomeSearchGeometryOpen,
@@ -9294,6 +9312,7 @@ struct BrowserShellPage {
       searchDismissVersion: this.splitToolbarSearchDismissVersion,
       pageBackgroundColor: this.themedHomeSurfaceBackground,
       barBackgroundColor: this.readSplitToolbarBarBackgroundColor(),
+      dockBarBackgroundColor: this.readDockToolbarBarBackgroundColor(),
       pressedBackgroundColor: this.themedHomePressedBackground,
       textColor: this.themedHomeTextPrimaryColor,
       secondaryTextColor: this.themedHomeTextSecondaryColor,
@@ -9370,6 +9389,17 @@ struct BrowserShellPage {
       homeBackgroundColor: this.themedHomeBackground,
       surfaceBackgroundColor: this.themedHomeSurfaceBackground
     });
+  }
+
+  /**
+   * Dock block backplate: the neutral page tone on a system home so its white search box reads as a
+   * field, and cleared over a painted wallpaper exactly like the split bars.
+   */
+  private readDockToolbarBarBackgroundColor(): string {
+    if (this.usesWallpaperSplitToolbarChrome()) {
+      return SPLIT_TOOLBAR_CLEARED_BAR_COLOR;
+    }
+    return this.themedHomeBackground;
   }
 
   private usesWallpaperSplitToolbarChrome(): boolean {
@@ -9629,6 +9659,12 @@ struct BrowserShellPage {
     if (this.toolbarLayoutVersion < 0) {
       return [];
     }
+    if (this.toolbarChromeStyle === 'dock') {
+      return this.splitToolbarCustomizationViewModel.buildDockPresentations(
+        this.resolveSplitToolbarCanGoBack(),
+        this.resolveSplitToolbarCanGoForward()
+      );
+    }
     return this.splitToolbarCustomizationViewModel.buildPresentations(
       sharedPreferencesRepository.getPreferences().toolbarLayout,
       this.showHomePage ? 'home' : 'web',
@@ -9638,11 +9674,13 @@ struct BrowserShellPage {
   }
 
   private handleSplitToolbarButton(slotId: string, kind: 'tap' | 'longPress'): void {
-    const action = this.splitToolbarCustomizationViewModel.resolveDispatchAction(
-      sharedPreferencesRepository.getPreferences().toolbarLayout,
-      slotId,
-      kind
-    );
+    const action = this.toolbarChromeStyle === 'dock' ?
+      this.splitToolbarCustomizationViewModel.resolveDockDispatch(slotId, kind) :
+      this.splitToolbarCustomizationViewModel.resolveDispatchAction(
+        sharedPreferencesRepository.getPreferences().toolbarLayout,
+        slotId,
+        kind
+      );
     if (action === undefined || action.id === 'none' || action.dispatchKind === 'none') {
       return;
     }
@@ -10575,7 +10613,9 @@ struct BrowserShellPage {
   }
 
   private resolveHomeContentTopSafeInsetVp(): number {
-    if (!this.shouldReserveSplitToolbarHomeInsets() || this.shouldSuppressSplitHomeAddressBar()) {
+    // The dock frame paints no top row, so home content keeps only the system strip.
+    if (!this.shouldReserveSplitToolbarHomeInsets() || this.shouldSuppressSplitHomeAddressBar() ||
+      this.usesDockToolbarChrome()) {
       return this.homeTopSafeInsetVp;
     }
     return this.homeTopSafeInsetVp + SPLIT_TOOLBAR_ADDRESS_BLOCK_VP;
@@ -10595,12 +10635,16 @@ struct BrowserShellPage {
   }
 
   private resolveHomeBottomChromeReserveVp(): number {
-    return this.shouldReserveSplitToolbarHomeInsets() ?
-      SPLIT_TOOLBAR_BOTTOM_BAR_VP : BROWSER_BOTTOM_ADDRESS_PANEL_LOW_HEIGHT;
+    if (!this.shouldReserveSplitToolbarHomeInsets()) {
+      return BROWSER_BOTTOM_ADDRESS_PANEL_LOW_HEIGHT;
+    }
+    // Home reserves the block the frame actually paints: the dock stacks its search row above the
+    // navigation row, the split frame reserves the navigation row alone.
+    return this.usesDockToolbarChrome() ? DOCK_TOOLBAR_BOTTOM_BLOCK_VP : SPLIT_TOOLBAR_BOTTOM_BAR_VP;
   }
 
   private isWebBottomSafeAreaChromeActive(): boolean {
-    return this.toolbarChromeStyle !== 'split' && !this.isLargeScreenShellFamilyActive();
+    return !isSplitFamilyStyle(this.toolbarChromeStyle) && !this.isLargeScreenShellFamilyActive();
   }
 
   private syncWebBottomSafeAreaEnabled(): void {

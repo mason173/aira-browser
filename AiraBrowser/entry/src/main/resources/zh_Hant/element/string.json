@@ -12657,8 +12657,12 @@
       "value": "上下分欄"
     },
     {
+      "name": "toolbar_settings_style_dock",
+      "value": "搜尋導覽"
+    },
+    {
       "name": "toolbar_settings_style_footer",
-      "value": "上下分欄把位址列放在頂部、導航放在底部。"
+      "value": "上下分欄把位址列放在頂部、導覽放在底部；搜尋導覽把搜尋框放在底部導覽按鈕的上方，不佔用頂部。"
     },
     {
       "name": "toolbar_settings_behavior_section",
@@ -12671,6 +12675,10 @@
     {
       "name": "toolbar_settings_behavior_footer_floating",
       "value": "向下滾動網頁時，工具欄可以保持顯示、收起為膠囊或完全隱藏。"
+    },
+    {
+      "name": "toolbar_settings_behavior_footer_dock",
+      "value": "向下滾動網頁時，可以選擇保持搜尋導覽，或同時收起搜尋框和底部導覽。"
     },
     {
       "name": "toolbar_settings_top_immersion_section",
@@ -12725,6 +12733,10 @@
       "value": "主頁按鈕可自定義。返回、前進、標籤頁和選單的單擊固定，長按仍可設定。"
     },
     {
+      "name": "toolbar_settings_preview_footer_dock",
+      "value": "底部導覽按鈕固定，不能自定義。"
+    },
+    {
       "name": "toolbar_settings_capsule_swipe_title",
       "value": "中間區域上滑"
     },
@@ -12747,6 +12759,10 @@
     {
       "name": "toolbar_settings_reset_dialog_floating",
       "value": "會恢復四個按鈕的單擊、長按和上滑設定，不會改變展開工具欄的快捷入口順序。"
+    },
+    {
+      "name": "toolbar_settings_reset_dialog_dock",
+      "value": "搜尋導覽的按鈕固定，沒有可恢復的自定義設定。"
     },
     {
       "name": "toolbar_settings_error_style",

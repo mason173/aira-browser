@@ -1,4 +1,5 @@
 import { BrowserToolbarPreview } from './BrowserToolbarPreview';
+import { AiraIcon } from '../common/AiraIcon';
 import { BrowserSplitToolbarButtonRow } from '../browser/BrowserSplitToolbarChrome';
 import { DEFAULT_THEME_PALETTE } from '../../../features/theme/palettes/DefaultThemePalette';
 import { showCenteredAlertDialog } from '../common/CenteredDialogSurface';
@@ -8,6 +9,7 @@ import {
   BrowserToolbarLayoutSettings
 } from '../../../common/models/BrowserModels';
 import {
+  isSplitFamilyStyle,
   resolveScrollTopImmersionFooter,
   resolveSplitToolbarScrollBehavior,
   resolveTopImmersionPreference,
@@ -541,6 +543,21 @@ export struct BrowserToolbarCustomizationScreen {
               this.updateToolbarChromeStyle('split');
             }
           })
+          SettingsDesktopDivider({ dividerColor: this.storedDividerColor })
+          SettingsDesktopOptionRow({
+            title: $r('app.string.toolbar_settings_style_dock'),
+            isSelected: this.toolbarChromeStyle === 'dock',
+            isEnabled: !this.saving,
+            radioGroup: 'browser-toolbar-chrome-style',
+            radioValue: 'dock',
+            primaryTextColor: this.storedPrimaryTextColor,
+            secondaryTextColor: this.storedSecondaryTextColor,
+            hoverBackgroundColor: this.resolvePressedBackgroundColor(),
+            focusColor: this.storedAccentColor,
+            onAction: () => {
+              this.updateToolbarChromeStyle('dock');
+            }
+          })
         }
       } else {
         SettingsGroupCard({ surfaceColor: this.storedSurfaceBackgroundColor }) {
@@ -563,12 +580,26 @@ export struct BrowserToolbarCustomizationScreen {
             isSelected: this.toolbarChromeStyle === 'split',
             radioGroup: 'browser-toolbar-chrome-style',
             radioValue: 'split',
-            rowPosition: 'last',
+            rowPosition: 'middle',
             primaryTextColor: this.storedPrimaryTextColor,
             secondaryTextColor: this.storedSecondaryTextColor,
             pressedBackgroundColor: this.resolvePressedBackgroundColor(),
             onAction: () => {
               this.updateToolbarChromeStyle('split');
+            }
+          })
+          SettingsGroupDivider({ dividerColor: this.storedDividerColor })
+          SettingsOptionRow({
+            title: $r('app.string.toolbar_settings_style_dock'),
+            isSelected: this.toolbarChromeStyle === 'dock',
+            radioGroup: 'browser-toolbar-chrome-style',
+            radioValue: 'dock',
+            rowPosition: 'last',
+            primaryTextColor: this.storedPrimaryTextColor,
+            secondaryTextColor: this.storedSecondaryTextColor,
+            pressedBackgroundColor: this.resolvePressedBackgroundColor(),
+            onAction: () => {
+              this.updateToolbarChromeStyle('dock');
             }
           })
         }
@@ -624,9 +655,11 @@ export struct BrowserToolbarCustomizationScreen {
         }
       }
       SettingsFooterText({
-        text: this.toolbarChromeStyle === 'split' ?
-          $r('app.string.toolbar_settings_behavior_footer_split') :
-          $r('app.string.toolbar_settings_behavior_footer_floating'),
+        text: this.toolbarChromeStyle === 'dock' ?
+          $r('app.string.toolbar_settings_behavior_footer_dock') :
+          this.toolbarChromeStyle === 'split' ?
+            $r('app.string.toolbar_settings_behavior_footer_split') :
+            $r('app.string.toolbar_settings_behavior_footer_floating'),
         secondaryTextColor: this.storedSecondaryTextColor
       })
     }
@@ -719,6 +752,8 @@ export struct BrowserToolbarCustomizationScreen {
       }) {
         if (this.toolbarChromeStyle === 'split') {
           this.buildSplitToolbarPreview()
+        } else if (this.toolbarChromeStyle === 'dock') {
+          this.buildDockToolbarPreview()
         } else {
           this.buildFloatingToolbarPreview()
         }
@@ -785,6 +820,55 @@ export struct BrowserToolbarCustomizationScreen {
       })
         .width('100%')
         .height(56)
+    }
+    .width('100%')
+    .padding({ left: 8, right: 8, top: 12, bottom: 12 })
+  }
+
+  /**
+   * The dock style paints a resting search box over a fixed five-button row. The preview shows
+   * both, and the buttons are inert: the dock has no customizable slots to open.
+   */
+  @Builder
+  private buildDockToolbarPreview() {
+    Column({ space: 6 }) {
+      Row() {
+        AiraIcon({
+          airaIconId: 'browser.toolbar.search',
+          iconSize: 20,
+          iconColor: this.storedSecondaryTextColor
+        })
+        Text($r('app.string.aira_search_card_placeholder'))
+          .layoutWeight(1)
+          .fontSize(16)
+          .fontColor(this.storedSecondaryTextColor)
+          .textAlign(TextAlign.Center)
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+        AiraIcon({
+          airaIconId: 'browser.toolbar.scanQr',
+          iconSize: 20,
+          iconColor: this.storedSecondaryTextColor
+        })
+      }
+      .width('100%')
+      .height(40)
+      .padding({ left: 14, right: 14 })
+      .alignItems(VerticalAlign.Center)
+      .borderRadius(20)
+      .backgroundColor(this.storedSurfaceBackgroundColor)
+      .shadow({ radius: 6, color: '#14000000', offsetY: 2 })
+
+      BrowserSplitToolbarButtonRow({
+        buttons: this.splitViewModel.buildDockPresentations(true, true),
+        homeScene: false,
+        tabCount: 1,
+        textColor: this.storedPrimaryTextColor,
+        secondaryTextColor: this.storedSecondaryTextColor,
+        pressedBackgroundColor: this.resolvePressedBackgroundColor()
+      })
+        .width('100%')
+        .height(46)
     }
     .width('100%')
     .padding({ left: 8, right: 8, top: 12, bottom: 12 })
@@ -1240,7 +1324,7 @@ export struct BrowserToolbarCustomizationScreen {
   }
 
   private isScrollTopImmersionSwitchEnabled(): boolean {
-    return this.toolbarChromeStyle === 'split' || !this.alwaysTopImmersionEnabled;
+    return isSplitFamilyStyle(this.toolbarChromeStyle) || !this.alwaysTopImmersionEnabled;
   }
 
   private updateTopImmersion(kind: ToolbarTopImmersionSwitch, enabled: boolean): void {
@@ -1335,9 +1419,11 @@ export struct BrowserToolbarCustomizationScreen {
     }
     showCenteredAlertDialog({
       title: $r('app.string.toolbar_settings_reset_dialog_title'),
-      message: this.toolbarChromeStyle === 'split' ?
-        $r('app.string.toolbar_settings_reset_dialog_split') :
-        $r('app.string.toolbar_settings_reset_dialog_floating'),
+      message: this.toolbarChromeStyle === 'dock' ?
+        $r('app.string.toolbar_settings_reset_dialog_dock') :
+        this.toolbarChromeStyle === 'split' ?
+          $r('app.string.toolbar_settings_reset_dialog_split') :
+          $r('app.string.toolbar_settings_reset_dialog_floating'),
       autoCancel: true,
       primaryButton: {
         value: $r('app.string.settings_account_cancel'),
@@ -1388,6 +1474,9 @@ export struct BrowserToolbarCustomizationScreen {
   }
 
   private resolvePreviewFooterText(): ResourceStr {
+    if (this.toolbarChromeStyle === 'dock') {
+      return $r('app.string.toolbar_settings_preview_footer_dock');
+    }
     if (this.toolbarChromeStyle !== 'split') {
       return $r('app.string.toolbar_settings_preview_footer_floating');
     }
@@ -1606,6 +1695,10 @@ export struct BrowserToolbarCustomizationScreen {
   }
 
   private hasCustomizedToolbarSlots(): boolean {
+    if (this.toolbarChromeStyle === 'dock') {
+      // The dock row is fixed: it has no slot to customize, so there is nothing to reset.
+      return false;
+    }
     if (this.toolbarChromeStyle === 'split') {
       return this.splitViewModel.hasCustomizations(this.settings);
     }
@@ -1636,7 +1729,8 @@ export struct BrowserToolbarCustomizationScreen {
   private resolveScrollBehaviorForStyle(
     behavior: BrowserBottomToolbarScrollBehavior
   ): BrowserBottomToolbarScrollBehavior {
-    return this.toolbarChromeStyle === 'split' ? resolveSplitToolbarScrollBehavior(behavior) : behavior;
+    return isSplitFamilyStyle(this.toolbarChromeStyle) ?
+      resolveSplitToolbarScrollBehavior(behavior) : behavior;
   }
 
   private isScrollBehaviorOptionSelected(behavior: BrowserBottomToolbarScrollBehavior): boolean {

@@ -862,7 +862,7 @@ export class PreferencesRepository {
     const current = this.cachedPreferences.appearance;
     return this.updateAppearanceSettings({
       bottomToolbarScrollBehavior: current.bottomToolbarScrollBehavior,
-      toolbarChromeStyle: style === 'split' ? 'split' : 'floating',
+      toolbarChromeStyle: style === 'split' ? 'split' : style === 'dock' ? 'dock' : 'floating',
       globalImmersionEnabled: current.globalImmersionEnabled,
       alwaysTopImmersionEnabled: current.alwaysTopImmersionEnabled,
       forceDarkWebContentEnabled: current.forceDarkWebContentEnabled,
@@ -1255,7 +1255,7 @@ export class PreferencesRepository {
   private normalizeToolbarChromeStyle(
     value: string | undefined
   ): BrowserToolbarChromeStyle {
-    return value === 'split' ? 'split' : 'floating';
+    return value === 'split' || value === 'dock' ? value : 'floating';
   }
 
   private normalizeBottomToolbarScrollBehavior(
