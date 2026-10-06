@@ -25,6 +25,7 @@ import {
   BROWSER_THEME_STORAGE_CONTROL_BACKGROUND_KEY,
   BROWSER_THEME_STORAGE_PAGE_BACKGROUND_KEY,
   BROWSER_THEME_STORAGE_RESOLVED_MODE_KEY,
+  BROWSER_THEME_STORAGE_SURFACE_BACKGROUND_KEY,
   BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY,
   BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY
 } from '../../../core/theme/BrowserThemeStorageKeys';
@@ -126,6 +127,8 @@ export struct SystemHomepageLivePreview {
   private homeLayoutViewModel: HomeResponsiveLayoutViewModel = new HomeResponsiveLayoutViewModel();
   private shortcutLogicService: HomeShortcutLogicService = new HomeShortcutLogicService();
   @StorageProp(BROWSER_THEME_STORAGE_PAGE_BACKGROUND_KEY) private storedPageBackgroundColor: string = '#F4F6F8';
+  @StorageProp(BROWSER_THEME_STORAGE_SURFACE_BACKGROUND_KEY)
+  private storedSurfaceBackgroundColor: string = '#FFFFFF';
   @StorageProp(BROWSER_THEME_STORAGE_RESOLVED_MODE_KEY) private storedResolvedThemeMode: string = 'light';
   @StorageProp(HOME_PAGE_PRESENTATION_HOME_LOGO_SCALE_RATIO_KEY)
   private storedLogoScaleRatio: number = HOME_LOGO_SCALE_DEFAULT_RATIO;
@@ -926,7 +929,7 @@ export struct SystemHomepageLivePreview {
       .height(this.unit(34))
       .padding({ left: this.unit(12), right: this.unit(12) })
       .borderRadius(this.unit(17))
-      .backgroundColor(this.resolveContentBackground())
+      .backgroundColor(this.resolveDockSearchFill())
       .alignItems(VerticalAlign.Center)
 
       Row() {
@@ -1104,6 +1107,11 @@ export struct SystemHomepageLivePreview {
 
   private resolveContentBackground(): ResourceColor {
     return this.hasPaintedWallpaper() ? Color.Transparent : this.storedPageBackgroundColor;
+  }
+
+  /** The dock search box is a white field on the bar, even over a painted wallpaper. */
+  private resolveDockSearchFill(): ResourceColor {
+    return this.storedSurfaceBackgroundColor;
   }
 
   /**
