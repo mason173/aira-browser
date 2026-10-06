@@ -42,6 +42,7 @@ import {
   ExternalAppSearchTarget
 } from '../../../services/search/ExternalAppSearchService';
 import { sharedExternalAppSearchPreferencesRepository } from '../../bootstrap/BrowserAppRuntime';
+import { BROWSER_THEME_STORAGE_DIVIDER_KEY } from '../../../core/theme/BrowserThemeStorageKeys';
 
 const SPLIT_TOOLBAR_PILL_HEIGHT: number = SPLIT_TOOLBAR_PILL_ROW_VP;
 /** Under-pill gap of the top row. The web reserve is built from the policy, so it lives there. */
@@ -69,6 +70,8 @@ const DOCK_SEARCH_EDGE_PADDING: number = 16;
 const DOCK_SEARCH_EDITOR_HEIGHT: number = 46;
 const DOCK_SEARCH_EDITOR_TOP_GAP: number = 10;
 const DOCK_SEARCH_EDITOR_BOTTOM_GAP: number = 10;
+/** Hairline along the dock block's top edge so it separates from the page behind it. */
+const DOCK_TOOLBAR_TOP_DIVIDER_WIDTH: number = 0.5;
 
 /** `search_only` reuses this search page without mounting the split navigation bar. */
 export type BrowserSplitToolbarSessionMode = 'chrome' | 'search_only';
@@ -154,6 +157,11 @@ export struct BrowserSplitToolbarChrome {
    * floating field, instead of the split row's surface color. A wallpaper home clears it.
    */
   @Prop dockBarBackgroundColor: ResourceColor = '#F2F3F5';
+  /**
+   * Hairline along the dock block's top edge. The dock backplate shares the page tone, so without
+   * this line the resting search box blends into the web page behind it.
+   */
+  @StorageProp(BROWSER_THEME_STORAGE_DIVIDER_KEY) private storedDividerColor: string = '#1F000000';
   @Prop pressedBackgroundColor: ResourceColor = '#14000000';
   @Prop textColor: ResourceColor = '#111111';
   @Prop secondaryTextColor: ResourceColor = '#8A8A8E';
@@ -357,9 +365,9 @@ export struct BrowserSplitToolbarChrome {
   }
 
   /**
-   * Dock-style resting row: one rounded search box with a magnifier, centered text and a scan
+   * Dock-style resting row: one rounded search box with a magnifier, centered text and a trailing
    * button. It carries no per-button taps, so the whole box opens search. The web scene shows the
-   * page address, the home scene the search placeholder.
+   * page address and a reload button, the home scene the search placeholder and a scan button.
    */
   @Builder
   private buildDockPill() {
@@ -389,7 +397,7 @@ export struct BrowserSplitToolbarChrome {
 
         Button() {
           AiraIcon({
-            airaIconId: 'browser.toolbar.scanQr',
+            airaIconId: this.resolveDockTrailingIconId(),
             iconSize: 20,
             iconColor: this.secondaryTextColor
           })
@@ -400,8 +408,9 @@ export struct BrowserSplitToolbarChrome {
         .buttonStyle(ButtonStyleMode.TEXTUAL)
         .backgroundColor(Color.Transparent)
         .stateEffect(false)
+        .opacity(this.homeScene || !this.pageLoading ? 1 : 0.55)
         .onClick(() => {
-          this.onScan();
+          this.handleDockTrailingAction();
         })
       }
       .width('100%')
@@ -427,6 +436,31 @@ export struct BrowserSplitToolbarChrome {
 
   private resolveDockPillIsPlaceholder(): boolean {
     return this.homeScene || this.displayAddress.trim().length === 0;
+  }
+
+  /**
+   * The dock pill's trailing button is a scan shortcut while no page is open, and a reload
+   * shortcut once a page is loaded, mirroring the split address pill's refresh button.
+   */
+  private resolveDockTrailingIconId(): AiraRenderableIconId {
+    return this.homeScene ? 'browser.toolbar.scanQr' : 'browser.toolbar.refresh';
+  }
+
+  private handleDockTrailingAction(): void {
+    if (this.homeScene) {
+      this.onScan();
+      return;
+    }
+    this.onReload();
+  }
+
+  /**
+   * The web scene draws the hairline so the dock backplate is distinct from the page behind it.
+   * Home draws none: its dock is meant to read as part of the home surface, and a wallpaper home
+   * clears the backplate on purpose.
+   */
+  private resolveDockTopDividerWidth(): number {
+    return this.homeScene ? 0 : DOCK_TOOLBAR_TOP_DIVIDER_WIDTH;
   }
 
   @Builder
@@ -1075,6 +1109,7 @@ export struct BrowserSplitToolbarChrome {
     .width('100%')
     .height(this.resolveBottomChromeHeight())
     .backgroundColor(this.resolveBarBackground())
+    .border({ width: { top: this.resolveDockTopDividerWidth() }, color: this.storedDividerColor })
     .hitTestBehavior(this.shouldCollapseBars() ? HitTestMode.None : HitTestMode.BLOCK_HIERARCHY)
     .translate({ y: this.shouldCollapseBars() ? this.resolveBottomChromeHeight() : 0 })
     .opacity(this.shouldCollapseBars() ? 0 : 1)
