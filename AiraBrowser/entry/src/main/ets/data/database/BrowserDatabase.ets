@@ -367,6 +367,9 @@ const HISTORY_SYNC_CANONICAL_BACKFILL_BATCH_SIZE: number = 200;
 const HISTORY_SYNC_CANONICAL_BACKFILL_STATE_PREFIX: string = 'history_canonical_backfill:';
 const HISTORY_SYNC_CANONICAL_BACKFILL_STATE_VERSION: number = 1;
 const HISTORY_SYNC_RETENTION_FRONTIER_GRANULARITY_MS: number = 24 * 60 * 60 * 1000;
+// Marks the deterministic outbox ids a Provider switch relays its canonical set with. Distinguishes
+// the idempotent relay queue (`h1pt_`) from ordinary migration enrollment ids (`h1m_`).
+const HISTORY_PROVIDER_TRANSITION_MUTATION_PREFIX: string = 'h1pt_';
 const HISTORY_SYNC_SCHEMA_SQL: string[] = [
   `CREATE TABLE IF NOT EXISTS ${HISTORY_SYNC_OUTBOX_TABLE} (
     account_uid TEXT NOT NULL,
@@ -2090,7 +2093,7 @@ export class BrowserDatabase {
           continue;
         }
         await this.persistHistorySyncTombstone(store, normalizedUid, tombstone.visitId, tombstone.deletedAt);
-        applied += await this.deleteHistoryVisitBySyncIdInStore(store, normalizedUid, tombstone.visitId);
+        applied += await this.deleteHistoryVisitBySyncIdInStore(store, tombstone.visitId);
       }
       for (const range of state.deleteRanges) {
         await this.persistHistorySyncDeleteRange(store, normalizedUid, range);
@@ -2178,25 +2181,61 @@ export class BrowserDatabase {
     try {
       store.beginTransaction();
       transactionStarted = true;
+      // A Provider switch relays the account's complete canonical set into the new Provider's outbox.
+      // A previous transition that failed to reach confirmation leaves its relay rows behind, and
+      // re-running then enqueued the whole set again under fresh random ids, so the queue doubled on
+      // every attempt until the 200-round cap stopped the run ("增量过多"). Rebuild the relay
+      // idempotently: drop this run's own relay rows first and key the new ones deterministically by
+      // source identity, so a retry replaces them instead of stacking another copy. Ordinary
+      // `prepareHistorySyncEnrollment` rows (mutation origin `migration`) are a separate queue and
+      // are intentionally left untouched.
+      await this.deleteProviderTransitionOutboxMutationsInStore(store, normalizedUid);
+      const usedMutationIds = new Set<string>();
       for (const visit of visits) {
+        const visitId = (visit.visitId ?? '').trim();
+        if (visitId.length <= 0) {
+          continue;
+        }
+        const mutationId = this.createProviderTransitionMutationId('provider-upsert', visitId);
+        if (usedMutationIds.has(mutationId)) {
+          continue;
+        }
+        usedMutationIds.add(mutationId);
         await this.insertHistorySyncMutation(store, normalizedUid, {
-          mutationId: this.createHistorySyncMutationId(normalizedClientId, 'provider-upsert'),
+          mutationId,
           kind: 'upsert_visit',
           visit
         });
         count += 1;
       }
       for (const tombstone of tombstones) {
+        const visitId = (tombstone.visitId ?? '').trim();
+        if (visitId.length <= 0) {
+          continue;
+        }
+        const mutationId = this.createProviderTransitionMutationId('provider-delete', visitId);
+        if (usedMutationIds.has(mutationId)) {
+          continue;
+        }
+        usedMutationIds.add(mutationId);
         await this.insertHistorySyncMutation(store, normalizedUid, {
-          mutationId: this.createHistorySyncMutationId(normalizedClientId, 'provider-delete'),
+          mutationId,
           kind: 'delete_visit',
-          visitId: tombstone.visitId
+          visitId
         });
         count += 1;
       }
       for (const range of deleteRanges) {
+        const mutationId = this.createProviderTransitionMutationId(
+          'provider-range',
+          `${range.url}\u0001${range.startedAt}\u0001${range.endedAt}`
+        );
+        if (usedMutationIds.has(mutationId)) {
+          continue;
+        }
+        usedMutationIds.add(mutationId);
         await this.insertHistorySyncMutation(store, normalizedUid, {
-          mutationId: this.createHistorySyncMutationId(normalizedClientId, 'provider-range'),
+          mutationId,
           kind: 'delete_range',
           url: range.url,
           startedAt: range.startedAt,
@@ -2205,12 +2244,15 @@ export class BrowserDatabase {
         count += 1;
       }
       if (clearBefore > 0) {
-        await this.insertHistorySyncMutation(store, normalizedUid, {
-          mutationId: this.createHistorySyncMutationId(normalizedClientId, 'provider-clear'),
-          kind: 'clear_before',
-          clearBefore
-        });
-        count += 1;
+        const mutationId = this.createProviderTransitionMutationId('provider-clear', String(clearBefore));
+        if (!usedMutationIds.has(mutationId)) {
+          await this.insertHistorySyncMutation(store, normalizedUid, {
+            mutationId,
+            kind: 'clear_before',
+            clearBefore
+          });
+          count += 1;
+        }
       }
       store.commit();
       transactionStarted = false;
@@ -2219,6 +2261,37 @@ export class BrowserDatabase {
       this.rollbackHistoryTransaction(store, transactionStarted);
       throw new Error(`Failed to prepare Aira history provider enrollment: ${this.describeError(error)}`);
     }
+  }
+
+  // Deterministic per-source id for Provider-transition relay rows. Keeping it stable (and short)
+  // lets a retried transition replace its own rows, and the 256-char transport limit is enforced by
+  // folding the identity through a hash instead of embedding the raw value.
+  private createProviderTransitionMutationId(kind: string, identity: string): string {
+    return `${HISTORY_PROVIDER_TRANSITION_MUTATION_PREFIX}${kind}_${this.hashHistorySyncIdentity(identity)}`;
+  }
+
+  private hashHistorySyncIdentity(value: string): string {
+    let hash = 2166136261;
+    for (let index = 0; index < value.length; index += 1) {
+      hash ^= value.charCodeAt(index);
+      hash = Math.imul(hash, 16777619);
+    }
+    return (hash >>> 0).toString(36);
+  }
+
+  // Removes only this run's Provider-transition relay rows, identified by the deterministic id
+  // prefix, so an aborted or retried switch cannot accumulate duplicates. Ordinary migration
+  // enrollment rows are preserved.
+  private async deleteProviderTransitionOutboxMutationsInStore(
+    store: relationalStore.RdbStore,
+    accountUid: string
+  ): Promise<number> {
+    const predicates = new relationalStore.RdbPredicates(HISTORY_SYNC_OUTBOX_TABLE);
+    predicates.equalTo('account_uid', accountUid);
+    // Matches this run's `h1pt_<kind>_<hash>` relay ids only. Ordinary migration rows use the
+    // distinct `h1m_` prefix, so they are preserved.
+    predicates.like('mutation_id', `${HISTORY_PROVIDER_TRANSITION_MUTATION_PREFIX}%`);
+    return await store.delete(predicates);
   }
 
   async prepareHistorySyncEnrollment(
@@ -2416,7 +2489,7 @@ export class BrowserDatabase {
           bootstrapYieldStartedAt = Date.now();
         }
         await this.persistHistorySyncTombstone(store, accountUid, visitId, Date.now());
-        applied += await this.deleteHistoryVisitBySyncIdInStore(store, accountUid, visitId);
+        applied += await this.deleteHistoryVisitBySyncIdInStore(store, visitId);
       }
       for (const visit of response.visits) {
         if (Date.now() - bootstrapYieldStartedAt >= HISTORY_SYNC_APPLY_YIELD_BUDGET_MS) {
@@ -4869,7 +4942,7 @@ export class BrowserDatabase {
         applied += await this.applyHistorySyncVisitUpsert(store, accountUid, change.visit);
       } else if (change.kind === 'delete_visit') {
         await this.persistHistorySyncTombstone(store, accountUid, change.visitId, Date.now());
-        applied += await this.deleteHistoryVisitBySyncIdInStore(store, accountUid, change.visitId);
+        applied += await this.deleteHistoryVisitBySyncIdInStore(store, change.visitId);
       } else if (change.kind === 'delete_range') {
         const range: HistorySyncDeleteRange = {
           rangeId: change.rangeId ?? '',
@@ -4889,7 +4962,7 @@ export class BrowserDatabase {
         const pruneDeleteStartedAt = Date.now();
         for (const visitId of pruneVisitIds) {
           await this.deleteHistorySyncCanonicalVisit(store, accountUid, visitId);
-          applied += await this.deleteHistoryVisitBySyncIdInStore(store, accountUid, visitId);
+          applied += await this.deleteHistoryVisitBySyncIdInStore(store, visitId);
         }
         AiraSyncJankProbe.endExtra(
           'history_prune_delete_loop',
@@ -4950,8 +5023,16 @@ export class BrowserDatabase {
     if (normalizedVisitUrl.length <= 0) {
       throw new Error('History sync visit URL is invalid.');
     }
-    const existing = await this.findHistoryVisitEventBySyncId(store, accountUid, visit.visitId);
+    const existing = await this.findHistoryVisitEventBySyncId(store, visit.visitId);
     if (existing !== undefined) {
+      // The same immutable visit identity already exists locally. Per ADR-0072 a later upload with
+      // the same visit ID is an idempotent no-op, and switching Providers moves the merged set
+      // without duplicating or rejecting it — so never insert a second row. When the row still
+      // carries a previous Provider's account (a switch), re-home it to the active account so this
+      // Provider's deletions, ranges and retention keep addressing it.
+      if ((existing.syncAccountUid ?? '').trim() !== accountUid.trim()) {
+        await this.rehomeHistoryVisitSyncAccount(store, existing, accountUid);
+      }
       return 0;
     }
     const remoteVisit: HistoryVisit = {
@@ -5033,11 +5114,13 @@ export class BrowserDatabase {
 
   private async findHistoryVisitEventBySyncId(
     store: relationalStore.RdbStore,
-    accountUid: string,
     syncId: string
   ): Promise<HistoryVisit | undefined> {
+    // sync_id is the immutable global visit identity (`h1:<clientId>:<nativeVisitId>`, ADR-0072) and
+    // history_visits carries a global unique index on it. Resolution must therefore be
+    // account-agnostic: an account-scoped predicate misses the row a previous Provider left behind,
+    // so a Provider switch would try to insert a duplicate and abort on that index.
     const predicates = new relationalStore.RdbPredicates(HISTORY_VISITS_TABLE);
-    predicates.equalTo('sync_account_uid', accountUid.trim());
     predicates.equalTo('sync_id', syncId.trim());
     predicates.limitAs(1);
     const resultSet = await store.query(predicates, HISTORY_VISIT_COLUMNS);
@@ -5046,12 +5129,29 @@ export class BrowserDatabase {
     return hydrated[0];
   }
 
+  // Re-homes an existing visit row to the active Provider's account after a switch. The visit keeps
+  // its immutable local id, sync_id, url aggregate and origin; only the sync-account stamp moves, so
+  // later deletions, ranges and retention from the new Provider address the same row.
+  private async rehomeHistoryVisitSyncAccount(
+    store: relationalStore.RdbStore,
+    existing: HistoryVisit,
+    accountUid: string
+  ): Promise<void> {
+    const existingSyncId = (existing.syncId ?? '').trim();
+    const values: relationalStore.ValuesBucket = {
+      sync_account_uid: accountUid.trim(),
+      sync_id: existingSyncId.length > 0 ? existingSyncId : existing.id
+    };
+    await store.update(values, this.createHistoryVisitIdPredicates(existing.id));
+  }
+
   private async deleteHistoryVisitBySyncIdInStore(
     store: relationalStore.RdbStore,
-    accountUid: string,
     syncId: string
   ): Promise<number> {
-    const existing = await this.findHistoryVisitEventBySyncId(store, accountUid, syncId);
+    // Identity resolution is global for the same reason as the upsert path: sync_id is globally
+    // unique, so a deletion must find a visit re-homed from another Provider.
+    const existing = await this.findHistoryVisitEventBySyncId(store, syncId);
     if (existing === undefined) {
       return 0;
     }

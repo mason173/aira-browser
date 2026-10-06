@@ -32,7 +32,13 @@ import { AiraSyncJankProbe } from '../../common/debug/AiraSyncJankProbe';
 const DOMAIN: number = 0x0000;
 const TAG: string = 'HistorySyncService';
 const HISTORY_ENROLLMENT_BATCH_SIZE: number = 500;
+// Absolute ceiling on exchange rounds (200 mutations per round), a guard against a malformed
+// provider that never signals completion.
 const HISTORY_SYNC_MAX_NETWORK_ROUNDS: number = 200;
+// Consecutive rounds that apply and upload nothing before the run is treated as stuck. This is the
+// bound that actually matters: forward progress may legitimately take many rounds, while a truly
+// stuck run stops here instead of spinning to the absolute ceiling.
+const HISTORY_SYNC_MAX_STAGNANT_ROUNDS: number = 12;
 
 export interface HistorySyncIdentity {
   accountUid: string;
@@ -241,7 +247,27 @@ export class HistorySyncService {
 
     let resetAttempted = false;
     const acknowledgedMutationIds: Set<string> = new Set<string>();
+    // The round bound is progress-based, not a fixed count. A large Provider switch legitimately
+    // needs many exchange rounds (200 mutations each), so a fixed cap fails a switch that is still
+    // making forward progress. Instead, keep going while each round moves the applied/uploaded
+    // counters and give up only after this many consecutive rounds that move nothing — which is the
+    // real "stuck" condition and, unlike a fixed cap, ends in seconds rather than minutes.
+    let stagnantRounds = 0;
+    let previousProgressSize = -1;
     for (let round = 0; round < HISTORY_SYNC_MAX_NETWORK_ROUNDS; round += 1) {
+      // `state.cursor` is the durable remote cursor left by the previous round, so it advances even
+      // when a pulled change is a no-op for the local projection (applied stays flat). Counting it
+      // keeps a long-but-progressing feed alive instead of misreading it as a stall.
+      const progressSize = appliedChangeCount + uploadedMutationCount + state.cursor;
+      if (progressSize <= previousProgressSize) {
+        stagnantRounds += 1;
+        if (stagnantRounds >= HISTORY_SYNC_MAX_STAGNANT_ROUNDS) {
+          break;
+        }
+      } else {
+        stagnantRounds = 0;
+      }
+      previousProgressSize = progressSize;
       this.assertRunIdentity(identity, generation);
       const pendingBeforeEnrollment = await this.listAiraCloudMutationsForRun(
         identity.accountUid,
