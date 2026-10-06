@@ -67,6 +67,7 @@ const SPLIT_TOOLBAR_SELECT_ALL_DELAY_MS: number = 50;
 /** Dock search page: side inset, editor pill height, and the gap it keeps above the keyboard. */
 const DOCK_SEARCH_EDGE_PADDING: number = 16;
 const DOCK_SEARCH_EDITOR_HEIGHT: number = 46;
+const DOCK_SEARCH_EDITOR_TOP_GAP: number = 10;
 const DOCK_SEARCH_EDITOR_BOTTOM_GAP: number = 10;
 
 /** `search_only` reuses this search page without mounting the split navigation bar. */
@@ -650,7 +651,9 @@ export struct BrowserSplitToolbarChrome {
         if (this.shouldShowDockSuggestions()) {
           BrowserSearchSuggestionsPanel({
             suggestions: this.resolveDockQuerySuggestions(),
-            layoutMode: 'topDown',
+            // Grow the list up from the editor: the strongest matches sit next to the field, so the
+            // user sees them instead of a top-anchored list hidden behind the keyboard.
+            layoutMode: 'bottomUp',
             horizontalPadding: DOCK_SEARCH_EDGE_PADDING,
             scrollEnabled: true,
             blankAreaBackEnabled: false,
@@ -681,7 +684,7 @@ export struct BrowserSplitToolbarChrome {
         }
         .width('100%')
         .padding({ left: DOCK_SEARCH_EDGE_PADDING, right: DOCK_SEARCH_EDGE_PADDING })
-        .margin({ bottom: DOCK_SEARCH_EDITOR_HEIGHT + DOCK_SEARCH_EDITOR_BOTTOM_GAP })
+        .margin({ bottom: DOCK_SEARCH_EDITOR_TOP_GAP + DOCK_SEARCH_EDITOR_HEIGHT + DOCK_SEARCH_EDITOR_BOTTOM_GAP })
       }
     }
     .width('100%')
@@ -875,7 +878,13 @@ export struct BrowserSplitToolbarChrome {
     .alignItems(VerticalAlign.Center)
     .backgroundColor(this.pageBackgroundColor)
     .borderRadius(DOCK_SEARCH_EDITOR_HEIGHT / 2)
-    .margin({ left: DOCK_SEARCH_EDGE_PADDING, right: DOCK_SEARCH_EDGE_PADDING, bottom: DOCK_SEARCH_EDITOR_BOTTOM_GAP })
+    .margin({
+      left: DOCK_SEARCH_EDGE_PADDING,
+      right: DOCK_SEARCH_EDGE_PADDING,
+      // Gap above the field, so the last suggestion row never sits flush against it.
+      top: DOCK_SEARCH_EDITOR_TOP_GAP,
+      bottom: DOCK_SEARCH_EDITOR_BOTTOM_GAP
+    })
   }
 
   @Builder

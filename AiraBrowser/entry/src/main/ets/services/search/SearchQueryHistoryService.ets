@@ -55,7 +55,11 @@ interface RankedSearchQueryHistoryRecord {
 }
 
 export const SEARCH_QUERY_HISTORY_MAX_RECORDS: number = 200;
-export const SEARCH_QUERY_HISTORY_VISIBLE_LIMIT: number = 5;
+/**
+ * Visible suggestion cap for one suggestion feed. The search surfaces scroll, but each one shows
+ * at most this many rows, so a phone dropdown is not buried under a wall of guesses.
+ */
+export const SEARCH_QUERY_HISTORY_VISIBLE_LIMIT: number = 8;
 const SEARCH_QUERY_HISTORY_MAX_AGE_DAYS: number = 90;
 const SEARCH_QUERY_HISTORY_MAX_QUERY_LENGTH: number = 120;
 
