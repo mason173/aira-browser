@@ -16,6 +16,7 @@ import { MembershipFeature } from '../../features/membership/MembershipFeature';
 import {
   HistorySyncRunResult
 } from '../../common/models/HistorySyncModels';
+import { AiraAccountUnionLinkFunctionService } from '../../services/account/AiraAccountUnionLinkFunctionService';
 import { AiraSyncConfigStore } from '../../services/sync/AiraSyncConfigStore';
 import {
   HistorySyncService,
@@ -244,6 +245,7 @@ export class SyncExperienceAutomaticRuntime {
   private personalizationSyncService: PersonalizationSyncService;
   private syncConfigStore: AiraSyncConfigStore;
   private membershipFeature: MembershipFeature;
+  private accountUnionLinkService: AiraAccountUnionLinkFunctionService = new AiraAccountUnionLinkFunctionService();
   private bookmarkDomain: SyncBookmarkDomain;
   private personalizationDomain: SyncPersonalizationDomain;
   private historySyncService: HistorySyncService;
@@ -602,6 +604,25 @@ export class SyncExperienceAutomaticRuntime {
     this.schedulePersonalizationPeriodicSync();
     this.scheduleHistoryIfActive('foreground', HISTORY_FOREGROUND_DELAY_MS);
     this.scheduleHistoryPeriodicSync();
+    this.ensureAccountUnionLink();
+  }
+
+  /**
+   * Signs an already-signed-in device up for the cross-App account link without
+   * waiting for a fresh sign-in. Existing users upgraded to this version keep
+   * their stored AGC uid; reporting its Huawei UnionID is what lets a sibling
+   * App (Pinecone List) recognize the same person. Best-effort and idempotent:
+   * a failure only delays the link to the next launch.
+   */
+  private ensureAccountUnionLink(): void {
+    const settings = this.syncConfigStore.getSettings();
+    const identity = resolveAiraHuaweiAccountIdentity(settings.huaweiCloud, settings.huaweiSpace);
+    if (identity.uid.length <= 0) {
+      return;
+    }
+    this.accountUnionLinkService.linkUnionId(identity.uid)
+      .catch((_error: Error): void => {
+      });
   }
 
   notifyAppForeground(): void {
@@ -616,6 +637,7 @@ export class SyncExperienceAutomaticRuntime {
     this.schedulePersonalizationPeriodicSync();
     this.scheduleHistoryIfActive('foreground', HISTORY_FOREGROUND_DELAY_MS);
     this.scheduleHistoryPeriodicSync();
+    this.ensureAccountUnionLink();
   }
 
   notifyAppBackground(): void {
