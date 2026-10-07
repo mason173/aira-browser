@@ -121,6 +121,7 @@ import webpageTranslationToolbarOpenPolicyTest from './WebpageTranslationToolbar
 import customHomepageExternalImportServiceTest from './CustomHomepageExternalImportService.test';
 import adBlockBlockedResourcePolicyTest from './AdBlockBlockedResourcePolicy.test';
 import subframeAdBlockNavigationTest from './SubframeAdBlockNavigation.test';
+import translationActiveRequestRegistryTest from './TranslationActiveRequestRegistry.test';
 
 export default function tests(): void {
   userScriptValueStateStoreTest();
@@ -241,6 +242,7 @@ export default function tests(): void {
   browserTabCloseNeighborPolicyTest();
   webAppDesktopInstallSyncPolicyTest();
   webpageTranslationToolbarOpenPolicyTest();
+  translationActiveRequestRegistryTest();
   customHomepageExternalImportServiceTest();
   adBlockBlockedResourcePolicyTest();
   subframeAdBlockNavigationTest();

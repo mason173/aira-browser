@@ -14,6 +14,11 @@ import {
   TranslationProviderFailureClassifierService
 } from './TranslationProviderFailureClassifierService';
 import { AiraSystemTranslationFunctionService } from './AiraSystemTranslationFunctionService';
+import {
+  TranslationActiveRequestRegistry,
+  TranslationRequestHandle
+} from './TranslationActiveRequestRegistry';
+import { sharedAiraHttpRequestGate } from '../network/AiraHttpRequestGate';
 
 const TRANSLATION_REQUEST_TIMEOUT_MS: number = 20000;
 const AIRA_USER_AGENT: string = 'AiraBrowser/1.0';
@@ -209,16 +214,16 @@ export class TranslationProviderRequestService {
     new TranslationProviderFailureClassifierService();
   private cryptoService: TranslationProviderCryptoService = new TranslationProviderCryptoService();
   private airaSystemService: AiraSystemTranslationFunctionService = new AiraSystemTranslationFunctionService();
-  private activeRequests: http.HttpRequest[] = [];
+  private activeRequests: TranslationActiveRequestRegistry = new TranslationActiveRequestRegistry();
 
+  /**
+   * Cancels the running batch by abandoning its in-flight requests without destroying them.
+   *
+   * Destroying a handle that NetStack is still driving is a use-after-free in `OS_NET_HttpWork`; the handle is torn
+   * down by `executeProviderRequest` once its request settles instead. See `TranslationActiveRequestRegistry`.
+   */
   cancelActiveRequests(): void {
-    this.activeRequests.forEach((request: http.HttpRequest) => {
-      try {
-        request.destroy();
-      } catch (_error) {
-      }
-    });
-    this.activeRequests = [];
+    this.activeRequests.abandon();
   }
 
   async translateBatch(
@@ -266,48 +271,55 @@ export class TranslationProviderRequestService {
     providerRequest: ProviderHttpRequest,
     items: WebpageTranslationTextItem[]
   ): Promise<WebpageTranslationApplyItem[]> {
-    const request = http.createHttp();
-    this.activeRequests.push(request);
-    try {
-      const response = await request.request(providerRequest.url, {
-        method: providerRequest.method,
-        extraData: providerRequest.body,
-        expectDataType: http.HttpDataType.STRING,
-        connectTimeout: TRANSLATION_REQUEST_TIMEOUT_MS,
-        readTimeout: TRANSLATION_REQUEST_TIMEOUT_MS,
-        usingCache: false,
-        header: providerRequest.headers
-      });
-
-      if (response.responseCode < 200 || response.responseCode >= 300) {
-        const rawBody = typeof response.result === 'string' ? response.result : '';
-        const providerMessage = this.buildProviderHttpFailureMessage(provider, response.responseCode, rawBody);
-        if (providerMessage.length > 0) {
-          throw new TranslationProviderError(
-            this.failureClassifier.classifyHttpStatusWithMessage(response.responseCode, providerMessage)
-          );
+    // Translation is reader-initiated, so it runs as interactive work: bounded by the shared gate's `user`
+    // ceiling and never torn down just because the app left the foreground.
+    return await sharedAiraHttpRequestGate.run('user', 'interactive', async (): Promise<WebpageTranslationApplyItem[]> => {
+      const request = http.createHttp();
+      const handle = new TranslationRequestHandle((): void => {
+        try {
+          request.destroy();
+        } catch (_error) {
         }
-        throw new TranslationProviderError(this.failureClassifier.classifyHttpStatus(response.responseCode));
-      }
-      if (typeof response.result !== 'string') {
-        throw new TranslationProviderError(this.failureClassifier.buildFailure(
-          'invalid_response',
-          resolveAppResourceText($r('app.string.translation_provider_invalid_format'))
-        ));
-      }
-      return providerRequest.responseParser(response.result, items);
-    } catch (error) {
-      if (error instanceof TranslationProviderError) {
-        throw error;
-      }
-      throw new TranslationProviderError(this.failureClassifier.classifyError(error as Error));
-    } finally {
-      this.activeRequests = this.activeRequests.filter((item: http.HttpRequest) => item !== request);
+      });
+      this.activeRequests.track(handle);
       try {
-        request.destroy();
-      } catch (_error) {
+        const response = await request.request(providerRequest.url, {
+          method: providerRequest.method,
+          extraData: providerRequest.body,
+          expectDataType: http.HttpDataType.STRING,
+          connectTimeout: TRANSLATION_REQUEST_TIMEOUT_MS,
+          readTimeout: TRANSLATION_REQUEST_TIMEOUT_MS,
+          usingCache: false,
+          header: providerRequest.headers
+        });
+
+        if (response.responseCode < 200 || response.responseCode >= 300) {
+          const rawBody = typeof response.result === 'string' ? response.result : '';
+          const providerMessage = this.buildProviderHttpFailureMessage(provider, response.responseCode, rawBody);
+          if (providerMessage.length > 0) {
+            throw new TranslationProviderError(
+              this.failureClassifier.classifyHttpStatusWithMessage(response.responseCode, providerMessage)
+            );
+          }
+          throw new TranslationProviderError(this.failureClassifier.classifyHttpStatus(response.responseCode));
+        }
+        if (typeof response.result !== 'string') {
+          throw new TranslationProviderError(this.failureClassifier.buildFailure(
+            'invalid_response',
+            resolveAppResourceText($r('app.string.translation_provider_invalid_format'))
+          ));
+        }
+        return providerRequest.responseParser(response.result, items);
+      } catch (error) {
+        if (error instanceof TranslationProviderError) {
+          throw error;
+        }
+        throw new TranslationProviderError(this.failureClassifier.classifyError(error as Error));
+      } finally {
+        // The request has settled, so its handle is no longer in flight and can be destroyed safely — once.
+        this.activeRequests.settle(handle);
       }
-    }
+    });
   }
 
   supportsProvider(templateId: TranslationProviderTemplateId): boolean {
