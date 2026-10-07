@@ -3,6 +3,7 @@ import { webview } from '@kit.ArkWeb';
 import { loginComponentManager } from '@kit.AccountKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { AiraNavForensicsProbe } from '../../common/debug/AiraNavForensicsProbe';
+import { AiraDownloadTriggerProbe } from '../../common/debug/AiraDownloadTriggerProbe';
 import { curves, FrameCallback, KeyboardAvoidMode, window } from '@kit.ArkUI';
 import { KeyCode } from '@kit.InputKit';
 import { accessibility } from '@kit.AccessibilityKit';
@@ -246,6 +247,7 @@ import {
   resolveSplitToolbarCanGoForward,
   resolveSplitToolbarHomeBackdrop,
   resolveSplitToolbarWebReserve,
+  resolveSplitToolbarChromeHitTestMode,
   shouldClearSplitToolbarOverWallpaper,
   SPLIT_TOOLBAR_CLEARED_BAR_COLOR,
   canCollapseSplitAddressBarForTopImmersion,
@@ -3256,6 +3258,26 @@ struct BrowserShellPage {
       },
       canLoadUrlInWebView: (url: string): boolean => this.webRuntimeBridge.canLoadInWebView(url),
       handleWebAppScopeOutNavigation: (_tabId: string, _url: string, _isMainFrame: boolean): boolean => false,
+      shouldBlockSubframeNavigation: (
+        tabId: string,
+        url: string,
+        request: WebResourceRequest | undefined,
+        source: BrowserWebComponentNavigationEventSource
+      ): boolean => {
+        const blocked = this.browserWebNavigationInterceptionCoordinator.shouldBlockSubframeNavigation({
+          tabId: tabId,
+          targetUrl: url,
+          request: request,
+          source: source
+        }, this.browserWebNavigationInterceptionHost);
+        if (blocked) {
+          AiraDownloadTriggerProbe.log(
+            'subframe_navigation_blocked',
+            `source=${source} url=${url}`
+          );
+        }
+        return blocked;
+      },
       resolveMainFrameWebUrlDecision: (
         tabId: string,
         url: string,
@@ -6349,6 +6371,12 @@ struct BrowserShellPage {
     sharedPreferencesRepository.getPreferences().appearance.toolbarChromeStyle;
   @State splitToolbarSearchActive: boolean = false;
   @State splitToolbarSearchDismissVersion: number = 0;
+  /**
+   * Reported by the split chrome: true while its full-screen search page is painted. The chrome
+   * overlay must block the page behind it then, so a blank-area tap cannot fall through to the web
+   * page; while it only rests over the page, the overlay stays transparent.
+   */
+  @State private splitToolbarSearchSurfaceVisible: boolean = false;
 
   private splitToolbarSearchCloseGeneration: number = 0;
   private splitToolbarSearchCloseInFlight: boolean = false;
@@ -9367,12 +9395,19 @@ struct BrowserShellPage {
       },
       onScan: (): void => {
         void this.scanQrCodeFromBottomPanel();
+      },
+      onSearchSurfaceVisibleChange: (visible: boolean): void => {
+        this.splitToolbarSearchSurfaceVisible = visible;
       }
     })
       .width('100%')
       .height('100%')
       .zIndex(210)
-      .hitTestBehavior(HitTestMode.Transparent)
+      // The call site owns the overlay's node, so its hit-test mode is set here: Transparent while
+      // the frame rests over the page (a tap between the bars must reach the page), blocking while
+      // the full-screen search page is up (a blank-area tap must not fall through to the page).
+      .hitTestBehavior(resolveSplitToolbarChromeHitTestMode(this.splitToolbarSearchSurfaceVisible) === 'block' ?
+        HitTestMode.BLOCK_HIERARCHY : HitTestMode.Transparent)
   }
 
   private resolveSplitToolbarDisplayAddress(): string {
@@ -11998,6 +12033,12 @@ struct BrowserShellPage {
   }
 
   private handleDownloadStart(tabId: string, event: OnDownloadStartEvent): void {
+    AiraDownloadTriggerProbe.logOnDownloadStart(
+      event.url,
+      event.mimetype ?? '',
+      event.contentDisposition ?? '',
+      String(event.contentLength ?? '')
+    );
     this.browserTabBackgroundSessionSyncCoordinator.markDownloadStarted(tabId);
     this.browserUserScriptApplicationCoordinator.handleInstallCandidate(event.url);
   }

@@ -136,6 +136,23 @@ export class BrowserWebNavigationInterceptionCoordinator {
     };
   }
 
+  /**
+   * Whether the content filter blocks this subframe navigation before it is fetched.
+   *
+   * See {@link BrowserWebComponentControllerHost.shouldBlockSubframeNavigation}: a blocked frame must
+   * be denied here, not answered with a synthetic response, or ArkWeb turns the frame URL into a
+   * download.
+   */
+  shouldBlockSubframeNavigation(
+    input: BrowserWebNavigationMainFrameInput,
+    host: BrowserWebNavigationInterceptionHost
+  ): boolean {
+    if (!host.isAdBlockCapabilitySupported() || input.request === undefined) {
+      return false;
+    }
+    return this.adBlockCoordinator.shouldBlockMainFrameNavigation(this.buildAdBlockRequestContext(input, host));
+  }
+
   executeSameWebNavigationRewrite(tabId: string, url: string, reason: string): boolean {
     if (reason === 'https_first_upgrade') {
       sharedBrowserHttpsFirstNavigationService.attachFallbackExecutor(

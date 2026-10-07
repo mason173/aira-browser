@@ -57,6 +57,12 @@ export interface BrowserWebTabsControllerDependencies {
   ) => BrowserWebComponentWebUrlDecision;
   canLoadUrlInWebView: (url: string) => boolean;
   handleWebAppScopeOutNavigation: (tabId: string, url: string, isMainFrame: boolean) => boolean;
+  shouldBlockSubframeNavigation: (
+    tabId: string,
+    url: string,
+    request: WebResourceRequest | undefined,
+    source: BrowserWebComponentNavigationEventSource
+  ) => boolean;
   resolveMainFrameWebUrlDecision: (
     tabId: string,
     url: string,
@@ -501,6 +507,7 @@ export class BrowserWebTabsController {
       handleSpecialNavigationAction: this.dependencies.handleSpecialNavigationAction,
       canLoadUrlInWebView: this.dependencies.canLoadUrlInWebView,
       handleWebAppScopeOutNavigation: this.dependencies.handleWebAppScopeOutNavigation,
+      shouldBlockSubframeNavigation: this.dependencies.shouldBlockSubframeNavigation,
       resolveMainFrameWebUrlDecision: this.dependencies.resolveMainFrameWebUrlDecision,
       executeSameWebNavigationRewrite: this.dependencies.executeSameWebNavigationRewrite,
       prepareMainFrameWebNavigation: this.dependencies.prepareMainFrameWebNavigation,

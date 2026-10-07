@@ -87,10 +87,11 @@ export struct BrowserSplitToolbarChrome {
   private appliedSearchDismissVersion: number = 0;
   private appliedSearchOpenRequestVersion: number = 0;
   private externalAppSearchService: ExternalAppSearchService = new ExternalAppSearchService();
-  @State private searching: boolean = false;
+  @State @Watch('reportSearchSurfaceVisibility') private searching: boolean = false;
   @State private query: string = '';
   @State private engineMenuOpen: boolean = false;
-  @Prop homeScene: boolean = true;
+  private lastReportedSearchSurfaceVisible: boolean = false;
+  @Prop @Watch('reportSearchSurfaceVisibility') homeScene: boolean = true;
   @Prop displayAddress: string = '';
   @Prop secure: boolean = true;
   @Prop tabCount: number = 1;
@@ -109,7 +110,7 @@ export struct BrowserSplitToolbarChrome {
   /** Version, draft and selection of one open. The field is created from this, not from a hidden copy. */
   @Prop @Watch('handleSearchOpenRequest') searchOpen: BrowserSplitToolbarSearchOpen =
     new BrowserSplitToolbarSearchOpen(0, '', false);
-  @Prop sessionMode: BrowserSplitToolbarSessionMode = 'chrome';
+  @Prop @Watch('reportSearchSurfaceVisibility') sessionMode: BrowserSplitToolbarSessionMode = 'chrome';
   /**
    * The two-row frame has one geometry and two paints. `split` keeps the bordered address pill and
    * its customizable bar; `dock` rests as a search box and leaves the fixed dock to the bottom row.
@@ -119,17 +120,17 @@ export struct BrowserSplitToolbarChrome {
    * The centered homepage already has a search field, so that home hides this row. Minimal keeps
    * the row: the line opens search, and the scan button stays on the right. Web pages keep it too.
    */
-  @Prop suppressHomeAddressBar: boolean = false;
+  @Prop @Watch('reportSearchSurfaceVisibility') suppressHomeAddressBar: boolean = false;
   /**
    * Centered and minimal home share the field flight. Minimal still shows the resting top row;
    * that row is not the flight target, or the two search nodes share one geometry id.
    */
-  @Prop homeSearchGeometry: boolean = false;
+  @Prop @Watch('reportSearchSurfaceVisibility') homeSearchGeometry: boolean = false;
   /**
    * Shell-owned shared-element flag. The centered-home field and this search field swap inside
    * one animateTo, so this prop — not the local searching flag — decides which copy is on screen.
    */
-  @Prop centeredSearchPresented: boolean = false;
+  @Prop @Watch('reportSearchSurfaceVisibility') centeredSearchPresented: boolean = false;
   /** 1 while the centered-home return has faded the search-page chrome away. */
   @Prop centeredSearchChromeFade: number = 0;
   /** Existing scroll presentation asked both bars to leave. Search keeps the address row. */
@@ -190,16 +191,36 @@ export struct BrowserSplitToolbarChrome {
   onButtonLongPress: (slotId: string) => void = (_slotId: string) => {};
   onOpenSiteInfo: () => void = () => {};
   onScan: () => void = () => {};
+  /**
+   * Reports whether the full-screen search surface is painted. The shell drives the overlay's
+   * hit-test mode from this: Transparent while the frame rests over the page, blocking while the
+   * search page is up, so its blank areas do not pass a tap through to the page behind it.
+   */
+  onSearchSurfaceVisibleChange: (visible: boolean) => void = (_visible: boolean) => {};
 
   aboutToAppear(): void {
     if (this.sessionMode === 'search_only') {
       this.handleSearchOpenRequest();
     }
+    this.reportSearchSurfaceVisibility();
   }
 
   aboutToDisappear(): void {
     this.clearSearchFocusTimeout();
     this.clearAddressSelectAllTimeout();
+    // The overlay is gone, so the shell must release any page-blocking it derived from this node.
+    this.lastReportedSearchSurfaceVisible = false;
+    this.onSearchSurfaceVisibleChange(false);
+  }
+
+  /** Emits the search surface's on-screen state whenever an input to it changes. */
+  private reportSearchSurfaceVisibility(): void {
+    const visible = this.shouldShowSearchSheet();
+    if (visible === this.lastReportedSearchSurfaceVisible) {
+      return;
+    }
+    this.lastReportedSearchSurfaceVisible = visible;
+    this.onSearchSurfaceVisibleChange(visible);
   }
 
   build() {

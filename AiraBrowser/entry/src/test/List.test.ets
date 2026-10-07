@@ -117,6 +117,8 @@ import localOmniboxSuggestionMatcherTest from './LocalOmniboxSuggestionMatcher.t
 import browserTabCloseNeighborPolicyTest from './BrowserTabCloseNeighborPolicy.test';
 import webAppDesktopInstallSyncPolicyTest from './WebAppDesktopInstallSyncPolicy.test';
 import webpageTranslationToolbarOpenPolicyTest from './WebpageTranslationToolbarOpenPolicy.test';
+import customHomepageExternalImportServiceTest from './CustomHomepageExternalImportService.test';
+import adBlockBlockedResourcePolicyTest from './AdBlockBlockedResourcePolicy.test';
 
 export default function tests(): void {
   userScriptValueStateStoreTest();
@@ -236,4 +238,6 @@ export default function tests(): void {
   browserTabCloseNeighborPolicyTest();
   webAppDesktopInstallSyncPolicyTest();
   webpageTranslationToolbarOpenPolicyTest();
+  customHomepageExternalImportServiceTest();
+  adBlockBlockedResourcePolicyTest();
 }

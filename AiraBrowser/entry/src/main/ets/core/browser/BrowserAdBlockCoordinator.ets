@@ -13,6 +13,7 @@ import {
   AdBlockRuntimeStatsCoordinator
 } from '../adblock/AdBlockRuntimeStatsCoordinator';
 import { findAdBlockThirdPartyRuleSource } from '../../features/adblock/AdBlockThirdPartyRuleSourceCatalog';
+import { AiraDownloadTriggerProbe } from '../../common/debug/AiraDownloadTriggerProbe';
 import { AdBlockRuntimeSnapshot } from '../adblock/AdBlockRuntimeSnapshot';
 import { AdBlockRuntimeGenerationCoordinator } from '../adblock/AdBlockRuntimeGenerationCoordinator';
 import {
@@ -540,6 +541,7 @@ export class BrowserAdBlockCoordinator {
       const snapshot = this.resolveSnapshot();
       const policy = this.resolveEffectivePagePolicy(snapshot, this.buildPageRuntimeContext(context));
       if (policy.allowlisted) {
+        AiraDownloadTriggerProbe.logInterceptSkipped(requestUrl, false, 'allowlisted');
         return null;
       }
       const requestMethod = context.request.getRequestMethod();
@@ -557,6 +559,13 @@ export class BrowserAdBlockCoordinator {
       // request classification and rule matching cannot change the outcome. Skip them; only the
       // CSP native-fallback bookkeeping still has to run.
       if (!enabledForRequest || !this.isNativeAuthorityRequestUrl(requestUrl)) {
+        if (isMainFrame) {
+          AiraDownloadTriggerProbe.logInterceptSkipped(
+            requestUrl,
+            isMainFrame,
+            enabledForRequest ? 'non_http_url' : 'filtering_disabled'
+          );
+        }
         this.responseFactory.consumeCspNativeFallback({
           tabId: context.tabId,
           profileId: context.profileId,
@@ -591,16 +600,40 @@ export class BrowserAdBlockCoordinator {
       };
       const evaluation = this.runtimeGeneration.evaluateNetworkRequest(evaluationInput);
       const decision = evaluation.network;
+      const resourceTypeLabel = classification.resourceType ?? 'other';
+      const isDocumentLike = classification.resourceType === 'document' ||
+        classification.resourceType === 'subdocument' ||
+        classification.resourceType === 'popup';
       if (decision.shouldBlock) {
+        AiraDownloadTriggerProbe.logInterceptDecision(
+          requestUrl,
+          isMainFrame,
+          resourceTypeLabel,
+          enabledForRequest,
+          true,
+          decision.redirectDataUrl.length > 0,
+          decision.redirectDataUrl.length > 0 ? 'rust_redirect' : `blocked:${resourceTypeLabel}`
+        );
         const response = decision.redirectDataUrl.length > 0
           ? this.responseFactory.buildRustRedirectResponse(decision.redirectDataUrl)
-          : this.responseFactory.buildEmptyResponse(requestUrl);
+          : this.responseFactory.buildBlockedResponse(classification.resourceType);
         this.statsCoordinator.recordNetworkBlocked({
           tabId: context.tabId,
           profileId: context.profileId,
           dataScope: context.dataScope
         });
         return response;
+      }
+      if (isMainFrame || isDocumentLike) {
+        AiraDownloadTriggerProbe.logInterceptDecision(
+          requestUrl,
+          isMainFrame,
+          resourceTypeLabel,
+          enabledForRequest,
+          false,
+          false,
+          'allow'
+        );
       }
       const transformGuardKey = this.buildUrlTransformRedirectGuardKey(
         context.tabId,

@@ -31,6 +31,7 @@ import {
   resolveSplitToolbarTopRowHeightVp,
   resolveSplitToolbarTopRowReserveVp,
   resolveSplitToolbarWebReserve,
+  resolveSplitToolbarChromeHitTestMode,
   SPLIT_TOOLBAR_ADDRESS_BLOCK_VP,
   SPLIT_TOOLBAR_BOTTOM_BAR_VP,
   SPLIT_TOOLBAR_PILL_ROW_VP,
@@ -453,5 +454,13 @@ describe('BrowserToolbarChromeStylePolicy', () => {
     });
     expect(restored.collapsed).assertFalse();
     expect(restored.changed).assertTrue();
+  });
+
+  it('blocks page touch-through only while the split search surface is painted', 0, () => {
+    // Resting frame: the bars float over the page, so a tap between them still reaches the page.
+    expect(resolveSplitToolbarChromeHitTestMode(false)).assertEqual('transparent');
+    // Committed search page: the opaque full-screen surface owns every touch, so a blank-area tap
+    // is swallowed instead of falling through to the page behind it.
+    expect(resolveSplitToolbarChromeHitTestMode(true)).assertEqual('block');
   });
 });

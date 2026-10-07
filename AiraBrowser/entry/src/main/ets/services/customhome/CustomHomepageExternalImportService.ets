@@ -29,6 +29,12 @@ export class CustomHomepageExternalImportService {
     if (action !== WANT_ACTION_VIEW_DATA) {
       return false;
     }
+    // A remote .zip address is a download, not a homepage package open-with. Claiming it
+    // would route a web download link into the local package importer, which cannot read
+    // an http(s) source and fails with an invalid-parameter error.
+    if (this.isRemoteWebUri(String(want.uri ?? ''))) {
+      return false;
+    }
     return this.isZipDescriptor(String(want.type ?? '')) || this.isZipUri(String(want.uri ?? ''));
   }
 
@@ -88,6 +94,12 @@ export class CustomHomepageExternalImportService {
     if (uri.length <= 0) {
       throw new CustomHomepageExternalSourceError('missing_file', resolveAppResourceText($r('app.string.settings_custom_home_import_missing_file')));
     }
+    if (this.isRemoteWebUri(uri)) {
+      throw new CustomHomepageExternalSourceError(
+        'unsupported_type',
+        resolveAppResourceText($r('app.string.settings_custom_home_import_zip_only'))
+      );
+    }
     if (!this.isZipDescriptor(descriptor) &&
       !this.isZipDescriptor(fallbackDescriptor) &&
       !this.isZipUri(uri)) {
@@ -106,6 +118,11 @@ export class CustomHomepageExternalImportService {
   private isZipUri(rawUri: string): boolean {
     const normalized = rawUri.trim().split('?')[0].split('#')[0].toLowerCase();
     return normalized.endsWith('.zip');
+  }
+
+  private isRemoteWebUri(rawUri: string): boolean {
+    const normalized = rawUri.trim().toLowerCase();
+    return normalized.startsWith('http://') || normalized.startsWith('https://');
   }
 
   private stringifyError(error: Object | undefined): string {

@@ -2,6 +2,7 @@ import { http } from '@kit.NetworkKit';
 import { webview } from '@kit.ArkWeb';
 import { util } from '@kit.ArkTS';
 import {
+  AdBlockResourceType,
   BrowserDataBoundaryInput,
   BrowserDataScope,
   BrowserProfileId,
@@ -9,6 +10,8 @@ import {
 } from '../../common/models/BrowserModels';
 import { BrowserProfileBoundaryService } from '../../core/browser/BrowserProfileBoundaryService';
 import { WebCookieHeaderService } from '../web/WebCookieHeaderService';
+import { resolveBlockedResourceResponse } from './AdBlockBlockedResourcePolicy';
+import { AiraDownloadTriggerProbe } from '../../common/debug/AiraDownloadTriggerProbe';
 
 const CSP_PROXY_TIMEOUT_MS: number = 15000;
 const CSP_PROXY_MAX_BYTES: number = 20 * 1024 * 1024;
@@ -34,8 +37,42 @@ export class AdBlockResponseFactoryService {
   private profileBoundaryService: BrowserProfileBoundaryService = new BrowserProfileBoundaryService();
   private cspFallbackUntilByRequestKey: Map<string, number> = new Map<string, number>();
 
-  buildEmptyResponse(url: string): WebResourceResponse {
-    return this.buildResponse('', this.inferMimeType(url), 204, 'No Content', 'blocked');
+  /**
+   * Answers a blocked request with a neutral resource typed to the request.
+   *
+   * A blocked frame/document must be a real, displayable empty document: an empty body under a
+   * guessed MIME reads as a 2xx response the renderer cannot display, and Chromium's navigation
+   * loader then promotes it to a download (see `AdBlockBlockedResourcePolicy`).
+   */
+  buildBlockedResponse(resourceType: AdBlockResourceType | undefined): WebResourceResponse {
+    const resource = resolveBlockedResourceResponse(resourceType);
+    const response = new WebResourceResponse();
+    // ArkWeb's navigation path reads a blocked frame navigation's MIME from the response headers; with
+    // no Content-Type the navigation response has an unknown MIME, and Chromium's navigation loader
+    // then classifies the 2xx as a download (see `AdBlockBlockedResourcePolicy`). The Content-Type
+    // header and `setResponseIsReady(true)` are what the working in-repo intercept
+    // (`DocumentViewerHtmlFileResponse`) also does.
+    response.setResponseHeader([
+      { headerKey: 'Content-Type', headerValue: resource.mimeType },
+      { headerKey: 'Cache-Control', headerValue: 'no-store' },
+      { headerKey: 'X-Aira-AdBlock', headerValue: 'blocked' }
+    ]);
+    if (resource.base64Body.length > 0) {
+      response.setResponseData(this.decodeBase64Body(resource.base64Body));
+    } else {
+      response.setResponseData(resource.textBody);
+    }
+    response.setResponseEncoding('utf-8');
+    response.setResponseMimeType(resource.mimeType);
+    response.setResponseCode(resource.responseCode);
+    response.setReasonMessage(resource.reasonMessage);
+    response.setResponseIsReady(true);
+    AiraDownloadTriggerProbe.log(
+      'blocked_response',
+      `type=${resourceType ?? 'undefined'} mime=${resource.mimeType} code=${resource.responseCode} ` +
+        `binary=${resource.base64Body.length > 0 ? 1 : 0} ready=1`
+    );
+    return response;
   }
 
   buildUrlTransformRedirectResponse(url: string): WebResourceResponse {
@@ -159,24 +196,9 @@ export class AdBlockResponseFactoryService {
     }
   }
 
-  private buildResponse(
-    data: string,
-    mimeType: string,
-    code: number,
-    reason: string,
-    action: string
-  ): WebResourceResponse {
-    const response = new WebResourceResponse();
-    response.setResponseHeader([
-      { headerKey: 'Cache-Control', headerValue: 'no-store' },
-      { headerKey: 'X-Aira-AdBlock', headerValue: action }
-    ]);
-    response.setResponseData(data);
-    response.setResponseEncoding('utf-8');
-    response.setResponseMimeType(mimeType);
-    response.setResponseCode(code);
-    response.setReasonMessage(reason);
-    return response;
+  private decodeBase64Body(base64: string): ArrayBuffer {
+    const bytes = this.base64Helper.decodeSync(base64);
+    return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
   }
 
   private buildReplayRequestHeaders(

@@ -481,3 +481,16 @@ export function shouldRouteCenteredHomeSearchToFloatingToolbar(
 ): boolean {
   return centeredHomeFrame && !largeScreenShellActive && !isSplitFamilyStyle(style);
 }
+
+/**
+ * Hit-test family for the split-family chrome overlay.
+ * - `transparent` while the frame rests over the page: its bars float above the page, so a tap
+ *   between them must still reach the web content underneath.
+ * - `block` while a full-screen search surface is painted: the search page is opaque and owns the
+ *   whole screen, so a blank-area tap must be swallowed instead of falling through to the page.
+ */
+export type SplitToolbarChromeHitTestMode = 'transparent' | 'block';
+
+export function resolveSplitToolbarChromeHitTestMode(searchSurfaceVisible: boolean): SplitToolbarChromeHitTestMode {
+  return searchSurfaceVisible ? 'block' : 'transparent';
+}

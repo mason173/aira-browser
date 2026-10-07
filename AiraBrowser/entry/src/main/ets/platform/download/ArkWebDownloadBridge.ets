@@ -11,6 +11,7 @@ import {
 import { DownloadNativeProxyResolver, LibcurlDownloadAdapter } from './LibcurlDownloadAdapter';
 import { DownloadRuntimeDiagnosticRecorder } from '../../common/models/RuntimeDiagnosticModels';
 import { resolveAppResourceText } from '../../core/resources/AppResourceText';
+import { AiraDownloadTriggerProbe } from '../../common/debug/AiraDownloadTriggerProbe';
 
 const DOWNLOAD_BRIDGE_DOMAIN = 0x0000;
 const DOWNLOAD_BRIDGE_TAG = 'DownloadBridge';
@@ -280,6 +281,17 @@ export class ArkWebDownloadBridge implements PlatformDownloadAdapter {
 
   private handleDownloadEvent(type: PlatformDownloadEventType, item: webview.WebDownloadItem): void {
     const snapshot = this.readSnapshot(item);
+    AiraDownloadTriggerProbe.logPlatformDownloadEvent(
+      type,
+      snapshot.url,
+      snapshot.mimeType ?? '',
+      snapshot.contentDisposition ?? '',
+      snapshot.referer ?? '',
+      snapshot.suggestedFileName,
+      snapshot.method ?? '',
+      snapshot.guid,
+      snapshot.state
+    );
     if (this.shouldSuppressPendingCancelEvent(type, snapshot.guid, snapshot.state)) {
       hilog.info(
         DOWNLOAD_BRIDGE_DOMAIN,

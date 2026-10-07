@@ -100,6 +100,20 @@ export interface BrowserWebComponentControllerHost {
     isMainFrame: boolean
   ) => BrowserWebComponentWebUrlDecision;
   canLoadUrlInWebView: (url: string) => boolean;
+  /**
+   * Whether the content filter blocks this navigation (a document or a subframe) before it is fetched.
+   *
+   * A blocked subframe must be denied here rather than answered with a synthesized
+   * `onInterceptRequest` response: ArkWeb reads a frame navigation's download disposition from the
+   * network layer, so a synthetic 2xx response to the frame URL is classified as a download (the
+   * cool18.com `ad.parkvv.com` iframe case). Denying the navigation stops it before any response.
+   */
+  shouldBlockSubframeNavigation: (
+    tabId: string,
+    url: string,
+    request: WebResourceRequest | undefined,
+    source: BrowserWebComponentNavigationEventSource
+  ) => boolean;
   handleWebAppScopeOutNavigation: (tabId: string, url: string, isMainFrame: boolean) => boolean;
   resolveMainFrameWebUrlDecision: (
     tabId: string,
@@ -393,6 +407,10 @@ export class BrowserWebComponentController {
           false
         );
         return false;
+      }
+      if (host.shouldBlockSubframeNavigation(this.tabId, request.url, request.request, request.source)) {
+        this.recordNavigationPolicyResult(host, request, 'subframe_adblock_blocked', true);
+        return true;
       }
       this.recordNavigationPolicyResult(host, request, 'webview_supported_subframe', false);
       return false;

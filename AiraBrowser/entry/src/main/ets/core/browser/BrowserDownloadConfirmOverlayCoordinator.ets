@@ -15,6 +15,7 @@ import {
 } from './BrowserDownloadPromptLeaseCoordinator';
 import { BrowserWebPageLifecycleApplicationCoordinator } from './BrowserWebPageLifecycleApplicationCoordinator';
 import { sharedBrowserContinuationCoordinator } from './BrowserContinuationCoordinator';
+import { AiraDownloadTriggerProbe } from '../../common/debug/AiraDownloadTriggerProbe';
 export interface BrowserDownloadConfirmOverlayFacts {
   activeTabId: string;
 }
@@ -108,6 +109,11 @@ export class BrowserDownloadConfirmOverlayCoordinator {
       }
     }
     this.activeLeaseId = presentation.lease.id;
+    AiraDownloadTriggerProbe.log(
+      'prompt_presented',
+      `guid=${prompt.guid} mime=${prompt.mimeType ?? ''} disposition=${prompt.contentDisposition ?? ''} ` +
+        `source=${prompt.sourceHost} url=${prompt.url}`
+    );
     if (!inlineDocumentResolution.shouldPreserveStableDocument) {
       this.webPageLifecycleApplicationCoordinator.pulseDownloadHandoffVisualFeedback(
         this.host.resolveFacts().activeTabId,
