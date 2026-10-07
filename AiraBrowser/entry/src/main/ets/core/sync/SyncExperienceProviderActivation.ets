@@ -5,6 +5,7 @@ import {
   AIRA_HUAWEI_SPACE_BOOKMARK_DATABASE_NAME
 } from '../../services/sync/AiraSyncConfigStore';
 import { HuaweiAccountSyncAuthService } from '../../services/sync/HuaweiAccountSyncAuthService';
+import { AiraAccountUnionLinkFunctionService } from '../../services/account/AiraAccountUnionLinkFunctionService';
 import { HuaweiCloudSyncErrorMessageService } from '../../services/sync/HuaweiCloudSyncErrorMessageService';
 import { HuaweiCloudSyncInitService } from '../../services/sync/HuaweiCloudSyncInitService';
 import {
@@ -22,6 +23,7 @@ export class SyncExperienceProviderActivation {
   private huaweiCloudSyncInitService: HuaweiCloudSyncInitService = new HuaweiCloudSyncInitService();
   private huaweiCloudErrorMessageService: HuaweiCloudSyncErrorMessageService =
     new HuaweiCloudSyncErrorMessageService();
+  private accountUnionLinkService: AiraAccountUnionLinkFunctionService = new AiraAccountUnionLinkFunctionService();
   private huaweiIdentityChangeHandler?: SyncExperienceHuaweiIdentityChangeHandler;
 
   constructor(syncService: SyncService, huaweiIdentityChangeHandler?: SyncExperienceHuaweiIdentityChangeHandler) {
@@ -60,6 +62,7 @@ export class SyncExperienceProviderActivation {
         identity.photoUrl
       );
       await this.handleHuaweiIdentityChanged(identity.uid);
+      this.linkUnionIdBestEffort(identity.uid);
       return this.baseResult(
         'saved',
         'aira_cloud',
@@ -161,6 +164,19 @@ export class SyncExperienceProviderActivation {
       return;
     }
     await this.huaweiIdentityChangeHandler(uid);
+  }
+
+  /**
+   * Records the account's Huawei UnionID on the backend so a sibling App can be
+   * recognized as the same person. Best-effort and non-blocking: a failure only
+   * delays the cross-App link to the next sign-in and never affects login.
+   */
+  private linkUnionIdBestEffort(uid: string): void {
+    this.accountUnionLinkService.linkUnionId(uid)
+      .then((_linked: boolean): void => {
+      })
+      .catch((_error: Object): void => {
+      });
   }
 
   private async ensureHuaweiAuthInitialized(): Promise<void> {

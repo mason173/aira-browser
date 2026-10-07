@@ -317,6 +317,37 @@ export class HuaweiAccountSyncAuthService implements HuaweiAccountAccessTokenPro
     return this.adapter.signOut();
   }
 
+  /**
+   * Returns the Huawei UnionID for the signed-in user, or '' when unavailable.
+   * The UnionID is the only identifier stable across every App under one
+   * developer account, so a sibling App (Pinecone List) is recognized as the
+   * same person through it. The AGC login path only yields the AGC uid, so the
+   * UnionID is requested on demand through Account Kit instead. Requires a UI
+   * ability context (an interactive request); callers degrade on ''.
+   */
+  async getCurrentUnionId(): Promise<string> {
+    if (!AIRA_DISTRIBUTION_CAPABILITY_OWNER.isAvailable('huawei_account')) {
+      return '';
+    }
+    if (!AppRuntimeContext.hasUIAbilityContext()) {
+      return '';
+    }
+    const request = new authentication.HuaweiIDProvider()
+      .createAuthorizationWithHuaweiIDRequest();
+    // openid is returned by default and carries UnionID/OpenID; no extra scope.
+    request.scopes = ['openid'];
+    request.forceAuthorization = false;
+    request.state = util.generateRandomUUID();
+    const controller = new authentication.AuthenticationController(AppRuntimeContext.getUIAbilityContext());
+    const response = await controller.executeRequest(request) as authentication.AuthorizationWithHuaweiIDResponse;
+    const credential = response.data;
+    if (credential === undefined) {
+      return '';
+    }
+    const unionId = (credential.unionID ?? '').trim();
+    return unionId.length > 0 ? unionId : (credential.openID ?? '').trim();
+  }
+
   private requireHuaweiAccountCapability(): void {
     if (!AIRA_DISTRIBUTION_CAPABILITY_OWNER.isAvailable('huawei_account')) {
       throw new Error(AIRA_DISTRIBUTION_CAPABILITY_OWNER.resolveUnavailableReason('huawei_account'));
