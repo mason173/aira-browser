@@ -1,12 +1,13 @@
 {
   "enabled": true,
-  "noticeId": "aira-3.6.3-1000499",
-  "title": "Aira 3.6.3 update",
-  "updatedAt": "2026-10-06",
-  "summary": "This release fixes two issues with the account capsule and download settings.",
+  "noticeId": "aira-3.6.4-1000502",
+  "title": "Aira 3.6.4 update",
+  "updatedAt": "2026-10-07",
+  "summary": "This release fixes tabs being wiped without reason and ad blocking popping download prompts, and lets membership be shared across sister apps.",
   "items": [
-    "A long nickname no longer pushes the membership badge out of the account capsule; the name truncates instead.",
-    "Opening download settings on the PC build no longer crashes."
+    "Tabs no longer disappear when the app is exited right after a tab is opened, especially installed web apps.",
+    "Blocking an in-page ad no longer triggers a download confirmation.",
+    "Signing in links the account automatically so membership can be shared across sister apps."
   ],
   "actionLabel": "View changelog"
 }

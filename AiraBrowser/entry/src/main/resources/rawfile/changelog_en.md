@@ -1,5 +1,15 @@
 # Changelog
 
+## 3.6.4 (1000502)
+
+2026-10-07
+
+This release fixes tabs being wiped without reason and ad blocking popping download prompts, and lets membership be shared across sister apps.
+
+- Tabs no longer disappear when the app is exited right after a tab is opened, especially installed web apps.
+- Blocking an in-page ad no longer triggers a download confirmation.
+- Signing in links the account automatically so membership can be shared across sister apps.
+
 ## 3.6.3 (1000499)
 
 2026-10-06
