@@ -34,6 +34,8 @@ import {
 } from '../bootstrap/BrowserAppRuntime';
 import { AiraLoadScrollJankProbe } from '../../common/debug/AiraLoadScrollJankProbe';
 import { AiraNavForensicsProbe } from '../../common/debug/AiraNavForensicsProbe';
+import { AiraTabSessionProbe } from '../../common/debug/AiraTabSessionProbe';
+import { TabRecord } from '../../common/models/BrowserModels';
 import { AppRuntimeContext } from '../runtime/AppRuntimeContext';
 import { BROWSER_SHELL_ROUTE, FEATURE_INTRO_ROUTE, STARTUP_WELCOME_INTRO_ROUTE } from '../router/AppRoutes';
 import { resolveInitialOnboardingDestination } from '../../core/onboarding/FeatureIntroRoutePolicy';
@@ -227,6 +229,10 @@ export default class EntryAbility extends UIAbility {
     AiraNavForensicsProbe.install((line: string): void => {
       hilog.info(0x0000, 'NavForensics', `[NAV-FORENSICS-1f4a] %{public}s`, line);
     });
+    AiraTabSessionProbe.install((line: string): void => {
+      hilog.info(0x0000, 'TabSession', `[TAB-SESSION-9d2b] %{public}s`, line);
+    });
+    AiraTabSessionProbe.logLifecycle('ability-create', '');
     sharedSitePolicyService.acquirePermissionSession();
     this.permissionSessionAcquired = true;
     sharedAppCrashDiagnosticsService.initialize(this.context, launchParam);
@@ -402,6 +408,7 @@ export default class EntryAbility extends UIAbility {
   }
 
   onWindowStageDestroy(): void {
+    AiraTabSessionProbe.logLifecycle('window-stage-destroy', this.currentWindowId);
     this.flushPersistentCookies('window-stage-destroy');
     this.windowStageLifecycleGeneration += 1;
     this.browserLargeScreenWindowFactsRequestRevision += 1;
@@ -513,6 +520,7 @@ export default class EntryAbility extends UIAbility {
   }
 
   onBackground(): void {
+    AiraTabSessionProbe.logLifecycle('ability-background', this.currentWindowId);
     this.flushPersistentCookies('ability-background');
     this.appInForeground = false;
     this.currentWindowId = BrowserWindowRuntime.resolveWindowIdFromStorage(this.pageStorage);
@@ -586,6 +594,7 @@ export default class EntryAbility extends UIAbility {
   }
 
   onDestroy(): void {
+    AiraTabSessionProbe.logLifecycle('ability-destroy', this.currentWindowId);
     this.flushPersistentCookies('ability-destroy');
     this.disconnectContinuationEligibility();
     this.resolveContentReadyWaiters();
@@ -786,13 +795,31 @@ export default class EntryAbility extends UIAbility {
   }
 
   private flushLastKnownTabSession(source: string): void {
+    AiraTabSessionProbe.logLifecycle('flush-last-known-tab-session', this.currentWindowId);
     const snapshot = BrowserTabSessionRuntime.getSnapshot(this.currentWindowId);
     if (snapshot === undefined) {
+      AiraTabSessionProbe.logAbilityFlush(source, 'no_snapshot', 0, this.currentWindowId, '', '');
       hilog.info(DOMAIN, TAG, 'Skip tab session flush on %{public}s: no snapshot.', source);
       return;
     }
+    AiraTabSessionProbe.logAbilityFlush(
+      source,
+      'submitted',
+      snapshot.records.length,
+      snapshot.windowId,
+      snapshot.profileId,
+      AiraTabSessionProbe.describeIds(snapshot.records.map((record: TabRecord): string => record.id))
+    );
     sharedTabSessionRepository.replaceTabs(snapshot.records, snapshot.windowId, snapshot.profileId)
-      .then(() => {
+      .then((written: TabRecord[]) => {
+        AiraTabSessionProbe.logAbilityFlush(
+          source,
+          'flushed',
+          written.length,
+          snapshot.windowId,
+          snapshot.profileId,
+          ''
+        );
         hilog.info(
           DOMAIN,
           TAG,
@@ -803,6 +830,14 @@ export default class EntryAbility extends UIAbility {
         );
       })
       .catch((error: Error) => {
+        AiraTabSessionProbe.logAbilityFlush(
+          source,
+          'failed',
+          snapshot.records.length,
+          snapshot.windowId,
+          snapshot.profileId,
+          `error=${AiraTabSessionProbe.describeError(error)}`
+        );
         hilog.warn(DOMAIN, TAG, 'Failed to flush tab session on %{public}s: %{public}s', source, JSON.stringify(error));
       });
   }

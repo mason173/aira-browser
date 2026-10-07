@@ -26,6 +26,7 @@ import {
 import {
   sharedCrossDeviceTabPresenceCoordinator
 } from '../deviceTabs/CrossDeviceTabPresenceCoordinator';
+import { AiraTabSessionProbe } from '../../common/debug/AiraTabSessionProbe';
 
 export interface BrowserTabSessionPersistenceDependencies {
   tabManager: BrowserTabManagerPort;
@@ -75,10 +76,17 @@ export class BrowserTabSessionPersistenceCoordinator {
   private async persistLatestSnapshot(): Promise<void> {
     const host = this.host;
     if (host.isRestoringTabs()) {
+      const skippedTabs = host.getTabs();
+      AiraTabSessionProbe.logPersistSkip(
+        host.getCurrentWindowId(),
+        `is_restoring_tabs tabs=${skippedTabs.length} active=${host.getActiveTabId().length > 0 ? 1 : 0}`
+      );
       return;
     }
+    const currentWindowId = host.getCurrentWindowId();
     const activeTabId = host.getActiveTabId();
-    const records = this.dependencies.tabManager.serializeTabs(host.getTabs(), activeTabId)
+    const tabs = host.getTabs();
+    const records = this.dependencies.tabManager.serializeTabs(tabs, activeTabId)
       .map((record: TabRecord): TabRecord => {
         return this.dependencies.downloadNavigationStateCoordinator.sanitizePersistedRecord(record).record;
       });
@@ -89,7 +97,7 @@ export class BrowserTabSessionPersistenceCoordinator {
     );
     const persistableRecords = this.filterDocumentViewerRecords(siteClearFilter.records);
     sharedCrossDeviceTabPresenceCoordinator.reconcileWindowRecords(
-      host.getCurrentWindowId(),
+      currentWindowId,
       persistableRecords
     );
     const generalSettings = sharedPreferencesRepository.getPreferences().general;
@@ -102,10 +110,47 @@ export class BrowserTabSessionPersistenceCoordinator {
       tabSessionOptions
     );
     const tabSessionProfileId = host.getCurrentTabSessionProfileId();
+    AiraTabSessionProbe.logPersistBegin(
+      currentWindowId,
+      tabSessionProfileId,
+      tabs.length,
+      records.length,
+      persistencePreparation.droppedEphemeralCount,
+      persistencePreparation.droppedAutoClosedCount,
+      tabSessionOptions.persistPrivateTabs === true
+    );
+    if (persistencePreparation.records.length === 0 && tabs.length > 0) {
+      AiraTabSessionProbe.logPersistSkip(
+        currentWindowId,
+        `all_records_dropped tabs=${tabs.length} ephemeral=${persistencePreparation.droppedEphemeralCount} ` +
+          `autoclose=${persistencePreparation.droppedAutoClosedCount}`
+      );
+    }
+    // Fail closed on an empty write that no policy explains. The shell can still hold tabs after
+    // its window session is torn down, at which point the injected tab manager serializes to an
+    // empty list (its binding is disconnected) even though `tabs` is non-empty. Writing that empty
+    // set would delete the persisted tabs, so an unexplained zero is never a valid snapshot to
+    // save. A policy-driven empty write (auto-close / ephemeral drop, e.g. 'on_app_exit') still
+    // falls through, because those tabs are meant to be gone.
+    const policyDroppedCount = persistencePreparation.droppedEphemeralCount +
+      persistencePreparation.droppedAutoClosedCount;
+    if (persistencePreparation.records.length === 0 && policyDroppedCount === 0) {
+      AiraTabSessionProbe.logPersistSkip(
+        currentWindowId,
+        `unexplained_empty_write tabs=${tabs.length} serialized=${records.length}`
+      );
+      return;
+    }
     BrowserTabSessionRuntime.remember(
-      host.getCurrentWindowId(),
+      currentWindowId,
       tabSessionProfileId,
       persistencePreparation.records
+    );
+    AiraTabSessionProbe.logRuntimeSnapshot(
+      'persist_remember',
+      currentWindowId,
+      tabSessionProfileId,
+      persistencePreparation.records.length
     );
     const recordsByProfileId: Record<string, TabRecord[]> = {};
     persistencePreparation.records.forEach((record: TabRecord) => {
@@ -118,9 +163,23 @@ export class BrowserTabSessionPersistenceCoordinator {
       recordsByProfileId[tabSessionProfileId] = [];
     }
     const replaceOperations = Object.keys(recordsByProfileId).map((profileId: string) => {
-      return sharedTabSessionRepository.replaceTabs(recordsByProfileId[profileId], host.getCurrentWindowId(), profileId, {
+      const submittedRecords = recordsByProfileId[profileId];
+      return sharedTabSessionRepository.replaceTabs(submittedRecords, currentWindowId, profileId, {
         allowPrivateTabs: tabSessionOptions.persistPrivateTabs
-      });
+      })
+        .then((written: TabRecord[]) => {
+          AiraTabSessionProbe.logPersistWrite(profileId, submittedRecords.length, written.length, 'ok', '');
+        })
+        .catch((error: Error) => {
+          AiraTabSessionProbe.logPersistWrite(
+            profileId,
+            submittedRecords.length,
+            0,
+            'failed',
+            `error=${AiraTabSessionProbe.describeError(error)}`
+          );
+          throw error;
+        });
     });
     await Promise.all(replaceOperations);
   }

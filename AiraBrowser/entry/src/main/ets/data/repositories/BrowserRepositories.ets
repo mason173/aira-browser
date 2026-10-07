@@ -23,6 +23,7 @@ import {
   UpdateBookmarkCommand
 } from '../../common/models/BrowserModels';
 import { BrowserDatabase } from '../database/BrowserDatabase';
+import { AiraTabSessionProbe } from '../../common/debug/AiraTabSessionProbe';
 import {
   HistorySyncMutationOrigin,
   HistorySyncOutboxContext
@@ -2277,6 +2278,7 @@ export class RdbTabSessionRepository implements TabSessionRepository {
 
   async initialize(): Promise<void> {
     if (this.initializationPromise === undefined) {
+      AiraTabSessionProbe.logRepoInit('begin', '');
       this.initializationPromise = this.database.initialize()
         .then(() => this.refresh())
         .then(() => undefined)
@@ -2289,6 +2291,7 @@ export class RdbTabSessionRepository implements TabSessionRepository {
   }
 
   async refresh(windowId: string = 'window-main', profileId?: string): Promise<TabRecord[]> {
+    const cacheBefore = this.listTabs(windowId, profileId).length;
     const records = await this.database.listTabRecords(windowId, profileId);
     this.tabsCache = this.tabsCache.filter((tab: TabRecord) => {
       if (tab.windowId !== windowId) {
@@ -2299,7 +2302,16 @@ export class RdbTabSessionRepository implements TabSessionRepository {
       }
       return false;
     }).concat(records);
-    return this.listTabs(windowId, profileId);
+    const latest = this.listTabs(windowId, profileId);
+    AiraTabSessionProbe.logRepoRefresh(
+      windowId,
+      profileId ?? '',
+      cacheBefore,
+      records.length,
+      latest.length,
+      'ok'
+    );
+    return latest;
   }
 
   async replaceTabs(
@@ -2315,12 +2327,17 @@ export class RdbTabSessionRepository implements TabSessionRepository {
     });
     await previousOperation;
     try {
-      await this.initialize();
-      await this.database.replaceTabRecords(
+      const persistableTabs = normalizeTabSessionOrder(filterPersistentTabSessionRecords(tabs, options));
+      AiraTabSessionProbe.logRepoRefresh(
         windowId,
-        normalizeTabSessionOrder(filterPersistentTabSessionRecords(tabs, options)),
-        profileId
+        profileId ?? '',
+        this.listTabs(windowId, profileId).length,
+        persistableTabs.length,
+        0,
+        'replace_begin'
       );
+      await this.initialize();
+      await this.database.replaceTabRecords(windowId, persistableTabs, profileId);
       await this.refresh(windowId, profileId);
       return this.listTabs(windowId, profileId);
     } finally {

@@ -63,6 +63,7 @@ import {
   BrowserNativeNavigationConsumeCoordinator
 } from '../navigation/BrowserNativeNavigationConsumeCoordinator';
 import { RestoredTabSiteIconPrewarmCoordinator } from '../siteicons/RestoredTabSiteIconPrewarmCoordinator';
+import { AiraTabSessionProbe } from '../../common/debug/AiraTabSessionProbe';
 
 interface BrowserStartupTabRestoreRuntimeEvent {
   type: string;
@@ -175,20 +176,47 @@ export class BrowserStartupTabRestoreCoordinator {
   runStartupRestore(request: BrowserStartupTabRestoreRunRequest): void {
     const restoreGeneration = this.startupRestoreGeneration + 1;
     this.startupRestoreGeneration = restoreGeneration;
+    AiraTabSessionProbe.logStartupStep(
+      'run_start',
+      'begin',
+      `window=${request.windowId} profile=${request.profileId} generation=${restoreGeneration}`
+    );
     const adBlockRuntimeReadiness = BrowserAdBlockCoordinator.prepareRuntimeBootStateForRepository(
       sharedAdBlockRepository
     );
     this.dependencies.downloadNavigationStateCoordinator
       .loadNonRestorableNavigationGuards()
-      .then(() => this.dependencies.recentlyClosedApplicationCoordinator.loadForStartup(request.profileId))
-      .then(() => sharedSiteClearOnClosePendingRepository.consumeRecords(request.windowId, request.profileId))
+      .then(() => {
+        AiraTabSessionProbe.logStartupStep('navigation_guards', 'ok', '');
+        return this.dependencies.recentlyClosedApplicationCoordinator.loadForStartup(request.profileId);
+      })
+      .then(() => {
+        AiraTabSessionProbe.logStartupStep('recently_closed_load', 'ok', '');
+        return sharedSiteClearOnClosePendingRepository.consumeRecords(request.windowId, request.profileId);
+      })
       .then((pendingRecords: TabRecord[]) => {
+        AiraTabSessionProbe.logStartupStep('site_clear_consume', 'ok', `records=${pendingRecords.length}`);
         this.cleanupSiteClearOnCloseRecords(pendingRecords);
       })
       .then(() => sharedTabSessionRepository.refresh(request.windowId, request.profileId))
       .then((records: TabRecord[]) => {
+        const ephemeral = records.filter(
+          (record: TabRecord): boolean => record.dataScope === 'session_ephemeral'
+        ).length;
+        AiraTabSessionProbe.logStartupRecords(
+          request.windowId,
+          request.profileId,
+          records.length,
+          ephemeral,
+          records.map((record: TabRecord): string => record.id)
+        );
         return adBlockRuntimeReadiness.then(() => {
           if (!this.isStartupRestoreCurrent(restoreGeneration)) {
+            AiraTabSessionProbe.logStartupStep(
+              'run_start',
+              'superseded',
+              `generation=${restoreGeneration} current=${this.startupRestoreGeneration}`
+            );
             return;
           }
           const currentActiveTabId = this.host.resolveFacts().activeTabId;
@@ -214,7 +242,11 @@ export class BrowserStartupTabRestoreCoordinator {
           this.applyRestoreResult(restoreResult, restoreGeneration);
         });
       })
-      .catch((_error: Error) => {
+      .catch((error: Error) => {
+        AiraTabSessionProbe.logStartupFailed(
+          restoreGeneration === this.startupRestoreGeneration ? 'current' : 'stale',
+          `generation=${restoreGeneration} error=${AiraTabSessionProbe.describeError(error)}`
+        );
         if (!this.isStartupRestoreCurrent(restoreGeneration)) {
           return;
         }
@@ -286,6 +318,12 @@ export class BrowserStartupTabRestoreCoordinator {
     request.webRecoveryManager.pruneTabs(restored.tabs.map((tab: BrowserTabState) => tab.id));
     this.appendColdRestoreTraceEvents(runtimeEvents, resolution);
     this.appendDroppedRecordDiagnostics(runtimeEvents, preparation, restored);
+    AiraTabSessionProbe.logStartupStep(
+      'build_result',
+      'ok',
+      `stored=${request.records.length} restore_records=${restoreRecords.length} ` +
+        `prepared=${preparation.records.length} skipped=${resolution.skippedCount} restored=${restored.tabs.length}`
+    );
     return {
       tabs: restored.tabs,
       activeTabId: restored.activeTabId,
@@ -418,6 +456,13 @@ export class BrowserStartupTabRestoreCoordinator {
     if (result.hadStoredRecords) {
       this.dependencies.tabSessionPersistenceCoordinator.persist();
     }
+    AiraTabSessionProbe.logStartupApplied(
+      result.tabs.length,
+      result.hadStoredRecords,
+      result.openHomeSurface,
+      0,
+      result.tabs.map((tab: BrowserTabState): string => tab.id)
+    );
     this.completePendingLaunch(pendingLaunchSource, pendingWebSceneLaunchConsumed);
   }
 

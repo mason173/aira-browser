@@ -7,6 +7,7 @@ import { common } from '@kit.AbilityKit';
 import { relationalStore } from '@kit.ArkData';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { AiraSyncJankProbe } from '../../common/debug/AiraSyncJankProbe';
+import { AiraTabSessionProbe } from '../../common/debug/AiraTabSessionProbe';
 import { sharedBrowsingActivitySignal } from '../../common/activity/BrowsingActivitySignal';
 import urlUtils from '@ohos.url';
 import {
@@ -2829,8 +2830,19 @@ export class BrowserDatabase {
       const predicates = this.createTabWindowPredicates(windowId, profileId);
       predicates.orderByAsc('tab_order').orderByAsc('id');
       const resultSet = await store.query(predicates, TAB_SESSION_COLUMNS);
-      return this.mapTabRows(resultSet);
+      const records = this.mapTabRows(resultSet);
+      AiraTabSessionProbe.logDbList(windowId, profileId ?? '', records.length, 'ok', '');
+      return records;
     } catch (error) {
+      // An empty list here is indistinguishable from "no tabs were ever saved", so record the
+      // failure explicitly before falling back.
+      AiraTabSessionProbe.logDbList(
+        windowId,
+        profileId ?? '',
+        0,
+        'failed',
+        `error=${AiraTabSessionProbe.describeError(error)}`
+      );
       hilog.error(DOMAIN, TAG, 'Failed to load tab session records: %{public}s', JSON.stringify(error));
       return [];
     }
@@ -2839,9 +2851,12 @@ export class BrowserDatabase {
   async replaceTabRecords(windowId: string, tabs: TabRecord[], profileId?: string): Promise<void> {
     let transactionStarted = false;
     let store: relationalStore.RdbStore | undefined = undefined;
+    let existingCount = 0;
+    let deletedCount = 0;
     try {
       store = await this.getStore();
       const existingTabs = await this.listTabRecords(windowId, profileId);
+      existingCount = existingTabs.length;
       const nextTabIds = tabs.map((tab: TabRecord) => tab.id);
       store.beginTransaction();
       transactionStarted = true;
@@ -2855,12 +2870,31 @@ export class BrowserDatabase {
       for (const existingTab of existingTabs) {
         if (nextTabIds.indexOf(existingTab.id) < 0) {
           await store.delete(this.createTabIdPredicates(existingTab.id, windowId));
+          deletedCount += 1;
         }
       }
       store.commit();
       transactionStarted = false;
+      AiraTabSessionProbe.logDbReplace(
+        windowId,
+        profileId ?? '',
+        tabs.length,
+        existingCount,
+        deletedCount,
+        'ok',
+        ''
+      );
     } catch (error) {
       this.rollbackTabSessionTransaction(store, transactionStarted);
+      AiraTabSessionProbe.logDbReplace(
+        windowId,
+        profileId ?? '',
+        tabs.length,
+        existingCount,
+        deletedCount,
+        'failed',
+        `error=${AiraTabSessionProbe.describeError(error)}`
+      );
       hilog.error(DOMAIN, TAG, 'Failed to replace tab session records: %{public}s', JSON.stringify(error));
       throw new Error('Failed to save tab sessions.');
     }
@@ -3093,15 +3127,18 @@ export class BrowserDatabase {
     if (this.storePromise === undefined) {
       const startedAt = Date.now();
       AiraSyncJankProbe.mark('browser_db_open_start');
+      AiraTabSessionProbe.logDbOpen('begin', `name=${DATABASE_NAME}`);
       this.storePromise = this.openStore()
         .then(async (store: relationalStore.RdbStore) => {
           await this.ensureSchema(store);
           this.store = store;
           AiraSyncJankProbe.end('browser_db_open', startedAt);
+          AiraTabSessionProbe.logDbOpen('ready', `duration_ms=${Date.now() - startedAt}`);
           return store;
         })
         .catch((error: Error) => {
           this.storePromise = undefined;
+          AiraTabSessionProbe.logDbOpen('failed', `error=${AiraTabSessionProbe.describeError(error)}`);
           throw new Error(`Bookmark store initialization failed: ${this.describeError(error)}`);
         });
     }
