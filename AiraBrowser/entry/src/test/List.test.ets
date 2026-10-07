@@ -119,6 +119,7 @@ import webAppDesktopInstallSyncPolicyTest from './WebAppDesktopInstallSyncPolicy
 import webpageTranslationToolbarOpenPolicyTest from './WebpageTranslationToolbarOpenPolicy.test';
 import customHomepageExternalImportServiceTest from './CustomHomepageExternalImportService.test';
 import adBlockBlockedResourcePolicyTest from './AdBlockBlockedResourcePolicy.test';
+import subframeAdBlockNavigationTest from './SubframeAdBlockNavigation.test';
 
 export default function tests(): void {
   userScriptValueStateStoreTest();
@@ -240,4 +241,5 @@ export default function tests(): void {
   webpageTranslationToolbarOpenPolicyTest();
   customHomepageExternalImportServiceTest();
   adBlockBlockedResourcePolicyTest();
+  subframeAdBlockNavigationTest();
 }

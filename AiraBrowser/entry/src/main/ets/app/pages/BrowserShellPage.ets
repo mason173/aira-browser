@@ -3,7 +3,6 @@ import { webview } from '@kit.ArkWeb';
 import { loginComponentManager } from '@kit.AccountKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { AiraNavForensicsProbe } from '../../common/debug/AiraNavForensicsProbe';
-import { AiraDownloadTriggerProbe } from '../../common/debug/AiraDownloadTriggerProbe';
 import { curves, FrameCallback, KeyboardAvoidMode, window } from '@kit.ArkUI';
 import { KeyCode } from '@kit.InputKit';
 import { accessibility } from '@kit.AccessibilityKit';
@@ -3264,19 +3263,12 @@ struct BrowserShellPage {
         request: WebResourceRequest | undefined,
         source: BrowserWebComponentNavigationEventSource
       ): boolean => {
-        const blocked = this.browserWebNavigationInterceptionCoordinator.shouldBlockSubframeNavigation({
+        return this.browserWebNavigationInterceptionCoordinator.shouldBlockSubframeNavigation({
           tabId: tabId,
           targetUrl: url,
           request: request,
           source: source
         }, this.browserWebNavigationInterceptionHost);
-        if (blocked) {
-          AiraDownloadTriggerProbe.log(
-            'subframe_navigation_blocked',
-            `source=${source} url=${url}`
-          );
-        }
-        return blocked;
       },
       resolveMainFrameWebUrlDecision: (
         tabId: string,
@@ -12033,12 +12025,6 @@ struct BrowserShellPage {
   }
 
   private handleDownloadStart(tabId: string, event: OnDownloadStartEvent): void {
-    AiraDownloadTriggerProbe.logOnDownloadStart(
-      event.url,
-      event.mimetype ?? '',
-      event.contentDisposition ?? '',
-      String(event.contentLength ?? '')
-    );
     this.browserTabBackgroundSessionSyncCoordinator.markDownloadStarted(tabId);
     this.browserUserScriptApplicationCoordinator.handleInstallCandidate(event.url);
   }

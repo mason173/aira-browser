@@ -11,7 +11,6 @@ import {
 import { BrowserProfileBoundaryService } from '../../core/browser/BrowserProfileBoundaryService';
 import { WebCookieHeaderService } from '../web/WebCookieHeaderService';
 import { resolveBlockedResourceResponse } from './AdBlockBlockedResourcePolicy';
-import { AiraDownloadTriggerProbe } from '../../common/debug/AiraDownloadTriggerProbe';
 
 const CSP_PROXY_TIMEOUT_MS: number = 15000;
 const CSP_PROXY_MAX_BYTES: number = 20 * 1024 * 1024;
@@ -67,11 +66,6 @@ export class AdBlockResponseFactoryService {
     response.setResponseCode(resource.responseCode);
     response.setReasonMessage(resource.reasonMessage);
     response.setResponseIsReady(true);
-    AiraDownloadTriggerProbe.log(
-      'blocked_response',
-      `type=${resourceType ?? 'undefined'} mime=${resource.mimeType} code=${resource.responseCode} ` +
-        `binary=${resource.base64Body.length > 0 ? 1 : 0} ready=1`
-    );
     return response;
   }
 

@@ -34,7 +34,6 @@ import {
 } from '../bootstrap/BrowserAppRuntime';
 import { AiraLoadScrollJankProbe } from '../../common/debug/AiraLoadScrollJankProbe';
 import { AiraNavForensicsProbe } from '../../common/debug/AiraNavForensicsProbe';
-import { AiraDownloadTriggerProbe } from '../../common/debug/AiraDownloadTriggerProbe';
 import { AiraTabSessionProbe } from '../../common/debug/AiraTabSessionProbe';
 import { TabRecord } from '../../common/models/BrowserModels';
 import { AppRuntimeContext } from '../runtime/AppRuntimeContext';
@@ -232,9 +231,6 @@ export default class EntryAbility extends UIAbility {
     });
     AiraTabSessionProbe.install((line: string): void => {
       hilog.info(0x0000, 'TabSession', `[TAB-SESSION-9d2b] %{public}s`, line);
-    });
-    AiraDownloadTriggerProbe.install((line: string): void => {
-      hilog.info(0x0000, 'DownloadTrigger', `[DL-TRIGGER-3e7c] %{public}s`, line);
     });
     AiraTabSessionProbe.logLifecycle('ability-create', '');
     sharedSitePolicyService.acquirePermissionSession();

@@ -71,7 +71,6 @@ import { ActivityTracker } from '../activity/ActivityTracker';
 import { DownloadTaskBoundary } from '../../domain/download/DownloadTypes';
 import { resolveCustomDownloadDirectory } from '../download/DownloadLocationDirectoryService';
 import { DownloadV2SystemNotificationService } from './DownloadV2SystemNotificationService';
-import { AiraDownloadTriggerProbe } from '../../common/debug/AiraDownloadTriggerProbe';
 
 const DOWNLOAD_V2_SERVICE_DOMAIN = 0x0000;
 const DOWNLOAD_V2_SERVICE_TAG = 'DownloadV2Service';
@@ -312,7 +311,6 @@ export class DownloadV2Service {
       }
       const requiresConfirmation = this.shouldRequireConfirmation(boundary);
       const captured = this.requestCapture.capturePlatformRequest(event.snapshot, boundary, requiresConfirmation);
-      AiraDownloadTriggerProbe.logCapture(captured.guid, captured.url, requiresConfirmation, 'arkweb_delegate');
       this.downloadTriggerDiagnosticsService.recordCapturedRequest(
         'arkweb_delegate',
         captured,
