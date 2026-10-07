@@ -85,6 +85,14 @@ export interface PendingDownloadPromptState {
   locationPath: string;
   /** Whether the prompt may offer a folder change action at all. */
   canChangeLocation: boolean;
+  /**
+   * True when this prompt came from an ArkWeb WebDownloadItem (the site handed the browser a
+   * download, usually via Content-Disposition: attachment). Such a request must never be
+   * reclassified as an inline document: ArkWeb's WebDownloadItem exposes no Content-Disposition,
+   * so the delegate-derived mimeType alone (e.g. application/pdf) would otherwise be mistaken for
+   * a document to render inline and the download would be silently dropped.
+   */
+  isPlatformDownload: boolean;
 }
 
 export interface ManualDownloadRequestInput {
@@ -536,10 +544,15 @@ export class DownloadRuntimeService {
         confirmLabel: v2Prompt.confirmLabel,
         cancelLabel: v2Prompt.cancelLabel,
         locationPath: location.path,
-        canChangeLocation: location.canChange
+        canChangeLocation: location.canChange,
+        isPlatformDownload: this.isPlatformDownloadPrompt(v2Prompt.guid)
       };
     }
     return undefined;
+  }
+
+  private isPlatformDownloadPrompt(guid: string): boolean {
+    return this.downloadV2Service.getCapturedRequest(guid)?.platformSnapshot !== undefined;
   }
 
   confirmPendingDownload(guid: string, fileName?: string): Promise<boolean> {
@@ -691,7 +704,8 @@ export class DownloadRuntimeService {
       confirmLabel: prompt.confirmLabel,
       cancelLabel: prompt.cancelLabel,
       locationPath: location.path,
-      canChangeLocation: location.canChange
+      canChangeLocation: location.canChange,
+      isPlatformDownload: this.isPlatformDownloadPrompt(prompt.guid)
     };
   }
 

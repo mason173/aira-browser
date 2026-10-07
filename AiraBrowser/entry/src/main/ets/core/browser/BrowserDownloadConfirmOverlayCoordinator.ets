@@ -338,7 +338,8 @@ export class BrowserDownloadConfirmOverlayCoordinator {
       prompt.url,
       prompt.mimeType,
       prompt.contentDisposition,
-      facts.activeTabId
+      facts.activeTabId,
+      prompt.isPlatformDownload
     );
   }
 }

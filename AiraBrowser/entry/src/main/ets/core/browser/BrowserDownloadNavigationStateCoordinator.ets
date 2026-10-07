@@ -188,8 +188,16 @@ export class BrowserDownloadNavigationStateCoordinator {
   shouldIgnoreDownloadPromptForInlineDocument(
     url: string,
     mimeType: string = '',
-    contentDisposition: string = ''
+    contentDisposition: string = '',
+    isPlatformDownload: boolean = false
   ): boolean {
+    // A request ArkWeb already handed the app as a download is never an inline document. The
+    // WebDownloadItem that drives this decision exposes no Content-Disposition, so its
+    // delegate-derived mimeType alone (for example application/pdf) would otherwise look like a
+    // PDF the page wants rendered, and the download would be dropped without ever prompting.
+    if (isPlatformDownload) {
+      return false;
+    }
     if (this.isAttachmentDisposition(contentDisposition)) {
       return false;
     }
@@ -204,13 +212,15 @@ export class BrowserDownloadNavigationStateCoordinator {
     url: string,
     mimeType: string = '',
     contentDisposition: string = '',
-    visibleTabId: string = ''
+    visibleTabId: string = '',
+    isPlatformDownload: boolean = false
   ): boolean {
     return this.resolveInlineDocumentPrompt(
       url,
       mimeType,
       contentDisposition,
-      visibleTabId
+      visibleTabId,
+      isPlatformDownload
     ).shouldIgnore;
   }
 
@@ -218,9 +228,10 @@ export class BrowserDownloadNavigationStateCoordinator {
     url: string,
     mimeType: string = '',
     contentDisposition: string = '',
-    visibleTabId: string = ''
+    visibleTabId: string = '',
+    isPlatformDownload: boolean = false
   ): BrowserInlineDocumentPromptResolution {
-    if (!this.shouldIgnoreDownloadPromptForInlineDocument(url, mimeType, contentDisposition)) {
+    if (!this.shouldIgnoreDownloadPromptForInlineDocument(url, mimeType, contentDisposition, isPlatformDownload)) {
       return {
         shouldIgnore: false,
         shouldPreserveStableDocument: false

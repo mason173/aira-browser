@@ -37,6 +37,7 @@ import downloadSelectionModeTest from './DownloadSelectionMode.test';
 import downloadRecentRecordsViewModelTest from './DownloadRecentRecordsViewModel.test';
 import downloadToolbarIndicatorViewModelTest from './DownloadToolbarIndicatorViewModel.test';
 import downloadV2StateMachineTest from './DownloadV2StateMachine.test';
+import browserDownloadInlineDocumentPromptTest from './BrowserDownloadInlineDocumentPrompt.test';
 import historyAccountBindingPolicyTest from './HistoryAccountBindingPolicy.test';
 import huaweiAgcSdkLoaderTest from './HuaweiAgcSdkLoader.test';
 import settingsDestinationNavigationOwnerTest from './SettingsDestinationNavigationOwner.test';
@@ -160,6 +161,7 @@ export default function tests(): void {
   downloadRecentRecordsViewModelTest();
   downloadToolbarIndicatorViewModelTest();
   downloadV2StateMachineTest();
+  browserDownloadInlineDocumentPromptTest();
   historyAccountBindingPolicyTest();
   huaweiAgcSdkLoaderTest();
   settingsDestinationNavigationOwnerTest();
