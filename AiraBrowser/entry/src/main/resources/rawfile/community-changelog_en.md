@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.6.4 (1000505)
+
+2026-10-07
+
+This release fixes downloading a PDF doing nothing when tapped.
+
+- Tapping to download a PDF in the built-in browser now shows the download confirmation and starts the download.
+
 ## 3.6.4 (1000502)
 
 2026-10-07

@@ -1,13 +1,11 @@
 {
   "enabled": true,
-  "noticeId": "aira-3.6.4-1000502",
+  "noticeId": "aira-3.6.4-1000505",
   "title": "Aira 3.6.4 update",
   "updatedAt": "2026-10-07",
-  "summary": "This release fixes tabs being wiped without reason and ad blocking popping download prompts, and lets membership be shared across sister apps.",
+  "summary": "This release fixes downloading a PDF doing nothing when tapped.",
   "items": [
-    "Tabs no longer disappear when the app is exited right after a tab is opened, especially installed web apps.",
-    "Blocking an in-page ad no longer triggers a download confirmation.",
-    "Signing in links the account automatically so membership can be shared across sister apps."
+    "Tapping to download a PDF in the built-in browser now shows the download confirmation and starts the download."
   ],
   "actionLabel": "View changelog"
 }
