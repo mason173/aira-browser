@@ -22,7 +22,7 @@ export interface AiraDistributionCapabilityState {
 }
 
 export const AIRA_DISTRIBUTION: AiraDistribution = 'community';
-export const AIRA_HOSTED_API_BASE_URL: string = "https://community.invalid";
+export const AIRA_HOSTED_API_BASE_URL: string = 'https://community.invalid';
 
 export class AiraDistributionCapabilityOwner {
   getDistribution(): AiraDistribution {
