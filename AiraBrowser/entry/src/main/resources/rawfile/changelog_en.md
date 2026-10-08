@@ -1,5 +1,16 @@
 # Changelog
 
+## 3.7.1 (1000508)
+
+2026-10-09
+
+This release fixes ad blocking repeatedly showing a download confirmation, and adjusts history, search back, and pull to refresh.
+
+- Blocking in-page ads with content filtering on no longer opens download confirmations over and over.
+- History is kept by count only, and is no longer deleted just because it is old.
+- Going back from the search page hides the keyboard first, then leaves search.
+- Pull to refresh is no longer cancelled early by the gesture.
+
 ## 3.6.4 (1000505)
 
 2026-10-07

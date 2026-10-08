@@ -1,14 +1,23 @@
 {
   "latestAppGalleryRelease": {
-    "versionName": "3.6.4",
-    "versionCode": 1000505,
-    "releasedAt": "2026-10-07",
+    "versionName": "3.7.1",
+    "versionCode": 1000508,
+    "releasedAt": "2026-10-09",
     "source": "formal-package-generated",
-    "notes": "Formal AppGallery package that stops a PDF download routed through the ArkWeb download proxy from being silently discarded as an inline document: a pending download is now flagged isPlatformDownload from the platform snapshot, so anything ArkWeb already treated as a download skips the inline-document check and still gets its confirmation prompt. Built from committed HEAD 2929a53 with the 3.6.4 (1000505) version and release-note changes in the same working tree, signed with the Aira release certificate and the AppGallery release Profile for com.aira.browser, with crash symbols archived. The release-signed APP build and hap-sign-tool verify-app both passed. This records a locally generated formal package and does not claim AppGallery review approval or on-shelf publication.",
-    "artifact": "AiraBrowser/build/outputs/default/Aira-official-v3.6.4-1000505-release-signed.app",
-    "sha256": "5a67e9ffa5e6089877f37e083c62e9e620936829baded038f46351f44bb27fd0"
+    "notes": "Formal AppGallery package that stops content filtering from turning a blocked subframe ad into a repeating download confirmation: a subframe navigation is now matched as its own resource type, so a subframe-only rule is denied before the request is fetched, and a blocked request is answered with an empty 204. History is kept by count only, search back hides the keyboard before leaving search, and pull to refresh is no longer cancelled early by the gesture. Built from committed HEAD 88ea793 with the 3.7.1 (1000508) version and release-note changes in the same working tree, signed with the Aira release certificate and the AppGallery release Profile for com.aira.browser, with crash symbols archived. The release-signed APP build and hap-sign-tool verify-app both passed. This records a locally generated formal package and does not claim AppGallery review approval or on-shelf publication.",
+    "artifact": "AiraBrowser/build/outputs/default/Aira-official-v3.7.1-1000508-release-signed.app",
+    "sha256": "142f9b88237a2f7b9ab1dcf144893793211add5a158635e1c760f7c34229a7f0"
   },
   "history": [
+    {
+      "versionName": "3.7.1",
+      "versionCode": 1000508,
+      "releasedAt": "2026-10-09",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery package that stops content filtering from turning a blocked subframe ad into a repeating download confirmation: a subframe navigation is now matched as its own resource type, so a subframe-only rule is denied before the request is fetched, and a blocked request is answered with an empty 204. History is kept by count only, search back hides the keyboard before leaving search, and pull to refresh is no longer cancelled early by the gesture. Built from committed HEAD 88ea793 with the 3.7.1 (1000508) version and release-note changes in the same working tree, signed with the Aira release certificate and the AppGallery release Profile for com.aira.browser, with crash symbols archived. The release-signed APP build and hap-sign-tool verify-app both passed. This records a locally generated formal package and does not claim AppGallery review approval or on-shelf publication.",
+      "artifact": "AiraBrowser/build/outputs/default/Aira-official-v3.7.1-1000508-release-signed.app",
+      "sha256": "142f9b88237a2f7b9ab1dcf144893793211add5a158635e1c760f7c34229a7f0"
+    },
     {
       "versionName": "3.6.4",
       "versionCode": 1000505,
