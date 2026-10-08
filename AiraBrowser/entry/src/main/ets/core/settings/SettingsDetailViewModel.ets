@@ -296,7 +296,7 @@ export class SettingsDetailViewModel {
       startupBehaviorLabel: '恢复常规标签',
       tabAutoCloseLabel: '不自动关闭',
       defaultBrowserLabel: '由系统设置管理',
-      historyRetentionLabel: '90 天 / 10000 条',
+      historyRetentionLabel: '10000 条',
       privateBrowsingLabel: '关闭后不恢复',
       privateModeAuthenticationEnabled: false,
       alwaysUsePrivateMode: false,
@@ -1981,8 +1981,8 @@ export class SettingsDetailViewModel {
       const retention = snapshot.historyRetention;
       return [
         this.dropdownOption('off', '不保存历史', '', !retention.enabled, rowEnabled),
-        this.dropdownOption('10000', '90 天 / 10000 条', '', retention.enabled && retention.maxAgeDays === 90 && retention.maxRows === 10000, rowEnabled),
-        this.dropdownOption('30_3000', '30 天 / 3000 条', '', retention.enabled && retention.maxAgeDays === 30 && retention.maxRows === 3000, rowEnabled)
+        this.dropdownOption('10000', '10000 条', '', retention.enabled && retention.maxRows === 10000, rowEnabled),
+        this.dropdownOption('3000', '3000 条', '', retention.enabled && retention.maxRows === 3000, rowEnabled)
       ];
     }
     if (action === 'open_general_private_tabs_settings') {

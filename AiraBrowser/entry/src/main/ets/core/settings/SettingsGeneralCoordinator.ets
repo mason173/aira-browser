@@ -107,7 +107,7 @@ export class SettingsGeneralCoordinator {
     if (!preferences.historyRetention.enabled) {
       return '不保存历史';
     }
-    return `${preferences.historyRetention.maxAgeDays} 天 / ${preferences.historyRetention.maxRows} 条`;
+    return `${preferences.historyRetention.maxRows} 条`;
   }
 
   private resolvePrivateBrowsingLabel(preferences: BrowserPreferences): string {
@@ -184,24 +184,20 @@ function localizeGeneralSettingsCount(value: string): ResourceStr {
       return $r('app.string.settings_general_unused_days', days);
     }
   }
-  const countSeparator = ' 天 / ';
-  const countMarker = ' 条';
-  const separatorIndex = value.indexOf(countSeparator);
-  if (separatorIndex > 0 && value.endsWith(countMarker)) {
-    const daysText = value.substring(0, separatorIndex);
-    const rowsText = value.substring(separatorIndex + countSeparator.length, value.length - countMarker.length);
-    const days = Number(daysText);
-    const rows = Number(rowsText);
-    if (`${days}` === daysText && `${rows}` === rowsText) {
-      return $r('app.string.settings_general_history_count', days, rows);
-    }
-  }
   const dayMarker = ' 天';
   if (value.endsWith(dayMarker) && value.indexOf('/') < 0) {
     const daysText = value.substring(0, value.length - dayMarker.length);
     const days = Number(daysText);
     if (daysText.length > 0 && `${days}` === daysText) {
       return $r('app.string.settings_general_days', days);
+    }
+  }
+  const entryMarker = ' 条';
+  if (value.endsWith(entryMarker)) {
+    const rowsText = value.substring(0, value.length - entryMarker.length);
+    const rows = Number(rowsText);
+    if (rowsText.length > 0 && `${rows}` === rowsText) {
+      return $r('app.string.settings_general_history_count', rows);
     }
   }
   return value;

@@ -217,7 +217,6 @@ function settingsScopeFiles() {
 const INTENTIONAL_CHINESE = new Map([
   ['图片|.png,.jpg,.jpeg,.gif,.webp,.bmp,.svg,.heic,.heif,.avif,.ico,.tif,.tiff', 'file picker filter, `描述|后缀` shape the API parses'],
   [' 天未使用', 'day count marker the formatter splits on'],
-  [' 天 / ', 'history retention separator the formatter splits on'],
   [' 条', 'item count marker the formatter splits on'],
   [' 天', 'day count marker the formatter splits on'],
   ['应用市场暂时无法打开。', 'review failure match marker, folded into settings_about_review_failed'],

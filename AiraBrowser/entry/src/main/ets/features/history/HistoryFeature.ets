@@ -20,6 +20,7 @@ import { BrowserDatabase } from '../../data/database/BrowserDatabase';
 import { HistoryTransferCodec } from '../../services/history/HistoryTransferCodec';
 import { BrowserPrivacyEffectPolicyService } from '../../services/privacy/BrowserPrivacyEffectPolicyService';
 import { BrowserProfileBoundaryService } from '../../core/browser/BrowserProfileBoundaryService';
+import { resolveHistoryRetentionDeletingIds } from '../../core/history/HistoryRetentionPolicy';
 import {
   BrowserPrivacyEffectIntent,
   BrowserPrivacyEffectTargetScope
@@ -239,7 +240,6 @@ export class HistoryFeature {
     const safeTarget = Math.max(0, Math.floor(targetTotalCount));
     await this.updateHistoryRetentionSettingsForBoundary({
       enabled: true,
-      maxAgeDays: 90,
       maxRows: 50000
     }, {
       dataScope: boundary.dataScope,
@@ -388,19 +388,7 @@ export class HistoryFeature {
     visits: HistoryVisit[],
     settings: HistoryRetentionSettings
   ): string[] {
-    const now = Date.now();
-    const maxAgeMs = Math.max(1, settings.maxAgeDays) * 24 * 60 * 60 * 1000;
-    const cutoff = now - maxAgeMs;
-    const ordered = visits
-      .slice()
-      .sort((left: HistoryVisit, right: HistoryVisit) => right.visitedAt - left.visitedAt);
-    const deletingIds: string[] = [];
-    ordered.forEach((visit: HistoryVisit, index: number) => {
-      if (visit.visitedAt < cutoff || index >= settings.maxRows) {
-        deletingIds.push(visit.id);
-      }
-    });
-    return Array.from(new Set<string>(deletingIds));
+    return resolveHistoryRetentionDeletingIds(visits, settings);
   }
 
   private deduplicateTransferVisits(visits: HistoryTransferVisit[]): HistoryTransferVisit[] {

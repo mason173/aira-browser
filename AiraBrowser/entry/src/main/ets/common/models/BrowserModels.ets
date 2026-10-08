@@ -991,7 +991,6 @@ export interface HistoryVisit {
 
 export interface HistoryRetentionSettings {
   enabled: boolean;
-  maxAgeDays: number;
   maxRows: number;
 }
 

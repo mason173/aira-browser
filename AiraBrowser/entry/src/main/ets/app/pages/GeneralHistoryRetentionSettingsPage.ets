@@ -39,17 +39,17 @@ const HISTORY_RETENTION_OPTIONS: HistoryRetentionOption[] = [
   {
     id: 'off',
     title: $r('app.string.settings_general_history_off'),
-    settings: { enabled: false, maxAgeDays: 0, maxRows: 0 }
+    settings: { enabled: false, maxRows: 0 }
   },
   {
     id: '10000',
-    title: $r('app.string.settings_general_history_count', 90, 10000),
-    settings: { enabled: true, maxAgeDays: 90, maxRows: 10000 }
+    title: $r('app.string.settings_general_history_count', 10000),
+    settings: { enabled: true, maxRows: 10000 }
   },
   {
-    id: '30_3000',
-    title: $r('app.string.settings_general_history_count', 30, 3000),
-    settings: { enabled: true, maxAgeDays: 30, maxRows: 3000 }
+    id: '3000',
+    title: $r('app.string.settings_general_history_count', 3000),
+    settings: { enabled: true, maxRows: 3000 }
   }
 ];
 
@@ -156,7 +156,6 @@ struct GeneralHistoryRetentionSettingsPage {
 
   private isSelected(settings: HistoryRetentionSettings): boolean {
     return this.retentionSettings.enabled === settings.enabled &&
-      this.retentionSettings.maxAgeDays === settings.maxAgeDays &&
       this.retentionSettings.maxRows === settings.maxRows;
   }
 

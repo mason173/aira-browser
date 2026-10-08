@@ -176,7 +176,7 @@ export function localizeSettingsCopy(value: ResourceStr): ResourceStr {
       return $r('app.string.settings_account_card_05');
     case '搜索和书签':
       return $r('app.string.settings_detail_07');
-    case '90 天 / 10000 条':
+    case '10000 条':
       return $r('app.string.settings_detail_08');
     case '尚无已保存站点权限':
       return $r('app.string.settings_detail_09');
@@ -214,7 +214,7 @@ export function localizeSettingsCopy(value: ResourceStr): ResourceStr {
       return $r('app.string.settings_detail_25');
     case '1 天未使用':
       return $r('app.string.settings_detail_26');
-    case '30 天 / 3000 条':
+    case '3000 条':
       return $r('app.string.settings_detail_27');
     case '关闭后不进入下次启动恢复':
       return $r('app.string.settings_detail_28');

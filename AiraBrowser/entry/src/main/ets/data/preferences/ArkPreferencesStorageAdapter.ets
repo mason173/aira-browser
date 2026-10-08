@@ -76,6 +76,11 @@ interface ReaderModeBehaviorPreferencesRecord {
   pageMode: ReadingPageMode;
 }
 
+/** A stored history-retention record from before history stopped expiring on time. */
+interface LegacyHistoryRetentionSettings extends HistoryRetentionSettings {
+  maxAgeDays?: number;
+}
+
 const PREFERENCES_NAME = 'aira_browser_preferences';
 const APP_SERVICE_MODE_KEY = 'app_service_mode';
 const SEARCH_ENGINE_KEY = 'search_engine_id';
@@ -1206,20 +1211,22 @@ export class ArkPreferencesStorageAdapter implements PreferencesStorageAdapter {
     defaultValue: HistoryRetentionSettings
   ): HistoryRetentionSettings {
     try {
-      const parsed = JSON.parse(value) as HistoryRetentionSettings;
-      return {
+      const parsed = JSON.parse(value) as LegacyHistoryRetentionSettings;
+      const settings: LegacyHistoryRetentionSettings = {
         enabled: parsed.enabled !== false,
-        maxAgeDays: this.normalizePositiveInt(
-          parsed.maxAgeDays,
-          defaultValue.maxAgeDays,
-          DEFAULT_HISTORY_RETENTION_SETTINGS.maxAgeDays
-        ),
         maxRows: this.normalizePositiveInt(
           parsed.maxRows,
           defaultValue.maxRows,
           DEFAULT_HISTORY_RETENTION_SETTINGS.maxRows
         )
       };
+      // The day count is no longer part of the model, but it is the only way to tell the two
+      // small legacy row-count pairs apart, so it travels on to the repository's migration and
+      // is then dropped rather than persisted.
+      if (Number.isFinite(Number(parsed.maxAgeDays))) {
+        settings.maxAgeDays = Math.round(Number(parsed.maxAgeDays));
+      }
+      return settings;
     } catch (_error) {
       return defaultValue;
     }

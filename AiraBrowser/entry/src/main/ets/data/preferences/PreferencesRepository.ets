@@ -191,12 +191,9 @@ export const DEFAULT_APP_LANGUAGE: string = 'default';
 
 export const DEFAULT_HISTORY_RETENTION_SETTINGS: HistoryRetentionSettings = {
   enabled: true,
-  maxAgeDays: 90,
   maxRows: 10000
 };
 
-export const HISTORY_RETENTION_MIN_DAYS: number = 1;
-export const HISTORY_RETENTION_MAX_DAYS: number = DEFAULT_HISTORY_RETENTION_SETTINGS.maxAgeDays;
 export const HISTORY_RETENTION_MIN_ROWS: number = 100;
 export const HISTORY_RETENTION_MAX_ROWS: number = 50000;
 
@@ -299,6 +296,11 @@ export const DEFAULT_BROWSER_EXPERIMENT_SETTINGS: BrowserExperimentSettings = {
 
 interface LegacyBrowserExperimentSettings extends BrowserExperimentSettings {
   edgePullRefreshEnabled?: boolean;
+}
+
+/** A stored history-retention record from before history stopped expiring on time. */
+interface LegacyHistoryRetentionSettings extends HistoryRetentionSettings {
+  maxAgeDays?: number;
 }
 
 export function resolveExperimentPullRefreshEnabled(
@@ -2053,18 +2055,11 @@ export class PreferencesRepository {
     if (settings.enabled === false) {
       return {
         enabled: false,
-        maxAgeDays: 0,
         maxRows: 0
       };
     }
     return {
       enabled: true,
-      maxAgeDays: this.clampNumber(
-        settings.maxAgeDays,
-        fallback.maxAgeDays,
-        HISTORY_RETENTION_MIN_DAYS,
-        HISTORY_RETENTION_MAX_DAYS
-      ),
       maxRows: this.clampNumber(
         this.normalizeLegacyHistoryRetentionRows(settings),
         fallback.maxRows,
@@ -2074,11 +2069,19 @@ export class PreferencesRepository {
     };
   }
 
+  /**
+   * Older records carried a day count beside the row count, and two small row counts were
+   * pairs that shipped with a specific day count. History no longer expires on time, so only
+   * the row count survives: those two legacy pairs keep resolving to the row count they stood
+   * for, a record that already stores a modern row count keeps it, and a stale day count is
+   * simply ignored.
+   */
   private normalizeLegacyHistoryRetentionRows(settings: HistoryRetentionSettings): number {
-    if (settings.maxAgeDays === 90 && settings.maxRows === 1000) {
+    const legacyMaxAgeDays = (settings as LegacyHistoryRetentionSettings).maxAgeDays;
+    if (legacyMaxAgeDays === 90 && settings.maxRows === 1000) {
       return 10000;
     }
-    if (settings.maxAgeDays === 30 && settings.maxRows === 500) {
+    if (legacyMaxAgeDays === 30 && settings.maxRows === 500) {
       return 3000;
     }
     return settings.maxRows;

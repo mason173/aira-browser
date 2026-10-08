@@ -910,12 +910,12 @@ export struct SettingsInlineDetailPanel {
 
   private resolveHistoryRetentionSettings(optionId: string): HistoryRetentionSettings {
     if (optionId === 'off') {
-      return { enabled: false, maxAgeDays: 0, maxRows: 0 };
+      return { enabled: false, maxRows: 0 };
     }
-    if (optionId === '30_3000') {
-      return { enabled: true, maxAgeDays: 30, maxRows: 3000 };
+    if (optionId === '3000') {
+      return { enabled: true, maxRows: 3000 };
     }
-    return { enabled: true, maxAgeDays: 90, maxRows: 10000 };
+    return { enabled: true, maxRows: 10000 };
   }
 
   private async applyRetentionProfile(profileId: BrowserRetentionProfileId): Promise<void> {

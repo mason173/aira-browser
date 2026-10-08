@@ -186,7 +186,7 @@ const GENERAL_TARGETS: SettingsDestinationCatalogTarget[] = [
   target('tab_auto_close', 'general', 'general', '自动关闭标签页', '通用 / 启动与标签页', 'row',
     'tab_auto_close', '', ['标签页自动关闭'], ['标签清理']),
   target('history_retention', 'general', 'general', '历史保留', '通用 / 浏览资料', 'row', 'history_retention', '',
-    ['历史记录保留'], ['保留时间', '保留条数']),
+    ['历史记录保留'], ['保留条数', '保留数量']),
   target('keyboard_shortcuts', 'general', 'general', '键盘快捷键', '通用 / 键盘', 'subpage', '',
     'keyboard_shortcuts', ['快捷键'], ['外接键盘']),
   target('app_language', 'general', 'general', '语言', '通用 / 系统', 'subpage', '',

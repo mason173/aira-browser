@@ -9918,7 +9918,7 @@
     },
     {
       "name": "settings_general_history_count",
-      "value": "%1$d days / %2$d entries"
+      "value": "%1$d entries"
     },
     {
       "name": "settings_general_keyboard",
@@ -16178,7 +16178,7 @@
     },
     {
       "name": "settings_detail_08",
-      "value": "90 days / 10000 items"
+      "value": "10000 entries"
     },
     {
       "name": "settings_detail_09",
@@ -16254,7 +16254,7 @@
     },
     {
       "name": "settings_detail_27",
-      "value": "30 days / 3000 items"
+      "value": "3000 entries"
     },
     {
       "name": "settings_detail_28",

@@ -39,6 +39,7 @@ import downloadToolbarIndicatorViewModelTest from './DownloadToolbarIndicatorVie
 import downloadV2StateMachineTest from './DownloadV2StateMachine.test';
 import browserDownloadInlineDocumentPromptTest from './BrowserDownloadInlineDocumentPrompt.test';
 import historyAccountBindingPolicyTest from './HistoryAccountBindingPolicy.test';
+import historyRetentionPolicyTest from './HistoryRetentionPolicy.test';
 import huaweiAgcSdkLoaderTest from './HuaweiAgcSdkLoader.test';
 import settingsDestinationNavigationOwnerTest from './SettingsDestinationNavigationOwner.test';
 import airaBookmarkMergeServiceTest from './AiraBookmarkMergeService.test';
@@ -113,6 +114,7 @@ import browserBottomToolbarReorderGesturePolicyTest from './BrowserBottomToolbar
 import browserOpenTabsButtonViewModelTest from './BrowserOpenTabsButtonViewModel.test';
 import documentViewerHtmlFileTransportTest from './DocumentViewerHtmlFileTransport.test';
 import browserSearchInvocationHostPolicyTest from './BrowserSearchInvocationHostPolicy.test';
+import browserShellSearchBackPolicyTest from './BrowserShellSearchBackPolicy.test';
 import historyOmniboxIndexTest from './HistoryOmniboxIndex.test';
 import localOmniboxSuggestionMatcherTest from './LocalOmniboxSuggestionMatcher.test';
 import browserTabCloseNeighborPolicyTest from './BrowserTabCloseNeighborPolicy.test';
@@ -164,6 +166,7 @@ export default function tests(): void {
   downloadV2StateMachineTest();
   browserDownloadInlineDocumentPromptTest();
   historyAccountBindingPolicyTest();
+  historyRetentionPolicyTest();
   huaweiAgcSdkLoaderTest();
   settingsDestinationNavigationOwnerTest();
   airaBookmarkMergeServiceTest();
@@ -237,6 +240,7 @@ export default function tests(): void {
   browserOpenTabsButtonViewModelTest();
   documentViewerHtmlFileTransportTest();
   browserSearchInvocationHostPolicyTest();
+  browserShellSearchBackPolicyTest();
   historyOmniboxIndexTest();
   localOmniboxSuggestionMatcherTest();
   browserTabCloseNeighborPolicyTest();

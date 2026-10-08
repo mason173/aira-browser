@@ -9918,7 +9918,7 @@
     },
     {
       "name": "settings_general_history_count",
-      "value": "%1$d 天 / %2$d 条"
+      "value": "%1$d 条"
     },
     {
       "name": "settings_general_keyboard",
@@ -16178,7 +16178,7 @@
     },
     {
       "name": "settings_detail_08",
-      "value": "90 天 / 10000 条"
+      "value": "10000 条"
     },
     {
       "name": "settings_detail_09",
@@ -16254,7 +16254,7 @@
     },
     {
       "name": "settings_detail_27",
-      "value": "30 天 / 3000 条"
+      "value": "3000 条"
     },
     {
       "name": "settings_detail_28",

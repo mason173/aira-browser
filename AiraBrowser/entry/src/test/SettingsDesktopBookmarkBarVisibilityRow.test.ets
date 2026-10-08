@@ -62,7 +62,7 @@ function generalState(): SettingsGeneralDisplayState {
     startupBehaviorLabel: '恢复常规标签',
     tabAutoCloseLabel: '不自动关闭',
     defaultBrowserLabel: '由系统设置管理',
-    historyRetentionLabel: '90 天 / 10000 条',
+    historyRetentionLabel: '10000 条',
     privateBrowsingLabel: '关闭后不恢复',
     privateModeAuthenticationEnabled: false,
     alwaysUsePrivateMode: false,
