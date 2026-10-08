@@ -3385,6 +3385,9 @@ struct BrowserShellPage {
       };
       return request;
     },
+    releaseSearchInputFocus: (): void => {
+      this.releaseSplitToolbarSearchInputFocus();
+    },
     endSearchInvocation: (): void => {
       this.endVisibleSearchInvocation('explicit_exit');
     },
@@ -6363,6 +6366,13 @@ struct BrowserShellPage {
     sharedPreferencesRepository.getPreferences().appearance.toolbarChromeStyle;
   @State splitToolbarSearchActive: boolean = false;
   @State splitToolbarSearchDismissVersion: number = 0;
+  /** Bumped to ask the chrome to drop the search field's focus and keyboard without exiting. */
+  @State private splitToolbarSearchBlurVersion: number = 0;
+  /**
+   * Reported by the split chrome: true while its search field owns the keyboard. Back then closes
+   * the keyboard first; only a later Back press leaves the search page.
+   */
+  @State private splitToolbarSearchInputFocused: boolean = false;
   /**
    * Reported by the split chrome: true while its full-screen search page is painted. The chrome
    * overlay must block the page behind it then, so a blank-area tap cannot fall through to the web
@@ -7498,7 +7508,8 @@ struct BrowserShellPage {
       tabsSheetVisible: this.showTabsSheet,
       downloadPromptGuid: this.pendingDownloadPrompt?.guid ?? '',
       externalNavigationPromptVisible: this.externalNavigationPromptState.visible,
-      splitToolbarSearchActive: this.splitToolbarSearchActive
+      splitToolbarSearchActive: this.splitToolbarSearchActive,
+      splitToolbarSearchInputFocused: this.splitToolbarSearchInputFocused
     };
   }
 
@@ -9331,6 +9342,7 @@ struct BrowserShellPage {
       tabSwipeDirection: this.addressBarTabSwipeState.direction,
       onTabSwipe: (event) => this.browserAddressBarTabSwipeCoordinator.handle(event),
       searchDismissVersion: this.splitToolbarSearchDismissVersion,
+      searchBlurVersion: this.splitToolbarSearchBlurVersion,
       pageBackgroundColor: this.themedHomeSurfaceBackground,
       barBackgroundColor: this.readSplitToolbarBarBackgroundColor(),
       dockBarBackgroundColor: this.readDockToolbarBarBackgroundColor(),
@@ -9390,6 +9402,9 @@ struct BrowserShellPage {
       },
       onSearchSurfaceVisibleChange: (visible: boolean): void => {
         this.splitToolbarSearchSurfaceVisible = visible;
+      },
+      onSearchInputEditingChange: (editing: boolean): void => {
+        this.splitToolbarSearchInputFocused = editing;
       }
     })
       .width('100%')
@@ -9509,6 +9524,15 @@ struct BrowserShellPage {
   private endSplitToolbarSearchFromChrome(reason: string): void {
     const endReason: BrowserSearchInvocationEndReason = reason === 'submitted' ? 'submitted' : 'explicit_exit';
     this.endVisibleSearchInvocation(endReason);
+  }
+
+  /**
+   * System Back while the split/dock search field still owns the keyboard. The search session,
+   * the draft and the suggestion feed all stay; the chrome only drops focus and the IME.
+   */
+  private releaseSplitToolbarSearchInputFocus(): void {
+    this.splitToolbarSearchInputFocused = false;
+    this.splitToolbarSearchBlurVersion += 1;
   }
 
   private endVisibleSearchInvocation(reason: BrowserSearchInvocationEndReason): boolean {
@@ -9648,6 +9672,7 @@ struct BrowserShellPage {
     this.clearSplitToolbarSearchOpen();
     this.splitToolbarSearchDismissVersion += 1;
     this.splitToolbarSearchCloseInFlight = false;
+    this.splitToolbarSearchInputFocused = false;
     this.webBottomAddressFocused = false;
     this.browserSearchSuggestionCoordinator.reset();
   }
@@ -10584,6 +10609,7 @@ struct BrowserShellPage {
     this.centeredHomeSearchSessionMounted = false;
     this.centeredHomeSearchGeometryOpen = false;
     this.centeredHomeSearchChromeFade = 0;
+    this.splitToolbarSearchInputFocused = false;
     this.webBottomAddressFocused = false;
     this.addressInput = '';
     this.clearSplitToolbarSearchOpen();
@@ -10641,6 +10667,7 @@ struct BrowserShellPage {
       if (dismissChrome) {
         this.splitToolbarSearchDismissVersion += 1;
       }
+      this.splitToolbarSearchInputFocused = false;
       this.webBottomAddressFocused = false;
       this.browserSearchSuggestionCoordinator.reset();
     });

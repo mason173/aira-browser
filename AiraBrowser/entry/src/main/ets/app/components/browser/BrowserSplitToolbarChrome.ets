@@ -1,4 +1,5 @@
 import { resolveAppResourceText } from '../../../core/resources/AppResourceText';
+import { inputMethod } from '@kit.IMEKit';
 import {
   ExternalAppSearchPreferences,
   ExternalAppSearchTargetId,
@@ -85,7 +86,9 @@ export struct BrowserSplitToolbarChrome {
   private searchFocusTimeout: number = -1;
   private seededSelectAll: boolean = false;
   private appliedSearchDismissVersion: number = 0;
+  private appliedSearchBlurVersion: number = 0;
   private appliedSearchOpenRequestVersion: number = 0;
+  private searchInputEditing: boolean = false;
   private externalAppSearchService: ExternalAppSearchService = new ExternalAppSearchService();
   @State @Watch('reportSearchSurfaceVisibility') private searching: boolean = false;
   @State private query: string = '';
@@ -107,6 +110,11 @@ export struct BrowserSplitToolbarChrome {
   @Prop widthBreakpoint: BrowserBottomPanelWidthBreakpoint = 'sm';
   @Prop keyboardInsetVp: number = 0;
   @Prop @Watch('handleSearchDismissRequest') searchDismissVersion: number = 0;
+  /**
+   * Bumped when the system Back key should close the keyboard without leaving the search page.
+   * The field keeps its draft; only focus and the IME go away.
+   */
+  @Prop @Watch('handleSearchBlurRequest') searchBlurVersion: number = 0;
   /** Version, draft and selection of one open. The field is created from this, not from a hidden copy. */
   @Prop @Watch('handleSearchOpenRequest') searchOpen: BrowserSplitToolbarSearchOpen =
     new BrowserSplitToolbarSearchOpen(0, '', false);
@@ -197,6 +205,11 @@ export struct BrowserSplitToolbarChrome {
    * search page is up, so its blank areas do not pass a tap through to the page behind it.
    */
   onSearchSurfaceVisibleChange: (visible: boolean) => void = (_visible: boolean) => {};
+  /**
+   * Reports whether the search field currently owns the keyboard. The shell uses this to make
+   * Back close the keyboard first and leave the search page only on the following press.
+   */
+  onSearchInputEditingChange: (editing: boolean) => void = (_editing: boolean) => {};
 
   aboutToAppear(): void {
     if (this.sessionMode === 'search_only') {
@@ -211,6 +224,7 @@ export struct BrowserSplitToolbarChrome {
     // The overlay is gone, so the shell must release any page-blocking it derived from this node.
     this.lastReportedSearchSurfaceVisible = false;
     this.onSearchSurfaceVisibleChange(false);
+    this.reportSearchInputEditing(false);
   }
 
   /** Emits the search surface's on-screen state whenever an input to it changes. */
@@ -650,12 +664,22 @@ export struct BrowserSplitToolbarChrome {
         .maxLines(1)
         .focusable(true)
         .enableKeyboardOnFocus(true)
+        // The default would swallow the system Back key while the field is focused, so the page
+        // could never see the first press. The field reports its own editing state instead.
+        .stopBackPress(false)
         .onAppear(() => {
           if (this.searching || this.sessionMode === 'search_only') {
             this.scheduleSearchInputFocus();
           }
         })
+        .onFocus(() => {
+          this.reportSearchInputEditing(true);
+        })
+        .onBlur(() => {
+          this.reportSearchInputEditing(false);
+        })
         .onEditChange((editing: boolean) => {
+          this.reportSearchInputEditing(editing);
           if (editing) {
             this.scheduleSeededSelectAll();
           }
@@ -896,10 +920,19 @@ export struct BrowserSplitToolbarChrome {
         .maxLines(1)
         .focusable(true)
         .enableKeyboardOnFocus(true)
+        // Same as the split pill: the dock page must receive Back, so the field never consumes it.
+        .stopBackPress(false)
         .onAppear(() => {
           this.scheduleSearchInputFocus();
         })
+        .onFocus(() => {
+          this.reportSearchInputEditing(true);
+        })
+        .onBlur(() => {
+          this.reportSearchInputEditing(false);
+        })
         .onEditChange((editing: boolean) => {
+          this.reportSearchInputEditing(editing);
           if (editing) {
             this.scheduleSeededSelectAll();
           }
@@ -1190,6 +1223,34 @@ export struct BrowserSplitToolbarChrome {
 
   private releaseSearchInputFocus(): void {
     focusControl.requestFocus('');
+    // Dropping focus alone can leave the IME up on some builds. The system Back key has to
+    // reliably take the keyboard away, so hide it explicitly as well.
+    inputMethod.getController().hideTextInput().catch((_error: Error): void => {
+    });
+  }
+
+  private reportSearchInputEditing(editing: boolean): void {
+    if (editing === this.searchInputEditing) {
+      return;
+    }
+    this.searchInputEditing = editing;
+    this.onSearchInputEditingChange(editing);
+  }
+
+  /**
+   * System Back while the search field owns the keyboard: close the keyboard and keep the page,
+   * its draft and its suggestions. The next Back exits the search page.
+   */
+  private handleSearchBlurRequest(): void {
+    if (this.searchBlurVersion === this.appliedSearchBlurVersion) {
+      return;
+    }
+    this.appliedSearchBlurVersion = this.searchBlurVersion;
+    this.clearSearchFocusTimeout();
+    this.seededSelectAll = false;
+    this.clearAddressSelectAllTimeout();
+    this.releaseSearchInputFocus();
+    this.reportSearchInputEditing(false);
   }
 
   private scheduleSeededSelectAll(): void {
@@ -1254,6 +1315,7 @@ export struct BrowserSplitToolbarChrome {
     this.searching = false;
     this.engineMenuOpen = false;
     this.releaseSearchInputFocus();
+    this.reportSearchInputEditing(false);
   }
 
   private submitQuery(rawInput: string): void {

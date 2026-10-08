@@ -4684,8 +4684,8 @@ main_back_host_callback_count="$(awk '
   in_host && /^}/ { print count + 0; exit }
   in_host && /: \(/ { count += 1 }
 ' "${MAIN_BACK_COORDINATOR}")"
-if [ "${main_back_host_callback_count}" -ne 8 ]; then
-  report_failure "${MAIN_BACK_COORDINATOR_REL} must expose exactly eight live shell fact/effect callbacks; found ${main_back_host_callback_count}."
+if [ "${main_back_host_callback_count}" -ne 9 ]; then
+  report_failure "${MAIN_BACK_COORDINATOR_REL} must expose exactly nine live shell fact/effect callbacks; found ${main_back_host_callback_count}."
 fi
 check_file_not_contains_rule "${SHELL_PAGE}" "${SHELL_PAGE_REL}" \
   'handleBrowserShellBackAction|handleRootBottomPanelBackAction|handleShellBackAction:|handleBottomAddressPanelBackAction:|handleWebTabsBack:|handleUnavailableWebBack:|handleFailedWebBack:|handleWindowOpenChildTerminalBack:' \

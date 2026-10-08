@@ -28,6 +28,7 @@ export type BrowserShellBackAction =
   'close_system_sheet' |
   'acknowledge_release_notice' |
   'dismiss_external_navigation_prompt' |
+  'release_search_input_focus' |
   'dismiss_search_invocation' |
   'pass_through';
 
@@ -45,6 +46,8 @@ export interface BrowserShellBackState {
   downloadPromptGuid: string;
   externalNavigationPromptVisible: boolean;
   splitToolbarSearchActive?: boolean;
+  /** The split/dock search field still owns the keyboard, so Back must only close it first. */
+  splitToolbarSearchInputFocused?: boolean;
 }
 
 export class BrowserShellBackCoordinator {
@@ -86,6 +89,11 @@ export class BrowserShellBackCoordinator {
       return 'close_tabs_overview';
     }
     if (state.splitToolbarSearchActive === true) {
+      // The search page is open. While its field still owns the keyboard, Back closes the
+      // keyboard first and leaves the page and its draft in place; the next Back exits.
+      if (state.splitToolbarSearchInputFocused === true) {
+        return 'release_search_input_focus';
+      }
       return 'dismiss_search_invocation';
     }
     if (state.externalNavigationPromptVisible) {

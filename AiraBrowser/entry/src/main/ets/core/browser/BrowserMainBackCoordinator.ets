@@ -73,6 +73,7 @@ export interface BrowserMainBackHost {
   resolveShellBackState: () => BrowserShellBackState;
   confirmCloseReaderMode: () => void;
   resolveBottomAddressPanelBackRequest: () => BrowserBottomAddressPanelBackRequest;
+  releaseSearchInputFocus: () => void;
   endSearchInvocation: () => void;
   collapseRootBottomPanel: () => void;
   resolveSystemBackRequest: (now: number) => BrowserSystemBackRequest;
@@ -207,6 +208,9 @@ export class BrowserMainBackCoordinator {
         return true;
       case 'dismiss_search_invocation':
         host.endSearchInvocation();
+        return true;
+      case 'release_search_input_focus':
+        host.releaseSearchInputFocus();
         return true;
       case 'pass_through':
       default:
