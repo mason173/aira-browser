@@ -6,8 +6,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 const { test } = require('node:test');
 const { analyze } = require('./analyze-aira-sync-diagnostics.cjs');
-const ts = require(process.env.DEVECO_TYPESCRIPT_PATH ||
-  '/Applications/DevEco-Studio.app/Contents/tools/hvigor/hvigor/node_modules/typescript/lib/typescript.js');
+const ts = require('./lib/deveco-typescript.cjs');
 
 function probe(enabled = true) {
   let now = 1000;

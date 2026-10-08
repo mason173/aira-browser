@@ -8,8 +8,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const { test } = require('node:test');
-const ts = require(process.env.DEVECO_TYPESCRIPT_PATH ||
-  '/Applications/DevEco-Studio.app/Contents/tools/hvigor/hvigor/node_modules/typescript/lib/typescript.js');
+const ts = require('./lib/deveco-typescript.cjs');
 const root = path.resolve(__dirname, '../AiraBrowser/entry/src/main/ets');
 const modules = new Map();
 

@@ -3,12 +3,7 @@ const path = require('path');
 const vm = require('vm');
 
 const repoRoot = path.resolve(__dirname, '..');
-const typescriptPath = process.env.DEVECO_TYPESCRIPT_PATH ||
-  '/Applications/DevEco-Studio.app/Contents/tools/hvigor/hvigor/node_modules/typescript/lib/typescript.js';
-if (!fs.existsSync(typescriptPath)) {
-  throw new Error(`DevEco TypeScript runtime not found: ${typescriptPath}`);
-}
-const ts = require(typescriptPath);
+const ts = require('./lib/deveco-typescript.cjs');
 
 const panelPath = path.join(
   repoRoot,

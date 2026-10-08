@@ -27,6 +27,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version-file: .node-version
+          cache: npm
+      - name: Install contract-check tooling
+        run: npm ci --no-audit --no-fund
       - name: Check committed patch
         shell: bash
         run: |

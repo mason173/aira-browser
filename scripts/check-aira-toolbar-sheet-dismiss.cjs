@@ -4,8 +4,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 const { test } = require('node:test');
 
-const ts = require(process.env.DEVECO_TYPESCRIPT_PATH ||
-  '/Applications/DevEco-Studio.app/Contents/tools/hvigor/hvigor/node_modules/typescript/lib/typescript.js');
+const ts = require('./lib/deveco-typescript.cjs');
 const sourcePath = path.resolve(__dirname,
   '../AiraBrowser/entry/src/main/ets/app/components/browser/BrowserBottomAddressPanel.ets');
 const source = fs.readFileSync(sourcePath, 'utf8');
@@ -20,8 +19,13 @@ function method(name) {
 }
 
 const moduleUnderTest = { exports: {} };
+// The Sheet state machine pulls in its presentation helpers, so extract those real bodies too. Only the
+// leaves that need ArkUI measurement or a view model are stubbed on the host below.
 const methods = ['buildToolbarSystemSheetOptions', 'openToolbarSystemSheet',
-  'handleToolbarSystemSheetDisappear'].map(method).join('\n');
+  'handleToolbarSystemSheetDisappear', 'resetToolbarAddSheet', 'closeToolbarAddSheet',
+  'exitToolbarSystemSheetEditing', 'syncToolbarSheetDisplayedActions',
+  'lockToolbarSystemSheetPresentation', 'clearToolbarSystemSheetPresentationLock',
+  'resetQuickActionReorderState', 'resolveToolbarSystemSheetContentWidth'].map(method).join('\n');
 vm.runInNewContext(ts.transpileModule(
   `class SheetAdapter {\n${methods}\n}\nmodule.exports = SheetAdapter;`, {
     compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS }
@@ -30,6 +34,9 @@ vm.runInNewContext(ts.transpileModule(
   SheetType: { BOTTOM: 'bottom' },
   ScrollSizeMode: { CONTINUOUS: 'continuous' },
   BlurStyle: { NONE: 'none' },
+  RenderStrategy: { OFFSCREEN: 0 },
+  DismissReason: { PRESS_BACK: 0, TOUCH_OUTSIDE: 1, SLIDE_DOWN: 2 },
+  Curve: { EaseIn: 0 },
   hilog: { info() {} },
   ROUTE_ACTION_DIAGNOSTIC_LOG_DOMAIN: 0,
   ROUTE_ACTION_DIAGNOSTIC_LOG_TAG: 'test',
@@ -50,6 +57,19 @@ function createHost() {
     resolveToolbarRenderSnapshot: () => ({ layoutState: {} }),
     resolveToolbarSystemSheetPreviewHeight: () => previewHeight,
     resolveToolbarSystemSheetFullHeight: () => 480,
+    // Presentation-measurement and action-sync leaves: platform/ViewModel-backed, and irrelevant to the
+    // dismissal-vs-resubmission contract this check guards.
+    resolveFloatingQuickActionLayoutWidth: () => 320,
+    resolveToolbarSystemSheetHostWidth: () => 320,
+    toolbarSystemSheetResponsiveViewModel: { buildState: () => ({ surfaceMaxWidth: 320 }) },
+    resolveToolbarSheetVisibleActions: () => [],
+    resolveToolbarParkedActions: () => [],
+    replaceObservedActions: () => {},
+    resolveToolbarSystemSheetPresentedLayoutState: () => ({}),
+    resolveToolbarSystemSheetPresentedLayoutKey: () => 'locked',
+    measureToolbarSystemSheetPreviewHeight: () => 240,
+    measureToolbarSystemSheetFullHeight: () => 480,
+    clearQuickActionDragClickGuard: () => {},
     onToolbarSystemSheetOpened: (token) => events.push(`opened:${token}`),
     onToolbarSystemSheetDismissed: (token) => events.push(`dismissed:${token}`),
     onAction: (id) => events.push(`action:${id}`)

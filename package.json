@@ -1,0 +1,10 @@
+{
+  "name": "aira-contract-checks",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Tooling dependencies for the Aira static contract checks under scripts/. Not a build entry point: the HarmonyOS client is built with hvigor and ohpm.",
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "typescript": "^4.9.5"
+  }
+}

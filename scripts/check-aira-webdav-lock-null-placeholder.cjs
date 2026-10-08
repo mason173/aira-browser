@@ -30,8 +30,7 @@ const http = require('node:http');
 const path = require('node:path');
 const vm = require('node:vm');
 const { test } = require('node:test');
-const ts = require(process.env.DEVECO_TYPESCRIPT_PATH ||
-  '/Applications/DevEco-Studio.app/Contents/tools/hvigor/hvigor/node_modules/typescript/lib/typescript.js');
+const ts = require('./lib/deveco-typescript.cjs');
 
 const ETS_ROOT = path.resolve(__dirname, '../AiraBrowser/entry/src/main/ets');
 const DAV_PREFIX = '/dav';

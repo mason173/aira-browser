@@ -397,8 +397,7 @@ assertContract(splitChrome.includes('onButtonTap') &&
 assertContract(!personalizationSyncSnapshot.includes('splitHomeLeadingTapActionId'),
   'Split bottom-bar slots stay on the device, like the floating slot gestures.');
 
-const ts = require(process.env.DEVECO_TYPESCRIPT_PATH ||
-  '/Applications/DevEco-Studio.app/Contents/tools/hvigor/hvigor/node_modules/typescript/lib/typescript.js');
+const ts = require('./lib/deveco-typescript.cjs');
 const vm = require('node:vm');
 const assert = require('node:assert/strict');
 
