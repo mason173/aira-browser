@@ -139,9 +139,9 @@ export class BrowserWebNavigationInterceptionCoordinator {
   /**
    * Whether the content filter blocks this subframe navigation before it is fetched.
    *
-   * See {@link BrowserWebComponentControllerHost.shouldBlockSubframeNavigation}: a blocked frame must
-   * be denied here, not answered with a synthetic response, or ArkWeb turns the frame URL into a
-   * download.
+   * See {@link BrowserWebComponentControllerHost.shouldBlockSubframeNavigation}. A frame this check
+   * does not deny is still blocked at `onInterceptRequest`, and that answer is an empty 204 rather
+   * than a 200 page ArkWeb would save.
    */
   shouldBlockSubframeNavigation(
     input: BrowserWebNavigationMainFrameInput,

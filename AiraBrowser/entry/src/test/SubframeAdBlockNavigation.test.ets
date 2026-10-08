@@ -117,9 +117,9 @@ class FakeControllerHost implements BrowserWebComponentControllerHost {
 
 export default function subframeAdBlockNavigationTest(): void {
   describe('Ad-block subframe navigation', () => {
-    // A blocked ad iframe (cool18.com -> ad.parkvv.com/html/iframe.php) must be denied at
-    // onLoadIntercept and never fetched. Answering it with a synthesized onInterceptRequest response
-    // made ArkWeb classify the frame URL as a download and pop the download-confirm sheet.
+    // A blocked ad iframe (cool18.com -> ad.parkvv.com/html/iframe.php) is denied at onLoadIntercept
+    // and never fetched. A subframe whose rule does not match this document check still reaches
+    // onInterceptRequest, which answers it with an empty 204 instead of a page ArkWeb would save.
     it('denies a blocked subframe navigation before it is fetched', 0, () => {
       const controller = new BrowserWebComponentController('window-main-tab-test');
       const host = new FakeControllerHost(true);

@@ -666,20 +666,32 @@ export class BrowserAdBlockCoordinator {
         return false;
       }
       const requestMethod = context.request.getRequestMethod();
+      // The caller uses this for a main-frame navigation and for a subframe navigation. Asking every
+      // call as `document` lets a subframe-only rule through: EasyList's `||xinhuanet.com/s?` does not
+      // match a document, so the news.cn POST into its hidden ad iframe was allowed here and ArkWeb
+      // then saved the blocked response as a download. Classify the navigation the same way the
+      // intercept path does, and let a subframe with no destination fall back to `subdocument`.
+      const isMainFrame = context.request.isMainFrame();
+      const classification = this.requestClassifier.classify({
+        url: requestUrl,
+        pageUrl: context.pageUrl,
+        method: requestMethod,
+        isMainFrame: isMainFrame,
+        isRedirect: context.request.isRedirect(),
+        request: context.request
+      });
+      const resourceType = isMainFrame ? 'document' : (classification.resourceType ?? 'subdocument');
       const evaluation = this.runtimeGeneration.evaluateNetworkRequest({
         url: requestUrl,
         pageUrl: context.pageUrl,
         method: requestMethod,
-        isMainFrame: true,
-        resourceType: 'document',
+        isMainFrame: isMainFrame,
+        resourceType: resourceType,
         enabled: this.isFilteringEnabledForRequest(snapshot, policy, context.strengthenForSmoothScroll),
         includeResponseEvaluation: false
       });
       const decision = evaluation.network;
-      if (!decision.shouldBlock) {
-        return false;
-      }
-      if (decision.redirectDataUrl.length > 0) {
+      if (!decision.shouldBlock || decision.redirectDataUrl.length > 0) {
         return false;
       }
       this.statsCoordinator.recordNetworkBlocked({

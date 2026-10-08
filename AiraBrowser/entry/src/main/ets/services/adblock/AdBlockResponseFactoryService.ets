@@ -37,20 +37,15 @@ export class AdBlockResponseFactoryService {
   private cspFallbackUntilByRequestKey: Map<string, number> = new Map<string, number>();
 
   /**
-   * Answers a blocked request with a neutral resource typed to the request.
+   * Answers a blocked request with an empty 204, for every resource type.
    *
-   * A blocked frame/document must be a real, displayable empty document: an empty body under a
-   * guessed MIME reads as a 2xx response the renderer cannot display, and Chromium's navigation
-   * loader then promotes it to a download (see `AdBlockBlockedResourcePolicy`).
+   * A 200 stand-in is a completed response, and ArkWeb saves a completed frame response it will not
+   * render (see `AdBlockBlockedResourcePolicy`). The resource type is accepted so callers keep
+   * passing the classification, but it does not change the response.
    */
   buildBlockedResponse(resourceType: AdBlockResourceType | undefined): WebResourceResponse {
     const resource = resolveBlockedResourceResponse(resourceType);
     const response = new WebResourceResponse();
-    // ArkWeb's navigation path reads a blocked frame navigation's MIME from the response headers; with
-    // no Content-Type the navigation response has an unknown MIME, and Chromium's navigation loader
-    // then classifies the 2xx as a download (see `AdBlockBlockedResourcePolicy`). The Content-Type
-    // header and `setResponseIsReady(true)` are what the working in-repo intercept
-    // (`DocumentViewerHtmlFileResponse`) also does.
     response.setResponseHeader([
       { headerKey: 'Content-Type', headerValue: resource.mimeType },
       { headerKey: 'Cache-Control', headerValue: 'no-store' },

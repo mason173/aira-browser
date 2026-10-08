@@ -103,10 +103,9 @@ export interface BrowserWebComponentControllerHost {
   /**
    * Whether the content filter blocks this navigation (a document or a subframe) before it is fetched.
    *
-   * A blocked subframe must be denied here rather than answered with a synthesized
-   * `onInterceptRequest` response: ArkWeb reads a frame navigation's download disposition from the
-   * network layer, so a synthetic 2xx response to the frame URL is classified as a download (the
-   * cool18.com `ad.parkvv.com` iframe case). Denying the navigation stops it before any response.
+   * Denying here stops the request before any response. It does not cover every blocked frame: a
+   * subframe rule that does not match a document check (news.cn POSTing `a3.xinhuanet.com/s?`) falls
+   * through to `onInterceptRequest`, which answers it with an empty 204 so ArkWeb has no file to save.
    */
   shouldBlockSubframeNavigation: (
     tabId: string,

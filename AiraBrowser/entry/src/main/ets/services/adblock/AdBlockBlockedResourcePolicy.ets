@@ -3,93 +3,42 @@ import { AdBlockResourceType } from '../../common/models/BrowserModels';
 /**
  * Shape of the synthetic response a blocked request is answered with.
  *
- * A blocked request must never be answered with an empty body under a guessed MIME: Chromium's
- * navigation loader treats a 2xx response whose MIME the renderer cannot display as a download
- * (`content/browser/loader/download_utils_impl.cc`, `IsDownload`). That is how an ad iframe whose
- * URL has no recognizable extension (for example `ad.parkvv.com/html/iframe.php?id=...`) used to
- * turn into a download prompt once EasyList China matched `||ad.parkvv.com^`.
+ * ArkWeb classifies a completed 2xx navigation as a download when the renderer will not display it
+ * (`content/browser/loader/download_utils_impl.cc`, `IsDownload`). A 200 — even a real empty HTML
+ * document — is such a response for a frame the site never meant to render, such as the hidden POST
+ * iframe news.cn submits to `https://a3.xinhuanet.com/s?`. A 204 has no content to save, which is why
+ * blocked requests never surfaced as downloads before the 200 stand-ins were introduced.
  */
 export interface AdBlockBlockedResourceResponse {
-  /** Renderer-facing MIME. Must be a type the renderer can display, never a URL-guessed guess. */
+  /** Declared so the response is well formed. Unused by the renderer: the status is 204. */
   mimeType: string;
-  /** Text body for text-family responses; empty when a binary body or an empty body is used. */
+  /** Always empty. A body would make the response look like a file. */
   textBody: string;
-  /** Base64 of a binary body (the transparent image); empty when textBody is used. */
+  /** Always empty. A binary body would make the response look like a file. */
   base64Body: string;
   responseCode: number;
   reasonMessage: string;
 }
 
-// The same neutral placeholders uBlock Origin and Brave ship as web-accessible resources: each one
-// is a minimal, correctly typed stand-in so the renderer finishes the request instead of downloading it.
-const BLOCKED_NOOP_HTML: string =
-  '<!DOCTYPE html>\n<html>\n    <head><title></title></head>\n    <body></body>\n</html>\n';
-const BLOCKED_NOOP_CSS: string = '/* */\n';
-const BLOCKED_NOOP_JSON: string = '{}';
-// 43-byte transparent 1x1 GIF, identical to uBlock Origin's `1x1.gif`.
-const BLOCKED_NOOP_GIF_BASE64: string = 'R0lGODlhAQABAIAAAP///////yH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==';
+const BLOCKED_NO_CONTENT: AdBlockBlockedResourceResponse = {
+  mimeType: 'text/plain',
+  textBody: '',
+  base64Body: '',
+  responseCode: 204,
+  reasonMessage: 'No Content'
+};
 
 /**
- * Maps a blocked request's resource type to the neutral resource that replaces it.
+ * Every blocked request is answered with the same empty 204, whatever its resource type.
  *
- * A document or subdocument (an iframe navigation) is the case that used to surface as a download,
- * so it is answered with a real, empty HTML document under `text/html`. Frames that a site loads as
- * a document are the same class of navigation. Non-navigation sub-resources keep an empty body; the
- * MIME still tracks the request type so the renderer never mistakes them for a file to save.
+ * The type used to select a 200 stand-in (HTML for a frame, a GIF for an image) so the renderer could
+ * display it. That is exactly the response ArkWeb saves: the xinhuanet POST subframe came back as
+ * `text/html` 200 and the download sheet named the file `s`. Resource type does not change the answer.
+ * Subframe navigations that can be denied before fetch still are; this is the answer for the ones that
+ * cannot.
  */
 export function resolveBlockedResourceResponse(
-  resourceType: AdBlockResourceType | undefined
+  _resourceType: AdBlockResourceType | undefined
 ): AdBlockBlockedResourceResponse {
-  switch (resourceType) {
-    case 'document':
-    case 'subdocument':
-    case 'popup':
-      return {
-        mimeType: 'text/html',
-        textBody: BLOCKED_NOOP_HTML,
-        base64Body: '',
-        responseCode: 200,
-        reasonMessage: 'OK'
-      };
-    case 'script':
-      return {
-        mimeType: 'application/javascript',
-        textBody: '',
-        base64Body: '',
-        responseCode: 200,
-        reasonMessage: 'OK'
-      };
-    case 'stylesheet':
-      return {
-        mimeType: 'text/css',
-        textBody: BLOCKED_NOOP_CSS,
-        base64Body: '',
-        responseCode: 200,
-        reasonMessage: 'OK'
-      };
-    case 'image':
-      return {
-        mimeType: 'image/gif',
-        textBody: '',
-        base64Body: BLOCKED_NOOP_GIF_BASE64,
-        responseCode: 200,
-        reasonMessage: 'OK'
-      };
-    case 'xmlhttprequest':
-      return {
-        mimeType: 'application/json',
-        textBody: BLOCKED_NOOP_JSON,
-        base64Body: '',
-        responseCode: 200,
-        reasonMessage: 'OK'
-      };
-    default:
-      return {
-        mimeType: 'text/plain',
-        textBody: '',
-        base64Body: '',
-        responseCode: 204,
-        reasonMessage: 'No Content'
-      };
-  }
+  return BLOCKED_NO_CONTENT;
 }
