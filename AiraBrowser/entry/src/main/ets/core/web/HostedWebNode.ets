@@ -2893,10 +2893,8 @@ function resolveHostedWebNestedScrollOptions(enabled: boolean): NestedScrollOpti
     };
   }
   return {
-    // Finger-up must stay in the Web. Giving that edge to Refresh leaves the page stuck at the
-    // top after a site toggles its own scroll lock.
-    scrollUp: NestedScrollMode.SELF_ONLY,
-    scrollDown: NestedScrollMode.PARENT_FIRST,
+    scrollUp: NestedScrollMode.SELF_FIRST,
+    scrollDown: NestedScrollMode.SELF_FIRST,
     scrollLeft: NestedScrollMode.SELF_ONLY,
     scrollRight: NestedScrollMode.SELF_ONLY
   };

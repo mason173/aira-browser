@@ -125,29 +125,6 @@ export class BrowserPullRefreshCoordinator {
     return this.isEligible(this.readContext(activeTab));
   }
 
-  /**
-   * Refresh sits outside the Web and owns a built-in vertical pan. At the top of a page that
-   * temporarily reports itself unscrollable, that pan wins and then keeps eating later swipes,
-   * so the Web receives touch but never scrolls. Only a downward pull at scroll offset 0 is a
-   * refresh; every other vertical pan belongs to the page.
-   *
-   * The judge that calls this runs when the pan is about to be recognized, so the finger has
-   * travelled only the recognition threshold — about 5 vp for touch. Gating on a larger pull
-   * distance there rejects every genuine pull before it can begin, so the recognition-time
-   * decision is direction alone. Distance and how far the page has scrolled are settled afterwards
-   * by Refresh itself, which will not open while its child can still scroll.
-   */
-  shouldClaimVerticalPan(scrollY: number, offsetX: number, offsetY: number): boolean {
-    if (!this.isEnabledForActiveSurface()) {
-      return false;
-    }
-    if (!Number.isFinite(offsetX) || !Number.isFinite(offsetY) || !Number.isFinite(scrollY)) {
-      return false;
-    }
-    const pullingDown = offsetY > 0 && Math.abs(offsetY) >= Math.abs(offsetX);
-    return pullingDown && scrollY <= 1;
-  }
-
   handleShellDisappear(): void {
     this.clearRefreshCompletionTimeout();
   }

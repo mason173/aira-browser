@@ -7688,28 +7688,12 @@ struct BrowserShellPage {
       .pullToRefresh(this.browserPullRefreshCoordinator.isEnabledForActiveSurface())
       .refreshOffset(48)
       .pullUpToCancelRefresh(true)
-      .onGestureRecognizerJudgeBegin((event: BaseGestureEvent, current: GestureRecognizer,
-        _recognizers: Array<GestureRecognizer>): GestureJudgeResult => {
-        return this.judgeWebPullRefreshPan(event, current);
-      })
       .onStateChange((status: RefreshStatus) => {
         this.browserPullRefreshCoordinator.handleStatus(status);
       })
       .onRefreshing(() => {
         this.browserPullRefreshCoordinator.requestRefresh();
       })
-  }
-
-  private judgeWebPullRefreshPan(event: BaseGestureEvent, current: GestureRecognizer): GestureJudgeResult {
-    if (!current.isBuiltIn() || current.getType() !== GestureControl.GestureType.PAN_GESTURE) {
-      return GestureJudgeResult.CONTINUE;
-    }
-    const pan = event as PanGestureEvent;
-    return this.browserPullRefreshCoordinator.shouldClaimVerticalPan(
-      this.browserWebScrollInteractionCoordinator.getLastScrollY(),
-      pan.offsetX,
-      pan.offsetY
-    ) ? GestureJudgeResult.CONTINUE : GestureJudgeResult.REJECT;
   }
 
   @Builder
