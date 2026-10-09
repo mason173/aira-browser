@@ -15,7 +15,7 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-GPL--3.0-blue.svg?color=3F51B5&style=for-the-badge&label=License&logoColor=000000&labelColor=ececec" alt="License: GPL-3.0"></a>
-  <a href="https://t.me/+St1xriweCiJlMGQx"><img src="https://img.shields.io/badge/Telegram-Join-26A5E4?style=for-the-badge&logo=telegram&logoColor=000000&labelColor=ececec" alt="Telegram"></a>
+  <a href="https://t.me/airabrowser"><img src="https://img.shields.io/badge/Telegram-Join-26A5E4?style=for-the-badge&logo=telegram&logoColor=000000&labelColor=ececec" alt="Telegram"></a>
 </p>
 
 Aira is an open-source HarmonyOS NEXT browser, released under GPL-3.0. The same repository also contains a desktop sync extension and a single-owner service for self-hosted sync.
