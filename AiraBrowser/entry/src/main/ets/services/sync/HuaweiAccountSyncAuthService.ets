@@ -318,14 +318,13 @@ export class HuaweiAccountSyncAuthService implements HuaweiAccountAccessTokenPro
   }
 
   /**
-   * Returns the Huawei UnionID for the signed-in user, or '' when unavailable.
-   * The UnionID is the only identifier stable across every App under one
-   * developer account, so a sibling App (Pinecone List) is recognized as the
-   * same person through it. The AGC login path only yields the AGC uid, so the
-   * UnionID is requested on demand through Account Kit instead. Requires a UI
-   * ability context (an interactive request); callers degrade on ''.
+   * Returns a one-time Huawei authorization code for the signed-in user, or ''
+   * when unavailable. The backend exchanges this code for the UnionID. The
+   * client must not send the UnionID or OpenID itself: an OpenID differs per
+   * app, and a client-reported UnionID is not proof of who is signed in.
+   * Requires a UI ability context; callers degrade on ''.
    */
-  async getCurrentUnionId(): Promise<string> {
+  async getCurrentAuthorizationCode(): Promise<string> {
     if (!AIRA_DISTRIBUTION_CAPABILITY_OWNER.isAvailable('huawei_account')) {
       return '';
     }
@@ -334,18 +333,16 @@ export class HuaweiAccountSyncAuthService implements HuaweiAccountAccessTokenPro
     }
     const request = new authentication.HuaweiIDProvider()
       .createAuthorizationWithHuaweiIDRequest();
-    // openid is returned by default and carries UnionID/OpenID; no extra scope.
     request.scopes = ['openid'];
+    request.permissions = ['serviceauthcode'];
     request.forceAuthorization = false;
     request.state = util.generateRandomUUID();
     const controller = new authentication.AuthenticationController(AppRuntimeContext.getUIAbilityContext());
     const response = await controller.executeRequest(request) as authentication.AuthorizationWithHuaweiIDResponse;
-    const credential = response.data;
-    if (credential === undefined) {
+    if (response.state !== undefined && response.state !== request.state) {
       return '';
     }
-    const unionId = (credential.unionID ?? '').trim();
-    return unionId.length > 0 ? unionId : (credential.openID ?? '').trim();
+    return (response.data?.authorizationCode ?? '').trim();
   }
 
   private requireHuaweiAccountCapability(): void {

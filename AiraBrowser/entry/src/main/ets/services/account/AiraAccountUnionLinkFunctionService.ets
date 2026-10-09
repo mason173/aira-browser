@@ -13,7 +13,7 @@ const ACCOUNT_UNION_LINK_TAG: string = 'AiraAccountUnionLink';
 
 interface AiraAccountLinkUnionRequestBody {
   uid: string;
-  unionId: string;
+  authorizationCode: string;
   authToken?: string;
   source: string;
 }
@@ -55,9 +55,10 @@ class NetworkAiraAccountUnionLinkHttpAdapter implements AiraAccountUnionLinkHttp
 }
 
 /**
- * Reports the signed-in account's Huawei UnionID to the Aira backend so a
- * sibling App (Pinecone List) can be recognized as the same person through the
- * shareable UnionID. Best-effort: a failure never blocks login, it only means
+ * Reports a one-time Huawei authorization code for the signed-in account. The
+ * backend exchanges that code for the UnionID, which is the only identifier a
+ * sibling App can use to recognize the same person. The client never sends a
+ * UnionID or OpenID. Best-effort: a failure never blocks login, it only means
  * the sibling App cannot resolve this account until a later attempt succeeds.
  */
 export class AiraAccountUnionLinkFunctionService {
@@ -77,24 +78,24 @@ export class AiraAccountUnionLinkFunctionService {
     if (normalizedUid.length <= 0) {
       return false;
     }
-    let unionId = '';
+    let authorizationCode = '';
     try {
-      unionId = (await this.authService.getCurrentUnionId()).trim();
+      authorizationCode = (await this.authService.getCurrentAuthorizationCode()).trim();
     } catch (error) {
       hilog.warn(
         ACCOUNT_UNION_LINK_DOMAIN,
         ACCOUNT_UNION_LINK_TAG,
-        'union id unavailable error=%{public}s',
+        'authorization code unavailable error=%{public}s',
         JSON.stringify(error)
       );
       return false;
     }
-    if (unionId.length <= 0) {
+    if (authorizationCode.length <= 0) {
       return false;
     }
     const body: AiraAccountLinkUnionRequestBody = {
       uid: normalizedUid,
-      unionId: unionId,
+      authorizationCode: authorizationCode,
       source: 'app'
     };
     try {

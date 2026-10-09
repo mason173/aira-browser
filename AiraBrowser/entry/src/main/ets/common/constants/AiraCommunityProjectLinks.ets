@@ -7,4 +7,4 @@ export const AIRA_COMMUNITY_THIRD_PARTY_NOTICES_URL: string =
 export const AIRA_COMMUNITY_SECURITY_POLICY_URL: string =
   'https://github.com/mason173/aira-browser/blob/main/SECURITY.md';
 export const AIRA_COMMUNITY_TELEGRAM_URL: string =
-  'https://t.me/+St1xriweCiJlMGQx';
+  'https://t.me/airabrowser';
