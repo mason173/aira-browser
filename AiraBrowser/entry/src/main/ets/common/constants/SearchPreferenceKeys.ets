@@ -6,3 +6,5 @@ export const EXTERNAL_APP_SEARCH_PREFERENCES_REVISION_KEY: string =
   'aira.search.externalAppPreferencesRevision';
 export const QUICK_SEARCH_SWITCHING_PREFERENCES_REVISION_KEY: string =
   'aira.search.quickSwitchingPreferencesRevision';
+export const SEARCH_QUERY_HISTORY_REVISION_KEY: string =
+  'aira.search.queryHistoryRevision';

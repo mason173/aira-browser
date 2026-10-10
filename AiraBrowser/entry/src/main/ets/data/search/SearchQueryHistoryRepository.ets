@@ -4,6 +4,7 @@ import {
   DEFAULT_BROWSER_PROFILE_ID,
   SearchQueryHistoryRecord
 } from '../../common/models/BrowserModels';
+import { SEARCH_QUERY_HISTORY_REVISION_KEY } from '../../common/constants/SearchPreferenceKeys';
 import { BrowserDatabase } from '../database/BrowserDatabase';
 
 export interface SearchQueryHistoryBoundary {
@@ -77,6 +78,7 @@ export class SearchQueryHistoryRepository {
     const removed = await this.database.deleteSearchQueryHistoryByIds(ids);
     if (removed > 0) {
       this.removeCachedIds(ids);
+      this.publishRevision();
     }
     return removed;
   }
@@ -85,6 +87,7 @@ export class SearchQueryHistoryRepository {
     const removed = await this.database.deleteSearchQueryHistoryInRange(startAt, endAt);
     if (removed > 0) {
       await this.refreshLoadedScopes();
+      this.publishRevision();
     }
     return removed;
   }
@@ -93,6 +96,9 @@ export class SearchQueryHistoryRepository {
     const removed = await this.database.clearSearchQueryHistory();
     this.recordsByScope.clear();
     this.initializationPromises.clear();
+    if (removed > 0) {
+      this.publishRevision();
+    }
     return removed;
   }
 
@@ -114,6 +120,16 @@ export class SearchQueryHistoryRepository {
 
   private buildScopeKey(boundary: SearchQueryHistoryBoundary): string {
     return `${boundary.profileId}:${boundary.dataScope}`;
+  }
+
+  /**
+   * Deletions can happen while a browser search session keeps serving its cached suggestion
+   * snapshot (for example the Settings page clearing all queries), so every removed record
+   * publishes a revision for live surfaces to drop their cached feed.
+   */
+  private publishRevision(): void {
+    const nextRevision = (AppStorage.get<number>(SEARCH_QUERY_HISTORY_REVISION_KEY) ?? 0) + 1;
+    AppStorage.setOrCreate(SEARCH_QUERY_HISTORY_REVISION_KEY, nextRevision);
   }
 
   private sortRecords(records: SearchQueryHistoryRecord[]): SearchQueryHistoryRecord[] {

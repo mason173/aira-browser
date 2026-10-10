@@ -45,7 +45,8 @@ import {
 } from '../../common/models/BrowserModels';
 import {
   QUICK_SEARCH_SWITCHING_PREFERENCES_REVISION_KEY,
-  SEARCH_ENGINE_SETTINGS_REVISION_KEY
+  SEARCH_ENGINE_SETTINGS_REVISION_KEY,
+  SEARCH_QUERY_HISTORY_REVISION_KEY
 } from '../../common/constants/SearchPreferenceKeys';
 import {
   CustomHomepageRuntimeCoordinator,
@@ -6081,6 +6082,8 @@ struct BrowserShellPage {
   @StorageLink(QUICK_SEARCH_SWITCHING_PREFERENCES_REVISION_KEY)
   @Watch('handleQuickSearchSwitchingPreferencesRevisionChange')
   private quickSearchSwitchingPreferencesRevision: number = 0;
+  @StorageLink(SEARCH_QUERY_HISTORY_REVISION_KEY) @Watch('handleSearchQueryHistoryRevisionChange')
+  private searchQueryHistoryRevision: number = 0;
   @State quickSearchSwitchingPresentation: BrowserQuickSearchSwitchingPresentation =
     createHiddenBrowserQuickSearchSwitchingPresentation();
   @State webpageTranslationApplicationSnapshot: WebpageTranslationApplicationSnapshot =
@@ -9408,13 +9411,14 @@ struct BrowserShellPage {
   }
 
   /**
-   * Dock search page history. The suggestion feed already merges history with bookmarks, tabs and
-   * shortcuts; the dock shows one history list, so it keeps only the history rows.
+   * Dock search page history: only the search terms the user submitted. Recently visited pages
+   * stay out of this card so "清除搜索历史" empties exactly what the card shows; they remain in
+   * the omnibox resting list and the history manager.
    */
   private resolveDockSearchHistorySuggestions(): SearchSuggestion[] {
     return this.browserSearchSuggestionSnapshot.searchSuggestions.filter(
       (suggestion: SearchSuggestion): boolean => {
-        return suggestion.source === 'history' || suggestion.source === 'search_history';
+        return suggestion.source === 'search_history';
       }
     );
   }
@@ -12368,6 +12372,15 @@ struct BrowserShellPage {
   private handleSearchEngineSettingsRevisionChange(): void {
     this.browserTabHomeCoordinator.handleSearchEngineSettingsRevision();
     this.browserQuickSearchSwitchingCoordinator.refreshEligibility('search-engine-settings');
+  }
+
+  /**
+   * Search-history deletions can land while a search session is still alive (the Settings page
+   * clears the whole feed), so the cached suggestion snapshot and empty-query cache must drop
+   * instead of serving the removed rows until the next fresh session.
+   */
+  private handleSearchQueryHistoryRevisionChange(): void {
+    this.browserSearchSuggestionCoordinator.invalidate();
   }
 
   private handleQuickSearchSwitchingPreferencesRevisionChange(): void {

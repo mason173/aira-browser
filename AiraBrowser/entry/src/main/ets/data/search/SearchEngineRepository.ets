@@ -19,6 +19,9 @@ import {
 } from '../../common/constants/SearchPreferenceKeys';
 
 const REMOTE_SEARCH_SUGGESTION_RESTORE_CUTOFF_AT: number = 1783186801000;
+// Settings last written before this moment still carry search-term history at its old
+// default (off), so they are restored to the new default once, like the remote restore above.
+const SEARCH_HISTORY_SUGGESTION_RESTORE_CUTOFF_AT: number = 1791561600000;
 const DEFAULT_ENABLED_BUILT_IN_SEARCH_ENGINE_IDS: SearchEngineId[] = [
   'bing',
   'google',
@@ -37,7 +40,7 @@ export const DEFAULT_SEARCH_SUGGESTION_PREFERENCES: SearchSuggestionPreferences 
   openTabsEnabled: true,
   bookmarksEnabled: true,
   shortcutsEnabled: false,
-  historyEnabled: false,
+  historyEnabled: true,
   browsingHistoryEnabled: false,
   navigationSuggestionsChosen: true,
   remoteEnabled: true
@@ -76,6 +79,7 @@ export class SearchEngineRepository {
       parsedSettings?.fallbackSearch === undefined ||
       parsedSettings?.fallbackSearch?.noticeEnabled === undefined ||
       this.shouldRestoreRemoteSearchSuggestions(parsedSettings) ||
+      this.shouldRestoreSearchHistorySuggestions(parsedSettings) ||
       this.settings.defaultSearchEngineId !== legacyDefaultSearchEngineId) {
       await this.persistSettings(this.settings);
     }
@@ -426,9 +430,7 @@ export class SearchEngineRepository {
       builtInEngineOrder: builtInEngineOrder,
       enabledBuiltInEngineIds: normalizedEnabledBuiltInEngineIds,
       customEngines: customEngines,
-      searchSuggestions: this.shouldRestoreRemoteSearchSuggestions(parsed) ?
-        this.restoreRemoteSearchSuggestions(searchSuggestions) :
-        searchSuggestions,
+      searchSuggestions: this.resolveRestoredSuggestionPreferences(parsed, searchSuggestions),
       fallbackSearch: this.normalizeFallbackSettings(
         parsed?.fallbackSearch,
         defaultSearchEngineId,
@@ -640,6 +642,47 @@ export class SearchEngineRepository {
       navigationSuggestionsChosen: preferences.navigationSuggestionsChosen,
       remoteEnabled: true
     };
+  }
+
+  /**
+   * Search-term history shipped with its recorder off, so panels written before the default
+   * changed still store historyEnabled=false. Panels that were never personalized are restored
+   * to the new default once; a panel the user shaped itself keeps its stored choice.
+   */
+  private shouldRestoreSearchHistorySuggestions(settings: SearchEngineSettings | undefined): boolean {
+    const preferences = settings?.searchSuggestions;
+    return this.normalizeTimestamp(settings?.updatedAt) < SEARCH_HISTORY_SUGGESTION_RESTORE_CUTOFF_AT &&
+      preferences?.historyEnabled === false &&
+      preferences?.regularEnabled !== false &&
+      preferences?.privateEnabled !== true &&
+      preferences?.remoteEnabled !== false;
+  }
+
+  private restoreSearchHistorySuggestions(preferences: SearchSuggestionPreferences): SearchSuggestionPreferences {
+    return {
+      regularEnabled: preferences.regularEnabled,
+      privateEnabled: preferences.privateEnabled,
+      openTabsEnabled: preferences.openTabsEnabled,
+      bookmarksEnabled: preferences.bookmarksEnabled,
+      shortcutsEnabled: preferences.shortcutsEnabled,
+      historyEnabled: true,
+      browsingHistoryEnabled: preferences.browsingHistoryEnabled,
+      navigationSuggestionsChosen: preferences.navigationSuggestionsChosen,
+      remoteEnabled: preferences.remoteEnabled
+    };
+  }
+
+  private resolveRestoredSuggestionPreferences(
+    parsed: SearchEngineSettings | undefined,
+    normalized: SearchSuggestionPreferences
+  ): SearchSuggestionPreferences {
+    if (this.shouldRestoreRemoteSearchSuggestions(parsed)) {
+      return this.restoreRemoteSearchSuggestions(normalized);
+    }
+    if (this.shouldRestoreSearchHistorySuggestions(parsed)) {
+      return this.restoreSearchHistorySuggestions(normalized);
+    }
+    return normalized;
   }
 
   private cloneSuggestionPreferences(value: SearchSuggestionPreferences): SearchSuggestionPreferences {

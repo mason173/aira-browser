@@ -748,7 +748,7 @@ export struct BrowserSplitToolbarChrome {
           })
             .width('100%')
             .layoutWeight(1)
-        } else {
+        } else if (this.dockSearchHistory.length > 0) {
           this.buildDockSearchHistory()
         }
 
