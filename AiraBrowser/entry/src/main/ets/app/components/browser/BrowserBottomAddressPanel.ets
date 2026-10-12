@@ -1118,7 +1118,9 @@ export struct BrowserBottomAddressPanel {
         this.buildToolbarSystemSheetAccountAvatar()
         // Name and badge form one leading group so the tier reads as part of the name. The group
         // takes the space between the avatar and the chevron, and only the name shrinks with an
-        // ellipsis, so a long nickname can never push the badge out of the capsule.
+        // ellipsis, so a long nickname can never push the badge out of the capsule. No layoutWeight
+        // child may live in this Row: a single weighted sibling disables flexShrink layout for the
+        // whole container, the name stops shrinking, and the badge is pushed out again.
         Row({ space: 6 }) {
           Text(this.liveAccountCapsule.label)
             .fontSize(15)
@@ -1135,7 +1137,6 @@ export struct BrowserBottomAddressPanel {
             }
             .flexShrink(0)
           }
-          Blank().layoutWeight(1)
         }
         .layoutWeight(1)
         .alignItems(VerticalAlign.Center)

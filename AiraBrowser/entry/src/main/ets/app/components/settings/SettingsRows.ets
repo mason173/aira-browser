@@ -210,6 +210,8 @@ export struct SettingsAccountCardRow {
 
       Column({ space: 4 }) {
         Row({ space: 8 }) {
+          // The full-width row plus flexShrink keeps a long title on one ellipsized line so the
+          // tier badges stay inside the card; the fixed cap only bounds wide screens.
           Text(this.title)
             .fontSize(17)
             .fontWeight(FontWeight.Medium)
@@ -221,10 +223,11 @@ export struct SettingsAccountCardRow {
             .maxLines(1)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
             .constraintSize({ maxWidth: 180 })
+            .flexShrink(1)
 
           this.buildAccountBadges()
         }
-        .constraintSize({ maxWidth: '100%' })
+        .width('100%')
         .alignItems(VerticalAlign.Center)
 
       }
