@@ -1,5 +1,18 @@
 # Changelog
 
+## 3.7.3 (1000520)
+
+2026-10-12
+
+This release fixes several download, sign-in, and sync issues, and adds Edit Bookmark to the large-screen bookmark bar.
+
+- The large-screen bookmark bar menu now offers Edit Bookmark, so you can rename a bookmark, change its address, or move it to a folder.
+- Fixed a download saving issue: new downloads go straight to the Aira folder in the system download directory, and when a custom download folder stops working, Aira switches back to the default directory and asks you to pick again instead of leaving empty files behind.
+- Fixed occasional sign-in failures; sign-in error messages are now accurate and no longer report "session expired" by mistake.
+- History synced to the cloud no longer stops at 90 days, and keeps your latest ten thousand entries just like the device.
+- Users who have already rated the app no longer receive the rating prompt.
+- The membership badge being pushed out by a very long nickname is now genuinely fixed.
+
 ## 3.7.2 (1000511)
 
 2026-10-10

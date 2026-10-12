@@ -1,14 +1,16 @@
 {
   "enabled": true,
-  "noticeId": "aira-3.7.2-1000511",
-  "title": "Aira 3.7.2 update",
-  "updatedAt": "2026-10-10",
-  "summary": "This release fixes cleared search history still showing, and makes search history more useful.",
+  "noticeId": "aira-3.7.3-1000520",
+  "title": "Aira 3.7.3 update",
+  "updatedAt": "2026-10-12",
+  "summary": "This release fixes several download, sign-in, and sync issues, and adds Edit Bookmark to the large-screen bookmark bar.",
   "items": [
-    "Clearing search history now takes effect immediately, with no leftover entries on the search page.",
-    "Searched terms are now remembered by default for quicker repeat searches, and can be turned off in search settings.",
-    "The search history list shows only searched terms, without recently visited pages mixed in.",
-    "Account sign-in now links your identity with a one-time authorization code, which is safer."
+    "The large-screen bookmark bar menu now offers Edit Bookmark, so you can rename a bookmark, change its address, or move it to a folder.",
+    "Fixed a download saving issue: new downloads go straight to the Aira folder in the system download directory, and when a custom download folder stops working, Aira switches back to the default directory and asks you to pick again instead of leaving empty files behind.",
+    "Fixed occasional sign-in failures; sign-in error messages are now accurate and no longer report \"session expired\" by mistake.",
+    "History synced to the cloud no longer stops at 90 days, and keeps your latest ten thousand entries just like the device.",
+    "Users who have already rated the app no longer receive the rating prompt.",
+    "The membership badge being pushed out by a very long nickname is now genuinely fixed."
   ],
   "actionLabel": "View changelog"
 }
