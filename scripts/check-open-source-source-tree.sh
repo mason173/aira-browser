@@ -77,8 +77,8 @@ require_contains "${SHORTCUTS_REL}" '"bundleName": "org.aira.browser"' \
 forbid_contains "${SHORTCUTS_REL}" '"bundleName": "com.aira.browser"' \
   "${SHORTCUTS_REL} must not commit Official shortcut bundleName."
 
-require_contains "${MODULE_REL}" '"metadata": []' \
-  "${MODULE_REL} must commit empty module metadata."
+# AGENTS.md forbids Huawei identity metadata in the committed tree; other module metadata
+# entries (e.g. file-share capabilities) are legitimate, so only app_id/client_id are rejected.
 forbid_contains "${MODULE_REL}" '"name": "app_id"' \
   "${MODULE_REL} must not commit Huawei app_id metadata."
 forbid_contains "${MODULE_REL}" '"name": "client_id"' \
