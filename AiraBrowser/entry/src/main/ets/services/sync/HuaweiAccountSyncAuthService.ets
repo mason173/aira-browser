@@ -265,10 +265,37 @@ export class HuaweiAccountSyncAuthService implements HuaweiAccountAccessTokenPro
       };
     }
     this.requireHuaweiAccountCapability();
+    // hwid sign-in asks Account Kit for an authorization code with forceLogin false.
+    // A cached AGC user skips that request, and a silent request that fails surfaces
+    // the first error instead of the SDK's internal forceLogin retry. Drop the cache
+    // and sign in once, so this attempt is the one that can raise the login page.
     if (forceNewSession) {
       await this.resetSignInState();
+      return this.adapter.signIn();
     }
-    return this.adapter.signIn();
+    try {
+      return await this.adapter.signIn();
+    } catch (error) {
+      hilog.warn(
+        HUAWEI_ACCOUNT_AUTH_DOMAIN,
+        HUAWEI_ACCOUNT_AUTH_TAG,
+        'sign-in failed, clearing cached session and retrying once error=%{public}s',
+        JSON.stringify(error)
+      );
+      try {
+        await this.resetSignInState();
+      } catch (resetError) {
+        hilog.warn(
+          HUAWEI_ACCOUNT_AUTH_DOMAIN,
+          HUAWEI_ACCOUNT_AUTH_TAG,
+          'cached session reset failed error=%{public}s',
+          JSON.stringify(resetError)
+        );
+        const resetFailed = error as Error;
+        throw resetFailed;
+      }
+      return this.adapter.signIn();
+    }
   }
 
   resetSignInState(): Promise<void> {

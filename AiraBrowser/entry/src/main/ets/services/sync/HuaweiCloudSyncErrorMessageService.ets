@@ -64,19 +64,20 @@ export class HuaweiCloudSyncErrorMessageService {
   }
 
   /**
-   * The AGC auth layer rejects a request with a bare `{"code":401}` body or a
-   * BusinessError whose only field is code 401; both end up in the technical
-   * message after stringify.
+   * Account Kit reports 401 as a parameter check failure, not an expired login.
+   * A bare `{"code":401}` body and a BusinessError whose only field is code 401
+   * both end up in the technical message after stringify.
    */
   private isHuaweiAccountAuthRejected(message: string): boolean {
-    const normalized = message.toLowerCase();
+    const normalized = message.toLowerCase().replace(/\s+/g, '');
     return normalized.indexOf('"code":401') >= 0 ||
       normalized.indexOf("'code':401") >= 0 ||
-      normalized.indexOf('code=401') >= 0;
+      normalized.indexOf('code=401') >= 0 ||
+      normalized.indexOf('code:401') >= 0;
   }
 
   private buildAuthRejectedMessage(): string {
-    return '华为账号登录状态已失效，请重新登录后再试。';
+    return '华为账号登录参数校验失败。请确认已登录系统华为账号后重试。';
   }
 
   /**

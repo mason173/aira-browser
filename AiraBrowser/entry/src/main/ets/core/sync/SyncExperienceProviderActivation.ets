@@ -59,7 +59,7 @@ export class SyncExperienceProviderActivation {
     try {
       await this.syncService.initializeAiraSyncSettings();
       await this.ensureHuaweiAuthInitialized();
-      const identity = await this.huaweiAuthService.signInForBookmarkSync(false);
+      const identity = await this.huaweiAuthService.signInForBookmarkSync(true);
       const settings = await this.syncService.saveHuaweiCloudConfig(
         identity.uid,
         identity.displayName,
@@ -89,7 +89,7 @@ export class SyncExperienceProviderActivation {
     try {
       await this.syncService.initializeAiraSyncSettings();
       await this.ensureHuaweiAuthInitialized();
-      const identity = await this.huaweiAuthService.signInForBookmarkSync(false);
+      const identity = await this.huaweiAuthService.signInForBookmarkSync(true);
       await this.syncService.checkHuaweiSpaceCapability(
         identity.uid,
         AIRA_HUAWEI_SPACE_BOOKMARK_DATABASE_NAME
