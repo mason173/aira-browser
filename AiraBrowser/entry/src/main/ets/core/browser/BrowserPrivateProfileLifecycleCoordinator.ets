@@ -111,7 +111,8 @@ export class BrowserPrivateProfileLifecycleCoordinator {
   buildStartupResidualCleanupRequest(
     records: TabRecord[],
     profileId: BrowserProfileId,
-    preserveCookiesOnClose: boolean
+    preserveCookiesOnClose: boolean,
+    preserveRestoredPrivatePreviews: boolean = false
   ): BrowserPrivateStartupResidualCleanupRequest {
     const privateRecords = records.filter((record: TabRecord): boolean => this.isSessionEphemeralTab({
       profileId: record.profileId,
@@ -121,8 +122,10 @@ export class BrowserPrivateProfileLifecycleCoordinator {
     }));
     return {
       profileId: profileId,
-      tabIds: privateRecords.map((record: TabRecord): string => record.id),
-      snapshotPaths: this.resolveUniqueSnapshotPathsForRecords(privateRecords),
+      // "允许恢复" keeps these tabs, so their card images must survive the same
+      // restart. Cookies, downloads, and site data are still cleared.
+      tabIds: preserveRestoredPrivatePreviews ? [] : privateRecords.map((record: TabRecord): string => record.id),
+      snapshotPaths: preserveRestoredPrivatePreviews ? [] : this.resolveUniqueSnapshotPathsForRecords(privateRecords),
       preserveCookiesOnClose: preserveCookiesOnClose
     };
   }

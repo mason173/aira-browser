@@ -126,6 +126,7 @@ import adBlockBlockedResourcePolicyTest from './AdBlockBlockedResourcePolicy.tes
 import adBlockNavigationResourceTypeTest from './AdBlockNavigationResourceType.test';
 import subframeAdBlockNavigationTest from './SubframeAdBlockNavigation.test';
 import translationActiveRequestRegistryTest from './TranslationActiveRequestRegistry.test';
+import privateTabPreviewRestorePolicyTest from './PrivateTabPreviewRestorePolicy.test';
 
 export default function tests(): void {
   userScriptValueStateStoreTest();
@@ -254,4 +255,5 @@ export default function tests(): void {
   adBlockBlockedResourcePolicyTest();
   adBlockNavigationResourceTypeTest();
   subframeAdBlockNavigationTest();
+  privateTabPreviewRestorePolicyTest();
 }

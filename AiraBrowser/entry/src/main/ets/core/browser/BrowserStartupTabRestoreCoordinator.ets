@@ -220,9 +220,13 @@ export class BrowserStartupTabRestoreCoordinator {
             return;
           }
           const currentActiveTabId = this.host.resolveFacts().activeTabId;
-          void this.cleanupPrivateStartupResidualState(records, request.profileId);
-          this.cleanupSiteClearOnCloseRecords(records);
           const generalSettings = sharedPreferencesRepository.getPreferences().general;
+          void this.cleanupPrivateStartupResidualState(
+            records,
+            request.profileId,
+            this.sessionRestoreService.shouldPersistPrivateTabs(generalSettings.privateTabRestorePolicy)
+          );
+          this.cleanupSiteClearOnCloseRecords(records);
           const resolvedBoundaryOptions = this.resolveStartupTabSessionBoundaryOptions(
             request.tabSessionBoundaryOptions,
             generalSettings.alwaysUsePrivateMode === true
@@ -269,12 +273,17 @@ export class BrowserStartupTabRestoreCoordinator {
     );
   }
 
-  private cleanupPrivateStartupResidualState(records: TabRecord[], profileId: BrowserProfileId): Promise<void> {
+  private cleanupPrivateStartupResidualState(
+    records: TabRecord[],
+    profileId: BrowserProfileId,
+    preserveRestoredPrivatePreviews: boolean
+  ): Promise<void> {
     return this.dependencies.privateSessionCleanupCoordinator.runStartupResidualCleanup(
       this.dependencies.privateProfileLifecycleCoordinator.buildStartupResidualCleanupRequest(
         records,
         profileId,
-        sharedPreferencesRepository.getPreferences().general.privateModePreserveCookiesOnClose
+        sharedPreferencesRepository.getPreferences().general.privateModePreserveCookiesOnClose,
+        preserveRestoredPrivatePreviews
       )
     );
   }

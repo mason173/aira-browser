@@ -2364,7 +2364,12 @@ struct BrowserShellPage {
     }
   };
   private browserTabPreviewCoordinator: BrowserTabPreviewCoordinator =
-    new BrowserTabPreviewCoordinator(this.browserRuntimeLifecyclePort, this.browserTabPreviewSurfaceHost);
+    new BrowserTabPreviewCoordinator(
+      this.browserRuntimeLifecyclePort,
+      this.browserTabPreviewSurfaceHost,
+      (): boolean => sharedPreferencesRepository.getPreferences().general.privateTabRestorePolicy ===
+        'restore_private_tabs'
+    );
   private browserFaviconApplyHost: BrowserFaviconApplyHost = {
     updatePreviewFavicon: (tabId: string, favicon: image.PixelMap): boolean => {
       return this.browserTabPreviewCoordinator.updateFavicon(tabId, favicon);

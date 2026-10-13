@@ -179,13 +179,16 @@ export class BrowserTabPreviewCoordinator {
   private activeCaptureTimeout: number = -1;
   private profileBoundaryService: BrowserProfileBoundaryService = new BrowserProfileBoundaryService();
   private cacheScopeId: string = DEFAULT_BROWSER_TAB_PREVIEW_SCOPE_ID;
+  private readonly persistPrivateTabPreviews: () => boolean;
 
   constructor(
     runtimeLifecyclePort: BrowserRuntimeLifecyclePort,
-    surfaceHost: BrowserTabPreviewSurfaceHost
+    surfaceHost: BrowserTabPreviewSurfaceHost,
+    persistPrivateTabPreviews?: () => boolean
   ) {
     this.runtimeLifecyclePort = runtimeLifecyclePort;
     this.surfaceHost = surfaceHost;
+    this.persistPrivateTabPreviews = persistPrivateTabPreviews ?? ((): boolean => false);
   }
 
   setCacheScopeId(scopeId: string): void {
@@ -1031,7 +1034,7 @@ export class BrowserTabPreviewCoordinator {
       failureReason: '',
       captureSource: normalizedTransitionSource.captureSource
     };
-    if (!this.isSessionEphemeralTab(tab)) {
+    if (this.shouldPersistTabPreview(tab)) {
       this.persistStoredSnapshotInBackground(tab, pixelMap, normalizedTransitionSource.captureSource, {
         runId: runId,
         signature: signature,
@@ -1150,7 +1153,7 @@ export class BrowserTabPreviewCoordinator {
       failureReason: '',
       captureSource: captureResult.source
     };
-    if (freshSharedUri.length <= 0 && !this.isSessionEphemeralTab(request.tab)) {
+    if (freshSharedUri.length <= 0 && this.shouldPersistTabPreview(request.tab)) {
       this.persistStoredSnapshotInBackground(request.tab, captureResult.snapshot, captureResult.source, {
         runId: runId,
         signature: signature,
@@ -1421,6 +1424,15 @@ export class BrowserTabPreviewCoordinator {
       dataScope: tab.dataScope,
       sessionId: tab.id
     });
+  }
+
+  // A private tab's card image follows the same restart rule as the tab itself.
+  // "允许恢复" keeps both; the default policy still drops the file with the session.
+  private shouldPersistTabPreview(tab: BrowserTabState): boolean {
+    if (!this.isSessionEphemeralTab(tab)) {
+      return true;
+    }
+    return this.persistPrivateTabPreviews();
   }
 
   private updateFailure(tabId: string, reason: string): void {
