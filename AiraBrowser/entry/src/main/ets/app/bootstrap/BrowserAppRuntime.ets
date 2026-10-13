@@ -23,6 +23,7 @@ import { ManualElementHideRepository } from '../../data/adblock/ManualElementHid
 import { BrowserSecurityReportMetricsRepository } from '../../data/browser/BrowserSecurityReportMetricsRepository';
 import { BrowserSitePrivacyRuleRepository } from '../../data/browser/BrowserSitePrivacyRuleRepository';
 import { PrivateModeCookieSnapshotRepository } from '../../data/browser/PrivateModeCookieSnapshotRepository';
+import { RegularSessionCookieSnapshotRepository } from '../../data/browser/RegularSessionCookieSnapshotRepository';
 import { SiteClearOnClosePendingRepository } from '../../data/browser/SiteClearOnClosePendingRepository';
 import { BrowserUserAgentSettingsRepository } from '../../data/browser/BrowserUserAgentSettingsRepository';
 import {
@@ -315,6 +316,8 @@ export const sharedBrowserSitePrivacyRuleRepository: BrowserSitePrivacyRuleRepos
   new BrowserSitePrivacyRuleRepository();
 export const sharedPrivateModeCookieSnapshotRepository: PrivateModeCookieSnapshotRepository =
   new PrivateModeCookieSnapshotRepository();
+export const sharedRegularSessionCookieSnapshotRepository: RegularSessionCookieSnapshotRepository =
+  new RegularSessionCookieSnapshotRepository();
 export const sharedSiteClearOnClosePendingRepository: SiteClearOnClosePendingRepository =
   new SiteClearOnClosePendingRepository();
 export const sharedBrowserSecurityReportMetricsRepository: BrowserSecurityReportMetricsRepository =

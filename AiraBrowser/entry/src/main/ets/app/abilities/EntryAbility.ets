@@ -25,6 +25,7 @@ import {
   sharedBrowserTabletInterfaceModeRepository,
   sharedCustomHomepageRepository,
   sharedPreferencesRepository,
+  sharedRegularSessionCookieSnapshotRepository,
   sharedSitePolicyService,
   sharedSyncExperienceCoordinator,
   sharedStartupWelcomeIntroRepository,
@@ -159,7 +160,12 @@ export default class EntryAbility extends UIAbility {
   private desktopWebEntryMissionIdentityService: DesktopWebEntryMissionIdentityService =
     new DesktopWebEntryMissionIdentityService();
   private siteDataControlService: SiteDataControlService =
-    new SiteDataControlService(sharedPreferencesRepository);
+    new SiteDataControlService(
+      sharedPreferencesRepository,
+      undefined,
+      sharedRegularSessionCookieSnapshotRepository
+    );
+  private regularSessionCookieRestore: Promise<void> = Promise.resolve();
   private huaweiSpaceBookmarkUpgradePromptPresenter: HuaweiSpaceBookmarkUpgradePromptPresenter =
     new HuaweiSpaceBookmarkUpgradePromptPresenter(sharedSyncExperienceCoordinator);
   private appShortcutNavigationCoordinator: AppShortcutNavigationCoordinator =
@@ -244,6 +250,7 @@ export default class EntryAbility extends UIAbility {
         hilog.warn(DOMAIN, TAG, 'ArkWeb BFCache prepare failed before engine init: %{public}s', bfcacheResult.message);
       }
       webview.WebviewController.initializeWebEngine();
+      this.regularSessionCookieRestore = this.restoreRegularSessionCookies();
       sharedSitePolicyService.clearArkWebGeolocationPermissions(false);
       sharedSitePolicyService.clearArkWebGeolocationPermissions(true);
       const cookiePolicy = this.siteDataControlService.applyBrowserCompatibleCookiePolicy();
@@ -368,7 +375,8 @@ export default class EntryAbility extends UIAbility {
         BrowserWindowRuntime.markWindowForeground(windowId);
         this.connectContinuationEligibility(windowId);
         this.applyPendingMissionIdentityAfterWindowStageCreate(windowId);
-        return this.waitForInitialRouteReadiness()
+        return this.regularSessionCookieRestore
+          .then(() => this.waitForInitialRouteReadiness())
           .then((initialRoute: string) => {
             if (windowStageGeneration !== this.windowStageLifecycleGeneration) {
               return;
@@ -856,6 +864,28 @@ export default class EntryAbility extends UIAbility {
     } else {
       hilog.warn(DOMAIN, TAG, 'Failed to flush web cookies on %{public}s', source);
     }
+    void this.preserveRegularSessionCookies(source);
+  }
+
+  private preserveRegularSessionCookies(source: string): void {
+    this.siteDataControlService.preserveRegularSessionCookies()
+      .then((savedCount: number) => {
+        hilog.info(DOMAIN, TAG, 'Preserved %{public}d regular session cookies on %{public}s', savedCount, source);
+      })
+      .catch((error: Error) => {
+        hilog.warn(DOMAIN, TAG, 'Failed to preserve regular session cookies on %{public}s: %{public}s',
+          source, JSON.stringify(error));
+      });
+  }
+
+  private restoreRegularSessionCookies(): Promise<void> {
+    return this.siteDataControlService.restoreRegularSessionCookies()
+      .then((restoredCount: number) => {
+        hilog.info(DOMAIN, TAG, 'Restored %{public}d regular session cookies', restoredCount);
+      })
+      .catch((error: Error) => {
+        hilog.warn(DOMAIN, TAG, 'Failed to restore regular session cookies: %{public}s', JSON.stringify(error));
+      });
   }
 
   private waitForInitialRouteReadiness(): Promise<string> {

@@ -9,6 +9,7 @@ import {
   normalizeBrowserSessionPrivacyMode,
   resolveBrowserDataScopeForPrivacyMode
 } from '../../common/models/BrowserModels';
+import { RegularSessionCookieSnapshotRepository } from '../../data/browser/RegularSessionCookieSnapshotRepository';
 import { PreferencesRepository } from '../../data/preferences/PreferencesRepository';
 import {
   HistoryRepository,
@@ -108,7 +109,11 @@ export class SettingsSiteDataClearCoordinator {
     historyRepository?: HistoryRepository,
     httpsFirstNavigationService: BrowserHttpsFirstNavigationService = sharedBrowserHttpsFirstNavigationService
   ) {
-    this.siteDataControlService = new SiteDataControlService(preferencesRepository);
+    this.siteDataControlService = new SiteDataControlService(
+      preferencesRepository,
+      undefined,
+      new RegularSessionCookieSnapshotRepository()
+    );
     this.sitePolicyService = sitePolicyService;
     this.recentlyClosedTabRepository = recentlyClosedTabRepository;
     this.historyRepository = historyRepository;

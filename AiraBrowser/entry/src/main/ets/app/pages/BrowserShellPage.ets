@@ -140,6 +140,7 @@ import {
   sharedSitePolicyService,
   sharedSiteClearOnClosePendingRepository,
   sharedPrivateModeCookieSnapshotRepository,
+  sharedRegularSessionCookieSnapshotRepository,
   sharedWallpaperRepository,
   sharedCustomHomepageRepository,
   sharedBrowserSitePrivacyRuleRepository,
@@ -4221,7 +4222,11 @@ struct BrowserShellPage {
     }
   };
   private siteDataControlService: SiteDataControlService =
-    new SiteDataControlService(sharedPreferencesRepository, sharedPrivateModeCookieSnapshotRepository);
+    new SiteDataControlService(
+      sharedPreferencesRepository,
+      sharedPrivateModeCookieSnapshotRepository,
+      sharedRegularSessionCookieSnapshotRepository
+    );
   private browserSiteControlsApplicationShell: BrowserSiteControlsApplicationShell = {
     resolveAbilityContext: (): common.UIAbilityContext => this.getAbilityContext(),
     readRuntimeFacts: (): BrowserSiteControlsRuntimeFacts => ({

@@ -18,6 +18,7 @@ import {
   PrivateModeCookieSnapshotRecord,
   PrivateModeCookieSnapshotRepository
 } from '../../data/browser/PrivateModeCookieSnapshotRepository';
+import { RegularSessionCookieSnapshotRepository } from '../../data/browser/RegularSessionCookieSnapshotRepository';
 import { PreferencesRepository } from '../../data/preferences/PreferencesRepository';
 import { sharedBrowserSslDecisionCacheRuntime } from './BrowserSslDecisionCacheRuntime';
 import { resolveAppResourceText } from '../../core/resources/AppResourceText';
@@ -162,13 +163,16 @@ export class SiteDataControlService {
   private privacyRuntimeAdapter: BrowserPrivacyRuntimeAdapter = new BrowserPrivacyRuntimeAdapter();
   private preferencesRepository: PreferencesRepository;
   private privateCookieSnapshotRepository?: PrivateModeCookieSnapshotRepository;
+  private regularSessionCookieSnapshotRepository?: RegularSessionCookieSnapshotRepository;
 
   constructor(
     preferencesRepository: PreferencesRepository,
-    privateCookieSnapshotRepository?: PrivateModeCookieSnapshotRepository
+    privateCookieSnapshotRepository?: PrivateModeCookieSnapshotRepository,
+    regularSessionCookieSnapshotRepository?: RegularSessionCookieSnapshotRepository
   ) {
     this.preferencesRepository = preferencesRepository;
     this.privateCookieSnapshotRepository = privateCookieSnapshotRepository;
+    this.regularSessionCookieSnapshotRepository = regularSessionCookieSnapshotRepository;
   }
 
   async loadCurrentSiteData(
@@ -365,7 +369,8 @@ export class SiteDataControlService {
   /**
    * ArkWeb keeps newly accepted cookies in memory and writes them about every 30 seconds.
    * Force-stopping after background does not run onDestroy, so callers on the way to process
-   * death must flush here. Session cookies on PC, 2-in-1, and tablet are still not persisted.
+   * death must flush here. Session cookies on PC, 2-in-1, and tablet are still not persisted
+   * by the engine; those are copied separately before the process can die.
    */
   persistMemoryCookies(): boolean {
     try {
@@ -374,6 +379,69 @@ export class SiteDataControlService {
     } catch (_error) {
       return false;
     }
+  }
+
+  /**
+   * Copy regular-profile session cookies before the process can die. The engine
+   * drops them on the next start, which signs sites such as GitHub out overnight.
+   */
+  async preserveRegularSessionCookies(): Promise<number> {
+    const repository = this.regularSessionCookieSnapshotRepository;
+    if (repository === undefined) {
+      return 0;
+    }
+    const now = Date.now();
+    const cookies = await webview.WebCookieManager.fetchAllCookies(false);
+    const sessionCookies: PrivateModeCookieSnapshotRecord[] = [];
+    cookies.forEach((cookie: webview.WebHttpCookie) => {
+      const record = this.toPrivateCookieSnapshotRecord(cookie, now);
+      if (record !== undefined && record.isSessionCookie) {
+        sessionCookies.push(record);
+      }
+    });
+    await repository.saveSnapshot(sessionCookies);
+    return sessionCookies.length;
+  }
+
+  /**
+   * Put the saved session cookies back before the first page loads. A cookie the
+   * engine already kept is left alone, so a second launch cannot duplicate it.
+   */
+  async restoreRegularSessionCookies(): Promise<number> {
+    const repository = this.regularSessionCookieSnapshotRepository;
+    if (repository === undefined) {
+      return 0;
+    }
+    const snapshot = await repository.readSnapshot();
+    if (snapshot.cookies.length <= 0) {
+      return 0;
+    }
+    const liveCookies = await webview.WebCookieManager.fetchAllCookies(false);
+    let restoredCookieCount = 0;
+    snapshot.cookies.forEach((cookie: PrivateModeCookieSnapshotRecord) => {
+      if (this.regularSessionCookieAlreadyPresent(liveCookies, cookie)) {
+        return;
+      }
+      const url = this.buildCookieUrl(cookie);
+      const value = this.buildSetCookieValue(cookie);
+      webview.WebCookieManager.configCookieSync(url, value, false, cookie.isHttpOnly);
+      restoredCookieCount += 1;
+    });
+    if (restoredCookieCount > 0) {
+      webview.WebCookieManager.saveCookieSync();
+    }
+    return restoredCookieCount;
+  }
+
+  private regularSessionCookieAlreadyPresent(
+    liveCookies: webview.WebHttpCookie[],
+    cookie: PrivateModeCookieSnapshotRecord
+  ): boolean {
+    return liveCookies.some((live: webview.WebHttpCookie): boolean => {
+      return live.name === cookie.name &&
+        live.domain === cookie.domain &&
+        (live.path.trim().length > 0 ? live.path.trim() : '/') === cookie.path;
+    });
   }
 
   buildClearCurrentSiteDataDialogState(
@@ -863,6 +931,7 @@ export class SiteDataControlService {
       webview.WebCookieManager.clearAllCookiesSync(true);
     } else {
       webview.WebCookieManager.clearAllCookiesSync(false);
+      void this.regularSessionCookieSnapshotRepository?.clearSnapshot();
     }
     webview.WebCookieManager.saveCookieSync();
   }
