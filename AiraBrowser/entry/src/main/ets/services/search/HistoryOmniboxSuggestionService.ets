@@ -1,5 +1,6 @@
 import { HistoryUrlRecord, HistoryVisit, SearchSuggestion } from '../../common/models/BrowserModels';
 import { BrowserDatabase } from '../../data/database/BrowserDatabase';
+import { DEFAULT_SEARCH_SUGGESTION_POLICY } from '../../features/search/SearchSuggestionPolicy';
 import {
   HISTORY_OMNIBOX_HOT_SET_LIMIT,
   HISTORY_OMNIBOX_VISIBLE_LIMIT,
@@ -27,13 +28,13 @@ export class HistoryOmniboxSuggestionService {
     this.database = database;
   }
 
-  buildSuggestions(query: string, limit: number = HISTORY_OMNIBOX_VISIBLE_LIMIT): SearchSuggestion[] {
+  buildSuggestions(query: string, limit: number = DEFAULT_SEARCH_SUGGESTION_POLICY.candidates.local): SearchSuggestion[] {
     const normalizedLimit = Math.max(0, Math.floor(limit));
     if (query.trim().length === 0 || normalizedLimit === 0) {
       return [];
     }
     return this.index.match(query, normalizedLimit).map((match: HistoryOmniboxMatch): SearchSuggestion => {
-      return this.toSuggestion(match.entry);
+      return this.toSuggestion(match.entry, match.score, match.rankingBoost);
     });
   }
 
@@ -165,7 +166,7 @@ export class HistoryOmniboxSuggestionService {
     };
   }
 
-  private toSuggestion(entry: HistoryOmniboxEntry): SearchSuggestion {
+  private toSuggestion(entry: HistoryOmniboxEntry, score?: number, rankingBoost?: number): SearchSuggestion {
     const host = entry.host.trim();
     const title = entry.title.trim();
     const displayTitle = title.length > 0 ? title : (host.length > 0 ? host : entry.url);
@@ -176,7 +177,9 @@ export class HistoryOmniboxSuggestionService {
       target: entry.url,
       subtitle: host,
       icon: '',
-      refId: entry.id
+      refId: entry.id,
+      score: score,
+      rankingBoost: rankingBoost
     };
   }
 }

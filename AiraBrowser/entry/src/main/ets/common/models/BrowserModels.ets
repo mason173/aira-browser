@@ -1351,6 +1351,8 @@ export interface SearchSuggestion {
   subtitle?: string;
   icon?: string;
   score?: number;
+  /** Bounded recency/frequency signal, separate from provider-specific text matching scores. */
+  rankingBoost?: number;
   refId?: string;
 }
 

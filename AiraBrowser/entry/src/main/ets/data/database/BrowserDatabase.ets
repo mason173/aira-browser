@@ -1,3 +1,4 @@
+import { BookmarkSearchIndexRepository } from '../search/BookmarkSearchIndexRepository';
 import {
   HistorySyncSnapshotReader, HISTORY_SYNC_CANONICAL_VISITS_TABLE, HISTORY_SYNC_TOMBSTONES_TABLE,
   HISTORY_SYNC_DELETE_RANGES_TABLE, HISTORY_SYNC_FRONTIERS_TABLE, HISTORY_SYNC_RETENTION_TABLE,
@@ -759,6 +760,13 @@ const SITE_ICON_SCHEMA_SQL: string[] = [
 ];
 
 export class BrowserDatabase {
+  private readonly bookmarkSearchIndexRepository: BookmarkSearchIndexRepository =
+    new BookmarkSearchIndexRepository((): Promise<relationalStore.RdbStore> => this.getStore());
+
+  getBookmarkSearchIndexRepository(): BookmarkSearchIndexRepository {
+    return this.bookmarkSearchIndexRepository;
+  }
+
   private store?: relationalStore.RdbStore;
   private storePromise?: Promise<relationalStore.RdbStore>;
   private legacyMobileBookmarkRootCleanupPromise?: Promise<void>;

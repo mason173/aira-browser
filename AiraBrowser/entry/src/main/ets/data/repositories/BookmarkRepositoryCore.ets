@@ -1,3 +1,4 @@
+import { normalizeNavigationSearchText } from '../../common/utils/NavigationSearchText';
 import {
   BookmarkCreateNodeCommand,
   BookmarkMoveSubtreesCommand,
@@ -652,16 +653,18 @@ export function filterBookmarkSearchCandidates(
   if (normalizedQuery.length === 0 || limit <= 0) {
     return limit > 0 ? candidates.slice(0, limit) : [];
   }
-  const compactQuery = normalizeBookmarkSearchUrl(normalizedQuery);
+  const compactQuery = normalizeNavigationSearchText(normalizedQuery);
   const results: BookmarkNode[] = [];
   for (let index = 0; index < candidates.length && results.length < limit; index += 1) {
     const bookmark = candidates[index];
     const title = normalizeBookmarkSearchText(bookmark.title);
     const url = normalizeBookmarkSearchText(bookmark.url ?? '');
-    const compactUrl = normalizeBookmarkSearchUrl(url);
+    const compactTitle = title.replace(/\s+/g, '');
+    const compactUrl = normalizeNavigationSearchText(url);
     if (title.indexOf(normalizedQuery) >= 0 ||
       url.indexOf(normalizedQuery) >= 0 ||
-      (compactQuery.length > 0 && compactUrl.indexOf(compactQuery) >= 0)) {
+      (compactQuery.length > 0 && (compactTitle.indexOf(compactQuery) >= 0 ||
+        compactUrl.indexOf(compactQuery) >= 0))) {
       results.push(bookmark);
     }
   }
@@ -676,19 +679,6 @@ export function isUserSearchableBookmark(bookmark: BookmarkNode): boolean {
 
 function normalizeBookmarkSearchText(value: string): string {
   return value.trim().toLowerCase().replace(/\s+/g, ' ');
-}
-
-function normalizeBookmarkSearchUrl(value: string): string {
-  let normalized = value;
-  if (normalized.startsWith('https://')) {
-    normalized = normalized.slice('https://'.length);
-  } else if (normalized.startsWith('http://')) {
-    normalized = normalized.slice('http://'.length);
-  }
-  if (normalized.startsWith('www.')) {
-    normalized = normalized.slice('www.'.length);
-  }
-  return normalized;
 }
 
 export function applyLocalBookmarkUpdate(node: BookmarkNode, command: UpdateBookmarkCommand): BookmarkNode {

@@ -9,18 +9,17 @@ import {
 } from '../../common/models/BrowserModels';
 import { looksLikeUrl } from '../../common/utils/UrlUtils';
 import { DEFAULT_SEARCH_SUGGESTION_POLICY } from '../../features/search/SearchSuggestionPolicy';
+import { composeSearchSuggestions } from '../../features/search/SearchSuggestionComposer';
+import { resolveAppResourceText } from '../resources/AppResourceText';
+import { browserNativeTabSceneService } from './BrowserNativeTabSceneService';
 import {
-  SEARCH_QUERY_HISTORY_VISIBLE_LIMIT,
   SearchQueryHistorySuggestionInput,
   SearchQueryHistoryService
 } from '../../services/search/SearchQueryHistoryService';
 import { QihooSearchSuggestionService } from '../../services/search/QihooSearchSuggestionService';
-import { HISTORY_OMNIBOX_VISIBLE_LIMIT } from '../../services/search/HistoryOmniboxIndex';
 import { HistoryOmniboxSuggestionService } from '../../services/search/HistoryOmniboxSuggestionService';
 import { BookmarkOmniboxSuggestionService } from '../../services/search/BookmarkOmniboxSuggestionService';
 import {
-  OMNIBOX_BOOKMARK_VISIBLE_LIMIT,
-  OMNIBOX_TAB_VISIBLE_LIMIT,
   matchOpenTabSuggestions,
   resolveBookmarkSuggestionScope
 } from '../../services/search/LocalOmniboxSuggestionMatcher';
@@ -76,6 +75,16 @@ interface BrowserSearchSuggestionContentState {
   suggestions: SearchSuggestion[];
 }
 
+interface BrowserSearchSuggestionSourceContent {
+  key: string;
+  query: string;
+  tabs: SearchSuggestion[];
+  bookmarks: SearchSuggestion[];
+  browsingHistory: SearchSuggestion[];
+  searchHistory: SearchSuggestion[];
+  remotePending: boolean;
+}
+
 interface CachedEmptySuggestions {
   key: string;
   suggestions: SearchSuggestion[];
@@ -102,14 +111,17 @@ export class BrowserSearchSuggestionCoordinator {
   private readonly remoteSearchSuggestionService: QihooSearchSuggestionService = new QihooSearchSuggestionService();
   private snapshot: BrowserSearchSuggestionSnapshot = createHiddenBrowserSearchSuggestionSnapshot();
   private emptyCache?: CachedEmptySuggestions;
+  private sourceContent?: BrowserSearchSuggestionSourceContent;
   private revealRefreshTimeout: number = -1;
   private deferredRefreshTimeout: number = -1;
+  private remoteRefreshTimeout: number = -1;
   private prewarmTimeout: number = -1;
   private remoteRefreshGeneration: number = 0;
   private searchHistoryHydrationGeneration: number = 0;
   private browsingHistoryHydrationGeneration: number = 0;
+  private bookmarkHydrationGeneration: number = 0;
   private cachedRemoteSuggestions: SearchSuggestion[] = [];
-  private cachedRemoteQuery: string = '';
+  private cachedRemoteKey: string = '';
   private searchSessionActive: boolean = false;
   private searchSessionAuthorityId: string = '';
   private searchSessionInput?: BrowserSearchSuggestionSessionInput;
@@ -142,17 +154,32 @@ export class BrowserSearchSuggestionCoordinator {
     }
     this.clearRevealRefresh();
     this.clearDeferredRefresh();
+    this.cancelSearchHistoryHydration();
+    this.cancelBrowsingHistoryHydration();
+    this.cancelBookmarkHydration();
     const query = this.resolveRuntimeFacts().query;
-    this.publishSuggestionContent(query, true);
-    this.refreshRemoteSearchSuggestions(query);
-    this.refreshBrowsingHistoryIndex(query);
+    const source = this.buildRuntimeSource();
+    const content = this.buildSourceContent(query, source);
+    this.sourceContent = content;
+    this.publishSuggestionContent(content);
+    this.hydrateSearchHistory(content, this.buildSearchHistoryInput(query, source));
+    this.scheduleRemoteSearchSuggestions(content);
+    this.refreshBrowsingHistoryIndex(content);
+    this.refreshBookmarkIndex(content);
   }
 
   refreshDeferred(): void {
     if (!this.searchSessionActive) {
       return;
     }
-    this.clearDeferredRefresh();
+    // Invalidate callbacks at input time, before the coalesced local refresh runs.
+    this.cancelRemoteSearchSuggestions();
+    this.cancelSearchHistoryHydration();
+    this.cancelBrowsingHistoryHydration();
+    this.cancelBookmarkHydration();
+    if (this.deferredRefreshTimeout >= 0) {
+      return;
+    }
     this.deferredRefreshTimeout = setTimeout(() => {
       this.deferredRefreshTimeout = -1;
       this.refresh();
@@ -169,7 +196,8 @@ export class BrowserSearchSuggestionCoordinator {
     }
     const query = this.resolveRuntimeFacts().query;
     const trimmedQuery = query.trim();
-    if (trimmedQuery.length === 0 && this.emptyCache !== undefined) {
+    if (trimmedQuery.length === 0 && this.emptyCache !== undefined &&
+      this.emptyCache.key === this.buildEmptyCacheKey(this.buildRuntimeSource())) {
       this.publishContent({ suggestions: this.emptyCache.suggestions });
       return;
     }
@@ -178,18 +206,24 @@ export class BrowserSearchSuggestionCoordinator {
 
   prewarm(): void {
     this.clearPrewarm();
-    if (this.shouldUseBrowsingHistory(this.buildRuntimeSource())) {
-      this.historyOmniboxSuggestionService.ensureLoaded().catch((_error: Error) => {});
-    }
     this.prewarmTimeout = setTimeout(() => {
       this.prewarmTimeout = -1;
+      const source = this.buildRuntimeSource();
+      if (this.shouldUseBrowsingHistory(source)) {
+        this.historyOmniboxSuggestionService.ensureLoaded().catch((_error: Error) => {});
+      }
+      if (source.preferences.bookmarksEnabled) {
+        this.bookmarkOmniboxSuggestionService.prewarm(
+          resolveBookmarkSuggestionScope(source.boundary.privacyMode, source.boundary.dataScope)
+        ).catch((_error: Error) => {});
+      }
       this.buildEmptySuggestionsForCache();
     }, DEFAULT_SEARCH_SUGGESTION_POLICY.timing.prewarmDelayMs);
   }
 
   invalidate(): void {
     this.emptyCache = undefined;
-    if (this.searchSessionActive && this.hasVisibleSuggestions()) {
+    if (this.searchSessionActive) {
       this.refresh();
     }
   }
@@ -262,13 +296,16 @@ export class BrowserSearchSuggestionCoordinator {
       this.publishOverlay(true, true, this.hasVisibleSuggestions());
       return;
     }
-    if (this.searchSessionActive) {
-      this.cancelPendingWork();
-    }
+    this.cancelPendingWork();
     this.searchSessionActive = true;
     this.searchSessionAuthorityId = normalizedAuthorityId;
     this.searchSessionInput = input === undefined ? undefined : this.copySessionInput(input);
-    this.publishOverlay(true, true, this.hasVisibleSuggestions());
+    this.publishSnapshot({
+      homeSearchFocused: true,
+      homeSearchOverlayVisible: true,
+      showSearchSuggestions: false,
+      searchSuggestions: []
+    });
     this.refresh();
   }
 
@@ -313,8 +350,10 @@ export class BrowserSearchSuggestionCoordinator {
     this.cancelRemoteSearchSuggestions();
     this.cancelSearchHistoryHydration();
     this.cancelBrowsingHistoryHydration();
+    this.cancelBookmarkHydration();
+    this.sourceContent = undefined;
     this.cachedRemoteSuggestions = [];
-    this.cachedRemoteQuery = '';
+    this.cachedRemoteKey = '';
   }
 
   private publishOverlay(focused: boolean, visible: boolean, showSuggestions: boolean): void {
@@ -382,79 +421,59 @@ export class BrowserSearchSuggestionCoordinator {
     }
   }
 
-  private refreshWithQuery(query: string, hydrateHistory: boolean = true): BrowserSearchSuggestionContentState {
-    if (query.trim().length === 0) {
-      const cacheKey = this.buildEmptyCacheKey(this.buildRuntimeSource());
-      if (!hydrateHistory && this.emptyCache !== undefined && this.emptyCache.key === cacheKey) {
-        return { suggestions: this.emptyCache.suggestions.slice() };
-      }
-      const content = this.buildSearchHistoryContent(query, hydrateHistory);
-      this.emptyCache = {
-        key: cacheKey,
-        suggestions: content.suggestions.slice()
-      };
-      return content;
-    }
-    return this.buildSearchHistoryContent(query, hydrateHistory);
-  }
-
   private buildEmptySuggestionsForCache(): void {
-    const runtimeSource = this.buildRuntimeSource();
-    const content = this.buildSearchHistoryContent('', false);
+    const source = this.buildRuntimeSource();
     this.emptyCache = {
-      key: this.buildEmptyCacheKey(runtimeSource),
-      suggestions: content.suggestions.slice()
+      key: this.buildEmptyCacheKey(source),
+      suggestions: this.searchQueryHistoryService.buildSuggestions(this.buildSearchHistoryInput('', source))
     };
   }
 
-  private buildSearchHistoryContent(
+  private buildSearchHistoryInput(
     query: string,
-    hydrateHistory: boolean = true
-  ): BrowserSearchSuggestionContentState {
-    const runtimeSource = this.buildRuntimeSource();
-    const suggestionInput: SearchQueryHistorySuggestionInput = {
+    source: BrowserSearchSuggestionRuntimeSource
+  ): SearchQueryHistorySuggestionInput {
+    return {
       query: query,
-      profileId: runtimeSource.boundary.profileId,
-      privacyMode: runtimeSource.boundary.privacyMode,
-      dataScope: runtimeSource.boundary.dataScope,
-      preferences: runtimeSource.preferences,
-      limit: SEARCH_QUERY_HISTORY_VISIBLE_LIMIT
+      profileId: source.boundary.profileId,
+      privacyMode: source.boundary.privacyMode,
+      dataScope: source.boundary.dataScope,
+      preferences: source.preferences,
+      limit: query.trim().length === 0 ? DEFAULT_SEARCH_SUGGESTION_POLICY.presentation.emptyLimit
+        : DEFAULT_SEARCH_SUGGESTION_POLICY.candidates.search
     };
-    let suggestions: SearchSuggestion[] = this.buildOpenTabSuggestions(query, runtimeSource);
-    suggestions = this.mergeSearchSuggestions(
-      suggestions,
-      this.buildBookmarkSuggestions(query, runtimeSource),
-      SEARCH_QUERY_HISTORY_VISIBLE_LIMIT
-    );
-    suggestions = this.mergeSearchSuggestions(
-      suggestions,
-      this.buildBrowsingHistorySuggestions(query, runtimeSource),
-      SEARCH_QUERY_HISTORY_VISIBLE_LIMIT
-    );
-    // The empty-query resting list is the surface users read as "搜索历史": it carries search
-    // terms only, so clearing that history empties exactly what these surfaces show. Recently
-    // visited pages stay in typed browsing-history suggestions and the history manager.
-    suggestions = this.mergeSearchSuggestions(
-      suggestions,
-      this.searchQueryHistoryService.buildSuggestions(suggestionInput),
-      SEARCH_QUERY_HISTORY_VISIBLE_LIMIT
-    );
-    if (hydrateHistory) {
-      this.hydrateSearchHistory(query, suggestionInput);
-    }
-    suggestions = this.removeActiveTabSuggestion(suggestions, runtimeSource);
-    return { suggestions: suggestions };
   }
 
-  private hydrateSearchHistory(query: string, input: SearchQueryHistorySuggestionInput): void {
+  private buildSourceContent(
+    query: string,
+    source: BrowserSearchSuggestionRuntimeSource
+  ): BrowserSearchSuggestionSourceContent {
+    return {
+      key: this.buildContentKey(query, source),
+      query: query,
+      tabs: this.buildOpenTabSuggestions(query, source),
+      bookmarks: this.buildBookmarkSuggestions(query, source),
+      browsingHistory: this.buildBrowsingHistorySuggestions(query, source),
+      // The resting list carries search terms only. Clearing search history must empty it.
+      searchHistory: this.searchQueryHistoryService.buildSuggestions(this.buildSearchHistoryInput(query, source)),
+      remotePending: this.shouldFetchRemoteSearchSuggestions(query, source) &&
+        this.cachedRemoteKey !== this.buildContentKey(query, source)
+    };
+  }
+
+  private hydrateSearchHistory(
+    content: BrowserSearchSuggestionSourceContent,
+    input: SearchQueryHistorySuggestionInput
+  ): void {
     const generation = this.beginSearchHistoryHydration();
     this.searchQueryHistoryService.hydrateSuggestions(input)
       .then((result) => {
-        if (!result.hydrated || !this.isCurrentSearchHistoryHydration(generation, query)) {
+        if (!result.hydrated || generation !== this.searchHistoryHydrationGeneration ||
+          !this.isCurrentContent(content)) {
           return;
         }
-        this.emptyCache = undefined;
-        this.publishSuggestionContent(query, false);
+        content.searchHistory = this.searchQueryHistoryService.buildSuggestions(input);
+        this.publishSuggestionContent(content);
       })
       .catch((_error: Error) => {});
   }
@@ -472,7 +491,7 @@ export class BrowserSearchSuggestionCoordinator {
       privacyMode: runtimeSource.boundary.privacyMode,
       dataScope: runtimeSource.boundary.dataScope,
       profileId: runtimeSource.boundary.profileId,
-      limit: OMNIBOX_TAB_VISIBLE_LIMIT
+      limit: DEFAULT_SEARCH_SUGGESTION_POLICY.candidates.local
     });
   }
 
@@ -487,7 +506,7 @@ export class BrowserSearchSuggestionCoordinator {
     return this.bookmarkOmniboxSuggestionService.buildSuggestions(
       query,
       resolveBookmarkSuggestionScope(runtimeSource.boundary.privacyMode, runtimeSource.boundary.dataScope),
-      OMNIBOX_BOOKMARK_VISIBLE_LIMIT
+      DEFAULT_SEARCH_SUGGESTION_POLICY.candidates.local
     ).filter((suggestion: SearchSuggestion): boolean => {
       return activeUrl.length === 0 || suggestion.target.trim().toLowerCase() !== activeUrl;
     });
@@ -501,7 +520,7 @@ export class BrowserSearchSuggestionCoordinator {
       return [];
     }
     const activeUrl = (runtimeSource.activeTab?.url ?? '').trim().toLowerCase();
-    return this.historyOmniboxSuggestionService.buildSuggestions(query, HISTORY_OMNIBOX_VISIBLE_LIMIT)
+    return this.historyOmniboxSuggestionService.buildSuggestions(query, DEFAULT_SEARCH_SUGGESTION_POLICY.candidates.local)
       .filter((suggestion: SearchSuggestion): boolean => {
         return activeUrl.length === 0 || suggestion.target.trim().toLowerCase() !== activeUrl;
       });
@@ -513,67 +532,134 @@ export class BrowserSearchSuggestionCoordinator {
       source.boundary.dataScope !== 'session_ephemeral';
   }
 
-  /** A private or ephemeral boundary never keeps or shows a visited-page history. */
-  private allowsHistoryData(source: BrowserSearchSuggestionRuntimeSource): boolean {
-    return source.boundary.privacyMode !== 'private' &&
-      source.boundary.dataScope !== 'session_ephemeral';
+  private refreshBookmarkIndex(content: BrowserSearchSuggestionSourceContent): void {
+    const source = this.buildRuntimeSource();
+    const generation = ++this.bookmarkHydrationGeneration;
+    if (!source.preferences.bookmarksEnabled || content.query.trim().length === 0) {
+      return;
+    }
+    const scope = resolveBookmarkSuggestionScope(source.boundary.privacyMode, source.boundary.dataScope);
+    this.bookmarkOmniboxSuggestionService.ensureLoaded(scope)
+      .then((loaded: boolean) => {
+        if (!loaded || generation !== this.bookmarkHydrationGeneration || !this.isCurrentContent(content)) {
+          return;
+        }
+        content.bookmarks = this.buildBookmarkSuggestions(content.query, this.buildRuntimeSource());
+        this.publishSuggestionContent(content);
+      })
+      .catch((_error: Error) => {});
   }
 
-  private refreshBrowsingHistoryIndex(query: string): void {
+  private refreshBrowsingHistoryIndex(content: BrowserSearchSuggestionSourceContent): void {
     const runtimeSource = this.buildRuntimeSource();
     const generation = this.beginBrowsingHistoryHydration();
-    // The resting list shows recent visits, so the index must load whenever history data is
-    // allowed, not only when the typed-query browsing-history suggestion toggle is on.
-    if (!this.allowsHistoryData(runtimeSource)) {
+    if (!this.shouldUseBrowsingHistory(runtimeSource) || content.query.trim().length === 0) {
       return;
     }
     this.historyOmniboxSuggestionService.ensureLoaded()
       .then((loaded: boolean) => {
-        if (!loaded || !this.isCurrentBrowsingHistoryHydration(generation, query)) {
+        if (!loaded || generation !== this.browsingHistoryHydrationGeneration || !this.isCurrentContent(content)) {
           return;
         }
-        this.publishSuggestionContent(query, false);
+        content.browsingHistory = this.buildBrowsingHistorySuggestions(content.query, this.buildRuntimeSource());
+        this.publishSuggestionContent(content);
       })
       .catch((_error: Error) => {});
   }
 
-  private publishSuggestionContent(query: string, hydrateHistory: boolean): void {
-    const local = this.refreshWithQuery(query, hydrateHistory);
-    const remote = this.cachedRemoteQuery === query ? this.cachedRemoteSuggestions : [];
-    this.publishContent({
-      suggestions: remote.length === 0 ? local.suggestions : this.mergeSearchSuggestions(
-        local.suggestions,
-        remote,
-        SEARCH_QUERY_HISTORY_VISIBLE_LIMIT
-      )
-    });
-  }
-
-  private refreshRemoteSearchSuggestions(query: string): void {
-    const runtimeSource = this.buildRuntimeSource();
-    const generation = this.beginRemoteSearchSuggestionRefresh();
-    if (!this.shouldFetchRemoteSearchSuggestions(query, runtimeSource)) {
-      if (this.cachedRemoteQuery === query) {
-        this.cachedRemoteSuggestions = [];
-        this.cachedRemoteQuery = '';
-      }
+  private publishSuggestionContent(content: BrowserSearchSuggestionSourceContent): void {
+    if (!this.isCurrentContent(content)) {
       return;
     }
-    const trimmedQuery = query.trim();
-    this.remoteSearchSuggestionService.fetchSuggestions(trimmedQuery, SEARCH_QUERY_HISTORY_VISIBLE_LIMIT)
+    const remote = this.cachedRemoteKey === content.key ? this.cachedRemoteSuggestions : [];
+    const composition = composeSearchSuggestions({
+      query: content.query,
+      tabs: this.removeActiveTabSuggestion(content.tabs, this.buildRuntimeSource()),
+      bookmarks: content.bookmarks,
+      browsingHistory: content.browsingHistory,
+      searchHistory: content.searchHistory,
+      remote: remote,
+      remotePending: content.remotePending
+    });
+    const suggestions = composition.suggestions;
+    if (composition.hasMoreBookmarks) {
+      suggestions.push(this.buildBookmarkSearchSuggestion(content.query));
+    }
+    if (content.query.trim().length === 0) {
+      this.emptyCache = {
+        key: this.buildEmptyCacheKey(this.buildRuntimeSource()),
+        suggestions: suggestions.slice()
+      };
+    }
+    this.publishContent({ suggestions: suggestions });
+  }
+
+  private buildBookmarkSearchSuggestion(query: string): SearchSuggestion {
+    const source = this.buildRuntimeSource();
+    const scope = resolveBookmarkSuggestionScope(source.boundary.privacyMode, source.boundary.dataScope);
+    return {
+      id: `bookmark-search-${scope}-${this.compactSuggestionKey(query)}`,
+      source: 'bookmark_search',
+      title: resolveAppResourceText($r('app.string.search_suggestion_all_bookmarks')),
+      subtitle: query.trim(),
+      target: browserNativeTabSceneService.buildBookmarkRoute({ folderId: '', query: query, scope: scope }),
+      icon: ''
+    };
+  }
+
+  private scheduleRemoteSearchSuggestions(content: BrowserSearchSuggestionSourceContent): void {
+    this.cancelRemoteSearchSuggestions();
+    if (!this.shouldFetchRemoteSearchSuggestions(content.query, this.buildRuntimeSource())) {
+      this.cachedRemoteSuggestions = [];
+      this.cachedRemoteKey = '';
+      return;
+    }
+    if (this.cachedRemoteKey === content.key) {
+      return;
+    }
+    const generation = this.remoteRefreshGeneration;
+    this.remoteRefreshTimeout = setTimeout(() => {
+      this.remoteRefreshTimeout = -1;
+      if (generation !== this.remoteRefreshGeneration || !this.isCurrentContent(content)) {
+        return;
+      }
+      this.refreshRemoteSearchSuggestions(content, generation);
+    }, DEFAULT_SEARCH_SUGGESTION_POLICY.timing.remoteRefreshDelayMs);
+  }
+
+  private refreshRemoteSearchSuggestions(content: BrowserSearchSuggestionSourceContent, generation: number): void {
+    this.remoteSearchSuggestionService.fetchSuggestions(content.query.trim(), DEFAULT_SEARCH_SUGGESTION_POLICY.candidates.search)
       .then((remoteWords: string[]) => {
-        if (!this.isCurrentRemoteSearchSuggestionRefresh(generation, query)) {
+        if (generation !== this.remoteRefreshGeneration || !this.isCurrentContent(content) ||
+          !this.shouldFetchRemoteSearchSuggestions(content.query, this.buildRuntimeSource())) {
           return;
         }
-        const latestSource = this.buildRuntimeSource();
-        if (!this.shouldFetchRemoteSearchSuggestions(query, latestSource)) {
-          return;
-        }
-        this.cachedRemoteQuery = query;
+        content.remotePending = false;
+        this.cachedRemoteKey = content.key;
         this.cachedRemoteSuggestions = this.buildRemoteSearchSuggestions(remoteWords);
-        this.publishSuggestionContent(query, false);
+        this.publishSuggestionContent(content);
       })
-      .catch((_error: Error) => {});
+      .catch((_error: Error) => {
+        if (generation === this.remoteRefreshGeneration && this.isCurrentContent(content)) {
+          content.remotePending = false;
+          this.publishSuggestionContent(content);
+        }
+      });
+  }
+
+  private buildContentKey(query: string, source: BrowserSearchSuggestionRuntimeSource): string {
+    // JSON encoding avoids delimiter collisions in user-controlled queries/URLs.
+    return JSON.stringify([
+      query,
+      this.buildEmptyCacheKey(source),
+      source.preferences.regularEnabled,
+      source.preferences.remoteEnabled
+    ]);
+  }
+
+  private isCurrentContent(content: BrowserSearchSuggestionSourceContent): boolean {
+    return this.searchSessionActive && this.sourceContent === content &&
+      this.buildContentKey(this.resolveRuntimeFacts().query, this.buildRuntimeSource()) === content.key;
   }
 
   private buildRuntimeSource(): BrowserSearchSuggestionRuntimeSource {
@@ -628,7 +714,7 @@ export class BrowserSearchSuggestionCoordinator {
     words.forEach((word: string, index: number) => {
       const trimmedWord = word.trim();
       const key = trimmedWord.toLowerCase();
-      if (trimmedWord.length === 0 || seenKeys.has(key) || suggestions.length >= SEARCH_QUERY_HISTORY_VISIBLE_LIMIT) {
+      if (trimmedWord.length === 0 || seenKeys.has(key) || suggestions.length >= DEFAULT_SEARCH_SUGGESTION_POLICY.candidates.search) {
         return;
       }
       seenKeys.add(key);
@@ -644,53 +730,16 @@ export class BrowserSearchSuggestionCoordinator {
     return suggestions;
   }
 
-  private mergeSearchSuggestions(
-    historySuggestions: SearchSuggestion[],
-    remoteSuggestions: SearchSuggestion[],
-    limit: number
-  ): SearchSuggestion[] {
-    const merged: SearchSuggestion[] = [];
-    const seenKeys: Set<string> = new Set<string>();
-    this.appendUniqueSearchSuggestions(merged, seenKeys, historySuggestions, limit);
-    this.appendUniqueSearchSuggestions(merged, seenKeys, remoteSuggestions, limit);
-    return merged;
-  }
-
-  private appendUniqueSearchSuggestions(
-    target: SearchSuggestion[],
-    seenKeys: Set<string>,
-    source: SearchSuggestion[],
-    limit: number
-  ): void {
-    const normalizedLimit = Math.max(0, Math.floor(limit));
-    for (let index = 0; index < source.length && target.length < normalizedLimit; index += 1) {
-      const suggestion = source[index];
-      const key = this.buildSuggestionDedupKey(suggestion);
-      if (key.length === 0 || seenKeys.has(key)) {
-        continue;
-      }
-      seenKeys.add(key);
-      target.push(suggestion);
-    }
-  }
-
-  private buildSuggestionDedupKey(suggestion: SearchSuggestion): string {
-    const target = suggestion.target.trim();
-    const title = suggestion.title.trim();
-    return (target.length > 0 ? target : title).toLowerCase();
-  }
-
   private compactSuggestionKey(value: string): string {
     return value.trim().toLowerCase().replace(/\s+/g, '');
   }
 
-  private beginRemoteSearchSuggestionRefresh(): number {
-    this.remoteRefreshGeneration += 1;
-    return this.remoteRefreshGeneration;
-  }
-
   private cancelRemoteSearchSuggestions(): void {
     this.remoteRefreshGeneration += 1;
+    if (this.remoteRefreshTimeout >= 0) {
+      clearTimeout(this.remoteRefreshTimeout);
+      this.remoteRefreshTimeout = -1;
+    }
   }
 
   private cancelSearchHistoryHydration(): void {
@@ -701,32 +750,18 @@ export class BrowserSearchSuggestionCoordinator {
     this.browsingHistoryHydrationGeneration += 1;
   }
 
+  private cancelBookmarkHydration(): void {
+    this.bookmarkHydrationGeneration += 1;
+  }
+
   private beginBrowsingHistoryHydration(): number {
     this.browsingHistoryHydrationGeneration += 1;
     return this.browsingHistoryHydrationGeneration;
   }
 
-  private isCurrentBrowsingHistoryHydration(generation: number, query: string): boolean {
-    return generation === this.browsingHistoryHydrationGeneration &&
-      this.searchSessionActive &&
-      this.resolveRuntimeFacts().query === query;
-  }
-
-  private isCurrentRemoteSearchSuggestionRefresh(generation: number, query: string): boolean {
-    return generation === this.remoteRefreshGeneration &&
-      this.searchSessionActive &&
-      this.resolveRuntimeFacts().query === query;
-  }
-
   private beginSearchHistoryHydration(): number {
     this.searchHistoryHydrationGeneration += 1;
     return this.searchHistoryHydrationGeneration;
-  }
-
-  private isCurrentSearchHistoryHydration(generation: number, query: string): boolean {
-    return generation === this.searchHistoryHydrationGeneration &&
-      this.searchSessionActive &&
-      this.resolveRuntimeFacts().query === query;
   }
 
   private resolveRuntimeFacts(): BrowserSearchSuggestionRuntimeFacts {
@@ -760,7 +795,7 @@ export class BrowserSearchSuggestionCoordinator {
   }
 
   private buildEmptyCacheKey(source: BrowserSearchSuggestionRuntimeSource): string {
-    return [
+    return JSON.stringify([
       source.boundary.profileId,
       source.boundary.privacyMode,
       source.boundary.dataScope,
@@ -771,6 +806,6 @@ export class BrowserSearchSuggestionCoordinator {
       source.currentPageSuggestionEnabled ? 'current-page-enabled' : 'current-page-disabled',
       source.activeTab?.id ?? '',
       source.activeTab?.url ?? ''
-    ].join('::');
+    ]);
   }
 }

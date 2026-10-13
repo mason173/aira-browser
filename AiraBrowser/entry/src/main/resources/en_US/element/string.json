@@ -10633,6 +10633,10 @@
       "value": "Other private bookmarks"
     },
     {
+      "name": "search_suggestion_all_bookmarks",
+      "value": "View all matching bookmarks"
+    },
+    {
       "name": "bookmark_search",
       "value": "Search bookmarks"
     },

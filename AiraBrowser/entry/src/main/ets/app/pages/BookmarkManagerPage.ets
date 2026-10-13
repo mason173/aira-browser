@@ -124,6 +124,7 @@ const BOOKMARK_MOVE_FOLDER_TARGET_PREPARE_DELAY_MS: number = 16;
 interface BookmarkManagerRouteParams {
   folderId?: string;
   folderTitle?: string;
+  query?: string;
   dataScope?: string;
   privacyMode?: string;
   boundarySource?: string;
@@ -620,6 +621,7 @@ struct BookmarkManagerPage {
     this.bookmarkScope = this.bookmarkScopeService.resolveScopeFromRoute(bookmarkScopeParams);
     this.bookmarkManagementFeature.configure(this.buildBookmarkManagementBoundary(), this.bookmarkScope);
     this.applyRouteFolder(params);
+    this.applyBookmarkSearchResult(this.bookmarkManagerSearchViewModel.initializeRouteQuery(params?.query));
     this.isSelectionMode = false;
     this.selectedNodeIds = [];
     this.message = '';

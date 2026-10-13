@@ -10633,6 +10633,10 @@
       "value": "其他隐私书签"
     },
     {
+      "name": "search_suggestion_all_bookmarks",
+      "value": "查看全部匹配书签"
+    },
+    {
       "name": "bookmark_search",
       "value": "搜索书签"
     },

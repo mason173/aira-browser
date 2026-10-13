@@ -440,7 +440,7 @@ export const sharedSearchQueryHistoryService: SearchQueryHistoryService =
 export const sharedHistoryOmniboxSuggestionService: HistoryOmniboxSuggestionService =
   new HistoryOmniboxSuggestionService(sharedBrowserDatabase);
 export const sharedBookmarkOmniboxSuggestionService: BookmarkOmniboxSuggestionService =
-  new BookmarkOmniboxSuggestionService(sharedBookmarkRepository);
+  new BookmarkOmniboxSuggestionService(sharedBookmarkRepository, sharedBrowserDatabase.getBookmarkSearchIndexRepository());
 export const sharedSearchEngineAvailabilityProbeService: SearchEngineAvailabilityProbeService =
   new SearchEngineAvailabilityProbeService();
 export const sharedSearchEngineRoutingService: SearchEngineRoutingService =

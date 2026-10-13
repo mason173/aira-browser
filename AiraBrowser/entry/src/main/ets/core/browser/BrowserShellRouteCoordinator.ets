@@ -93,6 +93,7 @@ export type BrowserShellRouteParams =
 
 interface BrowserPhoneBookmarkRouteParams extends BrowserBookmarkRouteParams {
   folderId: string;
+  query: string;
 }
 
 type BrowserShellRouteNavigationParams =
@@ -594,7 +595,8 @@ export class BrowserShellRouteCoordinator {
             privacyMode: bookmarkParams.privacyMode,
             boundarySource: bookmarkParams.boundarySource,
             bookmarkScope: bookmarkParams.bookmarkScope,
-            folderId: bookmarkRoute.folderId
+            folderId: bookmarkRoute.folderId,
+            query: bookmarkRoute.query
           },
           failurePrefix: resolveAppResourceText($r('app.string.offline_bookmarks_open_failed'))
         };

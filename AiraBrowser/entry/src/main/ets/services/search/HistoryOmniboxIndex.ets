@@ -17,6 +17,7 @@ export interface HistoryOmniboxEntry {
 export interface HistoryOmniboxMatch {
   entry: HistoryOmniboxEntry;
   score: number;
+  rankingBoost: number;
 }
 
 export interface HistoryOmniboxQueryStats {
@@ -191,7 +192,8 @@ export class HistoryOmniboxIndex {
     for (let index = 0; index < ranked.length && matches.length < normalizedLimit; index += 1) {
       matches.push({
         entry: this.slots[ranked[index].slotIndex].entry,
-        score: ranked[index].score
+        score: ranked[index].score,
+        rankingBoost: this.rankingBoost(this.slots[ranked[index].slotIndex], now)
       });
     }
     return matches;
@@ -300,12 +302,13 @@ export class HistoryOmniboxIndex {
 
   private scoreSlot(slot: HistoryOmniboxSlot, normalizedQuery: string, now: number): number {
     let quality = 0;
-    if (slot.normalizedHost === normalizedQuery || slot.compactUrl === normalizedQuery) {
+    if (slot.normalizedHost === normalizedQuery || slot.compactUrl === normalizedQuery ||
+      slot.normalizedTitle === normalizedQuery) {
       quality = 800;
     } else if (slot.normalizedHost.startsWith(normalizedQuery) || slot.normalizedTitle.startsWith(normalizedQuery)) {
       quality = 600;
     } else if (slot.compactUrl.startsWith(normalizedQuery)) {
-      quality = 500;
+      quality = 600;
     } else if (slot.normalizedTitle.indexOf(normalizedQuery) >= 0 ||
       slot.normalizedHost.indexOf(normalizedQuery) >= 0 ||
       slot.compactUrl.indexOf(normalizedQuery) >= 0) {
@@ -314,9 +317,13 @@ export class HistoryOmniboxIndex {
     if (quality === 0) {
       return 0;
     }
+    return quality + this.rankingBoost(slot, now);
+  }
+
+  private rankingBoost(slot: HistoryOmniboxSlot, now: number): number {
     const ageHours = Math.max(0, (now - slot.entry.lastVisitAt) / 3600000);
     const freshness = Math.max(0, 48 - Math.floor(ageHours / 6));
-    return quality + Math.min(40, Math.floor(slot.rank / 8)) + freshness;
+    return Math.min(40, Math.floor(slot.rank / 8)) + freshness;
   }
 
   private pushTokens(slotIndex: number, slot: HistoryOmniboxSlot, front: boolean): void {

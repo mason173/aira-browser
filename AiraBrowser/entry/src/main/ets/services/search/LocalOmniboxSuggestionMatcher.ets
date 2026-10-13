@@ -1,3 +1,5 @@
+import { BookmarkSearchRecord } from '../../common/models/BookmarkSearchIndexModels';
+import { normalizeNavigationSearchText } from '../../common/utils/NavigationSearchText';
 import {
   BookmarkNode,
   BookmarkStorageScope,
@@ -8,9 +10,6 @@ import {
 } from '../../common/models/BrowserModels';
 import { isUserSearchableBookmark } from '../../data/repositories/BookmarkRepositoryCore';
 import { BrowserTabState } from '../../core/tabs/TabManager';
-
-export const OMNIBOX_BOOKMARK_VISIBLE_LIMIT: number = 2;
-export const OMNIBOX_TAB_VISIBLE_LIMIT: number = 1;
 
 export interface OpenTabSuggestionQuery {
   query: string;
@@ -26,10 +25,84 @@ interface RankedLocalSuggestion {
   score: number;
 }
 
+export interface PreparedBookmarkSuggestion {
+  suggestion: SearchSuggestion;
+  normalizedTitle: string;
+  normalizedHost: string;
+  compactUrl: string;
+}
+
+export function prepareBookmarkSuggestion(bookmark: BookmarkNode): PreparedBookmarkSuggestion | undefined {
+  if (!isUserSearchableBookmark(bookmark)) {
+    return undefined;
+  }
+  return prepareBookmarkSearchRecord({ id: bookmark.id, title: bookmark.title, url: bookmark.url ?? '' });
+}
+
+export function prepareBookmarkSearchRecord(bookmark: BookmarkSearchRecord): PreparedBookmarkSuggestion {
+  const url = bookmark.url.trim();
+  const title = bookmark.title.trim();
+  const host = hostFromLocalOmniboxUrl(url);
+  return {
+    suggestion: {
+      id: `bookmark-suggestion-${bookmark.id}`,
+      title: displayLocalOmniboxTitle(title, host),
+      source: 'bookmarks',
+      target: url,
+      subtitle: host,
+      icon: '',
+      refId: bookmark.id
+    },
+    normalizedTitle: title.toLowerCase(),
+    normalizedHost: host.trim().toLowerCase(),
+    compactUrl: normalizeLocalOmniboxQuery(url)
+  };
+}
+
+/** Candidates remain in repository order, including duplicates, to preserve tie and URL-dedup rules. */
+export function matchPreparedBookmarkSuggestions(
+  candidates: PreparedBookmarkSuggestion[],
+  query: string,
+  limit: number
+): SearchSuggestion[] {
+  const normalizedLimit = Math.max(0, Math.floor(limit));
+  const normalizedQuery = normalizeLocalOmniboxQuery(query);
+  if (normalizedLimit === 0 || normalizedQuery.length === 0) {
+    return [];
+  }
+  const ranked: RankedLocalSuggestion[] = [];
+  const seenUrls: Set<string> = new Set<string>();
+  for (let index = 0; index < candidates.length; index += 1) {
+    const entry = candidates[index];
+    if (seenUrls.has(entry.compactUrl)) {
+      continue;
+    }
+    const score = scoreNormalizedLocalOmniboxText(
+      normalizedQuery, entry.normalizedTitle, entry.normalizedHost, entry.compactUrl
+    );
+    if (score <= 0) {
+      continue;
+    }
+    seenUrls.add(entry.compactUrl);
+    const suggestion: SearchSuggestion = {
+      id: entry.suggestion.id,
+      title: entry.suggestion.title,
+      source: entry.suggestion.source,
+      target: entry.suggestion.target,
+      subtitle: entry.suggestion.subtitle,
+      icon: entry.suggestion.icon,
+      refId: entry.suggestion.refId,
+      score: score
+    };
+    considerLocalSuggestion(ranked, { suggestion: suggestion, score: score }, normalizedLimit);
+  }
+  return ranked.map((item: RankedLocalSuggestion): SearchSuggestion => item.suggestion);
+}
+
 /**
  * Ranks bookmarks and open tabs already held in memory. Address-bar keystrokes
- * must not copy or scan the bookmark database; the repository cache is enough
- * for a few thousand bookmarks.
+ * must not query the bookmark database. The bookmark service uses this scan only
+ * while its versioned in-memory index is warming up.
  */
 export function matchBookmarkSuggestions(
   bookmarks: BookmarkNode[],
@@ -100,7 +173,8 @@ export function matchOpenTabSuggestions(
       continue;
     }
     const ageHours = Math.max(0, (Date.now() - tab.lastActiveAt) / 3600000);
-    const score = textScore + Math.max(0, 40 - Math.floor(ageHours));
+    const rankingBoost = Math.max(0, 40 - Math.floor(ageHours));
+    const score = textScore + rankingBoost;
     considerLocalSuggestion(ranked, {
       suggestion: {
         id: `tab-suggestion-${tab.id}`,
@@ -110,7 +184,8 @@ export function matchOpenTabSuggestions(
         subtitle: host,
         icon: '',
         refId: tab.id,
-        score: score
+        score: score,
+        rankingBoost: rankingBoost
       },
       score: score
     }, normalizedLimit);
@@ -172,10 +247,18 @@ function compareLocalSuggestions(left: RankedLocalSuggestion, right: RankedLocal
   return right.score - left.score;
 }
 
-function scoreLocalOmniboxText(query: string, title: string, host: string, url: string): number {
-  const normalizedTitle = title.trim().toLowerCase();
-  const normalizedHost = host.trim().toLowerCase();
-  const compactUrl = normalizeLocalOmniboxQuery(url);
+export function scoreLocalOmniboxText(query: string, title: string, host: string, url: string): number {
+  return scoreNormalizedLocalOmniboxText(
+    query, title.trim().toLowerCase(), host.trim().toLowerCase(), normalizeLocalOmniboxQuery(url)
+  );
+}
+
+function scoreNormalizedLocalOmniboxText(
+  query: string,
+  normalizedTitle: string,
+  normalizedHost: string,
+  compactUrl: string
+): number {
   if (normalizedHost === query || compactUrl === query || normalizedTitle === query) {
     return 800;
   }
@@ -196,20 +279,8 @@ function displayLocalOmniboxTitle(title: string, host: string): string {
   return host.length > 0 ? host : '';
 }
 
-function normalizeLocalOmniboxQuery(value: string): string {
-  let compact = value.trim().toLowerCase().replace(/\s+/g, '');
-  if (compact.startsWith('https://')) {
-    compact = compact.substring('https://'.length);
-  } else if (compact.startsWith('http://')) {
-    compact = compact.substring('http://'.length);
-  }
-  if (compact.startsWith('www.')) {
-    compact = compact.substring('www.'.length);
-  }
-  if (compact.endsWith('/') && compact.indexOf('?') < 0 && compact.indexOf('#') < 0) {
-    compact = compact.substring(0, compact.length - 1);
-  }
-  return compact;
+export function normalizeLocalOmniboxQuery(value: string): string {
+  return normalizeNavigationSearchText(value);
 }
 
 function hostFromLocalOmniboxUrl(url: string): string {

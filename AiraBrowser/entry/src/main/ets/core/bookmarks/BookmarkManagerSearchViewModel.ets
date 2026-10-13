@@ -22,6 +22,7 @@ export class BookmarkManagerSearchViewModel {
   private currentFolderNodes: BookmarkNode[] = [];
   private query: string = '';
   private isSearchMode: boolean = false;
+  private routeQueryInitialized: boolean = false;
   private excludedNodeIds: string[] = [];
 
   constructor(bookmarkManagementFeature: BookmarkManagementFeature) {
@@ -30,6 +31,18 @@ export class BookmarkManagerSearchViewModel {
 
   createInitialState(): BookmarkManagerSearchState {
     return this.buildState(false, false, 0);
+  }
+
+  initializeRouteQuery(query?: string): BookmarkManagerSearchResult {
+    if (!this.routeQueryInitialized) {
+      this.routeQueryInitialized = true;
+      const initialQuery = query?.trim() ?? '';
+      if (initialQuery.length > 0) {
+        this.query = initialQuery;
+        this.isSearchMode = true;
+      }
+    }
+    return this.buildResult();
   }
 
   setCurrentFolderNodes(nodes: BookmarkNode[]): BookmarkManagerSearchResult {

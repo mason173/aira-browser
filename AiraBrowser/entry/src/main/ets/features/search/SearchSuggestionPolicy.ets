@@ -1,24 +1,19 @@
 export interface SearchSuggestionCandidateCaps {
-  emptyBookmarks: number;
-  activeBookmarks: number;
-  activeHistory: number;
+  local: number;
+  search: number;
 }
 
 export interface SearchSuggestionPresentationCaps {
   emptyLimit: number;
   activeLimit: number;
-  emptyTabs: number;
-  emptyBookmarks: number;
-  activeTabs: number;
-  navigateTabs: number;
-  activeLocal: number;
-  remoteSearch: number;
-  navigateRemoteSearch: number;
+  preferredLocal: number;
+  preferredSearch: number;
 }
 
 export interface SearchSuggestionTimingPolicy {
   revealRefreshDelayMs: number;
   deferredRefreshDelayMs: number;
+  remoteRefreshDelayMs: number;
   prewarmDelayMs: number;
 }
 
@@ -29,25 +24,21 @@ export interface SearchSuggestionPolicy {
 }
 
 export const DEFAULT_SEARCH_SUGGESTION_POLICY: SearchSuggestionPolicy = {
+  // Retrieve beyond the visible limit so duplicates and the active page do not leave holes.
   candidates: {
-    emptyBookmarks: 20,
-    activeBookmarks: 60,
-    activeHistory: 60
+    local: 16,
+    search: 16
   },
   presentation: {
-    emptyLimit: 5,
-    activeLimit: 5,
-    emptyTabs: 2,
-    emptyBookmarks: 3,
-    activeTabs: 1,
-    navigateTabs: 2,
-    activeLocal: 2,
-    remoteSearch: 2,
-    navigateRemoteSearch: 1
+    emptyLimit: 8,
+    activeLimit: 8,
+    preferredLocal: 6,
+    preferredSearch: 2
   },
   timing: {
     revealRefreshDelayMs: 96,
-    deferredRefreshDelayMs: 96,
+    deferredRefreshDelayMs: 0,
+    remoteRefreshDelayMs: 96,
     prewarmDelayMs: 48
   }
 };

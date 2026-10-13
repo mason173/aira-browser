@@ -701,7 +701,7 @@ struct BrowserSearchSuggestionCard {
   private buildTrailingIcon() {
     if (this.suggestion.source === 'history' || this.suggestion.source === 'search_history') {
       this.buildSourceTrailingIcon('membership.inviteRecordClock')
-    } else if (this.suggestion.source === 'bookmarks') {
+    } else if (this.suggestion.source === 'bookmarks' || this.suggestion.source === 'bookmark_search') {
       this.buildSourceTrailingIcon('browser.shortcut.bookmarks')
     } else if (this.suggestion.source === 'tabs') {
       this.buildSourceTrailingIcon('browser.toolbar.tabs')

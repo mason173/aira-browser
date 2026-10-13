@@ -26,6 +26,7 @@ export function resolveOmniboxKeyboardSuggestions(suggestions: SearchSuggestion[
     return suggestion.source === 'search_history' ||
       suggestion.source === 'history' ||
       suggestion.source === 'bookmarks' ||
+      suggestion.source === 'bookmark_search' ||
       suggestion.source === 'tabs' ||
       suggestion.source === 'suggestions';
   });

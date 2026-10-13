@@ -10633,6 +10633,10 @@
       "value": "其他隱私書籤"
     },
     {
+      "name": "search_suggestion_all_bookmarks",
+      "value": "查看全部相符書籤"
+    },
+    {
       "name": "bookmark_search",
       "value": "搜尋書籤"
     },

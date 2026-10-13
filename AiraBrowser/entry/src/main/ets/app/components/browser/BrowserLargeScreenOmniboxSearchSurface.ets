@@ -148,7 +148,7 @@ struct BrowserLargeScreenSuggestionRow {
     if (this.usesHistoryIcon()) {
       return 'membership.inviteRecordClock';
     }
-    if (this.suggestion.source === 'bookmarks') {
+    if (this.suggestion.source === 'bookmarks' || this.suggestion.source === 'bookmark_search') {
       return 'browser.shortcut.bookmarks';
     }
     if (this.suggestion.source === 'tabs') {
