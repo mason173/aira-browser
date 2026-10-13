@@ -12067,6 +12067,14 @@ struct BrowserShellPage {
   private handleDownloadStart(tabId: string, event: OnDownloadStartEvent): void {
     this.browserTabBackgroundSessionSyncCoordinator.markDownloadStarted(tabId);
     this.browserUserScriptApplicationCoordinator.handleInstallCandidate(event.url);
+    this.downloadService.recordWebDownloadStart(
+      tabId,
+      event.url,
+      event.userAgent,
+      event.contentDisposition,
+      event.mimetype,
+      event.contentLength
+    );
   }
 
   @Builder

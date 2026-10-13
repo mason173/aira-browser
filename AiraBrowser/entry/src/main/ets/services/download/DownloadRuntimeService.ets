@@ -126,6 +126,18 @@ interface DownloadRuntimeServiceCallbackListener {
   key: string;
   callbacks: DownloadRuntimeServiceCallbacks;
 }
+
+interface WebDownloadStartContext {
+  url: string;
+  userAgent: string;
+  contentDisposition: string;
+  mimeType: string;
+  contentLength: number;
+  observedAt: number;
+}
+
+const WEB_DOWNLOAD_START_MATCH_WINDOW_MS: number = 10000;
+const WEB_DOWNLOAD_START_CONTEXT_LIMIT: number = 8;
 export type DownloadTaskFollowupAction = 'open_file' | 'open_location';
 
 export class DownloadRuntimeService {
@@ -136,6 +148,7 @@ export class DownloadRuntimeService {
   private fileResolutionService: DownloadFileResolutionAdapter;
   private downloadFollowupService: DownloadFollowupService;
   private downloadPolicyService: DownloadPolicyService;
+  private recentWebDownloadStarts: WebDownloadStartContext[] = [];
   private initialized: boolean = false;
   private repositoryInitializationPromise?: Promise<void>;
   private callbacks: DownloadRuntimeServiceCallbacks = {};
@@ -588,6 +601,50 @@ export class DownloadRuntimeService {
       });
   }
 
+  /**
+   * Remembers the Web component's onDownloadStart until the matching download item arrives.
+   * ArkWeb's download item does not carry the user agent the page used, so a later libcurl
+   * transfer would otherwise identify itself as the download core and be rejected with HTTP 403.
+   */
+  recordWebDownloadStart(
+    _tabId: string,
+    url: string,
+    userAgent: string,
+    contentDisposition: string,
+    mimeType: string,
+    contentLength: number
+  ): void {
+    const normalizedUrl = this.normalizeDownloadMatchUrl(url);
+    const normalizedUserAgent = userAgent.trim();
+    if (normalizedUrl.length <= 0 || normalizedUserAgent.length <= 0) {
+      return;
+    }
+    const now = Date.now();
+    this.recentWebDownloadStarts = this.recentWebDownloadStarts.filter((context: WebDownloadStartContext) =>
+      now - context.observedAt <= WEB_DOWNLOAD_START_MATCH_WINDOW_MS &&
+      context.url !== normalizedUrl
+    );
+    this.recentWebDownloadStarts.push({
+      url: normalizedUrl,
+      userAgent: normalizedUserAgent,
+      contentDisposition: contentDisposition.trim(),
+      mimeType: mimeType.trim(),
+      contentLength: Number.isFinite(contentLength) && contentLength > 0 ? contentLength : 0,
+      observedAt: now
+    });
+    if (this.recentWebDownloadStarts.length > WEB_DOWNLOAD_START_CONTEXT_LIMIT) {
+      this.recentWebDownloadStarts = this.recentWebDownloadStarts.slice(
+        this.recentWebDownloadStarts.length - WEB_DOWNLOAD_START_CONTEXT_LIMIT
+      );
+    }
+    this.downloadV2Service.rememberPageDownloadIdentity(
+      normalizedUrl,
+      normalizedUserAgent,
+      contentDisposition,
+      mimeType
+    );
+  }
+
   cancelPendingDownload(guid: string): boolean {
     const canceledV2Request = this.downloadV2Service.cancelPendingPrompt(guid);
     if (canceledV2Request !== undefined) {
@@ -773,6 +830,7 @@ export class DownloadRuntimeService {
       onDownloadEvent: (event: PlatformDownloadEvent) => {
         if (event.type === 'before_download') {
           this.refreshActiveBoundarySourcePageUrl();
+          this.applyRecentWebDownloadStart(event);
         }
         this.callbacks.onPlatformDownloadEvent?.(event, this.normalizeBoundary(this.activeBoundary));
         this.callbackListeners.forEach((listener: DownloadRuntimeServiceCallbackListener) => {
@@ -874,6 +932,65 @@ export class DownloadRuntimeService {
       dataScope: normalizeBrowserDataScope(boundary.dataScope, normalizedPrivacyMode),
       sourcePageUrl: boundary.sourcePageUrl?.trim() ?? ''
     };
+  }
+
+  private applyRecentWebDownloadStart(event: PlatformDownloadEvent): void {
+    const normalizedUrl = this.normalizeDownloadMatchUrl(event.snapshot.url);
+    if (normalizedUrl.length <= 0) {
+      return;
+    }
+    const now = Date.now();
+    const matchedContext: WebDownloadStartContext = {
+      url: '',
+      userAgent: '',
+      contentDisposition: '',
+      mimeType: '',
+      contentLength: 0,
+      observedAt: 0
+    };
+    this.recentWebDownloadStarts = this.recentWebDownloadStarts.filter((context: WebDownloadStartContext) => {
+      if (now - context.observedAt > WEB_DOWNLOAD_START_MATCH_WINDOW_MS) {
+        return false;
+      }
+      if (context.url === normalizedUrl) {
+        matchedContext.url = context.url;
+        matchedContext.userAgent = context.userAgent;
+        matchedContext.contentDisposition = context.contentDisposition;
+        matchedContext.mimeType = context.mimeType;
+        matchedContext.contentLength = context.contentLength;
+        matchedContext.observedAt = context.observedAt;
+        return false;
+      }
+      return true;
+    });
+    if (matchedContext.userAgent.length <= 0) {
+      return;
+    }
+    const context = matchedContext;
+    if ((event.snapshot.userAgent?.trim().length ?? 0) <= 0) {
+      event.snapshot.userAgent = context.userAgent;
+    }
+    if ((event.snapshot.contentDisposition?.trim().length ?? 0) <= 0 && context.contentDisposition.length > 0) {
+      event.snapshot.contentDisposition = context.contentDisposition;
+    }
+    if ((event.snapshot.mimeType?.trim().length ?? 0) <= 0 && context.mimeType.length > 0) {
+      event.snapshot.mimeType = context.mimeType;
+    }
+    hilog.info(
+      DOWNLOAD_RUNTIME_SERVICE_DOMAIN,
+      DOWNLOAD_RUNTIME_SERVICE_TAG,
+      'apply web download start guid=%{public}s pageUa=%{public}s disposition=%{public}s mime=%{public}s',
+      event.snapshot.guid,
+      'present',
+      context.contentDisposition.length > 0 ? 'present' : 'missing',
+      context.mimeType.length > 0 ? context.mimeType : 'missing'
+    );
+  }
+
+  private normalizeDownloadMatchUrl(url: string): string {
+    const trimmed = url.trim();
+    const hashIndex = trimmed.indexOf('#');
+    return hashIndex >= 0 ? trimmed.substring(0, hashIndex) : trimmed;
   }
 
   private refreshActiveBoundarySourcePageUrl(): void {

@@ -131,7 +131,7 @@ export class ArkWebDownloadBridge implements PlatformDownloadAdapter {
     snapshot: PlatformDownloadSnapshot,
     targetPath: string
   ): Promise<PlatformDownloadSnapshot | undefined> {
-    if (this.requiresNativeDownload(snapshot)) {
+    if (this.requiresNativeDownload(snapshot) || this.shouldContinueOwnedDownload(snapshot)) {
       return this.startNativeArkWebDownload(snapshot.guid, targetPath);
     }
     const createdTask = await this.libcurlAdapter.startDirectDownload(snapshot, targetPath);
@@ -152,7 +152,7 @@ export class ArkWebDownloadBridge implements PlatformDownloadAdapter {
     }
     try {
       const snapshot = this.readSnapshot(item);
-      if (this.requiresNativeDownload(snapshot)) {
+      if (this.requiresNativeDownload(snapshot) || this.shouldContinueOwnedDownload(snapshot)) {
         return this.startNativeArkWebDownload(guid, targetPath) !== undefined;
       }
       const createdTask = await this.libcurlAdapter.startDirectDownload(snapshot, targetPath);
@@ -181,8 +181,11 @@ export class ArkWebDownloadBridge implements PlatformDownloadAdapter {
     hlsSegmentConcurrency?: number
   ): Promise<boolean> {
     const item = this.itemsByGuid[guid];
-    if (item !== undefined && this.requiresNativeDownload(this.readSnapshot(item))) {
-      return Promise.resolve(this.startNativeArkWebDownload(guid, targetPath) !== undefined);
+    if (item !== undefined) {
+      const snapshot = this.readSnapshot(item);
+      if (this.requiresNativeDownload(snapshot) || this.shouldContinueOwnedDownload(snapshot)) {
+        return Promise.resolve(this.startNativeArkWebDownload(guid, targetPath) !== undefined);
+      }
     }
     return this.libcurlAdapter.retryDownload(
       guid,
@@ -508,6 +511,24 @@ export class ArkWebDownloadBridge implements PlatformDownloadAdapter {
       // ArkWeb may already have stopped this provisional item after handoff.
     }
     this.itemsByGuid[guid] = undefined;
+  }
+
+  /**
+   * A browser-owned HTTP download already carries the page session. Replaying it through libcurl
+   * spends a one-time signed URL and the second request is rejected with HTTP 403. HLS stays on
+   * libcurl because the browser download item cannot fetch its segments concurrently.
+   */
+  private shouldContinueOwnedDownload(snapshot: PlatformDownloadSnapshot): boolean {
+    if (this.isHlsDownload(snapshot) || this.handedOffGuids[snapshot.guid] === true) {
+      return false;
+    }
+    return this.itemsByGuid[snapshot.guid] !== undefined;
+  }
+
+  private isHlsDownload(snapshot: PlatformDownloadSnapshot): boolean {
+    const url = snapshot.url.trim().toLowerCase();
+    const mime = snapshot.mimeType?.trim().toLowerCase() ?? '';
+    return url.indexOf('.m3u8') >= 0 || mime.indexOf('mpegurl') >= 0 || mime.indexOf('hls') >= 0;
   }
 
   private requiresNativeDownload(snapshot: PlatformDownloadSnapshot): boolean {

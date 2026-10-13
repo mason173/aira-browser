@@ -103,8 +103,18 @@ export interface DownloadV2ManualRequestResult {
   started: boolean;
 }
 
+interface PageDownloadIdentity {
+  url: string;
+  userAgent: string;
+  contentDisposition: string;
+  mimeType: string;
+  observedAt: number;
+}
+
 export class DownloadV2Service {
   private static readonly CONTROL_SYNC_GRACE_MS: number = 2200;
+  private static readonly PAGE_DOWNLOAD_IDENTITY_WINDOW_MS: number = 10000;
+  private static readonly PAGE_DOWNLOAD_IDENTITY_LIMIT: number = 8;
   private engine: DownloadV2Engine;
   private requestCapture: DownloadV2RequestCapture;
   private repository: DownloadV2Repository;
@@ -128,6 +138,7 @@ export class DownloadV2Service {
   private runtimeDiagnosticRecorder?: DownloadRuntimeDiagnosticRecorder;
   private isQueueScheduling: boolean = false;
   private initializationPromise?: Promise<void>;
+  private pageDownloadIdentities: PageDownloadIdentity[] = [];
 
   constructor(
     engine?: DownloadV2Engine,
@@ -409,6 +420,55 @@ export class DownloadV2Service {
    */
   getCapturedRequest(guid: string): DownloadV2CapturedRequest | undefined {
     return this.requestCapture.getPendingRequest(guid);
+  }
+
+  /**
+   * Keeps the user agent from onDownloadStart. A download item created before that callback
+   * is updated in place; one already confirmed picks the identity up before the transfer starts.
+   */
+  rememberPageDownloadIdentity(
+    url: string,
+    userAgent: string,
+    contentDisposition: string,
+    mimeType: string
+  ): void {
+    const normalizedUrl = this.normalizeDownloadIdentityUrl(url);
+    const normalizedUserAgent = userAgent.trim();
+    if (normalizedUrl.length <= 0 || normalizedUserAgent.length <= 0) {
+      return;
+    }
+    const now = Date.now();
+    this.pageDownloadIdentities = this.pageDownloadIdentities.filter((identity: PageDownloadIdentity) =>
+      now - identity.observedAt <= DownloadV2Service.PAGE_DOWNLOAD_IDENTITY_WINDOW_MS &&
+      identity.url !== normalizedUrl
+    );
+    this.pageDownloadIdentities.push({
+      url: normalizedUrl,
+      userAgent: normalizedUserAgent,
+      contentDisposition: contentDisposition.trim(),
+      mimeType: mimeType.trim(),
+      observedAt: now
+    });
+    if (this.pageDownloadIdentities.length > DownloadV2Service.PAGE_DOWNLOAD_IDENTITY_LIMIT) {
+      this.pageDownloadIdentities = this.pageDownloadIdentities.slice(
+        this.pageDownloadIdentities.length - DownloadV2Service.PAGE_DOWNLOAD_IDENTITY_LIMIT
+      );
+    }
+    const updatedCount = this.requestCapture.applyPageIdentityToPendingUrl(
+      normalizedUrl,
+      normalizedUserAgent,
+      contentDisposition,
+      mimeType
+    );
+    if (updatedCount > 0) {
+      hilog.info(
+        DOWNLOAD_V2_SERVICE_DOMAIN,
+        DOWNLOAD_V2_SERVICE_TAG,
+        'apply page download identity urlHost=%{public}s pending=%{public}d',
+        this.downloadIdentityHost(normalizedUrl),
+        updatedCount
+      );
+    }
   }
 
   clearPendingPrompt(guid?: string): void {
@@ -901,7 +961,9 @@ export class DownloadV2Service {
     requiresConfirmation: boolean,
     confirmedFileName?: string
   ): Promise<DownloadV2TaskEntity | undefined> {
+    this.applyRememberedPageDownloadIdentity(request);
     await this.initialize();
+    this.applyRememberedPageDownloadIdentity(request);
     let resolvedRequest: DownloadHtmlRedirectResolution = {
       resolved: false,
       request: request
@@ -1023,7 +1085,7 @@ export class DownloadV2Service {
       targetPlan.completionExportPolicy
     );
     const sourceSnapshot = requestToCreate.platformSnapshot;
-    const downloadDriver = this.resolveInitialDownloadDriver(requestToCreate.method, requestToCreate.url);
+    const downloadDriver = this.resolveInitialDownloadDriver(requestToCreate);
     this.downloadTriggerDiagnosticsService.recordDriverSelection(requestToCreate, downloadDriver);
     const preparedTask = this.engine.synchronizeTask(queuedTask.guid, {
       resolvedFileName: targetPlan.fileName,
@@ -1068,24 +1130,37 @@ export class DownloadV2Service {
       this.notifyQueuedAdmission(requestToCreate.suggestedFileName, admission.reason);
       return latestPreparedTask;
     }
+    this.applyRememberedPageDownloadIdentity(requestToCreate);
     await this.startPreparedTaskFromRequest(requestToCreate, latestPreparedTask, 'create_task');
     return preparedTask ?? this.engine.findTask(queuedTask.guid);
   }
 
-  private resolveInitialDownloadDriver(method: string, url: string): DownloadV2Driver {
+  private resolveInitialDownloadDriver(request: DownloadV2CapturedRequest): DownloadV2Driver {
+    const method = request.method.trim().toUpperCase();
     // Non-GET requests (POST "download a copy" flows such as Office on the web) cannot be
     // replayed through libcurl because ArkWeb does not expose the request body, so ArkWeb
     // finishes those itself.
-    if (method.trim().toUpperCase() !== 'GET') {
+    if (method !== 'GET') {
       return 'arkweb';
     }
     // blob:/data: and other non-http(s) URLs only resolve inside the renderer that produced
     // them, so libcurl cannot fetch them either; ArkWeb writes those itself.
-    const normalized = url.trim().toLowerCase();
+    const normalized = request.url.trim().toLowerCase();
     if (!normalized.startsWith('http://') && !normalized.startsWith('https://')) {
       return 'arkweb';
     }
+    // The browser already started this request with the page session. Replaying a signed
+    // download through libcurl consumes the one-time URL and the server answers HTTP 403.
+    if (request.platformSnapshot !== undefined && !this.isHlsCapturedRequest(request)) {
+      return 'arkweb';
+    }
     return 'libcurl';
+  }
+
+  private isHlsCapturedRequest(request: DownloadV2CapturedRequest): boolean {
+    const url = request.url.trim().toLowerCase();
+    const mime = request.mimeType?.trim().toLowerCase() ?? '';
+    return url.indexOf('.m3u8') >= 0 || mime.indexOf('mpegurl') >= 0 || mime.indexOf('hls') >= 0;
   }
 
   private async startPreparedTaskFromRequest(
@@ -1093,16 +1168,18 @@ export class DownloadV2Service {
     task: DownloadV2TaskEntity,
     reason: string
   ): Promise<boolean> {
-    const targetPath = task.persistence.tempFilePath?.trim() ?? '';
-    const downloadDriver = task.persistence.downloadDriver ?? 'libcurl';
-    if (targetPath.length <= 0 || task.status !== 'queued') {
+    this.persistPageDownloadIdentity(task, request);
+    const currentTask = this.engine.findTask(task.guid) ?? task;
+    const targetPath = currentTask.persistence.tempFilePath?.trim() ?? '';
+    const downloadDriver = currentTask.persistence.downloadDriver ?? 'libcurl';
+    if (targetPath.length <= 0 || currentTask.status !== 'queued') {
       hilog.warn(
         DOWNLOAD_V2_SERVICE_DOMAIN,
         DOWNLOAD_V2_SERVICE_TAG,
         'start prepared rejected guid=%{public}s reason=%{public}s status=%{public}s path=%{public}s driver=%{public}s',
-        task.guid,
+        currentTask.guid,
         reason,
-        task.status,
+        currentTask.status,
         targetPath,
         downloadDriver
       );
@@ -1110,11 +1187,11 @@ export class DownloadV2Service {
     }
     const admission = this.downloadQueuePolicyService.resolveStartAdmission(
       this.engine.listTasks(),
-      task.guid,
+      currentTask.guid,
       this.downloadNetworkPolicyService.resolveStartAdmission()
     );
     if (!admission.canStartNow) {
-      this.persistQueuedAdmissionReason(task, admission.reason);
+      this.persistQueuedAdmissionReason(currentTask, admission.reason);
       await this.repository.flushPersistence();
       hilog.info(
         DOWNLOAD_V2_SERVICE_DOMAIN,
@@ -1140,7 +1217,7 @@ export class DownloadV2Service {
     );
     const startedSnapshot = await this.startDirectRequest(request, targetPath);
     if (startedSnapshot === undefined) {
-      await this.failPreparedTaskStart(task, request, downloadDriver);
+      await this.failPreparedTaskStart(currentTask, request, downloadDriver);
       return false;
     }
     this.downloadTriggerDiagnosticsService.recordStartResult(request, true, downloadDriver);
@@ -1159,7 +1236,7 @@ export class DownloadV2Service {
       type: 'updated',
       snapshot: startedSnapshot
     });
-    this.markStartedSnapshotAccepted(task.guid, startedSnapshot);
+    this.markStartedSnapshotAccepted(currentTask.guid, startedSnapshot);
     this.callbacks.onInfo?.(resolveAppResourceText($r('app.string.download_started', request.suggestedFileName)));
     return true;
   }
@@ -1267,6 +1344,7 @@ export class DownloadV2Service {
         }
         attemptedGuids.add(plan.nextGuid);
         const request = this.buildCapturedRequestFromTask(task);
+        this.applyRememberedPageDownloadIdentity(request);
         const started = await this.startPreparedTaskFromRequest(request, task, reason);
         if (!started) {
           const afterFailurePlan = this.downloadQueuePolicyService.buildSchedulePlan(
@@ -1360,6 +1438,37 @@ export class DownloadV2Service {
       default:
         return undefined;
     }
+  }
+
+  private persistPageDownloadIdentity(
+    task: DownloadV2TaskEntity,
+    request: DownloadV2CapturedRequest
+  ): void {
+    const userAgent = request.userAgent?.trim() ?? '';
+    const contentDisposition = request.contentDisposition?.trim() ?? '';
+    const mimeType = request.mimeType?.trim() ?? '';
+    const storedUserAgent = task.request.userAgent?.trim() ?? '';
+    const storedDisposition = task.request.contentDisposition?.trim() ?? '';
+    const storedMimeType = task.request.mimeType?.trim() ?? '';
+    if ((userAgent.length <= 0 || userAgent === storedUserAgent) &&
+      (contentDisposition.length <= 0 || contentDisposition === storedDisposition) &&
+      (mimeType.length <= 0 || mimeType === storedMimeType)) {
+      return;
+    }
+    this.engine.synchronizeTask(task.guid, {
+      request: {
+        url: task.request.url,
+        originalUrl: task.request.originalUrl,
+        method: task.request.method,
+        sourcePageUrl: task.request.sourcePageUrl,
+        sourceHost: task.request.sourceHost,
+        userAgent: userAgent.length > 0 ? userAgent : task.request.userAgent,
+        referer: task.request.referer,
+        mimeType: mimeType.length > 0 ? mimeType : task.request.mimeType,
+        contentDisposition: contentDisposition.length > 0 ? contentDisposition : task.request.contentDisposition,
+        headers: task.request.headers
+      }
+    });
   }
 
   private buildCapturedRequestFromTask(task: DownloadV2TaskEntity): DownloadV2CapturedRequest {
@@ -2243,6 +2352,70 @@ export class DownloadV2Service {
 
   private isCanceledState(state: string): boolean {
     return state.trim().toUpperCase().indexOf('CANCEL') >= 0;
+  }
+
+  private applyRememberedPageDownloadIdentity(request: DownloadV2CapturedRequest): void {
+    const now = Date.now();
+    const normalizedUrl = this.normalizeDownloadIdentityUrl(request.url);
+    const matchedIdentity: PageDownloadIdentity = {
+      url: '',
+      userAgent: '',
+      contentDisposition: '',
+      mimeType: '',
+      observedAt: 0
+    };
+    this.pageDownloadIdentities = this.pageDownloadIdentities.filter((identity: PageDownloadIdentity) => {
+      if (now - identity.observedAt > DownloadV2Service.PAGE_DOWNLOAD_IDENTITY_WINDOW_MS) {
+        return false;
+      }
+      if (identity.url === normalizedUrl) {
+        matchedIdentity.url = identity.url;
+        matchedIdentity.userAgent = identity.userAgent;
+        matchedIdentity.contentDisposition = identity.contentDisposition;
+        matchedIdentity.mimeType = identity.mimeType;
+        matchedIdentity.observedAt = identity.observedAt;
+      }
+      return true;
+    });
+    if (matchedIdentity.userAgent.length <= 0) {
+      return;
+    }
+    const identity = matchedIdentity;
+    if ((request.userAgent?.trim().length ?? 0) <= 0) {
+      request.userAgent = identity.userAgent;
+    }
+    if ((request.contentDisposition?.trim().length ?? 0) <= 0 && identity.contentDisposition.length > 0) {
+      request.contentDisposition = identity.contentDisposition;
+    }
+    if ((request.mimeType?.trim().length ?? 0) <= 0 && identity.mimeType.length > 0) {
+      request.mimeType = identity.mimeType;
+    }
+    const snapshot = request.platformSnapshot;
+    if (snapshot === undefined) {
+      return;
+    }
+    if ((snapshot.userAgent?.trim().length ?? 0) <= 0) {
+      snapshot.userAgent = identity.userAgent;
+    }
+    if ((snapshot.contentDisposition?.trim().length ?? 0) <= 0 && identity.contentDisposition.length > 0) {
+      snapshot.contentDisposition = identity.contentDisposition;
+    }
+    if ((snapshot.mimeType?.trim().length ?? 0) <= 0 && identity.mimeType.length > 0) {
+      snapshot.mimeType = identity.mimeType;
+    }
+  }
+
+  private normalizeDownloadIdentityUrl(url: string): string {
+    const trimmed = url.trim();
+    const hashIndex = trimmed.indexOf('#');
+    return hashIndex >= 0 ? trimmed.substring(0, hashIndex) : trimmed;
+  }
+
+  private downloadIdentityHost(url: string): string {
+    const schemeSeparator = url.indexOf('://');
+    const start = schemeSeparator >= 0 ? schemeSeparator + 3 : 0;
+    const end = url.indexOf('/', start);
+    return end >= 0 ? url.substring(start, end) : url.substring(start);
   }
 
   private isFailureState(state: string): boolean {

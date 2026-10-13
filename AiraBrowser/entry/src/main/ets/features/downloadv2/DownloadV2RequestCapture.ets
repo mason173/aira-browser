@@ -140,6 +140,34 @@ export class DownloadV2RequestCapture {
     return request === undefined ? undefined : this.cloneRequest(request);
   }
 
+  /**
+   * Fills the page identity that only onDownloadStart carries. The download item itself
+   * has no user agent, and a pending request is still mutable until the user confirms it.
+   */
+  applyPageIdentityToPendingUrl(
+    url: string,
+    userAgent: string,
+    contentDisposition: string,
+    mimeType: string
+  ): number {
+    const normalizedUrl = this.normalizeUrlForMatch(url);
+    const normalizedUserAgent = userAgent.trim();
+    if (normalizedUrl.length <= 0 || normalizedUserAgent.length <= 0) {
+      return 0;
+    }
+    let updatedCount = 0;
+    const keys = Object.keys(this.pendingRequests);
+    for (let index = 0; index < keys.length; index += 1) {
+      const request = this.pendingRequests[keys[index]];
+      if (request === undefined || this.normalizeUrlForMatch(request.url) !== normalizedUrl) {
+        continue;
+      }
+      this.fillMissingPageIdentity(request, normalizedUserAgent, contentDisposition, mimeType);
+      updatedCount += 1;
+    }
+    return updatedCount;
+  }
+
   hasPendingRequestForUrl(url: string): boolean {
     return this.hasPendingRequestForUrlMatching(url, false);
   }
@@ -351,6 +379,38 @@ export class DownloadV2RequestCapture {
       nextHeaders[key] = headers[key];
     });
     return nextHeaders;
+  }
+
+  private fillMissingPageIdentity(
+    request: DownloadV2CapturedRequest,
+    userAgent: string,
+    contentDisposition: string,
+    mimeType: string
+  ): void {
+    if ((request.userAgent?.trim().length ?? 0) <= 0) {
+      request.userAgent = userAgent;
+    }
+    const normalizedDisposition = contentDisposition.trim();
+    if ((request.contentDisposition?.trim().length ?? 0) <= 0 && normalizedDisposition.length > 0) {
+      request.contentDisposition = normalizedDisposition;
+    }
+    const normalizedMimeType = mimeType.trim();
+    if ((request.mimeType?.trim().length ?? 0) <= 0 && normalizedMimeType.length > 0) {
+      request.mimeType = normalizedMimeType;
+    }
+    const snapshot = request.platformSnapshot;
+    if (snapshot === undefined) {
+      return;
+    }
+    if ((snapshot.userAgent?.trim().length ?? 0) <= 0) {
+      snapshot.userAgent = userAgent;
+    }
+    if ((snapshot.contentDisposition?.trim().length ?? 0) <= 0 && normalizedDisposition.length > 0) {
+      snapshot.contentDisposition = normalizedDisposition;
+    }
+    if ((snapshot.mimeType?.trim().length ?? 0) <= 0 && normalizedMimeType.length > 0) {
+      snapshot.mimeType = normalizedMimeType;
+    }
   }
 
   private normalizeUrlForMatch(url: string): string {
