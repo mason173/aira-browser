@@ -12,7 +12,7 @@ import { AiraIcon } from '../common/AiraIcon';
 import { FloatingGlassMaterialSurface } from '../common/FloatingGlassMaterialSurface';
 import { HdsImmersiveMaterialSurface } from '../common/HdsImmersiveMaterialSurface';
 import { isHdsMaterialAvailable } from '../common/HdsImmersiveMaterialTokens';
-import { resolveFloatingGlassMaterialTintForMode } from '../common/FloatingGlassMaterialTokens';
+import { resolveFloatingGlassMaterialTintForMode, resolveFloatingGlassSurfaceFallbackForMode } from '../common/FloatingGlassMaterialTokens';
 import { BrowserSheetResponsiveLayoutViewModel } from '../../../core/browser/BrowserSheetResponsiveLayoutViewModel';
 import {
   DESKTOP_DIALOG_ACTION_FONT_SIZE_FP,
@@ -531,6 +531,9 @@ export struct BrowserSheetActionButton {
           surfaceHeight: this.resolveRenderedHeight(),
           surfaceRadius: this.resolveRenderedHeight() / 2,
           tintColor: resolveFloatingGlassMaterialTintForMode(this.storedResolvedThemeMode),
+          // The default resource fallback follows the system color mode, not the app theme, so
+          // an app-dark window on a light system rendered white pills behind light text.
+          fallbackColor: resolveFloatingGlassSurfaceFallbackForMode(this.storedResolvedThemeMode),
           overlayColor: this.resolveOverlayColor(),
           overlayOpacity: this.emphasis === 'primary' ? 1 : 0
         }) {
@@ -680,6 +683,7 @@ export struct BrowserSheetIconButton {
         surfaceHeight: this.buttonSize,
         surfaceRadius: this.buttonSize / 2,
         tintColor: resolveFloatingGlassMaterialTintForMode(this.storedResolvedThemeMode),
+        fallbackColor: resolveFloatingGlassSurfaceFallbackForMode(this.storedResolvedThemeMode),
         hostMaterialActive: this.shouldUseHdsMaterial()
       }) {
         if (typeof this.accessibilityLabel === 'string') {

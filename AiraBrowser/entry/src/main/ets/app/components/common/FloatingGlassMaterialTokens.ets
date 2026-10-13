@@ -25,6 +25,8 @@ export const FLOATING_GLASS_MATERIAL_ADAPTIVE_OPTIONS: BackgroundBlurStyleOption
 export const FLOATING_GLASS_MATERIAL_LIGHT_TINT: ResourceColor = '#18FFFFFF';
 export const FLOATING_GLASS_MATERIAL_DARK_TINT: ResourceColor = '#18000000';
 export const FLOATING_GLASS_MATERIAL_LIGHT_EFFECT_COLOR: ResourceColor = '#25FFFFFF';
+export const FLOATING_GLASS_SURFACE_FALLBACK_LIGHT: ResourceColor = '#66FFFFFF';
+export const FLOATING_GLASS_SURFACE_FALLBACK_DARK: ResourceColor = '#B3242426';
 export const FLOATING_GLASS_MATERIAL_IMMERSIVE_STYLE: ImmersiveStyleHandle = IMMERSIVE_STYLE_STANDARD;
 export const FLOATING_GLASS_MATERIAL_THICK_STYLE: ImmersiveStyleHandle = IMMERSIVE_STYLE_THICK;
 export const FLOATING_GLASS_MATERIAL_ULTRA_THICK_STYLE: ImmersiveStyleHandle = IMMERSIVE_STYLE_ULTRA_THICK;
@@ -35,6 +37,17 @@ export function resolveFloatingGlassMaterialTintForMode(resolvedThemeMode: strin
   return resolvedThemeMode === 'dark' ?
     FLOATING_GLASS_MATERIAL_DARK_TINT :
     FLOATING_GLASS_MATERIAL_LIGHT_TINT;
+}
+
+/**
+ * Mirrors the surface_glass_background light/dark resource values. The resource itself follows
+ * the system color mode, so an app-dark theme on a light system would render the light fallback;
+ * callables that theme through AppStorage resolve the same pair from the app's resolved mode.
+ */
+export function resolveFloatingGlassSurfaceFallbackForMode(resolvedThemeMode: string): ResourceColor {
+  return resolvedThemeMode === 'dark' ?
+    FLOATING_GLASS_SURFACE_FALLBACK_DARK :
+    FLOATING_GLASS_SURFACE_FALLBACK_LIGHT;
 }
 
 export function createFloatingGlassMaterial(
