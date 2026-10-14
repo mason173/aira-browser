@@ -41,6 +41,7 @@ import { AppRuntimeContext } from '../runtime/AppRuntimeContext';
 import { BROWSER_SHELL_ROUTE, FEATURE_INTRO_ROUTE, STARTUP_WELCOME_INTRO_ROUTE } from '../router/AppRoutes';
 import { resolveInitialOnboardingDestination } from '../../core/onboarding/FeatureIntroRoutePolicy';
 import { BrowserTabSessionRuntime } from '../runtime/BrowserTabSessionRuntime';
+import { BrowserTabSessionRestoreService } from '../../core/browser/BrowserTabSessionRestoreService';
 import {
   BrowserWindowAvoidAreaCoordinator,
 } from '../../core/browser/BrowserWindowAvoidAreaCoordinator';
@@ -818,7 +819,15 @@ export default class EntryAbility extends UIAbility {
       snapshot.profileId,
       AiraTabSessionProbe.describeIds(snapshot.records.map((record: TabRecord): string => record.id))
     );
-    sharedTabSessionRepository.replaceTabs(snapshot.records, snapshot.windowId, snapshot.profileId)
+    // Lifecycle fallback writes replace the same records as ordinary session persistence.
+    // Re-evaluate the current opt-in so they neither erase allowed private tabs nor retain
+    // a stale private snapshot after the user has disabled restoration.
+    const allowPrivateTabs = new BrowserTabSessionRestoreService().shouldPersistPrivateTabs(
+      sharedPreferencesRepository.getPreferences().general.privateTabRestorePolicy
+    );
+    sharedTabSessionRepository.replaceTabs(snapshot.records, snapshot.windowId, snapshot.profileId, {
+      allowPrivateTabs: allowPrivateTabs
+    })
       .then((written: TabRecord[]) => {
         AiraTabSessionProbe.logAbilityFlush(
           source,
