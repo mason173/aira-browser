@@ -8,6 +8,7 @@ import {
 } from './WebAppearancePolicy';
 import { BrowserHistoryApiBridgeScriptService } from './BrowserHistoryApiBridge';
 import { BrowserWebAttributeModifier } from './WebDefaultContextMenuModifier';
+import { documentViewerHtmlFileTransport } from '../../services/viewer/DocumentViewerHtmlFileTransport';
 import { WebBackForwardCacheCoordinator } from './WebBackForwardCacheCoordinator';
 import { BrowserWebRuntimeSecurityPolicy } from '../../common/models/BrowserWebSecurityModels';
 import { USER_SCRIPT_NATIVE_BRIDGE_NAME } from '../../features/userscripts/UserScriptNativeBridgeModels';
@@ -123,7 +124,7 @@ export interface HostedWebNodeConfig {
   forceEnableWebZoom?: boolean;
   textZoomRatio?: number;
   pullRefreshNestedScrollEnabled?: boolean;
-  /** When false, the Web component does not register onInterceptRequest. */
+  /** When false, only local HTML transport requests reach the interception callback. */
   networkInterceptEnabled?: boolean;
   callbacks: HostedWebNodeCallbacks;
 }
@@ -2420,11 +2421,17 @@ function HostedWebNodeBuilder(config: HostedWebNodeConfig) {
       .zoomAccess(true)
       .textZoomRatio(config.textZoomRatio ?? 100)
       .attributeModifier(new BrowserWebAttributeModifier({
-        forceEnableWebZoom: config.forceEnableWebZoom,
-        onInterceptRequest: config.networkInterceptEnabled === false ? undefined : (event: OnInterceptRequestEvent) => {
-          return config.callbacks.onInterceptRequest(config.tabId, event);
-        }
+        forceEnableWebZoom: config.forceEnableWebZoom
       }))
+      .onInterceptRequest((event: OnInterceptRequestEvent) => {
+        // Bind directly: the attribute-modifier bridge reads a plain response object,
+        // losing native WebResourceResponse fields and asynchronous readiness updates.
+        if (config.networkInterceptEnabled === false &&
+          !documentViewerHtmlFileTransport.isTransportUrl(event.request.getRequestUrl())) {
+          return null;
+        }
+        return config.callbacks.onInterceptRequest(config.tabId, event);
+      })
       .overScrollMode(OverScrollMode.NEVER)
       .nestedScroll(resolveHostedWebNestedScrollOptions(config.pullRefreshNestedScrollEnabled === true))
       .databaseAccess(true)

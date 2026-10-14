@@ -62,6 +62,7 @@ TAB_SWIPE_COVER_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-tab-swipe-cover.cj
 TAB_PREVIEW_IMAGE_LEASE_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-tab-preview-image-lease.cjs"
 TAB_PREVIEW_LIFECYCLE_SNAPSHOT_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-tab-preview-lifecycle-snapshot.cjs"
 PRIVATE_TAB_SESSION_RESTORE_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-private-tab-session-restore.cjs"
+SHARED_HTML_VIEWER_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-shared-html-viewer.cjs"
 TABS_STACK_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-tabs-stack.cjs"
 SAME_DOCUMENT_RESTORABLE_STATE_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-same-document-restorable-state.cjs"
 DOWNLOAD_REWIND_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-download-rewind-does-not-move-page.cjs"
@@ -401,6 +402,12 @@ for swipe_guard in \
   fi
   node "${swipe_guard}" || fail "Bottom address bar tab swipe guard failed: ${swipe_guard}"
 done
+
+if [ ! -f "${SHARED_HTML_VIEWER_GUARD_SCRIPT}" ]; then
+  fail "Shared HTML viewer guard not found: ${SHARED_HTML_VIEWER_GUARD_SCRIPT}"
+fi
+node "${SHARED_HTML_VIEWER_GUARD_SCRIPT}" || \
+  fail "Shared HTML viewer guard failed: ${SHARED_HTML_VIEWER_GUARD_SCRIPT}"
 
 if [ ! -f "${SAME_DOCUMENT_RESTORABLE_STATE_GUARD_SCRIPT}" ]; then
   fail "Same-document restorable state guard not found: ${SAME_DOCUMENT_RESTORABLE_STATE_GUARD_SCRIPT}"

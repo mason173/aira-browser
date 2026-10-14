@@ -14,26 +14,20 @@ interface WebForceZoomAttribute {
 export interface BrowserWebAttributeModifierOptions {
   forceEnableWebZoom?: boolean;
   enableDefaultContextMenu?: boolean;
-  onInterceptRequest?: (event: OnInterceptRequestEvent) => WebResourceResponse | null;
 }
 
 export class BrowserWebAttributeModifier implements AttributeModifier<WebAttribute> {
   private readonly forceEnableWebZoom: boolean;
   private readonly enableDefaultContextMenu: boolean;
-  private readonly onInterceptRequest?: (event: OnInterceptRequestEvent) => WebResourceResponse | null;
 
   constructor(options?: BrowserWebAttributeModifierOptions) {
     this.forceEnableWebZoom = options?.forceEnableWebZoom === true;
     this.enableDefaultContextMenu = options?.enableDefaultContextMenu !== false;
-    this.onInterceptRequest = options?.onInterceptRequest;
   }
 
   applyNormalAttribute(instance: WebAttribute): void {
     this.applyDefaultContextMenuAttribute(instance);
     this.applyForceZoomAttribute(instance);
-    if (this.onInterceptRequest !== undefined) {
-      instance.onInterceptRequest(this.onInterceptRequest);
-    }
   }
 
   private applyDefaultContextMenuAttribute(instance: WebAttribute): void {
