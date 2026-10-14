@@ -1,5 +1,19 @@
 # Changelog
 
+## 3.7.4 (1000531)
+
+2026-10-14
+
+This release makes address-bar bookmark search faster, and fixes several private-tab, sign-in, and download issues.
+
+- Address-bar bookmark search now uses a persistent index, so results are ready as soon as you open it, even on a cold start.
+- After reopening the app, private tabs restore their content and preview images instead of coming back blank.
+- Normal-mode sign-in is kept after you leave the app, so frequently used sites no longer ask you to sign in again.
+- Downloads started from a web page are still completed by the browser, instead of replaying one-time links that the server rejects.
+- Fixed occasional failures in web page location requests.
+- Shared pages you open now display correctly, without a blank screen or a download prompt by mistake.
+- In dark theme, dialog button backgrounds no longer appear washed out.
+
 ## 3.7.3 (1000520)
 
 2026-10-12
