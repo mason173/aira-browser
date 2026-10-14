@@ -66,6 +66,7 @@ TABS_STACK_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-tabs-stack.cjs"
 SAME_DOCUMENT_RESTORABLE_STATE_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-same-document-restorable-state.cjs"
 DOWNLOAD_REWIND_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-download-rewind-does-not-move-page.cjs"
 NATIVE_NAV_REQUEST_TOKEN_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-native-navigation-request-token.cjs"
+GEOLOCATION_PERMISSION_TEST="${REPO_ROOT}/scripts/check-aira-geolocation-permission.cjs"
 QUICK_SEARCH_CONTINUATION_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-quick-search-continuation.cjs"
 SETTINGS_CATALOG_LOCALIZATION_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-settings-catalog-localization.cjs"
 CHANGELOG_LOCALIZATION_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-changelog-localization.cjs"
@@ -418,6 +419,9 @@ if [ ! -f "${NATIVE_NAV_REQUEST_TOKEN_GUARD_SCRIPT}" ]; then
 fi
 node "${NATIVE_NAV_REQUEST_TOKEN_GUARD_SCRIPT}" || \
   fail "Native navigation request token guard failed: ${NATIVE_NAV_REQUEST_TOKEN_GUARD_SCRIPT}"
+
+node "${GEOLOCATION_PERMISSION_TEST}" || \
+  fail "Geolocation permission regression failed: ${GEOLOCATION_PERMISSION_TEST}"
 
 if [ ! -f "${QUICK_SEARCH_CONTINUATION_GUARD_SCRIPT}" ]; then
   fail "Quick Search continuation guard not found: ${QUICK_SEARCH_CONTINUATION_GUARD_SCRIPT}"

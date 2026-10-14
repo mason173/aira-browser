@@ -151,6 +151,7 @@ export class WebPermissionCoordinator {
     const pendingRequest: PendingGeolocationPermissionRequest = {
       tabId: tabId,
       origin: decision.origin,
+      requestOrigin: event.origin,
       geolocation: event.geolocation
     };
     this.setPermissionFlowInFlight(pendingRequest.tabId, true);
@@ -227,7 +228,7 @@ export class WebPermissionCoordinator {
     }
     if (prompt.geolocationRequest !== undefined) {
       const request = prompt.geolocationRequest;
-      request.geolocation.invoke(request.origin, false, false);
+      request.geolocation.invoke(request.requestOrigin, false, false);
       try {
         await this.persistPermissionRulesForTab(request.tabId, request.origin, ['location'], 'block');
       } catch (error) {
@@ -254,7 +255,7 @@ export class WebPermissionCoordinator {
     if (prompt.geolocationRequest !== undefined) {
       this.backgroundSessionSyncCoordinator.release(prompt.geolocationRequest.tabId);
       this.setPermissionFlowInFlight(prompt.geolocationRequest.tabId, false);
-      prompt.geolocationRequest.geolocation.invoke(prompt.geolocationRequest.origin, false, false);
+      prompt.geolocationRequest.geolocation.invoke(prompt.geolocationRequest.requestOrigin, false, false);
     }
   }
 
@@ -469,7 +470,7 @@ export class WebPermissionCoordinator {
       .then((result: SystemPermissionGrantResult) => {
         this.backgroundSessionSyncCoordinator.release(pendingRequest.tabId);
         if (!result.granted) {
-          pendingRequest.geolocation.invoke(pendingRequest.origin, false, false);
+          pendingRequest.geolocation.invoke(pendingRequest.requestOrigin, false, false);
           const fault = this.browserFaultClassifier.classifyPermissionDenied(
             result.message
           );
@@ -487,12 +488,12 @@ export class WebPermissionCoordinator {
           return;
         }
 
-        pendingRequest.geolocation.invoke(pendingRequest.origin, true, false);
+        pendingRequest.geolocation.invoke(pendingRequest.requestOrigin, true, false);
         this.setPermissionFlowInFlight(pendingRequest.tabId, false);
       })
       .catch((error: Error) => {
         this.backgroundSessionSyncCoordinator.release(pendingRequest.tabId);
-        pendingRequest.geolocation.invoke(pendingRequest.origin, false, false);
+        pendingRequest.geolocation.invoke(pendingRequest.requestOrigin, false, false);
         const fault = this.browserFaultClassifier.classifyPermissionDenied(
           resolveAppResourceText($r('app.string.web_permission_location_failed', JSON.stringify(error)))
         );
@@ -567,7 +568,7 @@ export class WebPermissionCoordinator {
     } catch (error) {
       this.backgroundSessionSyncCoordinator.release(pendingRequest.tabId);
       this.setPermissionFlowInFlight(pendingRequest.tabId, false);
-      pendingRequest.geolocation.invoke(pendingRequest.origin, false, false);
+      pendingRequest.geolocation.invoke(pendingRequest.requestOrigin, false, false);
       this.emitMessage('error', resolveAppResourceText($r('app.string.settings_site_info_permission_save_error', JSON.stringify(error))));
     }
   }

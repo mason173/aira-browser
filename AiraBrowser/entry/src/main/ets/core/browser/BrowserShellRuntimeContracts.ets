@@ -49,7 +49,9 @@ export type BrowserSystemSheetType =
 
 export interface PendingGeolocationPermissionRequest {
   tabId: string;
+  // Canonical site-policy key; ArkWeb's callback index must remain unchanged.
   origin: string;
+  requestOrigin: string;
   geolocation: JsGeolocation;
 }
 

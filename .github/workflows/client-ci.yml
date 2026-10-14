@@ -42,6 +42,8 @@ jobs:
         run: bash scripts/check-open-source-source-tree.sh
       - name: Check architecture guards
         run: bash scripts/check-architecture-guardrails.sh
+      - name: Check geolocation permission flow
+        run: node scripts/check-aira-geolocation-permission.cjs
       - name: Check icon catalog
         run: node scripts/check-aira-icon-catalog.js
       - name: Check generated icons
