@@ -3089,6 +3089,9 @@ export struct BrowserTabsFloatingOverlay {
   private selectOverviewTab(tabId: string, rect?: BrowserTabOverviewCardSelectRect): void {
     if (this.isStackLayout()) {
       if (this.deckDragActive) { return; }
+      // Finish the already accepted close before selection takes ownership of the exit. Otherwise
+      // the interaction @Watch commits it during exit and sends a late close into that operation.
+      this.commitPendingDeckDismiss();
       this.stopDeckMotion();
       const deckRect = this.resolveDeckPreviewRect(tabId);
       this.onSelectTab(tabId, deckRect === undefined ? rect : this.toSelectRect(deckRect));

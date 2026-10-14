@@ -25,6 +25,158 @@ const exportsUnderTest = load(
 const policy = new exportsUnderTest.BrowserTabsOverviewStackLayoutPolicy();
 const close = (actual, expected, tolerance = 1e-9) =>
   assert.ok(Math.abs(actual - expected) <= tolerance, `${actual} != ${expected}`);
+
+// Run the actual overview session without native capture/auth/geometry services. The fake host
+// replays a stack dismiss callback at the publication boundary where @Watch observes the exit.
+function selectionExitHarness(lateAction, selectOtherTab = false) {
+  const timers = [];
+  const sessionPath = 'AiraBrowser/entry/src/main/ets/core/browser/BrowserTabsOverviewSessionCoordinator.ets';
+  const filename = path.resolve(__dirname, '..', sessionPath);
+  const compiled = ts.transpileModule(fs.readFileSync(filename, 'utf8'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+    fileName: filename
+  });
+  const module = { exports: {} };
+  const idle = () => ({ phase: 'idle', direction: 'enter', tabId: '', progress: 1 });
+  vm.runInNewContext(compiled.outputText, {
+    module, exports: module.exports,
+    require: name => name === './BrowserTabsSharedSnapshotTransitionCoordinator' ?
+      { buildBrowserTabsSharedSnapshotIdleState: idle } : {},
+    setTimeout: (callback, delay) => { timers.push({ callback, delay }); return timers.length; }
+  }, { filename });
+  const sceneExports = load(
+    'AiraBrowser/entry/src/main/ets/core/browser/tabsOverview/BrowserTabsOverviewSceneDriver.ets', () => ({}));
+  const sceneDriver = Object.create(sceneExports.BrowserTabsOverviewSceneDriver.prototype);
+  const session = Object.create(module.exports.BrowserTabsOverviewSessionCoordinator.prototype);
+  const target = { id: 'selected', profileId: 'default', privacyMode: 'regular',
+    dataScope: 'profile_persistent', isHome: false };
+  const facts = { tabs: [target, { ...target, id: 'closing' }],
+    activeTabId: selectOtherTab ? 'closing' : target.id,
+    homeSurfaceVisible: false, tabsOverviewMounted: true };
+  let callbackDelivered = false;
+  const closedTabs = [];
+  const host = {
+    readSessionFacts: () => facts,
+    executeEffect: effect => {
+      if (effect.type === 'play_tabs_overview_arkui_animation') {
+        effect.plan.apply(); // Deliberately omit onFinish: the real timeout must finish the exit.
+      } else if (effect.type === 'apply_closed_overview_reset') {
+        facts.tabsOverviewMounted = false;
+      }
+    },
+    publishPresentationState: state => {
+      if (lateAction && state.exiting && !callbackDelivered) {
+        callbackDelivered = true;
+        if (lateAction === 'keyboard_select') {
+          void session.selectTab('closing');
+        } else if (lateAction === 'close_tab') {
+          session.closeTabFromOverlay('closing');
+        } else {
+          session.handle({ type: lateAction, tabId: 'closing', section: 'privacy' });
+        }
+      }
+    }
+  };
+  Object.assign(session, {
+    operationGeneration: 0, interruptedSelectionCompletionGeneration: -1,
+    backdropSettleRunId: 0, sceneDriver, resolveHost: () => host,
+    presentationState: { activeSection: 'tabs', exiting: false, homeSurfaceCloseInFlight: false,
+      animationVersion: 0, sharedSnapshotRunId: 1, sharedSnapshotState: idle(),
+      sceneState: { phase: 'settled', backgroundMode: 'home', openedFromHome: false,
+        activeTabIdAtOpen: facts.activeTabId, morphCoveredTabId: '' },
+      surface: { webLayerOpacity: 1, overlayOpacity: 1 } },
+    ensurePrivateModeUnlocked: async () => true,
+    tabSwitchCoordinator: { applyOverviewSelection: id => { facts.activeTabId = id; return true; } },
+    buildSelectionVisualFacts: () => ({ morphSource: {} }),
+    selectionPolicy: { buildSharedSnapshotExitSelectionDiagnostic: () => '',
+      shouldSkipSharedSnapshotExitForTabSelection: () => false },
+    buildSharedSnapshotExitPlan: () => ({ runId: 1, durationMs: 350, handoffDelayMs: 24,
+      targetProgress: 1, initialState: { phase: 'exitPreparing', direction: 'exit', tabId: target.id },
+      sourceSurfaceHandoffPatch: { webLayerOpacity: 1, webEntryProgress: 1 } }),
+    sharedSnapshotTransitionCoordinator: {
+      shouldShowOverlay: state => state.phase !== 'idle',
+      withProgress: (state, progress) => ({ ...state, phase: 'exitAnimating', progress })
+    },
+    sharedSnapshotEntryCoordinator: { finish: idle },
+    snapshotPipelineCoordinator: { releaseSession() {} },
+    fixedDependencies: { webTopImmersionSessionCoordinator: { syncPolicy() {} } },
+    unlockTabsOverviewSnapshot() {}, hideBackdropSnapshot() {},
+    tabCloseCoordinator: { closeTab: async id => { closedTabs.push(id); } }
+  });
+  return { session, host, facts, closedTabs,
+    drainTimers: () => {
+      while (timers.length > 0) {
+        timers.sort((a, b) => a.delay - b.delay);
+        timers.shift().callback();
+      }
+    },
+    render: () => sceneDriver.buildRenderState({ sceneState: session.presentationState.sceneState,
+      showHomePage: false, showTabsSheet: facts.tabsOverviewMounted, keepHomeResident: false }) };
+}
+
+test('selecting another web tab also releases the overview despite a late stack close', async () => {
+  const h = selectionExitHarness('close_tab', true);
+  await h.session.finishSelectionFromOverview('selected', h.host, h.session.beginOperation());
+  h.drainTimers();
+  assert.equal(h.facts.activeTabId, 'selected');
+  assert.equal(h.facts.tabsOverviewMounted, false);
+  assert.equal(h.render().webLayerInteractive, true);
+});
+
+for (const lateAction of [false, 'close_tab', 'select_tab', 'keyboard_select', 'request_close',
+  'request_close_all', 'close_all_animation_finished', 'change_section', 'activate_section_home',
+  'dismiss_to_home', 'create_home']) {
+  test(`selection releases the full-screen overview after timeout; late action=${lateAction}`, async () => {
+    const h = selectionExitHarness(lateAction);
+    await h.session.finishSelectionFromOverview('selected', h.host, h.session.beginOperation());
+    h.drainTimers();
+    assert.equal(h.facts.tabsOverviewMounted, false,
+      'An invisible, mounted overview still intercepts shell taps after the exit');
+    assert.equal(h.session.presentationState.exiting, false);
+    assert.equal(h.render().cardsLayerMounted, false);
+    assert.equal(h.render().webLayerInteractive, true);
+  });
+}
+
+test('stack selection commits an accepted dismiss before handing off to the session', () => {
+  const filename = path.resolve(__dirname,
+    '../AiraBrowser/entry/src/main/ets/app/components/browser/BrowserTabsFloatingOverlay.ets');
+  const source = fs.readFileSync(filename, 'utf8');
+  const start = source.indexOf('  private selectOverviewTab(');
+  const end = source.indexOf('\n  /**', start);
+  assert.ok(start >= 0 && end > start);
+  // This method has no ArkUI DSL. Execute its real body; mock only UI geometry and callbacks.
+  const compiled = ts.transpileModule(`class SelectionBoundary {\n${source.slice(start, end)}\n}`, {
+    compilerOptions: { target: ts.ScriptTarget.ES2020 }
+  });
+  const Boundary = vm.runInNewContext(`${compiled.outputText}\nSelectionBoundary;`);
+  for (const stack of [true, false]) {
+    const calls = [];
+    const boundary = Object.assign(new Boundary(), {
+      deckDragActive: false, isStackLayout: () => stack,
+      commitPendingDeckDismiss: () => calls.push('close'),
+      stopDeckMotion: () => calls.push('stop'),
+      resolveDeckPreviewRect: () => undefined,
+      onSelectTab: () => calls.push('select')
+    });
+    boundary.selectOverviewTab('selected');
+    assert.deepEqual(calls, stack ? ['close', 'stop', 'select'] : ['select']);
+    calls.length = 0;
+    boundary.deckDragActive = true;
+    boundary.selectOverviewTab('selected');
+    assert.deepEqual(calls, stack ? [] : ['select']);
+  }
+});
+
+test('an ordinary close before selection remains accepted', async () => {
+  const h = selectionExitHarness(false);
+  h.session.closeTabFromOverlay('closing');
+  assert.deepEqual(h.closedTabs, ['closing']);
+  await h.session.finishSelectionFromOverview('selected', h.host, h.session.beginOperation());
+  h.drainTimers();
+  assert.equal(h.facts.tabsOverviewMounted, false);
+  assert.equal(h.render().webLayerInteractive, true);
+});
 // Every card reports the same shape; only `offsetY` is not a golden column, because the resting
 // deck is a single baseline (it is asserted to stay 0 below).
 const metricFields = ['offsetX', 'offsetY', 'scale', 'opacity', 'titleOpacity', 'shadeOpacity', 'zIndex'];

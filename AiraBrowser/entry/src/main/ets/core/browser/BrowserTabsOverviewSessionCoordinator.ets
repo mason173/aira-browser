@@ -1166,6 +1166,17 @@ export class BrowserTabsOverviewSessionCoordinator {
 
   handle(action: BrowserTabsOverviewSessionAction): BrowserTabsOverviewKeyboardCommandResult | undefined {
     const host = this.resolveHost();
+    // A resident card can finish a dismiss while selection is already exiting. Reject these
+    // callbacks before beginOperation/invalidateOperations: their handlers would otherwise do
+    // nothing, but the new generation would cancel the only owner of the selection close.
+    if (this.presentationState.exiting &&
+      (action.type === 'select_tab' || action.type === 'close_tab' ||
+        action.type === 'request_close' || action.type === 'request_close_all' ||
+        action.type === 'close_all_animation_finished' || action.type === 'change_section' ||
+        action.type === 'activate_section_home' || action.type === 'dismiss_to_home' ||
+        action.type === 'create_home')) {
+      return;
+    }
     switch (action.type) {
       case 'request_open_from_root_bottom_panel':
         this.requestOpenFromRootBottomPanel(action.section, host);
@@ -1244,6 +1255,9 @@ export class BrowserTabsOverviewSessionCoordinator {
   }
 
   private selectTab(tabId: string): Promise<void> {
+    if (this.presentationState.exiting) {
+      return Promise.resolve();
+    }
     return this.finishSelectionFromOverview(tabId, this.resolveHost(), this.beginOperation());
   }
 
