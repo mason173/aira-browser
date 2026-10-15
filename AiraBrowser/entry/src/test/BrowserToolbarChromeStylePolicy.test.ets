@@ -25,6 +25,7 @@ import {
   SplitAddressBarImmersionScrollCoordinator,
   shouldReserveSplitToolbarHomeInsets,
   shouldRouteCenteredHomeSearchToFloatingToolbar,
+  shouldUseCenteredHomeSearchGeometry,
   shouldSuppressLegacyFloatingToolbar,
   resolveSplitToolbarBottomReserveVp,
   resolveSplitToolbarBottomRowHeightVp,
@@ -40,6 +41,14 @@ import {
 import { BrowserToolbarScrollBehaviorSettingsViewModel } from '../main/ets/core/settings/BrowserToolbarScrollBehaviorSettingsViewModel';
 
 describe('BrowserToolbarChromeStylePolicy', () => {
+  it('reserves the centered home search flight for the split toolbar', 0, () => {
+    expect(shouldUseCenteredHomeSearchGeometry('split', true, false)).assertTrue();
+    expect(shouldUseCenteredHomeSearchGeometry('dock', true, false)).assertFalse();
+    expect(shouldUseCenteredHomeSearchGeometry('floating', true, false)).assertFalse();
+    expect(shouldUseCenteredHomeSearchGeometry('split', false, false)).assertFalse();
+    expect(shouldUseCenteredHomeSearchGeometry('split', true, true)).assertFalse();
+  });
+
   it('keeps an unknown style on the floating chrome', 0, () => {
     expect(normalizeToolbarChromeStyle(undefined)).assertEqual('floating');
     expect(normalizeToolbarChromeStyle('compact')).assertEqual('floating');

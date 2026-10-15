@@ -240,7 +240,7 @@ export struct BrowserSplitToolbarChrome {
   build() {
     Stack({ alignContent: Alignment.Top }) {
       if (this.shouldShowSearchSheet()) {
-        if (this.chromeStyle === 'dock' && !this.usesHomeSearchGeometry()) {
+        if (this.chromeStyle === 'dock') {
           this.buildDockSearchPage()
         } else {
           this.buildSearchSheet()
@@ -1388,14 +1388,14 @@ export struct BrowserSplitToolbarChrome {
   }
 
   private usesHomeSearchGeometry(): boolean {
-    return this.homeSearchGeometry && this.homeScene;
+    return this.chromeStyle === 'split' && this.homeSearchGeometry && this.homeScene;
   }
 
   private shouldShowTopBar(): boolean {
     // The dock frame has no top bar at all. Its resting search pill lives in the bottom block, and
     // its search page keeps the field at the bottom above the keyboard, so neither state borrows
-    // the top row. The centered-home geometry host is the one exception and keeps the split rule.
-    if (this.chromeStyle === 'dock' && !this.usesHomeSearchGeometry()) {
+    // the top row, including on centered homepages.
+    if (this.chromeStyle === 'dock') {
       return false;
     }
     if (this.homeScene && this.suppressHomeAddressBar) {

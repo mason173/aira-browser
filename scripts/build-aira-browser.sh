@@ -514,6 +514,7 @@ if [ ! -f "${SPLIT_TOOLBAR_FRAME_GUARD_SCRIPT}" ]; then
 fi
 
 "${NODE_BIN}" "${SPLIT_TOOLBAR_FRAME_GUARD_SCRIPT}"
+"${NODE_BIN}" "${REPO_ROOT}/scripts/check-aira-search-style-isolation.cjs"
 
 if [ ! -x "${IMMERSIVE_LIGHT_SENSE_GUARD_SCRIPT}" ]; then
   fail "Immersive light-sense contract guard not executable: ${IMMERSIVE_LIGHT_SENSE_GUARD_SCRIPT}"

@@ -19,13 +19,15 @@ export function resolveBrowserSearchInvocationHost(
   if (input.largeScreenShellActive) {
     return 'large_screen';
   }
-  if (input.splitToolbarChromeActive || input.splitSearchOverlayPrepared) {
+  if (input.splitToolbarChromeActive) {
     return 'split';
   }
-  if (input.legacyFloatingToolbarSuppressed) {
-    return 'unavailable';
+  // The selected toolbar outranks flags left by a split overlay that is closing.
+  // Otherwise switching back to floating can re-enter the old split search host.
+  if (!input.legacyFloatingToolbarSuppressed) {
+    return 'floating';
   }
-  return 'floating';
+  return input.splitSearchOverlayPrepared ? 'split' : 'unavailable';
 }
 
 /**

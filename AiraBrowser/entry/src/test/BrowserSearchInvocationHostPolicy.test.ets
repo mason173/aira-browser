@@ -205,6 +205,15 @@ export default function browserSearchInvocationHostPolicyTest(): void {
       expect(shouldCompleteSearchClose(0, 0, false)).assertFalse();
     });
 
+    it('ignores_the_previous_split_overlay_after_selecting_floating', 0, () => {
+      expect(resolveBrowserSearchInvocationHost({
+        largeScreenShellActive: false,
+        splitToolbarChromeActive: false,
+        splitSearchOverlayPrepared: true,
+        legacyFloatingToolbarSuppressed: false
+      })).assertEqual('floating');
+    });
+
     it('presents_the_split_adapter_for_a_split_host_and_fails_when_hidden', 0, async () => {
       const kind = new HostKindSource();
       const floating = new RecordingSurface();
@@ -236,6 +245,8 @@ export default function browserSearchInvocationHostPolicyTest(): void {
       const split = new RecordingSurface();
       split.scene = new BrowserSearchSceneSnapshot('web', true, 'https://example.com', 'all');
       const largeScreen = new RecordingSurface();
+      // A host change keeps the same page; a home snapshot would intentionally invalidate the web draft.
+      largeScreen.scene = split.scene;
       const router = new BrowserSearchInvocationHostRouter(kind, floating, split, largeScreen);
       const coordinator = new BrowserSearchInvocationSessionCoordinator();
       coordinator.registerSurfaceAdapter(router);

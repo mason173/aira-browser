@@ -482,6 +482,15 @@ export function shouldRouteCenteredHomeSearchToFloatingToolbar(
   return centeredHomeFrame && !largeScreenShellActive && !isSplitFamilyStyle(style);
 }
 
+/** Only the split editor flies to the top row. The dock keeps its own bottom editor on every home. */
+export function shouldUseCenteredHomeSearchGeometry(
+  style: BrowserToolbarChromeStyle,
+  centeredHomeFrame: boolean,
+  largeScreenShellActive: boolean = false
+): boolean {
+  return style === 'split' && centeredHomeFrame && !largeScreenShellActive;
+}
+
 /**
  * Hit-test family for the split-family chrome overlay.
  * - `transparent` while the frame rests over the page: its bars float above the page, so a tap

@@ -259,6 +259,7 @@ import {
   SplitAddressBarImmersionScrollCoordinator,
   shouldReserveSplitToolbarHomeInsets,
   shouldRouteCenteredHomeSearchToFloatingToolbar,
+  shouldUseCenteredHomeSearchGeometry,
   shouldSuppressLegacyFloatingToolbar,
   SPLIT_TOOLBAR_ADDRESS_BLOCK_VP,
   SPLIT_TOOLBAR_BOTTOM_BAR_VP,
@@ -9322,7 +9323,7 @@ struct BrowserShellPage {
       sessionMode: sessionMode,
       chromeStyle: this.toolbarChromeStyle === 'dock' ? 'dock' : 'split',
       suppressHomeAddressBar: this.shouldSuppressSplitHomeAddressBar(),
-      homeSearchGeometry: this.isCenteredHomePageStyleActive(),
+      homeSearchGeometry: this.usesCenteredHomeSearchGeometry(),
       centeredSearchPresented: this.centeredHomeSearchGeometryOpen,
       centeredSearchChromeFade: this.centeredHomeSearchChromeFade,
       searchOpen: this.splitToolbarSearchOpen,
@@ -9620,7 +9621,7 @@ struct BrowserShellPage {
       this.webBottomAddressFocused = true;
     }
     const reveal = (): void => {
-      if (this.isCenteredHomePageStyleActive() && this.showHomePage) {
+      if (this.usesCenteredHomeSearchGeometry() && this.showHomePage) {
         this.centeredHomeSearchChromeFade = 0;
         this.centeredHomeSearchGeometryOpen = true;
         if (!this.shouldUseSplitToolbarChrome()) {
@@ -9629,7 +9630,7 @@ struct BrowserShellPage {
       }
       this.publishSplitToolbarSearchOpen(draft, selectAll);
     };
-    if (this.isCenteredHomePageStyleActive() && this.showHomePage && !this.centeredHomeSearchGeometryOpen) {
+    if (this.usesCenteredHomeSearchGeometry() && this.showHomePage && !this.centeredHomeSearchGeometryOpen) {
       this.getUIContext().animateTo({
         curve: curves.interpolatingSpring(0, 1, 342, 38)
       }, reveal);
@@ -9653,7 +9654,7 @@ struct BrowserShellPage {
     }
     this.splitToolbarSearchCloseInFlight = true;
     const generation = this.beginSplitToolbarSearchClose();
-    if (this.centeredHomeSearchGeometryOpen && this.isCenteredHomePageStyleActive() && this.showHomePage) {
+    if (this.centeredHomeSearchGeometryOpen && this.usesCenteredHomeSearchGeometry() && this.showHomePage) {
       // The system back key and cancel both land here. The shared-element animation has
       // to start on this call stack; starting it from the chrome's dismiss watch applies instantly.
       this.reverseCenteredHomeSearchGeometry(true, generation);
@@ -10118,11 +10119,7 @@ struct BrowserShellPage {
       contextMenuShortcutId: $contextMenuHomeShortcutId,
       largeScreenShell: this.isLargeScreenShellFamilyActive(),
       searchPresented: this.centeredHomeSearchGeometryOpen,
-      searchGeometryEnabled: !shouldRouteCenteredHomeSearchToFloatingToolbar(
-        this.toolbarChromeStyle,
-        this.isCenteredHomePageStyleActive(),
-        this.isLargeScreenShellFamilyActive()
-      ),
+      searchGeometryEnabled: this.isLargeScreenShellFamilyActive() || this.usesCenteredHomeSearchGeometry(),
       inlineSearch: this.isLargeScreenShellFamilyActive(),
       inlineSearchActive: this.isCenteredHomeInlineSearchActive(),
       searchSuggestions: this.browserSearchSuggestionSnapshot.searchSuggestions,
@@ -10568,6 +10565,14 @@ struct BrowserShellPage {
     return usesCenteredHomeFrame(normalizeBrowserHomePageStyle(this.storedHomePageStyle));
   }
 
+  private usesCenteredHomeSearchGeometry(): boolean {
+    return shouldUseCenteredHomeSearchGeometry(
+      this.toolbarChromeStyle,
+      this.isCenteredHomePageStyleActive(),
+      this.isLargeScreenShellFamilyActive()
+    );
+  }
+
   private isCenteredHomeInlineSearchActive(): boolean {
     return this.isLargeScreenShellFamilyActive() &&
       this.isCenteredHomePageStyleActive() &&
@@ -10640,6 +10645,10 @@ struct BrowserShellPage {
       this.isLargeScreenShellFamilyActive()
     )) {
       this.floatingToolbarSearchOpenRequestVersion += 1;
+      return;
+    }
+    if (!this.usesCenteredHomeSearchGeometry()) {
+      this.requestSplitToolbarSearchOpen();
       return;
     }
     this.splitSearchOverlayPrepared = true;
