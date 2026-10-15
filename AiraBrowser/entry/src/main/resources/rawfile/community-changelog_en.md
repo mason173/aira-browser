@@ -1,5 +1,14 @@
 # Changelog
 
+## 3.8.1 (1000535)
+
+2026-10-15
+
+This release fixes two issues in web page translation and the tab overview.
+
+- Fixed links and buttons becoming unclickable after a page is translated; translation now replaces only the text, leaving links and buttons working.
+- Fixed the tab overview occasionally getting stuck when closing, so it no longer stays on top of the restored web page.
+
 ## 3.7.4 (1000531)
 
 2026-10-14

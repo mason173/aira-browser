@@ -1,17 +1,12 @@
 {
   "enabled": true,
-  "noticeId": "aira-3.7.4-1000531",
-  "title": "Aira 3.7.4 update",
-  "updatedAt": "2026-10-14",
-  "summary": "This release makes address-bar bookmark search faster, and fixes several private-tab, sign-in, and download issues.",
+  "noticeId": "aira-3.8.1-1000535",
+  "title": "Aira 3.8.1 update",
+  "updatedAt": "2026-10-15",
+  "summary": "This release fixes two issues in web page translation and the tab overview.",
   "items": [
-    "Address-bar bookmark search now uses a persistent index, so results are ready as soon as you open it, even on a cold start.",
-    "After reopening the app, private tabs restore their content and preview images instead of coming back blank.",
-    "Normal-mode sign-in is kept after you leave the app, so frequently used sites no longer ask you to sign in again.",
-    "Downloads started from a web page are still completed by the browser, instead of replaying one-time links that the server rejects.",
-    "Fixed occasional failures in web page location requests.",
-    "Shared pages you open now display correctly, without a blank screen or a download prompt by mistake.",
-    "In dark theme, dialog button backgrounds no longer appear washed out."
+    "Fixed links and buttons becoming unclickable after a page is translated; translation now replaces only the text, leaving links and buttons working.",
+    "Fixed the tab overview occasionally getting stuck when closing, so it no longer stays on top of the restored web page."
   ],
   "actionLabel": "View changelog"
 }
