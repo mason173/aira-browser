@@ -387,6 +387,14 @@ export class WebpageTranslationRuntimeScriptService {
   var chromeContainerTags = {
     nav: true, footer: true
   };
+  var interactiveControlTags = {
+    a: true, button: true, summary: true, label: true
+  };
+  var richInlineTags = {
+    a: true, abbr: true, b: true, bdi: true, bdo: true, cite: true, code: true, dfn: true,
+    em: true, i: true, kbd: true, mark: true, q: true, s: true, samp: true, small: true,
+    span: true, strong: true, sub: true, sup: true, time: true, u: true, var: true
+  };
   var noLetterPattern = /^[^A-Za-z\\u00C0-\\u024F\\u4E00-\\u9FFF]+$/;
   function normalizeText(value) {
     return String(value || '').replace(/\\s+/g, ' ').trim();
@@ -441,9 +449,25 @@ export class WebpageTranslationRuntimeScriptService {
   function isTransientTranslationResult(node) {
     return isLoadingTranslationResult(node) || isFailedTranslationResult(node);
   }
+  function findHostedTranslationResult(element) {
+    if (!element || !element.childNodes) {
+      return null;
+    }
+    for (var i = 0; i < element.childNodes.length; i++) {
+      var child = element.childNodes[i];
+      if (isTranslationResultNode(child)) {
+        return child;
+      }
+    }
+    return null;
+  }
   function findTranslationResult(element) {
     if (!element || !element.parentNode) {
       return null;
+    }
+    var hosted = findHostedTranslationResult(element);
+    if (hosted) {
+      return hosted;
     }
     var next = element.nextSibling;
     while (next && isWhitespaceText(next)) {
@@ -575,6 +599,9 @@ export class WebpageTranslationRuntimeScriptService {
   }
   function resolveTranslationResultTag(sourceElement) {
     var tag = tagNameOf(sourceElement);
+    if (isInteractiveControl(sourceElement)) {
+      return 'span';
+    }
     if (tag === 'font' && sourceElement.getAttribute('data-aira-translation-wrap') === 'true') {
       return 'span';
     }
@@ -592,7 +619,8 @@ export class WebpageTranslationRuntimeScriptService {
       result.className += ' aira-translation-replacement';
     }
     var className = String(sourceElement.getAttribute('class') || '').trim();
-    if (className.length > 0 && tag !== 'font' && shouldMirrorSourceClass(sourceElement)) {
+    if (className.length > 0 && tag !== 'font' && !isInteractiveControl(sourceElement) &&
+      shouldMirrorSourceClass(sourceElement)) {
       result.className += ' ' + className;
     }
     result.setAttribute('translate', 'no');
@@ -648,6 +676,15 @@ export class WebpageTranslationRuntimeScriptService {
     var showSource = shouldShowSourceWithTranslation(preferredDisplayMode);
     var bilingual = showSource && shouldUseBilingualResult(sourceElement);
     result.setAttribute('data-aira-display-mode', bilingual ? 'bilingual' : 'translation_only');
+    if (translationUsesHost(sourceElement)) {
+      setImportantStyle(result, 'display', 'inline');
+      result.style.removeProperty('margin-top');
+      result.style.removeProperty('margin-right');
+      result.style.removeProperty('margin-bottom');
+      result.style.removeProperty('margin-left');
+      result.style.removeProperty('opacity');
+      return;
+    }
     if (isBlockDisplayElement(sourceElement)) {
       var displayValue = sourceStyle && sourceStyle.display && sourceStyle.display !== 'none'
         ? sourceStyle.display
@@ -681,6 +718,142 @@ export class WebpageTranslationRuntimeScriptService {
     result.textContent = translatedText;
     styleTranslationResultElement(result, sourceElement, state.displayMode);
     return result;
+  }
+  function isInteractiveControl(element) {
+    if (!element || element.nodeType !== Node.ELEMENT_NODE) {
+      return false;
+    }
+    var tag = tagNameOf(element);
+    if (interactiveControlTags[tag] === true) {
+      return true;
+    }
+    var role = String(element.getAttribute('role') || '').toLowerCase();
+    return role === 'button' || role === 'link' || role === 'menuitem' ||
+      role === 'tab' || role === 'switch';
+  }
+  function closestInteractiveControl(element) {
+    var current = element;
+    while (current && current !== document.body && current !== document.documentElement) {
+      if (isInteractiveControl(current)) {
+        return current;
+      }
+      current = current.parentElement;
+    }
+    return null;
+  }
+  function anchorHref(element) {
+    if (!element || tagNameOf(element) !== 'a') {
+      return '';
+    }
+    return String(element.getAttribute('href') || '').trim();
+  }
+  function isRichInlineElement(element) {
+    return element && element.nodeType === Node.ELEMENT_NODE && richInlineTags[tagNameOf(element)] === true;
+  }
+  function containsAnchor(nodes) {
+    for (var i = 0; i < nodes.length; i++) {
+      var node = nodes[i];
+      if (node.nodeType !== Node.ELEMENT_NODE) {
+        continue;
+      }
+      if (tagNameOf(node) === 'a' ||
+        (typeof node.querySelector === 'function' && node.querySelector('a, button, [role="button"], [role="link"]'))) {
+        return true;
+      }
+    }
+    return false;
+  }
+  function splitSegmentAroundAnchors(segment) {
+    if (!containsAnchor(segment)) {
+      return null;
+    }
+    var parts = [];
+    var current = [];
+    function pushCurrent() {
+      if (current.length > 0) {
+        parts.push(current);
+        current = [];
+      }
+    }
+    for (var i = 0; i < segment.length; i++) {
+      var node = segment[i];
+      if (node.nodeType === Node.ELEMENT_NODE && tagNameOf(node) === 'a') {
+        pushCurrent();
+        parts.push([node]);
+        continue;
+      }
+      if (node.nodeType === Node.ELEMENT_NODE && typeof node.querySelector === 'function' && node.querySelector('a')) {
+        if (!isRichInlineElement(node)) {
+          return null;
+        }
+        pushCurrent();
+        var inner = [];
+        for (var childIndex = 0; childIndex < node.childNodes.length; childIndex++) {
+          inner.push(node.childNodes[childIndex]);
+        }
+        var nested = splitSegmentAroundAnchors(inner);
+        if (!nested) {
+          return null;
+        }
+        for (var nestedIndex = 0; nestedIndex < nested.length; nestedIndex++) {
+          parts.push(nested[nestedIndex]);
+        }
+        continue;
+      }
+      current.push(node);
+    }
+    pushCurrent();
+    return parts.length > 1 ? parts : null;
+  }
+  function isSafeAnchorHref(href) {
+    if (!href) {
+      return false;
+    }
+    var lower = href.toLowerCase();
+    if (lower.indexOf('javascript:') === 0 || lower.indexOf('data:') === 0 || lower.indexOf('vbscript:') === 0) {
+      return false;
+    }
+    return true;
+  }
+  function translationUsesHost(element) {
+    return isInteractiveControl(element);
+  }
+  function placeTranslationResult(element, result) {
+    if (!element) {
+      return;
+    }
+    if (translationUsesHost(element)) {
+      element.appendChild(result);
+      return;
+    }
+    if (element.parentNode) {
+      element.parentNode.insertBefore(result, element.nextSibling);
+    }
+  }
+  function setResultTextPreservingAnchors(result, sourceElement, translatedText) {
+    var text = String(translatedText || '');
+    if (translationUsesHost(sourceElement)) {
+      result.textContent = text;
+      return;
+    }
+    var href = anchorHref(sourceElement);
+    if (!isSafeAnchorHref(href)) {
+      result.textContent = text;
+      return;
+    }
+    var link = document.createElement('a');
+    link.setAttribute('href', href);
+    var target = String(sourceElement.getAttribute('target') || '').trim();
+    if (target.length > 0 && target.toLowerCase() !== '_top') {
+      link.setAttribute('target', target);
+    }
+    var rel = String(sourceElement.getAttribute('rel') || '').trim();
+    if (rel.length > 0) {
+      link.setAttribute('rel', rel);
+    }
+    link.textContent = text;
+    result.textContent = '';
+    result.appendChild(link);
   }
   function clearTransientIdentity(result) {
     if (!result) {
@@ -776,9 +949,7 @@ export class WebpageTranslationRuntimeScriptService {
   function insertOrUpdateTransientResult(element, result) {
     var existing = findTranslationResult(element);
     if (!existing) {
-      if (element.parentNode) {
-        element.parentNode.insertBefore(result, element.nextSibling);
-      }
+      placeTranslationResult(element, result);
       return result;
     }
     if (existing.parentNode) {
@@ -845,13 +1016,92 @@ export class WebpageTranslationRuntimeScriptService {
     element.classList.add('aira-translation-original-hidden');
     element.style.setProperty('display', 'none', 'important');
   }
+  function isNonTextSourceNode(node) {
+    if (!node || node.nodeType !== Node.ELEMENT_NODE) {
+      return false;
+    }
+    var tag = tagNameOf(node);
+    if (tag === 'img' || tag === 'svg' || tag === 'br' || tag === 'picture' || tag === 'video' || tag === 'canvas') {
+      return true;
+    }
+    return normalizeText(node.textContent).length === 0;
+  }
+  function releaseSourceContent(element) {
+    if (!element) {
+      return;
+    }
+    var holders = [];
+    for (var i = 0; i < element.childNodes.length; i++) {
+      var child = element.childNodes[i];
+      if (child.nodeType === Node.ELEMENT_NODE && child.classList.contains('aira-translation-source')) {
+        holders.push(child);
+      }
+    }
+    for (var holderIndex = 0; holderIndex < holders.length; holderIndex++) {
+      var holder = holders[holderIndex];
+      showSourceElement(holder);
+      var parent = holder.parentNode;
+      if (!parent) {
+        continue;
+      }
+      while (holder.firstChild) {
+        parent.insertBefore(holder.firstChild, holder);
+      }
+      parent.removeChild(holder);
+    }
+    element.removeAttribute('data-aira-source-hidden');
+  }
+  function showSourceContent(element) {
+    if (!element) {
+      return;
+    }
+    for (var i = 0; i < element.childNodes.length; i++) {
+      var child = element.childNodes[i];
+      if (child.nodeType === Node.ELEMENT_NODE && child.classList.contains('aira-translation-source')) {
+        showSourceElement(child);
+      }
+    }
+  }
+  function hideSourceContent(element) {
+    if (!element) {
+      return;
+    }
+    var holders = [];
+    var loose = [];
+    for (var i = 0; i < element.childNodes.length; i++) {
+      var child = element.childNodes[i];
+      if (child.nodeType === Node.ELEMENT_NODE && child.classList.contains('aira-translation-source')) {
+        holders.push(child);
+        continue;
+      }
+      if (isTranslationResultNode(child) || isNonTextSourceNode(child)) {
+        continue;
+      }
+      loose.push(child);
+    }
+    if (loose.length > 0) {
+      var holder = holders.length > 0 ? holders[0] : document.createElement('span');
+      if (!holder.parentNode) {
+        holder.className = 'aira-translation-source';
+        element.insertBefore(holder, loose[0]);
+        holders.push(holder);
+      }
+      for (var index = 0; index < loose.length; index++) {
+        holder.appendChild(loose[index]);
+      }
+    }
+    for (var holderIndex = 0; holderIndex < holders.length; holderIndex++) {
+      hideSourceElement(holders[holderIndex]);
+    }
+    if (holders.length > 0) {
+      element.setAttribute('data-aira-source-hidden', 'true');
+    }
+  }
   function insertOrUpdateTranslationResult(element, originalText, translatedText) {
     var result = findTranslationResult(element);
     if (!result) {
       result = createTranslationResultElement(element, originalText, translatedText);
-      if (element.parentNode) {
-        element.parentNode.insertBefore(result, element.nextSibling);
-      }
+      placeTranslationResult(element, result);
     } else {
       var expectedTag = resolveTranslationResultTag(element);
       if (tagNameOf(result) !== expectedTag && result.parentNode) {
@@ -862,13 +1112,20 @@ export class WebpageTranslationRuntimeScriptService {
       result.setAttribute('data-aira-original-text', originalText);
       result.setAttribute('data-aira-translated-text', translatedText);
       clearTransientIdentity(result);
-      result.textContent = translatedText;
+      setResultTextPreservingAnchors(result, element, translatedText);
       styleTranslationResultElement(result, element, state.displayMode);
     }
     clearTransientIdentity(result);
     result.setAttribute('data-aira-original-text', originalText);
     result.setAttribute('data-aira-translated-text', translatedText);
-    if (shouldShowSourceWithTranslation(state.displayMode)) {
+    if (translationUsesHost(element)) {
+      showSourceElement(element);
+      if (shouldShowSourceWithTranslation(state.displayMode) || isTransientTranslationResult(result)) {
+        releaseSourceContent(element);
+      } else {
+        hideSourceContent(element);
+      }
+    } else if (shouldShowSourceWithTranslation(state.displayMode)) {
       showSourceElement(element);
     } else {
       hideSourceElement(element);
@@ -894,6 +1151,7 @@ export class WebpageTranslationRuntimeScriptService {
       element.classList.contains('monaco-editor') ||
       element.classList.contains('ProseMirror') ||
       element.classList.contains('aira-translation-result') ||
+      element.classList.contains('aira-translation-source') ||
       element.classList.contains('aira-translation-original-hidden')) {
       return true;
     }
@@ -1383,12 +1641,28 @@ export class WebpageTranslationRuntimeScriptService {
         walk(segment[0]);
         return;
       }
+      var anchorParts = splitSegmentAroundAnchors(segment);
+      if (anchorParts) {
+        for (var partIndex = 0; partIndex < anchorParts.length; partIndex++) {
+          flushSegment(parent, anchorParts[partIndex]);
+        }
+        return;
+      }
       var text = visibleTextOfNodes(segment);
       if (normalizeText(text).length < 2) {
         return;
       }
       if (!shouldAllowCollectMutation(parent, onlyNearViewport)) {
         diagnostics.rejectedByViewport++;
+        return;
+      }
+      if (containsAnchor(segment)) {
+        for (var anchorIndex = 0; anchorIndex < segment.length; anchorIndex++) {
+          var anchorPart = segment[anchorIndex];
+          if (anchorPart.nodeType === Node.ELEMENT_NODE) {
+            walk(anchorPart);
+          }
+        }
         return;
       }
       var wrapper = createInlineWrapper(parent, segment);
@@ -1462,6 +1736,16 @@ export class WebpageTranslationRuntimeScriptService {
         return;
       }
       if (isLeafBlock(element)) {
+        if (typeof element.querySelector === 'function' && element.querySelector('a, button, [role="button"], [role="link"]')) {
+          if (onlyNearViewport && !isNearViewport(element)) {
+            diagnostics.rejectedByViewport++;
+            walkShadow(element);
+            return;
+          }
+          walkMixed(element);
+          walkShadow(element);
+          return;
+        }
         addBlock(element, visibleTextOfElement(element));
         walkShadow(element);
         return;
@@ -1478,6 +1762,17 @@ export class WebpageTranslationRuntimeScriptService {
       }
       var text = visibleTextOfElement(element);
       if (normalizeText(text).length > 0) {
+        if (typeof element.querySelector === 'function' &&
+          element.querySelector('a, button, [role="button"], [role="link"]')) {
+          if (onlyNearViewport && !isNearViewport(element)) {
+            diagnostics.rejectedByViewport++;
+            walkShadow(element);
+            return;
+          }
+          walkMixed(element);
+          walkShadow(element);
+          return;
+        }
         addBlock(element, text);
         walkShadow(element);
         return;
@@ -2267,6 +2562,7 @@ export class WebpageTranslationRuntimeScriptService {
         }
       }
       showSourceElement(node);
+      releaseSourceContent(node);
       state.translated[id] = false;
       state.noopTranslated[id] = false;
       restored++;
@@ -2292,6 +2588,7 @@ export class WebpageTranslationRuntimeScriptService {
       }
       styleTranslationResultElement(result, node, 'bilingual');
       showSourceElement(node);
+      releaseSourceContent(node);
       state.translated[id] = true;
       state.noopTranslated[id] = false;
       shown++;
@@ -2316,7 +2613,12 @@ export class WebpageTranslationRuntimeScriptService {
         return;
       }
       styleTranslationResultElement(result, node, 'translation_only');
-      hideSourceElement(node);
+      if (translationUsesHost(node)) {
+        showSourceElement(node);
+        hideSourceContent(node);
+      } else {
+        hideSourceElement(node);
+      }
       result.setAttribute('data-aira-display-mode', 'translation_only');
       state.translated[id] = true;
       state.noopTranslated[id] = false;
@@ -2336,6 +2638,7 @@ export class WebpageTranslationRuntimeScriptService {
         result.remove();
       }
       showSourceElement(node);
+      releaseSourceContent(node);
     });
     state.nodeMap = {};
     state.originals = {};
@@ -2370,7 +2673,8 @@ export class WebpageTranslationRuntimeScriptService {
       if (current.getAttribute && (
         current.getAttribute('data-aira-translation-result') === 'true' ||
         current.getAttribute('data-aira-translation-wrap') === 'true' ||
-        current.getAttribute('data-aira-translation-loading') === 'true'
+        current.getAttribute('data-aira-translation-loading') === 'true' ||
+        (current.classList && current.classList.contains('aira-translation-source'))
       )) {
         return true;
       }
