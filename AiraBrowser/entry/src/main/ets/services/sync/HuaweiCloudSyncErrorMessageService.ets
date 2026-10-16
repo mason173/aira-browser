@@ -1,3 +1,5 @@
+import { HuaweiAccountOperationError, HuaweiAccountOperationStage } from './HuaweiAccountOperationError';
+
 export interface HuaweiCloudSyncErrorMessage {
   userMessage: string;
   technicalMessage: string;
@@ -23,9 +25,9 @@ export class HuaweiCloudSyncErrorMessageService {
         technicalMessage: technicalMessage
       };
     }
-    if (this.isHuaweiAccountAuthRejected(technicalMessage)) {
+    if (this.isParameterCheckFailure(technicalMessage)) {
       return {
-        userMessage: this.buildAuthRejectedMessage(),
+        userMessage: '本次操作参数检查失败。请保留错误详情并反馈。',
         technicalMessage: technicalMessage
       };
     }
@@ -52,6 +54,21 @@ export class HuaweiCloudSyncErrorMessageService {
     return `${message.userMessage}\n\n技术信息：${message.technicalMessage}`;
   }
 
+  formatForAccountOperation(error: Object, stage: HuaweiAccountOperationStage): string {
+    const failure = HuaweiAccountOperationError.from(stage, error);
+    let message = '登录未完成，请稍后重试。若仍失败，请反馈错误详情。';
+    if (failure.stage === 'session-reset') {
+      message = '重置本机登录状态失败，请反馈错误详情。';
+    } else if (failure.stage === 'cached-user-read') {
+      message = '读取本机登录状态失败，请反馈错误详情。';
+    } else if (failure.stage === 'settings-save') {
+      message = '保存本机登录信息失败，请反馈错误详情。';
+    } else if (failure.code === 1001502001 || failure.code === '1001502001') {
+      message = '请先登录系统华为账号，然后重试。';
+    }
+    return `${message}\n\n技术信息：${failure.technicalMessage()}`;
+  }
+
   private isCloudDatabasePermissionDenied(message: string): boolean {
     const normalized = message.toLowerCase();
     return normalized.indexOf('2001015') >= 0 ||
@@ -64,20 +81,11 @@ export class HuaweiCloudSyncErrorMessageService {
   }
 
   /**
-   * Account Kit reports 401 as a parameter check failure, not an expired login.
-   * A bare `{"code":401}` body and a BusinessError whose only field is code 401
-   * both end up in the technical message after stringify.
+   * 401 is shared by native APIs, including Account Kit, storage and HUKS.
+   * Without a failing boundary it cannot identify an account/login problem.
    */
-  private isHuaweiAccountAuthRejected(message: string): boolean {
-    const normalized = message.toLowerCase().replace(/\s+/g, '');
-    return normalized.indexOf('"code":401') >= 0 ||
-      normalized.indexOf("'code':401") >= 0 ||
-      normalized.indexOf('code=401') >= 0 ||
-      normalized.indexOf('code:401') >= 0;
-  }
-
-  private buildAuthRejectedMessage(): string {
-    return '华为账号登录参数校验失败。请确认已登录系统华为账号后重试。';
+  private isParameterCheckFailure(message: string): boolean {
+    return /["']?code["']?\s*[:=]\s*401(?=\s*[,}\]]|\s*$)/i.test(message);
   }
 
   /**

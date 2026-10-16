@@ -6,6 +6,7 @@ import { AppRuntimeContext } from '../../app/runtime/AppRuntimeContext';
 import { HuaweiCloudSyncInitService } from './HuaweiCloudSyncInitService';
 import { AIRA_DISTRIBUTION_CAPABILITY_OWNER } from '../../common/config/AiraDistributionCapabilityOwner';
 import { resolveAiraLocalTestIdentity } from '../../common/config/AiraLocalTestAuth';
+import { HuaweiAccountOperationError } from './HuaweiAccountOperationError';
 import {
   HuaweiAgcAuthHandle,
   HuaweiAgcAuthUserHandle,
@@ -48,6 +49,8 @@ class AgcHuaweiAccountSyncAuthAdapter implements HuaweiAccountSyncAuthAdapter {
       credentialInfo: {
         kind: 'hwid'
       }
+    }).catch((error: Object) => {
+      throw HuaweiAccountOperationError.from('agc-sign-in', error);
     });
     const user = result.getUser();
     const uid = this.resolveUid(user.getUid());
@@ -73,7 +76,9 @@ class AgcHuaweiAccountSyncAuthAdapter implements HuaweiAccountSyncAuthAdapter {
 
   async getCurrentIdentity(): Promise<HuaweiAccountSyncIdentity | undefined> {
     const auth = await this.resolveAuth();
-    const user = await auth.getCurrentUser();
+    const user = await auth.getCurrentUser().catch((error: Object) => {
+      throw HuaweiAccountOperationError.from('cached-user-read', error);
+    });
     if (user === null) {
       return undefined;
     }
@@ -265,10 +270,9 @@ export class HuaweiAccountSyncAuthService implements HuaweiAccountAccessTokenPro
       };
     }
     this.requireHuaweiAccountCapability();
-    // hwid sign-in asks Account Kit for an authorization code with forceLogin false.
-    // A cached AGC user skips that request, and a silent request that fails surfaces
-    // the first error instead of the SDK's internal forceLogin retry. Drop the cache
-    // and sign in once, so this attempt is the one that can raise the login page.
+    // Preserve the distinction between a failed session reset and a failed new
+    // sign-in. SDK signOut itself first reads the cached user, so a reset error
+    // does not prove that a new Account Kit login request was ever made.
     if (forceNewSession) {
       await this.resetSignInState();
       return this.adapter.signIn();
@@ -280,7 +284,7 @@ export class HuaweiAccountSyncAuthService implements HuaweiAccountAccessTokenPro
         HUAWEI_ACCOUNT_AUTH_DOMAIN,
         HUAWEI_ACCOUNT_AUTH_TAG,
         'sign-in failed, clearing cached session and retrying once error=%{public}s',
-        JSON.stringify(error)
+        HuaweiAccountOperationError.from('agc-sign-in', error as Object).technicalMessage()
       );
       try {
         await this.resetSignInState();
@@ -289,7 +293,7 @@ export class HuaweiAccountSyncAuthService implements HuaweiAccountAccessTokenPro
           HUAWEI_ACCOUNT_AUTH_DOMAIN,
           HUAWEI_ACCOUNT_AUTH_TAG,
           'cached session reset failed error=%{public}s',
-          JSON.stringify(resetError)
+          HuaweiAccountOperationError.from('session-reset', resetError as Object).technicalMessage()
         );
         const resetFailed = error as Error;
         throw resetFailed;
@@ -302,7 +306,9 @@ export class HuaweiAccountSyncAuthService implements HuaweiAccountAccessTokenPro
     if (!AIRA_DISTRIBUTION_CAPABILITY_OWNER.isAvailable('huawei_account')) {
       return Promise.resolve();
     }
-    return this.adapter.resetSignInState();
+    return this.adapter.resetSignInState().catch((error: Object) => {
+      throw HuaweiAccountOperationError.from('session-reset', error);
+    });
   }
 
   async getCurrentIdentity(): Promise<HuaweiAccountSyncIdentity | undefined> {

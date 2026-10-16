@@ -10,6 +10,10 @@ import { AiraAccountUnionLinkFunctionService } from '../../services/account/Aira
 import { HuaweiCloudSyncErrorMessageService } from '../../services/sync/HuaweiCloudSyncErrorMessageService';
 import { HuaweiCloudSyncInitService } from '../../services/sync/HuaweiCloudSyncInitService';
 import {
+  HuaweiAccountOperationError,
+  HuaweiAccountOperationStage
+} from '../../services/sync/HuaweiAccountOperationError';
+import {
   SyncActivationProvider,
   SyncActivationResult,
   SyncActivationResultType,
@@ -56,15 +60,20 @@ export class SyncExperienceProviderActivation {
   }
 
   async signInHuaweiAccountOnly(): Promise<SyncActivationResult> {
+    let stage: HuaweiAccountOperationStage = 'settings-initialize';
     try {
       await this.syncService.initializeAiraSyncSettings();
+      stage = 'auth-initialize';
       await this.ensureHuaweiAuthInitialized();
+      stage = 'agc-sign-in';
       const identity = await this.huaweiAuthService.signInForBookmarkSync(true);
+      stage = 'settings-save';
       const settings = await this.syncService.saveHuaweiCloudConfig(
         identity.uid,
         identity.displayName,
         identity.photoUrl
       );
+      stage = 'identity-change';
       await this.handleHuaweiIdentityChanged(identity.uid);
       this.linkUnionIdBestEffort(identity.uid);
       return this.baseResult(
@@ -79,27 +88,34 @@ export class SyncExperienceProviderActivation {
         SYNC_PROVIDER_ACTIVATION_DOMAIN,
         SYNC_PROVIDER_ACTIVATION_TAG,
         'huawei account sign-in failed error=%{public}s',
-        JSON.stringify(error)
+        HuaweiAccountOperationError.from(stage, error as Object).technicalMessage()
       );
-      return this.failed('aira_cloud', '登录失败', this.stringifyError(error as Error), 'huawei-auth-failed');
+      return this.failed('aira_cloud', '登录失败',
+        this.huaweiCloudErrorMessageService.formatForAccountOperation(error as Object, stage), 'huawei-auth-failed');
     }
   }
 
   async signInHuaweiSpaceAccountOnly(): Promise<SyncActivationResult> {
+    let stage: HuaweiAccountOperationStage = 'settings-initialize';
     try {
       await this.syncService.initializeAiraSyncSettings();
+      stage = 'auth-initialize';
       await this.ensureHuaweiAuthInitialized();
+      stage = 'agc-sign-in';
       const identity = await this.huaweiAuthService.signInForBookmarkSync(true);
+      stage = 'huawei-space-capability';
       await this.syncService.checkHuaweiSpaceCapability(
         identity.uid,
         AIRA_HUAWEI_SPACE_BOOKMARK_DATABASE_NAME
       );
+      stage = 'settings-save';
       const settings = await this.syncService.saveHuaweiSpaceConfig(
         identity.uid,
         identity.displayName,
         identity.photoUrl,
         AIRA_HUAWEI_SPACE_BOOKMARK_DATABASE_NAME
       );
+      stage = 'identity-change';
       await this.handleHuaweiIdentityChanged(identity.uid);
       return this.baseResult(
         'saved',
@@ -113,9 +129,10 @@ export class SyncExperienceProviderActivation {
         SYNC_PROVIDER_ACTIVATION_DOMAIN,
         SYNC_PROVIDER_ACTIVATION_TAG,
         'huawei space readiness failed error=%{public}s',
-        JSON.stringify(error)
+        HuaweiAccountOperationError.from(stage, error as Object).technicalMessage()
       );
-      return this.failed('huawei_space', '华为云空间暂不可用', this.stringifyError(error as Error), 'huawei-space-readiness-failed');
+      return this.failed('huawei_space', '华为云空间暂不可用',
+        this.huaweiCloudErrorMessageService.formatForAccountOperation(error as Object, stage), 'huawei-space-readiness-failed');
     }
   }
 
