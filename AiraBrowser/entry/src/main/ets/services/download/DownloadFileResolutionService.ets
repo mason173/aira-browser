@@ -202,9 +202,9 @@ export class DownloadFileResolutionService implements DownloadFileResolutionAdap
       }
       // A dead grant (app update, reboot) can still let path-channel opens
       // "succeed" by creating 0-byte shells the file manager shows. Probing the
-      // URI channel with real bytes decides before any download file name is
-      // created in the user's folder, so a broken grant falls back to the
-      // system download location without leaving empty files behind.
+      // URI transports with real bytes decide before any download file name is
+      // created. New-child open(URI, CREATE) can report ENOENT even though the
+      // export's URI-copy transport works; the probe checks that path too.
       if (!await directoryService.verifyDirectoryWritable(directoryUri)) {
         hilog.warn(
           DOWNLOAD_FILE_RESOLUTION_DOMAIN,

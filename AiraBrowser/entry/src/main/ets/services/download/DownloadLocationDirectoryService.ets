@@ -2,20 +2,24 @@ import { common } from '@kit.AbilityKit';
 import { fileIo, fileShare, fileUri, picker } from '@kit.CoreFileKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
+import { util } from '@kit.ArkTS';
 import { BrowserDownloadSettings } from '../../common/models/BrowserModels';
 import { resolveAppResourceText } from '../../core/resources/AppResourceText';
+import { AppRuntimeContext } from '../../app/runtime/AppRuntimeContext';
 
 const DOWNLOAD_DIRECTORY_DOMAIN = 0x0000;
 const DOWNLOAD_DIRECTORY_TAG = 'DownloadLocationDirectory';
 
+// PolicyInfo permits CREATE_MODE only for temporary grants. A persisted parent
+// directory's WRITE_MODE already covers creating children; keep this same
+// read/write policy for persistence, activation and revocation.
 const DOWNLOAD_DIRECTORY_OPERATION_MODE: number =
   fileShare.OperationMode.READ_MODE |
-  fileShare.OperationMode.WRITE_MODE |
-  fileShare.OperationMode.CREATE_MODE;
+  fileShare.OperationMode.WRITE_MODE;
 const DOWNLOAD_DIRECTORY_URI_MAX_LENGTH: number = 2048;
 const DOWNLOAD_DIRECTORY_LABEL_MAX_LENGTH: number = 80;
 const DOWNLOAD_DIRECTORY_LOCATION_TAIL_SEGMENTS: number = 2;
-const DOWNLOAD_DIRECTORY_PROBE_FILE_NAME: string = '.aira-write-probe';
+const DOWNLOAD_DIRECTORY_PROBE_FILE_PREFIX: string = '.aira-write-probe-';
 const DOWNLOAD_DIRECTORY_PROBE_PAYLOAD: string = 'aira-probe';
 
 export interface DownloadLocationDirectorySelection {
@@ -296,9 +300,15 @@ export class DownloadLocationDirectoryService {
     if (error === undefined || error === null) {
       return 'unknown';
     }
-    const businessError = error as BusinessError;
+    const businessError = error as BusinessError<fileShare.PolicyErrorResult[]>;
     if (businessError.code !== undefined && businessError.message !== undefined) {
-      return `code=${businessError.code} message=${businessError.message}`;
+      const policyFailures = businessError.data;
+      const detail = policyFailures !== undefined && policyFailures.length > 0
+        ? policyFailures.map((failure: fileShare.PolicyErrorResult): string =>
+          `${failure.code}:${failure.message}`).join('; ')
+        : '';
+      return `code=${businessError.code} message=${businessError.message}` +
+        (detail.length > 0 ? ` policies=${detail}` : '');
     }
     if (error instanceof Error) {
       return error.message;
@@ -339,29 +349,36 @@ export class DownloadLocationDirectoryService {
   }
 
   /**
-   * Advisory only — callers must NOT refuse the user's choice on a false here.
+   * Checks current write access, independently of whether the grant is durable.
+   * Selection callers keep the user's choice and explain a failed probe; the
+   * exporter requires a successful probe before creating the download's name.
    *
-   * The probe runs entirely through the URI channel with real bytes. When a
-   * folder grant is dead (app update, reboot), a path-channel open can still
-   * "succeed" by creating a 0-byte shell the file manager shows; probing the
-   * path channel would then report a broken folder as writable and litter it.
-   * The official share-app-file caveat about hand-concatenated URIs is handled
-   * by keeping the probe file name plain ASCII, so no encoding can break it.
+   * Both probe transports use URI access to the public folder with real bytes.
+   * ENOENT from opening a new child URI is inconclusive: the actual export's
+   * URI-copy operation can still create it. Never retry public writes by path
+   * after a permission error, since that can leave empty file-manager entries.
+   * Keep the selected directory URI untouched and the child name plain ASCII;
+   * provider-specific URI failures can still occur and must remain diagnostic.
    */
   async verifyDirectoryWritable(uri: string): Promise<boolean> {
     if (!this.isAcceptableDirectoryUri(uri)) {
       return false;
     }
-    const probeUri = `${uri}/${DOWNLOAD_DIRECTORY_PROBE_FILE_NAME}`;
+    // Settings checks and multiple finishing downloads can overlap. Sharing a
+    // probe name lets the first cleanup remove the second caller's live probe.
+    const probeUri = `${uri}/${DOWNLOAD_DIRECTORY_PROBE_FILE_PREFIX}${util.generateRandomUUID()}`;
     let probeOpened = false;
+    let probeFile: fileIo.File | undefined = undefined;
     try {
       const file = await fileIo.open(
         probeUri,
         fileIo.OpenMode.CREATE | fileIo.OpenMode.READ_WRITE | fileIo.OpenMode.TRUNC
       );
+      probeFile = file;
       probeOpened = true;
       await fileIo.write(file.fd, DOWNLOAD_DIRECTORY_PROBE_PAYLOAD);
       await fileIo.close(file);
+      probeFile = undefined;
       const stat = await fileIo.stat(probeUri);
       if (stat.size !== DOWNLOAD_DIRECTORY_PROBE_PAYLOAD.length) {
         hilog.warn(
@@ -376,6 +393,10 @@ export class DownloadLocationDirectoryService {
       }
       return true;
     } catch (error) {
+      const businessError = error as BusinessError;
+      if (!probeOpened && businessError.code === 13900002) {
+        return await this.verifyDirectoryCopyWritable(uri, probeUri);
+      }
       hilog.warn(
         DOWNLOAD_DIRECTORY_DOMAIN,
         DOWNLOAD_DIRECTORY_TAG,
@@ -385,22 +406,81 @@ export class DownloadLocationDirectoryService {
       );
       return false;
     } finally {
-      if (probeOpened) {
+      if (probeFile !== undefined) {
         try {
-          await fileIo.unlink(probeUri);
-        } catch (_uriError) {
-          try {
-            await fileIo.unlink(new fileUri.FileUri(probeUri).path);
-          } catch (error) {
-            hilog.warn(
-              DOWNLOAD_DIRECTORY_DOMAIN,
-              DOWNLOAD_DIRECTORY_TAG,
-              'write probe cleanup failed uri=%{public}s error=%{public}s',
-              probeUri,
-              this.stringifyError(error)
-            );
-          }
+          await fileIo.close(probeFile);
+        } catch (_closeError) {
         }
+      }
+      if (probeOpened) {
+        await this.deleteDirectoryProbeFile(probeUri);
+      }
+    }
+  }
+
+  private async verifyDirectoryCopyWritable(directoryUri: string, probeUri: string): Promise<boolean> {
+    let sourcePath = '';
+    let sourceFile: fileIo.File | undefined = undefined;
+    let sourceCreated = false;
+    let copyAttempted = false;
+    let stage = 'source_open';
+    try {
+      // Create source bytes inside our sandbox. The destination is checked by
+      // the same URI-copy API used to export the real downloaded file.
+      const probeName = probeUri.substring(probeUri.lastIndexOf('/') + 1);
+      sourcePath = `${AppRuntimeContext.getApplicationContext().cacheDir}/${probeName}`;
+      sourceFile = await fileIo.open(sourcePath,
+        fileIo.OpenMode.CREATE | fileIo.OpenMode.READ_WRITE | fileIo.OpenMode.TRUNC);
+      sourceCreated = true;
+      stage = 'source_write';
+      await fileIo.write(sourceFile.fd, DOWNLOAD_DIRECTORY_PROBE_PAYLOAD);
+      await fileIo.close(sourceFile);
+      sourceFile = undefined;
+      stage = 'uri_copy';
+      copyAttempted = true;
+      await fileIo.copy(fileUri.getUriFromPath(sourcePath), probeUri);
+      stage = 'destination_stat';
+      const stat = await fileIo.stat(probeUri);
+      const verified = stat.size === DOWNLOAD_DIRECTORY_PROBE_PAYLOAD.length;
+      hilog.info(DOWNLOAD_DIRECTORY_DOMAIN, DOWNLOAD_DIRECTORY_TAG,
+        'directory copy probe verified=%{public}s size=%{public}d uri=%{public}s',
+        String(verified), stat.size, directoryUri);
+      return verified;
+    } catch (error) {
+      hilog.warn(DOWNLOAD_DIRECTORY_DOMAIN, DOWNLOAD_DIRECTORY_TAG,
+        'directory copy probe failed stage=%{public}s uri=%{public}s error=%{public}s',
+        stage, directoryUri, this.stringifyError(error));
+      return false;
+    } finally {
+      if (sourceFile !== undefined) {
+        try {
+          await fileIo.close(sourceFile);
+        } catch (_closeError) {
+        }
+      }
+      if (copyAttempted) {
+        await this.deleteDirectoryProbeFile(probeUri);
+      }
+      if (sourceCreated) {
+        try {
+          await fileIo.unlink(sourcePath);
+        } catch (error) {
+          hilog.warn(DOWNLOAD_DIRECTORY_DOMAIN, DOWNLOAD_DIRECTORY_TAG,
+            'local directory probe cleanup failed error=%{public}s', this.stringifyError(error));
+        }
+      }
+    }
+  }
+
+  private async deleteDirectoryProbeFile(probeUri: string): Promise<void> {
+    try {
+      await fileIo.unlink(probeUri);
+    } catch (_uriError) {
+      try {
+        await fileIo.unlink(new fileUri.FileUri(probeUri).path);
+      } catch (error) {
+        hilog.warn(DOWNLOAD_DIRECTORY_DOMAIN, DOWNLOAD_DIRECTORY_TAG,
+          'write probe cleanup failed uri=%{public}s error=%{public}s', probeUri, this.stringifyError(error));
       }
     }
   }

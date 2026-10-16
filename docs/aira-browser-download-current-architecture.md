@@ -280,10 +280,12 @@ Aira 用 `BrowserDownloadNavigationStateCoordinator` 和 `BrowserDownloadNavigat
 
 1. 创建任务前先解析保存策略：普通下载先写 app 临时路径，完成后选择系统下载位置；`session_temp_only` 私密下载只保留私密临时文件。
 2. 临时文件仍位于应用私有目录：`filesDir/downloads/incomplete`。
-3. 下载完成后，普通下载调用 `DocumentViewPicker.save()`，`pickerMode = DOWNLOAD`，把临时文件导出到系统下载目录。
+3. 下载完成后，普通下载先尝试当前配置的自定义文件夹。没有自定义文件夹或导出失败时，先尝试 `Download/Aira`，失败再调用 `DocumentViewPicker.save()` 的 `DOWNLOAD` 模式，使用系统返回的下载位置。
 4. 导出冲突不再把时间戳写进用户可见文件名，而是按浏览器习惯尝试 `file.ext`、`file (1).ext`、`file (2).ext`。
 5. 如果用户取消系统保存，任务会保留 Aira 临时下载位置，下载管理页仍可尝试打开文件、分享位置，或重新保存到系统下载目录。
 6. 打开文件或位置时，`DownloadFollowupService` 优先用 `finalFileUri`，否则尝试用临时路径转 URI，再走 `Want` 打开；失败时退到系统分享。
+
+2026-10-15：授权策略、并发探针和默认位置文案的问题及回归检查见[下载文件夹诊断](aira-download-folder-permissions-diagnosis.md)。
 
 这一套保存策略比较安全，但和华为浏览器常见的“下载开始前确定最终目录/文件名”仍不完全一样：Aira 已经把目标决策前置到任务创建阶段，但下载主体仍先写私有临时目录，完成后再导出。
 

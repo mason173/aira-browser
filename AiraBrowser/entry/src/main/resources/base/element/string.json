@@ -13250,7 +13250,7 @@
     },
     {
       "name": "settings_web_download_system_location",
-      "value": "我的手机/Download/Aira"
+      "value": "系统下载目录"
     },
     {
       "name": "settings_web_download_folder_unsupported",
