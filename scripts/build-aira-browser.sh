@@ -515,6 +515,7 @@ fi
 
 "${NODE_BIN}" "${SPLIT_TOOLBAR_FRAME_GUARD_SCRIPT}"
 "${NODE_BIN}" "${REPO_ROOT}/scripts/check-aira-search-style-isolation.cjs"
+"${NODE_BIN}" "${REPO_ROOT}/scripts/check-aira-search-list-viewport.cjs"
 "${NODE_BIN}" "${REPO_ROOT}/scripts/check-aira-download-directory-lifecycle.cjs"
 
 if [ ! -x "${IMMERSIVE_LIGHT_SENSE_GUARD_SCRIPT}" ]; then

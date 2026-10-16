@@ -258,8 +258,6 @@ import {
   shouldCollapseSplitToolbarForScroll,
   SplitAddressBarImmersionScrollCoordinator,
   shouldReserveSplitToolbarHomeInsets,
-  shouldRouteCenteredHomeSearchToFloatingToolbar,
-  shouldUseCenteredHomeSearchGeometry,
   shouldSuppressLegacyFloatingToolbar,
   SPLIT_TOOLBAR_ADDRESS_BLOCK_VP,
   SPLIT_TOOLBAR_BOTTOM_BAR_VP,
@@ -666,14 +664,14 @@ import {
   BrowserSplitToolbarSearchSuggestionPort
 } from '../../core/browser/BrowserSplitToolbarSearchInvocationAdapter';
 import { BrowserSearchSuggestionSessionInput } from '../../core/browser/BrowserSearchSuggestionCoordinator';
+import { BrowserToolbarSearchPresentationCoordinator } from '../../core/browser/BrowserToolbarSearchPresentationCoordinator';
 import { BrowserSearchInvocationHostRouter } from '../../core/search/BrowserSearchInvocationHostRouter';
 import {
   BrowserSearchInvocationHostKind,
+  BrowserSearchAppearance,
   BrowserSplitToolbarSearchOpen,
-  resolveBrowserSearchInvocationHost,
-  resolveSplitToolbarSearchPrefill,
-  resolveSplitToolbarSearchSelectAll,
-  shouldCompleteSearchClose
+  BrowserSearchPresentationTarget,
+  resolveBrowserSearchPresentationTarget
 } from '../../core/search/BrowserSearchInvocationHostPolicy';
 import { BrowserSearchInvocationEndReason } from '../../core/search/BrowserSearchInvocationSessionCoordinator';
 import {
@@ -6406,10 +6404,11 @@ struct BrowserShellPage {
    */
   @State private splitToolbarSearchSurfaceVisible: boolean = false;
 
-  private splitToolbarSearchCloseGeneration: number = 0;
-  private splitToolbarSearchCloseInFlight: boolean = false;
+  private toolbarSearchPresentationCoordinator: BrowserToolbarSearchPresentationCoordinator =
+    new BrowserToolbarSearchPresentationCoordinator();
   private splitSearchOverlayPrepared: boolean = false;
   private boundSearchInvocationHostKind: BrowserSearchInvocationHostKind = 'unavailable';
+  private boundSearchAppearance: BrowserSearchAppearance = 'floating';
   @State contextMenuHomeShortcutId: string = '';
   @State homeShortcutEditDraft: HomeShortcutEditDraft = {
     shortcutId: '',
@@ -9321,7 +9320,7 @@ struct BrowserShellPage {
   private buildSplitToolbarSearchHost(sessionMode: BrowserSplitToolbarSessionMode) {
     BrowserSplitToolbarChrome({
       sessionMode: sessionMode,
-      chromeStyle: this.toolbarChromeStyle === 'dock' ? 'dock' : 'split',
+      chromeStyle: this.resolveSearchPresentationTarget().appearance,
       suppressHomeAddressBar: this.shouldSuppressSplitHomeAddressBar(),
       homeSearchGeometry: this.usesCenteredHomeSearchGeometry(),
       centeredSearchPresented: this.centeredHomeSearchGeometryOpen,
@@ -9505,18 +9504,19 @@ struct BrowserShellPage {
     });
   }
 
-  private resolveSearchInvocationHostKind(): BrowserSearchInvocationHostKind {
-    return resolveBrowserSearchInvocationHost({
+  private resolveSearchPresentationTarget(): BrowserSearchPresentationTarget {
+    return resolveBrowserSearchPresentationTarget({
+      toolbarStyle: this.toolbarChromeStyle,
       largeScreenShellActive: this.isLargeScreenShellFamilyActive(),
       splitToolbarChromeActive: this.shouldUseSplitToolbarChrome(),
       splitSearchOverlayPrepared: this.splitSearchOverlayPrepared ||
-        this.centeredHomeSearchSessionMounted ||
-        this.centeredHomeSearchGeometryOpen,
-      legacyFloatingToolbarSuppressed: shouldSuppressLegacyFloatingToolbar(
-        this.toolbarChromeStyle,
-        this.isLargeScreenShellFamilyActive()
-      )
+        this.centeredHomeSearchSessionMounted || this.centeredHomeSearchGeometryOpen,
+      centeredHomeFrame: this.isCenteredHomePageStyleActive()
     });
+  }
+
+  private resolveSearchInvocationHostKind(): BrowserSearchInvocationHostKind {
+    return this.resolveSearchPresentationTarget().hostKind;
   }
 
   private requestSplitToolbarSearchOpen(): void {
@@ -9580,17 +9580,8 @@ struct BrowserShellPage {
     this.browserSearchSuggestionCoordinator.refreshDeferred();
   }
 
-  private publishSplitToolbarSearchOpen(draft: string, selectAll: boolean): void {
-    const version = this.splitToolbarSearchOpen.version + 1;
-    this.splitToolbarSearchOpen = new BrowserSplitToolbarSearchOpen(version, draft, selectAll);
-  }
-
   private clearSplitToolbarSearchOpen(): void {
-    const current = this.splitToolbarSearchOpen;
-    if (current.draft.length === 0 && !current.selectAll) {
-      return;
-    }
-    this.splitToolbarSearchOpen = new BrowserSplitToolbarSearchOpen(current.version, '', false);
+    this.splitToolbarSearchOpen = this.toolbarSearchPresentationCoordinator.clearDraft();
   }
 
   private applySplitToolbarSearchPresentation(presentation: BrowserSplitToolbarSearchPresentation): void {
@@ -9598,21 +9589,8 @@ struct BrowserShellPage {
       return;
     }
     this.splitSearchOverlayPrepared = false;
-    this.splitToolbarSearchCloseInFlight = false;
-    this.splitToolbarSearchCloseGeneration += 1;
-    const continuingSearch = this.splitToolbarSearchActive;
-    const draft = resolveSplitToolbarSearchPrefill(
-      this.showHomePage,
-      continuingSearch,
-      presentation.draft,
-      this.showHomePage ? '' : this.resolveEditableWebBottomAddress()
-    );
-    const selectAll = resolveSplitToolbarSearchSelectAll(
-      this.showHomePage,
-      continuingSearch,
-      draft,
-      presentation.selection === 'all'
-    );
+    const request = this.toolbarSearchPresentationCoordinator.accept(presentation);
+    const draft = request.draft;
     this.splitToolbarSearchActive = true;
     if (this.showHomePage) {
       this.addressInput = draft;
@@ -9628,7 +9606,7 @@ struct BrowserShellPage {
           this.centeredHomeSearchSessionMounted = true;
         }
       }
-      this.publishSplitToolbarSearchOpen(draft, selectAll);
+      this.splitToolbarSearchOpen = request;
     };
     if (this.usesCenteredHomeSearchGeometry() && this.showHomePage && !this.centeredHomeSearchGeometryOpen) {
       this.getUIContext().animateTo({
@@ -9649,11 +9627,10 @@ struct BrowserShellPage {
   }
 
   private dismissSplitToolbarSearch(): void {
-    if (this.splitToolbarSearchCloseInFlight) {
+    const generation = this.toolbarSearchPresentationCoordinator.beginClose();
+    if (generation <= 0) {
       return;
     }
-    this.splitToolbarSearchCloseInFlight = true;
-    const generation = this.beginSplitToolbarSearchClose();
     if (this.centeredHomeSearchGeometryOpen && this.usesCenteredHomeSearchGeometry() && this.showHomePage) {
       // The system back key and cancel both land here. The shared-element animation has
       // to start on this call stack; starting it from the chrome's dismiss watch applies instantly.
@@ -9664,18 +9641,12 @@ struct BrowserShellPage {
   }
 
   private suspendSplitToolbarSearchPresentation(): void {
-    this.splitToolbarSearchCloseInFlight = false;
-    const generation = this.beginSplitToolbarSearchClose();
+    const generation = this.toolbarSearchPresentationCoordinator.beginClose(true);
     this.finishSplitToolbarSearchClose(generation);
   }
 
-  private beginSplitToolbarSearchClose(): number {
-    this.splitToolbarSearchCloseGeneration += 1;
-    return this.splitToolbarSearchCloseGeneration;
-  }
-
   private finishSplitToolbarSearchClose(generation: number): void {
-    if (!shouldCompleteSearchClose(generation, this.splitToolbarSearchCloseGeneration, false)) {
+    if (!this.toolbarSearchPresentationCoordinator.completeClose(generation)) {
       return;
     }
     this.splitSearchOverlayPrepared = false;
@@ -9685,7 +9656,6 @@ struct BrowserShellPage {
     this.centeredHomeSearchSessionMounted = false;
     this.clearSplitToolbarSearchOpen();
     this.splitToolbarSearchDismissVersion += 1;
-    this.splitToolbarSearchCloseInFlight = false;
     this.splitToolbarSearchInputFocused = false;
     this.webBottomAddressFocused = false;
     this.browserSearchSuggestionCoordinator.reset();
@@ -9707,10 +9677,13 @@ struct BrowserShellPage {
   }
 
   private syncSearchInvocationPresentationHost(): void {
-    const kind = this.resolveSearchInvocationHostKind();
+    const target = this.resolveSearchPresentationTarget();
+    const kind = target.hostKind;
     const previous = this.boundSearchInvocationHostKind;
+    const previousAppearance = this.boundSearchAppearance;
     this.boundSearchInvocationHostKind = kind;
-    if (previous === kind) {
+    this.boundSearchAppearance = target.appearance;
+    if (previous === kind && previousAppearance === target.appearance) {
       return;
     }
     const windowId = this.getWindowScopeId();
@@ -10566,11 +10539,7 @@ struct BrowserShellPage {
   }
 
   private usesCenteredHomeSearchGeometry(): boolean {
-    return shouldUseCenteredHomeSearchGeometry(
-      this.toolbarChromeStyle,
-      this.isCenteredHomePageStyleActive(),
-      this.isLargeScreenShellFamilyActive()
-    );
+    return this.resolveSearchPresentationTarget().centeredHomeGeometry;
   }
 
   private isCenteredHomeInlineSearchActive(): boolean {
@@ -10638,16 +10607,12 @@ struct BrowserShellPage {
     if (this.isLargeScreenShellFamilyActive()) {
       return;
     }
-    // 简约 and 极简 with the floating toolbar open that toolbar's search, not the split search page.
-    if (shouldRouteCenteredHomeSearchToFloatingToolbar(
-      this.toolbarChromeStyle,
-      this.isCenteredHomePageStyleActive(),
-      this.isLargeScreenShellFamilyActive()
-    )) {
+    const target = this.resolveSearchPresentationTarget();
+    if (target.appearance === 'floating') {
       this.floatingToolbarSearchOpenRequestVersion += 1;
       return;
     }
-    if (!this.usesCenteredHomeSearchGeometry()) {
+    if (!target.centeredHomeGeometry) {
       this.requestSplitToolbarSearchOpen();
       return;
     }
@@ -10665,7 +10630,8 @@ struct BrowserShellPage {
   }
 
   private reverseCenteredHomeSearchGeometry(dismissChrome: boolean = false, closeGeneration: number = 0): void {
-    const generation = closeGeneration > 0 ? closeGeneration : this.beginSplitToolbarSearchClose();
+    const generation = closeGeneration > 0 ? closeGeneration :
+      this.toolbarSearchPresentationCoordinator.beginClose();
     // The field's own animation fades the search-page chrome. Keeping that change out of
     // the spring stops the cancel button and fill from waiting until the box lands.
     this.centeredHomeSearchChromeFade = 1;
@@ -10673,12 +10639,11 @@ struct BrowserShellPage {
       curve: curves.interpolatingSpring(0, 1, 342, 38),
       onFinish: (): void => {
         const reopened = this.centeredHomeSearchGeometryOpen || this.splitToolbarSearchActive;
-        if (!shouldCompleteSearchClose(generation, this.splitToolbarSearchCloseGeneration, reopened)) {
+        if (!this.toolbarSearchPresentationCoordinator.completeClose(generation, reopened)) {
           return;
         }
         this.centeredHomeSearchSessionMounted = false;
         this.splitSearchOverlayPrepared = false;
-        this.splitToolbarSearchCloseInFlight = false;
         this.browserSearchSuggestionCoordinator.reset();
       }
     }, () => {

@@ -3,7 +3,52 @@
  * A hidden chrome is not a successful target: split style with the bars covered
  * stays unavailable instead of falling through to the suppressed floating panel.
  */
+import { BrowserToolbarChromeStyle } from '../../common/models/BrowserModels';
+import {
+  shouldSuppressLegacyFloatingToolbar,
+  shouldUseCenteredHomeSearchGeometry
+} from '../browser/BrowserToolbarChromeStylePolicy';
+
 export type BrowserSearchInvocationHostKind = 'large_screen' | 'split' | 'floating' | 'unavailable';
+export type BrowserSearchAppearance = BrowserToolbarChromeStyle | 'large_screen';
+
+export interface BrowserSearchPresentationTargetInput {
+  toolbarStyle: BrowserToolbarChromeStyle;
+  largeScreenShellActive: boolean;
+  splitToolbarChromeActive: boolean;
+  splitSearchOverlayPrepared: boolean;
+  centeredHomeFrame: boolean;
+}
+
+export interface BrowserSearchPresentationTarget {
+  hostKind: BrowserSearchInvocationHostKind;
+  appearance: BrowserSearchAppearance;
+  centeredHomeGeometry: boolean;
+}
+
+/**
+ * The only mapping from the selected toolbar to search appearance and runtime host.
+ * Dock and split share a session adapter, but remain distinct appearances. Content,
+ * keyboard visibility and suggestion revisions are deliberately absent from this seam.
+ */
+export function resolveBrowserSearchPresentationTarget(
+  input: BrowserSearchPresentationTargetInput
+): BrowserSearchPresentationTarget {
+  return {
+    hostKind: resolveBrowserSearchInvocationHost({
+      largeScreenShellActive: input.largeScreenShellActive,
+      splitToolbarChromeActive: input.splitToolbarChromeActive,
+      splitSearchOverlayPrepared: input.splitSearchOverlayPrepared,
+      legacyFloatingToolbarSuppressed: shouldSuppressLegacyFloatingToolbar(
+        input.toolbarStyle, input.largeScreenShellActive
+      )
+    }),
+    appearance: input.largeScreenShellActive ? 'large_screen' : input.toolbarStyle,
+    centeredHomeGeometry: shouldUseCenteredHomeSearchGeometry(
+      input.toolbarStyle, input.centeredHomeFrame, input.largeScreenShellActive
+    )
+  };
+}
 
 export interface BrowserSearchInvocationHostInput {
   largeScreenShellActive: boolean;

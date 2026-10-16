@@ -125,14 +125,34 @@ export struct BrowserSearchSuggestionsPanel {
 
   @Builder
   private buildScrollableSuggestionList(height: string | number, bottomPadding: number = 0) {
-    Scroll() {
-      this.buildSuggestionList(bottomPadding)
+    if (this.layoutMode === 'bottomUp') {
+      // Results are ordered toward the input. Start at that end even when the
+      // list overflows, without an imperative scroll reset on content refresh.
+      List({ space: this.resolveRowGap() }) {
+        ForEach(this.buildVisualGridRows(), (gridRow: BrowserSearchSuggestionVisualGridRow) => {
+          ListItem() {
+            this.buildSuggestionGroup(gridRow)
+          }
+          .width('100%')
+        }, (gridRow: BrowserSearchSuggestionVisualGridRow) => gridRow.key)
+      }
+      .width('100%')
+      .height(height)
+      .padding({ left: this.horizontalPadding, right: this.horizontalPadding })
+      .contentEndOffset(bottomPadding)
+      .stackFromEnd(true)
+      .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
+      .scrollBar(BarState.Off)
+    } else {
+      Scroll() {
+        this.buildSuggestionList(bottomPadding)
+      }
+      .width('100%')
+      .height(height)
+      .align(Alignment.TopStart)
+      .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
+      .scrollBar(BarState.Off)
     }
-    .width('100%')
-    .height(height)
-    .align(Alignment.TopStart)
-    .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
-    .scrollBar(BarState.Off)
   }
 
   @Builder

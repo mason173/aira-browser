@@ -48,6 +48,8 @@ jobs:
         run: node scripts/check-aira-shared-html-viewer.cjs
       - name: Check search style isolation
         run: node scripts/check-aira-search-style-isolation.cjs
+      - name: Check search list viewport
+        run: node scripts/check-aira-search-list-viewport.cjs
       - name: Check download directory lifecycle
         run: node scripts/check-aira-download-directory-lifecycle.cjs
       - name: Check icon catalog
