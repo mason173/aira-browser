@@ -1,5 +1,15 @@
 # Changelog
 
+## 3.8.2 (1000538)
+
+2026-10-16
+
+This release fixes several issues in the search surface, custom download folder, and history list.
+
+- Fixed the toolbar search occasionally borrowing the Home search styling, so the search surface displays consistently.
+- Fixed a writable custom download folder being mistaken for a broken one: Aira no longer falls back to the default directory, and your chosen folder and its permission are kept.
+- Fixed the newest history entries landing outside the visible area the first time the bottom search list opens.
+
 ## 3.8.1 (1000535)
 
 2026-10-15

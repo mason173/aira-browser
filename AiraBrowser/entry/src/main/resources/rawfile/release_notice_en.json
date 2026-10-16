@@ -1,12 +1,13 @@
 {
   "enabled": true,
-  "noticeId": "aira-3.8.1-1000535",
-  "title": "Aira 3.8.1 update",
-  "updatedAt": "2026-10-15",
-  "summary": "This release fixes two issues in web page translation and the tab overview.",
+  "noticeId": "aira-3.8.2-1000538",
+  "title": "Aira 3.8.2 update",
+  "updatedAt": "2026-10-16",
+  "summary": "This release fixes several issues in the search surface, custom download folder, and history list.",
   "items": [
-    "Fixed links and buttons becoming unclickable after a page is translated; translation now replaces only the text, leaving links and buttons working.",
-    "Fixed the tab overview occasionally getting stuck when closing, so it no longer stays on top of the restored web page."
+    "Fixed the toolbar search occasionally borrowing the Home search styling, so the search surface displays consistently.",
+    "Fixed a writable custom download folder being mistaken for a broken one: Aira no longer falls back to the default directory, and your chosen folder and its permission are kept.",
+    "Fixed the newest history entries landing outside the visible area the first time the bottom search list opens."
   ],
   "actionLabel": "View changelog"
 }
