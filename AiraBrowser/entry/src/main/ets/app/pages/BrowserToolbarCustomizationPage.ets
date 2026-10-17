@@ -9,9 +9,14 @@ struct BrowserToolbarCustomizationPage {
   @State private dataScope: string = '';
   @State private privacyMode: string = '';
   @State private boundarySource: string = '';
+  @State private settingsRefreshRevision: number = 0;
 
   aboutToAppear(): void {
     this.syncBoundaryRouteState();
+  }
+
+  onPageShow(): void {
+    this.settingsRefreshRevision += 1;
   }
 
   build() {
@@ -22,6 +27,7 @@ struct BrowserToolbarCustomizationPage {
         useTopSafeInset: true,
         dataScope: this.dataScope,
         privacyMode: this.privacyMode,
+        refreshRevision: this.settingsRefreshRevision,
         onBack: () => {
           this.navigationCoordinator.back();
         },

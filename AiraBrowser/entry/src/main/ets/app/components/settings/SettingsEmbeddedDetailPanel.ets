@@ -439,6 +439,7 @@ export struct SettingsEmbeddedDetailPanel {
       desktopPresentation: this.shellFamily === 'large_screen',
       dataScope: this.dataScope,
       privacyMode: this.privacyMode,
+      refreshRevision: this.settingsRefreshRevision,
       onSettingsChanged: () => {
         this.handleSettingsChanged();
       }

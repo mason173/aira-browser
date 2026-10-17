@@ -267,6 +267,7 @@ export struct BrowserToolbarCustomizationScreen {
   @Prop showDesktopHeader: boolean = true;
   @Prop dataScope: string = '';
   @Prop privacyMode: string = '';
+  @Prop @Watch('refreshState') refreshRevision: number = 0;
   onBack?: () => void;
   onOpenScrollBehavior?: () => void;
   onSettingsChanged?: () => void;

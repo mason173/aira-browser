@@ -32,6 +32,7 @@ ARCH_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-architecture-guardrails.sh"
 ICON_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-icons-generated.sh"
 HOME_CHROME_SCROLL_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-home-chrome-scroll-contract.cjs"
 SPLIT_TOOLBAR_FRAME_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-split-toolbar-frame-contract.cjs"
+TOOLBAR_SETTINGS_REFRESH_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-toolbar-settings-refresh.cjs"
 IMMERSIVE_LIGHT_SENSE_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-immersive-light-sense-contract.sh"
 SYNC_FIRST_ACTIVATION_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-sync-first-activation-contract.sh"
 SYNC_PROVIDER_SWITCH_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-sync-provider-switch-contract.sh"
@@ -516,6 +517,7 @@ if [ ! -f "${SPLIT_TOOLBAR_FRAME_GUARD_SCRIPT}" ]; then
 fi
 
 "${NODE_BIN}" "${SPLIT_TOOLBAR_FRAME_GUARD_SCRIPT}"
+"${NODE_BIN}" "${TOOLBAR_SETTINGS_REFRESH_GUARD_SCRIPT}"
 "${NODE_BIN}" "${REPO_ROOT}/scripts/check-aira-search-style-isolation.cjs"
 "${NODE_BIN}" "${REPO_ROOT}/scripts/check-aira-search-list-viewport.cjs"
 "${NODE_BIN}" "${REPO_ROOT}/scripts/check-aira-download-directory-lifecycle.cjs"
