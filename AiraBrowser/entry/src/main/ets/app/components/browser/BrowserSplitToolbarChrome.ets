@@ -25,7 +25,8 @@ import { BrowserAddressBarTabSwipeEvent } from '../../../core/browser/BrowserAdd
 import {
   CENTERED_HOME_SEARCH_CHROME_FADE_MS,
   CENTERED_HOME_SEARCH_GEOMETRY_FOCUS_DELAY_MS,
-  CENTERED_HOME_SEARCH_GEOMETRY_ID
+  CENTERED_HOME_SEARCH_GEOMETRY_ID,
+  CENTERED_HOME_SEARCH_GEOMETRY_OPEN_KEY
 } from '../../../features/newtab/CenteredHomeShortcutLayoutPolicy';
 import { BrowserSplitToolbarButtonPresentation } from '../../../core/browser/BrowserSplitToolbarCustomizationViewModel';
 import { BrowserSearchAppearance, BrowserSplitToolbarSearchOpen } from '../../../core/search/BrowserSearchInvocationHostPolicy';
@@ -135,6 +136,12 @@ export struct BrowserSplitToolbarChrome {
    * one animateTo, so this prop — not the local searching flag — decides which copy is on screen.
    */
   @Prop @Watch('reportSearchSurfaceVisibility') centeredSearchPresented: boolean = false;
+  /**
+   * Same open flag the home field reads. The @Prop copy can arrive a frame late, which
+   * leaves the shared-element flight with no destination.
+   */
+  @StorageLink(CENTERED_HOME_SEARCH_GEOMETRY_OPEN_KEY) @Watch('reportSearchSurfaceVisibility')
+  private geometryFlightOpen: boolean = false;
   /** 1 while the centered-home return has faded the search-page chrome away. */
   @Prop centeredSearchChromeFade: number = 0;
   /** Existing scroll presentation asked both bars to leave. Search keeps the address row. */
@@ -298,15 +305,14 @@ export struct BrowserSplitToolbarChrome {
       Stack() {
         // The address pill is the resting page. The search field is born when search opens,
         // so it cannot keep a previous address painted over the next site.
-        if (this.searching || this.sessionMode === 'search_only') {
+        // A geometry return must not grow a second pill here while local searching is still
+        // true: that pill would sit on the departing field and the later cleanup would snap it.
+        if (this.shouldPaintDetachedSearchPill()) {
           this.buildSearchPill(false)
-        }
-        if (!this.searching && this.sessionMode !== 'search_only') {
-          if (this.homeScene) {
-            this.buildHomePill()
-          } else {
-            this.buildAddressPill()
-          }
+        } else if (this.homeScene) {
+          this.buildHomePill()
+        } else {
+          this.buildAddressPill()
         }
       }
       .width('100%')
@@ -1204,7 +1210,15 @@ export struct BrowserSplitToolbarChrome {
   }
 
   private shouldShowBottomBar(): boolean {
-    return this.sessionMode !== 'search_only' && !this.searching && !this.centeredSearchPresented;
+    if (this.sessionMode === 'search_only') {
+      return false;
+    }
+    // The shell's return spring owns this bar. Clearing local searching afterwards must not
+    // insert it in a later frame, or that relayout aborts the shared-element flight.
+    if (this.usesHomeSearchGeometry()) {
+      return !this.geometryFlightOpen;
+    }
+    return !this.searching && !this.centeredSearchPresented;
   }
 
   private usesHomeSearchGeometry(): boolean {
@@ -1222,15 +1236,18 @@ export struct BrowserSplitToolbarChrome {
       return false;
     }
     // The middle field flies into the geometry pill. The resting row would cover that landing spot.
-    if (this.usesHomeSearchGeometry() && this.centeredSearchPresented) {
+    if (this.usesHomeSearchGeometry() && (this.centeredSearchPresented || this.geometryFlightOpen)) {
       return false;
     }
     return true;
   }
 
   private shouldShowSearchSheet(): boolean {
-    if (this.usesHomeSearchGeometry() && (this.suppressHomeAddressBar || this.centeredSearchPresented)) {
-      return this.searching || this.centeredSearchPresented;
+    // The opaque search page has to leave in the same animateTo as the shared field.
+    // System Back clears local searching only after that spring starts; keeping the page
+    // up until then covers the homepage and destroys the downward flight.
+    if (this.usesHomeSearchGeometry()) {
+      return this.geometryFlightOpen;
     }
     return this.searching || this.sessionMode === 'search_only';
   }
@@ -1248,13 +1265,17 @@ export struct BrowserSplitToolbarChrome {
   }
 
   private shouldShowCenteredSearchGeometryPill(): boolean {
-    if (!this.usesHomeSearchGeometry()) {
+    // Both geometry nodes swap in the shell's animateTo. Local searching is
+    // cleaned up later and must not retain this node after the home field enters.
+    return this.usesHomeSearchGeometry() && this.geometryFlightOpen;
+  }
+
+  /** Web and dock search paint their own editor. The centered-home field is the geometry pill. */
+  private shouldPaintDetachedSearchPill(): boolean {
+    if (this.usesHomeSearchGeometry()) {
       return false;
     }
-    if (!this.suppressHomeAddressBar && !this.centeredSearchPresented) {
-      return false;
-    }
-    return this.centeredSearchPresented || this.searching;
+    return this.searching || this.sessionMode === 'search_only';
   }
 
   private shouldBindCenteredSearchGeometry(): boolean {

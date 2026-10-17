@@ -25,6 +25,12 @@ export const CENTERED_HOME_SEARCH_CENTER_LIFT_VP: number = 40;
 export const CENTERED_HOME_LARGE_SCREEN_SEARCH_MAX_WIDTH: number = 560;
 /** Shared by the centered-home field and the search-page field so one can fly into the other. */
 export const CENTERED_HOME_SEARCH_GEOMETRY_ID: string = 'aira.centered-home.search';
+/**
+ * Same flag as the shell state, published into AppStorage so the home field and the
+ * top pill swap in one frame. A @Prop chain reaches the home field a few frames late,
+ * and the shared-element flight has no destination.
+ */
+export const CENTERED_HOME_SEARCH_GEOMETRY_OPEN_KEY: string = 'aira.centered-home.search.geometry-open';
 /** Lets the field finish moving before the keyboard covers it. */
 export const CENTERED_HOME_SEARCH_GEOMETRY_FOCUS_DELAY_MS: number = 280;
 /**

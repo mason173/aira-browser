@@ -1157,7 +1157,8 @@ import {
   usesCenteredHomeFrame
 } from '../../common/models/HomePagePresentationSettingsModels';
 import {
-  applyCenteredHomeShortcutLayout
+  applyCenteredHomeShortcutLayout,
+  CENTERED_HOME_SEARCH_GEOMETRY_OPEN_KEY
 } from '../../features/newtab/CenteredHomeShortcutLayoutPolicy';
 import { HomeSystemSurface } from '../components/browser/HomeSystemSurface';
 import { PrivateHomeWatermark } from '../components/browser/PrivateHomeWatermark';
@@ -6847,6 +6848,7 @@ struct BrowserShellPage {
   @State elementInspectionOutlineMenuOpen: boolean = false;
   @State elementInspectionOutlineMenuDismissSerial: number = 0;
   aboutToAppear(): void {
+    AppStorage.setOrCreate(CENTERED_HOME_SEARCH_GEOMETRY_OPEN_KEY, false);
     this.featureGateCoordinator.bindStorePriceRefresh((): void => {
       this.refreshFeatureGateStorePrice();
     });
@@ -6893,6 +6895,7 @@ struct BrowserShellPage {
   }
 
   aboutToDisappear(): void {
+    AppStorage.setOrCreate(CENTERED_HOME_SEARCH_GEOMETRY_OPEN_KEY, false);
     this.setHuaweiPaymentLaunchVisible(false);
     this.homeWallpaperPlaybackGate.dispose();
     this.browserAddressBarTabSwipeCoordinator.cancel();
@@ -9601,7 +9604,7 @@ struct BrowserShellPage {
     const reveal = (): void => {
       if (this.usesCenteredHomeSearchGeometry() && this.showHomePage) {
         this.centeredHomeSearchChromeFade = 0;
-        this.centeredHomeSearchGeometryOpen = true;
+        this.publishCenteredHomeSearchGeometryOpen(true);
         if (!this.shouldUseSplitToolbarChrome()) {
           this.centeredHomeSearchSessionMounted = true;
         }
@@ -9628,16 +9631,27 @@ struct BrowserShellPage {
 
   private dismissSplitToolbarSearch(): void {
     const generation = this.toolbarSearchPresentationCoordinator.beginClose();
+    const usesGeometry = this.usesCenteredHomeSearchGeometry();
     if (generation <= 0) {
       return;
     }
-    if (this.centeredHomeSearchGeometryOpen && this.usesCenteredHomeSearchGeometry() && this.showHomePage) {
+    if (this.centeredHomeSearchGeometryOpen && usesGeometry && this.showHomePage) {
       // The system back key and cancel both land here. The shared-element animation has
       // to start on this call stack; starting it from the chrome's dismiss watch applies instantly.
       this.reverseCenteredHomeSearchGeometry(true, generation);
       return;
     }
     this.finishSplitToolbarSearchClose(generation);
+  }
+
+  /**
+   * The home field sits several components below this state. Writing only the @Prop
+   * lets the top pill leave a few frames before the home field exists, so the shared
+   * element has nothing to fly into.
+   */
+  private publishCenteredHomeSearchGeometryOpen(open: boolean): void {
+    this.centeredHomeSearchGeometryOpen = open;
+    AppStorage.setOrCreate(CENTERED_HOME_SEARCH_GEOMETRY_OPEN_KEY, open);
   }
 
   private suspendSplitToolbarSearchPresentation(): void {
@@ -9651,7 +9665,7 @@ struct BrowserShellPage {
     }
     this.splitSearchOverlayPrepared = false;
     this.splitToolbarSearchActive = false;
-    this.centeredHomeSearchGeometryOpen = false;
+    this.publishCenteredHomeSearchGeometryOpen(false);
     this.centeredHomeSearchChromeFade = 0;
     this.centeredHomeSearchSessionMounted = false;
     this.clearSplitToolbarSearchOpen();
@@ -10594,7 +10608,7 @@ struct BrowserShellPage {
     }
     this.splitToolbarSearchActive = false;
     this.centeredHomeSearchSessionMounted = false;
-    this.centeredHomeSearchGeometryOpen = false;
+    this.publishCenteredHomeSearchGeometryOpen(false);
     this.centeredHomeSearchChromeFade = 0;
     this.splitToolbarSearchInputFocused = false;
     this.webBottomAddressFocused = false;
@@ -10621,7 +10635,7 @@ struct BrowserShellPage {
     this.getUIContext().animateTo({
       curve: curves.interpolatingSpring(0, 1, 342, 38)
     }, () => {
-      this.centeredHomeSearchGeometryOpen = true;
+      this.publishCenteredHomeSearchGeometryOpen(true);
       if (!this.shouldUseSplitToolbarChrome()) {
         this.centeredHomeSearchSessionMounted = true;
       }
@@ -10632,8 +10646,14 @@ struct BrowserShellPage {
   private reverseCenteredHomeSearchGeometry(dismissChrome: boolean = false, closeGeneration: number = 0): void {
     const generation = closeGeneration > 0 ? closeGeneration :
       this.toolbarSearchPresentationCoordinator.beginClose();
-    // The field's own animation fades the search-page chrome. Keeping that change out of
-    // the spring stops the cancel button and fill from waiting until the box lands.
+    // Blur before the spring. The dismiss watch used to clear the field inside the
+    // flight and destroy the outgoing box before the home field existed.
+    if (dismissChrome) {
+      this.releaseSplitToolbarSearchInputFocus();
+    }
+    // Fade the engine icon, placeholder, cancel button and fill on their own.
+    // The border stays. Keeping this out of the spring lets it finish before the
+    // box lands, and it does not ride the shared-element animation.
     this.centeredHomeSearchChromeFade = 1;
     this.getUIContext().animateTo({
       curve: curves.interpolatingSpring(0, 1, 342, 38),
@@ -10645,18 +10665,17 @@ struct BrowserShellPage {
         this.centeredHomeSearchSessionMounted = false;
         this.splitSearchOverlayPrepared = false;
         this.browserSearchSuggestionCoordinator.reset();
+        if (dismissChrome) {
+          this.splitToolbarSearchDismissVersion += 1;
+        }
       }
     }, () => {
-      this.centeredHomeSearchGeometryOpen = false;
+      this.publishCenteredHomeSearchGeometryOpen(false);
       this.splitToolbarSearchActive = false;
       this.splitSearchOverlayPrepared = false;
       this.clearSplitToolbarSearchOpen();
-      if (dismissChrome) {
-        this.splitToolbarSearchDismissVersion += 1;
-      }
       this.splitToolbarSearchInputFocused = false;
       this.webBottomAddressFocused = false;
-      this.browserSearchSuggestionCoordinator.reset();
     });
   }
 

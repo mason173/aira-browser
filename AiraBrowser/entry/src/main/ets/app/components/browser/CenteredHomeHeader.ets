@@ -8,6 +8,7 @@ import {
   CENTERED_HOME_HEADER_BOTTOM_GAP,
   CENTERED_HOME_LARGE_SCREEN_SEARCH_MAX_WIDTH,
   CENTERED_HOME_SEARCH_GEOMETRY_ID,
+  CENTERED_HOME_SEARCH_GEOMETRY_OPEN_KEY,
   CENTERED_HOME_SEARCH_HEIGHT,
   CENTERED_HOME_WORDMARK_HEIGHT,
   CENTERED_HOME_WORDMARK_SEARCH_GAP
@@ -34,6 +35,11 @@ export struct CenteredHomeHeader {
   @Prop fieldBackgroundColor: ResourceColor = Color.Transparent;
   /** True while the phone search page owns the shared field, so this copy can leave. */
   @Prop searchPresented: boolean = false;
+  /**
+   * Same flag as searchPresented, read here so this field appears in the same frame as the
+   * top pill leaves. The @Prop arrives a few frames later and the flight has no destination.
+   */
+  @StorageLink(CENTERED_HOME_SEARCH_GEOMETRY_OPEN_KEY) private geometryFlightOpen: boolean = false;
   /**
    * Only the split search page shares this field's geometry. The floating toolbar has no pair,
    * and an unpaired geometry transition slides a surface in from the right.
@@ -107,7 +113,7 @@ export struct CenteredHomeHeader {
         this.buildInlineSearchField()
       } else {
         Stack() {
-          if (!this.searchPresented) {
+          if (!this.geometryFlightOpen) {
             this.buildSearchField()
           }
         }

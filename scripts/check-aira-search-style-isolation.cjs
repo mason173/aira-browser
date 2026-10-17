@@ -53,15 +53,25 @@ const { SearchShell } = evaluate(`export class SearchShell {
   ${method(shellSource, 'clearSplitToolbarSearchOpen')}
   ${method(shellSource, 'dismissSplitToolbarSearch')}
   ${method(shellSource, 'suspendSplitToolbarSearchPresentation')}
+  ${method(shellSource, 'publishCenteredHomeSearchGeometryOpen')}
+  ${method(shellSource, 'releaseSplitToolbarSearchInputFocus')}
   ${method(shellSource, 'finishSplitToolbarSearchClose')}
   ${method(shellSource, 'reverseCenteredHomeSearchGeometry')}
   ${method(shellSource, 'syncSearchInvocationPresentationHost')}
-}`, { ...hostPolicy, ...toolbarPolicy, curves: { interpolatingSpring: () => 'spring' } });
+}`, {
+  ...hostPolicy,
+  ...toolbarPolicy,
+  curves: { interpolatingSpring: () => 'spring' },
+  hilog: { info: () => {} },
+  AppStorage: { setOrCreate: () => {} },
+  CENTERED_HOME_SEARCH_GEOMETRY_OPEN_KEY: 'aira.centered-home.search.geometry-open'
+});
 
 const dockBranch = chromeSource.match(/if \(([^\n]+)\) \{\s*this\.buildDockSearchPage\(\)/);
 assert.ok(dockBranch, 'The search surface must select its dock page explicitly');
 const layoutMethods = ['usesHomeSearchGeometry', 'shouldShowTopBar',
-  'shouldMountCenteredSearchGeometryHost']
+  'shouldMountCenteredSearchGeometryHost', 'shouldShowCenteredSearchGeometryPill',
+  'shouldShowSearchSheet', 'shouldShowBottomBar', 'shouldPaintDetachedSearchPill']
   .filter(name => chromeSource.includes(`private ${name}(`))
   .map(name => method(chromeSource, name)).join('\n');
 const { SearchChrome } = evaluate(`export class SearchChrome {
@@ -124,6 +134,85 @@ function presentationShell(style, home, centered = false) {
     } })
   });
   return { shell, finishedAnimations, resets: () => resets };
+}
+
+// Run both production builders across a close while the child's local cleanup
+// is still pending. The home field must enter as the top field leaves, in the
+// shell's animation transaction, rather than in a later @Watch callback.
+const homeHeaderSource = read('app/components/browser/CenteredHomeHeader.ets');
+function builderBody(source, name) {
+  const builder = method(source, name);
+  return recordableBuilder(builder.slice(builder.indexOf('{') + 1, builder.lastIndexOf('}')));
+}
+const geometryFields = [];
+const modifier = new Proxy({}, { get: () => () => modifier });
+const container = (...args) => {
+  const body = args.find(value => typeof value === 'function');
+  if (body) body();
+  return modifier;
+};
+const { drawHomeField, drawTopField } = evaluate(`
+  export function drawHomeField() { ${builderBody(homeHeaderSource, 'buildSearchSlot')} }
+  export function drawTopField() { ${builderBody(chromeSource, 'buildCenteredSearchGeometryHost')} }
+`, {
+  Stack: container, Column: container,
+  CENTERED_HOME_SEARCH_HEIGHT: 48,
+  CENTERED_HOME_LARGE_SCREEN_SEARCH_MAX_WIDTH: 560,
+  SPLIT_TOOLBAR_ADDRESS_HORIZONTAL_MARGIN: toolbarPolicy.SPLIT_TOOLBAR_ADDRESS_HORIZONTAL_MARGIN_VP,
+  HorizontalAlign: { Center: 'center' }, HitTestMode: { Default: 'default', None: 'none' }
+});
+for (const suppressHomeAddressBar of [true, false]) {
+  const { shell, finishedAnimations } = presentationShell('split', true, true);
+  const present = () => shell.applySplitToolbarSearchPresentation({
+    editing: true, draft: '', selection: 'caret_end', authorityId: 'authority', scene: 'home'
+  });
+  const chrome = Object.assign(new SearchChrome(), {
+    chromeStyle: 'split', homeSearchGeometry: true, homeScene: true,
+    suppressHomeAddressBar, searching: true, engineMenuOpen: false,
+    resolveTopInset: () => 42,
+    buildSearchPill: bindHomeGeometry => {
+      check(bindHomeGeometry, true, 'The outgoing top field retains its geometry binding');
+      geometryFields.push('top');
+    }
+  });
+  function fields() {
+    geometryFields.length = 0;
+    drawHomeField.call({
+      inlineSearch: false,
+      searchPresented: shell.centeredHomeSearchGeometryOpen,
+      geometryFlightOpen: shell.centeredHomeSearchGeometryOpen,
+      buildSearchField: () => geometryFields.push('home')
+    });
+    chrome.centeredSearchPresented = shell.centeredHomeSearchGeometryOpen;
+    chrome.geometryFlightOpen = shell.centeredHomeSearchGeometryOpen;
+    drawTopField.call(chrome);
+    return geometryFields.join(',');
+  }
+  present();
+  chrome.centeredSearchPresented = shell.centeredHomeSearchGeometryOpen;
+  chrome.geometryFlightOpen = shell.centeredHomeSearchGeometryOpen;
+  check(fields(), 'top', 'Opening home search swaps the home field for the top field');
+  check(chrome.shouldShowSearchSheet(), true, 'Opening shows the search page with the shared field');
+  shell.dismissSplitToolbarSearch();
+  chrome.centeredSearchPresented = shell.centeredHomeSearchGeometryOpen;
+  chrome.geometryFlightOpen = shell.centeredHomeSearchGeometryOpen;
+  check(finishedAnimations.length, 1, 'Returning must start the shell animation');
+  check(chrome.shouldMountCenteredSearchGeometryHost(), true, 'The geometry host remains mounted');
+  check(fields(), 'home',
+    'Returning must swap both geometry nodes before the local dismiss watcher clears searching');
+  check(chrome.shouldShowSearchSheet(), false,
+    'System Back must drop the opaque search page in the return spring, not after local cleanup');
+  check(chrome.shouldShowBottomBar(), true,
+    'The bottom bar returns inside the return spring so a later insert cannot abort the flight');
+  check(chrome.shouldPaintDetachedSearchPill(), false,
+    'A second top pill must not cover the field that is flying home');
+  chrome.searching = false;
+  check(fields(), 'home', 'Deferred local cleanup must not cause another node swap');
+  check(chrome.shouldShowSearchSheet(), false, 'Deferred local cleanup must not bring the search page back');
+  present();
+  chrome.searching = true;
+  finishedAnimations.shift()();
+  check(fields(), 'top', 'An old return-animation completion must not remove a reopened search field');
 }
 
 // Drive the real Shell close wiring, not only the generation predicate. A stale
