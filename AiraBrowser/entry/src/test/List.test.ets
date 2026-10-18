@@ -120,6 +120,7 @@ import historyOmniboxIndexTest from './HistoryOmniboxIndex.test';
 import localOmniboxSuggestionMatcherTest from './LocalOmniboxSuggestionMatcher.test';
 import browserTabCloseNeighborPolicyTest from './BrowserTabCloseNeighborPolicy.test';
 import webAppDesktopInstallSyncPolicyTest from './WebAppDesktopInstallSyncPolicy.test';
+import webAppTopSafeAreaPolicyTest from './WebAppTopSafeAreaPolicy.test';
 import webpageTranslationToolbarOpenPolicyTest from './WebpageTranslationToolbarOpenPolicy.test';
 import customHomepageExternalImportServiceTest from './CustomHomepageExternalImportService.test';
 import adBlockBlockedResourcePolicyTest from './AdBlockBlockedResourcePolicy.test';
@@ -249,6 +250,7 @@ export default function tests(): void {
   localOmniboxSuggestionMatcherTest();
   browserTabCloseNeighborPolicyTest();
   webAppDesktopInstallSyncPolicyTest();
+  webAppTopSafeAreaPolicyTest();
   webpageTranslationToolbarOpenPolicyTest();
   translationActiveRequestRegistryTest();
   customHomepageExternalImportServiceTest();

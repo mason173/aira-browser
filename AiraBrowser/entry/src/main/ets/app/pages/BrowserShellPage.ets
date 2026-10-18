@@ -1255,6 +1255,9 @@ import {
   WebAppExitHost
 } from '../../core/webapps/WebAppExitCoordinator';
 import {
+  resolveWebAppTopSafeAreaInsetVp
+} from '../../core/webapps/WebAppTopSafeAreaPolicy';
+import {
   BrowserWindowContextFacts,
   BrowserWindowLaunchApplication,
   BrowserWindowContextShell,
@@ -7452,6 +7455,12 @@ struct BrowserShellPage {
       this.isWebPageVisible()
     );
     this.publishCustomHomepageTabCount();
+    // The installed Web App surface owns its top reserve instead of inheriting the browser chrome
+    // frame's. Entering it (or resizing the window while it is up) has no top-immersion reveal that
+    // would move the page onto the new target, so the reserve is aligned here.
+    if (this.isWebAppSurfaceActive()) {
+      this.alignWebViewportVisualTopInsetAfterSafeAreaSync(false, true);
+    }
   }
 
   private resolveBrowserShellPresentationSnapshot(
@@ -8614,6 +8623,34 @@ struct BrowserShellPage {
     });
   }
 
+  private isWebAppSurfaceActive(): boolean {
+    return this.browserShellPresentationOperations?.surface() === 'web_app';
+  }
+
+  /** The large-screen shell itself is the surface; the installed Web App surface is not it. */
+  private isLargeScreenShellSurfaceActive(): boolean {
+    return this.isLargeScreenShellFamilyActive() && !this.isWebAppSurfaceActive();
+  }
+
+  /**
+   * Top clearance the installed Web App surface keeps, in vp. The window's own avoid-area geometry
+   * (getWindowAvoidArea for the status bar and the punch hole, kept live by avoidAreaChange) is the
+   * whole top edge this surface has: it paints no browser chrome, and no toolbar chrome style is
+   * allowed to move it.
+   */
+  private resolveWebAppTopSafeAreaReservePx(statusBarVisible: boolean): number {
+    const geometry = this.browserWindowAvoidAreaCoordinator.readStoredWebTopGeometryInsets(
+      this.getSharedStageStorage()
+    );
+    return resolveWebAppTopSafeAreaInsetVp({
+      webAppSurfaceActive: true,
+      topSafeAreaHidden: this.shouldHideWebAppTopSafeArea(),
+      statusBarVisible: statusBarVisible,
+      systemTopInsetVp: geometry.systemTopInsetVp,
+      cutoutTopInsetVp: geometry.cutoutTopInsetVp
+    });
+  }
+
   private shouldHideWebAppTopSafeArea(): boolean {
     return this.webAppSessionCoordinator.buildImmersiveVisualState(this.webAppSessionSnapshot, {
       showHomePage: this.showHomePage,
@@ -8631,6 +8668,10 @@ struct BrowserShellPage {
     this.webAppSessionSnapshot = snapshot;
     this.browserWebTopImmersionSessionCoordinator.syncPolicy(source);
     this.browserQuickSearchSwitchingCoordinator.refreshEligibility(source);
+    // The Web App surface computes its own status-bar clearance, and the browser chrome the page
+    // was carrying is not part of it. Reveal-of-the-strip is skipped while scroll immersion is on,
+    // so the new reserve is applied directly.
+    this.alignWebViewportVisualTopInsetAfterSafeAreaSync(false, true);
   }
 
   private getWebTopChromeStableInsetPx(): number {
@@ -8645,6 +8686,14 @@ struct BrowserShellPage {
    * frame, so their height adds up instead of one replacing the other.
    */
   private resolveChromeRowTopReservePx(statusBarVisible: boolean): number {
+    if (this.isWebAppSurfaceActive()) {
+      // The installed Web App paints no chrome of its own, so its top edge is the window's
+      // system safe area alone. Reading the split/dock frame here would stack the address row
+      // and the quick-search row that this surface never paints, and the large-screen shell
+      // branch below would drop the strip entirely, because that shell's chrome is unmounted
+      // too. Both are wrong for this surface, so it is decided before either.
+      return this.resolveWebAppTopSafeAreaReservePx(statusBarVisible);
+    }
     if (this.isLargeScreenShellFamilyActive()) {
       // The large-screen shell owns its own chrome and keeps its web viewport at the top edge.
       return 0;
@@ -8834,7 +8883,10 @@ struct BrowserShellPage {
       visualTopInsetPx: visualTopInsetPx,
       visualBottomInsetPx: this.resolveWebViewportVisualBottomInsetVp(),
       fullViewport: this.buildCurrentDocumentViewerChromeContext().policy.fullViewport,
-      largeScreenShellActive: this.isLargeScreenShellFamilyActive(),
+      // The large-screen shell paints its chrome above the web stage, so its web viewport fills
+      // the parent with no top inset. The installed Web App is not that shell, so it keeps the
+      // inset path and lands below the system safe area.
+      largeScreenShellActive: this.isLargeScreenShellSurfaceActive(),
       nativeVideoTakeoverActive: this.isAssistantVideoTakeoverActive(),
       scrollHiddenTopBlurHeightPx: this.browserWebTopImmersionSessionCoordinator.resolveScrollHiddenTopBlurHeightVp(
         this.browserWindowAvoidAreaCoordinator.readStoredWebTopGeometryInsets(this.getSharedStageStorage()),
