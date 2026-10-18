@@ -881,45 +881,10 @@ export class BrowserArkWebMediaTakeoverCoordinator {
       if (!this.isLaunchPlanCurrent(input.activeTabId, plan)) {
         return { plan: plan, started: false, webResult: freshReachability };
       }
-      if (input.preferWebFullscreen === true && freshReachability.fullscreenActive) {
-        const webFullscreenSession = this.resolveActiveSession(input.activeTabId);
-        if (webFullscreenSession !== undefined && webFullscreenSession.sessionId === plan.sessionId &&
-          this.sessionMatchesLiveTarget(webFullscreenSession, plan.liveTarget) &&
-          webFullscreenSession.playbackState !== 'ended' &&
-          this.runtimeLifecyclePort.isActiveWebTab(input.activeTabId)) {
-          let webFullscreenStarted = false;
-          try {
-            webFullscreenStarted = await host.enterWebVideoFullscreen(
-              input.activeTabId,
-              this.resolveVideoWidth(webFullscreenSession),
-              this.resolveVideoHeight(webFullscreenSession)
-            );
-          } catch (_error) {
-            webFullscreenStarted = false;
-          }
-          if (webFullscreenStarted) {
-            const confirmedWebSession = this.resolveActiveSession(input.activeTabId);
-            const webSessionStillValid = evidenceCapture.isCurrent() && confirmedWebSession !== undefined &&
-              confirmedWebSession.sessionId === webFullscreenSession.sessionId &&
-              this.sessionMatchesLiveTarget(confirmedWebSession, plan.liveTarget) &&
-              confirmedWebSession.playbackState !== 'ended' &&
-              this.runtimeLifecyclePort.isActiveWebTab(input.activeTabId);
-            if (webSessionStillValid) {
-              this.activateWebLiveAssistant(
-                input.activeTabId,
-                plan.sessionId,
-                plan.liveTarget,
-                host.exitWebLiveFullscreen,
-                freshReachability
-              );
-              host.onStarted('web_live');
-              return { plan: plan, started: true, webResult: freshReachability };
-            }
-            host.exitWebLiveFullscreen(input.activeTabId);
-          }
-        }
-      }
-      if (input.preferWebFullscreen === true) {
+      // Web fullscreen is only a window transport. It does not prove that Aira's
+      // presentation has replaced the site's controls and toolbar.
+      const useWebFullscreen = input.preferWebFullscreen === true && freshReachability.fullscreenActive;
+      if (input.preferWebFullscreen === true && !useWebFullscreen) {
         host.cancelWebVideoFullscreenPreparation(input.activeTabId);
       }
       const presentationResult = await this.webVideoPresentationService.executeLiveCommand(
@@ -932,6 +897,9 @@ export class BrowserArkWebMediaTakeoverCoordinator {
           this.publishLaunchReachability(plan, evidenceCapture, 'unreachable');
         }
         await this.restoreWebLivePresentation(input.activeTabId, plan.liveTarget);
+        if (useWebFullscreen) {
+          host.exitWebLiveFullscreen(input.activeTabId);
+        }
         if (presentationResult.userVisibleMessage.length > 0) {
           host.showToast(presentationResult.userVisibleMessage);
         }
@@ -942,16 +910,25 @@ export class BrowserArkWebMediaTakeoverCoordinator {
         !this.sessionMatchesLiveTarget(session, plan.liveTarget) || session.playbackState === 'ended' ||
         !this.runtimeLifecyclePort.isActiveWebTab(input.activeTabId)) {
         await this.restoreWebLivePresentation(input.activeTabId, plan.liveTarget);
+        if (useWebFullscreen) {
+          host.exitWebLiveFullscreen(input.activeTabId);
+        }
         host.showToast(resolveAppResourceText($r('app.string.media_resource_takeover_tab_changed')));
         return { plan: plan, started: false, webResult: presentationResult };
       }
       let fullscreenStarted = false;
       try {
-        fullscreenStarted = await host.enterWebLiveFullscreen(
-          input.activeTabId,
-          this.resolveVideoWidth(session),
-          this.resolveVideoHeight(session)
-        );
+        fullscreenStarted = useWebFullscreen ?
+          await host.enterWebVideoFullscreen(
+            input.activeTabId,
+            this.resolveVideoWidth(session),
+            this.resolveVideoHeight(session)
+          ) :
+          await host.enterWebLiveFullscreen(
+            input.activeTabId,
+            this.resolveVideoWidth(session),
+            this.resolveVideoHeight(session)
+          );
       } catch (_error) {
         fullscreenStarted = false;
       }
@@ -962,7 +939,7 @@ export class BrowserArkWebMediaTakeoverCoordinator {
         this.runtimeLifecyclePort.isActiveWebTab(input.activeTabId);
       if (!fullscreenStarted || !sessionStillValid) {
         await this.restoreWebLivePresentation(input.activeTabId, plan.liveTarget);
-        if (fullscreenStarted) {
+        if (fullscreenStarted || useWebFullscreen) {
           host.exitWebLiveFullscreen(input.activeTabId);
         }
         host.showToast(fullscreenStarted ?
