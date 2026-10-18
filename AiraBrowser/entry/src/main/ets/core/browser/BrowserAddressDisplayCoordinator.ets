@@ -1,5 +1,6 @@
 import {
   normalizeNavigationTarget,
+  resolveBrowserAddressDisplayUrl,
   resolveCommittedAddressDisplay
 } from './AddressDisplayFormatter';
 
@@ -34,6 +35,10 @@ export class BrowserAddressDisplayCoordinator {
   }
 
   resolveCommittedDisplay(tabId: string, url: string): string {
+    return resolveBrowserAddressDisplayUrl(this.resolveCommittedSearchDisplay(tabId, url));
+  }
+
+  private resolveCommittedSearchDisplay(tabId: string, url: string): string {
     const normalizedTabId = tabId.trim();
     if (normalizedTabId.length === 0) {
       return url;
@@ -60,7 +65,7 @@ export class BrowserAddressDisplayCoordinator {
 
   resolveEditingText(tabId: string, currentUrl: string, fallbackText: string): string {
     if (currentUrl.trim().length === 0) {
-      return fallbackText;
+      return resolveBrowserAddressDisplayUrl(fallbackText);
     }
     return this.resolveCommittedDisplay(tabId, currentUrl);
   }

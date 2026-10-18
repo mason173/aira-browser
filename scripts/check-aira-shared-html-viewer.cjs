@@ -95,6 +95,51 @@ const { BrowserWebAttributeModifier } = load(path.join(root, 'core/web/WebDefaul
 const { documentViewerHtmlFileTransport } = load(path.join(root, 'services/viewer/DocumentViewerHtmlFileTransport.ets'));
 const viewer = new DocumentViewerService();
 const ingress = new SharedBrowserUrlIngressService();
+const { BrowserAddressDisplayCoordinator } = load(path.join(root,
+  'core/browser/BrowserAddressDisplayCoordinator.ets'));
+const toolbarPolicy = load(path.join(root, 'core/browser/BrowserToolbarChromeStylePolicy.ets'));
+const { BrowserWebViewportCoordinator } = load(path.join(root,
+  'core/browser/BrowserWebViewportCoordinator.ets'));
+const shellSource = readSource(path.join(root, 'app/pages/BrowserShellPage.ets'));
+function shellMethod(name) {
+  const match = shellSource.match(new RegExp(`  private ${name}\\([^]*?\\n  }`));
+  assert.ok(match, `Missing shell method: ${name}`);
+  return match[0];
+}
+const { HtmlBrowserShell } = evaluate(`export class HtmlBrowserShell {
+  ${shellMethod('buildCurrentDocumentViewerChromeContext')}
+  ${shellMethod('shouldUseSplitToolbarChrome')}
+}`, 'HtmlBrowserShell.ts', { isSplitToolbarChromeActive: toolbarPolicy.isSplitToolbarChromeActive });
+
+function checkHtmlBrowserChrome(url) {
+  for (const style of ['split', 'dock', 'floating']) {
+    const shell = Object.assign(new HtmlBrowserShell(), {
+      toolbarChromeStyle: style, activeTabId: 'shared-html', currentUrl: url,
+      pendingWebUrl: '', currentTitle: 'Shared report', documentViewerService: viewer,
+      tabManager: { getTab: () => ({ url, pendingUrl: '', lastGoodUrl: '' }) },
+      isLargeScreenShellFamilyActive: () => false,
+      shouldHideRootBottomChromeForImmersion: () => false,
+      readerModeSessionSnapshot: { state: { visible: false } }, novelReaderSnapshot: { visible: false }
+    });
+    const splitChromeMounted = shell.shouldUseSplitToolbarChrome();
+    const floatingChromeSuppressed = toolbarPolicy.shouldSuppressLegacyFloatingToolbar(style, false);
+    assert.ok(splitChromeMounted || !floatingChromeSuppressed,
+      `External HTML must mount the selected ${style} toolbar: both toolbar families were hidden`);
+    assert.equal(splitChromeMounted, style !== 'floating', 'HTML must honor the selected toolbar family');
+    const context = shell.buildCurrentDocumentViewerChromeContext();
+    assert.equal(context.policy.active, false, 'HTML must use browser presentation instead of preview actions');
+    const viewportInput = { hostHeightPx: 844, visualTopInsetPx: 100, visualBottomInsetPx: 80,
+      largeScreenShellActive: false, nativeVideoTakeoverActive: false };
+    assert.deepEqual(BrowserWebViewportCoordinator.resolvePresentation({
+      ...viewportInput, fullViewport: context.policy.fullViewport
+    }), BrowserWebViewportCoordinator.resolvePresentation({ ...viewportInput, fullViewport: false }),
+    `${style}: HTML must reserve toolbar space instead of covering it with a full-height viewport`);
+  }
+  const visibleUrl = documentViewerHtmlFileTransport.resolveVisibleUrl(url) || url;
+  assert.equal(viewer.resolveChromePolicy(visibleUrl).active, true,
+    'local-file identity for loading, file metadata and persistence must remain intact');
+}
+
 const hostedSource = readSource(path.join(root, 'core/web/HostedWebNode.ets'));
 const direct = /\.onInterceptRequest\((\(event: OnInterceptRequestEvent\) => \{[\s\S]*?\n      \})\)/.exec(hostedSource);
 const modifier = /\.attributeModifier\(new BrowserWebAttributeModifier\((\{[\s\S]*?\n      \})\)\)/.exec(hostedSource);
@@ -131,6 +176,12 @@ async function scenario(protectionEnabled, fileUri, utd) {
   assert.equal(resolution.kind, 'browser_url');
   assert.equal(viewer.parseViewerUrl(resolution.url).fileUri, fileUri);
   const transportUrl = viewer.resolveHtmlFileTransportUrl(resolution.url);
+  checkHtmlBrowserChrome(resolution.url);
+  checkHtmlBrowserChrome(fileUri);
+  checkHtmlBrowserChrome(transportUrl);
+  const address = new BrowserAddressDisplayCoordinator();
+  assert.equal(address.resolveCommittedDisplay('shared-html', resolution.url), fileUri);
+  assert.equal(address.resolveEditingText('shared-html', resolution.url, ''), fileUri);
   const callback = bind({
     tabId: 'shared-html', networkInterceptEnabled: protectionEnabled,
     callbacks: { onInterceptRequest: (_tabId, event) => viewer.tryBuildHtmlFileResponse(event.request) }
@@ -155,6 +206,25 @@ async function scenario(protectionEnabled, fileUri, utd) {
 }
 
 async function main() {
+  for (const extension of ['txt', 'json']) {
+    const url = viewer.buildViewerUrl(`file://docs/report.${extension}`);
+    const policy = viewer.resolveChromeContext([url], '').policy;
+    assert.equal(policy.active, true, 'other document types retain their preview UI');
+    assert.equal(policy.fullViewport, true);
+  }
+  const htmlUrl = viewer.buildViewerUrl('file://docs/report.html');
+  const previousTextUrl = viewer.buildViewerUrl('file://docs/previous.txt');
+  const transportUrl = viewer.resolveHtmlFileTransportUrl(htmlUrl);
+  for (const url of [htmlUrl, transportUrl]) {
+    assert.equal(viewer.resolveChromeContext([url, previousTextUrl], '').policy.active, false,
+      'an HTML target must not inherit preview chrome from the previous document');
+  }
+  assert.equal(viewer.isDocumentViewerTabRecord({ url: htmlUrl }), true);
+  const originalUri = 'file://docs/Report  v2+appendix.html?key=a&value=b#section';
+  const originalViewerUrl = viewer.buildViewerUrl(originalUri, 'text/html');
+  const address = new BrowserAddressDisplayCoordinator();
+  assert.equal(address.resolveCommittedDisplay('shared-html', originalViewerUrl), originalUri);
+  assert.equal(address.resolveEditingText('shared-html', '', originalViewerUrl), originalUri);
   let failures = 0;
   for (const protection of [true, false]) {
     for (const [uri, utd] of [
@@ -167,6 +237,7 @@ async function main() {
     }
   }
   assert.equal(failures, 0, `${failures} native HTML handoff scenarios failed`);
+  console.log('PASS floating/split/dock toolbar mounting, normal viewport reserves and editable file addresses');
   fileSize = 4 * 1024 * 1024;
   await scenario(true, 'file://docs/large.html', 'general.html');
   const request = (url) => ({ getRequestUrl: () => url, isMainFrame: () => true });

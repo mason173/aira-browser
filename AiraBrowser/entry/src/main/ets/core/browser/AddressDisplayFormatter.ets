@@ -6,6 +6,32 @@ export interface ResolvedAddressDisplay {
   pendingTargetUrl: string;
 }
 
+/** The browser address exposes the HTML source, rather than its internal file-loading URL. */
+export function resolveBrowserAddressDisplayUrl(value: string): string {
+  const trimmed = value.trim();
+  const prefix = 'aira://document-viewer?';
+  if (!trimmed.startsWith(prefix)) {
+    return value;
+  }
+  const query = trimmed.substring(prefix.length).split('#')[0];
+  let kind = '';
+  let sourceUri = '';
+  for (const part of query.split('&')) {
+    const separator = part.indexOf('=');
+    if (separator < 0) {
+      continue;
+    }
+    const key = decodeSearchQueryPart(part.substring(0, separator));
+    const decodedValue = decodeSearchQueryPart(part.substring(separator + 1));
+    if (key === 'kind' && kind.length === 0) {
+      kind = decodedValue.trim().toLowerCase();
+    } else if (key === 'uri' && sourceUri.length === 0) {
+      sourceUri = decodedValue;
+    }
+  }
+  return kind === 'html' && sourceUri.trim().length > 0 ? sourceUri : value;
+}
+
 export function formatTopChromeAddress(value: string): string {
   const trimmed = value.trim();
   if (trimmed.length === 0) {

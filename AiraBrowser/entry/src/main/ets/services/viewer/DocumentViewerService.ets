@@ -166,10 +166,20 @@ export class DocumentViewerService {
 
   resolveChromeContext(candidateUrls: string[], fallbackTitle: string): DocumentViewerChromeContext {
     for (let index = 0; index < candidateUrls.length; index += 1) {
-      const candidateUrl = candidateUrls[index].trim();
+      const rawCandidateUrl = candidateUrls[index].trim();
+      const candidateUrl = documentViewerHtmlFileTransport.resolveVisibleUrl(rawCandidateUrl) || rawCandidateUrl;
       const policy = this.resolveChromePolicy(candidateUrl);
       if (!policy.active) {
         continue;
+      }
+      // Keep HTML's local-file identity for transport and persistence, while
+      // presenting it with the selected browser toolbar and normal viewport.
+      if (policy.kind === 'html') {
+        return {
+          url: candidateUrl,
+          policy: this.resolveChromePolicy(''),
+          title: fallbackTitle.trim().length > 0 ? fallbackTitle.trim() : policy.title
+        };
       }
       return {
         url: candidateUrl,
