@@ -29,7 +29,65 @@ export interface BookmarkRecordActionContext {
   isAddedToHome: boolean;
 }
 
+export type BookmarkDesktopRecordActionId =
+  'open' | 'open_new_tab' | 'edit' | 'enter_selection' | 'toggle_selection' | 'delete' | 'delete_selection';
+
+export interface BookmarkDesktopRecordActionView {
+  id: BookmarkDesktopRecordActionId;
+  title: ResourceStr;
+  shortcut?: string;
+}
+
+export interface BookmarkDesktopRecordActionGroup {
+  id: string;
+  actions: BookmarkDesktopRecordActionView[];
+}
+
+export interface BookmarkDesktopRecordActionContext {
+  selectionMode: boolean;
+  selectedNodeIds: string[];
+}
+
 export class BookmarkRecordActionViewModel {
+  buildDesktopGroups(
+    node: BookmarkNode,
+    context: BookmarkDesktopRecordActionContext
+  ): BookmarkDesktopRecordActionGroup[] {
+    const openActions: BookmarkDesktopRecordActionView[] = [{
+      id: 'open',
+      title: node.type === 'folder' ? $r('app.string.bookmark_open_folder') : $r('app.string.ui_open'),
+      shortcut: 'Enter'
+    }];
+    if (node.type !== 'folder') {
+      openActions.push({ id: 'open_new_tab', title: $r('app.string.history_open_new_tab') });
+    }
+    const groups: BookmarkDesktopRecordActionGroup[] = [{ id: 'open', actions: openActions }];
+    const mutable: boolean = !isBookmarkRootNodeId(node.id);
+    if (!context.selectionMode && context.selectedNodeIds.length <= 1 && mutable) {
+      groups.push({ id: 'edit', actions: [{ id: 'edit', title: $r('app.string.ui_edit'), shortcut: 'F2' }] });
+    }
+    if (mutable) {
+      const selectionAction: BookmarkDesktopRecordActionView = context.selectionMode ? {
+        id: 'toggle_selection',
+        title: context.selectedNodeIds.includes(node.id) ?
+          $r('app.string.history_deselect') : $r('app.string.history_add_selection')
+      } : { id: 'enter_selection', title: $r('app.string.ui_multi_select') };
+      groups.push({ id: 'selection', actions: [selectionAction] });
+    }
+    if (context.selectedNodeIds.length > 1) {
+      groups.push({ id: 'delete', actions: [{
+        id: 'delete_selection',
+        title: $r('app.string.bookmark_delete_selected', context.selectedNodeIds.length),
+        shortcut: 'Delete'
+      }] });
+    } else if (mutable) {
+      groups.push({ id: 'delete', actions: [{
+        id: 'delete', title: $r('app.string.settings_delete'), shortcut: 'Delete'
+      }] });
+    }
+    return groups;
+  }
+
   buildActions(node: BookmarkNode, context: BookmarkRecordActionContext): BookmarkRecordActionView[] {
     if (node.type === 'folder') {
       if (isBookmarkRootNodeId(node.id)) {

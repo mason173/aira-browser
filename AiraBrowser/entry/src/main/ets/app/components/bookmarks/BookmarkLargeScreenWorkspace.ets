@@ -25,6 +25,12 @@ import {
 } from '../../../features/bookmarks/BookmarkManagementFeature';
 import { BookmarkMutationService } from '../../../services/bookmarks/BookmarkMutationService';
 import {
+  BookmarkDesktopRecordActionGroup,
+  BookmarkDesktopRecordActionId,
+  BookmarkDesktopRecordActionView,
+  BookmarkRecordActionViewModel
+} from '../../../core/bookmarks/BookmarkRecordActionViewModel';
+import {
   sharedBookmarkRepository,
   sharedBrowserDatabase
 } from '../../bootstrap/BrowserAppRuntime';
@@ -90,6 +96,7 @@ export struct BookmarkLargeScreenWorkspace {
     (_url: string, _title: string, _openInNewTab: boolean): void => {};
 
   private readonly bookmarksFeature: BookmarksFeature = new BookmarksFeature(sharedBookmarkRepository);
+  private readonly recordActionViewModel: BookmarkRecordActionViewModel = new BookmarkRecordActionViewModel();
   private readonly mutationService: BookmarkMutationService =
     new BookmarkMutationService(sharedBookmarkRepository, sharedBrowserDatabase);
   private readonly bookmarkManagementFeature: BookmarkManagementFeature = new BookmarkManagementFeature(
@@ -107,6 +114,9 @@ export struct BookmarkLargeScreenWorkspace {
   @State private hoveredFolderId: string = '';
   private suppressNextFolderRowClick: boolean = false;
   @State private hoveredNodeId: string = '';
+  @State private recordContextMenuNodeId: string = '';
+  @State private recordContextMenuGroups: BookmarkDesktopRecordActionGroup[] = [];
+  private suppressNextRecordRowClick: boolean = false;
   @State private newFolderTitle: string = '';
   @State private editingNodeId: string = '';
   @State private editingNodeType: string = 'bookmark';
@@ -505,7 +515,17 @@ export struct BookmarkLargeScreenWorkspace {
     .onHover((hovered: boolean): void => {
       this.hoveredNodeId = hovered ? node.id : '';
     })
-    .onClick((): void => {
+    .onTouch((event: TouchEvent): void => {
+      if (event.type === TouchType.Down) {
+        this.suppressNextRecordRowClick = false;
+      }
+    })
+    .onClick((event: ClickEvent): void => {
+      // Opening the touch menu must not also open the bookmark on release.
+      if (event.source === SourceType.TouchScreen && this.suppressNextRecordRowClick) {
+        this.suppressNextRecordRowClick = false;
+        return;
+      }
       if (this.selectionMode) {
         if (isBookmarkRootNodeId(node.id)) {
           return;
@@ -526,14 +546,31 @@ export struct BookmarkLargeScreenWorkspace {
       this.openNode(node, false);
     })
     .onMouse((event: MouseEvent): void => {
+      if (event.button === MouseButton.Right && event.action === MouseAction.Release) {
+        event.stopPropagation();
+        this.openRecordContextMenu(node);
+        return;
+      }
       if (event.button === MouseButton.Middle && event.action === MouseAction.Press) {
         event.stopPropagation();
         this.snapshot = this.coordinator.selectNode(node.id, 'replace');
         this.openNode(node, true);
       }
     })
+    .priorityGesture(
+      LongPressGesture({ fingers: 1, repeat: false, duration: 450 })
+        .onAction((event: GestureEvent): void => {
+          if (event.source === SourceType.TouchScreen) {
+            this.openRecordContextMenu(node);
+          }
+        })
+    )
     .draggable(!isBookmarkRootNodeId(node.id))
+    // Long press opens the menu without lifting a second copy of the row above it.
+    .dragPreviewOptions({}, { isLiftingDisabled: true })
     .onDragStart((_event?: DragEvent, _extraParams?: string): DragItemInfo => {
+      this.recordContextMenuNodeId = '';
+      this.getUIContext().getContextMenuController().close();
       if (!this.snapshot.selectedNodeIds.includes(node.id)) {
         this.snapshot = this.coordinator.selectNode(node.id, 'replace');
       }
@@ -553,10 +590,14 @@ export struct BookmarkLargeScreenWorkspace {
       }
       void this.moveDraggingSelectionToFolder(this.snapshot.currentFolderId, rowIndex);
     })
-    .bindContextMenu(this.buildRecordContextMenu(node), ResponseType.RightClick, buildBrowserDesktopMenuOptions({
+    .bindContextMenu(this.recordContextMenuNodeId === node.id, this.buildRecordContextMenu(node), buildBrowserDesktopMenuOptions({
+      preview: MenuPreviewMode.NONE,
       onAppear: (): void => {
-        if (!this.snapshot.selectedNodeIds.includes(node.id)) {
-          this.snapshot = this.coordinator.selectNode(node.id, 'replace');
+        this.suppressNextRecordRowClick = true;
+      },
+      onDisappear: (): void => {
+        if (this.recordContextMenuNodeId === node.id) {
+          this.recordContextMenuNodeId = '';
         }
       }
     }))
@@ -617,96 +658,62 @@ export struct BookmarkLargeScreenWorkspace {
     .borderRadius(8)
   }
 
+  private openRecordContextMenu(node: BookmarkNode): void {
+    if (!this.snapshot.selectedNodeIds.includes(node.id)) {
+      this.snapshot = this.coordinator.selectNode(node.id, 'replace');
+    }
+    this.recordContextMenuGroups = this.recordActionViewModel.buildDesktopGroups(node, {
+      selectionMode: this.selectionMode,
+      selectedNodeIds: this.snapshot.selectedNodeIds
+    });
+    this.suppressNextRecordRowClick = true;
+    this.recordContextMenuNodeId = node.id;
+  }
+
+  private handleRecordContextMenuAction(node: BookmarkNode, actionId: BookmarkDesktopRecordActionId): void {
+    this.recordContextMenuNodeId = '';
+    switch (actionId) {
+      case 'open':
+        this.openNode(node, false);
+        break;
+      case 'open_new_tab':
+        this.openNode(node, true);
+        break;
+      case 'edit':
+        this.beginEditingNode(node);
+        break;
+      case 'enter_selection':
+        this.enterSelectionMode();
+        this.snapshot = this.coordinator.selectNode(node.id, 'replace');
+        break;
+      case 'toggle_selection':
+        this.snapshot = this.coordinator.selectNode(node.id, 'toggle');
+        break;
+      case 'delete':
+        this.confirmDeleteNode(node);
+        break;
+      case 'delete_selection':
+        this.confirmDeleteSelection();
+        break;
+    }
+  }
+
   @Builder
   private buildRecordContextMenu(node: BookmarkNode) {
     BrowserDesktopContextMenu() {
-      MenuItemGroup() {
-        if (node.type === 'folder') {
-          BrowserDesktopContextMenuItem({
-            label: $r('app.string.bookmark_open_folder'),
-            shortcut: 'Enter',
-            onAction: (): void => {
-              this.snapshot = this.coordinator.selectFolder(node.id);
-            }
-          })
-        } else {
-          BrowserDesktopContextMenuItem({
-            label: $r('app.string.ui_open'),
-            shortcut: 'Enter',
-            onAction: (): void => {
-              this.openNode(node, false);
-            }
-          })
-          BrowserDesktopContextMenuItem({
-            label: $r('app.string.history_open_new_tab'),
-            onAction: (): void => {
-              this.openNode(node, true);
-            }
-          })
-        }
-      }
-
-      if (!this.selectionMode && this.snapshot.selectedNodeIds.length <= 1 && !isBookmarkRootNodeId(node.id)) {
+      ForEach(this.recordContextMenuGroups, (group: BookmarkDesktopRecordActionGroup) => {
         MenuItemGroup() {
-          BrowserDesktopContextMenuItem({
-            label: $r('app.string.ui_edit'),
-            shortcut: 'F2',
-            onAction: (): void => {
-              this.beginEditingNode(node);
-            }
-          })
-        }
-      }
-
-      if (!isBookmarkRootNodeId(node.id)) {
-        MenuItemGroup() {
-          if (!this.selectionMode) {
+          ForEach(group.actions, (item: BookmarkDesktopRecordActionView) => {
             BrowserDesktopContextMenuItem({
-              label: $r('app.string.ui_multi_select'),
+              label: item.title,
+              shortcut: item.shortcut ?? '',
               onAction: (): void => {
-                this.enterSelectionMode();
-                this.snapshot = this.coordinator.selectNode(node.id, 'replace');
+                this.handleRecordContextMenuAction(node, item.id);
               }
             })
-          } else if (this.snapshot.selectedNodeIds.includes(node.id)) {
-            BrowserDesktopContextMenuItem({
-              label: $r('app.string.history_deselect'),
-              onAction: (): void => {
-                this.snapshot = this.coordinator.selectNode(node.id, 'toggle');
-              }
-            })
-          } else {
-            BrowserDesktopContextMenuItem({
-              label: $r('app.string.history_add_selection'),
-              onAction: (): void => {
-                this.snapshot = this.coordinator.selectNode(node.id, 'toggle');
-              }
-            })
-          }
+          }, (item: BookmarkDesktopRecordActionView) => `${node.id}-${item.id}`)
         }
-      }
-
-      if (this.snapshot.selectedNodeIds.length > 1) {
-        MenuItemGroup() {
-          BrowserDesktopContextMenuItem({
-            label: $r('app.string.bookmark_delete_selected', this.snapshot.selectedNodeIds.length),
-            shortcut: 'Delete',
-            onAction: (): void => {
-              this.confirmDeleteSelection();
-            }
-          })
-        }
-      } else if (!isBookmarkRootNodeId(node.id)) {
-        MenuItemGroup() {
-          BrowserDesktopContextMenuItem({
-            label: $r('app.string.settings_delete'),
-            shortcut: 'Delete',
-            onAction: (): void => {
-              this.confirmDeleteNode(node);
-            }
-          })
-        }
-      }
+      }, (group: BookmarkDesktopRecordActionGroup) => `${node.id}-${group.id}`)
     }
   }
 
