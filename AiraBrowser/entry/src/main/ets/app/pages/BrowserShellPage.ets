@@ -160,6 +160,7 @@ import {
   sharedAppReviewPromptRepository,
   sharedNewUserGiftRepository,
   sharedBottomToolbarGuideRepository,
+  sharedAppRecommendationRepository,
   sharedReleaseNoticeCoordinator,
   sharedCommunityUpdateCheckService,
   sharedClientUpdatePolicyService,
@@ -876,6 +877,14 @@ import {
   createHiddenBottomToolbarGuideSnapshot
 } from '../../core/onboarding/BottomToolbarGuideCoordinator';
 import { tabsOverviewSegmentGuideBackGate } from '../../core/onboarding/TabsOverviewSegmentGuidePolicy';
+import {
+  AppRecommendationAction,
+  AppRecommendationCoordinator,
+  AppRecommendationShellFacts,
+  AppRecommendationSnapshot,
+  AppRecommendationSurface,
+  createHiddenAppRecommendationSnapshot
+} from '../../core/onboarding/AppRecommendationCoordinator';
 import { CrossDeviceTabsEmptyAction } from '../../core/deviceTabs/CrossDeviceTabsEmptyPresentation';
 import { CROSS_DEVICE_LINK_SETUP_ROUTE, SYNC_DESKTOP_BOOKMARK_GUIDE_ROUTE } from '../router/AppRoutes';
 import {
@@ -891,6 +900,8 @@ import { dismissOnboardingStackIfRequested } from '../router/OnboardingNavigatio
 import { FeatureGateOverlay } from '../components/browser/FeatureGateOverlay';
 import { NewUserGiftOverlay } from '../components/browser/NewUserGiftOverlay';
 import { BottomToolbarGuideOverlay } from '../components/onboarding/BottomToolbarGuideOverlay';
+import { AppRecommendationOverlay } from '../components/onboarding/AppRecommendationOverlay';
+import { appRecommendationEntryFor, appRecommendationIds } from '../components/onboarding/AppRecommendationContent';
 import {
   isBrowserNewWindowTestUrl,
   resolveBrowserNewWindowTestTitle
@@ -1203,7 +1214,7 @@ import {
   BrowserWindowPresentationProfileInputService
 } from '../../services/browser/BrowserWindowPresentationProfileInputService';
 import { BrowserWebTopSafeAreaColorSampler } from '../../services/browser/BrowserWebTopSafeAreaColorSampler';
-import { SystemSettingsLaunchService } from '../../services/system/SystemSettingsLaunchService';
+import { SystemSettingsLaunchResult, SystemSettingsLaunchService } from '../../services/system/SystemSettingsLaunchService';
 import {
   BrowserUserAgentResolution,
   BrowserUserAgentRiskNotice,
@@ -5003,6 +5014,8 @@ struct BrowserShellPage {
         this.releaseNoticePresentationCoordinator,
       resolveNewUserGiftCoordinator: (): NewUserGiftCoordinator =>
         this.newUserGiftCoordinator,
+      resolveAppRecommendationCoordinator: (): AppRecommendationCoordinator =>
+        this.appRecommendationCoordinator,
       resolveCommunityUpdateCheckCoordinator: (): CommunityUpdateCheckCoordinator =>
         this.communityUpdateCheckCoordinator,
       resolveRenewalReminderCoordinator: (): RenewalReminderCoordinator =>
@@ -5761,6 +5774,42 @@ struct BrowserShellPage {
       }
     }
   );
+  private appRecommendationSurface: AppRecommendationSurface = {
+    present: (request: BrowserTransientSurfacePresentationRequest): BrowserTransientSurfaceToken =>
+      this.browserTransientSurfaceCoordinator.present(request),
+    dismiss: (id: BrowserTransientSurfaceId): void => {
+      this.browserTransientSurfaceCoordinator.dismiss(id);
+    },
+    isReleaseNoticeBlocked: (facts: BrowserTransientPromptBlockingFacts): boolean =>
+      this.browserTransientSurfaceCoordinator.isReleaseNoticeBlocked(facts)
+  };
+  private appRecommendationCoordinator: AppRecommendationCoordinator = new AppRecommendationCoordinator(
+    sharedAppRecommendationRepository,
+    this.appRecommendationSurface,
+    {
+      resolveFacts: (): AppRecommendationShellFacts => {
+        return {
+          shellFamily: this.browserShellPresentationOperations?.snapshot()?.shellFamily ?? 'phone',
+          // The recommendation belongs to the phone homepage. A Web page, a pushed
+          // settings page, or a covered shell keeps it silent until the user is
+          // actually looking at the homepage.
+          homeVisible: this.showHomePage && !this.startupHomeSurfacePending,
+          appVisible: this.isBrowserShellVisible && this.browserPageForeground,
+          privacyMode: this.tabScopedEventContextCoordinator.resolveCurrentBoundary().privacyMode,
+          // Which apps may be recommended, and in what order, is catalog data. The
+          // owner only decides which of them this device has not spent yet.
+          recommendationIds: appRecommendationIds(),
+          promptBlockingFacts: this.buildTransientPromptBlockingFacts()
+        };
+      },
+      publishState: (snapshot: AppRecommendationSnapshot): void => {
+        this.appRecommendationSnapshot = snapshot;
+      },
+      openStore: (recommendationId: string): void => {
+        this.openRecommendedAppStorePage(recommendationId);
+      }
+    }
+  );
   private siteCustomizationRuntimeRefreshCoordinator: SiteCustomizationRuntimeRefreshCoordinator =
     new SiteCustomizationRuntimeRefreshCoordinator();
   private browserUserAgentActionSink: BrowserUserAgentActionSink = {
@@ -6150,6 +6199,7 @@ struct BrowserShellPage {
   @State newUserGiftSnapshot: NewUserGiftSnapshot = createHiddenNewUserGiftSnapshot();
   @State communityUpdateSnapshot: CommunityUpdateCheckSnapshot = createIdleCommunityUpdateSnapshot();
   @State bottomToolbarGuideSnapshot: BottomToolbarGuideSnapshot = createHiddenBottomToolbarGuideSnapshot();
+  @State appRecommendationSnapshot: AppRecommendationSnapshot = createHiddenAppRecommendationSnapshot();
   @StorageProp(AIRA_NEW_USER_GIFT_REVISION_KEY) @Watch('handleNewUserGiftRefreshSignal')
   private newUserGiftRefreshRevision: number = 0;
   @State clientUpdatePolicyState: ClientUpdatePolicyState = sharedClientUpdatePolicyService.getSnapshot();
@@ -6671,6 +6721,7 @@ struct BrowserShellPage {
     featureGateCoordinator: this.featureGateCoordinator,
     newUserGiftCoordinator: this.newUserGiftCoordinator,
     bottomToolbarGuideCoordinator: this.bottomToolbarGuideCoordinator,
+    appRecommendationCoordinator: this.appRecommendationCoordinator,
     communityUpdateCheckCoordinator: this.communityUpdateCheckCoordinator,
     homeShortcutStateCoordinator: this.homeShortcutStateCoordinator,
     releaseNoticePresentationCoordinator: this.releaseNoticePresentationCoordinator,
@@ -6940,6 +6991,11 @@ struct BrowserShellPage {
     this.syncBottomPanelStatusBarStyle(true);
     this.browserWebBottomSafeAreaCoordinator.setVisible(true);
     this.noteBottomToolbarGuideBrowsingSurface();
+    // The recommendation is offered once per campaign, and a cold start can resolve
+    // the homepage before the shell reports itself visible. Every return is a new
+    // arrival, which is what opens the next opportunity; the coordinator refuses
+    // anything but a visible phone homepage.
+    this.appRecommendationCoordinator.handleHomeSurfaceVisible();
     void this.checkClientUpdatePolicy();
   }
 
@@ -7511,6 +7567,27 @@ struct BrowserShellPage {
    */
   private handleNewUserGiftRefreshSignal(): void {
     this.newUserGiftCoordinator.scheduleEvaluation();
+  }
+
+  /**
+   * The recommendation card's one action: hand the campaign's store page over.
+   * Aira does not install anything and never reads whether that app is installed,
+   * so a store that cannot answer is reported and nothing else is attempted.
+   */
+  private openRecommendedAppStorePage(recommendationId: string): void {
+    const entry = appRecommendationEntryFor(recommendationId);
+    if (entry === undefined || entry.storeId.length === 0) {
+      return;
+    }
+    void this.systemSettingsLaunchService
+      .openAppGalleryDetailPageForApp(this.getAbilityContext(), entry.storeId)
+      .then((result: SystemSettingsLaunchResult): void => {
+        if (!result.success) {
+          this.showNativeToast(result.message);
+        }
+      })
+      .catch((_error: Error): void => {
+      });
   }
 
   private startAiraCloudBookmarkV4Bootstrap(): void {
@@ -10255,6 +10332,8 @@ struct BrowserShellPage {
         this.newUserGiftCoordinator.handleSurfaceDismissed();
       } else if (update.surfaceId === 'bottom_toolbar_guide') {
         this.bottomToolbarGuideCoordinator.handleSurfaceDismissed();
+      } else if (update.surfaceId === 'app_recommendation') {
+        this.appRecommendationCoordinator.handleSurfaceDismissed();
       } else if (update.surfaceId === 'community_update') {
         this.communityUpdateCheckCoordinator.handleSurfaceDismissed();
       }
@@ -10282,6 +10361,13 @@ struct BrowserShellPage {
     }
     if (update.lane === 'custom_bottom' &&
       update.reason === 'reveal' &&
+      update.surfaceId === 'app_recommendation') {
+      // Same rule as the other one-time announcements: only a card that reached
+      // the user spends the one-time recommendation.
+      this.appRecommendationCoordinator.handleSurfaceRevealed();
+    }
+    if (update.lane === 'custom_bottom' &&
+      update.reason === 'reveal' &&
       update.surfaceId === 'community_update') {
       // Only a card that reached the user spends the one-time notice for that release.
       this.communityUpdateCheckCoordinator.handleSurfaceRevealed();
@@ -10296,6 +10382,9 @@ struct BrowserShellPage {
       // holding the lane then must not drop it. It still presents only while the
       // floating toolbar is the frame in front of that page.
       this.bottomToolbarGuideCoordinator.scheduleEvaluation();
+      // The recommendation waits for the same free lane. It is decided once per
+      // install, so a prompt holding the lane must defer it rather than drop it.
+      this.appRecommendationCoordinator.scheduleEvaluation();
     }
     if (update.lane === 'custom_bottom' && update.chromePlan !== undefined) {
       this.applyRootBottomPanelSessionChromePlan(update.chromePlan);
@@ -10373,6 +10462,14 @@ struct BrowserShellPage {
         layoutMode: this.browserShellPresentationOperations?.snapshot()?.shellFamily ?? 'phone',
         onAction: (action: BottomToolbarGuideAction) => {
           this.bottomToolbarGuideCoordinator.handleAction(action);
+        }
+      })
+    } else if (this.browserTransientSurfaceSnapshot.activeCustomBottomSurfaceId === 'app_recommendation') {
+      AppRecommendationOverlay({
+        visible: this.browserTransientSurfaceSnapshot.activeCustomBottomSurfaceVisible,
+        recommendationId: this.appRecommendationSnapshot.recommendationId,
+        onAction: (action: AppRecommendationAction) => {
+          this.appRecommendationCoordinator.handleAction(action);
         }
       })
     } else if (this.browserTransientSurfaceSnapshot.activeCustomBottomSurfaceId === 'community_update') {
@@ -13308,6 +13405,7 @@ struct BrowserShellPage {
     this.newUserGiftCoordinator.handleShellReset();
     this.communityUpdateCheckCoordinator.handleShellReset();
     this.bottomToolbarGuideCoordinator.handleShellReset();
+    this.appRecommendationCoordinator.handleShellReset();
     this.renewalReminderCoordinator.handleShellReset();
     this.applyBrowserSystemSheetDisappearEffect(systemSheetResetEffect);
     this.appReviewPromptCoordinator.handleShellReset();

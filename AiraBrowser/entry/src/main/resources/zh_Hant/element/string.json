@@ -23451,6 +23451,130 @@
     {
       "name": "bottom_panel_account_capsule_a11y",
       "value": "帳號：%1$s"
+    },
+    {
+      "name": "app_recommendation_title",
+      "value": "應用推薦"
+    },
+    {
+      "name": "app_recommendation_close",
+      "value": "關閉應用推薦"
+    },
+    {
+      "name": "app_recommendation_app_name",
+      "value": "聲棲"
+    },
+    {
+      "name": "app_recommendation_tagline",
+      "value": "環境聲音裡的助眠與專注"
+    },
+    {
+      "name": "app_recommendation_badge_sleep",
+      "value": "安然入睡"
+    },
+    {
+      "name": "app_recommendation_badge_focus",
+      "value": "專注當下"
+    },
+    {
+      "name": "app_recommendation_reviews_title",
+      "value": "使用者評價 · 示例"
+    },
+    {
+      "name": "app_recommendation_review_author_rain",
+      "value": "晚風"
+    },
+    {
+      "name": "app_recommendation_review_title_rain",
+      "value": "聽著雨聲入睡"
+    },
+    {
+      "name": "app_recommendation_review_message_rain",
+      "value": "微雨聲一開，整個人就放鬆下來了，現在基本是枕著雨聲睡覺。"
+    },
+    {
+      "name": "app_recommendation_review_author_nap",
+      "value": "樹樹"
+    },
+    {
+      "name": "app_recommendation_review_title_nap",
+      "value": "午休剛好"
+    },
+    {
+      "name": "app_recommendation_review_message_nap",
+      "value": "小憩定了二十分鐘，到點鈴聲很輕，醒來不難受，下午精神好了很多。"
+    },
+    {
+      "name": "app_recommendation_review_author_focus",
+      "value": "陸離"
+    },
+    {
+      "name": "app_recommendation_review_title_focus",
+      "value": "專注很沉浸"
+    },
+    {
+      "name": "app_recommendation_review_message_focus",
+      "value": "寫東西的時候開一段風聲，注意力一下就沉下來了，效率高了不少。"
+    },
+    {
+      "name": "app_recommendation_review_author_content",
+      "value": "葉子"
+    },
+    {
+      "name": "app_recommendation_review_title_content",
+      "value": "內容很豐富"
+    },
+    {
+      "name": "app_recommendation_review_message_content",
+      "value": "幾十種聲音換著聽，咖啡館、鳥鳴、海浪都有，怎麼聽都不膩。"
+    },
+    {
+      "name": "app_recommendation_review_author_quiet",
+      "value": "阿眠"
+    },
+    {
+      "name": "app_recommendation_review_title_quiet",
+      "value": "介面很安靜"
+    },
+    {
+      "name": "app_recommendation_review_message_quiet",
+      "value": "整個應用沒有吵鬧的東西，開啟就覺得放鬆，很治癒。"
+    },
+    {
+      "name": "app_recommendation_faq_title",
+      "value": "常見問題"
+    },
+    {
+      "name": "app_recommendation_faq_content_title",
+      "value": "能聽些什麼？"
+    },
+    {
+      "name": "app_recommendation_faq_content_text",
+      "value": "幾十種環境聲音——雨聲、爐火、風聲、鳥鳴、咖啡館，還有冥想、專注、小憩、呼吸等體驗，睡前和工作都合適。"
+    },
+    {
+      "name": "app_recommendation_faq_background_title",
+      "value": "離開頁面還在播放嗎？"
+    },
+    {
+      "name": "app_recommendation_faq_background_text",
+      "value": "環境聆聽和冥想支援持續聆聽，離開全螢幕後接著播放，底部播放膠囊隨時回到進度；專注、小憩、呼吸是沉浸式體驗，離開前會確認。"
+    },
+    {
+      "name": "app_recommendation_faq_nap_title",
+      "value": "小憩會睡過頭嗎？"
+    },
+    {
+      "name": "app_recommendation_faq_nap_text",
+      "value": "小憩自帶計時和輕喚醒鈴聲，到點輕輕叫醒你，不怕一覺睡過頭。"
+    },
+    {
+      "name": "app_recommendation_review_a11y",
+      "value": "%1$s，%2$d 星，%3$s。%4$s"
+    },
+    {
+      "name": "app_recommendation_open_market",
+      "value": "前往應用市場查看"
     }
   ]
 }

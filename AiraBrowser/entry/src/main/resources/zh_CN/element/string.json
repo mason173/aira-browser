@@ -23451,6 +23451,130 @@
     {
       "name": "bottom_panel_account_capsule_a11y",
       "value": "账号：%1$s"
+    },
+    {
+      "name": "app_recommendation_title",
+      "value": "应用推荐"
+    },
+    {
+      "name": "app_recommendation_close",
+      "value": "关闭应用推荐"
+    },
+    {
+      "name": "app_recommendation_app_name",
+      "value": "声栖"
+    },
+    {
+      "name": "app_recommendation_tagline",
+      "value": "环境声音里的助眠与专注"
+    },
+    {
+      "name": "app_recommendation_badge_sleep",
+      "value": "安然入睡"
+    },
+    {
+      "name": "app_recommendation_badge_focus",
+      "value": "专注当下"
+    },
+    {
+      "name": "app_recommendation_reviews_title",
+      "value": "用户评价 · 示例"
+    },
+    {
+      "name": "app_recommendation_review_author_rain",
+      "value": "晚风"
+    },
+    {
+      "name": "app_recommendation_review_title_rain",
+      "value": "听着雨声入睡"
+    },
+    {
+      "name": "app_recommendation_review_message_rain",
+      "value": "微雨声一开，整个人就放松下来了，现在基本是枕着雨声睡觉。"
+    },
+    {
+      "name": "app_recommendation_review_author_nap",
+      "value": "树树"
+    },
+    {
+      "name": "app_recommendation_review_title_nap",
+      "value": "午休刚好"
+    },
+    {
+      "name": "app_recommendation_review_message_nap",
+      "value": "小憩定了二十分钟，到点铃声很轻，醒来不难受，下午精神好了很多。"
+    },
+    {
+      "name": "app_recommendation_review_author_focus",
+      "value": "陆离"
+    },
+    {
+      "name": "app_recommendation_review_title_focus",
+      "value": "专注很沉浸"
+    },
+    {
+      "name": "app_recommendation_review_message_focus",
+      "value": "写东西的时候开一段风声，注意力一下就沉下来了，效率高了不少。"
+    },
+    {
+      "name": "app_recommendation_review_author_content",
+      "value": "叶子"
+    },
+    {
+      "name": "app_recommendation_review_title_content",
+      "value": "内容很丰富"
+    },
+    {
+      "name": "app_recommendation_review_message_content",
+      "value": "几十种声音换着听，咖啡馆、鸟鸣、海浪都有，怎么听都不腻。"
+    },
+    {
+      "name": "app_recommendation_review_author_quiet",
+      "value": "阿眠"
+    },
+    {
+      "name": "app_recommendation_review_title_quiet",
+      "value": "界面很安静"
+    },
+    {
+      "name": "app_recommendation_review_message_quiet",
+      "value": "整个应用没有吵闹的东西，打开就觉得放松，很治愈。"
+    },
+    {
+      "name": "app_recommendation_faq_title",
+      "value": "常见问题"
+    },
+    {
+      "name": "app_recommendation_faq_content_title",
+      "value": "能听些什么？"
+    },
+    {
+      "name": "app_recommendation_faq_content_text",
+      "value": "几十种环境声音——雨声、炉火、风声、鸟鸣、咖啡馆，还有冥想、专注、小憩、呼吸等体验，睡前和工作都合适。"
+    },
+    {
+      "name": "app_recommendation_faq_background_title",
+      "value": "退出页面还在播吗？"
+    },
+    {
+      "name": "app_recommendation_faq_background_text",
+      "value": "环境聆听和冥想支持持续聆听，退出全屏后接着播，底部播放胶囊随时回到进度；专注、小憩、呼吸是沉浸式体验，离开前会确认。"
+    },
+    {
+      "name": "app_recommendation_faq_nap_title",
+      "value": "小憩会睡过头吗？"
+    },
+    {
+      "name": "app_recommendation_faq_nap_text",
+      "value": "小憩自带计时和轻唤醒铃声，到点轻轻叫醒你，不怕一觉睡过头。"
+    },
+    {
+      "name": "app_recommendation_review_a11y",
+      "value": "%1$s，%2$d 星，%3$s。%4$s"
+    },
+    {
+      "name": "app_recommendation_open_market",
+      "value": "前往应用市场查看"
     }
   ]
 }

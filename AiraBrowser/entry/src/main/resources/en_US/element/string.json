@@ -23451,6 +23451,130 @@
     {
       "name": "bottom_panel_account_capsule_a11y",
       "value": "Account: %1$s"
+    },
+    {
+      "name": "app_recommendation_title",
+      "value": "App recommendation"
+    },
+    {
+      "name": "app_recommendation_close",
+      "value": "Close app recommendation"
+    },
+    {
+      "name": "app_recommendation_app_name",
+      "value": "Noctide"
+    },
+    {
+      "name": "app_recommendation_tagline",
+      "value": "Sleep and focus, in ambient sound"
+    },
+    {
+      "name": "app_recommendation_badge_sleep",
+      "value": "Sleep soundly"
+    },
+    {
+      "name": "app_recommendation_badge_focus",
+      "value": "Focus on the now"
+    },
+    {
+      "name": "app_recommendation_reviews_title",
+      "value": "User reviews · Samples"
+    },
+    {
+      "name": "app_recommendation_review_author_rain",
+      "value": "Evening Breeze"
+    },
+    {
+      "name": "app_recommendation_review_title_rain",
+      "value": "Falling asleep to rain"
+    },
+    {
+      "name": "app_recommendation_review_message_rain",
+      "value": "Light rain starts and I relax right away. These days I basically fall asleep to it."
+    },
+    {
+      "name": "app_recommendation_review_author_nap",
+      "value": "Shushu"
+    },
+    {
+      "name": "app_recommendation_review_title_nap",
+      "value": "Just right for a nap"
+    },
+    {
+      "name": "app_recommendation_review_message_nap",
+      "value": "I set the nap to twenty minutes. The chime is soft, waking up isn't rough, and my afternoons are far better."
+    },
+    {
+      "name": "app_recommendation_review_author_focus",
+      "value": "Luli"
+    },
+    {
+      "name": "app_recommendation_review_title_focus",
+      "value": "Deeply focused"
+    },
+    {
+      "name": "app_recommendation_review_message_focus",
+      "value": "I put on wind while writing and my attention settles at once. I get much more done."
+    },
+    {
+      "name": "app_recommendation_review_author_content",
+      "value": "Yezi"
+    },
+    {
+      "name": "app_recommendation_review_title_content",
+      "value": "Plenty to choose from"
+    },
+    {
+      "name": "app_recommendation_review_message_content",
+      "value": "Dozens of sounds to rotate through, from cafes and birdsong to waves. I never get tired of them."
+    },
+    {
+      "name": "app_recommendation_review_author_quiet",
+      "value": "Amian"
+    },
+    {
+      "name": "app_recommendation_review_title_quiet",
+      "value": "A calm interface"
+    },
+    {
+      "name": "app_recommendation_review_message_quiet",
+      "value": "Nothing in the app is loud or busy. Opening it feels relaxing and soothing."
+    },
+    {
+      "name": "app_recommendation_faq_title",
+      "value": "Common questions"
+    },
+    {
+      "name": "app_recommendation_faq_content_title",
+      "value": "What can I listen to?"
+    },
+    {
+      "name": "app_recommendation_faq_content_text",
+      "value": "Dozens of ambient sounds like rain, fireplace, wind, birdsong, and cafes, plus meditation, focus, nap, and breathing sessions. Good before sleep and while working."
+    },
+    {
+      "name": "app_recommendation_faq_background_title",
+      "value": "Does it keep playing after I leave?"
+    },
+    {
+      "name": "app_recommendation_faq_background_text",
+      "value": "Ambient listening and meditation keep playing after you leave full screen, and the player capsule at the bottom takes you back to the progress. Focus, nap, and breathing are immersive sessions that ask before you leave."
+    },
+    {
+      "name": "app_recommendation_faq_nap_title",
+      "value": "Will a nap oversleep?"
+    },
+    {
+      "name": "app_recommendation_faq_nap_text",
+      "value": "Naps carry their own timer and a gentle wake-up chime, so you won't sleep straight through."
+    },
+    {
+      "name": "app_recommendation_review_a11y",
+      "value": "%1$s, %2$d stars, %3$s. %4$s"
+    },
+    {
+      "name": "app_recommendation_open_market",
+      "value": "View in AppGallery"
     }
   ]
 }

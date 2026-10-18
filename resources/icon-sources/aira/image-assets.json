@@ -357,6 +357,14 @@
         "base/media/sync_browser_opera.svg",
         "base/media/sync_browser_vivaldi.svg"
       ]
+    },
+    {
+      "owner": "app-recommendation-laurel-artwork",
+      "reason": "The laurel branches are decorative recommendation artwork whose geometry belongs to the card layout, not a colorable Operational Icon.",
+      "resourcePaths": [
+        "base/media/app_recommendation_laurel_left.svg",
+        "base/media/app_recommendation_laurel_right.svg"
+      ]
     }
   ]
 }

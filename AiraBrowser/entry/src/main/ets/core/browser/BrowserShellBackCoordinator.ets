@@ -22,6 +22,7 @@ export type BrowserShellBackAction =
   'dismiss_feature_gate' |
   'dismiss_new_user_gift' |
   'dismiss_bottom_toolbar_guide' |
+  'dismiss_app_recommendation' |
   'dismiss_community_update' |
   'handle_home_shortcut_selection_back' |
   'close_desktop_login_sheet' |
@@ -152,6 +153,9 @@ export class BrowserShellBackCoordinator {
     }
     if (target.surfaceId === 'bottom_toolbar_guide') {
       return 'dismiss_bottom_toolbar_guide';
+    }
+    if (target.surfaceId === 'app_recommendation') {
+      return 'dismiss_app_recommendation';
     }
     if (target.surfaceId === 'community_update') {
       return 'dismiss_community_update';

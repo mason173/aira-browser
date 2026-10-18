@@ -61,6 +61,7 @@ import {
 } from '../search/SearchEngineSelectionCoordinator';
 import { ReleaseNoticePresentationCoordinator } from '../update/ReleaseNoticePresentationCoordinator';
 import { NewUserGiftCoordinator } from '../membership/NewUserGiftCoordinator';
+import { AppRecommendationCoordinator } from '../onboarding/AppRecommendationCoordinator';
 import { RenewalReminderCoordinator } from '../membership/RenewalReminderCoordinator';
 import { CommunityUpdateCheckCoordinator } from '../update/CommunityUpdateCheckCoordinator';
 import { HomeWallpaperCoordinator, HomeWallpaperRefreshResult } from '../wallpaper/HomeWallpaperCoordinator';
@@ -266,6 +267,7 @@ interface BrowserTabHomeDependencies {
   appReviewPromptCoordinator: AppReviewPromptCoordinator;
   resolveReleaseNoticePresentationCoordinator: () => ReleaseNoticePresentationCoordinator;
   resolveNewUserGiftCoordinator: () => NewUserGiftCoordinator;
+  resolveAppRecommendationCoordinator: () => AppRecommendationCoordinator;
   resolveCommunityUpdateCheckCoordinator: () => CommunityUpdateCheckCoordinator;
   resolveRenewalReminderCoordinator: () => RenewalReminderCoordinator;
   resolveTabsOverviewSessionCoordinator: () => BrowserTabsOverviewSessionCoordinator;
@@ -433,6 +435,7 @@ export class BrowserTabHomeCoordinator {
     this.dependencies.appReviewPromptCoordinator.scheduleEvaluation();
     this.dependencies.resolveReleaseNoticePresentationCoordinator().scheduleEvaluation();
     this.dependencies.resolveNewUserGiftCoordinator().scheduleEvaluation();
+    this.dependencies.resolveAppRecommendationCoordinator().handleHomeSurfaceVisible();
     this.dependencies.resolveRenewalReminderCoordinator().scheduleEvaluation();
     this.dependencies.resolveCommunityUpdateCheckCoordinator().scheduleEvaluation();
   }

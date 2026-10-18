@@ -171,6 +171,7 @@ import { RdbOfflinePageRepository } from '../../data/offline/OfflinePageReposito
 import { MembershipRepository } from '../../data/membership/MembershipRepository';
 import { NewUserGiftRepository } from '../../data/membership/NewUserGiftRepository';
 import { BottomToolbarGuideRepository } from '../../data/onboarding/BottomToolbarGuideRepository';
+import { AppRecommendationRepository } from '../../data/onboarding/AppRecommendationRepository';
 import { CrossDeviceLinkGuideRepository } from '../../data/onboarding/CrossDeviceLinkGuideRepository';
 import { TabsOverviewSegmentGuideRepository } from '../../data/onboarding/TabsOverviewSegmentGuideRepository';
 import { AiraLapsedProView, AiraMembershipState } from '../../common/models/MembershipModels';
@@ -480,6 +481,7 @@ BookmarkMutationService.configureDefaultSyncPendingMarker((changedAt: number) =>
 export const sharedMembershipRepository: MembershipRepository = new MembershipRepository();
 export const sharedNewUserGiftRepository: NewUserGiftRepository = new NewUserGiftRepository();
 export const sharedBottomToolbarGuideRepository: BottomToolbarGuideRepository = new BottomToolbarGuideRepository();
+export const sharedAppRecommendationRepository: AppRecommendationRepository = new AppRecommendationRepository();
 export const sharedTabsOverviewSegmentGuideRepository: TabsOverviewSegmentGuideRepository =
   new TabsOverviewSegmentGuideRepository();
 export const sharedCrossDeviceLinkGuideRepository: CrossDeviceLinkGuideRepository =
@@ -1011,6 +1013,9 @@ function buildBrowserRuntimeIdleWarmupTasks(): BrowserRuntimeIdleWarmupTask[] {
   }, {
     id: 'bottom_toolbar_guide_runtime',
     run: () => sharedBottomToolbarGuideRepository.initialize()
+  }, {
+    id: 'app_recommendation_runtime',
+    run: () => sharedAppRecommendationRepository.initialize()
   }, {
     id: 'tabs_overview_segment_guide_runtime',
     run: () => sharedTabsOverviewSegmentGuideRepository.initialize()

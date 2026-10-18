@@ -155,6 +155,34 @@ export class SystemSettingsLaunchService {
     );
   }
 
+  /**
+   * Opens another app's AppGallery detail page. Aira hands over a store page and
+   * nothing else: it never installs anything, and it never reads whether that app
+   * is already installed. The deep link is the one the store itself answers; the
+   * https page is the fallback for a device whose store cannot answer it.
+   */
+  async openAppGalleryDetailPageForApp(
+    context: common.UIAbilityContext,
+    appId: string
+  ): Promise<SystemSettingsLaunchResult> {
+    const storeId = appId.trim();
+    if (storeId.length === 0) {
+      return {
+        success: false,
+        message: resolveAppResourceText($r('app.string.settings_launch_market_unavailable'))
+      };
+    }
+    const detailPageResult = await this.openAppGalleryDeepLink(
+      context,
+      `store://appgallery.huawei.com/app/detail?id=${storeId}`,
+      resolveAppResourceText($r('app.string.settings_launch_detail_opened'))
+    );
+    if (detailPageResult.success) {
+      return detailPageResult;
+    }
+    return this.openExternalUrl(context, `https://appgallery.huawei.com/app/detail?id=${storeId}`);
+  }
+
   async showAppReviewPrompt(context: common.UIAbilityContext): Promise<SystemSettingsLaunchResult> {
     try {
       await commentManager.showCommentDialog(context);

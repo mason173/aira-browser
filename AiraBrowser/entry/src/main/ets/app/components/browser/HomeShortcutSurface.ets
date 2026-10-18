@@ -1,4 +1,5 @@
 import { resolveAppResourceText } from '../../../core/resources/AppResourceText';
+import { hasBundledShortcutIcon, resolveBundledShortcutIcon } from '../../../core/resources/BundledShortcutIconResources';
 import { image } from '@kit.ImageKit';
 import { ShortcutRecord } from '../../../common/models/BrowserModels';
 import {
@@ -331,7 +332,10 @@ export struct HomeShortcutSurface {
 
   @Builder
   private buildShortcutIcon(shortcut: ShortcutRecord) {
-    if (isHomeSystemShortcut(shortcut)) {
+    if (hasBundledShortcutIcon(shortcut.url)) {
+      // The store page's own icon is the store's; this tile shows the app's instead.
+      this.buildBundledShortcutIcon(shortcut, this.resolveShortcutContainerSize())
+    } else if (isHomeSystemShortcut(shortcut)) {
       this.buildOwnedShortcutIcon(
         this.resolveSystemShortcutIcon(shortcut),
         this.resolveShortcutContainerSize(),
@@ -477,6 +481,29 @@ export struct HomeShortcutSurface {
         iconSize: Math.max(1, Math.min(size, iconSize)),
         iconColor: this.resolveOperationalIconColor()
       })
+    }
+  }
+
+  @Builder
+  private buildBundledShortcutIcon(shortcut: ShortcutRecord, size: number) {
+    BrowserFloatingGlassMaterialSurface({
+      surfaceWidth: size,
+      surfaceHeight: size,
+      surfaceRadius: this.resolveShortcutMaterialRadius(size),
+      fallbackColor: this.resolveShortcutTileColor(),
+      backgroundBlurEnabled: false,
+      materialBorderWidth: HOME_SHORTCUT_ICON_BORDER_WIDTH,
+      materialBorderColor: this.storedOutlineColor
+    }) {
+      Image(resolveBundledShortcutIcon(shortcut.url) as Resource)
+        .width(this.resolveShortcutContentSize(size))
+        .height(this.resolveShortcutContentSize(size))
+        .objectFit(ImageFit.Contain)
+        .borderRadius(this.resolveShortcutContentRadius(size))
+        .clip(true)
+        .draggable(false)
+        .accessibilityLevel('no-hide-descendants')
+        .hitTestBehavior(HitTestMode.None)
     }
   }
 
@@ -854,6 +881,24 @@ export struct HomeShortcutSurface {
   private shouldRequirePreparedPixelMap(iconPath: string): boolean {
     const normalizedPath = iconPath.trim();
     return normalizedPath.startsWith('file://') || normalizedPath.startsWith('/');
+  }
+
+  /**
+   * The bundled artwork sits in the same inset and radius as a site icon, so the two
+   * kinds of tile are indistinguishable in the grid.
+   */
+  private resolveShortcutContentSize(size: number): number {
+    return Math.max(0, size - this.resolveShortcutContentPadding(size) * 2);
+  }
+
+  private resolveShortcutContentPadding(size: number): number {
+    const ratio = Math.max(0, Math.min(1, this.storedHomeShortcutIconSizeRatio));
+    return Math.max(0, Math.round(size * (1 - ratio) / 2));
+  }
+
+  private resolveShortcutContentRadius(size: number): number {
+    return Math.max(0,
+      Math.round(size * this.resolveIconCornerRadiusRatio()) - this.resolveShortcutContentPadding(size));
   }
 
   private resolveShortcutContainerSize(): number {
