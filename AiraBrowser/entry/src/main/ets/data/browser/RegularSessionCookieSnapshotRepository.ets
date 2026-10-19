@@ -128,6 +128,12 @@ export class RegularSessionCookieSnapshotRepository {
       return this.store;
     }
     if (this.storePromise === undefined) {
+      if (!AppRuntimeContext.hasApplicationContext()) {
+        // Reading the snapshot before the ability published the application context used to fail with a
+        // bare 'not initialized' error that callers swallowed. Name the contract, so the next caller that
+        // runs too early fails loudly instead of restoring nothing.
+        throw new Error('Regular session cookie snapshot needs the application context first.');
+      }
       this.storePromise = preferences.getPreferences(AppRuntimeContext.getApplicationContext(), PREFERENCES_NAME)
         .then((store: preferences.Preferences) => {
           this.store = store;

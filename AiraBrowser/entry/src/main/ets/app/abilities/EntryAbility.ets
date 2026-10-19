@@ -251,6 +251,11 @@ export default class EntryAbility extends UIAbility {
         hilog.warn(DOMAIN, TAG, 'ArkWeb BFCache prepare failed before engine init: %{public}s', bfcacheResult.message);
       }
       webview.WebviewController.initializeWebEngine();
+      // The session cookie snapshot store resolves its preferences through AppRuntimeContext, and launch
+      // readiness below is what publishes that context. Publish it before the restore, or a cold start
+      // silently restores nothing and sites logging in with a session cookie, such as GitHub, drop the
+      // sign-in again as soon as the previous process is gone.
+      AppRuntimeContext.setApplicationContext(this.context.getApplicationContext());
       this.regularSessionCookieRestore = this.restoreRegularSessionCookies();
       sharedSitePolicyService.clearArkWebGeolocationPermissions(false);
       sharedSitePolicyService.clearArkWebGeolocationPermissions(true);

@@ -66,6 +66,7 @@ TAB_SWIPE_COVER_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-tab-swipe-cover.cj
 TAB_PREVIEW_IMAGE_LEASE_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-tab-preview-image-lease.cjs"
 TAB_PREVIEW_LIFECYCLE_SNAPSHOT_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-tab-preview-lifecycle-snapshot.cjs"
 PRIVATE_TAB_SESSION_RESTORE_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-private-tab-session-restore.cjs"
+REGULAR_SESSION_COOKIE_RESTORE_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-regular-session-cookie-restore.cjs"
 SHARED_HTML_VIEWER_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-shared-html-viewer.cjs"
 TABS_STACK_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-tabs-stack.cjs"
 SAME_DOCUMENT_RESTORABLE_STATE_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-same-document-restorable-state.cjs"
@@ -413,6 +414,12 @@ for swipe_guard in \
   fi
   node "${swipe_guard}" || fail "Bottom address bar tab swipe guard failed: ${swipe_guard}"
 done
+
+if [ ! -f "${REGULAR_SESSION_COOKIE_RESTORE_GUARD_SCRIPT}" ]; then
+  fail "Regular session cookie restore guard not found: ${REGULAR_SESSION_COOKIE_RESTORE_GUARD_SCRIPT}"
+fi
+node "${REGULAR_SESSION_COOKIE_RESTORE_GUARD_SCRIPT}" || \
+  fail "Regular session cookie restore guard failed: ${REGULAR_SESSION_COOKIE_RESTORE_GUARD_SCRIPT}"
 
 if [ ! -f "${SHARED_HTML_VIEWER_GUARD_SCRIPT}" ]; then
   fail "Shared HTML viewer guard not found: ${SHARED_HTML_VIEWER_GUARD_SCRIPT}"

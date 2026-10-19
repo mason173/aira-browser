@@ -1,4 +1,5 @@
 import { webview } from '@kit.ArkWeb';
+import { hilog } from '@kit.PerformanceAnalysisKit';
 import { BrowserFingerprintPrivacyPolicyService } from '../privacy/BrowserFingerprintPrivacyPolicyService';
 import { BrowserPrivacyRuntimeAdapter } from '../privacy/BrowserPrivacyRuntimeAdapter';
 import {
@@ -22,6 +23,9 @@ import { RegularSessionCookieSnapshotRepository } from '../../data/browser/Regul
 import { PreferencesRepository } from '../../data/preferences/PreferencesRepository';
 import { sharedBrowserSslDecisionCacheRuntime } from './BrowserSslDecisionCacheRuntime';
 import { resolveAppResourceText } from '../../core/resources/AppResourceText';
+
+const SITE_DATA_LOG_DOMAIN: number = 0x0000;
+const SITE_DATA_LOG_TAG: string = 'SiteDataControl';
 
 export interface CurrentSiteDataSummary {
   cookieCount: number;
@@ -392,6 +396,17 @@ export class SiteDataControlService {
     }
     const now = Date.now();
     const cookies = await webview.WebCookieManager.fetchAllCookies(false);
+    if (cookies.length <= 0) {
+      // Teardown can read the jar before the engine has anything to report. Writing that empty result
+      // would discard the cookies the next cold start depends on, while an intentional site-data clear
+      // drops the snapshot on its own path.
+      hilog.warn(
+        SITE_DATA_LOG_DOMAIN,
+        SITE_DATA_LOG_TAG,
+        'Skipped the regular session cookie snapshot: the engine reported an empty cookie jar.'
+      );
+      return 0;
+    }
     const sessionCookies: PrivateModeCookieSnapshotRecord[] = [];
     cookies.forEach((cookie: webview.WebHttpCookie) => {
       const record = this.toPrivateCookieSnapshotRecord(cookie, now);
@@ -414,22 +429,75 @@ export class SiteDataControlService {
     }
     const snapshot = await repository.readSnapshot();
     if (snapshot.cookies.length <= 0) {
+      hilog.info(
+        SITE_DATA_LOG_DOMAIN,
+        SITE_DATA_LOG_TAG,
+        'The regular session cookie snapshot is empty, so this launch has nothing to restore.'
+      );
       return 0;
     }
     const liveCookies = await webview.WebCookieManager.fetchAllCookies(false);
     let restoredCookieCount = 0;
+    let skippedCookieCount = 0;
+    let presentCookieCount = 0;
     snapshot.cookies.forEach((cookie: PrivateModeCookieSnapshotRecord) => {
       if (this.regularSessionCookieAlreadyPresent(liveCookies, cookie)) {
+        presentCookieCount += 1;
         return;
       }
-      const url = this.buildCookieUrl(cookie);
-      const value = this.buildSetCookieValue(cookie);
-      webview.WebCookieManager.configCookieSync(url, value, false, cookie.isHttpOnly);
-      restoredCookieCount += 1;
+      // A cookie the engine refuses (an invalid value, an attribute it will not accept) must not abort
+      // the restore of every cookie behind it in the snapshot.
+      try {
+        const url = this.buildCookieUrl(cookie);
+        const value = this.buildSetCookieValue(cookie);
+        webview.WebCookieManager.configCookieSync(url, value, false, cookie.isHttpOnly);
+        restoredCookieCount += 1;
+      } catch (error) {
+        skippedCookieCount += 1;
+        hilog.warn(
+          SITE_DATA_LOG_DOMAIN,
+          SITE_DATA_LOG_TAG,
+          'Failed to restore the session cookie %{public}s for %{public}s: %{public}s',
+          cookie.name,
+          cookie.domain,
+          JSON.stringify(error)
+        );
+      }
     });
     if (restoredCookieCount > 0) {
-      webview.WebCookieManager.saveCookieSync();
+      try {
+        webview.WebCookieManager.saveCookieSync();
+      } catch (error) {
+        hilog.warn(
+          SITE_DATA_LOG_DOMAIN,
+          SITE_DATA_LOG_TAG,
+          'Failed to flush the restored session cookies: %{public}s',
+          JSON.stringify(error)
+        );
+      }
     }
+    if (skippedCookieCount > 0) {
+      hilog.warn(
+        SITE_DATA_LOG_DOMAIN,
+        SITE_DATA_LOG_TAG,
+        'Restored %{public}d regular session cookies and skipped %{public}d.',
+        restoredCookieCount,
+        skippedCookieCount
+      );
+    }
+    // One line per launch: a saved count of zero means the snapshot was empty, a restored count above
+    // zero means the engine had dropped cookies this launch depended on, and present counts the cookies
+    // the engine kept by itself. Whoever reports a sign-in that did not survive a restart hands us this
+    // line, and it says which of those three happened.
+    hilog.info(
+      SITE_DATA_LOG_DOMAIN,
+      SITE_DATA_LOG_TAG,
+      'Regular session cookie snapshot: saved=%{public}d restored=%{public}d present=%{public}d skipped=%{public}d',
+      snapshot.cookies.length,
+      restoredCookieCount,
+      presentCookieCount,
+      skippedCookieCount
+    );
     return restoredCookieCount;
   }
 
@@ -1039,29 +1107,36 @@ export class SiteDataControlService {
   private buildSetCookieValue(cookie: PrivateModeCookieSnapshotRecord): string {
     const parts: string[] = [`${cookie.name}=${cookie.value}`];
     const domain = cookie.domain.trim();
-    if (domain.length > 0) {
+    const isHostPrefixCookie = cookie.name.startsWith('__Host-');
+    // The engine reports a host-only cookie without a leading dot and a domain cookie with one. A
+    // Domain attribute on a host-only cookie would widen it, and a __Host- prefixed cookie is rejected
+    // outright when it carries one, so only real domain cookies keep the attribute.
+    if (domain.startsWith('.') && !isHostPrefixCookie) {
       parts.push(`Domain=${domain}`);
     }
-    parts.push(`Path=${cookie.path.trim().length > 0 ? cookie.path.trim() : '/'}`);
+    const path = cookie.path.trim();
+    parts.push(`Path=${isHostPrefixCookie || path.length <= 0 ? '/' : path}`);
     if (!cookie.isSessionCookie && cookie.expiresDate.trim().length > 0) {
       parts.push(`Expires=${cookie.expiresDate.trim()}`);
     }
-    if (cookie.isSecure) {
+    const isSecure = cookie.isSecure || isHostPrefixCookie || cookie.name.startsWith('__Secure-');
+    if (isSecure) {
       parts.push('Secure');
     }
     if (cookie.isHttpOnly) {
       parts.push('HttpOnly');
     }
-    const sameSite = this.resolveSameSiteLabel(cookie.samesitePolicy);
+    const sameSite = this.resolveSameSiteLabel(cookie.samesitePolicy, isSecure);
     if (sameSite.length > 0) {
       parts.push(`SameSite=${sameSite}`);
     }
     return parts.join('; ');
   }
 
-  private resolveSameSiteLabel(policy: number): string {
+  private resolveSameSiteLabel(policy: number, isSecure: boolean): string {
     if (policy === webview.WebHttpCookieSameSitePolicy.NONE) {
-      return 'None';
+      // SameSite=None is only valid together with Secure; without it the engine rejects the cookie.
+      return isSecure ? 'None' : '';
     }
     if (policy === webview.WebHttpCookieSameSitePolicy.LAX) {
       return 'Lax';
