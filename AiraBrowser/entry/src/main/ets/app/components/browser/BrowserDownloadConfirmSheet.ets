@@ -14,13 +14,39 @@ import { BrowserSheetActionButton } from './BrowserModalBottomSheet';
 import {
   resolveCenteredDialogControllerWidth,
   resolveCenteredDialogSurfaceColor,
+  CENTERED_DIALOG_BOTTOM_PADDING_VP,
   CENTERED_DIALOG_CORNER_RADIUS_VP,
-  CENTERED_DIALOG_SYSTEM_SURFACE_MODIFIER
+  CENTERED_DIALOG_SYSTEM_SURFACE_MODIFIER,
+  CENTERED_DIALOG_TOP_PADDING_VP
 } from '../common/CenteredDialogSurface';
 
 const DOWNLOAD_FILE_NAME_MAX_LENGTH: number = 180;
 const DOWNLOAD_CONFIRM_FILE_ICON_SIZE: number = 64;
 const DOWNLOAD_CONFIRM_ROW_HEIGHT: number = 46;
+const DOWNLOAD_CONFIRM_ACTION_HEIGHT: number = 44;
+const DOWNLOAD_CONFIRM_ACTION_GAP: number = 8;
+const DOWNLOAD_CONFIRM_ACTIONS_MARGIN_TOP: number = 16;
+/** Breathing room so a full-height card never touches the top and bottom window edges. */
+const DOWNLOAD_CONFIRM_WINDOW_SLACK_VP: number = 8;
+/**
+ * What the card must keep for its two actions and its own padding, in vp. The
+ * confirm dialog grows with the file it describes, and a name, a size, a source, and
+ * a folder are four fixed rows under a file mark: on a short window that is taller
+ * than the window, and the two actions used to end up past its bottom edge.
+ *
+ * The body is therefore what gives, and this reserve is the part that never does. It
+ * is derived from the very sizes the actions are laid out with, so it cannot drift
+ * away from them.
+ */
+const DOWNLOAD_CONFIRM_ACTIONS_RESERVE_VP: number =
+  CENTERED_DIALOG_TOP_PADDING_VP + CENTERED_DIALOG_BOTTOM_PADDING_VP + DOWNLOAD_CONFIRM_ACTIONS_MARGIN_TOP +
+  DOWNLOAD_CONFIRM_ACTION_HEIGHT * 2 + DOWNLOAD_CONFIRM_ACTION_GAP + DOWNLOAD_CONFIRM_WINDOW_SLACK_VP * 2;
+/**
+ * The body takes the rest of the dialog window, whatever its height is: a percentage
+ * of the window rather than a vp figure, because the window a phone actually gets is
+ * what has to fit, not the display the app assumes.
+ */
+const DOWNLOAD_CONFIRM_BODY_MAX_HEIGHT: string = `calc(100% - ${DOWNLOAD_CONFIRM_ACTIONS_RESERVE_VP}vp)`;
 
 @CustomDialog
 struct BrowserDownloadConfirmDialog {
@@ -48,10 +74,17 @@ struct BrowserDownloadConfirmDialog {
     this.resetEditingForPrompt();
   }
 
+  /**
+   * The card keeps its own shape without ever outgrowing the window: the body under
+   * the file mark is the only part that follows the file, and the two actions are a
+   * fixed block under it. A body taller than its bound scrolls instead of pushing
+   * those actions off the bottom of a short window.
+   */
   build() {
     Column() {
       if (this.prompt !== undefined) {
-        this.buildContent(this.prompt!)
+        this.buildBody(this.prompt!)
+        this.buildActions(this.prompt!)
       }
     }
     .attributeModifier(CENTERED_DIALOG_SYSTEM_SURFACE_MODIFIER)
@@ -64,28 +97,43 @@ struct BrowserDownloadConfirmDialog {
    * instead of being clipped by a single-line field.
    */
   @Builder
-  private buildContent(prompt: PendingDownloadPromptState) {
-    this.buildFileIcon()
+  private buildBody(prompt: PendingDownloadPromptState) {
+    Scroll() {
+      Column() {
+        this.buildFileIcon()
 
-    Column() {
-      this.buildFileNameRow()
-      if (prompt.totalBytes > 0) {
-        this.buildValueRow(resolveAppResourceText($r('app.string.offline_details_label_size')), this.formatBytes(prompt.totalBytes), EllipsisMode.END)
+        Column() {
+          this.buildFileNameRow()
+          if (prompt.totalBytes > 0) {
+            this.buildValueRow(resolveAppResourceText($r('app.string.offline_details_label_size')), this.formatBytes(prompt.totalBytes), EllipsisMode.END)
+          }
+          this.buildValueRow(resolveAppResourceText($r('app.string.user_script_meta_source')), this.resolveSourceText(prompt), EllipsisMode.CENTER)
+          this.buildLocationRow(prompt)
+        }
+        .width('100%')
+        .alignItems(HorizontalAlign.Start)
       }
-      this.buildValueRow(resolveAppResourceText($r('app.string.user_script_meta_source')), this.resolveSourceText(prompt), EllipsisMode.CENTER)
-      this.buildLocationRow(prompt)
+      .width('100%')
+      .alignItems(HorizontalAlign.Center)
     }
     .width('100%')
-    .alignItems(HorizontalAlign.Start)
+    // Relative to the dialog window, so the bound follows the screen instead of
+    // assuming the room a phone has.
+    .constraintSize({ maxHeight: DOWNLOAD_CONFIRM_BODY_MAX_HEIGHT })
+    .scrollBar(BarState.Auto)
+    .edgeEffect(EdgeEffect.Spring)
+  }
 
-    Column({ space: 8 }) {
+  @Builder
+  private buildActions(prompt: PendingDownloadPromptState) {
+    Column({ space: DOWNLOAD_CONFIRM_ACTION_GAP }) {
       BrowserSheetActionButton({
         label: prompt.confirmLabel,
         emphasis: 'primary',
         stacked: true,
         actionEnabled: this.fileNameDraft.trim().length > 0,
         accentColor: this.storedAccentColor,
-        buttonHeight: 44,
+        buttonHeight: DOWNLOAD_CONFIRM_ACTION_HEIGHT,
         fontSize: 15,
         onAction: () => {
           this.onAction({
@@ -100,7 +148,7 @@ struct BrowserDownloadConfirmDialog {
         label: prompt.cancelLabel,
         emphasis: 'ghost',
         stacked: true,
-        buttonHeight: 44,
+        buttonHeight: DOWNLOAD_CONFIRM_ACTION_HEIGHT,
         fontSize: 15,
         onAction: () => {
           this.onAction({ type: 'cancel', guid: prompt.guid });
@@ -108,7 +156,7 @@ struct BrowserDownloadConfirmDialog {
       })
     }
     .width('100%')
-    .margin({ top: 16 })
+    .margin({ top: DOWNLOAD_CONFIRM_ACTIONS_MARGIN_TOP })
     .alignItems(HorizontalAlign.Center)
   }
 
