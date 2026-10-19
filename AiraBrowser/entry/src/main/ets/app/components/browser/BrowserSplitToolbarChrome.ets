@@ -7,7 +7,7 @@ import {
   SearchEngineRecord,
   SearchSuggestion
 } from '../../../common/models/BrowserModels';
-import { BrowserSearchEnginePresentationViewModel } from '../../../core/browser/BrowserSearchEnginePresentationViewModel';
+import { SearchEngineIconResources } from '../search/SearchEngineIconResources';
 import {
   DOCK_TOOLBAR_BOTTOM_BLOCK_VP,
   DOCK_TOOLBAR_NAV_ROW_VP,
@@ -76,8 +76,6 @@ export type BrowserSplitToolbarSessionMode = 'chrome' | 'search_only';
 
 @Component
 export struct BrowserSplitToolbarChrome {
-  private searchEnginePresentation: BrowserSearchEnginePresentationViewModel =
-    new BrowserSearchEnginePresentationViewModel();
   private searchInputController: TextInputController = new TextInputController();
   private addressSelectAllTimeout: number = -1;
   private searchFocusTimeout: number = -1;
@@ -625,7 +623,7 @@ export struct BrowserSplitToolbarChrome {
   private buildSearchInputContent() {
     Row({ space: 8 }) {
       Button() {
-        Image(this.searchEnginePresentation.resolveIcon(this.selectedEngineId))
+        Image(SearchEngineIconResources.menuIcon(this.selectedEngineId))
           .width(22)
           .height(22)
           .objectFit(ImageFit.Contain)
@@ -759,7 +757,7 @@ export struct BrowserSplitToolbarChrome {
   private buildDockSearchEditor() {
     Row({ space: 8 }) {
       Button() {
-        Image(this.searchEnginePresentation.resolveIcon(this.selectedEngineId))
+        Image(SearchEngineIconResources.menuIcon(this.selectedEngineId))
           .width(22)
           .height(22)
           .objectFit(ImageFit.Contain)
@@ -855,7 +853,7 @@ export struct BrowserSplitToolbarChrome {
     Column() {
       ForEach(this.searchEngines, (engine: SearchEngineRecord) => {
         Row({ space: 10 }) {
-          Image(this.searchEnginePresentation.resolveIcon(engine.id))
+          Image(SearchEngineIconResources.menuIcon(engine.id))
             .width(22)
             .height(22)
             .objectFit(ImageFit.Contain)

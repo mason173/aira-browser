@@ -45,18 +45,4 @@ export class BrowserSearchEnginePresentationViewModel {
   ): SearchEngineRecord | undefined {
     return availableSearchEngines.find((item: SearchEngineRecord) => item.id === searchEngine);
   }
-
-  resolveIcon(searchEngine: SearchEngineId): Resource {
-    switch (searchEngine) {
-      case 'google':
-        return $r('app.media.search_engine_google');
-      case 'duckduckgo':
-        return $r('app.media.search_engine_duckduckgo');
-      case 'baidu':
-        return $r('app.media.search_engine_baidu');
-      case 'bing':
-      default:
-        return $r('app.media.search_engine_bing');
-    }
-  }
 }

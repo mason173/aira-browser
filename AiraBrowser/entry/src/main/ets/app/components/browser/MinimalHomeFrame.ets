@@ -149,9 +149,10 @@ export struct MinimalHomeFrame {
 
   private updateSurfaceHeight(area: Area): void {
     const height = parseAreaLength(area.height);
-    const next = resolveMeasuredCenteredSurfaceHeight(height, this.viewportHeight);
-    if (height > 0 && next !== this.surfaceHeight) {
-      this.surfaceHeight = next;
+    // Parent and child area callbacks have no fixed order during fullscreen rotation.
+    // Keep the raw measurement; resolveFrame clamps it against the latest viewport.
+    if (height > 0 && height !== this.surfaceHeight) {
+      this.surfaceHeight = height;
     }
   }
 }

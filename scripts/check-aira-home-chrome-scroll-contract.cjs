@@ -25,6 +25,14 @@ const centeredHomeFramePath = path.join(
   repoRoot,
   'AiraBrowser/entry/src/main/ets/app/components/browser/CenteredHomeFrame.ets'
 );
+const centeredHomeLayoutPolicyPath = path.join(
+  repoRoot,
+  'AiraBrowser/entry/src/main/ets/features/newtab/CenteredHomeShortcutLayoutPolicy.ets'
+);
+const homeLogoPolicyPath = path.join(
+  repoRoot,
+  'AiraBrowser/entry/src/main/ets/core/settings/HomeLogoSettingsPolicy.ets'
+);
 const shellPagePath = path.join(
   repoRoot,
   'AiraBrowser/entry/src/main/ets/app/pages/BrowserShellPage.ets'
@@ -363,6 +371,73 @@ function buildChromePresentationFacts(currentDetent) {
       { id: 'tabs', title: '标签页', enabled: true }
     ]
   };
+}
+
+// Entering landscape video fullscreen and returning must not leave Home raised.
+// ArkUI does not guarantee parent/child onAreaChange ordering in either direction,
+// so the frame keeps the raw measurement and resolveFrame clamps it to the latest
+// viewport. Clamping at measure time bakes in the landscape height for good.
+function checkHomeHeightAfterFullscreenRotation() {
+  const layout = evaluateCommonJs(centeredHomeLayoutPolicyPath, () => ({}));
+  const logo = evaluateCommonJs(homeLogoPolicyPath, (request) =>
+    request.endsWith('/CenteredHomeShortcutLayoutPolicy') ? layout : {});
+  const minimalHomeFramePath = path.join(path.dirname(centeredHomeFramePath), 'MinimalHomeFrame.ets');
+  for (const framePath of [centeredHomeFramePath, minimalHomeFramePath]) {
+    const source = fs.readFileSync(framePath, 'utf8');
+    // Execute the actual measurement callback and frame resolver without mounting ArkUI.
+    const methods = ['resolveFrame', 'updateSurfaceHeight'].map((name) => {
+      const start = source.indexOf(`  private ${name}(`);
+      const end = source.indexOf('\n  }', start);
+      assert(start >= 0 && end > start, `missing ${name} in ${framePath}`);
+      return source.slice(start, end + 4);
+    }).join('\n');
+    const parserStart = source.indexOf('function parseAreaLength(');
+    assert(parserStart >= 0, `missing area parser in ${framePath}`);
+    const module = { exports: {} };
+    const code = ts.transpileModule(`
+      export class FrameProbe {
+        surfaceHeight = 0;
+        viewportHeight = 844;
+        topSafeInset = 47;
+        bottomReserve = 112;
+        storedLogoScaleRatio = 1;
+        ${methods}
+      }
+      ${source.slice(parserStart)}
+    `, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText;
+    vm.runInNewContext(code, {
+      module, exports: module.exports, ...layout,
+      resolveHomeLogoHeightVp: logo.resolveHomeLogoHeightVp
+    }, { filename: framePath });
+    const label = path.basename(framePath);
+    for (const parentFirst of [false, true]) {
+      const frame = new module.exports.FrameProbe();
+      frame.updateSurfaceHeight({ height: 844 });
+      const baseline = frame.resolveFrame();
+      for (let cycle = 0; cycle < 3; cycle++) {
+        // Enter landscape video fullscreen, then restore portrait. ArkUI does not
+        // guarantee parent/child onAreaChange ordering in either direction.
+        for (const height of [390, 844]) {
+          if (parentFirst) frame.viewportHeight = height;
+          frame.updateSurfaceHeight({ height: `${height}vp` });
+          if (!parentFirst) frame.viewportHeight = height;
+        }
+        const restored = frame.resolveFrame();
+        assert(restored.headerTop === baseline.headerTop &&
+          restored.iconRegionHeight === baseline.iconRegionHeight,
+        `${label}: fullscreen exit left Home raised: headerTop=${restored.headerTop}, ` +
+          `expected=${baseline.headerTop}, parentFirst=${parentFirst}, cycle=${cycle}`);
+      }
+      // Keep a genuinely smaller content area and the oversized-measurement guard.
+      frame.updateSurfaceHeight({ height: 800 });
+      assert(frame.resolveFrame().headerTop === layout.resolveCenteredHomeFrame({
+        viewportHeight: 800, topSafeInset: 47, bottomChromeReserve: 112
+      }).headerTop, `${label}: must respect the measured content area`);
+      frame.updateSurfaceHeight({ height: 2400 });
+      assert(frame.resolveFrame().headerTop === baseline.headerTop,
+        `${label}: oversized measurements must still be capped to the current viewport`);
+    }
+  }
 }
 
 function checkFixedSearchAnchorAndStableGeometry() {
@@ -951,6 +1026,7 @@ const checks = [
   checkRawAdapterAndOwnerSeam,
   checkCollapsedOverlayPanOwnership,
   checkHiddenFloatingHeaderHitTesting,
+  checkHomeHeightAfterFullscreenRotation,
   checkFixedSearchAnchorAndStableGeometry,
   checkCollapseIsAnOpacityCrossFade,
   checkExpansionHintContract,
