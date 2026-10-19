@@ -1,5 +1,21 @@
 # Changelog
 
+## 3.8.3 (1000542)
+
+2026-10-19
+
+This release adds app recommendations and fixes several issues in video takeover, web files, web apps, and desktop bookmarks.
+
+- New users see an app recommendation card the first time they open Home, with a button that takes them to AppGallery.
+- The shortcut slot on Home for the recommended app now hands off to AppGallery directly, while the long-press menu still opens the web page.
+- Fixed video takeover occasionally failing, so the site's own player controls and toolbar no longer stay on screen.
+- Opening a local or shared web page file now shows the file's own address in the address bar and uses the regular toolbar.
+- Fixed the top spacing of web apps, which is now computed from the system safe area alone and no longer follows toolbar styles.
+- Long-pressing a desktop bookmark opens its menu again, with open, new tab, edit, multi-select, and delete available.
+- The minimal Home search box flies back to its place when you go back, instead of stopping at the top and disappearing.
+- Fixed the two buttons in the download confirmation dialog being pushed off screen in a short window.
+- A failed Huawei Account sign-in now keeps its failure stage and original error, making the cause easier to judge.
+
 ## 3.8.2 (1000538)
 
 2026-10-16
