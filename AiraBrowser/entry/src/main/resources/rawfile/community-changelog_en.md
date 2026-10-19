@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.8.3 (1000543)
+
+2026-10-19
+
+This release fixes sign-in state not being restored after the app is reopened the next day.
+
+- Fixed sign-in state not being restored on a cold start, so sites such as GitHub no longer sign you out when you reopen the app the next day.
+
 ## 3.8.3 (1000542)
 
 2026-10-19
