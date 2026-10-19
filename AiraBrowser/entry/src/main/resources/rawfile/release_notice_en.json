@@ -1,11 +1,12 @@
 {
   "enabled": true,
-  "noticeId": "aira-3.8.3-1000543",
+  "noticeId": "aira-3.8.3-1000544",
   "title": "Aira 3.8.3 update",
   "updatedAt": "2026-10-19",
-  "summary": "This release fixes sign-in state not being restored after the app is reopened the next day.",
+  "summary": "This release fixes two issues with the Home height and the split toolbar search icons.",
   "items": [
-    "Fixed sign-in state not being restored on a cold start, so sites such as GitHub no longer sign you out when you reopen the app the next day."
+    "Home is no longer pushed up after returning from landscape video fullscreen.",
+    "Search icons in the split toolbar now match the real engine, so Sogou and 360 no longer show the Bing icon."
   ],
   "actionLabel": "View changelog"
 }

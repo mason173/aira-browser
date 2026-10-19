@@ -1,5 +1,14 @@
 # Changelog
 
+## 3.8.3 (1000544)
+
+2026-10-19
+
+This release fixes two issues with the Home height and the split toolbar search icons.
+
+- Home is no longer pushed up after returning from landscape video fullscreen.
+- Search icons in the split toolbar now match the real engine, so Sogou and 360 no longer show the Bing icon.
+
 ## 3.8.3 (1000543)
 
 2026-10-19
