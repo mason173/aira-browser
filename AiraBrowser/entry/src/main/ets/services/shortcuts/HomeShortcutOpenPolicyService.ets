@@ -6,6 +6,7 @@ import {
 } from '../../common/models/BrowserModels';
 import { normalizeUrl } from '../../common/utils/UrlUtils';
 import { TabReusePolicyService } from '../tabs/TabReusePolicyService';
+import { resolveShortcutStoreHandoffId } from './ShortcutStoreHandoffCatalog';
 import {
   resolveHomeShortcutKind,
   resolveHomeSystemShortcutTarget
@@ -30,7 +31,22 @@ export interface HomeShortcutSystemOpenPlan {
   source: 'home_shortcut';
 }
 
-export type HomeShortcutOpenPlan = HomeShortcutWebOpenPlan | HomeShortcutSystemOpenPlan;
+/**
+ * The shortcut's page belongs to an app, so opening the tile hands that app over to the
+ * store instead of loading the page. It carries the app, not a URL: the store service
+ * owns the deep link that reaches the store app.
+ */
+export interface HomeShortcutStoreOpenPlan {
+  kind: 'store';
+  storeId: string;
+  title: string;
+  source: 'home_shortcut';
+}
+
+export type HomeShortcutOpenPlan =
+  HomeShortcutWebOpenPlan |
+  HomeShortcutSystemOpenPlan |
+  HomeShortcutStoreOpenPlan;
 
 export class HomeShortcutOpenPolicyService {
   private tabReusePolicyService: TabReusePolicyService = new TabReusePolicyService();
@@ -53,9 +69,24 @@ export class HomeShortcutOpenPolicyService {
       };
       return systemPlan;
     }
+    const normalizedIntent = this.normalizeIntent(intent);
+    // Opening the tile itself is the one action that hands an app over to the store. A
+    // menu entry that names a tab still opens the page it names, because that is what
+    // the user asked for there, and a store app cannot open in the background.
+    if (normalizedIntent === 'current_tab') {
+      const storeId = resolveShortcutStoreHandoffId(shortcut.url);
+      if (storeId !== undefined) {
+        const storePlan: HomeShortcutStoreOpenPlan = {
+          kind: 'store',
+          storeId: storeId,
+          title: shortcut.title,
+          source: 'home_shortcut'
+        };
+        return storePlan;
+      }
+    }
     const targetUrl = normalizeUrl(shortcut.url);
     const launchContext = this.tabReusePolicyService.buildHomeShortcutLaunchContext(shortcut.id, targetUrl);
-    const normalizedIntent = this.normalizeIntent(intent);
     const webPlan: HomeShortcutWebOpenPlan = {
       kind: 'web',
       url: targetUrl,

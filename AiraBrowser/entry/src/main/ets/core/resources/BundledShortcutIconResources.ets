@@ -1,3 +1,5 @@
+import { resolveShortcutStoreHandoffId } from '../../services/shortcuts/ShortcutStoreHandoffCatalog';
+
 /**
  * Bundled icons for shortcuts whose page is not the thing the shortcut is about.
  *
@@ -6,30 +8,30 @@
  * store's, not the app's. A shortcut listed here draws an icon that ships with Aira
  * instead, so the tile shows the app the link installs.
  *
- * Rules match on the store page's prefix, not on the exact URL, so the same app keeps
- * its icon whether or not the link carries share parameters. The prefix is deliberately
- * narrow — one app id — so the icon cannot leak onto another AppGallery page.
+ * A rule names the app, not the page: which pages are store pages is declared once, in
+ * `ShortcutStoreHandoffCatalog`, and the icon is looked up by the app that declaration
+ * resolves. A store page with no rule here simply keeps drawing the store's own icon.
  */
 interface BundledShortcutIconRule {
-  urlPrefix: string;
+  storeId: string;
   icon: Resource;
 }
 
 const BUNDLED_SHORTCUT_ICON_RULES: BundledShortcutIconRule[] = [
   {
-    urlPrefix: 'https://appgallery.huawei.com/app/detail?id=com.noctide.sleep',
+    storeId: 'com.noctide.sleep',
     icon: $r('app.media.app_recommendation_shengxi')
   }
 ];
 
 function matchBundledShortcutIconRule(url: string): BundledShortcutIconRule | undefined {
-  const normalizedUrl = url.trim();
-  if (normalizedUrl.length === 0) {
+  const storeId = resolveShortcutStoreHandoffId(url);
+  if (storeId === undefined) {
     return undefined;
   }
   for (let index = 0; index < BUNDLED_SHORTCUT_ICON_RULES.length; index++) {
     const rule = BUNDLED_SHORTCUT_ICON_RULES[index];
-    if (normalizedUrl.startsWith(rule.urlPrefix)) {
+    if (rule.storeId === storeId) {
       return rule;
     }
   }

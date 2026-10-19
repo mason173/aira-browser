@@ -1247,7 +1247,10 @@ import {
   HomeShortcutInformationPresentation
 } from '../../core/shortcuts/HomeShortcutEffectApplication';
 import { HomeShortcutSelectionState } from '../../core/shortcuts/HomeShortcutSelectionCoordinator';
-import { HomeShortcutOpenCoordinator } from '../../core/shortcuts/HomeShortcutOpenCoordinator';
+import {
+  HomeShortcutOpenCoordinator,
+  HomeShortcutStoreHandoffPort
+} from '../../core/shortcuts/HomeShortcutOpenCoordinator';
 import { HomeShortcutToggleService } from '../../services/shortcuts/HomeShortcutToggleService';
 import {
   WebAppInstallCoordinator,
@@ -4802,9 +4805,15 @@ struct BrowserShellPage {
     });
   private browserThemeModeCoordinator: BrowserThemeModeCoordinator =
     new BrowserThemeModeCoordinator(sharedPreferencesRepository);
+  private homeShortcutStoreHandoffPort: HomeShortcutStoreHandoffPort = {
+    openStoreDetailPage: (storeId: string): void => {
+      this.handOverAppStoreDetailPage(storeId);
+    }
+  };
   private homeShortcutOpenCoordinator: HomeShortcutOpenCoordinator = new HomeShortcutOpenCoordinator(
     this.browserAppUrlOpenCoordinator,
-    this.browserShellRouteCoordinator
+    this.browserShellRouteCoordinator,
+    this.homeShortcutStoreHandoffPort
   );
   private homeShortcutEffectApplicationShell: HomeShortcutEffectApplicationShell = {
     dismissContextMenu: (): void => {
@@ -7579,8 +7588,18 @@ struct BrowserShellPage {
     if (entry === undefined || entry.storeId.length === 0) {
       return;
     }
+    this.handOverAppStoreDetailPage(entry.storeId);
+  }
+
+  /**
+   * The one place an app is handed to AppGallery, shared by the recommendation card and
+   * by a homepage shortcut that holds that app's store page. Aira installs nothing and
+   * never reads whether the app is already installed, so a store that cannot answer is
+   * the only outcome worth reporting.
+   */
+  private handOverAppStoreDetailPage(storeId: string): void {
     void this.systemSettingsLaunchService
-      .openAppGalleryDetailPageForApp(this.getAbilityContext(), entry.storeId)
+      .openAppGalleryDetailPageForApp(this.getAbilityContext(), storeId)
       .then((result: SystemSettingsLaunchResult): void => {
         if (!result.success) {
           this.showNativeToast(result.message);

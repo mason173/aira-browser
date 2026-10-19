@@ -23,10 +23,12 @@ The seed list is content, and a slot in it may point at a store page instead of 
   shortcut keeps no store identity beyond the URL it opens, so this stays the same kind of row as every other seed.
 - The tile's icon ships with the app. A homepage shortcut normally draws the favicon of the page it opens, which is
   correct for a site and wrong for a store: an AppGallery detail page's favicon is AppGallery's logo, so the tile would
-  show the store rather than the app the shortcut is about. `BundledShortcutIconResources` holds the rule that maps
-  that store page to the app's bundled icon, and the shortcut tile draws the bundled artwork in place of the favicon.
-- The icon rule matches the store page's prefix, not the exact URL, so the same app keeps its icon whether or not the
-  link carries share parameters, and it is scoped to one app id so the icon cannot leak onto another AppGallery page.
+  show the store rather than the app the shortcut is about. `BundledShortcutIconResources` holds the rule that gives
+  that app its bundled icon, looked up by the app `ShortcutStoreHandoffCatalog` resolves the store page to, and the
+  shortcut tile draws the bundled artwork in place of the favicon.
+- The statement of which page is a store page matches the page prefix, not the exact URL, so the same app keeps its
+  icon whether or not the link carries share parameters, and it is scoped to one app id so neither the icon nor the
+  hand-over of ADR-0086 can leak onto another AppGallery page.
 - The bundled artwork is drawn in the same inset and radius a site icon gets, so a recommended tile and a site tile are
   indistinguishable in the grid.
 
@@ -48,8 +50,8 @@ The seed list is content, and a slot in it may point at a store page instead of 
 
 - Existing installs are unaffected in every respect: no new tile, no changed title, no changed link, and a deleted
   shortcut in that slot stays deleted.
-- A fresh install shows the recommended app in the slot where the previous shortcut was, with the app's icon, and
-  opening it opens the store page in a tab.
+- A fresh install shows the recommended app in the slot where the previous shortcut was, with the app's icon. Opening it
+  hands that app over to the store rather than loading the store page in a tab; the hand-over itself is ADR-0086.
 - Changing which app the slot recommends is a change to `BrowserDefaultSeedSites` plus the bundled icon rule, and both
   are content. The id must not be renamed, which is the one rule a future edit has to keep.
 - `scripts/check-aira-app-recommendation-contract.sh` pins the slot id, the title, the store URL, the bundled icon rule

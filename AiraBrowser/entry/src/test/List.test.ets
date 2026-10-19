@@ -101,6 +101,7 @@ import browserLargeScreenTabStripBlankAreaPolicyTest from './BrowserLargeScreenT
 import browserLargeScreenVerticalTabsPolicyTest from './BrowserLargeScreenVerticalTabsPolicy.test';
 import browserFullscreenExitHintPolicyTest from './BrowserFullscreenExitHintPolicy.test';
 import centeredHomeShortcutLayoutPolicyTest from './CenteredHomeShortcutLayoutPolicy.test';
+import homeShortcutStoreHandoffTest from './HomeShortcutStoreHandoff.test';
 import homePageSettingsCapabilityPolicyTest from './HomePageSettingsCapabilityPolicy.test';
 import homeLogoSettingsPolicyTest from './HomeLogoSettingsPolicy.test';
 import homeLogoImageFormatPolicyTest from './HomeLogoImageFormatPolicy.test';
@@ -232,6 +233,7 @@ export default function tests(): void {
   browserLargeScreenVerticalTabsPolicyTest();
   browserFullscreenExitHintPolicyTest();
   centeredHomeShortcutLayoutPolicyTest();
+  homeShortcutStoreHandoffTest();
   homePageSettingsCapabilityPolicyTest();
   homeLogoSettingsPolicyTest();
   homeLogoImageFormatPolicyTest();

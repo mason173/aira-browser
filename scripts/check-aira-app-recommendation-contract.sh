@@ -51,8 +51,12 @@ RUNTIME_REL="AiraBrowser/entry/src/main/ets/app/bootstrap/BrowserAppRuntime.ets"
 STORE_SERVICE_REL="AiraBrowser/entry/src/main/ets/services/system/SystemSettingsLaunchService.ets"
 SEED_SITES_REL="AiraBrowser/entry/src/main/ets/data/repositories/BrowserDefaultSeedSites.ets"
 BUNDLED_ICON_REL="AiraBrowser/entry/src/main/ets/core/resources/BundledShortcutIconResources.ets"
+STORE_HANDOFF_REL="AiraBrowser/entry/src/main/ets/services/shortcuts/ShortcutStoreHandoffCatalog.ets"
+OPEN_POLICY_REL="AiraBrowser/entry/src/main/ets/services/shortcuts/HomeShortcutOpenPolicyService.ets"
+OPEN_COORDINATOR_REL="AiraBrowser/entry/src/main/ets/core/shortcuts/HomeShortcutOpenCoordinator.ets"
 SHORTCUT_SURFACE_REL="AiraBrowser/entry/src/main/ets/app/components/browser/HomeShortcutSurface.ets"
 TEST_REL="AiraBrowser/entry/src/test/AppRecommendationCoordinator.test.ets"
+SHORTCUT_HANDOFF_TEST_REL="AiraBrowser/entry/src/test/HomeShortcutStoreHandoff.test.ets"
 ADR_REL="docs/adr/0084-an-app-recommendation-is-announced-once-per-campaign.md"
 SEED_SLOT_ADR_REL="docs/adr/0085-the-recommended-app-takes-over-a-default-shortcut-slot.md"
 VARIANT_FLAGS_REL="AiraBrowser/entry/src/main/ets/common/config/BuildVariantFlags.ets"
@@ -70,7 +74,9 @@ for rel_path in "${REPOSITORY_REL}" "${COORDINATOR_REL}" "${CONTENT_REL}" "${SHE
   "${TRANSIENT_REL}" "${BOTTOM_PANEL_REL}" "${SHELL_BACK_REL}" "${MAIN_BACK_REL}" \
   "${TAB_HOME_REL}" "${SHELL_PAGE_REL}" "${RUNTIME_REL}" "${STORE_SERVICE_REL}" "${TEST_REL}" "${ADR_REL}" \
   "${SEED_SITES_REL}" "${BUNDLED_ICON_REL}" "${SHORTCUT_SURFACE_REL}" "${SEED_SLOT_ADR_REL}" \
+  "${STORE_HANDOFF_REL}" "${OPEN_POLICY_REL}" "${OPEN_COORDINATOR_REL}" \
   "${ICON_MANIFEST_REL}" "${BASE_STRINGS_REL}" "${EN_STRINGS_REL}" \
+  "${SHORTCUT_HANDOFF_TEST_REL}" \
   "${ZH_CN_STRINGS_REL}" "${ZH_HANT_STRINGS_REL}"; do
   if [ ! -f "${REPO_ROOT}/${rel_path}" ]; then
     fail "missing ${rel_path}"
@@ -245,11 +251,34 @@ require_pattern "${SEED_SITES_REL}" "idSuffix: 'zhihu'" \
 require_pattern "${SEED_SITES_REL}" "title: '声栖'" \
   "the shortcut slot must be titled with the recommended app."
 require_pattern "${SEED_SITES_REL}" "https://appgallery.huawei.com/app/detail\\?id=com\\.noctide\\.sleep" \
-  "the shortcut slot must open the recommended app's store page."
+  "the shortcut slot must declare the recommended app's store page."
+# Tapping that tile is about the app, not the page it holds, so the app is handed to
+# AppGallery. The store page declaration is one catalog, and the tile's icon and its
+# hand-over both read it, so they cannot disagree about which app a page belongs to.
+require_pattern "${STORE_HANDOFF_REL}" "export function resolveShortcutStoreHandoffId" \
+  "which pages are store pages must be a declared catalog, not a special case in the open path."
+require_pattern "${STORE_HANDOFF_REL}" "com\\.noctide\\.sleep" \
+  "the store hand-over rule must be scoped to the recommended app's store page."
+require_pattern "${OPEN_POLICY_REL}" "resolveShortcutStoreHandoffId\\(shortcut\\.url\\)" \
+  "the open plan must ask the catalog whether this shortcut's page is a store page."
+require_pattern "${OPEN_POLICY_REL}" "kind: 'store'" \
+  "a store page must become its own open plan rather than a Web open."
+require_pattern "${OPEN_POLICY_REL}" "normalizedIntent === 'current_tab'" \
+  "only the tile's own open hands the app over; a tab intent still opens the page it names."
+require_pattern "${OPEN_COORDINATOR_REL}" "openStoreDetailPage" \
+  "the open coordinator must hand the store page to the store through one port."
+require_pattern "${SHELL_PAGE_REL}" "openStoreDetailPage" \
+  "the shell must implement the store hand-over the shortcuts open through."
+require_pattern "${SHELL_PAGE_REL}" "handOverAppStoreDetailPage" \
+  "the recommendation card and the shortcut must share one store hand-over."
+require_pattern "${SHORTCUT_HANDOFF_TEST_REL}" "assertEqual\\('store'\\)" \
+  "the store hand-over must be covered by the open-plan test."
 # A shortcut draws its page's favicon, and a store page's favicon is the store's, so the
 # recommended app's tile ships its icon with the app instead.
 require_pattern "${BUNDLED_ICON_REL}" "hasBundledShortcutIcon" \
   "a bundled shortcut icon must be an explicit rule, not a special case in the tile."
+require_pattern "${BUNDLED_ICON_REL}" "resolveShortcutStoreHandoffId" \
+  "the icon rule must look up the app the store hand-over catalog resolved, not repeat the URL."
 require_pattern "${BUNDLED_ICON_REL}" "com\\.noctide\\.sleep" \
   "the bundled icon rule must be scoped to the recommended app's store page."
 require_pattern "${BUNDLED_ICON_REL}" "app_recommendation_shengxi" \
