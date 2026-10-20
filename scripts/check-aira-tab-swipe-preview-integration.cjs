@@ -10,6 +10,60 @@ const surfaceSource = fs.readFileSync(path.join(sourceRoot,
   'app/components/browser/BrowserAddressBarTabSwipeSurface.ets'), 'utf8');
 const shellSource = fs.readFileSync(path.join(sourceRoot, 'app/pages/BrowserShellPage.ets'), 'utf8');
 
+function swipePublishHarness() {
+  const body = shellSource.match(/      publish: \(state: BrowserAddressBarTabSwipeState\): void => \{([^]*?)\n      },\n      animate:/)?.[1];
+  assert.ok(body, 'real swipe publication callback');
+  const module = { exports: {} };
+  vm.runInNewContext(ts.transpileModule(`export class Shell { publish(state) { ${body} } }`, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 }
+  }).outputText, { module, exports: module.exports });
+  const frames = [], preview = { sharedSnapshotPixelMap: {} };
+  const handoff = { stage: 'handoff', targetTabId: 'b' };
+  const shell = Object.assign(new module.exports.Shell(), {
+    addressBarTabSwipeState: handoff, addressBarTabSwipePreview: preview,
+    resolveSwipePreview: id => ({ tabId: id, sharedSnapshotPixelMap: {} }),
+    postSwipeFrameCallback: task => frames.push(task)
+  });
+  return { shell, preview, handoff, flushFrame() { frames.splice(0).forEach(task => task()); } };
+}
+
+test('idle publication retains the mounted cover image until its removal has rendered', () => {
+  const h = swipePublishHarness();
+  h.shell.publish({ stage: 'idle', targetTabId: '' });
+  // @Link changes immediately while the child @Prop may still describe its last mounted frame.
+  assert.equal(h.shell.addressBarTabSwipePreview, h.preview,
+    'clearing the source before cover removal can paint its identity/background for one frame');
+  h.flushFrame();
+  h.flushFrame();
+  assert.equal(h.shell.addressBarTabSwipePreview, undefined, 'release the reference after removal');
+});
+
+test('retiring cover cleanup cannot clear a newly started swipe', () => {
+  const h = swipePublishHarness();
+  h.shell.publish({ stage: 'idle', targetTabId: '' });
+  h.flushFrame();
+  h.shell.publish({ stage: 'dragging', targetTabId: 'c' });
+  const next = h.shell.addressBarTabSwipePreview;
+  h.flushFrame();
+  assert.equal(h.shell.addressBarTabSwipePreview, next);
+});
+
+test('handoff and lease frame callbacks execute after rendering, never at frame start', () => {
+  const declaration = shellSource.match(/class BrowserTabSwipeHandoffFrameCallback extends FrameCallback \{[^]*?\n}/)?.[0];
+  assert.ok(declaration);
+  const module = { exports: {} };
+  class FrameCallback { onFrame() {} onIdle() {} }
+  vm.runInNewContext(ts.transpileModule(`export ${declaration}`, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 }
+  }).outputText, { module, exports: module.exports, FrameCallback });
+  let completed = 0;
+  const frame = new module.exports.BrowserTabSwipeHandoffFrameCallback(() => completed++);
+  frame.onFrame(0);
+  assert.equal(completed, 0, 'a rendering-start callback is not a completed frame');
+  frame.onIdle(2_000_000);
+  assert.equal(completed, 1);
+});
+
 function leaveCaptureHarness(stage) {
   const policyModule = { exports: {} };
   vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(sourceRoot,
@@ -279,6 +333,32 @@ for (const direction of [-1, 1]) {
     assert.equal(h.surface.resolvePreviewOpacity(), 1);
     assert.equal(draw.height, 760);
     assert.equal(draw.position.y, 24);
+  });
+}
+
+for (const direction of [-1, 1]) {
+  test(`opaque handoff (${direction}) removes the cover without a later image rebound`, () => {
+    const h = swipeSurfaceHarness();
+    const coordinatorSource = fs.readFileSync(path.join(sourceRoot,
+      'core/browser/BrowserAddressBarTabSwipeCoordinator.ets'), 'utf8');
+    const factory = coordinatorSource.match(/export function createIdleAddressBarTabSwipeState\([^]*?\n}/)?.[0];
+    assert.ok(factory);
+    const module = { exports: {} };
+    vm.runInNewContext(ts.transpileModule(factory, {
+      compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 }
+    }).outputText, { module, exports: module.exports });
+    h.surface.state = { stage: 'handoff', direction, offsetX: direction * 403,
+      width: 391, reduceMotion: false, previewOpacity: 1 };
+    const pixels = {};
+    h.update({ sharedSnapshotPixelMap: pixels });
+    const leaf = h.paint();
+    assert.equal(h.surface.resolvePreviewOpacity(), 1);
+    // Device trace: idle state arrives 6-10 ms before image_disappear. Replay that boundary
+    // while the Image leaf still exists, rather than treating idle as immediate node removal.
+    h.surface.state = module.exports.createIdleAddressBarTabSwipeState();
+    assert.equal(leaf.readSource(), pixels, 'the old image remains leased during removal');
+    assert.equal(h.surface.resolvePreviewOpacity(), 0,
+      'no opaque cached-image frame may be submitted during handoff and removal');
   });
 }
 

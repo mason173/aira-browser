@@ -1,3 +1,4 @@
+import { resolveBrowserTabSurfaceHandoffDelayMs } from './BrowserTabSurfaceHandoffPolicy';
 import { BrowserTabState } from '../tabs/TabManager';
 import { BrowserAddressBarTabSwipeEvent, BrowserAddressBarTabSwipePolicy } from './BrowserAddressBarTabSwipePolicy';
 
@@ -17,8 +18,10 @@ export interface BrowserAddressBarTabSwipeState {
 }
 
 export function createIdleAddressBarTabSwipeState(): BrowserAddressBarTabSwipeState {
+  // ArkUI removes the cover after this state reaches the child. Keep the retiring node transparent;
+  // resetting opacity to 1 here can submit an opaque screenshot frame during removal.
   return { stage: 'idle', offsetX: 0, width: 1, direction: 0, targetTabId: '',
-    targetTitle: '', targetAddress: '', previewOpacity: 1, reduceMotion: false, loadingPlaceholder: false };
+    targetTitle: '', targetAddress: '', previewOpacity: 0, reduceMotion: false, loadingPlaceholder: false };
 }
 
 export interface BrowserAddressBarTabSwipeFacts {
@@ -44,11 +47,9 @@ export interface BrowserAddressBarTabSwipeHost {
 }
 
 const PAGE_GAP_VP: number = 12;
-// ArkUI can drop an animation's onFinish when another animation preempts the same property, and a
-// throwing frame host can swallow a queued callback. Both would strand the gesture, so the monitor
-// timer is the single recovery point: it never releases the cover while the target is unready.
+// ArkUI can drop a settle animation's onFinish when another animation preempts the property.
+// The monitor recovers that gesture and retains the opaque cover while the target is unready.
 const SETTLE_STALL_GRACE_MS: number = 900;
-const FADE_STALL_GRACE_MS: number = 900;
 
 /** Owns one reversible gesture. Active tab state changes only after the settle animation. */
 export class BrowserAddressBarTabSwipeCoordinator {
@@ -59,17 +60,15 @@ export class BrowserAddressBarTabSwipeCoordinator {
   private nextTab?: BrowserTabState = undefined;
   private generation: number = 0;
   private monitorTimer: number = -1;
+  private handoffTimer: number = -1;
   private settleStartedAt: number = 0;
   private settlingCommit: boolean = false;
-  private fadeStartedAt: number = 0;
   private handoffStartedAt: number = 0;
   private waitingForFrames: boolean = false;
   private handoffFrameVersion: number = 0;
   private previewsLocked: boolean = false;
   private visibleSurfaceGenerations: Map<string, number> = new Map<string, number>();
   private knownTabs?: BrowserTabState[] = undefined;
-  private fading: boolean = false;
-  private fadeVersion: number = 0;
 
   private readonly host: BrowserAddressBarTabSwipeHost;
 
@@ -138,13 +137,12 @@ export class BrowserAddressBarTabSwipeCoordinator {
       clearTimeout(this.monitorTimer);
       this.monitorTimer = -1;
     }
+    this.clearHandoffTimer();
     this.releasePreviews();
     this.previousTab = undefined;
     this.nextTab = undefined;
     this.sessionFacts = undefined;
     this.settlingCommit = false;
-    this.fading = false;
-    this.fadeVersion += 1;
     this.waitingForFrames = false;
     if (this.state.stage !== 'idle') {
       this.publish(createIdleAddressBarTabSwipeState());
@@ -278,18 +276,7 @@ export class BrowserAddressBarTabSwipeCoordinator {
     if (this.state.stage === 'settling' && now - this.settleStartedAt >= SETTLE_STALL_GRACE_MS) {
       this.finishSettle(run, this.settlingCommit);
     }
-    if (this.fading && now - this.fadeStartedAt >= FADE_STALL_GRACE_MS) {
-      if (this.host.isTargetReady(this.state.targetTabId)) {
-        this.cancel();
-      } else {
-        this.restoreHandoffCover();
-      }
-    }
-    if (this.state.stage === 'handoff' && this.fading &&
-      !this.host.isTargetReady(this.state.targetTabId)) {
-      this.restoreHandoffCover();
-    }
-    if (this.state.stage === 'handoff' && !this.fading) {
+    if (this.state.stage === 'handoff') {
       const ready = this.host.isTargetReady(this.state.targetTabId);
       if (!ready && this.waitingForFrames) {
         this.invalidateHandoffFrames();
@@ -318,62 +305,52 @@ export class BrowserAddressBarTabSwipeCoordinator {
   private invalidateHandoffFrames(): void {
     this.handoffFrameVersion += 1;
     this.waitingForFrames = false;
-    if (this.fading) {
-      this.restoreHandoffCover();
-    }
+    this.clearHandoffTimer();
   }
 
-  private restoreHandoffCover(): void {
-    if (!this.fading) {
-      return;
+  private clearHandoffTimer(): void {
+    if (this.handoffTimer >= 0) {
+      clearTimeout(this.handoffTimer);
+      this.handoffTimer = -1;
     }
-    const run = this.generation;
-    const fade = ++this.fadeVersion;
-    this.fading = false;
-    this.waitingForFrames = false;
-    this.handoffFrameVersion += 1;
-    // Cancel the opacity animation too; setting the model alone would leave its in-flight fade visible.
-    this.host.animate(0, () => {
-      if (run === this.generation && fade === this.fadeVersion) {
-        this.publish(this.motionState('handoff', this.state.offsetX, 1));
-      }
-    }, () => {});
   }
 
   private isHandoffFrameCurrent(run: number, frameVersion: number): boolean {
     return run === this.generation && frameVersion === this.handoffFrameVersion &&
-      this.state.stage === 'handoff' && !this.fading;
+      this.state.stage === 'handoff';
   }
 
   private finishHandoffAfterFrames(run: number, frameVersion: number): void {
-    if (!this.isHandoffFrameCurrent(run, frameVersion)) {
+    if (!this.isHandoffFrameCurrent(run, frameVersion) || this.handoffTimer >= 0) {
       return;
     }
-    this.waitingForFrames = false;
     if (!this.isSessionValid(true)) {
       this.cancel();
       return;
     }
     if (!this.host.isTargetReady(this.state.targetTabId)) {
+      this.invalidateHandoffFrames();
       return;
     }
-    this.fading = true;
-    this.fadeStartedAt = Date.now();
-    const fade = ++this.fadeVersion;
-    this.host.animate(this.state.reduceMotion ? 80 : 120, () => {
-      if (run === this.generation && fade === this.fadeVersion) {
-        this.publish(this.motionState('handoff', this.state.offsetX, 0));
+    // Use the same opaque handoff interval as overview card selection. This replaces the old
+    // opacity-animation interval; it does not add another delay or wait for a new screenshot.
+    this.handoffTimer = setTimeout(() => {
+      if (!this.isHandoffFrameCurrent(run, frameVersion)) {
+        return;
       }
-    }, () => {
-      if (run !== this.generation || fade !== this.fadeVersion) {
+      this.handoffTimer = -1;
+      if (!this.isSessionValid(true)) {
+        this.cancel();
         return;
       }
       if (!this.host.isTargetReady(this.state.targetTabId)) {
-        this.restoreHandoffCover();
+        this.invalidateHandoffFrames();
         return;
       }
+      // Like the overview's final publish: remove the opaque picture and reveal the already
+      // mounted live page together, without blending two separately rendered page surfaces.
       this.cancel();
-    });
+    }, resolveBrowserTabSurfaceHandoffDelayMs(this.state.reduceMotion));
   }
 
   private releasePreviews(): void {

@@ -1384,7 +1384,8 @@ class BrowserTabSwipeHandoffFrameCallback extends FrameCallback {
     this.task = task;
   }
 
-  onFrame(_frameTimeInNano: number): void {
+  // onFrame runs at render start; handoff and image disposal need a completed render.
+  onIdle(_timeLeftInNano: number): void {
     try {
       this.task();
     } catch (_error) {
@@ -2218,13 +2219,21 @@ struct BrowserShellPage {
       },
       publish: (state: BrowserAddressBarTabSwipeState): void => {
         const previous = this.addressBarTabSwipeState;
-        if (state.targetTabId !== previous.targetTabId) {
-          this.addressBarTabSwipePreview = state.targetTabId.length > 0 ?
-            this.resolveSwipePreview(state.targetTabId) : undefined;
+        if (state.targetTabId.length > 0 && state.targetTabId !== previous.targetTabId) {
+          this.addressBarTabSwipePreview = this.resolveSwipePreview(state.targetTabId);
         }
         this.addressBarTabSwipeState = state;
         if (state.stage === 'idle') {
-          this.addressBarTabSwipePreview = undefined;
+          // The cover's @Link changes immediately, but its @Prop stage can still describe the
+          // mounted image. Keep that source until removal has rendered, just like its image lease.
+          const idleState = this.addressBarTabSwipeState;
+          this.postSwipeFrameCallback(() => {
+            this.postSwipeFrameCallback(() => {
+              if (this.addressBarTabSwipeState === idleState) {
+                this.addressBarTabSwipePreview = undefined;
+              }
+            });
+          });
         }
       },
       animate: (duration: number, update: () => void, finish: () => void): void => {

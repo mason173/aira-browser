@@ -1,3 +1,4 @@
+import { resolveBrowserTabSurfaceHandoffDelayMs } from './BrowserTabSurfaceHandoffPolicy';
 import { curves } from '@kit.ArkUI';
 import { BROWSER_TABS_OVERVIEW_IDENTITY_MORPH_OFFSET_Y } from './BrowserTabsOverviewVisualTokens';
 import { BrowserTabsOverviewSnapshotMotion } from './tabsOverview/BrowserTabsOverviewStyleEntryPolicy';
@@ -61,7 +62,6 @@ const TABS_OVERLAY_LIST_ENTRY_CROSSFADE_START_PROGRESS: number = 1;
 const TABS_OVERLAY_LIST_ENTRY_DISSOLVE_DURATION_MS: number = 140;
 const TABS_OVERLAY_LIST_ENTRY_DISSOLVE_CURVE: string = 'cubic-bezier(0.2, 0, 0, 1)';
 const TABS_OVERLAY_LIST_ENTRY_IMAGE_BLUR: number = 0;
-const TABS_OVERLAY_SHARED_SNAPSHOT_EXIT_HANDOFF_DELAY_MS: number = 120;
 const TABS_OVERLAY_WEB_CHROME_SELECTION_REVEAL_DURATION_MS: number = 160;
 const TABS_OVERLAY_WEB_CHROME_SELECTION_REVEAL_CURVE: Curve = Curve.FastOutSlowIn;
 const TABS_OVERLAY_HOME_REVEAL_DURATION_MS: number = 120;
@@ -245,7 +245,7 @@ export class BrowserTabsOverlayAnimationViewModel {
   }
 
   getSharedSnapshotExitHandoffDelayMs(): number {
-    return TABS_OVERLAY_SHARED_SNAPSHOT_EXIT_HANDOFF_DELAY_MS;
+    return resolveBrowserTabSurfaceHandoffDelayMs();
   }
 
   getWebChromeSelectionRevealDurationMs(): number {
