@@ -76,7 +76,12 @@ export type BrowserVisibleTabPreviewReplaceReason =
   'window_open' |
   'tab_switch';
 
-export function visibleTabPreviewMustBeReplaced(reason: string): boolean {
+export function visibleTabPreviewMustBeReplaced(reason: string, swipeActive: boolean = false): boolean {
+  // The shell contains both pages during a swipe. In particular, at commit it is already
+  // covered by the destination screenshot while the active id still names the outgoing tab.
+  if (swipeActive) {
+    return false;
+  }
   return reason === 'new_tab' ||
     reason === 'background_tab' ||
     reason === 'background_prompt' ||

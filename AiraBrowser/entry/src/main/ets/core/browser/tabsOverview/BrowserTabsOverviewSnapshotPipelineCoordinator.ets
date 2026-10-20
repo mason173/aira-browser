@@ -118,6 +118,7 @@ export class BrowserTabsOverviewSnapshotPipelineCoordinator {
   private thumbnailCoordinator: BrowserTabsOverviewThumbnailCoordinator = new BrowserTabsOverviewThumbnailCoordinator();
   private persistLeases: BrowserTabsOverviewSnapshotPersistLease[] = [];
   private persistLeaseId: number = 0;
+  private externalCaptureGenerations: Map<string, number> = new Map();
 
   constructor(dependencies: BrowserTabsOverviewSnapshotPipelineDependencies) {
     this.dependencies = dependencies;
@@ -355,6 +356,10 @@ export class BrowserTabsOverviewSnapshotPipelineCoordinator {
     return this.thumbnailCoordinator.rememberPersistedPreviewState(previewState);
   }
 
+  rememberDrawableSnapshotForGallery(tabId: string, pixelMap: image.PixelMap): void {
+    BrowserTabSnapshotPixelMapCache.put(tabId, pixelMap);
+  }
+
   clearMissingTabs(retainedTabs: BrowserTabState[]): boolean {
     return this.thumbnailCoordinator.clearMissingTabs(retainedTabs);
   }
@@ -431,10 +436,8 @@ export class BrowserTabsOverviewSnapshotPipelineCoordinator {
       return false;
     }
     try {
-      const pixelMap = await input.uiContext.getComponentSnapshot().get(input.componentSnapshotId, {
-        scale: input.componentSnapshotScale,
-        waitUntilRenderFinished: false
-      });
+      const pixelMap = await this.captureVisibleComponentPixelMap(
+        input.uiContext, input.componentSnapshotId, input.componentSnapshotScale);
       if (!input.shouldKeepPixelMap()) {
         this.dependencies.releasePixelMap(pixelMap);
         return false;
@@ -454,26 +457,49 @@ export class BrowserTabsOverviewSnapshotPipelineCoordinator {
     if (tabId.trim().length <= 0 || input.tab.isHome || !input.shouldKeepPixelMap()) {
       return false;
     }
+    const generation = (this.externalCaptureGenerations.get(tabId) ?? 0) + 1;
+    this.externalCaptureGenerations.set(tabId, generation);
+    let pixelMap: image.PixelMap | undefined = undefined;
+    let drawable: image.PixelMap | undefined = undefined;
     try {
-      const pixelMap = await input.uiContext.getComponentSnapshot().get(input.componentSnapshotId, {
-        scale: input.componentSnapshotScale,
-        waitUntilRenderFinished: false
-      });
-      if (!input.shouldKeepPixelMap()) {
-        this.dependencies.releasePixelMap(pixelMap);
+      // Issued synchronously at gesture entry, before translation changes the composition.
+      pixelMap = await this.captureVisibleComponentPixelMap(
+        input.uiContext, input.componentSnapshotId, input.componentSnapshotScale);
+      if (!input.shouldKeepPixelMap() || this.externalCaptureGenerations.get(tabId) !== generation) {
         return false;
       }
+      drawable = await this.copyDrawablePixelMap(pixelMap);
+      if (!input.shouldKeepPixelMap() || this.externalCaptureGenerations.get(tabId) !== generation) {
+        return false;
+      }
+      const adopted = drawable;
+      drawable = undefined;
       this.dependencies.previewCoordinator.adoptExternalTransitionSnapshot(
         input.tab,
-        pixelMap,
+        adopted,
         input.transitionSource
       );
+      this.rememberDrawableSnapshotForGallery(tabId, adopted);
       this.dependencies.notifyChanged();
       return this.dependencies.previewCoordinator.getTransitionSnapshotState(tabId) !== undefined;
     } catch (error) {
       this.dependencies.recordFailure('tabs_external_snapshot_capture_failed', error as Error, tabId);
       return false;
+    } finally {
+      if (pixelMap !== undefined) {
+        this.dependencies.releasePixelMap(pixelMap);
+      }
+      if (drawable !== undefined) {
+        this.dependencies.releasePixelMap(drawable);
+      }
     }
+  }
+
+  private captureVisibleComponentPixelMap(uiContext: UIContext, componentId: string,
+    scale: number): Promise<image.PixelMap> {
+    // The tab button and horizontal swipe use the same already-drawn frame. This never asks
+    // ArkWeb to re-layout a document, and callers do not wait for disk persistence.
+    return uiContext.getComponentSnapshot().get(componentId, { scale: scale, waitUntilRenderFinished: false });
   }
 
   private resolveTransitionSourceRect(
