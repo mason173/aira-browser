@@ -7,7 +7,9 @@ supersedes: none
 
 Accepted 2026-10-19. Tapping a homepage shortcut whose link is an app's AppGallery detail page opens that app's page in
 the AppGallery app instead of loading the page in a browser tab. This refines the open behaviour of the shortcut slot in
-ADR-0085; the slot itself, its id, and its bundled icon are unchanged.
+ADR-0085; the slot itself, its id, and its bundled icon are unchanged. ADR-0087 later dropped that seeded slot, so the
+hand-over now answers any shortcut that holds a store page — a hand-saved AppGallery link, or the row an older install
+kept — rather than a seeded recommendation tile.
 
 ## Decision
 

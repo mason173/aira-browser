@@ -1,9 +1,13 @@
 ---
-status: accepted
+status: superseded
 supersedes: none
 ---
 
 # The Recommended App Takes Over An Existing Default Shortcut Slot
+
+Superseded by ADR 0087. The recommended app is no longer seeded into the default homepage shortcuts, so the slot this
+ADR describes does not exist; the store hand-over and the bundled icon rule it introduces remain in force for any
+shortcut that holds a store page.
 
 Accepted 2026-10-19. One of the default homepage shortcuts a fresh install seeds opens the recommended app's
 AppGallery page and is titled with that app. The app's own icon is drawn on that tile. Existing installs are not
