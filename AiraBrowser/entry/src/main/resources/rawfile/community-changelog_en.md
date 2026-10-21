@@ -1,5 +1,14 @@
 # Changelog
 
+## 3.8.3 (1000546)
+
+2026-10-20
+
+This release makes swiping between tabs smoother and adjusts the default Home shortcuts.
+
+- Swiping between tabs is smoother: the switch reuses a single tab snapshot, so there is no more flicker.
+- A fresh install's Home shortcuts are back to three sites, with no tile for the recommended app.
+
 ## 3.8.3 (1000544)
 
 2026-10-19

@@ -1,12 +1,12 @@
 {
   "enabled": true,
-  "noticeId": "aira-3.8.3-1000544",
+  "noticeId": "aira-3.8.3-1000546",
   "title": "Aira 3.8.3 update",
-  "updatedAt": "2026-10-19",
-  "summary": "This release fixes two issues with the Home height and the split toolbar search icons.",
+  "updatedAt": "2026-10-20",
+  "summary": "This release makes swiping between tabs smoother and adjusts the default Home shortcuts.",
   "items": [
-    "Home is no longer pushed up after returning from landscape video fullscreen.",
-    "Search icons in the split toolbar now match the real engine, so Sogou and 360 no longer show the Bing icon."
+    "Swiping between tabs is smoother: the switch reuses a single tab snapshot, so there is no more flicker.",
+    "A fresh install's Home shortcuts are back to three sites, with no tile for the recommended app."
   ],
   "actionLabel": "View changelog"
 }
