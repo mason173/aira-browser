@@ -12,11 +12,6 @@ import {
   createIdleAddressBarTabSwipeState
 } from '../../core/browser/BrowserAddressBarTabSwipeCoordinator';
 import { BrowserAddressBarTabSwipeSurface } from '../components/browser/BrowserAddressBarTabSwipeSurface';
-import {
-  BrowserTabSwipePreviewCoordinator,
-  BrowserTabSwipePreviewImage
-} from '../../core/browser/BrowserTabSwipePreviewCoordinator';
-import { BrowserTabSwipePreviewCaptureService } from '../../services/web/BrowserTabSwipePreviewCaptureService';
 import { BrowserTabSwipeCoverCoordinator } from '../../core/browser/BrowserTabSwipeCoverCoordinator';
 import { inputMethod } from '@kit.IMEKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
@@ -1389,7 +1384,8 @@ class BrowserTabSwipeHandoffFrameCallback extends FrameCallback {
     this.task = task;
   }
 
-  onFrame(_frameTimeInNano: number): void {
+  // onFrame runs at render start; handoff and image disposal need a completed render.
+  onIdle(_timeLeftInNano: number): void {
     try {
       this.task();
     } catch (_error) {
@@ -1602,7 +1598,6 @@ struct BrowserShellPage {
     }),
     clearSwipePreviews: (): void => {
       this.browserAddressBarTabSwipeCoordinator.cancel();
-      this.browserTabSwipePreviewCoordinator.clearEphemeral();
     },
     notifyTabPreviewChanged: (): void => this.notifyTabPreviewChanged()
   };
@@ -2199,51 +2194,8 @@ struct BrowserShellPage {
       }
     }
   };
-  private browserTabSwipePreviewCaptureService: BrowserTabSwipePreviewCaptureService =
-    new BrowserTabSwipePreviewCaptureService();
-  private browserTabSwipePreviewCoordinator: BrowserTabSwipePreviewCoordinator =
-    new BrowserTabSwipePreviewCoordinator({
-      readFacts: () => ({
-        windowId: this.currentWindowId,
-        tabs: this.tabs,
-        activeTabId: this.activeTabId,
-        canCapture: this.isBrowserShellVisible && this.isWebPageVisible() && !this.showTabsSheet &&
-          this.controllerAttached && this.activeHostedWebNodeTabId === this.activeTabId &&
-          !this.shouldSuspendHostedWebSurface() && !this.shouldRenderWebPageErrorSurface() &&
-          !this.isLargeScreenShellFamilyActive() &&
-          this.browserAddressBarTabSwipeCoordinator.hasVisibleSurface(this.activeTabId,
-            this.browserHostedRuntimeSurfacePort.getHostedNodeGeneration(this.activeTabId)),
-        motionActive: this.addressBarTabSwipeState.stage !== 'idle',
-        viewportWidth: this.rootViewportWidth,
-        viewportHeight: this.rootViewportHeight
-      }),
-      getHostedGeneration: (tabId: string): number =>
-        this.browserHostedRuntimeSurfacePort.getHostedNodeGeneration(tabId),
-      capture: (tabId: string): Promise<BrowserTabSwipePreviewImage | undefined> => {
-        const controller = this.browserRuntimeLifecyclePort.resolveController(tabId);
-        if (controller === undefined) {
-          return Promise.resolve(undefined);
-        }
-        return this.browserTabSwipePreviewCaptureService.capture({
-          tabId: tabId,
-          controller: controller,
-          viewport: this.browserTabPreviewSurfaceHost.resolveWebViewportSnapshotSize(),
-          uiContext: this.getUIContext()
-        });
-      },
-      release: (pixelMap: image.PixelMap): void => this.browserTabSwipePreviewCaptureService.release(pixelMap),
-      afterFrame: (callback: () => void): void => {
-        this.postSwipeFrameCallback(callback);
-      },
-      notifyChanged: (): void => {
-        this.refreshSwipePreviewFromCache();
-      }
-    });
   private browserTabSwipeCoverCoordinator: BrowserTabSwipeCoverCoordinator = new BrowserTabSwipeCoverCoordinator({
     acquire: (tabId: string) => this.browserTabPreviewCoordinator.acquireSharedSnapshot(tabId),
-    readFallback: (tabId: string) => this.browserTabSwipePreviewCoordinator.getPreviewState(tabId),
-    pinFallback: (tabId: string): void => this.browserTabSwipePreviewCoordinator.pin(tabId),
-    unpinFallback: (tabId: string): void => this.browserTabSwipePreviewCoordinator.unpin(tabId),
     afterFrame: (callback: () => void): void => {
       this.postSwipeFrameCallback(callback);
     }
@@ -2267,13 +2219,21 @@ struct BrowserShellPage {
       },
       publish: (state: BrowserAddressBarTabSwipeState): void => {
         const previous = this.addressBarTabSwipeState;
-        if (state.targetTabId !== previous.targetTabId) {
-          this.addressBarTabSwipePreview = state.targetTabId.length > 0 ?
-            this.resolveSwipePreview(state.targetTabId) : undefined;
+        if (state.targetTabId.length > 0 && state.targetTabId !== previous.targetTabId) {
+          this.addressBarTabSwipePreview = this.resolveSwipePreview(state.targetTabId);
         }
         this.addressBarTabSwipeState = state;
         if (state.stage === 'idle') {
-          this.addressBarTabSwipePreview = undefined;
+          // The cover's @Link changes immediately, but its @Prop stage can still describe the
+          // mounted image. Keep that source until removal has rendered, just like its image lease.
+          const idleState = this.addressBarTabSwipeState;
+          this.postSwipeFrameCallback(() => {
+            this.postSwipeFrameCallback(() => {
+              if (this.addressBarTabSwipeState === idleState) {
+                this.addressBarTabSwipePreview = undefined;
+              }
+            });
+          });
         }
       },
       animate: (duration: number, update: () => void, finish: () => void): void => {
@@ -2296,7 +2256,7 @@ struct BrowserShellPage {
           this.browserAddressBarTabSwipeCoordinator.hasVisibleSurface(tabId,
             this.browserHostedRuntimeSurfacePort.getHostedNodeGeneration(tabId)))),
       prepareOutgoingPreview: (): void => {
-        void this.browserTabSwipePreviewCoordinator.captureActive();
+        this.prepareAddressBarTabSwipeSnapshot();
       },
       lockPreview: (tabId: string): void => this.browserTabSwipeCoverCoordinator.pin(tabId),
       unlockPreview: (tabId: string): void => this.browserTabSwipeCoverCoordinator.unpin(tabId)
@@ -6758,7 +6718,6 @@ struct BrowserShellPage {
       this.isBrowserShellVisible = visible;
       if (!visible) {
         this.browserAddressBarTabSwipeCoordinator.cancel();
-        this.browserTabSwipePreviewCoordinator.suspend();
       }
       this.browserWebBottomSafeAreaCoordinator.setVisible(visible);
     },
@@ -6963,7 +6922,6 @@ struct BrowserShellPage {
     this.homeWallpaperPlaybackGate.dispose();
     this.browserAddressBarTabSwipeCoordinator.cancel();
     this.browserTabSwipeCoverCoordinator.dispose();
-    this.browserTabSwipePreviewCoordinator.dispose();
     this.browserWebBottomSafeAreaCoordinator.dispose();
     this.browserWebToolbarClearanceCoordinator.dispose();
     this.rootBottomPanelToolbarSystemSheetRequested = false;
@@ -7028,7 +6986,6 @@ struct BrowserShellPage {
       this.homeVideoPlaybackEnabled = enabled;
     });
     this.browserAddressBarTabSwipeCoordinator.cancel();
-    this.browserTabSwipePreviewCoordinator.suspend();
     this.browserWebBottomSafeAreaCoordinator.setVisible(false);
     this.browserWebTopImmersionSessionCoordinator.releaseCoveredPage('page-hide');
   }
@@ -7487,7 +7444,6 @@ struct BrowserShellPage {
 
   private reconcileShellTabPresentation(): void {
     this.browserAddressBarTabSwipeCoordinator.reconcile();
-    this.browserTabSwipePreviewCoordinator.reconcile();
     this.browserWebBottomSafeAreaCoordinator.retainTabs(this.tabs.map((tab: BrowserTabState): string => tab.id));
     this.browserWebToolbarClearanceCoordinator.retainTabs(this.tabs.map((tab: BrowserTabState): string => tab.id));
     this.browserWebBottomSafeAreaCoordinator.reconcile();
@@ -7737,7 +7693,7 @@ struct BrowserShellPage {
   private buildWebModeShell() {
     BrowserAddressBarTabSwipeSurface({
       state: this.addressBarTabSwipeState,
-      preview: this.addressBarTabSwipePreview,
+      preview: this.$addressBarTabSwipePreview,
       surfaceColor: this.getWebViewportBackdropColor(),
       textColor: this.themedHomeTextPrimaryColor,
       topInset: this.webViewportPresentation.contentTopPx,
@@ -11589,14 +11545,12 @@ struct BrowserShellPage {
       return;
     }
     this.browserAddressBarTabSwipeCoordinator.cancel();
-    this.browserTabSwipePreviewCoordinator.suspend();
     this.livePageFrameReleased = true;
     this.captureCurrentTabPreviewForLifecycleExit('ability-background');
   }
 
   private handleSystemMemoryPressureRevisionChange(): void {
     this.browserAddressBarTabSwipeCoordinator.cancel();
-    this.browserTabSwipePreviewCoordinator.clear();
     this.browserTabBackgroundSessionSyncCoordinator
       .handleSystemMemoryPressureRevision(this.systemMemoryPressureRevision);
   }
@@ -12915,7 +12869,6 @@ struct BrowserShellPage {
       onPageBegin: (tabId: string, event: OnPageBeginEvent) => {
         this.browserLargeScreenWebZoomCoordinator.handleDocumentBegin(tabId);
         this.browserAddressBarTabSwipeCoordinator.noteDocumentBegin(tabId);
-        this.browserTabSwipePreviewCoordinator.noteDocumentBegin(tabId);
         this.browserWebBottomSafeAreaCoordinator.handleDocumentBegin(tabId);
         this.browserWebToolbarClearanceCoordinator.handleDocumentBegin(tabId);
         this.browserWebPageLifecycleApplicationCoordinator.handlePageBegin(tabId, event);
@@ -13154,6 +13107,29 @@ struct BrowserShellPage {
     this.browserWebToolbarClearanceCoordinator.apply(tabId, true);
   }
 
+  private prepareAddressBarTabSwipeSnapshot(): void {
+    const tab = this.tabManager.getTab(this.tabs, this.activeTabId);
+    if (tab === undefined || tab.isHome || this.addressBarTabSwipeState.stage !== 'idle') {
+      return;
+    }
+    const windowId = this.currentWindowId;
+    void this.tabsOverviewSnapshotPipelineCoordinator.captureAndAdoptExternalTransitionSnapshot({
+      tab: tab,
+      uiContext: this.getUIContext(),
+      componentSnapshotId: buildBrowserTabPreviewVisibleSurfaceSnapshotId(tab.id),
+      componentSnapshotScale: TABS_OVERVIEW_ENTRY_PIXELMAP_SCALE,
+      transitionSource: this.tabsOverviewSnapshotPipelineCoordinator.buildCurrentWebVisibleTabSurfaceTransitionSource(),
+      shouldKeepPixelMap: (): boolean => {
+        const currentTab = this.tabManager.getTab(this.tabs, tab.id);
+        // The request captures the frame at gesture entry. It still belongs to this tab when
+        // delivered after the switch; only identity changes or closing the tab invalidate it.
+        return this.currentWindowId === windowId && currentTab !== undefined && currentTab.url === tab.url &&
+          currentTab?.profileId === tab.profileId && currentTab?.privacyMode === tab.privacyMode &&
+          currentTab?.dataScope === tab.dataScope;
+      }
+    });
+  }
+
   private async captureCurrentTabPreviewBeforeLeavingOpenerTab(
     openerTabId: string,
     targetTabId: string,
@@ -13162,6 +13138,10 @@ struct BrowserShellPage {
     // The destination id is part of the caller contract; the screenshot belongs
     // to the page that is still visible, not to the tab being opened.
     void targetTabId;
+    if (source === 'tab_switch' && this.addressBarTabSwipeState.stage !== 'idle') {
+      // Gesture entry already requested the visible frame; never recapture or wait at commit.
+      return;
+    }
     await this.replaceVisibleTabCardImage(openerTabId, source);
   }
 
@@ -13175,7 +13155,8 @@ struct BrowserShellPage {
     reason: BrowserVisibleTabPreviewReplaceReason
   ): Promise<boolean> {
     const normalizedTabId = tabId.trim();
-    if (!visibleTabPreviewMustBeReplaced(reason) ||
+    const swipeState = this.addressBarTabSwipeState;
+    if (!visibleTabPreviewMustBeReplaced(reason, this.addressBarTabSwipeState.stage !== 'idle') ||
       normalizedTabId.length <= 0 ||
       normalizedTabId !== this.activeTabId ||
       this.showHomePage ||
@@ -13196,7 +13177,9 @@ struct BrowserShellPage {
           waitUntilRenderFinished: false
         }
       );
-      if (this.activeTabId !== normalizedTabId || this.showHomePage || this.showTabsSheet) {
+      if (this.activeTabId !== normalizedTabId || this.showHomePage || this.showTabsSheet ||
+        this.addressBarTabSwipeState !== swipeState ||
+        !visibleTabPreviewMustBeReplaced(reason, this.addressBarTabSwipeState.stage !== 'idle')) {
         return false;
       }
       const persisted = await this.browserTabPreviewCoordinator.persistImmediateSharedSnapshot(

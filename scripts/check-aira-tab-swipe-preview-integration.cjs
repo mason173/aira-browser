@@ -5,6 +5,393 @@ const vm = require('node:vm');
 const { test } = require('node:test');
 const ts = require('./lib/deveco-typescript.cjs');
 
+const sourceRoot = path.resolve(__dirname, '../AiraBrowser/entry/src/main/ets');
+const surfaceSource = fs.readFileSync(path.join(sourceRoot,
+  'app/components/browser/BrowserAddressBarTabSwipeSurface.ets'), 'utf8');
+const shellSource = fs.readFileSync(path.join(sourceRoot, 'app/pages/BrowserShellPage.ets'), 'utf8');
+
+function swipePublishHarness() {
+  const body = shellSource.match(/      publish: \(state: BrowserAddressBarTabSwipeState\): void => \{([^]*?)\n      },\n      animate:/)?.[1];
+  assert.ok(body, 'real swipe publication callback');
+  const module = { exports: {} };
+  vm.runInNewContext(ts.transpileModule(`export class Shell { publish(state) { ${body} } }`, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 }
+  }).outputText, { module, exports: module.exports });
+  const frames = [], preview = { sharedSnapshotPixelMap: {} };
+  const handoff = { stage: 'handoff', targetTabId: 'b' };
+  const shell = Object.assign(new module.exports.Shell(), {
+    addressBarTabSwipeState: handoff, addressBarTabSwipePreview: preview,
+    resolveSwipePreview: id => ({ tabId: id, sharedSnapshotPixelMap: {} }),
+    postSwipeFrameCallback: task => frames.push(task)
+  });
+  return { shell, preview, handoff, flushFrame() { frames.splice(0).forEach(task => task()); } };
+}
+
+test('idle publication retains the mounted cover image until its removal has rendered', () => {
+  const h = swipePublishHarness();
+  h.shell.publish({ stage: 'idle', targetTabId: '' });
+  // @Link changes immediately while the child @Prop may still describe its last mounted frame.
+  assert.equal(h.shell.addressBarTabSwipePreview, h.preview,
+    'clearing the source before cover removal can paint its identity/background for one frame');
+  h.flushFrame();
+  h.flushFrame();
+  assert.equal(h.shell.addressBarTabSwipePreview, undefined, 'release the reference after removal');
+});
+
+test('retiring cover cleanup cannot clear a newly started swipe', () => {
+  const h = swipePublishHarness();
+  h.shell.publish({ stage: 'idle', targetTabId: '' });
+  h.flushFrame();
+  h.shell.publish({ stage: 'dragging', targetTabId: 'c' });
+  const next = h.shell.addressBarTabSwipePreview;
+  h.flushFrame();
+  assert.equal(h.shell.addressBarTabSwipePreview, next);
+});
+
+test('handoff and lease frame callbacks execute after rendering, never at frame start', () => {
+  const declaration = shellSource.match(/class BrowserTabSwipeHandoffFrameCallback extends FrameCallback \{[^]*?\n}/)?.[0];
+  assert.ok(declaration);
+  const module = { exports: {} };
+  class FrameCallback { onFrame() {} onIdle() {} }
+  vm.runInNewContext(ts.transpileModule(`export ${declaration}`, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 }
+  }).outputText, { module, exports: module.exports, FrameCallback });
+  let completed = 0;
+  const frame = new module.exports.BrowserTabSwipeHandoffFrameCallback(() => completed++);
+  frame.onFrame(0);
+  assert.equal(completed, 0, 'a rendering-start callback is not a completed frame');
+  frame.onIdle(2_000_000);
+  assert.equal(completed, 1);
+});
+
+function leaveCaptureHarness(stage) {
+  const policyModule = { exports: {} };
+  vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(sourceRoot,
+    'core/browser/BrowserTabPreviewActionCoordinator.ets'), 'utf8'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 }
+  }).outputText, { module: policyModule, exports: policyModule.exports });
+  const members = ['prepareAddressBarTabSwipeSnapshot', 'captureCurrentTabPreviewBeforeLeavingOpenerTab',
+    'replaceVisibleTabCardImage'].map(name => {
+    const member = shellSource.match(new RegExp(`  private (?:async )?${name}\\([^]*?\\n  }`))?.[0];
+    assert.ok(member, name);
+    return member;
+  }).join('\n');
+  const module = { exports: {} };
+  vm.runInNewContext(ts.transpileModule(`export class Shell { ${members} }`, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 }
+  }).outputText, { module, exports: module.exports,
+    visibleTabPreviewMustBeReplaced: policyModule.exports.visibleTabPreviewMustBeReplaced,
+    buildBrowserTabPreviewVisibleSurfaceSnapshotId: id => `visible:${id}`,
+    TABS_OVERVIEW_ENTRY_PIXELMAP_SCALE: 0.5
+  });
+  const stored = new Map([['a', 'page-a'], ['b', 'page-b']]), drawable = new Map();
+  const reads = [], releases = [], captures = [], copies = [];
+  let copyGate;
+  const previewCoordinator = {
+    persistImmediateSharedSnapshot: async (tab, image) => { stored.set(tab.id, image.pixels); return true; },
+    adoptExternalTransitionSnapshot: (tab, image) => { stored.set(tab.id, image.pixels); },
+    getTransitionSnapshotState: id => stored.has(id) ? { tabId: id } : undefined
+  };
+  const { BrowserTabsOverviewSnapshotPipelineCoordinator: Pipeline } = load(
+    'core/browser/tabsOverview/BrowserTabsOverviewSnapshotPipelineCoordinator.ets', {
+      '@kit.ImageKit': { image: { PixelMapFormat: { RGBA_8888: 'rgba' },
+        async createPixelMap(buffer) {
+          const pixels = new Uint8Array(buffer)[0] === 1 ? 'page-a' : 'page-b';
+          const copy = { pixels, release: async () => { releases.push(`copy:${pixels}`); } };
+          copies.push(copy);
+          return copy;
+        }
+      } },
+      '../BrowserTabsOverviewEntrySnapshotSessionCoordinator': {
+        BrowserTabsOverviewEntrySnapshotSessionCoordinator: class {}
+      },
+      './BrowserTabsOverviewThumbnailCoordinator': { BrowserTabsOverviewThumbnailCoordinator: class {} },
+      './BrowserTabSnapshotPixelMapCache': {
+        BrowserTabSnapshotPixelMapCache: { put: (id, image) => drawable.set(id, image) }
+      }
+    }, clock());
+  const pipeline = new Pipeline({ previewCoordinator, notifyChanged() {},
+    releasePixelMap: image => image.release(), recordFailure() {} });
+  const shell = Object.assign(new module.exports.Shell(), {
+    activeTabId: 'a', currentWindowId: 'w', showHomePage: false, showTabsSheet: false,
+    addressBarTabSwipeState: { stage }, tabs: [{ id: 'a', url: 'https://a.example/', isHome: false }],
+    tabManager: { getTab: (tabs, id) => tabs.find(tab => tab.id === id) },
+    getUIContext: () => ({ getComponentSnapshot: () => ({ get: (id, options) => {
+      reads.push({ id, options });
+      const capture = deferred();
+      captures.push(capture);
+      return capture.promise;
+    } }) }),
+    browserTabPreviewCoordinator: previewCoordinator,
+    tabsOverviewSnapshotPipelineCoordinator: pipeline,
+    notifyTabPreviewChanged() {}, recordRuntimeEvent() {}
+  });
+  return { shell, pipeline, reads, stored, drawable, releases, copies, captures,
+    blockCopy() { copyGate = deferred(); return copyGate; },
+    complete(pixels, index = captures.length - 1) {
+      captures[index]?.resolve({ pixels,
+        getImageInfoSync: () => ({ size: { width: 1, height: 1 }, pixelFormat: 'rgba' }),
+        getPixelBytesNumber: () => 4,
+        readPixelsToBuffer: async buffer => {
+          if (copyGate) await copyGate.promise;
+          new Uint8Array(buffer).set([pixels === 'page-a' ? 1 : 2, 0, 0, 255]);
+        },
+        release: async () => { releases.push(`raw:${pixels}`); }
+      });
+    }
+  };
+}
+
+test('gesture entry captures once; commit never waits for capture, copy or persistence', async () => {
+  const h = leaveCaptureHarness('idle');
+  h.stored.delete('a');
+  h.shell.prepareAddressBarTabSwipeSnapshot();
+  assert.equal(h.reads.length, 1, 'request the current drawn frame synchronously at gesture entry');
+  assert.equal(h.reads[0].id, 'visible:a');
+  assert.equal(h.reads[0].options.waitUntilRenderFinished, false);
+  assert.equal(h.reads[0].options.scale, 0.5);
+  h.shell.addressBarTabSwipeState = { stage: 'committing' };
+  let switched = false;
+  h.shell.captureCurrentTabPreviewBeforeLeavingOpenerTab('a', 'b', 'tab_switch')
+    .then(() => { h.shell.activeTabId = 'b'; switched = true; });
+  await drain();
+  assert.equal(switched, true, 'a pending snapshot must never hold the Web switch');
+  assert.equal(h.reads.length, 1, 'release never requests another capture');
+  h.complete('page-a');
+  await drain();
+  assert.equal(h.stored.get('a'), 'page-a', 'late delivery still belongs to the outgoing page');
+  assert.equal(h.stored.get('b'), 'page-b');
+  assert.equal(h.drawable.get('a'), h.copies[0], 'gallery and swipe consume the same retained image');
+  assert.deepEqual(h.releases, ['raw:page-a'], 'only the temporary raw capture is released');
+});
+
+test('a slow drawable copy cannot hold switching or trigger a second capture', async () => {
+  const h = leaveCaptureHarness('idle');
+  const copy = h.blockCopy();
+  h.shell.prepareAddressBarTabSwipeSnapshot();
+  h.complete('page-a');
+  await drain();
+  assert.equal(h.drawable.size, 0);
+  h.shell.addressBarTabSwipeState = { stage: 'committing' };
+  let switched = false;
+  h.shell.captureCurrentTabPreviewBeforeLeavingOpenerTab('a', 'b', 'tab_switch')
+    .then(() => { switched = true; h.shell.activeTabId = 'b'; });
+  await drain();
+  assert.equal(switched, true);
+  assert.equal(h.reads.length, 1);
+  copy.resolve();
+  await drain();
+  assert.equal(h.drawable.get('a').pixels, 'page-a');
+});
+
+for (const interruption of ['document', 'window', 'closed']) {
+  test(`entry capture finishing after ${interruption} cannot overwrite the saved image`, async () => {
+    const h = leaveCaptureHarness('idle');
+    h.shell.prepareAddressBarTabSwipeSnapshot();
+    if (interruption === 'document') h.shell.tabs = [{ ...h.shell.tabs[0], url: 'https://new.example/' }];
+    if (interruption === 'window') h.shell.currentWindowId = 'other-window';
+    if (interruption === 'closed') h.shell.tabs = [];
+    h.complete('page-b');
+    await drain();
+    assert.equal(h.stored.get('a'), 'page-a');
+    assert.equal(h.drawable.size, 0);
+    assert.deepEqual(h.releases, ['raw:page-b']);
+  });
+}
+
+test('an older entry capture cannot overwrite a newer frame of the same tab', async () => {
+  const h = leaveCaptureHarness('idle');
+  h.shell.prepareAddressBarTabSwipeSnapshot();
+  h.shell.prepareAddressBarTabSwipeSnapshot();
+  h.complete('page-a', 1);
+  await drain();
+  h.complete('page-b', 0);
+  await drain();
+  assert.equal(h.stored.get('a'), 'page-a');
+  assert.equal(h.drawable.get('a').pixels, 'page-a');
+  assert.ok(h.releases.includes('raw:page-b'));
+});
+
+test('the browser shell never calls the relayout-producing swipe snapshot scheduler', () => {
+  assert.doesNotMatch(shellSource, /BrowserTabSwipePreviewCoordinator|BrowserTabSwipePreviewCaptureService/);
+  const entry = shellSource.match(/prepareOutgoingPreview:\s*\(\): void => \{([^]*?)\n      }/)[1];
+  assert.match(entry, /this.prepareAddressBarTabSwipeSnapshot\(\)/);
+  assert.doesNotMatch(entry, /await/);
+});
+
+for (const stage of ['dragging', 'settling', 'committing', 'handoff']) {
+  test(`leaving during ${stage} never saves the incoming page as the outgoing tab's screenshot`, async () => {
+    const h = leaveCaptureHarness(stage);
+    const task = h.shell.captureCurrentTabPreviewBeforeLeavingOpenerTab('a', 'b', 'tab_switch');
+    h.complete('page-b'); // The shell is displaying the neighbor cover, not page A alone.
+    await task;
+    assert.equal(h.stored.get('a'), 'page-a', 'page B must not contaminate page A preview');
+    assert.equal(h.reads.length, 0, 'a composed swipe frame is not a tab screenshot');
+  });
+}
+
+test('an idle leave capture is rejected if a swipe starts before its pixels arrive', async () => {
+  const h = leaveCaptureHarness('idle');
+  const task = h.shell.replaceVisibleTabCardImage('a', 'tab_switch');
+  h.shell.addressBarTabSwipeState.stage = 'dragging';
+  h.complete('mixed-pages');
+  assert.equal(await task, false);
+  assert.equal(h.stored.get('a'), 'page-a');
+  assert.deepEqual(h.releases, ['raw:mixed-pages']);
+});
+
+test('ordinary idle tab switching still saves the outgoing page', async () => {
+  const h = leaveCaptureHarness('idle');
+  const task = h.shell.replaceVisibleTabCardImage('a', 'tab_switch');
+  h.complete('fresh-page-a');
+  assert.equal(await task, true);
+  assert.equal(h.stored.get('a'), 'fresh-page-a');
+  assert.equal(h.stored.get('b'), 'page-b');
+});
+
+test('a late composite is rejected even when a canceled swipe has already returned to idle', async () => {
+  const h = leaveCaptureHarness('idle');
+  const task = h.shell.replaceVisibleTabCardImage('a', 'tab_switch');
+  h.shell.addressBarTabSwipeState = { stage: 'dragging' };
+  h.shell.addressBarTabSwipeState = { stage: 'idle' };
+  h.complete('mixed-pages');
+  assert.equal(await task, false);
+  assert.equal(h.stored.get('a'), 'page-a');
+  assert.deepEqual(h.releases, ['raw:mixed-pages']);
+});
+
+// Exercise the real image-builder and geometry methods across the shell/component boundary.
+// This models Huawei's documented state semantics, not a device renderer: @Prop deep-copies
+// enumerable JS data and loses native PixelMap backing; @Link shares the parent's state.
+// https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/arkts-prop
+function swipeSurfaceHarness() {
+  const decorator = surfaceSource.match(/@(Prop|Link)\s+preview[?:]/)?.[1];
+  assert.ok(decorator, 'the preview must have an explicit state binding');
+  const binding = shellSource.match(/BrowserAddressBarTabSwipeSurface\(\{[^]*?preview:\s*this\.(\$?\w+)/)?.[1];
+  assert.equal(binding, decorator === 'Link' ? '$addressBarTabSwipePreview' : 'addressBarTabSwipePreview');
+  const members = ['buildPreviewImage', 'usesPageFrame', 'resolvePagePreviewHeight',
+    'previewUri', 'resolveLiveOffset', 'resolvePreviewOffset', 'resolvePreviewOpacity'].map(name => {
+    const member = surfaceSource.match(new RegExp(`  private ${name}\\([^]*?\\n  }`))?.[0];
+    assert.ok(member, `missing surface member: ${name}`);
+    // Keep a leaf update callback, as the ArkUI compiler does. Re-entering the entire Builder
+    // on every assertion hid stale by-value arguments in the original regression check.
+    return member.replace(/\bImage\(([^\n]*)\)/g, 'Image(() => $1)');
+  }).join('\n');
+  const sourceResolver = surfaceSource.match(/  private resolvePreviewImageSource\([^]*?\n  }/)?.[0] ?? '';
+  const module = { exports: {} };
+  const draws = [];
+  const code = ts.transpileModule(`export class Surface { ${members} ${sourceResolver} }`, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 }
+  }).outputText;
+  vm.runInNewContext(code, { module, exports: module.exports,
+    ImageFit: { Fill: 'fill' }, ImageInterpolation: { Medium: 'medium' },
+    Image(readSource) {
+      const draw = { source: readSource(), readSource };
+      draws.push(draw);
+      const node = {};
+      for (const property of ['width', 'height', 'objectFit', 'interpolation', 'syncLoad', 'blur', 'position']) {
+        node[property] = value => { draw[property] = value; return node; };
+      }
+      return node;
+    }
+  });
+  const surface = new module.exports.Surface();
+  // Evaluate the actual PixelMap/URI selection in build(), including its priority order.
+  const selection = surfaceSource.match(
+    /if \(this\.preview\.sharedSnapshotPixelMap !== undefined\) \{[^]*?\n            }(?! else)/)?.[0];
+  assert.ok(selection, 'missing preview image selection');
+  const paint = vm.runInNewContext(ts.transpileModule(`(function () { ${selection} })`, {
+    compilerOptions: { target: ts.ScriptTarget.ES2020 }
+  }).outputText);
+  return { surface, draws,
+    update(preview) {
+      surface.preview = decorator === 'Prop' && preview !== undefined ?
+        JSON.parse(JSON.stringify(preview)) : preview;
+    },
+    paint() { paint.call(surface); return draws.at(-1); }
+  };
+}
+
+for (const direction of [-1, 1]) {
+  test(`half swipe (${direction}) paints the leased neighbor's native pixels in the exposed region`, () => {
+    const h = swipeSurfaceHarness();
+    // Native backing cannot be recovered by copying the object's enumerable properties.
+    const nativePixels = new WeakMap();
+    const pixelMap = {};
+    nativePixels.set(pixelMap, 'neighbor page pixels');
+    h.surface.state = { stage: 'dragging', direction, offsetX: direction * 200,
+      width: 400, reduceMotion: false, previewOpacity: 1 };
+    h.surface.topInset = 24;
+    h.surface.previewBlurRadius = 0;
+    h.update({ sharedSnapshotPixelMap: pixelMap, sharedSnapshotImageWidth: 400,
+      sharedSnapshotImageHeight: 760, transitionSource: { captureScope: 'web-content' } });
+    const draw = h.paint();
+    assert.equal(nativePixels.get(draw.source), 'neighbor page pixels',
+      'the incoming image must retain its native backing rather than paint a blank copy');
+    assert.equal(h.surface.resolveLiveOffset(), direction * 200);
+    assert.equal(h.surface.resolvePreviewOffset(), -direction * 212);
+    assert.equal(h.surface.resolvePreviewOpacity(), 1);
+    assert.equal(draw.height, 760);
+    assert.equal(draw.position.y, 24);
+  });
+}
+
+for (const direction of [-1, 1]) {
+  test(`opaque handoff (${direction}) removes the cover without a later image rebound`, () => {
+    const h = swipeSurfaceHarness();
+    const coordinatorSource = fs.readFileSync(path.join(sourceRoot,
+      'core/browser/BrowserAddressBarTabSwipeCoordinator.ets'), 'utf8');
+    const factory = coordinatorSource.match(/export function createIdleAddressBarTabSwipeState\([^]*?\n}/)?.[0];
+    assert.ok(factory);
+    const module = { exports: {} };
+    vm.runInNewContext(ts.transpileModule(factory, {
+      compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 }
+    }).outputText, { module, exports: module.exports });
+    h.surface.state = { stage: 'handoff', direction, offsetX: direction * 403,
+      width: 391, reduceMotion: false, previewOpacity: 1 };
+    const pixels = {};
+    h.update({ sharedSnapshotPixelMap: pixels });
+    const leaf = h.paint();
+    assert.equal(h.surface.resolvePreviewOpacity(), 1);
+    // Device trace: idle state arrives 6-10 ms before image_disappear. Replay that boundary
+    // while the Image leaf still exists, rather than treating idle as immediate node removal.
+    h.surface.state = module.exports.createIdleAddressBarTabSwipeState();
+    assert.equal(leaf.readSource(), pixels, 'the old image remains leased during removal');
+    assert.equal(h.surface.resolvePreviewOpacity(), 0,
+      'no opaque cached-image frame may be submitted during handoff and removal');
+  });
+}
+
+test('the mounted swipe surface follows neighbor changes and keeps file previews and privacy blur', () => {
+  const h = swipeSurfaceHarness();
+  h.surface.state = { width: 400 };
+  h.surface.topInset = 24;
+  h.surface.previewBlurRadius = 16;
+  const left = {}, right = {};
+  for (const pixelMap of [left, right, left]) {
+    h.update({ sharedSnapshotPixelMap: pixelMap, sharedSnapshotImageUri: 'file://stored-preview' });
+    const draw = h.paint();
+    assert.equal(draw.source, pixelMap, 'direction reversal keeps the selected leased source');
+    assert.equal(draw.blur, 16);
+    assert.equal(draw.position.y, 0, 'full-surface screenshots include their own top chrome');
+  }
+  h.update(undefined);
+  assert.equal(h.surface.preview, undefined, 'ending the gesture clears the child reference');
+  h.update({ sharedSnapshotImageUri: 'file://next-preview' });
+  assert.equal(h.paint().source, 'file://next-preview');
+});
+
+test('an existing image leaf reads the new neighbor after reversal without rebuilding the Builder', () => {
+  const h = swipeSurfaceHarness();
+  h.surface.state = { width: 400 };
+  const a = {}, b = {};
+  h.update({ sharedSnapshotPixelMap: a });
+  const leaf = h.paint();
+  assert.equal(leaf.readSource(), a);
+  h.update({ sharedSnapshotPixelMap: b });
+  assert.equal(leaf.readSource(), b, 'the leaf must not retain the first Builder argument');
+});
+
 const drain = () => new Promise(resolve => setImmediate(resolve));
 function deferred() {
   let resolve, reject;

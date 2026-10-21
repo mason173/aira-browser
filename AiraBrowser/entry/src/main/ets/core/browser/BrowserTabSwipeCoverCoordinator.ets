@@ -2,16 +2,12 @@ import { BrowserTabPreviewLease, BrowserTabPreviewState } from './BrowserTabPrev
 
 export interface BrowserTabSwipeCoverHost {
   acquire: (tabId: string) => BrowserTabPreviewLease | undefined;
-  readFallback: (tabId: string) => BrowserTabPreviewState | undefined;
-  pinFallback: (tabId: string) => void;
-  unpinFallback: (tabId: string) => void;
   afterFrame: (callback: () => void) => void;
 }
 
 interface BrowserTabSwipeCoverEntry {
   tabId: string;
   lease?: BrowserTabPreviewLease;
-  fallback?: BrowserTabPreviewState;
   released: boolean;
 }
 
@@ -30,7 +26,6 @@ export class BrowserTabSwipeCoverCoordinator {
     if (this.disposed || this.entries.has(tabId)) {
       return;
     }
-    this.host.pinFallback(tabId);
     this.entries.set(tabId, { tabId: tabId, lease: this.host.acquire(tabId), released: false });
   }
 
@@ -40,13 +35,10 @@ export class BrowserTabSwipeCoverCoordinator {
       return undefined;
     }
     // Cache notifications may fill a missing cover, but must never replace or clear a displayed one.
-    if (entry.lease === undefined && entry.fallback === undefined) {
+    if (entry.lease === undefined) {
       entry.lease = this.host.acquire(tabId);
-      if (entry.lease === undefined) {
-        entry.fallback = this.host.readFallback(tabId);
-      }
     }
-    return entry.lease?.state ?? entry.fallback;
+    return entry.lease?.state;
   }
 
   unpin(tabId: string): void {
@@ -56,9 +48,7 @@ export class BrowserTabSwipeCoverCoordinator {
     }
     this.entries.delete(tabId);
     this.retiring.add(entry);
-    // Fallback owner has its own frame-delayed disposal; the shared lease is independent of
-    // overview transition locks and remains valid through force-capture/eviction/clear.
-    this.host.unpinFallback(tabId);
+    // The same snapshot serves the gallery and swipe; only this reader lease is released here.
     this.host.afterFrame(() => {
       if (!entry.released) {
         this.host.afterFrame(() => this.releaseEntry(entry));
@@ -70,7 +60,6 @@ export class BrowserTabSwipeCoverCoordinator {
   dispose(): void {
     this.disposed = true;
     this.entries.forEach((entry: BrowserTabSwipeCoverEntry): void => {
-      this.host.unpinFallback(entry.tabId);
       this.releaseEntry(entry);
     });
     this.entries.clear();

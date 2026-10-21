@@ -121,6 +121,7 @@ function createSwipeHarness({ reduceMotion = false } = {}) {
 
 function assertSwipeReleased(h) {
   assert.equal(h.state.stage, 'idle');
+  assert.equal(h.state.previewOpacity, 0, 'idle must never restore the retiring cover opacity');
   assert.equal(h.timers.size, 0, 'monitor must be cleared');
   assert.deepEqual([...h.unlocks].sort(), [...h.locks].sort(), 'release every preview lock exactly once');
 }
@@ -165,8 +166,8 @@ function connectStopLoading(h, { notify = true } = {}) {
   return { controller, notifications, calls, results };
 }
 
-async function enterHandoff(h) {
-  const settle = h.release();
+async function enterHandoff(h, offsetX = -140) {
+  const settle = h.release(offsetX);
   settle.update();
   settle.finish();
   assert.equal(h.state.stage, 'committing');
@@ -264,23 +265,6 @@ test('coordinator recovers a dropped non-commit settle by releasing the gesture'
   assertSwipeReleased(h);
 });
 
-test('coordinator recovers a dropped fade onFinish without leaving the cover pinned forever', async () => {
-  const h = createSwipeHarness();
-  await enterHandoff(h);
-  h.ready = true;
-  h.advance(32);
-  h.flushFrame();
-  h.flushFrame();
-  const fade = h.animations.at(-1);
-  fade.update();
-  assert.equal(h.state.previewOpacity, 0);
-  h.advance(1200);
-  assertSwipeReleased(h);
-  fade.update();
-  fade.finish();
-  assertSwipeReleased(h);
-});
-
 test('coordinator settle finish is idempotent while asynchronous switch is pending', () => {
   const h = createSwipeHarness();
   try {
@@ -355,77 +339,87 @@ test('coordinator monitor cancels an invalid session before settle callback can 
   assert.equal(h.switches.length, 0);
 });
 
-test('coordinator handoff requires two actual frames and retains locks until fade finish', async () => {
+test('swipe hands off an opaque snapshot in one publish, as overview card selection does', async () => {
   const h = createSwipeHarness();
   await enterHandoff(h);
   h.ready = true;
-  h.advance(128);
-  assert.equal(h.animations.length, 1, 'timer ticks cannot substitute for frames');
-  assert.equal(h.frames.length, 1, 'monitor must not enqueue duplicate frame waits');
+  h.advance(32);
   h.flushFrame();
-  assert.equal(h.animations.length, 1, 'one frame cannot start fade');
-  assert.equal(h.frames.length, 1, 'nested callback waits for the next frame');
-  h.advance(128);
-  assert.equal(h.animations.length, 1, 'time between frames cannot start fade');
-  h.flushFrame();
-  assert.equal(h.animations.length, 2);
-  assert.equal(h.frames.length, 0);
-  assert.ok(h.readyChecks.length > 0);
-  assert.ok(h.readyChecks.every(tabId => tabId === 'right'));
-  const fade = h.animations[1];
-  assert.equal(fade.duration, 120);
-  assert.equal(h.state.previewOpacity, 1);
-  fade.update();
-  assert.equal(h.state.previewOpacity, 0);
   assert.equal(h.state.stage, 'handoff');
+  assert.equal(h.state.previewOpacity, 1);
   assert.equal(h.unlocks.length, 0);
-  h.advance(96);
-  assert.equal(h.animations.length, 2, 'fade starts only once');
-  fade.finish();
+  h.flushFrame();
+  assert.equal(h.animations.length, 1, 'only carousel settling animates; no screenshot/live-page crossfade');
+  h.advance(119);
+  assert.equal(h.state.stage, 'handoff');
+  assert.equal(h.state.previewOpacity, 1);
+  h.advance(1);
   assertSwipeReleased(h);
-  assert.equal(h.clearedTimers.length, 1);
-  const published = h.states.length;
-  fade.update();
-  fade.finish();
-  h.advance(1000);
-  assert.equal(h.states.length, published);
+  assert.equal(h.states.at(-2).stage, 'handoff');
+  assert.equal(h.states.at(-2).previewOpacity, 1, 'keep the cover opaque until the atomic handoff');
+  assert.equal(h.states.at(-1).stage, 'idle');
+  assert.ok(h.states.filter(state => state.stage === 'handoff').every(state => state.previewOpacity === 1),
+    'the live page must never show through a partially faded cover');
+});
+
+test('document changes during the ready-frame wait retain the opaque cover and require fresh frames', async () => {
+  const h = createSwipeHarness();
+  await enterHandoff(h);
+  h.ready = true;
+  h.advance(32); h.flushFrame();
+  h.ready = false;
+  h.coordinator.noteDocumentBegin('right');
+  h.flushFrame();
+  assert.equal(h.state.stage, 'handoff');
+  assert.equal(h.state.previewOpacity, 1);
+  assert.equal(h.unlocks.length, 0);
+  h.ready = true;
+  h.advance(32); h.flushFrame();
+  assert.equal(h.state.stage, 'handoff');
+  h.flushFrame();
+  h.advance(120);
+  assertSwipeReleased(h);
+  assert.equal(h.animations.length, 1);
+});
+
+test('readiness lost during the opaque handoff interval retains the image and restarts readiness checks', async () => {
+  const h = createSwipeHarness();
+  await enterHandoff(h);
+  h.ready = true;
+  h.advance(32); h.flushFrame(); h.flushFrame();
+  h.advance(64);
+  assert.equal(h.state.stage, 'handoff');
+  assert.equal(h.state.previewOpacity, 1);
+  h.ready = false;
+  h.advance(32);
+  h.advance(200);
+  assert.equal(h.state.stage, 'handoff');
+  assert.equal(h.state.previewOpacity, 1);
+  assert.equal(h.unlocks.length, 0);
+  h.ready = true;
+  h.advance(32); h.flushFrame(); h.flushFrame();
+  h.advance(120);
   assertSwipeReleased(h);
 });
 
-for (const interruption of ['document', 'monitor', 'finish']) {
-  test(`fade interruption (${interruption}) restores the same opaque cover and ignores stale completion`, async () => {
-    const h = createSwipeHarness();
-    await enterHandoff(h);
-    h.ready = true;
-    h.advance(32); h.flushFrame(); h.flushFrame();
-    const fade = h.animations.at(-1);
-    fade.update();
-    assert.equal(h.state.previewOpacity, 0);
-    h.ready = false;
-    if (interruption === 'document') h.coordinator.noteDocumentBegin('right');
-    else if (interruption === 'monitor') h.advance(32);
-    else fade.finish();
-    const restore = h.animations.at(-1);
-    assert.notEqual(restore, fade);
-    assert.equal(restore.duration, 0);
-    restore.update();
-    assert.equal(h.state.previewOpacity, 1);
-    assert.equal(h.state.stage, 'handoff');
-    assert.equal(h.unlocks.length, 0, 'keep the image lease throughout a failed handoff');
-    fade.update(); fade.finish();
-    assert.equal(h.state.previewOpacity, 1);
-    assert.equal(h.state.stage, 'handoff');
-    const count = h.animations.length;
-    h.ready = true;
-    h.advance(32); h.flushFrame();
-    assert.equal(h.animations.length, count);
-    h.flushFrame();
-    const retry = h.animations.at(-1);
-    assert.notEqual(retry, fade);
-    retry.update(); retry.finish();
-    assertSwipeReleased(h);
-  });
-}
+test('canceling during the opaque handoff interval clears its timer and cannot reveal a replacement tab', async () => {
+  const h = createSwipeHarness();
+  await enterHandoff(h);
+  h.ready = true;
+  h.advance(32); h.flushFrame(); h.flushFrame();
+  h.advance(60);
+  h.coordinator.cancel();
+  assertSwipeReleased(h);
+  h.ready = false;
+  await enterHandoff(h, 140);
+  h.advance(300);
+  assert.equal(h.state.stage, 'handoff');
+  assert.equal(h.state.previewOpacity, 1);
+  h.ready = true;
+  h.advance(32); h.flushFrame(); h.flushFrame();
+  h.advance(120);
+  assertSwipeReleased(h);
+});
 
 test('coordinator handoff timeout keeps the preview pinned until ready plus two frames', async () => {
   const h = createSwipeHarness();
@@ -441,7 +435,7 @@ test('coordinator handoff timeout keeps the preview pinned until ready plus two 
   assert.equal(h.animations.length, 1, 'timeout is checked by the 32ms monitor');
   assert.equal(h.state.loadingPlaceholder, false);
   h.advance(28);
-  assert.equal(h.animations.length, 1, 'timeout must not start fade');
+  assert.equal(h.animations.length, 1, 'timeout must not dismiss the cover');
   assert.equal(h.ready, false);
   assert.equal(h.state.stage, 'handoff');
   assert.equal(h.state.loadingPlaceholder, true);
@@ -461,12 +455,9 @@ test('coordinator handoff timeout keeps the preview pinned until ready plus two 
   assert.equal(h.animations.length, 1);
   assert.equal(h.state.previewOpacity, 1);
   h.flushFrame();
-  assert.equal(h.animations.length, 2);
-  const fade = h.animations[1];
-  fade.update();
-  assert.equal(h.state.previewOpacity, 0);
-  assert.equal(h.state.loadingPlaceholder, true);
-  fade.finish();
+  assert.equal(h.animations.length, 1, 'cold tabs use the same single handoff when ready');
+  assert.equal(h.state.previewOpacity, 1);
+  h.advance(120);
   assertSwipeReleased(h);
   assert.equal(h.state.loadingPlaceholder, false);
 });
@@ -490,14 +481,13 @@ for (const lostAtFrame of [1, 2]) {
     h.flushFrame();
     assert.equal(h.animations.length, 1, 'retry requires a fresh pair of frames');
     h.flushFrame();
-    assert.equal(h.animations.length, 2);
-    h.animations[1].update();
-    h.animations[1].finish();
+    assert.equal(h.animations.length, 1);
+    h.advance(120);
     assertSwipeReleased(h);
   });
 }
 
-test('coordinator readiness lost on first frame cannot fade when it returns only on second frame', async () => {
+test('coordinator readiness lost on first frame cannot hand off when it returns only on second frame', async () => {
   const h = createSwipeHarness();
   try {
     await enterHandoff(h);
@@ -514,7 +504,9 @@ test('coordinator readiness lost on first frame cannot fade when it returns only
     h.flushFrame();
     assert.equal(h.animations.length, 1);
     h.flushFrame();
-    assert.equal(h.animations.length, 2);
+    assert.equal(h.animations.length, 1);
+    h.advance(120);
+    assertSwipeReleased(h);
   } finally {
     h.coordinator.cancel();
     assertSwipeReleased(h);
@@ -545,16 +537,14 @@ for (const flushedBeforeCancel of [0, 1]) {
     h.ready = true;
     h.advance(32);
     h.flushFrame();
-    assert.equal(h.animations.length, animations, 'old callback cannot start a fade');
+    assert.equal(h.animations.length, animations, 'old callback cannot complete a handoff');
     assert.equal(h.states.length, published);
     assert.deepEqual(h.state, snapshot);
     assert.deepEqual(h.unlocks, unlocks);
     assert.equal(h.timers.size, 1);
     h.flushFrame();
-    assert.equal(h.animations.length, animations + 1, 'only replacement handoff may fade');
-    const fade = h.animations.at(-1);
-    fade.update();
-    fade.finish();
+    assert.equal(h.animations.length, animations, 'handoff needs no second animation');
+    h.advance(120);
     assertSwipeReleased(h);
     const released = h.states.length;
     h.flushFrame();
@@ -648,7 +638,7 @@ test('real stopLoading dismisses the loading placeholder even when target never 
   h.advance(5000);
   h.flushFrame();
   assert.equal(h.states.length, published);
-  assert.equal(h.animations.length, 1, 'stopping must not wait for a fade');
+  assert.equal(h.animations.length, 1, 'stopping must immediately dismiss the cover');
   assertSwipeReleased(h);
 });
 
@@ -691,9 +681,8 @@ for (const framesBeforeStop of [0, 1]) {
     assert.deepEqual(h.unlocks, unlocks);
     assert.equal(h.timers.size, 1);
     h.flushFrame();
-    assert.equal(h.animations.length, animations + 1);
-    h.animations.at(-1).update();
-    h.animations.at(-1).finish();
+    assert.equal(h.animations.length, animations);
+    h.advance(120);
     assertSwipeReleased(h);
   });
 }
@@ -757,7 +746,7 @@ test('real stopLoading forwards only native_issued results and supports an absen
   assertSwipeReleased(h);
 });
 
-test('coordinator reduced motion is captured for settle, cancel and handoff durations', async () => {
+test('coordinator reduced motion is captured for settling and does not add a handoff animation', async () => {
   for (const reduceMotion of [false, true]) {
     const h = createSwipeHarness({ reduceMotion });
     const settle = h.release();
@@ -772,9 +761,8 @@ test('coordinator reduced motion is captured for settle, cancel and handoff dura
     h.advance(32);
     h.flushFrame();
     h.flushFrame();
-    assert.equal(h.animations[1].duration, reduceMotion ? 80 : 120);
-    h.animations[1].update();
-    h.animations[1].finish();
+    assert.equal(h.animations.length, 1, 'reduced motion also uses an atomic handoff');
+    h.advance(reduceMotion ? 80 : 120);
     assertSwipeReleased(h);
   }
   const canceled = createSwipeHarness({ reduceMotion: true });

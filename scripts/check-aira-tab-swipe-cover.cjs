@@ -18,8 +18,8 @@ function load(name) {
 const { BrowserTabSwipeCoverCoordinator: Cover } = load('BrowserTabSwipeCoverCoordinator');
 const { BrowserTabPreviewImageLeaseStore: Leases } = load('BrowserTabPreviewImageLeaseStore');
 function harness() {
-  const frames = [], leases = new Leases(), stored = new Map(), fallback = new Map();
-  const pins = [], unpins = [], acquisitions = [];
+  const frames = [], leases = new Leases(), stored = new Map();
+  const acquisitions = [];
   const owner = new Cover({
     acquire(tabId) {
       const state = stored.get(tabId);
@@ -33,10 +33,9 @@ function harness() {
       acquisitions.push(lease);
       return lease;
     },
-    readFallback: id => fallback.get(id), pinFallback: id => pins.push(id),
-    unpinFallback: id => unpins.push(id), afterFrame: callback => frames.push(callback)
+    afterFrame: callback => frames.push(callback)
   });
-  return { owner, stored, fallback, frames, pins, unpins, acquisitions,
+  return { owner, stored, frames, acquisitions,
     flushFrame() { frames.splice(0).forEach(callback => callback()); },
     drop(pixel) { return leases.requestRelease(pixel, () => pixel.release()); },
     set(id, name) {
@@ -92,19 +91,18 @@ test('a missing preview can be filled once; later cache notifications never chan
   h.owner.dispose();
 });
 
-test('stored screenshot takes priority, fallback selection is also stable', () => {
+test('swiping reuses the gallery image without another capture or duplicate image cache', () => {
   const h = harness();
-  h.fallback.set('a', { tabId: 'a', sharedSnapshotPixelMap: {} });
-  const stored = h.set('a', 'stored');
+  const actualPage = h.set('a', 'gallery-a');
   h.owner.pin('a');
-  assert.equal(h.owner.resolve('a').sharedSnapshotPixelMap, stored);
-  h.fallback.set('b', { tabId: 'b', sharedSnapshotPixelMap: {} });
+  assert.equal(h.owner.resolve('a').sharedSnapshotPixelMap, actualPage);
+  h.set('b', 'gallery-b');
   h.owner.pin('b');
-  const fallback = h.owner.resolve('b');
-  h.set('b', 'later'); h.fallback.delete('b');
-  assert.equal(h.owner.resolve('b'), fallback);
+  const selected = h.owner.resolve('b');
+  h.set('b', 'later');
+  assert.equal(h.owner.resolve('b'), selected);
   h.owner.dispose();
-  assert.deepEqual(h.unpins.sort(), ['a', 'b']);
+  assert.equal(h.acquisitions.length, 2);
 });
 
 test('a new gesture has an independent lease while the old image awaits render removal', async () => {
@@ -131,5 +129,5 @@ test('dispose drains current and pending leases; queued frames cannot double-rel
   h.owner.pin('a');
   assert.equal(h.owner.resolve('a'), undefined);
   assert.equal(a.released, 1); assert.equal(b.released, 1);
-  assert.deepEqual(h.unpins.sort(), ['a', 'b']);
+  assert.equal(h.acquisitions.length, 2);
 });

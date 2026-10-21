@@ -58,7 +58,7 @@ SHORTCUT_SURFACE_REL="AiraBrowser/entry/src/main/ets/app/components/browser/Home
 TEST_REL="AiraBrowser/entry/src/test/AppRecommendationCoordinator.test.ets"
 SHORTCUT_HANDOFF_TEST_REL="AiraBrowser/entry/src/test/HomeShortcutStoreHandoff.test.ets"
 ADR_REL="docs/adr/0084-an-app-recommendation-is-announced-once-per-campaign.md"
-SEED_SLOT_ADR_REL="docs/adr/0085-the-recommended-app-takes-over-a-default-shortcut-slot.md"
+SEED_SLOT_ADR_REL="docs/adr/0087-the-recommended-app-is-not-a-default-shortcut.md"
 VARIANT_FLAGS_REL="AiraBrowser/entry/src/main/ets/common/config/BuildVariantFlags.ets"
 ICON_MANIFEST_REL="resources/icon-sources/aira/image-assets.json"
 BUILD_SCRIPT_REL="scripts/build-aira-browser.sh"
@@ -242,16 +242,11 @@ for strings_rel in "${BASE_STRINGS_REL}" "${EN_STRINGS_REL}" "${ZH_CN_STRINGS_RE
     "${strings_rel} must carry the store action label."
 done
 
-# The same app is also offered as a default homepage shortcut, and that slot keeps the
-# id of the shortcut it replaced: an install that already seeded that id keeps its own
-# shortcut, so only a fresh install shows the recommendation. Renaming the id would
-# re-seed the slot as a brand-new shortcut on every device.
-require_pattern "${SEED_SITES_REL}" "idSuffix: 'zhihu'" \
-  "the recommended app must take over the existing shortcut slot instead of adding one."
-require_pattern "${SEED_SITES_REL}" "title: '声栖'" \
-  "the shortcut slot must be titled with the recommended app."
-require_pattern "${SEED_SITES_REL}" "https://appgallery.huawei.com/app/detail\\?id=com\\.noctide\\.sleep" \
-  "the shortcut slot must declare the recommended app's store page."
+# The recommended app is no longer seeded as a default homepage shortcut. The removal is
+# the same rule ADR-0085 stated read backwards: a seed id decides what a new install
+# seeds, never what a device already holds, so dropping the slot touches no existing row.
+reject_pattern "${SEED_SITES_REL}" "声栖|com\\.noctide\\.sleep|zhihu" \
+  "the recommended app must not be included in default homepage shortcuts."
 # Tapping that tile is about the app, not the page it holds, so the app is handed to
 # AppGallery. The store page declaration is one catalog, and the tile's icon and its
 # hand-over both read it, so they cannot disagree about which app a page belongs to.
@@ -288,7 +283,9 @@ require_pattern "${SHORTCUT_SURFACE_REL}" "hasBundledShortcutIcon\\(shortcut\\.u
 require_pattern "${SHORTCUT_SURFACE_REL}" "resolveBundledShortcutIcon\\(shortcut\\.url\\)" \
   "the shortcut tile must draw the bundled icon for that store page."
 require_pattern "${SEED_SLOT_ADR_REL}" "shortcut-seed-zhihu" \
-  "the shortcut slot decision must record the id it keeps."
+  "the decision to drop the recommendation slot must record the id it removes."
+require_pattern "${SEED_SLOT_ADR_REL}" "supersedes: ADR-0085" \
+  "the decision to drop the recommendation slot must record the decision it replaces."
 
 # The laurel artwork is decorative, so it must be classified rather than treated
 # as a colorable Operational Icon.

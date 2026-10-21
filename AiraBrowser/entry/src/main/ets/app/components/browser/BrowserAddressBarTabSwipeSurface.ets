@@ -9,7 +9,9 @@ import { BrowserTabPreviewState } from '../../../core/browser/BrowserTabPreviewC
 @Component
 export struct BrowserAddressBarTabSwipeSurface {
   @Prop state: BrowserAddressBarTabSwipeState = createIdleAddressBarTabSwipeState();
-  @Prop preview?: BrowserTabPreviewState = undefined;
+  // @Prop deep-copies objects and loses PixelMap's native backing. Share the leased image;
+  // the shell remains its only writer and the cover coordinator owns its lifetime.
+  @Link preview: BrowserTabPreviewState | undefined;
   @Prop surfaceColor: ResourceColor = Color.White;
   @Prop textColor: ResourceColor = Color.Black;
   /** Window offset where the captured web page starts. */
@@ -41,9 +43,9 @@ export struct BrowserAddressBarTabSwipeSurface {
             // Render one leased source for the entire gesture; asynchronous thumbnail updates must
             // not swap image nodes or paint a second, not-yet-ready image over this cover.
             if (this.preview.sharedSnapshotPixelMap !== undefined) {
-              this.buildPreviewImage(this.preview.sharedSnapshotPixelMap as image.PixelMap)
+              this.buildPreviewImage()
             } else if (this.previewUri().length > 0) {
-              this.buildPreviewImage(this.previewUri())
+              this.buildPreviewImage()
             }
           }
           if (this.state.loadingPlaceholder) {
@@ -102,12 +104,12 @@ export struct BrowserAddressBarTabSwipeSurface {
   }
 
   @Builder
-  private buildPreviewImage(source: string | image.PixelMap) {
+  private buildPreviewImage() {
     // syncLoad keeps a file-backed thumbnail from being drawn one or more frames late, which is
     // exactly the window a swipe shows it in.
     if (this.usesPageFrame()) {
       // A web page capture holds page pixels only, so it starts below the top chrome.
-      Image(source)
+      Image(this.resolvePreviewImageSource())
         .width('100%')
         .height(this.resolvePagePreviewHeight())
         .objectFit(ImageFit.Fill)
@@ -118,7 +120,7 @@ export struct BrowserAddressBarTabSwipeSurface {
     } else {
       // A shell screenshot was taken from this same window box, so filling the surface aligns it
       // with the screen and the live floating chrome covers the captured toolbar.
-      Image(source)
+      Image(this.resolvePreviewImageSource())
         .width('100%')
         .height('100%')
         .objectFit(ImageFit.Fill)
@@ -127,6 +129,12 @@ export struct BrowserAddressBarTabSwipeSurface {
         .blur(this.previewBlurRadius)
         .position({ x: 0, y: 0 })
     }
+  }
+
+  private resolvePreviewImageSource(): string | image.PixelMap {
+    // Read state inside the Image update scope. A by-value Builder argument would keep the
+    // first neighbor's pixels when the gesture reverses without recreating the image branch.
+    return this.preview?.sharedSnapshotPixelMap ?? this.previewUri();
   }
 
   private usesPageFrame(): boolean {
