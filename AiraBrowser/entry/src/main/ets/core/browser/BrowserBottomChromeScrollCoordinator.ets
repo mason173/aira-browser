@@ -200,7 +200,9 @@ export class BrowserBottomChromeScrollCoordinator {
   ): BrowserBottomChromeHomeScrollDecision {
     this.recordScrollDelta(normalizedY, this.resolveHomeDirectionNoisePx());
     const revealDeltaPx = this.resolveManualPeekRevealDeltaPx();
-    if (this.state.downwardDelta < revealDeltaPx && this.state.upwardDelta < revealDeltaPx) {
+    // Same direction gate as the web scene: reading on keeps the manually hidden panel hidden;
+    // only a scroll back toward the feed top may summon it.
+    if (this.state.upwardDelta < revealDeltaPx) {
       return this.buildHomeScrollDecision(
         input,
         'peek',
@@ -367,7 +369,11 @@ export class BrowserBottomChromeScrollCoordinator {
       this.rememberBaseline(input.tabId, normalizedY);
       return this.buildUnchangedWebDecision(input);
     }
-    if (this.state.downwardDelta <= 0 && this.state.upwardDelta <= 0) {
+    // Only a scroll back toward the page top may summon the manually hidden panel. Reading on
+    // (downward) keeps it hidden, so its settle just clears the gesture's deltas.
+    if (this.state.upwardDelta < this.resolveManualPeekRevealDeltaPx()) {
+      this.state.downwardDelta = 0;
+      this.state.upwardDelta = 0;
       return this.buildUnchangedWebDecision(input);
     }
     this.state.downwardDelta = 0;

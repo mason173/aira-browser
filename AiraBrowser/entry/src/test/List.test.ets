@@ -113,6 +113,7 @@ import elementInspectionRuntimeScriptServiceTest from './ElementInspectionRuntim
 import elementInspectionOutlineMenuLayoutTest from './ElementInspectionOutlineMenuLayout.test';
 import webVideoPictureInPictureBackgroundPolicyTest from './WebVideoPictureInPictureBackgroundPolicy.test';
 import browserSplitToolbarCustomizationPolicyTest from './BrowserSplitToolbarCustomizationPolicy.test';
+import browserBottomChromeScrollCoordinatorTest from './BrowserBottomChromeScrollCoordinator.test';
 import browserBottomToolbarReorderGesturePolicyTest from './BrowserBottomToolbarReorderGesturePolicy.test';
 import browserOpenTabsButtonViewModelTest from './BrowserOpenTabsButtonViewModel.test';
 import documentViewerHtmlFileTransportTest from './DocumentViewerHtmlFileTransport.test';
@@ -245,6 +246,7 @@ export default function tests(): void {
   elementInspectionOutlineMenuLayoutTest();
   webVideoPictureInPictureBackgroundPolicyTest();
   browserSplitToolbarCustomizationPolicyTest();
+  browserBottomChromeScrollCoordinatorTest();
   browserBottomToolbarReorderGesturePolicyTest();
   browserOpenTabsButtonViewModelTest();
   documentViewerHtmlFileTransportTest();
