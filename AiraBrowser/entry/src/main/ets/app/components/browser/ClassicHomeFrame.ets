@@ -24,6 +24,12 @@ import { HomeSettingsActionRow } from './HomeSettingsActionRow';
 /**
  * 经典主页. Scroll, expanded sections, and drag state live here and die with this component.
  * 简约 and 极简 never see them.
+ *
+ * The favorites section spans the whole grid and packs its tiles from the leading edge, like the
+ * recently-closed section and the settings row below it. A block that shrank to its own content
+ * would float in the middle of the page: an empty grid would carry its 收藏 header to the centre
+ * and leave the add tile alone there, and a partial row would sit between two empty lanes. The
+ * centered homepage keeps that outward-from-the-middle look; this frame does not.
  */
 @Component
 export struct ClassicHomeFrame {
@@ -58,8 +64,8 @@ export struct ClassicHomeFrame {
             expanded: this.favoritesExpanded,
             showTitle: this.storedShowFavoritesTitle,
             iconCornerRadiusRatio: -1,
-            minimumWidth: resolveHomeSectionRailWidth(this.presentation, this.shortcutViewModel),
-            alignPartialRowsToStart: this.presentation.useSharedSectionWidth,
+            minimumWidth: resolveHomeFullGridWidth(this.presentation),
+            alignPartialRowsToStart: true,
             centerPartialRows: false,
             showPinnedSettingsEntry: false,
             shortcuts: this.presentation.shortcuts,

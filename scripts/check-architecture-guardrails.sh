@@ -3815,6 +3815,9 @@ check_file_contains_rule "${TAB_HOME_COORDINATOR}" "${TAB_HOME_COORDINATOR_REL}"
   'private readonly homeChromeScrollCoordinator: BrowserHomeChromeScrollCoordinator' \
   "Home Scroll policy, native offset state, and decisions must stay inside one coordinator under the Tab Home owner."
 check_file_contains_rule "${CLASSIC_HOME_FRAME}" "${CLASSIC_HOME_FRAME_REL}" \
+  'alignPartialRowsToStart: true' \
+  "Classic Home must pack its favorites block to the leading edge instead of centering a partial row."
+check_file_contains_rule "${CLASSIC_HOME_FRAME}" "${CLASSIC_HOME_FRAME_REL}" \
   "scrollAtEnd: this\.scroller\.isAtEnd\(\)" \
   "Classic Home must forward raw offset/end samples instead of owning chrome policy or bounce state."
 check_file_contains_rule "${CENTERED_HOME_FRAME}" "${CENTERED_HOME_FRAME_REL}" \
