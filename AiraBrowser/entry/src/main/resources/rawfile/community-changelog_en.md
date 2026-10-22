@@ -1,5 +1,15 @@
 # Changelog
 
+## 3.8.3 (1000549)
+
+2026-10-22
+
+This release moves the app recommendation into Settings and realigns the Home favorites grid.
+
+- The app recommendation no longer pops up on Home. It now lives in Settings → App recommendations, where opening an app shows its introduction, reviews and questions, with a link to view it in AppGallery.
+- A fresh install's Home page no longer preloads default shortcuts: the favorites grid starts empty for you to fill, and favorites you already have are untouched.
+- Fixed the Home favorites grid drifting into the middle when it holds few items; the icons now start from the leading edge.
+
 ## 3.8.3 (1000546)
 
 2026-10-20
