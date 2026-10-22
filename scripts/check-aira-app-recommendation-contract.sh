@@ -3,6 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+PERL_BIN="${PERL_BIN:-/usr/bin/perl}"
 failures=0
 
 fail() {
@@ -10,289 +11,152 @@ fail() {
   failures=$((failures + 1))
 }
 
+matches_pattern() {
+  local rel_path="$1"
+  local pattern="$2"
+  "${PERL_BIN}" -e '
+    use strict;
+    use warnings;
+    my ($pattern, $path) = @ARGV;
+    open my $file, "<", $path or exit 2;
+    local $/;
+    my $content = <$file>;
+    close $file;
+    exit($content =~ /$pattern/ ? 0 : 1);
+  ' "${pattern}" "${REPO_ROOT}/${rel_path}"
+}
+
 require_pattern() {
   local rel_path="$1"
   local pattern="$2"
   local message="$3"
-  if ! grep -Eq "${pattern}" "${REPO_ROOT}/${rel_path}"; then
+  if ! matches_pattern "${rel_path}" "${pattern}"; then
     fail "${message}"
   fi
 }
 
-reject_pattern() {
+forbid_pattern() {
   local rel_path="$1"
   local pattern="$2"
   local message="$3"
-  if grep -Eqi "${pattern}" "${REPO_ROOT}/${rel_path}"; then
+  if matches_pattern "${rel_path}" "${pattern}"; then
     fail "${message}"
   fi
 }
 
-REPOSITORY_REL="AiraBrowser/entry/src/main/ets/data/onboarding/AppRecommendationRepository.ets"
-COORDINATOR_REL="AiraBrowser/entry/src/main/ets/core/onboarding/AppRecommendationCoordinator.ets"
 CONTENT_REL="AiraBrowser/entry/src/main/ets/app/components/onboarding/AppRecommendationContent.ets"
 SHEET_REL="AiraBrowser/entry/src/main/ets/app/components/onboarding/AppRecommendationSheet.ets"
 OVERLAY_REL="AiraBrowser/entry/src/main/ets/app/components/onboarding/AppRecommendationOverlay.ets"
-ICON_REL="AiraBrowser/entry/src/main/resources/base/media/app_recommendation_shengxi.png"
-LAUREL_LEFT_REL="AiraBrowser/entry/src/main/resources/base/media/app_recommendation_laurel_left.svg"
-LAUREL_RIGHT_REL="AiraBrowser/entry/src/main/resources/base/media/app_recommendation_laurel_right.svg"
-AVATAR_CLEAR_REL="AiraBrowser/entry/src/main/resources/base/media/app_recommendation_review_avatar_clear.png"
-AVATAR_SPENDING_REL="AiraBrowser/entry/src/main/resources/base/media/app_recommendation_review_avatar_spending.png"
-AVATAR_SIMPLE_REL="AiraBrowser/entry/src/main/resources/base/media/app_recommendation_review_avatar_simple.png"
-AVATAR_CYCLES_REL="AiraBrowser/entry/src/main/resources/base/media/app_recommendation_review_avatar_cycles.png"
-AVATAR_TIDY_REL="AiraBrowser/entry/src/main/resources/base/media/app_recommendation_review_avatar_tidy.png"
-TRANSIENT_REL="AiraBrowser/entry/src/main/ets/core/browser/BrowserTransientSurfaceCoordinator.ets"
-BOTTOM_PANEL_REL="AiraBrowser/entry/src/main/ets/core/browser/BrowserRootBottomPanelSessionCoordinator.ets"
-SHELL_BACK_REL="AiraBrowser/entry/src/main/ets/core/browser/BrowserShellBackCoordinator.ets"
-MAIN_BACK_REL="AiraBrowser/entry/src/main/ets/core/browser/BrowserMainBackCoordinator.ets"
-TAB_HOME_REL="AiraBrowser/entry/src/main/ets/core/browser/BrowserTabHomeCoordinator.ets"
-SHELL_PAGE_REL="AiraBrowser/entry/src/main/ets/app/pages/BrowserShellPage.ets"
-RUNTIME_REL="AiraBrowser/entry/src/main/ets/app/bootstrap/BrowserAppRuntime.ets"
+PAGE_REL="AiraBrowser/entry/src/main/ets/app/pages/SettingsAppRecommendationPage.ets"
+ROUTES_REL="AiraBrowser/entry/src/main/ets/app/router/AppRoutes.ets"
+NAV_REL="AiraBrowser/entry/src/main/ets/app/router/SettingsNavigationCoordinator.ets"
+MAIN_PAGES_REL="AiraBrowser/entry/src/main/resources/base/profile/main_pages.json"
+CENTER_VM_REL="AiraBrowser/entry/src/main/ets/core/settings/SettingsCenterViewModel.ets"
+CATALOG_REL="AiraBrowser/entry/src/main/ets/core/settings/SettingsDestinationCatalog.ets"
+COPY_REL="AiraBrowser/entry/src/main/ets/core/settings/SettingsCatalogCopy.ets"
 STORE_SERVICE_REL="AiraBrowser/entry/src/main/ets/services/system/SystemSettingsLaunchService.ets"
-SEED_SITES_REL="AiraBrowser/entry/src/main/ets/data/repositories/BrowserDefaultSeedSites.ets"
-BUNDLED_ICON_REL="AiraBrowser/entry/src/main/ets/core/resources/BundledShortcutIconResources.ets"
-STORE_HANDOFF_REL="AiraBrowser/entry/src/main/ets/services/shortcuts/ShortcutStoreHandoffCatalog.ets"
-OPEN_POLICY_REL="AiraBrowser/entry/src/main/ets/services/shortcuts/HomeShortcutOpenPolicyService.ets"
-OPEN_COORDINATOR_REL="AiraBrowser/entry/src/main/ets/core/shortcuts/HomeShortcutOpenCoordinator.ets"
-SHORTCUT_SURFACE_REL="AiraBrowser/entry/src/main/ets/app/components/browser/HomeShortcutSurface.ets"
-TEST_REL="AiraBrowser/entry/src/test/AppRecommendationCoordinator.test.ets"
-SHORTCUT_HANDOFF_TEST_REL="AiraBrowser/entry/src/test/HomeShortcutStoreHandoff.test.ets"
-ADR_REL="docs/adr/0084-an-app-recommendation-is-announced-once-per-campaign.md"
-SEED_SLOT_ADR_REL="docs/adr/0087-the-recommended-app-is-not-a-default-shortcut.md"
-VARIANT_FLAGS_REL="AiraBrowser/entry/src/main/ets/common/config/BuildVariantFlags.ets"
-ICON_MANIFEST_REL="resources/icon-sources/aira/image-assets.json"
-BUILD_SCRIPT_REL="scripts/build-aira-browser.sh"
-BASE_STRINGS_REL="AiraBrowser/entry/src/main/resources/base/element/string.json"
-EN_STRINGS_REL="AiraBrowser/entry/src/main/resources/en_US/element/string.json"
-ZH_CN_STRINGS_REL="AiraBrowser/entry/src/main/resources/zh_CN/element/string.json"
-ZH_HANT_STRINGS_REL="AiraBrowser/entry/src/main/resources/zh_Hant/element/string.json"
+ADR_REL="docs/adr/0089-the-app-recommendation-lands-in-settings.md"
+TRANSIENT_REL="AiraBrowser/entry/src/main/ets/core/browser/BrowserTransientSurfaceCoordinator.ets"
+SHELL_BACK_REL="AiraBrowser/entry/src/main/ets/core/browser/BrowserShellBackCoordinator.ets"
+TAB_HOME_REL="AiraBrowser/entry/src/main/ets/core/browser/BrowserTabHomeCoordinator.ets"
+RUNTIME_REL="AiraBrowser/entry/src/main/ets/app/bootstrap/BrowserAppRuntime.ets"
 
-for rel_path in "${REPOSITORY_REL}" "${COORDINATOR_REL}" "${CONTENT_REL}" "${SHEET_REL}" "${OVERLAY_REL}" \
-  "${ICON_REL}" "${LAUREL_LEFT_REL}" "${LAUREL_RIGHT_REL}" \
-  "${AVATAR_CLEAR_REL}" "${AVATAR_SPENDING_REL}" "${AVATAR_SIMPLE_REL}" \
-  "${AVATAR_CYCLES_REL}" "${AVATAR_TIDY_REL}" \
-  "${TRANSIENT_REL}" "${BOTTOM_PANEL_REL}" "${SHELL_BACK_REL}" "${MAIN_BACK_REL}" \
-  "${TAB_HOME_REL}" "${SHELL_PAGE_REL}" "${RUNTIME_REL}" "${STORE_SERVICE_REL}" "${TEST_REL}" "${ADR_REL}" \
-  "${SEED_SITES_REL}" "${BUNDLED_ICON_REL}" "${SHORTCUT_SURFACE_REL}" "${SEED_SLOT_ADR_REL}" \
-  "${STORE_HANDOFF_REL}" "${OPEN_POLICY_REL}" "${OPEN_COORDINATOR_REL}" \
-  "${ICON_MANIFEST_REL}" "${BASE_STRINGS_REL}" "${EN_STRINGS_REL}" \
-  "${SHORTCUT_HANDOFF_TEST_REL}" \
-  "${ZH_CN_STRINGS_REL}" "${ZH_HANT_STRINGS_REL}"; do
+for rel_path in "${CONTENT_REL}" "${SHEET_REL}" "${OVERLAY_REL}" "${PAGE_REL}" "${ROUTES_REL}" \
+  "${NAV_REL}" "${MAIN_PAGES_REL}" "${CENTER_VM_REL}" "${CATALOG_REL}" "${COPY_REL}" \
+  "${STORE_SERVICE_REL}" "${ADR_REL}" "${TRANSIENT_REL}" "${SHELL_BACK_REL}" \
+  "${TAB_HOME_REL}" "${RUNTIME_REL}"; do
   if [ ! -f "${REPO_ROOT}/${rel_path}" ]; then
     fail "missing ${rel_path}"
   fi
 done
 
-# The memory is per campaign and presentation-only. It must never model the app it
-# points at, its install state, or anything the user could be gated on.
-require_pattern "${REPOSITORY_REL}" "interface AppRecommendationRecord" \
-  "the local record must be keyed by recommendation campaign."
-require_pattern "${REPOSITORY_REL}" "id: string;" \
-  "each record must carry its campaign identity."
-require_pattern "${REPOSITORY_REL}" "shownAt" \
-  "the local record must store that the campaign was shown."
-require_pattern "${REPOSITORY_REL}" "dismissedAt" \
-  "the local record must store that the user closed it."
-require_pattern "${REPOSITORY_REL}" "hasCompleted\\(id: string\\)" \
-  "the memory must answer per campaign instead of per install."
-# The once rule is the whole point: no replay, always-show, or debug branch may appear in
-# the memory, so a campaign cannot be brought back by anything but a new campaign id.
-reject_pattern "${REPOSITORY_REL}" "REPLAY|ALWAYS_SHOW|FORCE_SHOW|DEBUG" \
-  "the recommendation memory must not carry a replay or always-show branch."
-reject_pattern "${REPOSITORY_REL}" "bundleName|storeUrl|versionCode|installedAt|launchCount|packageName" \
-  "the recommendation memory must not model install or launch state."
+if [ ! -x "${PERL_BIN}" ]; then
+  fail "Perl is required at ${PERL_BIN}"
+fi
 
-# One owner decides which pending campaign may present, and when.
-require_pattern "${COORDINATOR_REL}" "class AppRecommendationCoordinator" \
-  "the recommendation must keep one eligibility and presentation owner."
-require_pattern "${COORDINATOR_REL}" "'app_recommendation'" \
-  "the coordinator must present through the fixed transient surface."
-require_pattern "${COORDINATOR_REL}" "recommendationId" \
-  "the snapshot must name the campaign it is showing."
-require_pattern "${COORDINATOR_REL}" "resolveFacts\\(\\)\\.recommendationIds" \
-  "the catalog order must come in as a shell fact, not as compiled-in copy."
-require_pattern "${COORDINATOR_REL}" "hasCompleted\\(recommendationId\\)" \
-  "the coordinator must skip only the campaigns this device already spent."
-require_pattern "${COORDINATOR_REL}" "facts\\.homeVisible" \
-  "the recommendation belongs to the homepage and must not present over a Web page."
-require_pattern "${COORDINATOR_REL}" "facts\\.shellFamily !== 'phone'" \
-  "the recommendation is a phone announcement and must not present on the large-screen shell."
-require_pattern "${COORDINATOR_REL}" "facts\\.privacyMode === 'private'" \
-  "a Private Browsing Session must not be interrupted by the recommendation."
-require_pattern "${COORDINATOR_REL}" "handleHomeSurfaceVisible\\(\\)" \
-  "a homepage arrival is what opens the next opportunity."
-require_pattern "${COORDINATOR_REL}" "handleSurfaceRevealed\\(\\)" \
-  "the campaign must be spent only once the card actually reveals."
-require_pattern "${COORDINATOR_REL}" "markShown\\(recommendationId" \
-  "the reveal must spend the campaign the card is actually showing."
-require_pattern "${COORDINATOR_REL}" "markDismissed\\(recommendationId" \
-  "the close must spend the campaign the card is actually showing."
-require_pattern "${COORDINATOR_REL}" "'open_market'" \
-  "the card's store action must be an explicit owner action."
-require_pattern "${COORDINATOR_REL}" "openStore\\(recommendationId\\)" \
-  "opening the store page must go through the shell seam, keyed by campaign."
-require_pattern "${COORDINATOR_REL}" "isReleaseNoticeBlocked\\(facts\\.promptBlockingFacts\\)" \
-  "the recommendation must yield the lane to prompts that already hold it."
-require_pattern "${COORDINATOR_REL}" "presentationGeneration === this\\.presentationGeneration && this\\.snapshot\\.visible" \
-  "the reveal guard must require the published visible snapshot, not reject it."
-require_pattern "${COORDINATOR_REL}" "scheduleEvaluation\\(\\)" \
-  "the recommendation must re-decide presentation instead of deciding once."
-# One arrival offers one card, so two pending campaigns can never land back to back.
-require_pattern "${COORDINATOR_REL}" "private armed: boolean = false;" \
-  "the coordinator must remember that one arrival offers at most one campaign."
-require_pattern "${COORDINATOR_REL}" "if \\(!this\\.armed\\)" \
-  "an evaluation without an arrival must not present anything."
+if [ "${failures}" -ne 0 ]; then
+  exit 1
+fi
 
-# A new app is a catalog change plus a new campaign id, and nothing else.
+# One catalog owns what is on offer, and it is source content: adding an app is a catalog
+# change plus its artwork, never a code change on the page or the sheet.
 require_pattern "${CONTENT_REL}" "export function appRecommendationCatalog" \
-  "the catalog must be the single place a recommendation is declared."
-require_pattern "${CONTENT_REL}" "export function appRecommendationIds" \
-  "the catalog must expose its campaign ids in order."
+  "the catalog must be the single place an offered app is declared."
 require_pattern "${CONTENT_REL}" "export function appRecommendationEntryFor" \
-  "the catalog must resolve one campaign for the card."
-require_pattern "${CONTENT_REL}" "id: 'shengxi'" \
-  "the catalog must carry the campaign identity the memory keys on."
-require_pattern "${CONTENT_REL}" "storeId: 'com.noctide.sleep'" \
-  "the catalog must carry the store page the action hands over."
+  "the catalog must resolve one app for the detail sheet."
+require_pattern "${CONTENT_REL}" "storeId: 'com\.noctide\.sleep'" \
+  "the catalog must carry the store page the store action hands over."
 require_pattern "${SHEET_REL}" "appRecommendationEntryFor" \
-  "the card must render the campaign the owner decided to show."
-require_pattern "${SHEET_REL}" "AppRecommendationEntry" \
-  "the card must render catalog content rather than compiled-in copy."
-# The card owns no content of its own: its strings live in the catalog and the
-# resource files, so a new recommendation never edits the card.
-reject_pattern "${SHEET_REL}" "app_recommendation_review_author|app_recommendation_faq_content_title|app_recommendation_tagline" \
-  "the card must not own recommendation copy; that belongs to the catalog."
+  "the sheet must render the app the page opened, not compiled-in copy."
+# The card owns no content of its own: its strings live in the catalog and the resource
+# files, so a new app never edits the sheet.
+forbid_pattern "${SHEET_REL}" "app_recommendation_review_author|app_recommendation_faq_content_title|app_recommendation_tagline" \
+  "the sheet must not own app copy; that belongs to the catalog."
+forbid_pattern "${CONTENT_REL}" "shownAt|dismissedAt|hasCompleted" \
+  "the catalog must not carry presentation state; the page is opened on demand."
 
-# The homepage is the only entry point, and it re-evaluates on every arrival.
-require_pattern "${TAB_HOME_REL}" "resolveAppRecommendationCoordinator\\(\\)\\.handleHomeSurfaceVisible\\(\\)" \
-  "arriving at the homepage must arm the pending recommendation."
-require_pattern "${SHELL_PAGE_REL}" "recommendationIds: appRecommendationIds\\(\\)" \
-  "the shell must project the catalog order into the recommendation facts."
-require_pattern "${SHELL_PAGE_REL}" "homeVisible: this\\.showHomePage" \
-  "the shell must project the homepage state into the recommendation facts."
-require_pattern "${SHELL_PAGE_REL}" "recommendationId: this\\.appRecommendationSnapshot\\.recommendationId" \
-  "the shell must hand the decided campaign to the card."
-require_pattern "${SHELL_PAGE_REL}" "appRecommendationCoordinator\\.handleHomeSurfaceVisible\\(\\)" \
-  "a returning shell must report a new homepage arrival for a cold start."
-require_pattern "${SHELL_PAGE_REL}" "appRecommendationCoordinator\\.handleSurfaceRevealed\\(\\)" \
-  "the shell must report the reveal back to the one-time owner."
-require_pattern "${SHELL_PAGE_REL}" "appRecommendationCoordinator\\.handleShellReset\\(\\)" \
-  "a route reset must take an in-flight card down."
-require_pattern "${SHELL_PAGE_REL}" "openAppGalleryDetailPageForApp" \
-  "the shell must open the recommended app's store page through the store service."
+# The entry sits in Settings, directly above 关于Aira, and it opens its own page.
+require_pattern "${CENTER_VM_REL}" "this\.buildRow\('app_recommendation', '应用推荐'\),\s*\n\s*this\.buildRow\('about', '关于Aira'\)" \
+  "应用推荐 must sit directly above 关于Aira in the settings center."
+require_pattern "${CENTER_VM_REL}" "case 'app_recommendation':" \
+  "the settings center row must carry an icon."
+require_pattern "${CATALOG_REL}" "target\('app_recommendation', 'app_recommendation', 'app_recommendation', '应用推荐',[\s\S]{0,200}'routed'\)" \
+  "应用推荐 must be a searchable settings destination that always opens its own page."
+require_pattern "${CATALOG_REL}" "target\('app_recommendation'[\s\S]{0,300}target\('about', 'about', 'about', '关于Aira'" \
+  "应用推荐 must sit directly above 关于Aira in the settings directory."
+require_pattern "${COPY_REL}" "case '应用推荐':" \
+  "the settings directory string must be localized through the copy table."
+require_pattern "${ROUTES_REL}" "SETTINGS_APP_RECOMMENDATION_ROUTE: string = 'app/pages/SettingsAppRecommendationPage'" \
+  "the page must have a route of its own."
+require_pattern "${MAIN_PAGES_REL}" "app/pages/SettingsAppRecommendationPage" \
+  "the page's route must be registered in main_pages.json."
+require_pattern "${NAV_REL}" "SETTINGS_APP_RECOMMENDATION_ROUTE," \
+  "the route must be imported by the settings navigation owner."
+require_pattern "${NAV_REL}" "target\.targetId === 'app_recommendation'[\s\S]{0,160}SETTINGS_APP_RECOMMENDATION_ROUTE" \
+  "selecting the entry must push the page's route."
+
+# The page lists the catalog and opens one app's sheet on demand. Nothing announces,
+# remembers, or gates it; the user asked for this page.
+require_pattern "${PAGE_REL}" "appRecommendationCatalog\(\)" \
+  "the page must draw the catalog as its list."
+require_pattern "${PAGE_REL}" "SettingsNavigationRow\(" \
+  "each app must be a settings row so the page keeps the standard list chrome."
+require_pattern "${PAGE_REL}" "AppRecommendationOverlay\(" \
+  "the page must host the one detail sheet."
+# The card resolves its app from the id, not once at mount: a host that mounts the sheet up
+# front, or opens a second app through the same sheet, must still draw the app it opened.
+require_pattern "${SHEET_REL}" "@Prop @Watch\('syncEntry'\) recommendationId" \
+  "the card must resolve its app again whenever the opened id changes."
+require_pattern "${PAGE_REL}" "if \(this\.sheetMounted\)[\s\S]{0,200}AppRecommendationOverlay\(" \
+  "the sheet must be mounted only once an app has been opened."
+require_pattern "${OVERLAY_REL}" "export type AppRecommendationAction = 'dismiss' \| 'open_market';" \
+  "the sheet's actions must be owned by the surface that hosts it."
+require_pattern "${PAGE_REL}" "openAppGalleryDetailPageForApp" \
+  "the store action must go through the store service."
 require_pattern "${STORE_SERVICE_REL}" "openAppGalleryDetailPageForApp" \
   "the store service must own the AppGallery detail deep link and its fallback."
-require_pattern "${RUNTIME_REL}" "sharedAppRecommendationRepository\\.initialize\\(\\)" \
-  "the recommendation memory must be initialized with the other runtime stores."
 
-# The surface takes part in the shared transient-surface lifecycle.
-require_pattern "${TRANSIENT_REL}" "'app_recommendation'" \
-  "the transient surface owner must know the recommendation id."
-require_pattern "${BOTTOM_PANEL_REL}" "'app_recommendation'" \
-  "the root bottom panel owner must know the recommendation id."
-require_pattern "${SHELL_BACK_REL}" "dismiss_app_recommendation" \
-  "system Back must close the card."
-require_pattern "${MAIN_BACK_REL}" "dismiss_app_recommendation" \
-  "system Back must be handled by the main back coordinator."
-
-# The card draws the declared campaign.
-require_pattern "${CONTENT_REL}" "app_recommendation_shengxi" \
-  "the catalog must carry the recommended app icon."
-require_pattern "${CONTENT_REL}" "app_recommendation_laurel_left|app_recommendation_badge_sleep" \
-  "the catalog must carry the two-laurel product phrase copy."
-require_pattern "${CONTENT_REL}" "app_recommendation_review_avatar_clear" \
-  "the catalog must carry the sample review band."
-require_pattern "${CONTENT_REL}" "app_recommendation_faq_content_title" \
-  "the catalog must carry the centred questions."
-require_pattern "${SHEET_REL}" "app_recommendation_laurel_left" \
-  "the card must draw the two-laurel product phrase."
-require_pattern "${SHEET_REL}" "app_recommendation_laurel_right" \
-  "the card must keep the two-laurel product phrase."
-require_pattern "${SHEET_REL}" "createAnimator" \
-  "the review band must scroll at a constant speed."
-require_pattern "${SHEET_REL}" "app_recommendation_open_market" \
-  "the card must offer the store action under the body."
-require_pattern "${SHEET_REL}" "footerVisible" \
-  "the store action must be the immersive sheet footer, not a floating custom control."
-require_pattern "${OVERLAY_REL}" "recommendationId" \
-  "the overlay must pass the decided campaign to the card."
-require_pattern "${OVERLAY_REL}" "'open_market'" \
-  "the overlay must report the store action to the owner."
-require_pattern "${OVERLAY_REL}" "dismissOnOutsideTap: false" \
-  "a stray tap on the scrim must not spend a one-time campaign."
-# The shell owns no copy: every visible string is a localized resource.
-reject_pattern "${SHELL_PAGE_REL}" "应用推荐|不再提醒|常见问题|声栖" \
-  "the shell must not own the recommendation copy."
-reject_pattern "${COORDINATOR_REL}" "应用推荐|声栖|常见问题" \
-  "the coordinator must not own the recommendation copy."
-
-# Every locale carries the same recommendation strings.
-for strings_rel in "${BASE_STRINGS_REL}" "${EN_STRINGS_REL}" "${ZH_CN_STRINGS_REL}" "${ZH_HANT_STRINGS_REL}"; do
-  require_pattern "${strings_rel}" "app_recommendation_title" \
-    "${strings_rel} must carry the recommendation title."
-  require_pattern "${strings_rel}" "app_recommendation_app_name" \
-    "${strings_rel} must carry the recommended app name."
-  require_pattern "${strings_rel}" "app_recommendation_reviews_title" \
-    "${strings_rel} must carry the sample review heading."
-  require_pattern "${strings_rel}" "app_recommendation_faq_title" \
-    "${strings_rel} must carry the questions heading."
-  require_pattern "${strings_rel}" "app_recommendation_close" \
-    "${strings_rel} must carry the close label."
-  require_pattern "${strings_rel}" "app_recommendation_open_market" \
-    "${strings_rel} must carry the store action label."
+# No arrival may open it, and no surface may be reserved for it: the page is the only
+# entry point, and only a tap on a card opens the sheet.
+for removed_rel in \
+  "AiraBrowser/entry/src/main/ets/core/onboarding/AppRecommendationCoordinator.ets" \
+  "AiraBrowser/entry/src/main/ets/data/onboarding/AppRecommendationRepository.ets"; do
+  if [ -e "${REPO_ROOT}/${removed_rel}" ]; then
+    fail "the app catalog must not regain an automatic presenter: ${removed_rel}"
+  fi
 done
-
-# The recommended app is no longer seeded as a default homepage shortcut. The removal is
-# the same rule ADR-0085 stated read backwards: a seed id decides what a new install
-# seeds, never what a device already holds, so dropping the slot touches no existing row.
-reject_pattern "${SEED_SITES_REL}" "声栖|com\\.noctide\\.sleep|zhihu" \
-  "the recommended app must not be included in default homepage shortcuts."
-# Tapping that tile is about the app, not the page it holds, so the app is handed to
-# AppGallery. The store page declaration is one catalog, and the tile's icon and its
-# hand-over both read it, so they cannot disagree about which app a page belongs to.
-require_pattern "${STORE_HANDOFF_REL}" "export function resolveShortcutStoreHandoffId" \
-  "which pages are store pages must be a declared catalog, not a special case in the open path."
-require_pattern "${STORE_HANDOFF_REL}" "com\\.noctide\\.sleep" \
-  "the store hand-over rule must be scoped to the recommended app's store page."
-require_pattern "${OPEN_POLICY_REL}" "resolveShortcutStoreHandoffId\\(shortcut\\.url\\)" \
-  "the open plan must ask the catalog whether this shortcut's page is a store page."
-require_pattern "${OPEN_POLICY_REL}" "kind: 'store'" \
-  "a store page must become its own open plan rather than a Web open."
-require_pattern "${OPEN_POLICY_REL}" "normalizedIntent === 'current_tab'" \
-  "only the tile's own open hands the app over; a tab intent still opens the page it names."
-require_pattern "${OPEN_COORDINATOR_REL}" "openStoreDetailPage" \
-  "the open coordinator must hand the store page to the store through one port."
-require_pattern "${SHELL_PAGE_REL}" "openStoreDetailPage" \
-  "the shell must implement the store hand-over the shortcuts open through."
-require_pattern "${SHELL_PAGE_REL}" "handOverAppStoreDetailPage" \
-  "the recommendation card and the shortcut must share one store hand-over."
-require_pattern "${SHORTCUT_HANDOFF_TEST_REL}" "assertEqual\\('store'\\)" \
-  "the store hand-over must be covered by the open-plan test."
-# A shortcut draws its page's favicon, and a store page's favicon is the store's, so the
-# recommended app's tile ships its icon with the app instead.
-require_pattern "${BUNDLED_ICON_REL}" "hasBundledShortcutIcon" \
-  "a bundled shortcut icon must be an explicit rule, not a special case in the tile."
-require_pattern "${BUNDLED_ICON_REL}" "resolveShortcutStoreHandoffId" \
-  "the icon rule must look up the app the store hand-over catalog resolved, not repeat the URL."
-require_pattern "${BUNDLED_ICON_REL}" "com\\.noctide\\.sleep" \
-  "the bundled icon rule must be scoped to the recommended app's store page."
-require_pattern "${BUNDLED_ICON_REL}" "app_recommendation_shengxi" \
-  "the bundled icon rule must carry the recommended app's icon."
-require_pattern "${SHORTCUT_SURFACE_REL}" "hasBundledShortcutIcon\\(shortcut\\.url\\)" \
-  "the shortcut tile must draw the bundled icon for that store page."
-require_pattern "${SHORTCUT_SURFACE_REL}" "resolveBundledShortcutIcon\\(shortcut\\.url\\)" \
-  "the shortcut tile must draw the bundled icon for that store page."
-require_pattern "${SEED_SLOT_ADR_REL}" "shortcut-seed-zhihu" \
-  "the decision to drop the recommendation slot must record the id it removes."
-require_pattern "${SEED_SLOT_ADR_REL}" "supersedes: ADR-0085" \
-  "the decision to drop the recommendation slot must record the decision it replaces."
-
-# The laurel artwork is decorative, so it must be classified rather than treated
-# as a colorable Operational Icon.
-require_pattern "${ICON_MANIFEST_REL}" "app-recommendation-laurel-artwork" \
-  "the packaged laurel SVG resources must be classified in the icon manifest."
+forbid_pattern "${TRANSIENT_REL}" "'app_recommendation'" \
+  "no transient surface may reserve an id for an announcement."
+forbid_pattern "${SHELL_BACK_REL}" "dismiss_app_recommendation" \
+  "system Back must not carry an announcement branch."
+forbid_pattern "${TAB_HOME_REL}" "AppRecommendation" \
+  "arriving at the homepage must not open the app catalog."
+forbid_pattern "${RUNTIME_REL}" "AppRecommendation" \
+  "the runtime must not initialize an app-catalog memory."
+require_pattern "${ADR_REL}" "supersedes: ADR-0084" \
+  "the move into settings must record the decision it replaces."
 
 if [ "${failures}" -gt 0 ]; then
   exit 1
 fi
-printf 'App recommendation contract passed: one campaign per telling, phone homepage only, four locales.\n'
+printf 'App recommendation contract passed: settings-only catalog, on-demand sheet, no announcement.\n'

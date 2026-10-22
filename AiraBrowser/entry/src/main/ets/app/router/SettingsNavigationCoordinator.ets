@@ -44,6 +44,7 @@ import {
   SECURE_DNS_PROFILE_EDIT_ROUTE,
   SECURE_DNS_SETTINGS_ROUTE,
   SETTINGS_CHANGELOG_ROUTE,
+  SETTINGS_APP_RECOMMENDATION_ROUTE,
   SETTINGS_THIRD_PARTY_NOTICES_ROUTE,
   SETTINGS_AUTO_RENEWAL_NOTICE_ROUTE,
   SETTINGS_DETAIL_ROUTE,
@@ -173,6 +174,9 @@ export class SettingsNavigationCoordinator {
     const params = this.buildParams(boundary);
     params.settingsTargetId = target.targetId;
     params.settingsRevealTargetId = target.revealTargetId;
+    if (target.targetId === 'app_recommendation') {
+      return this.pushUrlCommitted(SETTINGS_APP_RECOMMENDATION_ROUTE, params);
+    }
     if (target.subpageId === 'privacy_ad_blocker') {
       return this.pushUrlCommitted(AD_BLOCK_SETTINGS_ROUTE, params);
     }

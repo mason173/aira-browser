@@ -26,13 +26,13 @@ import {
   buildEmptyAppRecommendationEntry
 } from './AppRecommendationContent';
 
-// The card mirrors the recommended app's own product page: an app icon in a
+// The card mirrors the offered app's own product page: an app icon in a
 // rounded square, the product name and phrase, a product phrase held by two
 // laurel branches, a sample review band, and centred questions. The measurements
-// are that page's, so the recommendation and the app it points at read as one
-// product family.
+// are that page's, so the card and the app it points at read as one product
+// family.
 //
-// Every section is optional. A campaign with no sample reviews, no questions, or
+// Every section is optional. An app with no sample reviews, no questions, or
 // no laurel phrase simply draws a shorter card instead of an empty one.
 const HERO_ICON_SIZE: number = 80;
 const HERO_ICON_RADIUS: number = 20;
@@ -71,12 +71,12 @@ const REVIEW_EDGE_FADE_WIDTH: number = 32;
 /** Every sample review is a five-star review, so the band never recomputes a rating. */
 const REVIEW_STAR_COUNT: number = 5;
 const AVATAR_SIZE: number = 32;
-/** The recommended app's own review band moves at a constant 24vp per second. */
+/** The app's own review band moves at a constant 24vp per second. */
 const REVIEW_SPEED_VP_PER_SECOND: number = 24;
 /** The one action under the card. Height and type match the immersive sheet action. */
 const ACTION_HEIGHT: number = 50;
 const ACTION_FONT_SIZE: number = 16;
-/** The band's stars keep the recommended app's rating orange rather than a themed role. */
+/** The band's stars keep the app's rating orange rather than a themed role. */
 const REVIEW_STAR_COLOR: string = '#F58A1F';
 const ACCENT_FALLBACK: string = '#0A59F7';
 
@@ -84,10 +84,13 @@ const ACCENT_FALLBACK: string = '#0A59F7';
  * The app recommendation card for one campaign. It introduces the app: what it is
  * for, what people say about it, and what it answers. Its one action hands the
  * AppGallery detail page to the store; nothing here installs anything, and the
- * header's close control is how the user says no. The owner records the campaign
- * as spent once this card reveals.
+ * header's close control is how the user says no.
  *
  * Phone only, so the card is always a full-height immersive sheet.
+ *
+ * The host may keep this sheet mounted and open a different app later, so the entry follows
+ * the id: it is resolved again whenever the id changes, not only when the sheet first appears.
+ * Resolving only once would leave the card blank for a host that mounts the sheet up front.
  */
 @Component
 export struct AppRecommendationSheet {
@@ -96,17 +99,20 @@ export struct AppRecommendationSheet {
     DEFAULT_THEME_PALETTE.light.pageBackground;
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY) private storedPrimaryTextColor: string = '#111318';
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY) private storedSecondaryTextColor: string = '#5F6875';
-  @Prop recommendationId: string = '';
+  @Prop @Watch('syncEntry') recommendationId: string = '';
   onClose: () => void = (): void => {};
   onOpenMarket: () => void = (): void => {};
   @State private sheetHeaderBlurRadius: number = 0;
-  // Resolved once, before the first frame. An id the catalog does not know leaves
-  // the empty entry in place, and the card then draws only its header.
-  private entry: AppRecommendationEntry = buildEmptyAppRecommendationEntry();
+  /** The app this card draws. An id the catalog does not know leaves the empty entry in place. */
+  @State private entry: AppRecommendationEntry = buildEmptyAppRecommendationEntry();
   private scroller: Scroller = new Scroller();
   private sheetScrollOffset: number = 0;
 
   aboutToAppear(): void {
+    this.syncEntry();
+  }
+
+  private syncEntry(): void {
     const resolved = appRecommendationEntryFor(this.recommendationId);
     this.entry = resolved !== undefined ? resolved : buildEmptyAppRecommendationEntry();
   }

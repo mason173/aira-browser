@@ -3,7 +3,6 @@ import { CustomHomepageRuntimeCoordinator } from '../customhome/CustomHomepageRu
 import { FeatureGateCoordinator } from '../membership/FeatureGateCoordinator';
 import { NewUserGiftCoordinator } from '../membership/NewUserGiftCoordinator';
 import { BottomToolbarGuideCoordinator } from '../onboarding/BottomToolbarGuideCoordinator';
-import { AppRecommendationCoordinator } from '../onboarding/AppRecommendationCoordinator';
 import {
   CommunityUpdateCheckCoordinator
 } from '../update/CommunityUpdateCheckCoordinator';
@@ -59,7 +58,6 @@ export interface BrowserMainBackDependencies {
   featureGateCoordinator: FeatureGateCoordinator;
   newUserGiftCoordinator: NewUserGiftCoordinator;
   bottomToolbarGuideCoordinator: BottomToolbarGuideCoordinator;
-  appRecommendationCoordinator: AppRecommendationCoordinator;
   communityUpdateCheckCoordinator: CommunityUpdateCheckCoordinator;
   homeShortcutStateCoordinator: HomeShortcutStateCoordinator;
   releaseNoticePresentationCoordinator: ReleaseNoticePresentationCoordinator;
@@ -189,9 +187,6 @@ export class BrowserMainBackCoordinator {
         return true;
       case 'dismiss_bottom_toolbar_guide':
         this.dependencies.bottomToolbarGuideCoordinator.handleAction('acknowledge');
-        return true;
-      case 'dismiss_app_recommendation':
-        this.dependencies.appRecommendationCoordinator.handleAction('dismiss');
         return true;
       case 'dismiss_community_update':
         this.dependencies.communityUpdateCheckCoordinator.handleAction('dismiss');

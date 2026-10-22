@@ -32,6 +32,7 @@ export type SettingsCenterDestination =
   'experiments' |
   'sync' |
   'cross_device_link' |
+  'app_recommendation' |
   'about';
 
 export interface SettingsCenterRowState {
@@ -156,6 +157,7 @@ export class SettingsCenterViewModel {
               canReadDevicePreferences && isFullServiceMode
             ),
             this.buildRow('advanced_settings', '高级设置'),
+            this.buildRow('app_recommendation', '应用推荐'),
             this.buildRow('about', '关于Aira')
           ]
         }
@@ -229,6 +231,8 @@ export class SettingsCenterViewModel {
         return $r('sys.symbol.icloud_fill');
       case 'cross_device_link':
         return $r('sys.symbol.link');
+      case 'app_recommendation':
+        return $r('sys.symbol.square_fill_grid_2x2');
       case 'about':
         return $r('sys.symbol.info_circle_fill');
       default:

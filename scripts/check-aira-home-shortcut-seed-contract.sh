@@ -46,8 +46,9 @@ forbid_pattern() {
 
 REPOSITORY_REL="AiraBrowser/entry/src/main/ets/data/repositories/BrowserRepositories.ets"
 DATABASE_REL="AiraBrowser/entry/src/main/ets/data/database/BrowserDatabase.ets"
+SEED_SITES_REL="AiraBrowser/entry/src/main/ets/data/repositories/BrowserDefaultSeedSites.ets"
 
-for rel_path in "${REPOSITORY_REL}" "${DATABASE_REL}"; do
+for rel_path in "${REPOSITORY_REL}" "${DATABASE_REL}" "${SEED_SITES_REL}"; do
   if [ ! -f "${REPO_ROOT}/${rel_path}" ]; then
     fail "missing ${rel_path}"
   fi
@@ -58,6 +59,9 @@ if [ ! -x "${PERL_BIN}" ]; then
 fi
 
 if [ "${failures}" -eq 0 ]; then
+  require_pattern "${SEED_SITES_REL}" \
+    'const CORE_BROWSER_SEED_SITES: BrowserDefaultSeedSite\[\] = \[\];' \
+    "a fresh install must seed no default homepage shortcut (ADR-0088)"
   require_pattern "${REPOSITORY_REL}" \
     'function createSeedShortcutId\(idSuffix: string\): string \{[\s\S]*return `shortcut-seed-\$\{idSuffix\}`;' \
     "default homepage shortcuts must keep one seed id builder"

@@ -55,6 +55,7 @@ HOME_SHORTCUT_SEED_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-home-shortcut-s
 NEW_USER_GIFT_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-new-user-gift-contract.sh"
 PRO_RENEWAL_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-pro-renewal-contract.sh"
 BOTTOM_TOOLBAR_GUIDE_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-bottom-toolbar-guide-contract.sh"
+SHORTCUT_STORE_HANDOFF_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-shortcut-store-handoff-contract.sh"
 APP_RECOMMENDATION_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-app-recommendation-contract.sh"
 CROSS_DEVICE_LINK_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-cross-device-link-contract.sh"
 COMMUNITY_UPDATE_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-community-update-contract.sh"
@@ -381,6 +382,11 @@ if [ ! -x "${BOTTOM_TOOLBAR_GUIDE_GUARD_SCRIPT}" ]; then
 fi
 
 "${BOTTOM_TOOLBAR_GUIDE_GUARD_SCRIPT}"
+if [ ! -x "${SHORTCUT_STORE_HANDOFF_GUARD_SCRIPT}" ]; then
+  fail "Shortcut store hand-over contract guard not executable: ${SHORTCUT_STORE_HANDOFF_GUARD_SCRIPT}"
+fi
+
+"${SHORTCUT_STORE_HANDOFF_GUARD_SCRIPT}"
 if [ ! -x "${APP_RECOMMENDATION_GUARD_SCRIPT}" ]; then
   fail "App Recommendation contract guard not executable: ${APP_RECOMMENDATION_GUARD_SCRIPT}"
 fi

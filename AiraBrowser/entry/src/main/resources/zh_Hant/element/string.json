@@ -12489,6 +12489,10 @@
       "value": "應用圖示"
     },
     {
+      "name": "settings_app_recommendation",
+      "value": "應用推薦"
+    },
+    {
       "name": "settings_appearance_switchable",
       "value": "可切換"
     },

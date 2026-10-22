@@ -483,6 +483,8 @@ const ADVANCED_TARGETS: SettingsDestinationCatalogTarget[] = [
     '高级 / 高级设置 / 应用服务模式', 'row', 'app_service_mode_full', 'app_service_mode'),
   target('app_service_mode_basic', 'advanced_settings', 'advanced_settings', '基本模式',
     '高级 / 高级设置 / 应用服务模式', 'row', 'app_service_mode_basic', 'app_service_mode'),
+  target('app_recommendation', 'app_recommendation', 'app_recommendation', '应用推荐', '高级', 'root', '', '',
+    ['推荐应用'], ['应用', '推荐'], true, true, 'routed'),
   target('about', 'about', 'about', '关于Aira', '高级', 'root', '', '', ['关于'], ['版本', '协议', '合规']),
   target('app_name', 'about', 'about', '应用名称', '高级 / 关于Aira / 应用', 'subpage', 'name', 'about_details'),
   target('version', 'about', 'about', '版本', '高级 / 关于Aira / 应用', 'subpage', 'version', 'about_details',

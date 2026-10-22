@@ -1,24 +1,19 @@
 /**
- * The recommendation catalog. This is the one file that changes when Aira
- * recommends a different app: add an entry (or replace the current one) and the
- * card, the once-per-recommendation memory, and the homepage trigger follow
- * without any further change.
+ * The app catalog behind 设置 → 应用推荐.
  *
- * `id` is the campaign identity, not the app identity, and it is the only key the
- * device-local memory stores. Keep it stable for as long as the same telling
- * should stay spent. Recommending the same app again is a new push and takes a
- * new id (for example `shengxi_2027`), because a user who closed the previous
- * card has not agreed to be told about the app forever — but has also not agreed
- * to be told the same thing twice.
+ * This is the one file that changes when Aira offers a different app: add an entry (or
+ * replace the current one) and the settings page's card, and the detail sheet that card
+ * opens, follow without any further change.
  *
- * Order matters: the coordinator offers the first entry this device has not spent
- * and offers at most one per homepage arrival, so appending an entry queues it
- * behind the current one and replacing it promotes it immediately.
+ * `id` is the identity the page opens a card by. It is stable for as long as the same app
+ * is on offer; it is not stored anywhere, because the catalog is opened on demand rather
+ * than announced.
  *
- * Copy and artwork are bundled with the app on purpose. A hosted campaign would
- * need a network read to draw, a hosted endpoint the Community distribution must
- * not call, and a server-side record of whether the user has been told; bundled
- * content plus a device-local memory keeps the card offline and credential-free.
+ * Order matters: the page lists the catalog in order.
+ *
+ * Copy and artwork are bundled with the app on purpose. A hosted catalog would need a
+ * network read to draw and a hosted endpoint the Community distribution must not call;
+ * bundled content keeps the page offline and credential-free.
  */
 
 /** One sample review in the scrolling band. Every field is localized copy, never a brand string. */
@@ -40,7 +35,7 @@ export interface AppRecommendationFaq {
 
 export interface AppRecommendationEntry {
   id: string;
-  /** AppGallery package id of the recommended app. This is the only store identity Aira keeps. */
+  /** AppGallery package id of the offered app. This is the only store identity Aira keeps. */
   storeId: string;
   icon: ResourceStr;
   name: ResourceStr;
@@ -141,21 +136,11 @@ export function buildEmptyAppRecommendationEntry(): AppRecommendationEntry {
   };
 }
 
-/** Every recommendation Aira can offer, in the order the coordinator should offer them. */
+/** Every app Aira offers in 设置 → 应用推荐, in the order the page lists them. */
 export function appRecommendationCatalog(): AppRecommendationEntry[] {
   return [
     shengxiEntry()
   ];
-}
-
-/** The campaign ids in catalog order, which is all the once-per-recommendation owner needs. */
-export function appRecommendationIds(): string[] {
-  const ids: string[] = [];
-  const entries = appRecommendationCatalog();
-  for (let index = 0; index < entries.length; index++) {
-    ids.push(entries[index].id);
-  }
-  return ids;
 }
 
 export function appRecommendationEntryFor(id: string): AppRecommendationEntry | undefined {

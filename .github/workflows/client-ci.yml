@@ -42,7 +42,9 @@ jobs:
         run: bash scripts/check-open-source-source-tree.sh
       - name: Check architecture guards
         run: bash scripts/check-architecture-guardrails.sh
-      - name: Check app recommendation announcement
+      - name: Check shortcut store hand-over
+        run: bash scripts/check-aira-shortcut-store-handoff-contract.sh
+      - name: Check app recommendation page
         run: bash scripts/check-aira-app-recommendation-contract.sh
       - name: Check geolocation permission flow
         run: node scripts/check-aira-geolocation-permission.cjs

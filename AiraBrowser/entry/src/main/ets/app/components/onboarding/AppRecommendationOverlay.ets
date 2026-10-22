@@ -1,6 +1,3 @@
-import {
-  AppRecommendationAction
-} from '../../../core/onboarding/AppRecommendationCoordinator';
 import { AppRecommendationSheet } from './AppRecommendationSheet';
 import { BrowserAdaptiveModalOverlay } from '../browser/BrowserAdaptiveModalOverlay';
 import {
@@ -10,16 +7,19 @@ import {
   FEATURE_GATE_OVERLAY_SHEET_HEIGHT
 } from '../browser/BrowserShellPresentationTokens';
 
+/** What the reader of an app's detail card can do with it. */
+export type AppRecommendationAction = 'dismiss' | 'open_market';
+
 /**
- * Hosts the app recommendation as a phone bottom sheet. The scrim does not dismiss
- * it: a campaign can only be offered once, so an accidental tap on the dimmed area
- * must not be what spends it. The sheet's own close control, and the system back
- * gesture, are the way out.
+ * Hosts an app's detail card as a bottom sheet. The scrim does not dismiss it: the
+ * card is a product page the user opened on purpose, so a stray tap on the dimmed
+ * area must not be what closes it. The sheet's own close control, the system back
+ * gesture, and the store action are the way out.
  */
 @Component
 export struct AppRecommendationOverlay {
   @Prop visible: boolean = false;
-  /** The campaign the owner decided to show. The sheet resolves its own content. */
+  /** The app whose detail sheet is open. The sheet resolves its own content. */
   @Prop recommendationId: string = '';
   onAction: (action: AppRecommendationAction) => void = (_action: AppRecommendationAction): void => {};
 

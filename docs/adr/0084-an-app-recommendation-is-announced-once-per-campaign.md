@@ -1,9 +1,13 @@
 ---
-status: accepted
+status: superseded
 supersedes: none
 ---
 
 # An App Recommendation Is Announced Once Per Campaign
+
+Superseded by ADR 0089: the card and its content catalog moved to 设置 → 应用推荐, opened on demand, and its
+per-campaign memory, homepage trigger, and reserved surface are gone. Its store hand-over and bundled icon rule
+survive in ADR-0086 and `BundledShortcutIconResources`.
 
 Accepted 2026-10-19. Aira tells the user once, on the phone homepage, about a companion app worth installing. The
 announcement is an introduction: it names the app, says what it is for, shows sample reviews and answers, and offers one

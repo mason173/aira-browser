@@ -190,6 +190,8 @@ export function localizeSettingsCatalogCopy(value: ResourceStr): ResourceStr {
       return $r('app.string.settings_about_app_name');
     case '应用图标':
       return $r('app.string.settings_appearance_app_icon');
+    case '应用推荐':
+      return $r('app.string.settings_app_recommendation');
     case '应用支持':
       return $r('app.string.settings_about_support');
     case '应用服务模式':

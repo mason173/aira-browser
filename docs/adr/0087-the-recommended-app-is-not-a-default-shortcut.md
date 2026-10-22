@@ -5,10 +5,14 @@ supersedes: ADR-0085
 
 # The Recommended App Is Not A Default Shortcut
 
-Superseded ADR-0085. Accepted 2026-10-20. Aira no longer seeds the recommended app into the default homepage
-shortcuts. The recommendation campaign card of ADR-0084 is the only place Aira announces that app, and the default
-seed list is content again: three site shortcuts and nothing else. The store page hand-over of ADR-0086 and the bundled
-icon rule stay in force, because they answer "this shortcut's page is an app" for a page a shortcut may still hold.
+Superseded ADR-0085. Accepted 2026-10-20. Amended by ADR-0088: the default seed list no longer names any site either,
+so a fresh install seeds no shortcut at all. The decision below — the recommended app is not seeded — is unaffected.
+
+Aira no longer seeds the recommended app into the default homepage shortcuts. The recommendation campaign card of
+ADR-0084 was left as the only place Aira announced that app, and ADR-0089 later moved that card into 设置 → 应用推荐,
+opened on demand rather than announced; ADR-0088 removed the remaining site seeds as well. The store page hand-over of
+ADR-0086 and the bundled icon rule stay in force, because they answer "this shortcut's page is an app" for a page a
+shortcut may still hold.
 
 ## Decision
 
@@ -46,11 +50,13 @@ The recommended app leaves the seed list; the ways a shortcut can be about an ap
 
 ## Consequences
 
+- A fresh install seeds three shortcuts, and none of them is the recommended app. ADR-0088 later removed those three
+  site seeds as well, so on this tree a fresh install seeds nothing; the rule that a dropped id decides only what a new
+  install seeds is unchanged.
 - `shortcut-seed-zhihu` is in no seed list, so `appendMissingSeedShortcuts` never creates it and
   `shouldRetainShortcutAfterDeletedSyncPurge` no longer protects it from a deleted-sync purge. A device that still holds
   the row keeps it as an ordinary shortcut: an explicit delete tombstones it as usual, and a cloud purge may drop it
   like any other non-seed shortcut.
-- A fresh install seeds three shortcuts, and none of them is the recommended app.
 - ADR-0085's slot rule, including its "the id must not be renamed" constraint, no longer applies, because there is no
   slot. Its reasoning about seed ids as retention is unchanged wherever a seed id still exists.
 - The campaign of ADR-0084 is unaffected: it is announced once per campaign by the card, and never from the shortcuts
@@ -58,6 +64,6 @@ The recommended app leaves the seed list; the ways a shortcut can be about an ap
 
 ## Verification
 
-Proportional evidence is a Community build plus `scripts/check-aira-app-recommendation-contract.sh`, which pins that
-the recommended app is absent from the default seed list while the store hand-over catalog and its bundled icon rule
-remain in place.
+Proportional evidence is a Community build plus `scripts/check-aira-home-shortcut-seed-contract.sh`, which pins that the
+default seed list names no site at all (ADR-0088), and `scripts/check-aira-shortcut-store-handoff-contract.sh`, which
+keeps the store hand-over catalog and its bundled icon rule in place.

@@ -12489,6 +12489,10 @@
       "value": "App icon"
     },
     {
+      "name": "settings_app_recommendation",
+      "value": "App recommendations"
+    },
+    {
       "name": "settings_appearance_switchable",
       "value": "Switchable"
     },

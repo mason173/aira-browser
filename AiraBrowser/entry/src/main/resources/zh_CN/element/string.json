@@ -12489,6 +12489,10 @@
       "value": "应用图标"
     },
     {
+      "name": "settings_app_recommendation",
+      "value": "应用推荐"
+    },
+    {
       "name": "settings_appearance_switchable",
       "value": "可切换"
     },

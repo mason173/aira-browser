@@ -87,7 +87,6 @@ import browserTabsOverviewSelectionDisplacementCoordinatorTest from './BrowserTa
 import browserTabsOverviewStackLayoutPolicyTest from './BrowserTabsOverviewStackLayoutPolicy.test';
 import browserTabsOverviewGridBottomCropTest from './BrowserTabsOverviewGridBottomCrop.test';
 import bottomToolbarGuideCoordinatorTest from './BottomToolbarGuideCoordinator.test';
-import appRecommendationCoordinatorTest from './AppRecommendationCoordinator.test';
 import tabsOverviewSegmentGuidePolicyTest from './TabsOverviewSegmentGuidePolicy.test';
 import crossDeviceLinkGuideCoordinatorTest from './CrossDeviceLinkGuideCoordinator.test';
 import crossDeviceLinkViewModelTest from './CrossDeviceLinkViewModel.test';
@@ -220,7 +219,6 @@ export default function tests(): void {
   browserTabsOverviewStackLayoutPolicyTest();
   browserTabsOverviewGridBottomCropTest();
   bottomToolbarGuideCoordinatorTest();
-  appRecommendationCoordinatorTest();
   tabsOverviewSegmentGuidePolicyTest();
   crossDeviceLinkGuideCoordinatorTest();
   crossDeviceLinkViewModelTest();
