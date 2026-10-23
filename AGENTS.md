@@ -42,3 +42,20 @@
   pair disagrees, so a half-translated entry cannot ship.
 - Run proportional contract checks and `AIRA_DISTRIBUTION=community SKIP_INSTALL=1 ./scripts/build-aira-browser.sh` for
   Community changes when a matching local signing profile is available.
+
+## Internal Infrastructure (out of tree)
+
+This repository is public. `api.aira.cool`, its production host, and the operator's backup host are private
+infrastructure: **never add a host address, login command, SSH key path, or credential to this tree**, including this
+file, `docs/`, and `.planning/`. Existing `.planning/` notes that mention a host are historical leftovers, not a pattern
+to copy.
+
+When a task in this repo needs to reach the live backend, the login recipe lives outside the repository, on the
+operator's machine:
+
+- `~/.config/aira/servers/` — one `<address>.md` per host (what it is, how to log in) plus a `<address>.env` holding the
+  credential (mode 600), and `ssh-backup-server.sh` for the backup host.
+- `~/Desktop/aira-cloud-private/AGENTS.md` — the authoritative server list and deployment procedure for the backend.
+
+Read those instead of writing new host details here. Anything that must not be published belongs there, not in this
+tree.

@@ -572,6 +572,7 @@ export struct BrowserVideoAssistantPlayerOverlay {
       .selectedColor(this.playerControlColor)
       .blockColor(this.playerControlColor)
       .trackColor(this.playerProgressTrackColor)
+      .enabled(this.resolveDurationSeconds() > 0)
       .onChange((value: number, mode: SliderChangeMode) => {
         this.handleTimelineChange(value, mode);
       })
@@ -1318,6 +1319,11 @@ export struct BrowserVideoAssistantPlayerOverlay {
   }
 
   private handleTimelineChange(value: number, mode: SliderChangeMode): void {
+    // Live MSE streams have no finite duration. Their absolute playback clock
+    // must not become a Slider value-change -> seek -> rerender feedback loop.
+    if (this.resolveDurationSeconds() <= 0) {
+      return;
+    }
     const next = this.clampSeconds(value);
     this.scrubberPositionSeconds = next;
     this.scrubberActive = mode === SliderChangeMode.Begin || mode === SliderChangeMode.Moving;
@@ -1332,6 +1338,9 @@ export struct BrowserVideoAssistantPlayerOverlay {
   }
 
   private commitSeek(seconds: number): void {
+    if (this.resolveDurationSeconds() <= 0) {
+      return;
+    }
     const next = this.clampSeconds(seconds);
     this.scrubberPositionSeconds = next;
     this.scrubberActive = false;
@@ -1644,11 +1653,12 @@ export struct BrowserVideoAssistantPlayerOverlay {
   }
 
   private resolveDurationSeconds(): number {
-    return Math.max(0, this.playerState.durationSeconds);
+    const duration = this.playerState.durationSeconds;
+    return Number.isFinite(duration) ? Math.max(0, duration) : 0;
   }
 
   private resolveTimelineValue(): number {
-    return this.clampSeconds(this.resolveDisplayPositionSeconds());
+    return this.resolveDurationSeconds() > 0 ? this.clampSeconds(this.resolveDisplayPositionSeconds()) : 0;
   }
 
   private clampSeconds(seconds: number): number {

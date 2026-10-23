@@ -1,3 +1,4 @@
+import { WebVideoPlaybackDiagnosticsService } from '../../../services/video/WebVideoPlaybackDiagnosticsService';
 import { webview } from '@kit.ArkWeb';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { BrowserTabBackgroundSessionSyncCoordinator } from '../../../services/web/BrowserTabBackgroundSessionSyncCoordinator';
@@ -73,6 +74,7 @@ export class BrowserMediaRuntimeObservationApplicationCoordinator {
   private readonly sessionResolutionRuntimeService: MediaSessionResolutionRuntimeService =
     new MediaSessionResolutionRuntimeService();
   private readonly videoCompatibilityProfileCatalog: VideoCompatibilityProfileCatalog;
+  private readonly playbackDiagnostics: WebVideoPlaybackDiagnosticsService = new WebVideoPlaybackDiagnosticsService();
   private evidenceCaptureByTabId: Map<string, BrowserMediaEvidenceCapture> = new Map();
   private directLayoutRevalidationByTabId: Map<string, BrowserMediaDirectLayoutRevalidationState> = new Map();
 
@@ -111,6 +113,7 @@ export class BrowserMediaRuntimeObservationApplicationCoordinator {
       return;
     }
     this.cancelDirectLayoutRevalidation(normalizedTabId);
+    this.playbackDiagnostics.clearTab(normalizedTabId);
     this.sessionResolutionRuntimeService.clearTab(normalizedTabId);
     try {
       this.mediaFrameRuntimeCoordinator.beginDocument(normalizedTabId, this.host.resolvePrivateMode(normalizedTabId));
@@ -129,6 +132,7 @@ export class BrowserMediaRuntimeObservationApplicationCoordinator {
   clearTab(tabId: string): void {
     const normalizedTabId = tabId.trim();
     sharedWebVideoPictureInPictureBackgroundKeeper.clearTab(normalizedTabId);
+    this.playbackDiagnostics.clearTab(normalizedTabId);
     this.cancelDirectLayoutRevalidation(normalizedTabId);
     this.evidenceCaptureByTabId.delete(normalizedTabId);
     this.videoCompatibilityProfileCatalog.clearTab(normalizedTabId);
@@ -219,10 +223,12 @@ export class BrowserMediaRuntimeObservationApplicationCoordinator {
     if (isFrameProbePayload) {
       const frameProbe = this.frameProbeEvidenceAdapter.adapt(payloadJson, Date.now());
       if (frameProbe !== undefined) {
-        this.handleFrameProbeSignal(normalizedTabId, frameProbe);
+        this.handleFrameProbeSignal(normalizedTabId, frameProbe, payloadJson);
       }
       return;
     }
+    this.playbackDiagnostics.observe(normalizedTabId, payloadJson,
+      this.host.resolvePrivateMode(normalizedTabId), 'document_direct');
     this.backgroundSessionSyncCoordinator.handlePageBehaviorSignal(normalizedTabId, payloadJson);
     const takeoverResult = this.mediaTakeoverCoordinator.observePageBehaviorSignal(normalizedTabId, payloadJson);
     const capture = this.evidenceCaptureByTabId.get(normalizedTabId);
@@ -332,7 +338,7 @@ export class BrowserMediaRuntimeObservationApplicationCoordinator {
     this.directLayoutRevalidationByTabId.delete(tabId);
   }
 
-  private handleFrameProbeSignal(tabId: string, event: MediaVideoFrameProbeAdaptResult): void {
+  private handleFrameProbeSignal(tabId: string, event: MediaVideoFrameProbeAdaptResult, payloadJson: string): void {
     if (event.kind === 'bootstrap') {
       this.logFrameProbeBootstrap(tabId, event);
       return;
@@ -362,6 +368,7 @@ export class BrowserMediaRuntimeObservationApplicationCoordinator {
         this.host.invalidateTakeoverPresentation();
       }
     }
+    this.playbackDiagnostics.observe(tabId, payloadJson, this.host.resolvePrivateMode(tabId), 'frame_proxy');
     this.logFrameProbe(tabId, event);
     if (capture === undefined) {
       return;

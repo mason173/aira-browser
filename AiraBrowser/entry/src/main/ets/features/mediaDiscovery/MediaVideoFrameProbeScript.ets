@@ -1,3 +1,4 @@
+import { WEB_VIDEO_PLAYBACK_HEALTH_SCRIPT } from '../../services/video/WebVideoPlaybackDiagnosticsService';
 import { resolveAppResourceText } from '../../core/resources/AppResourceText';
 
 export const MEDIA_VIDEO_FRAME_PROBE_PROTOCOL: string = 'aira.media_frame_probe.v1';
@@ -8,6 +9,7 @@ export const MEDIA_VIDEO_FRAME_COMMAND_KIND_PREFIX: string = 'aira_media_frame_c
 
 const MEDIA_VIDEO_FRAME_PROBE_SCRIPT: string = `
 (function airaMediaVideoFrameProbeBootstrap() {
+${WEB_VIDEO_PLAYBACK_HEALTH_SCRIPT}
   if (window.__airaMediaVideoFrameProbeInstalled === true) {
     return;
   }
@@ -775,6 +777,7 @@ const MEDIA_VIDEO_FRAME_PROBE_SCRIPT: string = `
     }
     return {
       eventName: String(eventName || 'snapshot'),
+      playbackHealth: readAiraVideoPlaybackHealth(video),
       runtimeId: resolveVideoRuntimeId(video),
       elementId: String(video.id || ''),
       source: resolveVideoSource(video),
@@ -1052,12 +1055,21 @@ const MEDIA_VIDEO_FRAME_PROBE_SCRIPT: string = `
   }
 
   ['loadstart', 'loadedmetadata', 'canplay', 'canplaythrough', 'play', 'playing', 'waiting', 'stalled',
-    'seeking', 'seeked', 'pause', 'ended', 'emptied', 'abort', 'error', 'resize'].forEach(
+    'seeking', 'seeked', 'pause', 'ended', 'emptied', 'abort', 'error', 'resize', 'ratechange', 'timeupdate'].forEach(
     function (eventName) {
       document.addEventListener(eventName, function (event) {
         var video = event && event.target;
         if (!video || String(video.tagName || '').toLowerCase() !== 'video') {
           return;
+        }
+        // Reuse media events for a low-frequency takeover heartbeat; no new timer.
+        if (eventName === 'timeupdate') {
+          var state = video.__airaVideoAssistantLivePresentation;
+          var now = Date.now();
+          if (!state || state.active !== true || now - Number(state.diagnosticSampleAt || 0) < 5000) {
+            return;
+          }
+          state.diagnosticSampleAt = now;
         }
         emit('video_event', eventName, buildVideoEvent(video, eventName));
         if (eventName === 'play' || eventName === 'playing') {

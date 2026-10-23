@@ -2,6 +2,61 @@
 
 创建日期：2026-07-09
 
+## 当前 Web-Live 接管的卡顿诊断（2026-10-23）
+
+当前接管保留网页的视频元素和播放引擎，Aira 接管展示与控制。下文涉及
+`NativeVideoAV`、`NativeHlsLoader` 和“视频接管诊断日志”开关的步骤属于历史原生播放链路，
+不要用它们诊断当前 Web-Live 路径。
+
+当前版本在普通标签页自动输出 `AiraVideoHealth` / `video_playback_health` 日志；
+隐私标签页不输出。主文档和跨域 iframe 共用同一套只读采样，无额外网络请求或轮询定时器。
+接管期间通过现有 `timeupdate` 事件最多每 5 秒输出一次状态，异常事件立即输出，
+每个视频目标每秒最多 8 行，超限数量由下一条的 `suppressed` 记录。
+
+复现步骤：
+
+1. 安装包含本次诊断改动的 debug 包，在普通标签页打开直播页。
+2. 开始保存带时间的完整进程日志：`hdc shell "hilog -P <非空的应用PID> -v time" > /tmp/aira-video-live.log`。
+   Community 默认 PID 可用 `hdc shell pidof org.aira.browser` 获取；其他本地包使用其实际 bundle。
+3. 在网页内播放约 10 秒，再进入 Aira 接管界面播放 20–30 秒。期间先不拖进度、不改倍速、不切线路。
+4. 停止日志，记录接管和出现转圈的时间。过滤：
+   `rg 'video_playback_health|media_frame_command|media_frame_probe_rejected' /tmp/aira-video-live.log`。
+   保留完整日志供关联上下文；日志和设备资料不要提交到 Git。
+
+主要字段（时间单位为毫秒，`-1` 表示不可用）：
+
+| 字段 | 含义及判断边界 |
+| --- | --- |
+| `transport` / `target` / `takeover` | 主文档或 iframe、当前文档内的视频编号、是否已经接管 |
+| `tMs` / `aheadMs` / `gapMs` | 播放位置、包含当前位置的连续缓冲余量、下一个缓冲区间距离；不能用最后一个区间的末端掩盖中间缺口 |
+| `lagMs` | seekable 最后区间末端减当前位置；直播时帮助判断是否贴近末端，点播时不能当直播延迟 |
+| `rate` / `seeking` / `event` | 实际倍速、跳转状态、播放事件；反复 `seeking` 或变速需要结合播放器追帧和人工操作判断 |
+| `ready` / `network` / `error` | 视频元素的 readyState、networkState、MediaError 数值代码 |
+| `dropped` / `frames` | 累计丢帧和累计视频帧；比较两条的增量，缺少该能力时为 `-1` |
+| `hidden` / `paused` / `live` | 所属文档是否隐藏、是否暂停、duration 是否为 Infinity；`live=false` 不足以排除 MSE 直播 |
+| `airaSeeks` / `airaPlays` | Aira 稳定性恢复尝试设置进度、请求播放的累计次数，不含用户主动播控 |
+| `airaStyles` / `airaReplacements` | Aira 样式恢复检查、接续替换视频元素的累计次数；相同 CSS 会跳过写入，检查次数不等于重绘次数 |
+| `waits` / `recoveredMs` | 等待事件累计次数、一次 waiting 到 playing 的墙钟耗时；暂停、结束或源重置会终止本次等待计时 |
+
+这些数据区分“缓冲耗尽”“有缓冲但连续跳转”“丢帧增长”和“Aira 反复恢复”，不能单凭一条日志断言 CDN、解码器或站点引擎有问题。
+诊断只序列化固定数值、布尔值和封闭事件名，不输出媒体地址、token、Cookie、请求头、网页错误文本或 runtime ID。
+相关本地检查：`node scripts/check-aira-video-playback-diagnostics.cjs`。
+
+直播无有限总时长时，Web 的 `duration=Infinity` 在当前 UI 状态中投影为 `durationSeconds=0`。
+这种播放位置可能已经是几千秒，不能把它传给 `max=1` 的 Slider；范围钳制引起的 value-change
+也不能当成用户主动跳转，否则会形成“播放位置更新 -> Slider 回调 -> seek -> 状态重绘”的循环，
+接管样式暂未通过校验时还会反复提示会话切换。当前 UI 对这种时间轴使用固定范围内的值、禁用交互，
+并在回调及最终 seek 入口检查有限时长；点播仍保留拖动和前后跳转。
+接管样式恢复同时比较 CSSOM 规范化后的值和 important 优先级，避免把已经相同的样式/controls 状态反复写回。
+本地回归：`node scripts/check-aira-video-live-timeline.cjs` 和
+`node scripts/check-aira-video-presentation-stability.cjs`；设备实际效果仍需新包复现确认。
+
+网页悬浮工具栏的小窗、投屏、全屏图标保持原 SVG 路径。SVG 的 presentation attributes
+可能被站点的 `svg` / `path` CSS 覆盖，导致线条变粗、填实或尺寸失真，因此 SVG 根节点和
+每条 path 都需要显式保护 fill、stroke、线宽及变换，尺寸另行固定；颜色仍通过 currentColor
+跟随按钮的明暗主题与忙碌状态。回归：`node scripts/check-aira-video-toolbar-icons.cjs`
+使用本地 headless Chrome 检查真实计算样式，不访问用户页面或截图；可用 `CHROME_BIN` 指定浏览器。
+
 ## 目标
 
 这份文档用于以后调试“某个视频网站没有悬浮接管按钮、按钮出现但点击失败、进入原生播放器后无法播放”等问题。目标是先用稳定日志把问题定位到链路层级，再决定改哪个 owner，避免反复刷新真实站点或临时试命令。

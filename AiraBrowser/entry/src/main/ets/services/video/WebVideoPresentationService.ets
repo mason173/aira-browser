@@ -785,8 +785,12 @@ export class WebVideoPresentationService {
   function enforceNativeControlsHidden(targetVideo) {
     var media = targetVideo || video;
     try {
-      media.controls = false;
-      media.removeAttribute('controls');
+      if (media.controls !== false) {
+        media.controls = false;
+      }
+      if (media.hasAttribute('controls')) {
+        media.removeAttribute('controls');
+      }
       if (media.getAttribute(controlsHiddenMarkerAttribute) !== 'true') {
         media.setAttribute(controlsHiddenMarkerAttribute, 'true');
       }
@@ -899,7 +903,37 @@ export class WebVideoPresentationService {
     }
     for (var propertyName in values) {
       if (Object.prototype.hasOwnProperty.call(values, propertyName)) {
-        element.style.setProperty(propertyName, String(values[propertyName]), 'important');
+        var requestedValue = String(values[propertyName]);
+        var currentValue = element.style.getPropertyValue(propertyName);
+        if (element.style.getPropertyPriority(propertyName) === 'important') {
+          if (currentValue === requestedValue) {
+            continue;
+          }
+          // CSSOM serializes 0 as 0px and #000 as rgb(...). Compare the
+          // browser-normalized value too, using one detached style declaration.
+          // Rewriting equivalent CSS retriggers site observers and ArkWeb's
+          // native video surface updates even though the geometry did not change.
+          var normalizedValues = applyImportantStyles.normalizedValues;
+          if (!normalizedValues) {
+            normalizedValues = Object.create(null);
+            applyImportantStyles.normalizedValues = normalizedValues;
+          }
+          var normalized = normalizedValues[propertyName];
+          if (!normalized || normalized.input !== requestedValue) {
+            var normalizer = applyImportantStyles.normalizer;
+            if (!normalizer) {
+              normalizer = document.createElement('span').style;
+              applyImportantStyles.normalizer = normalizer;
+            }
+            normalizer.setProperty(propertyName, requestedValue, 'important');
+            normalized = { input: requestedValue, value: normalizer.getPropertyValue(propertyName) };
+            normalizedValues[propertyName] = normalized;
+          }
+          if (currentValue === normalized.value) {
+            continue;
+          }
+        }
+        element.style.setProperty(propertyName, requestedValue, 'important');
       }
     }
   }
@@ -1189,6 +1223,7 @@ export class WebVideoPresentationService {
       return false;
     }
     try {
+      state.diagnosticStyles = Number(state.diagnosticStyles || 0) + 1;
       if (state.presentationMode === 'preserve_surface') {
         rememberLiveControlTarget(state, videoElement);
         return suppressNativeControls(videoElement);
@@ -1473,6 +1508,7 @@ export class WebVideoPresentationService {
       var duration = Number(videoElement.duration || 0);
       if (resumeTime > 0 && Number(videoElement.readyState || 0) >= 2 &&
           Math.abs(Number(videoElement.currentTime || 0) - resumeTime) > 0.75) {
+        state.diagnosticSeeks = Number(state.diagnosticSeeks || 0) + 1;
         videoElement.currentTime = Number.isFinite(duration) && duration > 0 ?
           Math.min(duration, resumeTime) : resumeTime;
       }
@@ -1486,6 +1522,7 @@ export class WebVideoPresentationService {
     try {
       state.playAttemptInFlight = true;
       state.resumeAttempts = Number(state.resumeAttempts || 0) + 1;
+      state.diagnosticPlays = Number(state.diagnosticPlays || 0) + 1;
       var pending = videoElement.play();
       if (pending && typeof pending.then === 'function') {
         pending.then(function () {
@@ -1509,6 +1546,7 @@ export class WebVideoPresentationService {
     if (!replacement) {
       return false;
     }
+    state.diagnosticReplacements = Number(state.diagnosticReplacements || 0) + 1;
     var previous = state.targetVideo;
     try {
       if (previous && previous[livePresentationProperty] === state) {
@@ -2119,10 +2157,27 @@ export class WebVideoPresentationService {
       icon.setAttribute('stroke-linejoin', 'round');
       icon.setAttribute('aria-hidden', 'true');
       icon.setAttribute('focusable', 'false');
-      icon.style.cssText = 'width:24px;height:24px;display:block;pointer-events:none';
+      // Presentation attributes lose to a site's svg/path CSS. Protect both
+      // levels: a path's own rule also beats an inherited root stroke/fill.
+      // Keep currentColor tied to the button so light/dark/busy colors still work.
+      var lineStyles = {
+        fill: 'none', stroke: 'currentColor', 'stroke-width': '2.3',
+        'stroke-linecap': 'round', 'stroke-linejoin': 'round',
+        'stroke-dasharray': 'none', 'stroke-dashoffset': '0', color: 'inherit',
+        opacity: '1', visibility: 'inherit', transform: 'none', filter: 'none',
+        'clip-path': 'none', animation: 'none', transition: 'none', 'pointer-events': 'none'
+      };
+      applyImportantStyles(icon, lineStyles);
+      applyImportantStyles(icon, {
+        width: '24px', height: '24px', 'min-width': '24px', 'max-width': '24px',
+        'min-height': '24px', 'max-height': '24px', flex: '0 0 24px',
+        display: 'block', position: 'static', margin: '0', padding: '0', border: '0'
+      });
       for (var pathIndex = 0; pathIndex < iconPaths.length; pathIndex += 1) {
         var path = ownerDocument.createElementNS(svgNamespace, 'path');
         path.setAttribute('d', iconPaths[pathIndex]);
+        applyImportantStyles(path, lineStyles);
+        applyImportantStyles(path, { display: 'inline' });
         icon.appendChild(path);
       }
       return icon;

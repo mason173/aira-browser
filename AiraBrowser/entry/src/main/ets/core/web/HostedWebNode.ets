@@ -1,5 +1,6 @@
 import { BuilderNode, FrameNode, NodeController, UIContext } from '@kit.ArkUI';
 import { webview } from '@kit.ArkWeb';
+import { WEB_VIDEO_PLAYBACK_HEALTH_SCRIPT } from '../../services/video/WebVideoPlaybackDiagnosticsService';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import {
   buildWebAppearanceDocumentStartScriptItem,
@@ -799,6 +800,7 @@ const PAGE_CHROME_THEME_SIGNAL_SCRIPT: string = `
 `;
 const PAGE_BEHAVIOR_SIGNAL_SCRIPT: string = `
 (function () {
+${WEB_VIDEO_PLAYBACK_HEALTH_SCRIPT}
   if (window.__airaPageBehaviorSignalInstalled === true) {
     try {
       if (typeof window.__airaPageBehaviorSignalForceSample === 'function') {
@@ -1170,6 +1172,7 @@ const PAGE_BEHAVIOR_SIGNAL_SCRIPT: string = `
         sourceEvent.detail : null;
       return {
         eventName: String(eventName || ''),
+        playbackHealth: readAiraVideoPlaybackHealth(node),
         runtimeId: resolveVideoRuntimeId(node),
         elementId: String(node.id || ''),
         source: String(node.currentSrc || node.src || ''),
@@ -1530,7 +1533,7 @@ const PAGE_BEHAVIOR_SIGNAL_SCRIPT: string = `
       node.__airaPageBehaviorMediaTracked = true;
       rememberMediaElement(node);
       ['loadstart', 'loadedmetadata', 'canplay', 'canplaythrough', 'playing', 'play', 'timeupdate',
-        'waiting', 'stalled', 'seeking', 'seeked', 'pause', 'ended', 'emptied', 'abort', 'error', 'volumechange',
+        'waiting', 'stalled', 'seeking', 'seeked', 'pause', 'ended', 'emptied', 'abort', 'error', 'volumechange', 'ratechange',
         'fullscreenerror', 'webkitfullscreenerror', videoFullscreenRequestResultEvent,
         'webkitbeginfullscreen', 'webkitendfullscreen'].forEach(function (eventName) {
         node.addEventListener(eventName, function (event) {
@@ -1538,6 +1541,9 @@ const PAGE_BEHAVIOR_SIGNAL_SCRIPT: string = `
             sendVideoTimeUpdateIfDue(node);
           } else {
             sendVideoPlaybackEvent(node, eventName, event);
+          }
+          if (eventName === 'ratechange') {
+            return;
           }
           if (eventName === 'pause' || eventName === 'ended' || eventName === 'emptied' || eventName === 'abort' ||
             eventName === 'error') {
