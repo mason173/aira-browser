@@ -1,6 +1,10 @@
 {
   "string": [
     {
+      "name": "qq_web_login_expired",
+      "value": "登录请求已失效，请返回网页重新登录。"
+    },
+    {
       "name": "module_desc",
       "value": "Aira HarmonyOS module"
     },

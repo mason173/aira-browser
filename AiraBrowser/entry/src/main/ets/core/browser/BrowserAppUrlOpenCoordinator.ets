@@ -84,6 +84,7 @@ export interface BrowserAppUrlOpenRequest {
   openerTabId?: string;
   requestId?: string;
   browserGeneratedHttpFallbackUrl?: string;
+  redactDiagnostics?: boolean;
 }
 
 type BrowserAppUrlOpenAction = 'open_current_tab' | 'open_new_tab' | 'open_background_tab' | 'reject';
@@ -174,7 +175,8 @@ export class BrowserAppUrlOpenCoordinator {
     AiraNavForensicsProbe.log(
       'app_url_open',
       `source=${request.source ?? '-'} intent=${request.intent ?? '-'} ` +
-        `url=${request.url} action=${plan.action} tab=${request.openerTabId ?? '-'} requestId=${request.requestId ?? '-'}`
+        `url=${request.redactDiagnostics === true ? '<redacted>' : request.url} ` +
+        `action=${plan.action} tab=${request.openerTabId ?? '-'} requestId=${request.requestId ?? '-'}`
     );
     this.executePlan(plan);
   }

@@ -1,6 +1,10 @@
 {
   "string": [
     {
+      "name": "qq_web_login_expired",
+      "value": "登入請求已失效，請返回網頁重新登入。"
+    },
+    {
       "name": "module_desc",
       "value": "Aira HarmonyOS module"
     },

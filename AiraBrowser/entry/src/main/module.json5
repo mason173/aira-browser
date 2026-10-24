@@ -247,6 +247,20 @@
             ]
           },
           {
+            "entities": [
+              "entity.system.browsable"
+            ],
+            "actions": [
+              "ohos.want.action.viewData"
+            ],
+            "uris": [
+              {
+                "scheme": "airabrowser",
+                "host": "qq-login"
+              }
+            ]
+          },
+          {
             "entities": [],
             "actions": [
               "ohos.want.action.sendData"

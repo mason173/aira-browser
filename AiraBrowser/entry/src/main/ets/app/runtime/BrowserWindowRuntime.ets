@@ -17,6 +17,10 @@ import { AiraAppShortcutTarget } from '../router/AppShortcutNavigationCoordinato
 import { resolveAppResourceText } from '../../core/resources/AppResourceText';
 import { DocumentViewerService } from '../../services/viewer/DocumentViewerService';
 import {
+  QQ_WEB_LOGIN_CALLBACK_SOURCE,
+  sharedQqWebLoginCallbackService
+} from '../../services/web/QqWebLoginCallbackService';
+import {
   BrowserWindowSessionBackgroundBinding,
   BrowserWindowSessionArticleReadingBinding,
   BrowserWindowSessionShellPresentationBinding,
@@ -1163,6 +1167,16 @@ export function resolveBrowserLaunchPayloadFromWant(want: Want | undefined, sour
   const appShortcut = normalizeAiraAppShortcutTarget(parameters?.[APP_SHORTCUT_WANT_KEY]);
   const searchInvocationSource = String(parameters?.[SEARCH_INVOCATION_SOURCE_WANT_KEY] ?? '').trim();
   const sourceUri = resolveBrowserLaunchUriFromWant(want, parameters, shortcutSource);
+  if (sharedQqWebLoginCallbackService.isCallbackUrl(sourceUri)) {
+    const login = sharedQqWebLoginCallbackService.peekReturn(sourceUri);
+    return buildBrowserLaunchPayload({
+      uri: sourceUri,
+      source: QQ_WEB_LOGIN_CALLBACK_SOURCE,
+      profileId: login?.profileId,
+      privacyMode: login?.privacyMode,
+      dataScope: login?.dataScope
+    });
+  }
   const launchType = String(want.type ?? parameters?.['type'] ?? '');
   const uri = resolveBrowserLaunchViewerUri(sourceUri, launchType);
   const shortcut = resolveShortcutContextFromWant(parameters, shortcutSource);
@@ -1270,6 +1284,9 @@ function resolveShortcutContextFromWant(
 }
 
 export function resolveBrowserLaunchWindowId(payload: BrowserLaunchPayload): string {
+  if (payload.source === QQ_WEB_LOGIN_CALLBACK_SOURCE) {
+    return sharedQqWebLoginCallbackService.peekReturn(payload.uri)?.windowId ?? DEFAULT_WINDOW_ID;
+  }
   if (payload.tabMoveWindowInstanceId.length > 0) {
     return `browser-window:${payload.tabMoveWindowInstanceId}`;
   }

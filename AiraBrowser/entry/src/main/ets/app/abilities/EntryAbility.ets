@@ -88,6 +88,7 @@ import { SiteDataControlService } from '../../services/web/SiteDataControlServic
 import { sharedAiraHttpRequestGate } from '../../services/network/AiraHttpRequestGate';
 import { BROWSER_STATUS_BAR_DARK_CONTENT_COLOR } from '../../services/browser/BrowserStatusBarStyleService';
 import { normalizeAiraSearchCardWant } from '../../features/desktopcard/AiraSearchCardLaunchAdapter';
+import { QQ_WEB_LOGIN_CALLBACK_SOURCE } from '../../services/web/QqWebLoginCallbackService';
 import { AiraIconFontRuntime } from '../../core/resources/AiraIconFontRuntime';
 import {
   HuaweiSpaceBookmarkUpgradePromptPresenter
@@ -470,7 +471,8 @@ export default class EntryAbility extends UIAbility {
     const launchPayload = resolveBrowserLaunchPayloadFromWant(normalizedWant, 'onNewWant');
     let targetWindowId: string;
     if (launchPayload !== undefined &&
-      (launchPayload.shortcut !== undefined || launchPayload.tabMoveWindowInstanceId.length > 0)) {
+      (launchPayload.shortcut !== undefined || launchPayload.tabMoveWindowInstanceId.length > 0 ||
+        launchPayload.source === QQ_WEB_LOGIN_CALLBACK_SOURCE)) {
       targetWindowId = resolveBrowserLaunchWindowId(launchPayload);
       BrowserWindowRuntime.stageLaunchPayloadAt(launchPayload, targetWindowId);
       this.desktopWebEntryMissionIdentityService.apply(this.context, launchPayload, targetWindowId, 'onNewWant');

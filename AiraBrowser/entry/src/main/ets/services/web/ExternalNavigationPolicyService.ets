@@ -7,6 +7,7 @@ import {
   ExternalNavigationSettings
 } from '../../common/models/BrowserModels';
 import { SiteIdentityService } from './SiteIdentityService';
+import { QqWebLoginContext, sharedQqWebLoginCallbackService } from './QqWebLoginCallbackService';
 import {
   ExternalNavigationLaunchResult,
   ExternalNavigationLaunchService,
@@ -235,13 +236,25 @@ export class ExternalNavigationPolicyService {
 
   async openExternalLink(
     context: common.UIAbilityContext,
-    url: string
+    url: string,
+    loginContext?: QqWebLoginContext
   ): Promise<ExternalNavigationOpenResult> {
-    return await this.externalNavigationLaunchService.openExternalLink(context, {
-      url: url,
-      source: 'external_navigation_prompt',
-      userTriggered: true
-    });
+    const login = sharedQqWebLoginCallbackService.prepareLaunch(url, loginContext);
+    let success = false;
+    try {
+      const result = await this.externalNavigationLaunchService.openExternalLink(context, {
+        url: login?.launchUrl ?? url,
+        source: 'external_navigation_prompt',
+        userTriggered: true,
+        redactDiagnostics: login !== undefined
+      });
+      success = result.success;
+      return result;
+    } finally {
+      if (!success && login !== undefined) {
+        sharedQqWebLoginCallbackService.cancel(login.requestId);
+      }
+    }
   }
 
   getAppName(url: string): string {

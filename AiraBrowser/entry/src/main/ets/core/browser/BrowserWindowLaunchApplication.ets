@@ -31,6 +31,10 @@ import {
   BrowserContinuationPayload,
   sharedBrowserContinuationCoordinator
 } from './BrowserContinuationCoordinator';
+import {
+  QqWebLoginReturn,
+  sharedQqWebLoginCallbackService
+} from '../../services/web/QqWebLoginCallbackService';
 
 export interface BrowserWindowLaunchApplicationFacts {
   currentWindowId: string;
@@ -78,6 +82,10 @@ export class BrowserWindowFixedLaunchApplication implements BrowserWindowLaunchA
   }
 
   private async applyAsync(payload: BrowserLaunchPayload): Promise<void> {
+    if (sharedQqWebLoginCallbackService.isCallbackUrl(payload.uri)) {
+      await this.openQqWebLoginReturn(payload.uri);
+      return;
+    }
     if (payload.continuation !== undefined) {
       await this.openContinuation(payload.continuation);
       return;
@@ -103,6 +111,37 @@ export class BrowserWindowFixedLaunchApplication implements BrowserWindowLaunchA
       return;
     }
     this.openExternalUrl(payload);
+  }
+
+  private async openQqWebLoginReturn(callbackUrl: string): Promise<void> {
+    const login = sharedQqWebLoginCallbackService.consumeReturn(callbackUrl);
+    if (login === undefined || !this.canApplyQqWebLoginReturn(login)) {
+      this.shell.showToast(resolveAppResourceText($r('app.string.qq_web_login_expired')));
+      return;
+    }
+    await this.dependencies.tabSwitchCoordinator.switchToTab(
+      login.tabId, (): boolean => this.canApplyQqWebLoginReturn(login));
+    if (!this.canApplyQqWebLoginReturn(login) || this.shell.readFacts().activeTabId !== login.tabId) {
+      return;
+    }
+    this.dependencies.appUrlOpenCoordinator.open({
+      url: login.targetUrl,
+      intent: 'current_tab',
+      source: 'external_url',
+      profileId: login.profileId,
+      privacyMode: login.privacyMode,
+      dataScope: login.dataScope,
+      redactDiagnostics: true
+    });
+  }
+
+  private canApplyQqWebLoginReturn(login: QqWebLoginReturn): boolean {
+    const facts = this.shell.readFacts();
+    const tab = facts.tabs.find((candidate: BrowserTabState): boolean => candidate.id === login.tabId);
+    return facts.currentWindowId === login.windowId && tab !== undefined &&
+      tab.profileId === login.profileId && tab.privacyMode === login.privacyMode &&
+      tab.dataScope === login.dataScope &&
+      (tab.url === login.sourcePageUrl || (tab.url.length === 0 && tab.pendingUrl === login.sourcePageUrl));
   }
 
   private async openContinuation(payload: BrowserContinuationPayload): Promise<void> {

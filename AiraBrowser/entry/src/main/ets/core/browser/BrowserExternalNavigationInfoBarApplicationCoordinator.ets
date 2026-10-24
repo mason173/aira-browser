@@ -34,7 +34,7 @@ export interface BrowserExternalNavigationInfoBarApplicationCoordinatorDependenc
 export interface BrowserExternalNavigationInfoBarApplicationShell {
   readPromptPresentationContext: (tabId: string) => ExternalNavigationPromptPresentationContext;
   publishPromptState: (state: ExternalNavigationPromptState) => void;
-  openExternalLink: (url: string) => Promise<ExternalNavigationOpenResult>;
+  openExternalLink: (url: string, tabId: string) => Promise<ExternalNavigationOpenResult>;
   setExternalNavigationHelperMessage: (message: string) => void;
   setExternalNavigationErrorMessage: (message: string) => void;
   showToast: (message: string) => void;
@@ -337,7 +337,7 @@ export class BrowserExternalNavigationInfoBarApplicationCoordinator {
 
   private async executeExternalLinkOpen(tabId: string, url: string): Promise<void> {
     this.recentActionManager.reset();
-    const result = await this.shell.openExternalLink(url);
+    const result = await this.shell.openExternalLink(url, tabId);
     if (result.success) {
       this.shell.setExternalNavigationHelperMessage(
         result.userMessage.length > 0 ? result.userMessage : result.message

@@ -1,6 +1,10 @@
 {
   "string": [
     {
+      "name": "qq_web_login_expired",
+      "value": "This sign-in request has expired. Return to the webpage and sign in again."
+    },
+    {
       "name": "module_desc",
       "value": "Aira HarmonyOS module"
     },

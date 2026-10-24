@@ -3963,9 +3963,17 @@ struct BrowserShellPage {
     publishPromptState: (state: ExternalNavigationPromptState): void => {
       this.externalNavigationPromptState = state;
     },
-    openExternalLink: (url: string) => this.externalNavigationPolicyService.openExternalLink(
+    openExternalLink: (url: string, tabId: string) => this.externalNavigationPolicyService.openExternalLink(
       this.getAbilityContext(),
-      url
+      url,
+      {
+        windowId: this.currentWindowId,
+        tabId: tabId,
+        sourcePageUrl: this.tabScopedEventContextCoordinator.resolvePageUrl(tabId),
+        profileId: this.tabScopedEventContextCoordinator.resolveContext(tabId).profileId,
+        privacyMode: this.tabScopedEventContextCoordinator.resolveContext(tabId).privacyMode,
+        dataScope: this.tabScopedEventContextCoordinator.resolveContext(tabId).dataScope
+      }
     ),
     setExternalNavigationHelperMessage: (message: string): void => {
       this.helperMessage = message;
