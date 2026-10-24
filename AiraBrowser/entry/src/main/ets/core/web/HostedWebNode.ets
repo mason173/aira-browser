@@ -86,6 +86,7 @@ export interface HostedWebNodeCallbacks {
   onHistoryApiUrlChange: (tabId: string, payloadJson: string) => void;
   onPageChromeThemeSignal: (tabId: string, payloadJson: string) => void;
   onPageBehaviorSignal: (tabId: string, payloadJson: string) => void;
+  onAdBlockCosmeticQuery?: (tabId: string, frameUrl: string, payloadJson: string) => string;
   onAdBlockCosmeticHidden: (tabId: string, payloadJson: string) => void;
   onAdBlockManualHidden: (tabId: string, payloadJson: string) => void;
   onContextMenuShow: (tabId: string, event: OnContextMenuShowEvent, controller: webview.WebviewController) => boolean;
@@ -144,6 +145,7 @@ const HOSTED_WEB_NATIVE_BRIDGE_METHODS: string[] = [
   'installUserScript',
   'historyApiUrlChange',
   'pageChromeThemeSignal',
+  'adBlockCosmeticQuery',
   'adBlockCosmeticHidden',
   'adBlockManualHidden',
   'webVideoEnterFullscreen',
@@ -2141,12 +2143,14 @@ class HostedWebNodePageBehaviorBridge {
 
 class HostedWebNodeNativeBridge {
   private tabId: string = '';
+  private controller: webview.WebviewController | undefined;
   private userScriptRuntimeBridge: Object = HOSTED_WEB_NODE_NOOP_USER_SCRIPT_BRIDGE;
   private callbacks: HostedWebNodeCallbacks | undefined;
   private webVideoRuntimeBridge: HostedWebVideoControllerBridge | undefined;
 
   bind(config: HostedWebNodeConfig): void {
     this.tabId = config.tabId;
+    this.controller = config.controller;
     this.userScriptRuntimeBridge = config.userScriptNativeBridge ?? HOSTED_WEB_NODE_NOOP_USER_SCRIPT_BRIDGE;
     this.callbacks = config.callbacks;
     this.webVideoRuntimeBridge = config.webVideoControllerBridge;
@@ -2154,6 +2158,7 @@ class HostedWebNodeNativeBridge {
 
   unbind(): void {
     this.tabId = '';
+    this.controller = undefined;
     this.userScriptRuntimeBridge = HOSTED_WEB_NODE_NOOP_USER_SCRIPT_BRIDGE;
     this.callbacks = undefined;
     this.webVideoRuntimeBridge = undefined;
@@ -2189,6 +2194,25 @@ class HostedWebNodeNativeBridge {
 
   pageChromeThemeSignal(payloadJson: string): void {
     this.callbacks?.onPageChromeThemeSignal(this.tabId, payloadJson);
+  }
+
+  adBlockCosmeticQuery(payloadJson: string): string {
+    const controller = this.controller;
+    if (controller === undefined || this.tabId.length === 0 ||
+      this.callbacks?.onAdBlockCosmeticQuery === undefined) {
+      return '';
+    }
+    try {
+      // Read the calling frame synchronously: tab state can still name the URL before a redirect.
+      // Page-provided URLs are never authority for native rule selection.
+      const frameUrl = controller.getLastJavascriptProxyCallingFrameUrl().trim();
+      if (frameUrl.length === 0) {
+        return '';
+      }
+      return this.callbacks.onAdBlockCosmeticQuery(this.tabId, frameUrl, payloadJson);
+    } catch (_error) {
+      return '';
+    }
   }
 
   adBlockCosmeticHidden(payloadJson: string): void {
@@ -2870,6 +2894,7 @@ function buildTrackedHostedWebNodeConfig(
       onHistoryApiUrlChange: config.callbacks.onHistoryApiUrlChange,
       onPageChromeThemeSignal: config.callbacks.onPageChromeThemeSignal,
       onPageBehaviorSignal: config.callbacks.onPageBehaviorSignal,
+      onAdBlockCosmeticQuery: config.callbacks.onAdBlockCosmeticQuery,
       onAdBlockCosmeticHidden: config.callbacks.onAdBlockCosmeticHidden,
       onAdBlockManualHidden: config.callbacks.onAdBlockManualHidden,
       onContextMenuShow: config.callbacks.onContextMenuShow,

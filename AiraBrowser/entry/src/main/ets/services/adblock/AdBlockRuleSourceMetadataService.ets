@@ -14,6 +14,8 @@ export class AdBlockRuleSourceMetadataService {
       nativeCosmeticRuleCount: 0,
       ruleCount: 0,
       lastUpdatedAt: now,
+      updateIntervalMs: existing?.updateIntervalMs,
+      lastAttemptAt: now,
       lastError: '',
       createdAt: existing?.createdAt ?? now,
       updatedAt: now
@@ -44,6 +46,8 @@ export class AdBlockRuleSourceMetadataService {
       nativeCosmeticRuleCount: existing?.nativeCosmeticRuleCount,
       ruleCount: existing?.ruleCount ?? 0,
       lastUpdatedAt: existing?.lastUpdatedAt ?? 0,
+      updateIntervalMs: existing?.updateIntervalMs,
+      lastAttemptAt: now,
       lastError: message.trim(),
       createdAt: existing?.createdAt ?? now,
       updatedAt: now

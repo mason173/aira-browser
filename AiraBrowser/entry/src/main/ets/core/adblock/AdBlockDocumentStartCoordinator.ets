@@ -2,6 +2,8 @@ import { AdBlockRepository } from '../../data/adblock/AdBlockRepository';
 import urlUtils from '@ohos.url';
 import { AdBlockPingRuntimeScriptService } from '../../services/adblock/AdBlockPingRuntimeScriptService';
 import { AdBlockCosmeticRuntimeScriptService } from '../../services/adblock/AdBlockCosmeticRuntimeScriptService';
+import { AdBlockCosmeticDiscoveryRuntimeScriptService } from '../../services/adblock/AdBlockCosmeticDiscoveryRuntimeScriptService';
+import { AdBlockRustCosmeticResourceAdapterService } from '../../services/adblock/AdBlockRustCosmeticResourceAdapterService';
 import {
   AdBlockInteractionGuardRuntimeScriptService
 } from '../../services/adblock/AdBlockInteractionGuardRuntimeScriptService';
@@ -14,6 +16,10 @@ export class AdBlockDocumentStartCoordinator implements AdBlockDocumentStartScri
   private repository: AdBlockRepository;
   private runtimeGeneration: AdBlockRuntimeGenerationCoordinator;
   private cosmeticRuntimeScriptService: AdBlockCosmeticRuntimeScriptService = new AdBlockCosmeticRuntimeScriptService();
+  private discoveryRuntimeScriptService: AdBlockCosmeticDiscoveryRuntimeScriptService =
+    new AdBlockCosmeticDiscoveryRuntimeScriptService();
+  private cosmeticResourceAdapter: AdBlockRustCosmeticResourceAdapterService =
+    new AdBlockRustCosmeticResourceAdapterService();
   private pingRuntimeScriptService: AdBlockPingRuntimeScriptService = new AdBlockPingRuntimeScriptService();
   private interactionGuardRuntimeScriptService: AdBlockInteractionGuardRuntimeScriptService =
     new AdBlockInteractionGuardRuntimeScriptService();
@@ -41,9 +47,10 @@ export class AdBlockDocumentStartCoordinator implements AdBlockDocumentStartScri
       : {
         script: this.cosmeticRuntimeScriptService.buildInjectedScriptExecutionScript(
           scriptletScript,
-          host
+          host,
+          targetUrl
         ),
-        scriptRules: [targetUrl]
+        scriptRules: [urlUtils.URL.parseURL(targetUrl).origin]
       };
     if (this.interactionGuardScriptItem === undefined) {
       this.interactionGuardScriptItem = this.interactionGuardRuntimeScriptService.buildDocumentStartScriptItem();
@@ -53,9 +60,27 @@ export class AdBlockDocumentStartCoordinator implements AdBlockDocumentStartScri
     }
     const scriptItems: ScriptItem[] = [this.interactionGuardScriptItem];
     scriptItems.push(this.pingScriptItem);
+    if (resources !== undefined && host.length > 0) {
+      const cosmeticPlan = this.cosmeticResourceAdapter.buildExecutionPlan(resources);
+      if (cosmeticPlan.cssSelectors.length > 0) {
+        // ArkWeb document-start runs after the root exists and before the page content loads.
+        // Keep this pass to Rust-selected CSS; page-end still discovers generic class/id rules
+        // and installs the bounded procedural runtime.
+        scriptItems.push({
+          script: this.cosmeticRuntimeScriptService.buildDocumentStartCssInjectionScript(
+            cosmeticPlan.cssSelectors,
+            targetUrl
+          ),
+          scriptRules: [urlUtils.URL.parseURL(targetUrl).origin]
+        });
+      }
+    }
     if (scriptletScriptItem !== undefined) {
       scriptItems.push(scriptletScriptItem);
     }
+    // A redirect can change the destination after this array was built. The bridge resolves the
+    // calling document's URL and policy again, including redirects out of an allowlisted origin.
+    scriptItems.push(this.discoveryRuntimeScriptService.buildDocumentStartScriptItem());
     return scriptItems;
   }
 
@@ -65,7 +90,7 @@ export class AdBlockDocumentStartCoordinator implements AdBlockDocumentStartScri
     const host = this.resolveHost(targetUrl);
     const allowlisted = this.policyService.isHostAllowlisted(settings, host, tab.profileId);
     return [
-      'adblock-document-start-v2',
+      'adblock-document-start-v4',
       settings.updatedAt,
       settings.preferences.enabled ? 'enabled' : 'disabled',
       settings.lastRuleUpdateAt,

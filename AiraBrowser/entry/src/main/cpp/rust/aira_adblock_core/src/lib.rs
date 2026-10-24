@@ -1,7 +1,7 @@
 use adblock::{
     Engine,
     cosmetic_filter_cache::UrlSpecificResources,
-    lists::{FilterSet, ParseOptions, ParsedLine, RuleTypes, parse_filter},
+    lists::{ParseOptions, RuleTypes},
     request::Request,
     resources::Resource,
 };
@@ -11,6 +11,8 @@ use std::{
     panic::{AssertUnwindSafe, catch_unwind},
     slice, str,
 };
+
+mod popup_rules;
 
 const STATUS_OK: i32 = 0;
 const STATUS_INVALID_ARGUMENT: i32 = 1;
@@ -28,6 +30,7 @@ const BRAVE_REDIRECT_RESOURCES: &str = include_str!("../resources/brave-resource
 
 pub struct AiraAdblockEngine {
     engine: Engine,
+    popup_engine: Engine,
     network_rule_count: usize,
     cosmetic_rule_count: usize,
 }
@@ -132,22 +135,16 @@ pub unsafe extern "C" fn aira_adblock_engine_create_from_file(
                 rule_types: RuleTypes::All,
                 ..ParseOptions::default()
             };
-            let (network_rule_count, cosmetic_rule_count) =
-                rules
-                    .lines()
-                    .fold((0usize, 0usize), |(network_count, cosmetic_count), line| {
-                        match parse_filter(line, false, parse_options) {
-                            Ok(ParsedLine::Network(_)) => (network_count + 1, cosmetic_count),
-                            Ok(ParsedLine::Cosmetic(_)) => (network_count, cosmetic_count + 1),
-                            Err(_) => (network_count, cosmetic_count),
-                        }
-                    });
-            let mut filter_set = FilterSet::new(false);
-            filter_set.add_filter_list(rules, parse_options);
-            let mut engine = Engine::new_with_filter_set(filter_set);
+            let rule_sets = popup_rules::build_rule_sets(&rules, parse_options);
+            drop(rules);
+            let network_rule_count = rule_sets.network_count;
+            let cosmetic_rule_count = rule_sets.cosmetic_count;
+            let mut engine = Engine::new_with_filter_set(rule_sets.ordinary);
             engine.use_resources(load_redirect_resources()?);
+            let popup_engine = Engine::new_with_filter_set(rule_sets.popup);
             Ok(Box::into_raw(Box::new(AiraAdblockEngine {
                 engine,
+                popup_engine,
                 network_rule_count,
                 cosmetic_rule_count,
             })))
@@ -260,21 +257,34 @@ pub unsafe extern "C" fn aira_adblock_engine_check(
                 false,
             )?;
             let method = read_utf8(method, method_length, MAX_METHOD_BYTES, false)?;
-            let request = Request::new(url, source_url, request_type, method)
+            let is_popup = request_type == "popup";
+            let matcher_type = if is_popup { "document" } else { request_type };
+            let request = Request::new(url, source_url, matcher_type, method)
                 .map_err(|_| STATUS_REQUEST_ERROR)?;
             let engine = unsafe { &*engine };
-            let blocker_result = engine.engine.check_network_request(&request);
+            let authority = if is_popup {
+                &engine.popup_engine
+            } else {
+                &engine.engine
+            };
+            let blocker_result = authority.check_network_request(&request);
             let should_block = blocker_result.should_block();
-            let redirect_data_url = if should_block {
+            // A popup check cancels a window-open action; it must never synthesize a navigation
+            // response or replay a rewritten URL through the window owner.
+            let redirect_data_url = if should_block && !is_popup {
                 blocker_result.redirect.unwrap_or_default()
             } else {
                 String::new()
             };
-            let rewritten_url = blocker_result.rewritten_url.unwrap_or_default();
+            let rewritten_url = if is_popup {
+                String::new()
+            } else {
+                blocker_result.rewritten_url.unwrap_or_default()
+            };
             if redirect_data_url.len() > MAX_REDIRECT_DATA_URL_BYTES {
                 return Err(STATUS_REQUEST_ERROR);
             }
-            let csp_directives = if include_csp != 0 {
+            let csp_directives = if include_csp != 0 && !is_popup {
                 engine
                     .engine
                     .get_csp_directives(&request)

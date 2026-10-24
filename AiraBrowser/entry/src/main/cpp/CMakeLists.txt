@@ -117,6 +117,8 @@ add_custom_command(
     "${AIRA_RUST_ROOT}/about.toml"
     "${AIRA_RUST_ROOT}/rust-toolchain.toml"
     "${AIRA_RUST_ROOT}/src/lib.rs"
+    "${AIRA_RUST_ROOT}/src/popup_rules.rs"
+    "${AIRA_RUST_ROOT}/src/popup_rules_tests.rs"
     "${AIRA_RUST_ROOT}/resources/brave-resources-v0.13.2.json"
     "${AIRA_RUST_ROOT}/resources/adblock-rust-MPL-2.0.txt"
     "${AIRA_RUST_ROOT}/resources/SOURCE.md"

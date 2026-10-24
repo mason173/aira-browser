@@ -916,6 +916,28 @@ Large-Screen dispatch. Static guards and a signed build do not replace user-oper
 foreground/background tabs, same-tab second-level navigation, ordinary `_blank`, child with/without history, Google
 OAuth completion/child exit, private boundary, and source-tab removal fallback.
 
+## Rust popup filtering before window handoff: 2026-10-24
+
+The user requested repair of the remaining ad-filter compatibility gaps. The pinned Rust engine lacks a popup request
+type, and the ArkTS adapter previously normalized that type to ordinary document. Rust now compiles explicitly selected
+`$popup` rules into an isolated matching engine. `$all` includes this popup path, while `$~popup` excludes it. Mixed
+network/popup types are projected separately, and original-rule `badfilter` identities are resolved before splitting.
+Domain, opener-relative party, pattern and exception matching remain Rust-owned; unsupported modifiers remain rejected.
+Popup-only rules are never installed as ordinary document rules.
+
+`BrowserWindowOpenApplicationCoordinator.handle()` checks only explicit ArkWeb `OnWindowNewEvent` callbacks through the
+existing site-controls owner before building the window-open plan. Filtering honors the opener tab's profile and site
+exception. A matched popup is rejected with the existing `rejectImmediateEvent()` owner before download presentation,
+child-tab creation, event storage or controller attachment. Disabled filtering and unmatched targets continue through the
+existing window-open plan and controller handoff. The check never synthesizes a response, rewrites/replays a popup URL,
+or introduces a JavaScript `window.open` proxy, a controller, or an event-consumption owner.
+
+The static guard and popup behavior harness protect the early rejection and normal continuation. The Rust tests cover
+popup-specific rules, mixed and negated types, exceptions, opener domains, first/third-party requests, `badfilter`, and
+ordinary-navigation isolation. These checks do not replace user-operated device acceptance for an ad popup, ordinary
+`_blank`, and Google OAuth completion/child exit; no physical-device result is claimed by this revision. Controller
+attachment, fixed Hosted Web slots, child return, BFCache and user-agent policy retain their existing owners and order.
+
 ## Change process
 
 Window-Open/BFCache owners and adapters may be changed during ordinary in-scope feature, repair, diagnosis, or

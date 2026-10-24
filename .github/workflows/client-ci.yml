@@ -52,12 +52,23 @@ jobs:
         run: node scripts/check-aira-shared-html-viewer.cjs
       - name: Check video toolbar takeover
         run: node scripts/check-aira-video-toolbar-takeover.cjs
+      - name: Check video cast session
+        run: node scripts/check-aira-video-cast-session.cjs
       - name: Check search style isolation
         run: node scripts/check-aira-search-style-isolation.cjs
       - name: Check search list viewport
         run: node scripts/check-aira-search-list-viewport.cjs
       - name: Check download directory lifecycle
         run: node scripts/check-aira-download-directory-lifecycle.cjs
+      - name: Check ad-block document-start CSS
+        run: node --test scripts/check-aira-adblock-document-start.cjs
+      - name: Check ad-block replacement download prevention
+        run: node --test scripts/check-aira-adblock-download-response.cjs
+      - name: Check ad-block discovery, popup and subscription compatibility
+        run: node --test scripts/check-aira-adblock-frame-bridge.cjs scripts/check-aira-adblock-cosmetic-query.cjs scripts/check-aira-adblock-cosmetic-discovery.cjs scripts/check-aira-adblock-popup.cjs scripts/check-aira-adblock-subscriptions.cjs
+      - name: Check Rust ad-block matching semantics
+        working-directory: AiraBrowser/entry/src/main/cpp/rust/aira_adblock_core
+        run: cargo test --locked
       - name: Check icon catalog
         run: node scripts/check-aira-icon-catalog.js
       - name: Check generated icons

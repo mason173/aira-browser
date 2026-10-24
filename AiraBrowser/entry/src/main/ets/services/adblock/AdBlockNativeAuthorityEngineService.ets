@@ -62,7 +62,8 @@ export class AdBlockNativeAuthorityEngineService {
 
   isEligible(input: AdBlockRequestEvaluationInput): boolean {
     const normalizedUrl = input.url.trim().toLowerCase();
-    return input.enabled && (!input.isMainFrame || input.resourceType === 'document') &&
+    return input.enabled && (!input.isMainFrame || input.resourceType === 'document' ||
+      input.resourceType === 'popup') &&
       (normalizedUrl.startsWith('http://') || normalizedUrl.startsWith('https://'));
   }
 
@@ -76,16 +77,15 @@ export class AdBlockNativeAuthorityEngineService {
       };
     }
     const requestType = input.resourceType ?? (input.isMainFrame ? 'document' : 'other');
-    const normalizedRequestType = requestType === 'popup' ? 'document' : requestType;
     const normalizedMethod = input.method.trim().toUpperCase() || 'GET';
     const includeCsp = input.includeResponseEvaluation && normalizedMethod === 'GET' &&
-      (normalizedRequestType === 'document' || normalizedRequestType === 'subdocument');
+      (requestType === 'document' || requestType === 'subdocument');
     const nativeModule = this.requireLoadedNativeModule();
     return nativeModule.checkRequest(
       handle,
       input.url,
       input.pageUrl,
-      normalizedRequestType,
+      requestType,
       normalizedMethod,
       includeCsp
     );

@@ -1998,6 +1998,8 @@ struct BrowserShellPage {
   private browserWindowOpenApplicationHost: BrowserWindowOpenApplicationHost = {
     getWebRuntimeBridge: (): WebRuntimeBridge => this.webRuntimeBridge,
     findTabById: (tabId: string): BrowserTabState | undefined => this.tabManager.getTab(this.tabs, tabId),
+    shouldBlockAdPopup: (tabId: string, targetUrl: string): boolean =>
+      this.browserSiteControlsRuntimeCoordinator.shouldBlockAdPopup(tabId, targetUrl),
     buildCreateOptions: (tabId: string): BrowserCreateTabOptions =>
       this.tabScopedEventContextCoordinator.buildCreateOptions(tabId),
     hasRecentAction: (now: number): boolean => this.browserRecentActionManager.isRecentAction(now),
@@ -12893,6 +12895,8 @@ struct BrowserShellPage {
           this.browserMediaRuntimeObservationApplicationCoordinator.handlePageBehaviorSignal(tabId, payloadJson);
         }
       },
+      onAdBlockCosmeticQuery: (tabId: string, frameUrl: string, payloadJson: string): string =>
+        this.browserSiteControlsRuntimeCoordinator.queryAdBlockCosmeticResources(tabId, frameUrl, payloadJson),
       onAdBlockCosmeticHidden: (tabId: string, payloadJson: string) =>
         this.browserSiteControlsRuntimeCoordinator.handleAdBlockCosmeticHidden(tabId, payloadJson),
       onAdBlockManualHidden: (tabId: string, payloadJson: string) => {

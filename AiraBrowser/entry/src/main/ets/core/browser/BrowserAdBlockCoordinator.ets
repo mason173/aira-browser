@@ -46,6 +46,7 @@ import {
 import { AdBlockPingRequestSignalService } from '../../services/adblock/AdBlockPingRequestSignalService';
 import { BrowserRuntimeLifecyclePort } from '../../services/web/BrowserRuntimeLifecyclePort';
 import { AdBlockRuleSourceCoordinator } from '../adblock/AdBlockRuleSourceCoordinator';
+import { AdBlockCosmeticQueryService } from '../../services/adblock/AdBlockCosmeticQueryService';
 
 const AD_BLOCK_PING_NATIVE_BRIDGE_NAME: string = '__airaAdBlockPingNativeBridge';
 const AD_BLOCK_PING_NATIVE_BRIDGE_METHODS: string[] = ['mark'];
@@ -175,6 +176,7 @@ interface BrowserAdBlockCosmeticHiddenPayload {
 }
 
 export class BrowserAdBlockCoordinator {
+  private cosmeticQueryService: AdBlockCosmeticQueryService = new AdBlockCosmeticQueryService();
   private static runtimeBootPreparationPromises: Map<AdBlockRepository, Promise<void>> =
     new Map<AdBlockRepository, Promise<void>>();
   private static runtimeBootPreparedRepositories: Set<AdBlockRepository> = new Set<AdBlockRepository>();
@@ -494,6 +496,66 @@ export class BrowserAdBlockCoordinator {
     });
   }
 
+  queryCosmeticResourcesForFrame(context: BrowserAdBlockPageRuntimeContext, payloadJson: string): string {
+    try {
+      const page = urlUtils.URL.parseURL(context.pageUrl);
+      if (page.protocol !== 'https:' && page.protocol !== 'http:') {
+        return '';
+      }
+      const query = this.cosmeticQueryService.parse(payloadJson);
+      if (query === undefined) {
+        return '';
+      }
+      const snapshot = this.resolveSnapshot();
+      const policy = this.resolveEffectivePagePolicy(snapshot, context);
+      const enabled = snapshot.settings.preferences.enabled && !policy.allowlisted;
+      const resources = enabled ? this.runtimeGeneration.resolveNativeCosmeticResources(
+        context.pageUrl, query.classes, query.ids
+      ) : undefined;
+      return JSON.stringify({
+        ready: !enabled || resources !== undefined,
+        enabled: enabled,
+        pageUrl: context.pageUrl,
+        cssSelectors: resources === undefined ? [] : this.cosmeticResourceAdapter.buildExecutionPlan(resources).cssSelectors,
+        injectedScript: query.includeScriptlets && resources !== undefined ? resources.injectedScript : ''
+      });
+    } catch (_error) {
+      return '';
+    }
+  }
+
+  shouldBlockPopupNavigation(context: BrowserAdBlockPageRuntimeContext, targetUrl: string): boolean {
+    try {
+      const target = urlUtils.URL.parseURL(targetUrl);
+      if (target.protocol !== 'https:' && target.protocol !== 'http:') {
+        return false;
+      }
+      const snapshot = this.resolveSnapshot();
+      const policy = this.resolveEffectivePagePolicy(snapshot, context);
+      if (policy.allowlisted) {
+        return false;
+      }
+      const evaluation = this.runtimeGeneration.evaluateNetworkRequest({
+        url: targetUrl,
+        pageUrl: context.pageUrl,
+        method: 'GET',
+        isMainFrame: true,
+        resourceType: 'popup',
+        enabled: snapshot.settings.preferences.enabled && policy.enabledForPage,
+        includeResponseEvaluation: false
+      });
+      if (!evaluation.network.shouldBlock) {
+        return false;
+      }
+      this.statsCoordinator.recordNetworkBlocked({
+        tabId: context.tabId, profileId: context.profileId, dataScope: context.dataScope
+      });
+      return true;
+    } catch (_error) {
+      return false;
+    }
+  }
+
   async injectCosmeticRulesForPage(
     context: BrowserAdBlockPageRuntimeContext,
     runtimeLifecyclePort: BrowserRuntimeLifecyclePort
@@ -503,7 +565,7 @@ export class BrowserAdBlockCoordinator {
     const cosmeticElementBlockingEnabled = snapshot.settings.preferences.enabled && !policy.allowlisted;
     if (!cosmeticElementBlockingEnabled) {
       this.statsCoordinator.clearCosmeticStatsContext(context.tabId);
-      await this.cosmeticInjectionService.clearForPage(runtimeLifecyclePort.resolveController(context.tabId));
+      await this.cosmeticInjectionService.clearForPage(runtimeLifecyclePort.resolveController(context.tabId), context.pageUrl);
       return this.skippedCosmeticInjection('disabled');
     }
     const controller = runtimeLifecyclePort.resolveController(context.tabId);
@@ -515,17 +577,20 @@ export class BrowserAdBlockCoordinator {
     );
     if (resources === undefined) {
       this.statsCoordinator.clearCosmeticStatsContext(context.tabId);
-      await this.cosmeticInjectionService.clearForPage(controller);
+      await this.cosmeticInjectionService.clearForPage(controller, context.pageUrl);
+      await this.cosmeticInjectionService.installDiscoveryForPage(controller);
       return this.skippedCosmeticInjection('native_authority_unavailable');
     }
     const cosmeticPlan = this.cosmeticResourceAdapter.buildExecutionPlan(resources);
-    await this.cosmeticInjectionService.executeInjectedScript(controller, resources.injectedScript);
+    await this.cosmeticInjectionService.executeInjectedScript(controller, resources.injectedScript, context.pageUrl);
     const summary = await this.cosmeticInjectionService.injectForPage(
       controller,
       context.pageUrl,
       cosmeticPlan,
       true
     );
+    // Empty initial CSS does not mean that future class/id mutations have no matching rules.
+    await this.cosmeticInjectionService.installDiscoveryForPage(controller);
     if (summary.skipped) {
       this.statsCoordinator.clearCosmeticStatsContext(context.tabId);
       return summary;
@@ -593,7 +658,11 @@ export class BrowserAdBlockCoordinator {
       const decision = evaluation.network;
       if (decision.shouldBlock) {
         const response = decision.redirectDataUrl.length > 0
-          ? this.responseFactory.buildRustRedirectResponse(decision.redirectDataUrl)
+          ? this.responseFactory.buildRustRedirectResponse(
+            decision.redirectDataUrl,
+            classification.resourceType,
+            context.request
+          )
           : this.responseFactory.buildBlockedResponse(classification.resourceType);
         this.statsCoordinator.recordNetworkBlocked({
           tabId: context.tabId,
@@ -691,7 +760,9 @@ export class BrowserAdBlockCoordinator {
         includeResponseEvaluation: false
       });
       const decision = evaluation.network;
-      if (!decision.shouldBlock || decision.redirectDataUrl.length > 0) {
+      // This callback is a navigation, even if its URL resembles a script. A replacement resource
+      // does not make a blocked navigation safe to fetch: ArkWeb may save the synthetic response.
+      if (!decision.shouldBlock) {
         return false;
       }
       this.statsCoordinator.recordNetworkBlocked({

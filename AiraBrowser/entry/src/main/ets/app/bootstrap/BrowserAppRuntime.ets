@@ -1316,14 +1316,6 @@ function scheduleBrowserRuntimeMaintenance(): void {
 
 function buildBrowserRuntimeMaintenanceTasks(): BrowserRuntimeMaintenanceTask[] {
   return [{
-    id: 'adblock_remote_source_update',
-    run: () => measureStartupStepSafely('maintenance_adblock_remote_source_update', async () => {
-      const result = await sharedAdBlockRuleSourceCoordinator.autoUpdateDueRemoteSources();
-      if (result === undefined) {
-        hilog.info(DOMAIN, TAG, 'Adblock rule source maintenance skipped: no due source.');
-      }
-    })
-  }, {
     id: 'membership_refresh',
     run: () => refreshMembershipStateAfterLaunch()
   }, {
@@ -1334,6 +1326,16 @@ function buildBrowserRuntimeMaintenanceTasks(): BrowserRuntimeMaintenanceTask[] 
         return Promise.resolve();
       }
       return sharedDownloadV2Service.reconnectPersistedActiveTasks();
+    })
+  }, {
+    // A full subscription refresh can involve several remote child lists. Restore active user
+    // tasks first so slow list servers do not hold up download reconnection or account refresh.
+    id: 'adblock_remote_source_update',
+    run: () => measureStartupStepSafely('maintenance_adblock_remote_source_update', async () => {
+      const result = await sharedAdBlockRuleSourceCoordinator.autoUpdateDueRemoteSources();
+      if (result === undefined) {
+        hilog.info(DOMAIN, TAG, 'Adblock rule source maintenance skipped: no due source.');
+      }
     })
   }];
 }

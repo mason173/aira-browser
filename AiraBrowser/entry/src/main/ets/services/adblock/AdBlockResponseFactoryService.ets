@@ -10,7 +10,7 @@ import {
 } from '../../common/models/BrowserModels';
 import { BrowserProfileBoundaryService } from '../../core/browser/BrowserProfileBoundaryService';
 import { WebCookieHeaderService } from '../web/WebCookieHeaderService';
-import { resolveBlockedResourceResponse } from './AdBlockBlockedResourcePolicy';
+import { canUseAdBlockRedirectResource, resolveBlockedResourceResponse } from './AdBlockBlockedResourcePolicy';
 
 const CSP_PROXY_TIMEOUT_MS: number = 15000;
 const CSP_PROXY_MAX_BYTES: number = 20 * 1024 * 1024;
@@ -79,7 +79,24 @@ export class AdBlockResponseFactoryService {
     return response;
   }
 
-  buildRustRedirectResponse(dataUrl: string): WebResourceResponse {
+  buildRustRedirectResponse(
+    dataUrl: string,
+    resourceType: AdBlockResourceType | undefined,
+    request: WebResourceRequest
+  ): WebResourceResponse {
+    try {
+      if (!canUseAdBlockRedirectResource(resourceType, request.isMainFrame(), request.getRequestHeader())) {
+        return this.buildBlockedResponse(resourceType);
+      }
+      return this.buildRustSubresourceResponse(dataUrl);
+    } catch (_error) {
+      // Rust already blocked this request. Invalid metadata or a native decode failure must not
+      // escape to the intercept handler's allow-on-error path and fetch the original ad.
+      return this.buildBlockedResponse(resourceType);
+    }
+  }
+
+  private buildRustSubresourceResponse(dataUrl: string): WebResourceResponse {
     const normalized = dataUrl.trim();
     if (normalized.length <= 0 || normalized.length > MAX_REDIRECT_DATA_URL_BYTES ||
       !normalized.toLowerCase().startsWith('data:')) {
@@ -95,6 +112,11 @@ export class AdBlockResponseFactoryService {
     if (!this.isSafeRedirectMimeType(mimeType) || metadataParts.length !== 1 ||
       metadataParts[0].trim().toLowerCase() !== 'base64') {
       throw new Error('Unsupported Rust redirect data metadata.');
+    }
+    // Brave's `empty` resource is a zero-byte generic binary file. A 200 response for it can be
+    // treated as a download; use no-content instead, without relying on decodeSync('') behavior.
+    if (mimeType === 'application/octet-stream') {
+      return this.buildBlockedResponse(undefined);
     }
     const payload = normalized.substring(separatorIndex + 1);
     const bytes = this.base64Helper.decodeSync(payload);

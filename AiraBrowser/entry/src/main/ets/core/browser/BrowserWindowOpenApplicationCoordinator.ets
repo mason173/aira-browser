@@ -10,6 +10,7 @@ export interface BrowserWindowOpenApplicationHost {
   findTabById: (tabId: string) => BrowserTabState | undefined;
   buildCreateOptions: (tabId: string) => BrowserCreateTabOptions;
   hasRecentAction: (now: number) => boolean;
+  shouldBlockAdPopup?: (tabId: string, targetUrl: string) => boolean;
   setHelperMessage: (message: string) => void;
   recordRuntimeEvent: (type: string, message: string, tabId: string) => void;
   showManualDownloadConfirmSheet: (tabId: string, url: string) => void;
@@ -80,6 +81,14 @@ export class BrowserWindowOpenApplicationCoordinator {
         `target=${event.targetUrl} userTrigger=${event.isUserTrigger} isAlert=${event.isAlert}`,
         tabId
       );
+      // This is an explicit ArkWeb window-open event. Evaluate the popup type before any
+      // download presentation, child creation or controller handoff, using the existing owner
+      // to reject the event. Ordinary navigation never enters this rule-only gate.
+      if (host.shouldBlockAdPopup?.(tabId, event.targetUrl) === true) {
+        host.recordRuntimeEvent('window_open_adblock_blocked', `target=${event.targetUrl}`, tabId);
+        this.windowOpenCoordinator.rejectImmediateEvent(event);
+        return;
+      }
       const now = Date.now();
       const deviceFormFactorInput = this.deviceFormFactorInputService.resolveWindowOpenInputSync();
       const plan = this.windowOpenCoordinator.buildPlan({

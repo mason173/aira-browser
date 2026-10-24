@@ -542,6 +542,14 @@ fi
 "${NODE_BIN}" "${REPO_ROOT}/scripts/check-aira-search-style-isolation.cjs"
 "${NODE_BIN}" "${REPO_ROOT}/scripts/check-aira-search-list-viewport.cjs"
 "${NODE_BIN}" "${REPO_ROOT}/scripts/check-aira-download-directory-lifecycle.cjs"
+"${NODE_BIN}" --test "${REPO_ROOT}/scripts/check-aira-adblock-document-start.cjs"
+"${NODE_BIN}" --test "${REPO_ROOT}/scripts/check-aira-adblock-download-response.cjs"
+"${NODE_BIN}" --test "${REPO_ROOT}/scripts/check-aira-adblock-frame-bridge.cjs" \
+  "${REPO_ROOT}/scripts/check-aira-adblock-cosmetic-query.cjs" \
+  "${REPO_ROOT}/scripts/check-aira-adblock-cosmetic-discovery.cjs" \
+  "${REPO_ROOT}/scripts/check-aira-adblock-popup.cjs" \
+  "${REPO_ROOT}/scripts/check-aira-adblock-subscriptions.cjs"
+"${NODE_BIN}" "${REPO_ROOT}/scripts/check-aira-video-cast-session.cjs"
 
 if [ ! -x "${IMMERSIVE_LIGHT_SENSE_GUARD_SCRIPT}" ]; then
   fail "Immersive light-sense contract guard not executable: ${IMMERSIVE_LIGHT_SENSE_GUARD_SCRIPT}"

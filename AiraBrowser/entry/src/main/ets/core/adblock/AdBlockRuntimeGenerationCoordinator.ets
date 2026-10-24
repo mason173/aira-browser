@@ -678,6 +678,8 @@ export class AdBlockRuntimeGenerationCoordinator {
           nativeCosmeticRuleCount: item.nativeCosmeticRuleCount,
           ruleCount: item.ruleCount,
           lastUpdatedAt: item.lastUpdatedAt,
+          updateIntervalMs: item.updateIntervalMs,
+          lastAttemptAt: item.lastAttemptAt,
           lastError: item.lastError,
           createdAt: item.createdAt,
           updatedAt: item.updatedAt

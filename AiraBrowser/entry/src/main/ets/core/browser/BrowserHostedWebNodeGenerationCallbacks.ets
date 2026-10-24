@@ -84,6 +84,12 @@ export function buildGenerationBoundHostedWebNodeCallbacks(
         callbacks.onPageBehaviorSignal(eventTabId, payloadJson);
       }
     },
+    onAdBlockCosmeticQuery: (eventTabId: string, frameUrl: string, payloadJson: string): string => {
+      if (eventTabId !== tabId || !isCurrent(tabId, generation)) {
+        return '';
+      }
+      return callbacks.onAdBlockCosmeticQuery?.(eventTabId, frameUrl, payloadJson) ?? '';
+    },
     onAdBlockCosmeticHidden: callbacks.onAdBlockCosmeticHidden,
     onAdBlockManualHidden: callbacks.onAdBlockManualHidden,
     onContextMenuShow: callbacks.onContextMenuShow,

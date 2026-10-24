@@ -42,3 +42,25 @@ export function resolveBlockedResourceResponse(
 ): AdBlockBlockedResourceResponse {
   return BLOCKED_NO_CONTENT;
 }
+
+/** Resource replacements are for known subresources, never a blocked document navigation. */
+export function canUseAdBlockRedirectResource(
+  resourceType: AdBlockResourceType | undefined,
+  isMainFrame: boolean,
+  requestHeaders: Array<Header>
+): boolean {
+  if (isMainFrame || (resourceType !== 'script' && resourceType !== 'stylesheet' &&
+    resourceType !== 'image' && resourceType !== 'xmlhttprequest' &&
+    resourceType !== 'media' && resourceType !== 'font')) {
+    return false;
+  }
+  // A frame URL can look like a script or image. Explicit navigation metadata takes precedence
+  // over that heuristic for response selection without changing the engine's matching input.
+  return !(requestHeaders ?? []).some((header: Header): boolean => {
+    const key = String(header.headerKey ?? '').trim().toLowerCase();
+    const value = String(header.headerValue ?? '').trim().toLowerCase();
+    return (key === 'sec-fetch-mode' && value === 'navigate') ||
+      (key === 'sec-fetch-dest' && (value === 'document' || value === 'iframe' ||
+        value === 'frame' || value === 'nested-document' || value === 'object' || value === 'embed'));
+  });
+}

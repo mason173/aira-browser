@@ -46,6 +46,7 @@ export interface BrowserWebEventHostHandlers {
   onHistoryApiUrlChange: (tabId: string, payloadJson: string) => void;
   onPageChromeThemeSignal: (tabId: string, payloadJson: string) => void;
   onPageBehaviorSignal: (tabId: string, payloadJson: string) => void;
+  onAdBlockCosmeticQuery?: (tabId: string, frameUrl: string, payloadJson: string) => string;
   onAdBlockCosmeticHidden: (tabId: string, payloadJson: string) => void;
   onAdBlockManualHidden: (tabId: string, payloadJson: string) => void;
   onContextMenuShow: (tabId: string, event: OnContextMenuShowEvent, controller: webview.WebviewController) => boolean;
@@ -144,6 +145,9 @@ export class BrowserWebEventHostCoordinator {
           () => handlers.onPageChromeThemeSignal(tabId, payloadJson)),
       onPageBehaviorSignal: (tabId: string, payloadJson: string) =>
         this.runVoid('page_behavior_signal', tabId, () => handlers.onPageBehaviorSignal(tabId, payloadJson)),
+      onAdBlockCosmeticQuery: (tabId: string, frameUrl: string, payloadJson: string): string =>
+        this.runString('adblock_cosmetic_query', tabId,
+          () => handlers.onAdBlockCosmeticQuery?.(tabId, frameUrl, payloadJson) ?? ''),
       onAdBlockCosmeticHidden: (tabId: string, payloadJson: string) =>
         this.runVoid('adblock_cosmetic_hidden', tabId, () => handlers.onAdBlockCosmeticHidden(tabId, payloadJson)),
       onAdBlockManualHidden: (tabId: string, payloadJson: string) =>
@@ -197,6 +201,16 @@ export class BrowserWebEventHostCoordinator {
     } catch (error) {
       this.logHandlerFailure(eventName, tabId, error);
       return failureFallback;
+    }
+  }
+
+  private runString(eventName: string, tabId: string, action: () => string): string {
+    try {
+      const result = action();
+      return typeof result === 'string' ? result : '';
+    } catch (error) {
+      this.logHandlerFailure(eventName, tabId, error);
+      return '';
     }
   }
 

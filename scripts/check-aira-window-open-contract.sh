@@ -242,6 +242,18 @@ forbid_regex "${SHELL_PAGE}" \
 require_literal "${SHELL_PAGE}" \
   'this.browserWebTabsController.onBeforeWebBuild(tabId);' \
   'must keep the ArkWeb pre-build callback as one-line owner forwarding.'
+require_literal "${SHELL_PAGE}" \
+  'this.browserSiteControlsRuntimeCoordinator.shouldBlockAdPopup(tabId, targetUrl)' \
+  'must delegate popup subscription filtering to the existing site-controls owner.'
+require_order "${WINDOW_OPEN_APP}" \
+  'if (host.shouldBlockAdPopup?.(tabId, event.targetUrl) === true) {' \
+  'const plan = this.windowOpenCoordinator.buildPlan({' \
+  'must filter explicit popup events before download presentation or child-controller handoff.'
+require_order_after "${WINDOW_OPEN_APP}" \
+  'if (host.shouldBlockAdPopup?.(tabId, event.targetUrl) === true) {' \
+  'this.windowOpenCoordinator.rejectImmediateEvent(event);' \
+  'return;' \
+  'must reject matched popup events through the existing event owner and stop the handoff.'
 
 require_literal "${FIXED_SLOTS}" \
   '.visibility(this.isActiveSlotVisible(tab.id) ? Visibility.Visible : Visibility.Hidden)' \

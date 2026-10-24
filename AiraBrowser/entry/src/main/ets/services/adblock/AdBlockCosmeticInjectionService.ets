@@ -5,6 +5,7 @@ import {
   AdBlockCosmeticSelectorCandidates
 } from './AdBlockCosmeticExecutionModels';
 import { AdBlockCosmeticRuntimeScriptService } from './AdBlockCosmeticRuntimeScriptService';
+import { AdBlockCosmeticDiscoveryRuntimeScriptService } from './AdBlockCosmeticDiscoveryRuntimeScriptService';
 
 export interface AdBlockCosmeticInjectionSummary {
   injectedSelectorCount: number;
@@ -20,6 +21,18 @@ export interface AdBlockCosmeticInjectionSummary {
 
 export class AdBlockCosmeticInjectionService {
   private runtimeScriptService: AdBlockCosmeticRuntimeScriptService = new AdBlockCosmeticRuntimeScriptService();
+  private discoveryScriptService: AdBlockCosmeticDiscoveryRuntimeScriptService =
+    new AdBlockCosmeticDiscoveryRuntimeScriptService();
+
+  async installDiscoveryForPage(controller: webview.WebviewController | undefined): Promise<void> {
+    if (controller === undefined) {
+      return;
+    }
+    try {
+      await controller.runJavaScript(this.discoveryScriptService.buildDocumentStartScriptItem().script);
+    } catch (_error) {
+    }
+  }
 
   async collectSelectorCandidates(
     controller: webview.WebviewController | undefined
@@ -39,14 +52,15 @@ export class AdBlockCosmeticInjectionService {
 
   async executeInjectedScript(
     controller: webview.WebviewController | undefined,
-    injectedScript: string
+    injectedScript: string,
+    pageUrl: string = ''
   ): Promise<void> {
     if (controller === undefined || injectedScript.trim().length <= 0) {
       return;
     }
     try {
       await controller.runJavaScript(
-        this.runtimeScriptService.buildInjectedScriptExecutionScript(injectedScript)
+        this.runtimeScriptService.buildInjectedScriptExecutionScript(injectedScript, '', pageUrl)
       );
     } catch (_error) {
     }
@@ -62,11 +76,11 @@ export class AdBlockCosmeticInjectionService {
       return this.skipped('missing_controller');
     }
     if (!enabledForPage) {
-      await this.clearForPage(controller);
+      await this.clearForPage(controller, pageUrl);
       return this.skipped('disabled');
     }
     if (plan.skipped) {
-      await this.clearForPage(controller);
+      await this.clearForPage(controller, pageUrl);
       return this.skipped(plan.reason);
     }
     let rawResult = '';
@@ -90,12 +104,12 @@ export class AdBlockCosmeticInjectionService {
     };
   }
 
-  async clearForPage(controller: webview.WebviewController | undefined): Promise<void> {
+  async clearForPage(controller: webview.WebviewController | undefined, pageUrl: string = ''): Promise<void> {
     if (controller === undefined) {
       return;
     }
     try {
-      await controller.runJavaScript(this.runtimeScriptService.buildClearScript());
+      await controller.runJavaScript(this.runtimeScriptService.buildClearScript(pageUrl));
     } catch (_error) {
     }
   }

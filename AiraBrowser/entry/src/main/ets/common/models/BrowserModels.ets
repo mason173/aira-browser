@@ -288,6 +288,8 @@ export interface AdBlockCustomRuleSource {
   nativeCosmeticRuleCount?: number;
   ruleCount: number;
   lastUpdatedAt: number;
+  updateIntervalMs?: number;
+  lastAttemptAt?: number;
   lastError: string;
   createdAt: number;
   updatedAt: number;

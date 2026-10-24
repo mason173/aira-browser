@@ -1,4 +1,5 @@
 import { AVCastPickerState, avSession } from '@kit.AVSessionKit';
+import { BusinessError } from '@kit.BasicServicesKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import urlUtils from '@ohos.url';
 import { AppRuntimeContext } from '../../app/runtime/AppRuntimeContext';
@@ -96,15 +97,22 @@ export class VideoAssistantCastSessionService {
     this.currentHandler = handler;
     try {
       const context = AppRuntimeContext.getUIAbilityContext();
-      const session = await avSession.getAVSession(context);
+      const session = await this.resolveVideoSession();
+      if (session === undefined || !this.isRequestCurrent(generation, item.sessionKey)) {
+        return this.buildResult(false, 'session_unavailable', resolveAppResourceText($r('app.string.video_cast_picker_unavailable')));
+      }
       const controller = await session.getController();
       if (!this.isRequestCurrent(generation, item.sessionKey)) {
         return this.buildResult(false, 'session_unavailable', resolveAppResourceText($r('app.string.video_cast_session_changed')));
       }
 
       this.bindSession(session, controller);
-      this.currentQueueItem = await this.resolveRemoteQueueItem(controller, item);
-      if (this.currentQueueItem === undefined) {
+      const queueItem = await this.resolveRemoteQueueItem(controller, item);
+      if (!this.isRequestCurrent(generation, item.sessionKey)) {
+        return this.buildResult(false, 'session_unavailable', resolveAppResourceText($r('app.string.video_cast_session_changed')));
+      }
+      this.currentQueueItem = queueItem;
+      if (queueItem === undefined) {
         this.logInfo(
           'picker_request_rejected',
           `reason=no_remote_uri format=${item.mediaFormat} headers=${item.requestHeaderCount} ` +
@@ -116,7 +124,10 @@ export class VideoAssistantCastSessionService {
           resolveAppResourceText($r('app.string.media_resource_cast_no_address'))
         );
       }
-      await this.enableUrlCast(session, controller);
+      if (!await this.enableUrlCast(session, controller, generation, item.sessionKey) ||
+        !this.isRequestCurrent(generation, item.sessionKey)) {
+        return this.buildResult(false, 'session_unavailable', resolveAppResourceText($r('app.string.video_cast_session_changed')));
+      }
       this.detachPicker();
       this.picker = new avSession.AVCastPickerHelper(context);
       this.picker.on('pickerStateChange', this.pickerStateChangeCallback);
@@ -172,17 +183,66 @@ export class VideoAssistantCastSessionService {
     this.sessionController = controller;
   }
 
+  private async resolveVideoSession(): Promise<avSession.AVSession | undefined> {
+    try {
+      // ArkWeb owns the playback session and its command handlers. Do not replace it with a
+      // competing session or destroy it when the cast UI is released.
+      const session = await avSession.getAVSession(AppRuntimeContext.getUIAbilityContext());
+      if (session.sessionType !== 'video') {
+        this.logInfo('cast_session_unavailable', `type=${session.sessionType}`);
+        return undefined;
+      }
+      return session;
+    } catch (error) {
+      this.logWarning('cast_session_unavailable', error);
+      return undefined;
+    }
+  }
+
   private async enableUrlCast(
     session: avSession.AVSession,
-    controller: avSession.AVSessionController
-  ): Promise<void> {
+    controller: avSession.AVSessionController,
+    generation: number,
+    sessionKey: string
+  ): Promise<boolean> {
     try {
+      const metadata = await controller.getAVMetadata();
+      if (!this.isRequestCurrent(generation, sessionKey)) {
+        return false;
+      }
+      // url-cast alone does not enable DLNA discovery. Preserve the borrowed session's
+      // metadata (including DRM restrictions) and any additional protocol bits.
+      const filter = (metadata.filter ?? 0) |
+        avSession.ProtocolType.TYPE_CAST_PLUS_STREAM | avSession.ProtocolType.TYPE_DLNA;
+      metadata.filter = filter;
+      await session.setAVMetadata(metadata);
+      if (!this.isRequestCurrent(generation, sessionKey)) {
+        return false;
+      }
       const extras = await controller.getExtras();
+      if (!this.isRequestCurrent(generation, sessionKey)) {
+        return false;
+      }
       extras['requireAbilityList'] = this.mergeUrlCastAbilityList(extras['requireAbilityList']);
       await session.setExtras(extras);
+      if (!this.isRequestCurrent(generation, sessionKey)) {
+        return false;
+      }
+      const active = await controller.isActive();
+      if (!this.isRequestCurrent(generation, sessionKey)) {
+        return false;
+      }
+      if (!active) {
+        await session.activate();
+      }
+      if (!this.isRequestCurrent(generation, sessionKey)) {
+        return false;
+      }
+      this.logInfo('cast_discovery_ready', `filter=${filter} activated=${active ? 'existing' : 'now'}`);
+      return true;
     } catch (error) {
-      this.logWarning('merge_cast_extras_failed', error);
-      throw new Error('video-assistant-cast-extras-unavailable');
+      this.logWarning('cast_discovery_prepare_failed', error);
+      throw error as Error;
     }
   }
 
@@ -194,9 +254,14 @@ export class VideoAssistantCastSessionService {
       const state = await controller.getAVPlaybackState();
       const queueItems = await controller.getAVQueueItems();
       const activeItem = this.findCastableQueueItem(queueItems, state.activeItemId);
-      if (activeItem !== undefined && this.queueItemMatchesCurrentMedia(activeItem, item)) {
+      if (activeItem !== undefined && activeItem.description !== undefined &&
+        this.queueItemMatchesCurrentMedia(activeItem, item)) {
         this.logInfo('queue_item_resolved', 'source=arkweb');
-        return activeItem;
+        const queueItem: avSession.AVQueueItem = {
+          itemId: activeItem.itemId,
+          description: this.copyCastDescription(activeItem.description)
+        };
+        return queueItem;
       }
       if (activeItem !== undefined) {
         this.logInfo('queue_item_rejected', 'reason=current_media_mismatch');
@@ -214,6 +279,22 @@ export class VideoAssistantCastSessionService {
     }
     this.logInfo('queue_item_resolved', `source=media_info format=${item.mediaFormat}`);
     return this.buildQueueItem(item);
+  }
+
+  private copyCastDescription(source: avSession.AVMediaDescription): avSession.AVMediaDescription {
+    const copy: avSession.AVMediaDescription = { assetId: source.assetId };
+    // Preserve native values such as PixelMap and file descriptors without JSON serialization.
+    const sourceFields = source as object as Record<string, Object>;
+    const targetFields = copy as object as Record<string, Object>;
+    const keys = Object.keys(sourceFields);
+    for (let i: number = 0; i < keys.length; i += 1) {
+      const key = keys[i];
+      if (key !== '__proto__' && key !== 'prototype' && key !== 'constructor') {
+        targetFields[key] = sourceFields[key];
+      }
+    }
+    copy.mediaType = 'VIDEO';
+    return copy;
   }
 
   private findCastableQueueItem(
@@ -338,6 +419,7 @@ export class VideoAssistantCastSessionService {
         await controller.prepare(queueItem);
       } catch (error) {
         this.logWarning('remote_prepare_failed', error);
+        throw error as Error;
       }
       if (!this.isRemoteStartCurrent(
         generation,
@@ -503,7 +585,7 @@ export class VideoAssistantCastSessionService {
         ? item.title.trim()
         : resolveAppResourceText($r('app.string.media_resource_web_video_title')),
       subtitle: item.pageUrl,
-      mediaType: 'video',
+      mediaType: 'VIDEO',
       mediaUri: item.mediaUri.trim(),
       mediaImage: item.posterUrl,
       duration: this.secondsToMs(item.durationSeconds)
@@ -643,12 +725,13 @@ export class VideoAssistantCastSessionService {
   }
 
   private logWarning(event: string, error: Object): void {
+    const businessError = error as BusinessError;
     hilog.warn(
       VIDEO_ASSISTANT_CAST_LOG_DOMAIN,
       VIDEO_ASSISTANT_CAST_LOG_TAG,
       '%{public}s %{public}s',
       event,
-      `${error}`
+      `code=${businessError.code ?? -1} message=${businessError.message ?? String(error)}`
     );
   }
 }

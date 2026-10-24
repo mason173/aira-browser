@@ -25,6 +25,39 @@ interface AdBlockCosmeticRuntimeRulePayload {
 }
 
 export class AdBlockCosmeticRuntimeScriptService {
+  buildDocumentStartCssInjectionScript(cssSelectors: string[], pageUrl: string): string {
+    const css = cssSelectors.map((selector: string): string => {
+      return `${selector}{display:none!important;visibility:hidden!important;}`;
+    }).join('\n');
+    return `
+;(function airaAdBlockDocumentStartCss() {
+  var expectedUrl = ${JSON.stringify(pageUrl)};
+  // Registered scripts can survive a redirect or another navigation. Never apply a previous
+  // document's rules (including its exceptions) to the new document.
+  try {
+    var expected = new URL(expectedUrl);
+    var current = new URL(location.href);
+    expected.hash = '';
+    current.hash = '';
+    if (expected.href !== current.href) {
+      return;
+    }
+  } catch (error) { return; }
+  if (!document.documentElement) {
+    return;
+  }
+  var styleId = 'aira-adblock-cosmetic-style';
+  var style = document.getElementById(styleId);
+  if (!style) {
+    style = document.createElement('style');
+    style.id = styleId;
+    style.setAttribute('data-aira-adblock', 'cosmetic');
+    (document.head || document.documentElement).appendChild(style);
+  }
+  style.textContent = ${JSON.stringify(css)};
+})();`;
+  }
+
   buildSelectorCandidateCollectionScript(): string {
     return `
 ;(function airaAdBlockCollectSelectorCandidates() {
@@ -73,7 +106,9 @@ export class AdBlockCosmeticRuntimeScriptService {
     }
   }
 
-  buildInjectedScriptExecutionScript(injectedScript: string, expectedHost: string = ''): string {
+  buildInjectedScriptExecutionScript(
+    injectedScript: string, expectedHost: string = '', expectedUrl: string = ''
+  ): string {
     const script = injectedScript.trim();
     if (script.length <= 0) {
       return '';
@@ -85,17 +120,31 @@ export class AdBlockCosmeticRuntimeScriptService {
   if (expectedHost && String(location.hostname || '').toLowerCase() !== expectedHost) {
     return;
   }
+  var expectedUrl = ${JSON.stringify(expectedUrl)};
+  if (expectedUrl) {
+    try {
+      var expected = new URL(expectedUrl);
+      var actual = new URL(location.href);
+      expected.hash = ''; actual.hash = '';
+      if (expected.href !== actual.href) { return; }
+    } catch (error) { return; }
+  }
   if (window.__airaAdBlockRustScriptletsInstalled === true) {
     return;
   }
-  window.__airaAdBlockRustScriptletsInstalled = true;
 ${script}
+  window.__airaAdBlockRustScriptletsInstalled = true;
 })();`;
   }
 
-  buildClearScript(): string {
+  buildClearScript(expectedUrl: string = ''): string {
     return `
 ;(function airaAdBlockCosmeticClear() {
+${this.buildPageUrlGuard(expectedUrl)}
+  var discovery = window.__airaAdBlockDiscoveryRuntime;
+  if (discovery && typeof discovery.stop === 'function') {
+    try { discovery.stop(); } catch (error) {}
+  }
   var style = document.getElementById('aira-adblock-cosmetic-style');
   if (style && style.parentNode) {
     try { style.parentNode.removeChild(style); } catch (error) {}
@@ -107,7 +156,7 @@ ${this.buildRuntimeCleanupScript()}
 
   buildInjectionScript(rules: AdBlockCosmeticExecutionRule[], cssSelectors: string[], pageUrl: string): string {
     if (rules.length === 0) {
-      return this.buildCssOnlyInjectionScript(cssSelectors);
+      return this.buildCssOnlyInjectionScript(cssSelectors, pageUrl);
     }
     const payloadRules = rules.map((rule: AdBlockCosmeticExecutionRule): AdBlockCosmeticRuntimeRulePayload => {
       return {
@@ -122,6 +171,7 @@ ${this.buildRuntimeCleanupScript()}
     const pageUrlValue = JSON.stringify(pageUrl);
     return `
 ;(function airaAdBlockCosmeticInject() {
+${this.buildPageUrlGuard(pageUrl)}
   var rules = ${ruleList};
   var cssSelectors = ${cssSelectorList};
   var runtimeSelectors = rules.filter(function(rule) {
@@ -1512,10 +1562,11 @@ ${this.buildRuntimeCleanupScript()}
 })();`;
   }
 
-  private buildCssOnlyInjectionScript(cssSelectors: string[]): string {
+  private buildCssOnlyInjectionScript(cssSelectors: string[], pageUrl: string): string {
     const cssSelectorList = JSON.stringify(cssSelectors);
     return `
 ;(function airaAdBlockCssOnlyInject() {
+${this.buildPageUrlGuard(pageUrl)}
 ${this.buildRuntimeCleanupScript()}
   var selectors = ${cssSelectorList};
   var styleId = 'aira-adblock-cosmetic-style';
@@ -1541,6 +1592,18 @@ ${this.buildRuntimeCleanupScript()}
     selectorCount: selectors.length
   });
 })();`;
+  }
+
+  private buildPageUrlGuard(expectedUrl: string): string {
+    if (expectedUrl.length <= 0) {
+      return '';
+    }
+    return `  try {
+    var expectedPage = new URL(${JSON.stringify(expectedUrl)});
+    var actualPage = new URL(location.href);
+    expectedPage.hash = ''; actualPage.hash = '';
+    if (expectedPage.href !== actualPage.href) { return ''; }
+  } catch (error) { return ''; }`;
   }
 
   private buildRuntimeCleanupScript(): string {

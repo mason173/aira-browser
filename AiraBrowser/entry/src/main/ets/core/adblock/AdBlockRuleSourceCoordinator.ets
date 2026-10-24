@@ -8,6 +8,7 @@ import { AdBlockRepository } from '../../data/adblock/AdBlockRepository';
 import { AdBlockRuleSourceMetadataService } from '../../services/adblock/AdBlockRuleSourceMetadataService';
 import { AdBlockLocalRuleFileService } from '../../services/adblock/AdBlockLocalRuleFileService';
 import { AdBlockRuleListFetchService } from '../../services/adblock/AdBlockRuleListFetchService';
+import { AdBlockSubscriptionPolicyService } from '../../services/adblock/AdBlockSubscriptionPolicyService';
 import {
   AdBlockNativeRuleProviderResult,
   AdBlockNativeSourcePayloadInfo,
@@ -48,11 +49,20 @@ export interface AdBlockThirdPartyRuleConsent {
   cancelLabel: string;
 }
 
-const RULE_SOURCE_AUTO_UPDATE_INTERVAL_MS: number = 10 * 24 * 60 * 60 * 1000;
+interface AdBlockRemoteFetchGeneration {
+  sourceId: string;
+  generation: number;
+  requiresExistingSource: boolean;
+}
 
 export class AdBlockRuleSourceCoordinator {
   private static mutationTasksByRepository: Map<AdBlockRepository, Promise<void>> =
     new Map<AdBlockRepository, Promise<void>>();
+  private static autoUpdateTasksByRepository: Map<AdBlockRepository, Promise<AdBlockRuleSourceResult | undefined>> =
+    new Map<AdBlockRepository, Promise<AdBlockRuleSourceResult | undefined>>();
+  private static remoteFetchGenerationsByRepository: Map<AdBlockRepository, Map<string, number>> =
+    new Map<AdBlockRepository, Map<string, number>>();
+  private static nextRemoteFetchGeneration: number = 0;
   private repository: AdBlockRepository;
   private fetchService: AdBlockRuleListFetchService = new AdBlockRuleListFetchService();
   private localFileService: AdBlockLocalRuleFileService = new AdBlockLocalRuleFileService();
@@ -154,17 +164,39 @@ export class AdBlockRuleSourceCoordinator {
   }
 
   async autoUpdateDueRemoteSources(): Promise<AdBlockRuleSourceResult | undefined> {
+    const pending = AdBlockRuleSourceCoordinator.autoUpdateTasksByRepository.get(this.repository);
+    if (pending !== undefined) {
+      return pending;
+    }
+    const task = this.updateDueRemoteSources();
+    AdBlockRuleSourceCoordinator.autoUpdateTasksByRepository.set(this.repository, task);
+    try {
+      return await task;
+    } finally {
+      AdBlockRuleSourceCoordinator.autoUpdateTasksByRepository.delete(this.repository);
+    }
+  }
+
+  private async updateDueRemoteSources(): Promise<AdBlockRuleSourceResult | undefined> {
     if (!this.repository.getSettings().preferences.updateOnForeground) {
       return undefined;
     }
     const now = Date.now();
-    const dueSource = this.repository.getSettings().customRuleSources.find((source: AdBlockCustomRuleSource) => {
+    const dueSources = this.repository.getSettings().customRuleSources.filter((source: AdBlockCustomRuleSource) => {
       return this.shouldAutoUpdateRemoteSource(source, now);
     });
-    if (dueSource === undefined) {
-      return undefined;
+    let result: AdBlockRuleSourceResult | undefined = undefined;
+    for (const candidate of dueSources) {
+      // A manual change may have removed/disabled/refreshed a source while an
+      // earlier download was pending. Re-read before each request.
+      const source = this.findSource(candidate.id);
+      if (!this.repository.getSettings().preferences.updateOnForeground || source === undefined ||
+        !this.shouldAutoUpdateRemoteSource(source, Date.now())) {
+        continue;
+      }
+      result = await this.fetchAndStore(source.url, source);
     }
-    return this.fetchAndStore(dueSource.url, dueSource);
+    return result;
   }
 
   async importLocalSource(uri: string, boundary: AdBlockSettingsBoundary): Promise<AdBlockRuleSourceResult> {
@@ -256,22 +288,32 @@ export class AdBlockRuleSourceCoordinator {
     let payloadStaged: boolean = false;
     let payloadCommitted: boolean = false;
     let sourceCommitted: boolean = false;
+    let fetchGeneration: AdBlockRemoteFetchGeneration | undefined = undefined;
     try {
       let payloadInfo: AdBlockNativeSourcePayloadInfo | undefined =
         await this.inspectNativeSourcePayloadBestEffort(source.id);
       let restoredPayload: boolean = false;
+      let updateIntervalMs: number | undefined = source.updateIntervalMs;
       if (payloadInfo === undefined) {
-        const payload = source.sourceType === 'local'
-          ? await this.localFileService.readRuleFile(source.url)
-          : await this.fetchService.fetchText(source.url);
+        let payload: string;
+        if (source.sourceType === 'local') {
+          payload = await this.localFileService.readRuleFile(source.url);
+        } else {
+          fetchGeneration = this.beginRemoteFetch(source.id, true);
+          const subscription = await this.fetchService.fetchSubscription(source.url);
+          payload = subscription.text;
+          updateIntervalMs = subscription.updateIntervalMs;
+        }
         payloadStaged = true;
         await this.nativeRuleProvider.stageSourcePayload(source.id, payload);
         payloadInfo = await this.nativeRuleProvider.validateStagedSourcePayload(source.id);
         if (payloadInfo.ruleCount <= 0) {
           throw new Error(resolveAppResourceText($r('app.string.adblock_no_rules_parsed')));
         }
+        this.requireCurrentRemoteFetch(fetchGeneration);
         await this.nativeRuleProvider.commitStagedSourcePayload(source.id);
         payloadCommitted = true;
+        this.requireCurrentRemoteFetch(fetchGeneration);
         restoredPayload = true;
       }
 
@@ -284,6 +326,8 @@ export class AdBlockRuleSourceCoordinator {
       enabledSource.updatedAt = Date.now();
       if (restoredPayload) {
         enabledSource.lastUpdatedAt = enabledSource.updatedAt;
+        enabledSource.updateIntervalMs = updateIntervalMs;
+        enabledSource.lastAttemptAt = enabledSource.updatedAt;
         enabledSource.lastError = '';
       }
       const settings = await this.runtimeGeneration.upsertCustomRuleSource(enabledSource);
@@ -315,7 +359,12 @@ export class AdBlockRuleSourceCoordinator {
         ? await this.runtimeGeneration.upsertCustomRuleSource(source)
         : this.repository.getSettings();
       await this.reconcileNativeRulesBestEffort(restoredSettings);
+      if (fetchGeneration !== undefined && !this.isCurrentRemoteFetch(fetchGeneration)) {
+        return this.buildSupersededFetchResult();
+      }
       return this.buildNativeActivationFailureResult(restoredSettings, this.stringifyError(error));
+    } finally {
+      this.finishRemoteFetch(fetchGeneration);
     }
   }
 
@@ -330,6 +379,7 @@ export class AdBlockRuleSourceCoordinator {
         success: false
       };
     }
+    AdBlockRuleSourceCoordinator.remoteFetchGenerationsByRepository.get(this.repository)?.delete(sourceId);
     return this.enqueueRepositoryMutation(async (): Promise<AdBlockRuleSourceResult> => {
       const existing = this.findSource(sourceId);
       const settings = await this.runtimeGeneration.removeCustomRuleSource(sourceId);
@@ -355,23 +405,29 @@ export class AdBlockRuleSourceCoordinator {
     preset?: AdBlockThirdPartyRuleSourceDefinition
   ): Promise<AdBlockRuleSourceResult> {
     const title = preset?.title ?? existing?.title ?? this.metadataService.buildTitle(url);
+    const sourceId = existing?.id ?? preset?.id ?? this.metadataService.buildSource(url, title).id;
+    const fetchGeneration = this.beginRemoteFetch(sourceId,
+      existing !== undefined || this.findSource(sourceId) !== undefined);
     try {
       await this.repository.initializeMetadata();
-      const payload = await this.fetchService.fetchText(url);
+      const subscription = await this.fetchService.fetchSubscription(url);
       const source = this.metadataService.buildSource(url, title, existing);
+      source.updateIntervalMs = subscription.updateIntervalMs;
       if (preset !== undefined) {
         source.id = preset.id;
         source.title = preset.title;
         source.enabled = true;
       }
-      const settings = await this.storeRemoteSource(source, payload, preset !== undefined);
+      const settings = await this.storeRemoteSource(source, subscription.text, preset !== undefined, fetchGeneration);
       return {
         settings: settings,
         message: this.buildSuccessMessage(existing === undefined, source),
         success: true
       };
     } catch (error) {
-      return this.buildFailureResult(url, title, this.stringifyError(error), existing, 'remote');
+      return await this.buildFailureResult(url, title, this.stringifyError(error), existing, 'remote', fetchGeneration);
+    } finally {
+      this.finishRemoteFetch(fetchGeneration);
     }
   }
 
@@ -398,17 +454,20 @@ export class AdBlockRuleSourceCoordinator {
   private async storeRemoteSource(
     source: AdBlockCustomRuleSource,
     payload: string,
-    forceEnabled: boolean
+    forceEnabled: boolean,
+    fetchGeneration: AdBlockRemoteFetchGeneration
   ): Promise<AdBlockSettings> {
-    return this.storeSource(source, payload, forceEnabled);
+    return this.storeSource(source, payload, forceEnabled, fetchGeneration);
   }
 
   private async storeSource(
     source: AdBlockCustomRuleSource,
     payload: string,
-    forceEnabled: boolean
+    forceEnabled: boolean,
+    fetchGeneration?: AdBlockRemoteFetchGeneration
   ): Promise<AdBlockSettings> {
     return this.enqueueRepositoryMutation(async (): Promise<AdBlockSettings> => {
+      this.requireCurrentRemoteFetch(fetchGeneration);
       const existing = this.findSource(source.id);
       source.enabled = forceEnabled ? true : (existing?.enabled ?? source.enabled);
       source.createdAt = existing?.createdAt ?? source.createdAt;
@@ -424,8 +483,10 @@ export class AdBlockRuleSourceCoordinator {
         if (source.ruleCount <= 0) {
           throw new Error(resolveAppResourceText($r('app.string.adblock_no_rules_parsed')));
         }
+        this.requireCurrentRemoteFetch(fetchGeneration);
         await this.nativeRuleProvider.commitStagedSourcePayload(source.id);
         payloadCommitted = true;
+        this.requireCurrentRemoteFetch(fetchGeneration);
         const settings = await this.runtimeGeneration.upsertCustomRuleSource(source);
         sourceCommitted = true;
         const nativeResult = await this.nativeRuleProvider.reconcile(settings);
@@ -516,6 +577,8 @@ export class AdBlockRuleSourceCoordinator {
       nativeCosmeticRuleCount: source.nativeCosmeticRuleCount,
       ruleCount: source.ruleCount,
       lastUpdatedAt: source.lastUpdatedAt,
+      updateIntervalMs: source.updateIntervalMs,
+      lastAttemptAt: source.lastAttemptAt,
       lastError: source.lastError,
       createdAt: source.createdAt,
       updatedAt: source.updatedAt
@@ -598,8 +661,12 @@ export class AdBlockRuleSourceCoordinator {
     title: string,
     message: string,
     existing: AdBlockCustomRuleSource | undefined,
-    sourceType: 'remote' | 'local'
+    sourceType: 'remote' | 'local',
+    fetchGeneration?: AdBlockRemoteFetchGeneration
   ): Promise<AdBlockRuleSourceResult> {
+    if (fetchGeneration !== undefined && !this.isCurrentRemoteFetch(fetchGeneration)) {
+      return this.buildSupersededFetchResult();
+    }
     if (existing === undefined) {
       return {
         settings: this.repository.getSettings(),
@@ -608,6 +675,9 @@ export class AdBlockRuleSourceCoordinator {
       };
     }
     return this.enqueueRepositoryMutation(async (): Promise<AdBlockRuleSourceResult> => {
+      if (fetchGeneration !== undefined && !this.isCurrentRemoteFetch(fetchGeneration)) {
+        return this.buildSupersededFetchResult();
+      }
       const current = this.findSource(existing.id);
       if (current === undefined) {
         return {
@@ -627,6 +697,48 @@ export class AdBlockRuleSourceCoordinator {
     });
   }
 
+  private beginRemoteFetch(sourceId: string, requiresExistingSource: boolean): AdBlockRemoteFetchGeneration {
+    let generations = AdBlockRuleSourceCoordinator.remoteFetchGenerationsByRepository.get(this.repository);
+    if (generations === undefined) {
+      generations = new Map<string, number>();
+      AdBlockRuleSourceCoordinator.remoteFetchGenerationsByRepository.set(this.repository, generations);
+    }
+    const generation = ++AdBlockRuleSourceCoordinator.nextRemoteFetchGeneration;
+    generations.set(sourceId, generation);
+    return { sourceId: sourceId, generation: generation, requiresExistingSource: requiresExistingSource };
+  }
+
+  private isCurrentRemoteFetch(fetch: AdBlockRemoteFetchGeneration): boolean {
+    return AdBlockRuleSourceCoordinator.remoteFetchGenerationsByRepository.get(this.repository)
+      ?.get(fetch.sourceId) === fetch.generation &&
+      (!fetch.requiresExistingSource || this.findSource(fetch.sourceId) !== undefined);
+  }
+
+  private requireCurrentRemoteFetch(fetch: AdBlockRemoteFetchGeneration | undefined): void {
+    if (fetch !== undefined && !this.isCurrentRemoteFetch(fetch)) {
+      throw new Error(resolveAppResourceText($r('app.string.adblock_source_missing')));
+    }
+  }
+
+  private finishRemoteFetch(fetch: AdBlockRemoteFetchGeneration | undefined): void {
+    if (fetch === undefined) {
+      return;
+    }
+    const generations = AdBlockRuleSourceCoordinator.remoteFetchGenerationsByRepository.get(this.repository);
+    if (generations?.get(fetch.sourceId) === fetch.generation) {
+      generations.delete(fetch.sourceId);
+      if (generations.size === 0) {
+        AdBlockRuleSourceCoordinator.remoteFetchGenerationsByRepository.delete(this.repository);
+      }
+    }
+  }
+
+  private buildSupersededFetchResult(): AdBlockRuleSourceResult {
+    // A newer operation owns both the payload and the UI status. In particular,
+    // stale failures must not replace a later success with an error/retry delay.
+    return { settings: this.repository.getSettings(), message: '', success: false };
+  }
+
   private shouldAutoUpdateRemoteSource(source: AdBlockCustomRuleSource, now: number): boolean {
     if (this.isRemovedBuiltInRuleSourceId(source.id)) {
       return false;
@@ -637,21 +749,13 @@ export class AdBlockRuleSourceCoordinator {
     if (!source.enabled || source.ruleCount <= 0 || source.url.trim().length <= 0) {
       return false;
     }
-    if (source.lastError.trim().length > 0 && now - source.updatedAt < RULE_SOURCE_AUTO_UPDATE_INTERVAL_MS) {
-      return false;
-    }
-    return this.isRuleSourceAutoUpdateDue(source, now);
+    return new AdBlockSubscriptionPolicyService().isDue(source, now);
   }
 
   private isRemovedBuiltInRuleSourceId(sourceId: string): boolean {
     return sourceId === BUILT_IN_AD_BLOCK_RULE_SOURCE_ID ||
       sourceId === SMOOTH_MODE_AD_BLOCK_RULE_SOURCE_ID ||
       sourceId === APP_PROMOTION_BANNER_RULE_SOURCE_ID;
-  }
-
-  private isRuleSourceAutoUpdateDue(source: AdBlockCustomRuleSource, now: number): boolean {
-    const lastUpdatedAt = source.lastUpdatedAt > 0 ? source.lastUpdatedAt : source.updatedAt;
-    return lastUpdatedAt <= 0 || now - lastUpdatedAt >= RULE_SOURCE_AUTO_UPDATE_INTERVAL_MS;
   }
 
   private stringifyError(error: Error | Object | string): string {

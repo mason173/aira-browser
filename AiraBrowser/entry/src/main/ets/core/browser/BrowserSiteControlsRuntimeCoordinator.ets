@@ -700,6 +700,32 @@ export class BrowserSiteControlsRuntimeCoordinator {
     return this.siteDataControlService.buildClearCurrentSiteDataDialogState(profileId, privacyMode, dataScope);
   }
 
+  queryAdBlockCosmeticResources(tabId: string, frameUrl: string, payloadJson: string): string {
+    const context = this.resolveApplicationContext(tabId);
+    return this.adBlockCoordinator.queryCosmeticResourcesForFrame({
+      tabId: tabId,
+      pageUrl: frameUrl,
+      capabilitySupported: this.sessionState.protection.capabilitySupported,
+      controllerAttached: context.controllerAttached,
+      profileId: context.profileId,
+      privacyMode: context.privacyMode,
+      dataScope: context.dataScope
+    }, payloadJson);
+  }
+
+  shouldBlockAdPopup(tabId: string, targetUrl: string): boolean {
+    const context = this.resolveApplicationContext(tabId);
+    return this.adBlockCoordinator.shouldBlockPopupNavigation({
+      tabId: tabId,
+      pageUrl: this.resolveContextPageUrl(context),
+      capabilitySupported: this.sessionState.protection.capabilitySupported,
+      controllerAttached: context.controllerAttached,
+      profileId: context.profileId,
+      privacyMode: context.privacyMode,
+      dataScope: context.dataScope
+    }, targetUrl);
+  }
+
   injectAdBlockCosmeticRulesForPage(
     tabId: string,
     pageUrl: string

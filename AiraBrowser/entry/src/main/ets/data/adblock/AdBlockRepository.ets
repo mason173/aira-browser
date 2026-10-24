@@ -502,6 +502,10 @@ export class AdBlockRepository {
       nativeCosmeticRuleCount: nativeCosmeticRuleCount,
       ruleCount: normalizedRuleCount > 0 ? normalizedRuleCount : explicitRuleCount,
       lastUpdatedAt: this.normalizeTimestamp(value.lastUpdatedAt),
+      updateIntervalMs: typeof value.updateIntervalMs === 'number' && Number.isFinite(value.updateIntervalMs) &&
+        value.updateIntervalMs > 0 ? Math.min(14 * 24 * 60 * 60 * 1000,
+        Math.max(60 * 60 * 1000, Math.floor(value.updateIntervalMs))) : undefined,
+      lastAttemptAt: typeof value.lastAttemptAt === 'number' ? this.normalizeTimestamp(value.lastAttemptAt) : undefined,
       lastError: (value.lastError ?? '').trim(),
       createdAt: this.normalizeTimestamp(value.createdAt) > 0 ? this.normalizeTimestamp(value.createdAt) : now,
       updatedAt: this.normalizeTimestamp(value.updatedAt) > 0 ? this.normalizeTimestamp(value.updatedAt) : now
@@ -1066,6 +1070,8 @@ export class AdBlockRepository {
       nativeCosmeticRuleCount: value.nativeCosmeticRuleCount,
       ruleCount: value.ruleCount,
       lastUpdatedAt: value.lastUpdatedAt,
+      updateIntervalMs: value.updateIntervalMs,
+      lastAttemptAt: value.lastAttemptAt,
       lastError: value.lastError,
       createdAt: value.createdAt,
       updatedAt: value.updatedAt
