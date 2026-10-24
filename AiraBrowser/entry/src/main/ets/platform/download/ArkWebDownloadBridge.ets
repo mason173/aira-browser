@@ -1,5 +1,6 @@
 import { webview } from '@kit.ArkWeb';
 import { hilog } from '@kit.PerformanceAnalysisKit';
+import { util } from '@kit.ArkTS';
 import {
   PlatformDownloadAdapter,
   PlatformDownloadAdapterCallbacks,
@@ -14,6 +15,8 @@ import { resolveAppResourceText } from '../../core/resources/AppResourceText';
 
 const DOWNLOAD_BRIDGE_DOMAIN = 0x0000;
 const DOWNLOAD_BRIDGE_TAG = 'DownloadBridge';
+const ARKWEB_TASK_PREFIX = 'arkweb:';
+const ARKWEB_TOKEN_PREFIX = 'arkweb-v1:';
 
 interface ArkWebDownloadItemApi24 {
   getOriginalUrl?: () => string;
@@ -28,6 +31,7 @@ export class ArkWebDownloadBridge implements PlatformDownloadAdapter {
   private handedOffGuids: Record<string, boolean | undefined> = {};
   private pendingCancelInFlightGuid: string = '';
   private libcurlAdapter: LibcurlDownloadAdapter;
+  private base64Helper: util.Base64Helper = new util.Base64Helper();
 
   constructor(
     diagnosticRecorder?: DownloadRuntimeDiagnosticRecorder,
@@ -96,7 +100,7 @@ export class ArkWebDownloadBridge implements PlatformDownloadAdapter {
         snapshot.receivedBytes,
         snapshot.totalBytes
       );
-      if (this.isTerminalState(snapshot.state)) {
+      if (this.isTerminalState(snapshot.state) && snapshot.state !== 'FAILED') {
         this.itemsByGuid[guid] = undefined;
       }
       return undefined;
@@ -124,6 +128,23 @@ export class ArkWebDownloadBridge implements PlatformDownloadAdapter {
     platformTaskId: string,
     platformTaskToken?: string
   ): Promise<PlatformDownloadSnapshot | undefined> {
+    if (this.isArkWebTask(platformTaskId, platformTaskToken)) {
+      const active = this.getActiveDownloadSnapshot(guid);
+      if (active !== undefined) {
+        return Promise.resolve(active);
+      }
+      const item = this.deserializeDownload(guid, platformTaskToken);
+      if (item === undefined) {
+        return Promise.resolve(undefined);
+      }
+      const snapshot = this.readSnapshot(item);
+      // Reattach the saved task without starting network activity during app initialization.
+      // Keep the deserialized object out of the live-item table: only the user's resume action
+      // can attach it through WebDownloadManager, rather than calling its paused-item resume().
+      snapshot.state = 'PAUSED';
+      snapshot.platformTaskToken = platformTaskToken;
+      return Promise.resolve(snapshot);
+    }
     return this.libcurlAdapter.reconnectDownload(guid, platformTaskId, platformTaskToken);
   }
 
@@ -131,8 +152,10 @@ export class ArkWebDownloadBridge implements PlatformDownloadAdapter {
     snapshot: PlatformDownloadSnapshot,
     targetPath: string
   ): Promise<PlatformDownloadSnapshot | undefined> {
-    if (this.requiresNativeDownload(snapshot) || this.shouldContinueOwnedDownload(snapshot)) {
-      return this.startNativeArkWebDownload(snapshot.guid, targetPath);
+    if (snapshot.downloadDriver === 'arkweb' ||
+      (this.isArkWebTask(snapshot.platformTaskId, snapshot.platformTaskToken) && snapshot.downloadDriver !== 'libcurl') ||
+      this.requiresNativeDownload(snapshot) || this.shouldContinueOwnedDownload(snapshot)) {
+      return this.startOrRestoreArkWebDownload(snapshot.guid, targetPath, snapshot.platformTaskToken);
     }
     const createdTask = await this.libcurlAdapter.startDirectDownload(snapshot, targetPath);
     if (createdTask === undefined) {
@@ -153,7 +176,7 @@ export class ArkWebDownloadBridge implements PlatformDownloadAdapter {
     try {
       const snapshot = this.readSnapshot(item);
       if (this.requiresNativeDownload(snapshot) || this.shouldContinueOwnedDownload(snapshot)) {
-        return this.startNativeArkWebDownload(guid, targetPath) !== undefined;
+        return this.startOrRestoreArkWebDownload(guid, targetPath) !== undefined;
       }
       const createdTask = await this.libcurlAdapter.startDirectDownload(snapshot, targetPath);
       if (createdTask === undefined) {
@@ -184,8 +207,11 @@ export class ArkWebDownloadBridge implements PlatformDownloadAdapter {
     if (item !== undefined) {
       const snapshot = this.readSnapshot(item);
       if (this.requiresNativeDownload(snapshot) || this.shouldContinueOwnedDownload(snapshot)) {
-        return Promise.resolve(this.startNativeArkWebDownload(guid, targetPath) !== undefined);
+        return Promise.resolve(this.startOrRestoreArkWebDownload(guid, targetPath, platformTaskToken) !== undefined);
       }
+    }
+    if (this.isArkWebTask(platformTaskId, platformTaskToken)) {
+      return Promise.resolve(this.restoreArkWebDownload(guid, platformTaskToken) !== undefined);
     }
     return this.libcurlAdapter.retryDownload(
       guid,
@@ -211,16 +237,22 @@ export class ArkWebDownloadBridge implements PlatformDownloadAdapter {
   resumeDownload(guid: string, platformTaskId?: string, platformTaskToken?: string): Promise<boolean> {
     const item = this.itemsByGuid[guid];
     if (item !== undefined && this.handedOffGuids[guid] !== true) {
+      if (this.readState(item) === 'FAILED') {
+        return Promise.resolve(this.restoreArkWebDownload(
+          guid, this.serializeDownload(item) ?? platformTaskToken
+        ) !== undefined);
+      }
       try {
         item.resume();
         return Promise.resolve(true);
       } catch (_error) {
-        try {
-          webview.WebDownloadManager.resumeDownload(item);
-          return Promise.resolve(true);
-        } catch (_resumeError) {
-        }
+        return Promise.resolve(this.restoreArkWebDownload(
+          guid, this.serializeDownload(item) ?? platformTaskToken
+        ) !== undefined);
       }
+    }
+    if (this.isArkWebTask(platformTaskId, platformTaskToken)) {
+      return Promise.resolve(this.restoreArkWebDownload(guid, platformTaskToken) !== undefined);
     }
     return this.libcurlAdapter.resumeDownload(guid, platformTaskId, platformTaskToken);
   }
@@ -319,7 +351,7 @@ export class ArkWebDownloadBridge implements PlatformDownloadAdapter {
       snapshot.currentSpeed
     );
     this.itemsByGuid[snapshot.guid] = item;
-    if (this.isTerminalState(snapshot.state)) {
+    if (this.isTerminalState(snapshot.state) && snapshot.state !== 'FAILED') {
       this.itemsByGuid[snapshot.guid] = undefined;
     }
     const event: PlatformDownloadEvent = {
@@ -351,7 +383,10 @@ export class ArkWebDownloadBridge implements PlatformDownloadAdapter {
       lastErrorCode: this.readLastErrorCode(item),
       mimeType: this.readMimeType(item),
       method: this.readMethod(item),
-      referer: referrerUrl.length > 0 ? referrerUrl : undefined
+      referer: referrerUrl.length > 0 ? referrerUrl : undefined,
+      downloadDriver: 'arkweb',
+      platformTaskId: `${ARKWEB_TASK_PREFIX}${this.readGuid(item)}`,
+      platformTaskToken: this.serializeDownload(item)
     };
   }
 
@@ -547,6 +582,85 @@ export class ArkWebDownloadBridge implements PlatformDownloadAdapter {
   private isHttpUrl(url: string): boolean {
     const normalized = url.trim().toLowerCase();
     return normalized.startsWith('http://') || normalized.startsWith('https://');
+  }
+
+  private isArkWebTask(platformTaskId?: string, platformTaskToken?: string): boolean {
+    return platformTaskId?.startsWith(ARKWEB_TASK_PREFIX) === true ||
+      platformTaskToken?.startsWith(ARKWEB_TOKEN_PREFIX) === true;
+  }
+
+  private serializeDownload(item: webview.WebDownloadItem): string | undefined {
+    try {
+      // A pending item has not been assigned our target path yet. Its temporary file cannot be
+      // recovered as a saved download after restart; report the missing context instead.
+      const state = item.getState();
+      if (state === webview.WebDownloadState.PENDING || state === webview.WebDownloadState.COMPLETED ||
+        state === webview.WebDownloadState.CANCELED) {
+        return undefined;
+      }
+      const bytes = item.serialize();
+      return bytes.length > 0 ? ARKWEB_TOKEN_PREFIX + this.base64Helper.encodeToStringSync(bytes) : undefined;
+    } catch (_error) {
+      return undefined;
+    }
+  }
+
+  private deserializeDownload(guid: string, token?: string): webview.WebDownloadItem | undefined {
+    if (token?.startsWith(ARKWEB_TOKEN_PREFIX) !== true) {
+      return undefined;
+    }
+    try {
+      const item = webview.WebDownloadItem.deserialize(
+        this.base64Helper.decodeSync(token.substring(ARKWEB_TOKEN_PREFIX.length))
+      );
+      return item.getGuid() === guid ? item : undefined;
+    } catch (_error) {
+      return undefined;
+    }
+  }
+
+  private restoreArkWebDownload(guid: string, token?: string): PlatformDownloadSnapshot | undefined {
+    const item = this.deserializeDownload(guid, token);
+    if (item === undefined) {
+      return undefined;
+    }
+    try {
+      this.initialize();
+      this.itemsByGuid[guid] = item;
+      // Huawei requires deserialize -> WebDownloadManager.resumeDownload for failed tasks.
+      // Never replay these URLs through libcurl: their POST body or renderer/session may be unique.
+      webview.WebDownloadManager.resumeDownload(item);
+      const snapshot = this.readSnapshot(item);
+      snapshot.state = 'IN_PROGRESS';
+      snapshot.lastErrorCode = 0;
+      snapshot.platformTaskToken = this.serializeDownload(item) ?? token;
+      return snapshot;
+    } catch (_error) {
+      this.itemsByGuid[guid] = undefined;
+      return undefined;
+    }
+  }
+
+  private startOrRestoreArkWebDownload(
+    guid: string, targetPath: string, token?: string
+  ): PlatformDownloadSnapshot | undefined {
+    const item = this.itemsByGuid[guid];
+    if (item === undefined) {
+      return this.restoreArkWebDownload(guid, token);
+    }
+    const snapshot = this.readSnapshot(item);
+    if (snapshot.state === 'FAILED') {
+      return this.restoreArkWebDownload(guid, snapshot.platformTaskToken ?? token);
+    }
+    if (snapshot.state === 'PAUSED') {
+      try {
+        item.resume();
+        return this.readSnapshot(item);
+      } catch (_error) {
+        return this.restoreArkWebDownload(guid, snapshot.platformTaskToken ?? token);
+      }
+    }
+    return this.startNativeArkWebDownload(guid, targetPath);
   }
 
   private startNativeArkWebDownload(guid: string, targetPath: string): PlatformDownloadSnapshot | undefined {

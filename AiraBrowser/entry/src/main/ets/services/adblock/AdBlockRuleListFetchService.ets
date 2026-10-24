@@ -12,9 +12,14 @@ export class AdBlockRuleListFetchService {
     return (await this.fetchSubscription(url)).text;
   }
 
-  async fetchSubscription(url: string): Promise<AdBlockFetchedSubscription> {
+  async fetchSubscription(url: string, canContinue?: () => boolean): Promise<AdBlockFetchedSubscription> {
     return new AdBlockSubscriptionPreprocessorService().fetch(url.trim(),
-      (address: string, included: boolean): Promise<string> => this.fetchRawText(address, included));
+      (address: string, included: boolean): Promise<string> => {
+        if (canContinue !== undefined && !canContinue()) {
+          throw new Error('规则订阅刷新已取消');
+        }
+        return this.fetchRawText(address, included);
+      });
   }
 
   private async fetchRawText(url: string, included: boolean): Promise<string> {

@@ -70,6 +70,7 @@ function environment({ existingGrant = false, overlapProbeStats = false, failPro
     },
     fileIo: {
       OpenMode: { CREATE: 1, READ_WRITE: 2, TRUNC: 4 },
+      async access(uri) { return files.has(uri); },
       async open(uri) {
         if (uri.startsWith('file://docs/')) {
           requireAccess();
@@ -157,6 +158,7 @@ function environment({ existingGrant = false, overlapProbeStats = false, failPro
   } }) };
   return {
     directory: new directory.DownloadLocationDirectoryService(),
+    fileResolution: service,
     complete: name => completion.persistFinishedDownload('/sandbox/result.png', name, {}),
     restart() { temporary = false; active = false; },
     revoke() { temporary = false; active = false; persisted.clear(); },
@@ -243,6 +245,18 @@ async function run() {
     assert.equal(env.handles.size, 0, 'The descriptor must close even when write fails');
     assert.equal(env.files.size, 1);
     assert.equal(env.files.get(`${folderUri}/.aira-write-probe`).size, 123, 'Existing files must be untouched');
+  });
+  await scenario('deleting a download after restart also removes its resume metadata', async () => {
+    const env = environment();
+    const target = '/sandbox/partial.bin';
+    for (const suffix of ['', '.aira-resume', '.aira-resume.tmp', '.unrelated']) {
+      env.files.set(target + suffix, { size: 10 });
+    }
+    assert.equal(await env.fileResolution.deleteLocalPath(target), 'deleted');
+    assert.deepEqual(Array.from(env.files.keys()), [target + '.unrelated']);
+    env.files.set(target + '.aira-resume', { size: 10 });
+    assert.equal(await env.fileResolution.deleteLocalPath(target), 'missing');
+    assert.deepEqual(Array.from(env.files.keys()), [target + '.unrelated']);
   });
   if (failures.length) throw new Error(`${failures.length} download directory lifecycle scenarios failed`);
 }

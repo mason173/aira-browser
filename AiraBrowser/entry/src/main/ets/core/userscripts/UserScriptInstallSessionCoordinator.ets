@@ -330,6 +330,18 @@ export class UserScriptInstallSessionCoordinator {
     this.installSurfaceObserverToken = token;
     this.observer = observer;
     observer(this.getState());
+    void this.packageLifecycle.initializeMetadata()
+      .then((): void => {
+        if (this.installSurfaceObserverToken === token) {
+          this.publish(this.buildState());
+        }
+      })
+      .catch((): void => {
+        if (this.installSurfaceObserverToken === token) {
+          this.draft.helperMessage = resolveAppResourceText($r('app.string.user_script_read_failed'));
+          this.publish(this.buildState());
+        }
+      });
     return token;
   }
 
@@ -522,6 +534,10 @@ export class UserScriptInstallSessionCoordinator {
       request.type === 'url' ? resolveAppResourceText($r('app.string.user_script_downloading')) : ''
     );
     try {
+      await this.packageLifecycle.initializeMetadata();
+      if (!this.isCurrentImportOperation(operationSerial)) {
+        return { status: 'cancelled' };
+      }
       let result: UserScriptInstallSourceResult;
       switch (request.type) {
         case 'url':

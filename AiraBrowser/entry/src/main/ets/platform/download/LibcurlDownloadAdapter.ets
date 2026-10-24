@@ -230,6 +230,8 @@ export class LibcurlDownloadAdapter {
       referer: snapshot.referer,
       contentDisposition: snapshot.contentDisposition,
       headers: snapshot.headers,
+      privacyMode: snapshot.privacyMode,
+      downloadDriver: 'libcurl',
       hlsSegmentConcurrency: hlsSegmentConcurrency,
       platformTaskId: String(handle),
       platformTaskToken: token
@@ -284,6 +286,8 @@ export class LibcurlDownloadAdapter {
       referer: previous.referer,
       contentDisposition: previous.contentDisposition,
       headers: previous.headers,
+      privacyMode: previous.privacyMode,
+      downloadDriver: 'libcurl',
       hlsSegmentConcurrency: hlsSegmentConcurrency ?? previous.hlsSegmentConcurrency
     }, targetPath);
     return restarted !== undefined;
@@ -424,7 +428,7 @@ export class LibcurlDownloadAdapter {
     }
     if (!hasHeader('Cookie')) {
       try {
-        const cookie = webview.WebCookieManager.fetchCookieSync(snapshot.url, false).trim();
+        const cookie = webview.WebCookieManager.fetchCookieSync(snapshot.url, snapshot.privacyMode === 'private').trim();
         if (cookie.length > 0) {
           headers['Cookie'] = cookie;
         }
@@ -440,6 +444,12 @@ export class LibcurlDownloadAdapter {
       case 'connection':
       case 'content-length':
       case 'host':
+      // A fresh download must receive the full representation. Cache validators
+      // captured from playback may produce a bodyless 304; the native engine owns
+      // its own Range / If-Range pair when resuming a verified partial file.
+      case 'if-range':
+      case 'if-none-match':
+      case 'if-modified-since':
       case 'proxy-connection':
       case 'range':
       case 'te':
@@ -554,6 +564,9 @@ export class LibcurlDownloadAdapter {
       referer: binding.snapshot.referer,
       contentDisposition: binding.snapshot.contentDisposition,
       headers: binding.snapshot.headers,
+      privacyMode: binding.snapshot.privacyMode,
+      downloadDriver: 'libcurl',
+      hlsSegmentConcurrency: binding.snapshot.hlsSegmentConcurrency,
       platformTaskId: binding.snapshot.platformTaskId,
       platformTaskToken: binding.snapshot.platformTaskToken,
       state: state,

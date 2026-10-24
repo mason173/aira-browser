@@ -1111,7 +1111,10 @@ export class BrowserMediaDiscoveryCoordinator {
       totalBytes: candidate.kind === 'hls' ? candidate.estimatedTotalBytes : candidate.totalBytes,
       userAgent: candidate.userAgent,
       referer: candidate.referer ?? candidate.pageUrl,
-      mimeType: candidate.mimeType,
+      // Discovery can identify HLS from captured manifest evidence even when the URL has
+      // no .m3u8 suffix or the server reports text/plain. Preserve that format at the
+      // download boundary, where the native adapter selects its HLS transfer path.
+      mimeType: candidate.kind === 'hls' ? 'application/vnd.apple.mpegurl' : candidate.mimeType,
       contentDisposition: candidate.contentDisposition,
       headers: this.buildResourceDownloadHeaders(candidate)
     };

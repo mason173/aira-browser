@@ -1,4 +1,6 @@
 import { webview } from '@kit.ArkWeb';
+import { BrowserSessionPrivacyMode } from '../../common/models/BrowserModels';
+import { DownloadV2Driver } from '../../domain/downloadv2/DownloadV2Types';
 
 export type PlatformDownloadDelegate = webview.WebDownloadDelegate;
 
@@ -29,6 +31,8 @@ export interface PlatformDownloadSnapshot {
   hlsSegmentConcurrency?: number;
   platformTaskId?: string;
   platformTaskToken?: string;
+  downloadDriver?: DownloadV2Driver;
+  privacyMode?: BrowserSessionPrivacyMode;
 }
 
 export interface PlatformDownloadEvent {

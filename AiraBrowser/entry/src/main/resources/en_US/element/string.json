@@ -20205,6 +20205,10 @@
       "value": "Download paused. Progress so far is kept."
     },
     {
+      "name": "download_browser_context_unavailable",
+      "value": "This browser download can no longer be resumed. Start it again from the original page."
+    },
+    {
       "name": "download_connection_lost",
       "value": "The download connection was interrupted. Try again."
     },

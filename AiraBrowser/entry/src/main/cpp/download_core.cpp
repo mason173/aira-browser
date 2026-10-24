@@ -1,4 +1,5 @@
 #include "download_core.h"
+#include "download_hls.h"
 
 #include <curl/curl.h>
 
@@ -15,6 +16,18 @@
 #include <utility>
 
 namespace aira::download {
+
+// Each easy handle owns its cookie engine. Only serialized cookie snapshots
+// cross worker threads; libcurl does not support concurrent shared cookie jars.
+struct DownloadSession {
+  using Cookies = std::unordered_map<std::string, std::string>;
+  std::mutex mutex;
+  Cookies cookies;
+  explicit DownloadSession(const TaskOptions& options);
+  Cookies Attach(CURL* handle);
+  void Capture(CURL* handle, const Cookies& initial);
+};
+
 namespace {
 
 constexpr std::int64_t kMaxResumeBytes = std::numeric_limits<std::int64_t>::max();
@@ -332,25 +345,6 @@ bool WaitForHlsRetry(DownloadTask* task, int failed_attempt) {
   return !IsTaskTransferInterrupted(task);
 }
 
-std::string ResolveUrl(const std::string& base, const std::string& reference) {
-  const std::string ref = Trim(reference);
-  if (ref.empty()) {
-    return {};
-  }
-  CURLU* url = curl_url();
-  if (url == nullptr) {
-    return {};
-  }
-  char* resolved = nullptr;
-  const bool ok = curl_url_set(url, CURLUPART_URL, base.c_str(), 0) == CURLUE_OK &&
-    curl_url_set(url, CURLUPART_URL, ref.c_str(), 0) == CURLUE_OK &&
-    curl_url_get(url, CURLUPART_URL, &resolved, 0) == CURLUE_OK && resolved != nullptr;
-  const std::string result = ok ? resolved : "";
-  curl_free(resolved);
-  curl_url_cleanup(url);
-  return result;
-}
-
 std::uint64_t StableHash(const std::string& value) {
   std::uint64_t hash = kFnvOffsetBasis;
   for (const unsigned char byte : value) {
@@ -380,6 +374,8 @@ void CleanupHlsArtifacts(const std::string& target_path) {
 struct MemoryContext {
   std::string data;
   DownloadTask* task = nullptr;
+  std::size_t max_bytes = 8 * 1024 * 1024;
+  bool exceeded_limit = false;
 };
 
 std::size_t MemoryWriteCallback(char* data, std::size_t size, std::size_t count, void* user_data) {
@@ -392,6 +388,10 @@ std::size_t MemoryWriteCallback(char* data, std::size_t size, std::size_t count,
     if (state == TaskState::kCanceled || state == TaskState::kPausing) {
       return 0;
     }
+  }
+  if (size * count > context->max_bytes - context->data.size()) {
+    context->exceeded_limit = true;
+    return 0;
   }
   context->data.append(data, size * count);
   return size * count;
@@ -406,9 +406,32 @@ int MemoryProgressCallback(void* user_data, std::int64_t, std::int64_t, std::int
   return state == TaskState::kCanceled || state == TaskState::kPausing ? 1 : 0;
 }
 
-bool AddHeaders(CURL* handle, const std::vector<std::string>& values, curl_slist** output) {
+std::string UrlOrigin(const std::string& value) {
+  CURLU* url = curl_url();
+  if (url == nullptr) return {};
+  char* scheme = nullptr;
+  char* host = nullptr;
+  char* port = nullptr;
+  const bool ok = curl_url_set(url, CURLUPART_URL, value.c_str(), 0) == CURLUE_OK &&
+    curl_url_get(url, CURLUPART_SCHEME, &scheme, 0) == CURLUE_OK &&
+    curl_url_get(url, CURLUPART_HOST, &host, 0) == CURLUE_OK &&
+    curl_url_get(url, CURLUPART_PORT, &port, CURLU_DEFAULT_PORT) == CURLUE_OK;
+  const std::string origin = ok ? LowerAscii(std::string(scheme) + "://" + host + ":" + port) : "";
+  curl_free(scheme);
+  curl_free(host);
+  curl_free(port);
+  curl_url_cleanup(url);
+  return origin;
+}
+
+bool AddHeaders(CURL* handle, const TaskOptions& options, const std::string& request_url, curl_slist** output) {
+  const std::string source_origin = UrlOrigin(options.url);
+  const bool same_origin = !source_origin.empty() && source_origin == UrlOrigin(request_url);
+  const auto& values = options.headers;
   for (const std::string& header : values) {
-    if (!header.empty()) {
+    const std::string name = LowerAscii(Trim(header.substr(0, header.find(':'))));
+    if (!header.empty() && name != "cookie" && name != "range" && name != "if-range" &&
+        name != "proxy-authorization" && (name != "authorization" || same_origin)) {
       curl_slist* appended = curl_slist_append(*output, header.c_str());
       if (appended == nullptr) {
         return false;
@@ -425,7 +448,8 @@ bool AddHeaders(CURL* handle, const std::vector<std::string>& values, curl_slist
 bool FetchText(const TaskOptions& options, const std::string& url, std::string* output,
                DownloadTask* task, std::string* error, std::int32_t* error_code,
                std::string* diagnostic_message, std::string* failure_phase,
-               const char* phase) {
+               const char* phase, DownloadSession* session, std::string* effective_url = nullptr,
+               std::size_t max_bytes = 8 * 1024 * 1024) {
   for (int attempt = 1; attempt <= kHlsTransferMaxAttempts; ++attempt) {
     CURL* handle = curl_easy_init();
     if (handle == nullptr) {
@@ -433,7 +457,8 @@ bool FetchText(const TaskOptions& options, const std::string& url, std::string* 
       *failure_phase = phase;
       return false;
     }
-    MemoryContext context{{}, task};
+    MemoryContext context{{}, task, max_bytes};
+    const auto initial_cookies = session->Attach(handle);
     CurlDiagnosticBuffer diagnostics;
     AttachCurlDiagnostics(handle, &diagnostics);
     curl_slist* header_list = nullptr;
@@ -457,7 +482,7 @@ bool FetchText(const TaskOptions& options, const std::string& url, std::string* 
     if (!options.ca_path.empty()) {
       curl_easy_setopt(handle, CURLOPT_CAPATH, options.ca_path.c_str());
     }
-    if (!AddHeaders(handle, options.headers, &header_list)) {
+    if (!AddHeaders(handle, options, url, &header_list)) {
       curl_slist_free_all(header_list);
       curl_easy_cleanup(handle);
       *error = "无法创建下载请求头。";
@@ -471,13 +496,19 @@ bool FetchText(const TaskOptions& options, const std::string& url, std::string* 
     const std::string transfer_diagnostic = AppendRetryDiagnostic(
       DescribeCurlTransfer(handle, result, response_code, phase, options, url, diagnostics),
       attempt, retryable);
+    if (effective_url != nullptr) {
+      char* final_url = nullptr;
+      curl_easy_getinfo(handle, CURLINFO_EFFECTIVE_URL, &final_url);
+      *effective_url = final_url == nullptr ? url : final_url;
+    }
+    session->Capture(handle, initial_cookies);
     curl_slist_free_all(header_list);
     curl_easy_cleanup(handle);
     if (result == CURLE_OK && response_code >= 200 && response_code < 400) {
       *output = std::move(context.data);
       return true;
     }
-    *error = CurlFailureMessage(result, response_code);
+    *error = context.exceeded_limit ? "HLS 响应超过允许大小。" : CurlFailureMessage(result, response_code);
     *error_code = static_cast<std::int32_t>(result);
     *diagnostic_message = transfer_diagnostic;
     *failure_phase = phase;
@@ -488,120 +519,127 @@ bool FetchText(const TaskOptions& options, const std::string& url, std::string* 
   return false;
 }
 
-struct HlsPlan {
-  std::string map_url;
-  std::vector<std::string> segment_urls;
-  std::uint64_t hash = 0;
-};
-
-bool ParseHlsMedia(const std::string& playlist, const std::string& base_url, HlsPlan* plan,
-                   std::vector<std::pair<long, std::string>>* variants, std::string* error) {
-  std::istringstream stream(playlist);
-  std::string line;
-  bool expect_variant_uri = false;
-  long variant_bandwidth = 0;
-  bool has_segment = false;
-  bool has_end_list = false;
-  while (std::getline(stream, line)) {
-    const std::string value = Trim(line);
-    if (value.empty()) {
-      continue;
-    }
-    if (value.rfind("#EXT-X-STREAM-INF:", 0) == 0) {
-      expect_variant_uri = true;
-      variant_bandwidth = 0;
-      const std::size_t bandwidth = value.find("BANDWIDTH=");
-      if (bandwidth != std::string::npos) {
-        try {
-          variant_bandwidth = std::stol(value.substr(bandwidth + 10));
-        } catch (...) {
-          variant_bandwidth = 0;
-        }
-      }
-      continue;
-    }
-    if (value.front() == '#') {
-      if (value == "#EXT-X-ENDLIST") {
-        has_end_list = true;
-      }
-      if (value.rfind("#EXT-X-KEY:", 0) == 0 && value.find("METHOD=NONE") == std::string::npos) {
-        *error = "当前 HLS 视频使用了不支持的加密方式。";
-        return false;
-      }
-      if (value.rfind("#EXT-X-BYTERANGE:", 0) == 0) {
-        *error = "当前 HLS 视频使用了暂不支持的字节范围分片。";
-        return false;
-      }
-      if (value.rfind("#EXT-X-MAP:", 0) == 0) {
-        if (value.find("BYTERANGE=") != std::string::npos) {
-          *error = "当前 HLS 视频使用了暂不支持的初始化分片字节范围。";
-          return false;
-        }
-        const std::size_t uri_start = value.find("URI=\"");
-        if (uri_start != std::string::npos) {
-          const std::size_t uri_end = value.find('"', uri_start + 5);
-          if (uri_end != std::string::npos) {
-            plan->map_url = ResolveUrl(base_url, value.substr(uri_start + 5, uri_end - uri_start - 5));
-          }
-        }
-      }
-      continue;
-    }
-    const std::string resolved = ResolveUrl(base_url, value);
-    if (resolved.empty()) {
-      continue;
-    }
-    if (expect_variant_uri && variants != nullptr) {
-      variants->emplace_back(variant_bandwidth, resolved);
-      expect_variant_uri = false;
-      continue;
-    }
-    plan->segment_urls.push_back(resolved);
-    has_segment = true;
-  }
-  if (variants != nullptr && !variants->empty()) {
-    return true;
-  }
-  if (!has_segment) {
-    *error = "HLS 清单中没有可下载的视频分片。";
-    return false;
-  }
-  if (!has_end_list) {
-    *error = "当前版本暂不支持直播 HLS 下载。";
-    return false;
-  }
-  plan->hash = StableHash(playlist);
-  return true;
-}
-
 bool ParseHlsPlaylist(const TaskOptions& options, const std::string& playlist,
-                      DownloadTask* task, HlsPlan* plan, std::string* error,
-                      std::int32_t* error_code, std::string* diagnostic_message,
-                      std::string* failure_phase) {
-  std::vector<std::pair<long, std::string>> variants;
+                      const std::string& effective_url, DownloadTask* task, DownloadSession* session,
+                      HlsPlan* plan, std::string* error, std::int32_t* error_code,
+                      std::string* diagnostic_message, std::string* failure_phase) {
+  std::vector<HlsVariant> variants;
   HlsPlan media;
-  if (!ParseHlsMedia(playlist, options.url, &media, &variants, error)) {
-    return false;
-  }
+  if (!ParseHlsMedia(playlist, effective_url, &media, &variants, error)) return false;
+  std::string media_playlist = playlist;
+  std::string media_url = effective_url;
   if (!variants.empty()) {
     const auto selected = *std::max_element(variants.begin(), variants.end(),
-      [](const auto& left, const auto& right) { return left.first < right.first; });
-    std::string variant_playlist;
-    if (!FetchText(options, selected.second, &variant_playlist, task, error, error_code,
-                   diagnostic_message, failure_phase, "hls_variant_manifest") ||
-        !ParseHlsMedia(variant_playlist, selected.second, &media, nullptr, error)) {
-      if (failure_phase->empty()) {
-        *failure_phase = "hls_variant_parse";
+      [](const auto& left, const auto& right) { return left.bandwidth < right.bandwidth; });
+    if (selected.external_audio) {
+      *error = "此 HLS 视频包含独立音轨，当前无法合并音视频。";
+      return false;
+    }
+    media = {};
+    if (!FetchText(options, selected.url, &media_playlist, task, error, error_code,
+                   diagnostic_message, failure_phase, "hls_variant_manifest", session, &media_url) ||
+        !ParseHlsMedia(media_playlist, media_url, &media, nullptr, error)) {
+      if (failure_phase->empty()) *failure_phase = "hls_variant_parse";
+      return false;
+    }
+  }
+  // Version the checkpoint layout: parts now include ordered initialization
+  // sections and decrypted media, never the old ciphertext/single-map layout.
+  media.hash = StableHash("hls-v2\n" + media_url + "\n" + media_playlist);
+  for (auto& key : media.keys) {
+    std::string bytes;
+    if (!FetchText(options, key.url, &bytes, task, error, error_code,
+                   diagnostic_message, failure_phase, "hls_key", session, nullptr, 17)) {
+      if (*error_code == CURLE_WRITE_ERROR && !IsTaskTransferInterrupted(task)) {
+        *error = "HLS AES-128 密钥必须为 16 字节。";
       }
       return false;
     }
-    media.hash = StableHash(variant_playlist);
+    if (bytes.size() != key.bytes.size()) {
+      *error = "HLS AES-128 密钥必须为 16 字节。";
+      *failure_phase = "hls_key";
+      return false;
+    }
+    std::copy(bytes.begin(), bytes.end(), key.bytes.begin());
+    media.hash ^= StableHash(bytes);
+    media.hash *= kFnvPrime;
+    std::fill(bytes.begin(), bytes.end(), '\0');
   }
   *plan = std::move(media);
   return true;
 }
 
 }  // namespace
+
+namespace {
+std::string CookieIdentity(const std::string& line) {
+  std::vector<std::string> fields;
+  std::istringstream input(line);
+  std::string field;
+  while (std::getline(input, field, '\t')) fields.push_back(field);
+  return fields.size() >= 7 ? fields[0] + "\t" + fields[2] + "\t" + fields[5] : "";
+}
+DownloadSession::Cookies ReadCookies(CURL* handle) {
+  DownloadSession::Cookies result;
+  curl_slist* cookies = nullptr;
+  curl_easy_getinfo(handle, CURLINFO_COOKIELIST, &cookies);
+  for (auto* item = cookies; item != nullptr; item = item->next) {
+    const std::string line = item->data;
+    const std::string key = CookieIdentity(line);
+    if (!key.empty()) result[key] = line;
+  }
+  curl_slist_free_all(cookies);
+  return result;
+}
+}  // namespace
+
+DownloadSession::DownloadSession(const TaskOptions& options) {
+  const std::string host = UrlHost(options.url.c_str());
+  if (host.empty()) return;
+  for (const std::string& header : options.headers) {
+    const auto colon = header.find(':');
+    if (colon == std::string::npos || LowerAscii(Trim(header.substr(0, colon))) != "cookie") continue;
+    std::istringstream values(header.substr(colon + 1));
+    std::string pair;
+    while (std::getline(values, pair, ';')) {
+      const auto equals = pair.find('=');
+      if (equals == std::string::npos) continue;
+      const std::string name = Trim(pair.substr(0, equals));
+      const std::string value = Trim(pair.substr(equals + 1));
+      if (name.empty() || name.find_first_of("\r\n\t") != std::string::npos ||
+          value.find_first_of("\r\n\t") != std::string::npos) continue;
+      // ArkWeb exposes a request Cookie string without scope metadata. Import
+      // it as host-only, never as a header forwarded to other HLS origins.
+      const std::string line = host + "\tFALSE\t/\t" +
+        (options.url.rfind("https:", 0) == 0 ? "TRUE" : "FALSE") + "\t0\t" + name + "\t" + value;
+      cookies[CookieIdentity(line)] = line;
+    }
+  }
+}
+
+DownloadSession::Cookies DownloadSession::Attach(CURL* handle) {
+  curl_easy_setopt(handle, CURLOPT_COOKIEFILE, "");
+  std::lock_guard<std::mutex> lock(mutex);
+  for (const auto& cookie : cookies) curl_easy_setopt(handle, CURLOPT_COOKIELIST, cookie.second.c_str());
+  return cookies;
+}
+
+void DownloadSession::Capture(CURL* handle, const Cookies& initial) {
+  const Cookies current = ReadCookies(handle);
+  std::lock_guard<std::mutex> lock(mutex);
+  // Apply deltas so a slower worker cannot overwrite another worker's fresh
+  // cookie with an unchanged copy imported at its start.
+  for (const auto& item : current) {
+    const auto previous = initial.find(item.first);
+    if (previous == initial.end() || previous->second != item.second) cookies[item.first] = item.second;
+  }
+  for (const auto& item : initial) {
+    if (current.find(item.first) == current.end()) {
+      const auto latest = cookies.find(item.first);
+      if (latest != cookies.end() && latest->second == item.second) cookies.erase(latest);
+    }
+  }
+}
 
 void CleanupHlsTaskArtifacts(const std::string& target_path) {
   CleanupHlsArtifacts(target_path);
@@ -616,10 +654,23 @@ struct DownloadTask::TransferContext {
   bool track_progress = true;
   bool saw_content_range = false;
   std::int64_t content_range_start = -1;
+  std::int64_t content_range_end = -1;
+  std::int64_t content_range_total = -1;
+  bool validate_range = false;
+  std::int64_t requested_length = 0;
+  std::string expected_etag;
+  std::string response_etag;
+  bool RangeMatches() const {
+    return saw_content_range && content_range_start == initial_offset &&
+      content_range_end >= content_range_start && content_range_total > content_range_end &&
+      (requested_length <= 0 || content_range_end - content_range_start + 1 == requested_length) &&
+      (expected_etag.empty() || (response_etag == expected_etag && content_range_end == content_range_total - 1));
+  }
 };
 
 DownloadTask::DownloadTask(TaskOptions options) : options_(std::move(options)) {
   EnsureCurlInitialized();
+  session_ = std::make_unique<DownloadSession>(options_);
 }
 
 DownloadTask::~DownloadTask() {
@@ -703,6 +754,11 @@ bool DownloadTask::Cancel() {
   if (cleanup_hls) {
     CleanupHlsArtifacts(options_.target_path);
   }
+  if (!options_.hls) {
+    std::error_code error;
+    std::filesystem::remove(options_.target_path + ".aira-resume", error);
+    std::filesystem::remove(options_.target_path + ".aira-resume.tmp", error);
+  }
   return true;
 }
 
@@ -754,8 +810,7 @@ std::size_t DownloadTask::WriteCallback(char* data, std::size_t size, std::size_
   if (context == nullptr || context->file == nullptr) {
     return 0;
   }
-  if (context->initial_offset > 0 &&
-      (!context->saw_content_range || context->content_range_start != context->initial_offset)) {
+  if (context->validate_range && !context->RangeMatches()) {
     return 0;
   }
   return std::fwrite(data, size, count, context->file);
@@ -767,29 +822,24 @@ std::size_t DownloadTask::HeaderCallback(char* data, std::size_t size, std::size
     return 0;
   }
   const std::string line(data, size * count);
-  constexpr char kContentRange[] = "content-range:";
-  std::string lower = line;
-  std::transform(lower.begin(), lower.end(), lower.begin(), [](unsigned char value) {
-    return static_cast<char>(std::tolower(value));
-  });
+  const std::string lower = LowerAscii(line);
   if (lower.rfind("http/", 0) == 0) {
     context->saw_content_range = false;
     context->content_range_start = -1;
-  }
-  if (lower.rfind(kContentRange, 0) == 0) {
-    const std::size_t first = lower.find_first_of("0123456789", sizeof(kContentRange) - 1);
-    if (first != std::string::npos) {
-      const std::size_t dash = lower.find('-', first);
-      if (dash != std::string::npos) {
-        try {
-          context->content_range_start = std::stoll(lower.substr(first, dash - first));
-          context->saw_content_range = true;
-        } catch (...) {
-          context->content_range_start = -1;
-          context->saw_content_range = false;
-        }
-      }
+    context->content_range_end = -1;
+    context->content_range_total = -1;
+    context->response_etag.clear();
+  } else if (lower.rfind("content-range:", 0) == 0) {
+    long long start = -1, end = -1, total = -1;
+    if (std::sscanf(lower.c_str(), "content-range: bytes %lld-%lld/%lld", &start, &end, &total) == 3 &&
+        start >= 0 && end >= start && total > end) {
+      context->saw_content_range = true;
+      context->content_range_start = start;
+      context->content_range_end = end;
+      context->content_range_total = total;
     }
+  } else if (lower.rfind("etag:", 0) == 0) {
+    context->response_etag = Trim(line.substr(5));
   }
   return size * count;
 }
@@ -848,9 +898,10 @@ int DownloadTask::ProgressCallback(void* user_data, std::int64_t download_total,
   return 0;
 }
 
-bool DownloadTask::TransferHlsFile(const std::string& url, const std::string& path, const std::string& phase,
+bool DownloadTask::TransferHlsFile(const HlsResource& resource, const std::string& path, const std::string& phase,
                                    std::atomic<std::int64_t>* aggregate_received, std::string* error,
                                    std::int32_t* error_code, std::string* diagnostic_message) {
+  const std::string& url = resource.url;
   for (int attempt = 1; attempt <= kHlsTransferMaxAttempts; ++attempt) {
     FILE* file = std::fopen(path.c_str(), "wb");
     CURL* handle = file == nullptr ? nullptr : curl_easy_init();
@@ -861,11 +912,23 @@ bool DownloadTask::TransferHlsFile(const std::string& url, const std::string& pa
       *error = "无法创建 HLS 分片任务。";
       return false;
     }
-    TransferContext context{this, file, 0, aggregate_received, 0, true, false, -1};
+    const auto initial_cookies = session_->Attach(handle);
+    TransferContext context;
+    context.task = this;
+    context.file = file;
+    context.aggregate_received = aggregate_received;
+    context.validate_range = resource.offset >= 0;
+    context.initial_offset = std::max<std::int64_t>(0, resource.offset);
+    context.requested_length = resource.length;
+    const std::string range = std::to_string(resource.offset) + "-" +
+      std::to_string(resource.offset + resource.length - 1);
+    if (context.validate_range) curl_easy_setopt(handle, CURLOPT_RANGE, range.c_str());
+    curl_easy_setopt(handle, CURLOPT_HEADERFUNCTION, &DownloadTask::HeaderCallback);
+    curl_easy_setopt(handle, CURLOPT_HEADERDATA, &context);
     CurlDiagnosticBuffer diagnostics;
     AttachCurlDiagnostics(handle, &diagnostics);
     curl_slist* headers = nullptr;
-    if (!AddHeaders(handle, options_.headers, &headers)) {
+    if (!AddHeaders(handle, options_, url, &headers)) {
       curl_slist_free_all(headers);
       curl_easy_cleanup(handle);
       std::fclose(file);
@@ -902,6 +965,7 @@ bool DownloadTask::TransferHlsFile(const std::string& url, const std::string& pa
     const std::string transfer_diagnostic = AppendRetryDiagnostic(
       DescribeCurlTransfer(handle, result, response_code, phase.c_str(), options_, url, diagnostics),
       attempt, retryable);
+    session_->Capture(handle, initial_cookies);
     curl_slist_free_all(headers);
     curl_easy_cleanup(handle);
     std::fclose(file);
@@ -909,7 +973,9 @@ bool DownloadTask::TransferHlsFile(const std::string& url, const std::string& pa
     const bool interrupted = cancel_requested_.load(std::memory_order_acquire) ||
       pause_requested_.load(std::memory_order_acquire);
     const std::int64_t file_size = ExistingFileSize(path);
-    const bool succeeded = result == CURLE_OK && response_code >= 200 && response_code < 300 && file_size > 0;
+    const bool range_valid = !context.validate_range ||
+      (response_code == 206 && context.RangeMatches() && file_size == resource.length);
+    const bool succeeded = result == CURLE_OK && response_code >= 200 && response_code < 300 && file_size > 0 && range_valid;
     if (succeeded) {
       if (file_size > context.last_download_now) {
         aggregate_received->fetch_add(file_size - context.last_download_now, std::memory_order_relaxed);
@@ -936,7 +1002,7 @@ bool DownloadTask::TransferHlsFile(const std::string& url, const std::string& pa
       return false;
     }
 
-    *error = result == CURLE_OK && file_size <= 0 ?
+    *error = !range_valid ? "服务器未返回请求的 HLS 字节范围。" : result == CURLE_OK && file_size <= 0 ?
       "下载服务器返回了空分片。" : CurlFailureMessage(result, response_code);
     *error_code = static_cast<std::int32_t>(result);
     *diagnostic_message = transfer_diagnostic;
@@ -946,6 +1012,36 @@ bool DownloadTask::TransferHlsFile(const std::string& url, const std::string& pa
   }
   return false;
 }
+
+namespace {
+bool StrongEtag(const std::string& value) {
+  return value.size() >= 2 && value.front() == '"' && value.back() == '"' &&
+    value.find_first_of("\r\n") == std::string::npos;
+}
+std::string ResumeEtag(const TaskOptions& options) {
+  std::ifstream metadata(options.target_path + ".aira-resume");
+  std::string version, url_hash, etag;
+  if (std::getline(metadata, version) && version == "aira-http-v1" &&
+      std::getline(metadata, url_hash) && url_hash == std::to_string(StableHash(options.url)) &&
+      std::getline(metadata, etag) && StrongEtag(etag)) return etag;
+  return {};
+}
+void RemoveResumeMetadata(const std::string& path) {
+  std::error_code error;
+  std::filesystem::remove(path + ".aira-resume", error);
+  std::filesystem::remove(path + ".aira-resume.tmp", error);
+}
+void SaveResumeEtag(const TaskOptions& options, const std::string& etag) {
+  if (!StrongEtag(etag)) { RemoveResumeMetadata(options.target_path); return; }
+  const std::string path = options.target_path + ".aira-resume";
+  std::ofstream metadata(path + ".tmp", std::ios::trunc);
+  metadata << "aira-http-v1\n" << StableHash(options.url) << '\n' << etag << '\n';
+  metadata.close();
+  std::error_code error;
+  if (!metadata.fail()) std::filesystem::rename(path + ".tmp", path, error);
+  if (metadata.fail() || error) RemoveResumeMetadata(options.target_path);
+}
+}  // namespace
 
 void DownloadTask::RunHttp() {
   const std::filesystem::path target(options_.target_path);
@@ -960,13 +1056,14 @@ void DownloadTask::RunHttp() {
   }
 
   std::int64_t existing_size = ExistingFileSize(options_.target_path);
+  const std::string resume_etag = ResumeEtag(options_);
   CURLcode result = CURLE_FAILED_INIT;
   long response_code = 0;
   std::string diagnostic_message;
   std::string failure_phase = "http_download";
 
   for (int attempt = 0; attempt < 2; ++attempt) {
-    const bool use_resume = existing_size > 0 && attempt == 0;
+    const bool use_resume = existing_size > 0 && !resume_etag.empty() && attempt == 0;
     if (!use_resume && existing_size > 0) {
       std::error_code truncate_error;
       std::filesystem::resize_file(options_.target_path, 0, truncate_error);
@@ -976,6 +1073,7 @@ void DownloadTask::RunHttp() {
         return;
       }
       existing_size = 0;
+      RemoveResumeMetadata(options_.target_path);
     }
     FILE* file = std::fopen(options_.target_path.c_str(), use_resume ? "ab" : "wb");
     if (file == nullptr) {
@@ -990,14 +1088,36 @@ void DownloadTask::RunHttp() {
       worker_finished_.store(true, std::memory_order_release);
       return;
     }
-    TransferContext context{this, file, existing_size, nullptr, 0, true, false, -1};
+    const auto initial_cookies = session_->Attach(handle);
+    TransferContext context;
+    context.task = this;
+    context.file = file;
+    context.initial_offset = existing_size;
+    context.validate_range = use_resume;
+    context.expected_etag = use_resume ? resume_etag : "";
     CurlDiagnosticBuffer diagnostics;
     AttachCurlDiagnostics(handle, &diagnostics);
     curl_slist* headers = nullptr;
-    for (const std::string& header : options_.headers) {
-      if (!header.empty()) {
-        headers = curl_slist_append(headers, header.c_str());
+    if (!AddHeaders(handle, options_, options_.url, &headers)) {
+      curl_slist_free_all(headers);
+      curl_easy_cleanup(handle);
+      std::fclose(file);
+      SetTerminalState(TaskState::kFailed, "无法创建下载请求头。");
+      worker_finished_.store(true, std::memory_order_release);
+      return;
+    }
+    if (use_resume) {
+      const std::string if_range = "If-Range: " + resume_etag;
+      curl_slist* appended = curl_slist_append(headers, if_range.c_str());
+      if (appended == nullptr) {
+        curl_slist_free_all(headers);
+        curl_easy_cleanup(handle);
+        std::fclose(file);
+        SetTerminalState(TaskState::kFailed, "无法创建续传验证请求头。");
+        worker_finished_.store(true, std::memory_order_release);
+        return;
       }
+      headers = appended;
     }
     curl_easy_setopt(handle, CURLOPT_URL, options_.url.c_str());
     ApplyDownloadProxy(handle, options_, options_.url);
@@ -1032,20 +1152,37 @@ void DownloadTask::RunHttp() {
     failure_phase = use_resume ? "http_resume" : "http_download";
     diagnostic_message = DescribeCurlTransfer(
       handle, result, response_code, failure_phase.c_str(), options_, options_.url, diagnostics);
-    const bool resume_valid = !use_resume || (response_code == 206 && context.saw_content_range &&
-      context.content_range_start == context.initial_offset);
+    session_->Capture(handle, initial_cookies);
     curl_slist_free_all(headers);
     curl_easy_cleanup(handle);
     std::fclose(file);
 
+    const auto downloaded_size = ExistingFileSize(options_.target_path);
+    // A successful curl transfer only proves its Content-Length was received.
+    // A 206 may advertise a longer representation in Content-Range: do not
+    // publish a truncated suffix as a complete file.
+    const bool resume_valid = !use_resume || (response_code == 206 && context.RangeMatches() &&
+      (result != CURLE_OK || downloaded_size == context.content_range_total));
+    const bool complete_unsolicited_range = context.saw_content_range &&
+      context.content_range_start == 0 && context.content_range_end == context.content_range_total - 1 &&
+      downloaded_size == context.content_range_total;
+    const bool invalid_initial_range = !use_resume && response_code == 206 && !complete_unsolicited_range;
+    if (invalid_initial_range) {
+      result = CURLE_PARTIAL_FILE;
+      diagnostic_message += "|invalidContentRange=1";
+      RemoveResumeMetadata(options_.target_path);
+    }
     const bool interrupted = cancel_requested_.load(std::memory_order_acquire) ||
       pause_requested_.load(std::memory_order_acquire);
     const bool resume_rejected = use_resume && !interrupted &&
       (((response_code >= 200 && response_code < 300) && !resume_valid) ||
        response_code == 416 || result == CURLE_RANGE_ERROR);
     if (resume_rejected) {
+      RemoveResumeMetadata(options_.target_path);
       continue;
     }
+    if (!invalid_initial_range && (response_code == 200 || (response_code == 206 && resume_valid)) &&
+        ExistingFileSize(options_.target_path) > 0) SaveResumeEtag(options_, context.response_etag);
     break;
   }
 
@@ -1067,6 +1204,9 @@ void DownloadTask::RunHttp() {
     diagnostic_message_ = diagnostic_message;
     failure_phase_ = failure_phase;
   }
+  if (cancel_requested_.load(std::memory_order_acquire) || Snapshot().state == TaskState::kCompleted) {
+    RemoveResumeMetadata(options_.target_path);
+  }
   worker_finished_.store(true, std::memory_order_release);
 }
 
@@ -1083,12 +1223,13 @@ void DownloadTask::RunHls() {
   }
 
   std::string playlist;
+  std::string effective_url;
   std::string error;
   std::int32_t error_code = 0;
   std::string diagnostic_message;
   std::string failure_phase;
   if (!FetchText(options_, options_.url, &playlist, this, &error, &error_code,
-                 &diagnostic_message, &failure_phase, "hls_manifest")) {
+                 &diagnostic_message, &failure_phase, "hls_manifest", session_.get(), &effective_url)) {
     if (!FinishIfInterrupted()) {
       SetTerminalState(TaskState::kFailed, error, error_code, diagnostic_message, failure_phase);
     }
@@ -1096,7 +1237,7 @@ void DownloadTask::RunHls() {
     return;
   }
   HlsPlan plan;
-  if (!ParseHlsPlaylist(options_, playlist, this, &plan, &error, &error_code,
+  if (!ParseHlsPlaylist(options_, playlist, effective_url, this, session_.get(), &plan, &error, &error_code,
                         &diagnostic_message, &failure_phase)) {
     if (!FinishIfInterrupted()) {
       SetTerminalState(TaskState::kFailed, error, error_code, diagnostic_message,
@@ -1105,14 +1246,14 @@ void DownloadTask::RunHls() {
     worker_finished_.store(true, std::memory_order_release);
     return;
   }
-  if (plan.segment_urls.empty()) {
+  if (plan.resources.empty()) {
     SetTerminalState(TaskState::kFailed, "HLS 清单中没有可下载的视频分片。");
     worker_finished_.store(true, std::memory_order_release);
     return;
   }
   {
     std::lock_guard<std::mutex> lock(mutex_);
-    file_extension_ = plan.map_url.empty() ? ".ts" : ".mp4";
+    file_extension_ = plan.fragmented_mp4 ? ".mp4" : ".ts";
   }
 
   const std::string checkpoint_path = options_.target_path + ".aira-hls.checkpoint";
@@ -1130,7 +1271,7 @@ void DownloadTask::RunHls() {
           while (std::getline(checkpoint, line)) {
             try {
               const std::size_t index = static_cast<std::size_t>(std::stoull(Trim(line)));
-              if (index < plan.segment_urls.size() && ExistingFileSize(part_prefix + std::to_string(index)) > 0) {
+              if (index < plan.resources.size() && ExistingFileSize(part_prefix + std::to_string(index)) > 0) {
                 completed.insert(index);
               }
             } catch (...) {
@@ -1183,28 +1324,6 @@ void DownloadTask::RunHls() {
     speed_sample_bytes_ = received_bytes_;
     speed_sample_time_ms_ = 0;
   }
-  if (!plan.map_url.empty()) {
-    const std::string map_path = options_.target_path + ".aira-hls.map";
-    if (ExistingFileSize(map_path) <= 0) {
-      std::string map_error;
-      std::int32_t map_error_code = 0;
-      std::string map_diagnostic;
-      if (!TransferHlsFile(plan.map_url, map_path, "hls_map", &received,
-                           &map_error, &map_error_code, &map_diagnostic)) {
-        if (!FinishIfInterrupted()) {
-          SetTerminalState(TaskState::kFailed,
-                           map_error.empty() ? "HLS 初始化分片下载失败。" : map_error,
-                           map_error_code, map_diagnostic, "hls_map");
-        }
-        worker_finished_.store(true, std::memory_order_release);
-        return;
-      }
-    } else {
-      received.fetch_add(ExistingFileSize(map_path), std::memory_order_relaxed);
-    }
-    sync_received();
-  }
-
   std::atomic<std::size_t> next_index{0};
   std::atomic<bool> failed{false};
   std::mutex checkpoint_mutex;
@@ -1213,7 +1332,7 @@ void DownloadTask::RunHls() {
   std::int32_t worker_error_code = 0;
   std::string worker_diagnostic;
   std::string worker_failure_phase;
-  const std::size_t worker_count = std::min(options_.hls_segment_concurrency, plan.segment_urls.size());
+  const std::size_t worker_count = std::min(options_.hls_segment_concurrency, plan.resources.size());
   auto download_segment = [&](std::size_t index) {
     const std::string part_path = part_prefix + std::to_string(index);
     {
@@ -1222,12 +1341,26 @@ void DownloadTask::RunHls() {
         return;
       }
     }
-    const std::string segment_phase = "hls_segment_" + std::to_string(index);
+    const HlsResource& resource = plan.resources[index];
+    const std::string segment_phase = (resource.initialization ? "hls_map_" : "hls_segment_") + std::to_string(index);
     std::string segment_error;
     std::int32_t segment_error_code = 0;
     std::string segment_diagnostic;
-    if (!TransferHlsFile(plan.segment_urls[index], part_path, segment_phase, &received,
-                         &segment_error, &segment_error_code, &segment_diagnostic)) {
+    bool transferred = TransferHlsFile(resource, part_path, segment_phase, &received,
+                                       &segment_error, &segment_error_code, &segment_diagnostic);
+    if (transferred && resource.key_index >= 0) {
+      const auto encrypted_size = ExistingFileSize(part_path);
+      transferred = DecryptHlsFile(part_path, plan.keys[resource.key_index], resource.iv,
+        [&]() { return IsTaskTransferInterrupted(this); }, &segment_error);
+      if (transferred) {
+        received.fetch_add(ExistingFileSize(part_path) - encrypted_size, std::memory_order_relaxed);
+      } else {
+        received.fetch_sub(encrypted_size, std::memory_order_relaxed);
+        std::error_code remove_error;
+        std::filesystem::remove(part_path, remove_error);
+      }
+    }
+    if (!transferred) {
       if (cancel_requested_.load(std::memory_order_acquire) || pause_requested_.load(std::memory_order_acquire)) {
         return;
       }
@@ -1260,7 +1393,7 @@ void DownloadTask::RunHls() {
       while (!failed.load(std::memory_order_acquire) && !cancel_requested_.load(std::memory_order_acquire) &&
              !pause_requested_.load(std::memory_order_acquire)) {
         const std::size_t index = next_index.fetch_add(1, std::memory_order_relaxed);
-        if (index >= plan.segment_urls.size()) {
+        if (index >= plan.resources.size()) {
           return;
         }
         download_segment(index);
@@ -1284,7 +1417,7 @@ void DownloadTask::RunHls() {
     worker_finished_.store(true, std::memory_order_release);
     return;
   }
-  if (failed.load(std::memory_order_acquire) || completed.size() != plan.segment_urls.size()) {
+  if (failed.load(std::memory_order_acquire) || completed.size() != plan.resources.size()) {
     SetTerminalState(TaskState::kFailed, worker_error.empty() ? "HLS 视频分片下载失败。" : worker_error,
                      worker_error_code, worker_diagnostic,
                      worker_failure_phase.empty() ? "hls_segment" : worker_failure_phase);
@@ -1316,8 +1449,8 @@ void DownloadTask::RunHls() {
     }
     return input.eof();
   };
-  bool merge_ok = plan.map_url.empty() || append_file(options_.target_path + ".aira-hls.map");
-  for (std::size_t index = 0; merge_ok && index < plan.segment_urls.size(); ++index) {
+  bool merge_ok = true;
+  for (std::size_t index = 0; merge_ok && index < plan.resources.size(); ++index) {
     merge_ok = append_file(part_prefix + std::to_string(index));
   }
   std::fclose(output);
@@ -1358,7 +1491,7 @@ void DownloadTask::RunHls() {
   std::error_code cleanup_error;
   std::filesystem::remove(checkpoint_path, cleanup_error);
   std::filesystem::remove(options_.target_path + ".aira-hls.map", cleanup_error);
-  for (std::size_t index = 0; index < plan.segment_urls.size(); ++index) {
+  for (std::size_t index = 0; index < plan.resources.size(); ++index) {
     std::filesystem::remove(part_prefix + std::to_string(index), cleanup_error);
   }
   worker_finished_.store(true, std::memory_order_release);

@@ -60,12 +60,24 @@ jobs:
         run: node scripts/check-aira-search-list-viewport.cjs
       - name: Check download directory lifecycle
         run: node scripts/check-aira-download-directory-lifecycle.cjs
+      - name: Check download recovery and captured request context
+        run: |
+          node scripts/check-aira-arkweb-download-recovery.cjs
+          node scripts/check-aira-download-redirect-request.cjs
+          node scripts/check-aira-download-request-context.cjs
+          node scripts/check-aira-resource-download-context.cjs
+      - name: Install native download test dependencies
+        run: sudo apt-get update && sudo apt-get install -y libcurl4-openssl-dev
+      - name: Check native file and encrypted HLS downloads
+        run: ./scripts/check-download-native.sh
       - name: Check ad-block document-start CSS
         run: node --test scripts/check-aira-adblock-document-start.cjs
       - name: Check ad-block replacement download prevention
         run: node --test scripts/check-aira-adblock-download-response.cjs
       - name: Check ad-block discovery, popup and subscription compatibility
         run: node --test scripts/check-aira-adblock-frame-bridge.cjs scripts/check-aira-adblock-cosmetic-query.cjs scripts/check-aira-adblock-cosmetic-discovery.cjs scripts/check-aira-adblock-popup.cjs scripts/check-aira-adblock-subscriptions.cjs
+      - name: Check disabled filter and user-script startup
+        run: node --test scripts/check-aira-adblock-startup.cjs scripts/check-aira-userscript-startup.cjs scripts/check-aira-userscript-lazy-sessions.cjs
       - name: Check Rust ad-block matching semantics
         working-directory: AiraBrowser/entry/src/main/cpp/rust/aira_adblock_core
         run: cargo test --locked

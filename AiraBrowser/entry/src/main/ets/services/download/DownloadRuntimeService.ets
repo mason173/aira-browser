@@ -1208,6 +1208,11 @@ export class DownloadRuntimeService {
     if (task.status === 'completed' && !this.canSaveV2TaskToSystemDownloads(task)) {
       supportedActions = supportedActions.filter((action: DownloadV2ManagementAction) => action !== 'save_to_system');
     }
+    if (task.status === 'failed' && task.persistence.downloadDriver === 'arkweb' &&
+      task.failure.code === 'context_lost' && !task.failure.retriable) {
+      supportedActions = supportedActions.filter((action: DownloadV2ManagementAction) =>
+        action !== 'resume' && action !== 'retry');
+    }
     return supportedActions;
   }
 

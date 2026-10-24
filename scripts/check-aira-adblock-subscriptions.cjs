@@ -60,7 +60,7 @@ function coordinatorFixture(sources) {
   const { AdBlockRuleSourceCoordinator } = load('core/adblock/AdBlockRuleSourceCoordinator', {}, true);
   const coordinator = Object.create(AdBlockRuleSourceCoordinator.prototype);
   const calls = [];
-  const settings = { preferences: { updateOnForeground: true }, customRuleSources: sources };
+  const settings = { preferences: { enabled: true, updateOnForeground: true }, customRuleSources: sources };
   coordinator.repository = { getSettings: () => settings };
   coordinator.fetchAndStore = async (url, item) => {
     calls.push(item.id);
@@ -84,7 +84,7 @@ function transactionFixture() {
   const metadata = new AdBlockRuleSourceMetadataService();
   const original = source(metadata.buildSource(BASE, 'Current').id, { url: BASE, title: 'Current',
     payloadIdentity: 'old', createdAt: 100 });
-  const settings = { preferences: { updateOnForeground: true }, customRuleSources: [original] };
+  const settings = { preferences: { enabled: true, updateOnForeground: true }, customRuleSources: [original] };
   const coordinator = Object.create(AdBlockRuleSourceCoordinator.prototype);
   coordinator.repository = { getSettings: () => settings, initializeMetadata: async () => {},
     ensureRustV1NativeRuleArtifactCleanup: async () => {} };

@@ -136,7 +136,7 @@ add_library(aira_adblock SHARED napi_init.cpp)
 target_include_directories(aira_adblock PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
 target_link_libraries(aira_adblock PRIVATE aira_adblock_rust libace_napi.z.so)
 
-add_library(aira_download SHARED download_napi.cpp download_core.cpp)
+add_library(aira_download SHARED download_napi.cpp download_core.cpp download_hls.cpp)
 target_include_directories(aira_download PRIVATE
   "${CMAKE_CURRENT_SOURCE_DIR}"
   "${CMAKE_CURRENT_SOURCE_DIR}/third_party/curl/include"

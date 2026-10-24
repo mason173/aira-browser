@@ -30,11 +30,10 @@ export class UserScriptRuntimeReadinessCoordinator {
     if (this.executionInitializationPromise === undefined) {
       const pending = this.initializeExecutionRepositories();
       this.executionInitializationPromise = pending;
-      pending.catch((_error: Error) => {
-        if (this.executionInitializationPromise === pending) {
-          this.executionInitializationPromise = undefined;
-        }
-      });
+      pending.then(
+        (): void => this.clearExecutionInitialization(pending),
+        (_error: Error): void => this.clearExecutionInitialization(pending)
+      );
     }
     return this.executionInitializationPromise;
   }
@@ -72,19 +71,16 @@ export class UserScriptRuntimeReadinessCoordinator {
   }
 
   private async initializeExecutionRepositories(): Promise<void> {
-    UserScriptRuntimeReadinessCoordinator.executionReady = false;
     try {
-      const readinessTasks: Promise<void>[] = [
-        this.scriptRepository.initialize().then((): void => undefined),
-        this.riskConsentRepository.initialize().then((): void => undefined),
-        this.valueStore.initialize().then((): void => undefined),
-        this.runtimeStateRepository.initialize()
-          .then((): void => undefined)
-          .catch((_error: Error): void => {
-            // Runtime diagnostics are best-effort and must never block script execution readiness.
-          })
-      ];
-      await Promise.all(readinessTasks);
+      await this.riskConsentRepository.initialize();
+      if (await this.scriptRepository.mayHaveEnabledScriptsAtStartup()) {
+        const settings = await this.scriptRepository.initialize();
+        if (settings.scripts.some((script: InstalledUserScriptState): boolean => script.enabled)) {
+          await this.valueStore.initialize();
+        }
+      }
+      // Diagnostics have their own background initializer. All-disabled packages
+      // retain their files without reading or replaying GM state on cold startup.
       UserScriptRuntimeReadinessCoordinator.executionReady = true;
     } catch (error) {
       UserScriptRuntimeReadinessCoordinator.executionReady = false;
@@ -96,6 +92,14 @@ export class UserScriptRuntimeReadinessCoordinator {
         throw error;
       }
       throw new Error('User script execution readiness initialization failed.');
+    }
+  }
+
+  private clearExecutionInitialization(pending: Promise<void>): void {
+    if (this.executionInitializationPromise === pending) {
+      // Coalesce concurrent calls, not future enable/install transitions. A later
+      // navigation must reconsider packages enabled since the empty cold start.
+      this.executionInitializationPromise = undefined;
     }
   }
 }

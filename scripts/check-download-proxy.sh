@@ -40,20 +40,10 @@ origin_port=$(sed -n 's/^origin=//p' "$port_file")
 http_port=$(sed -n 's/^http_proxy=//p' "$port_file")
 socks_port=$(sed -n 's/^socks=//p' "$port_file")
 
-sdk="${AIRA_DOWNLOAD_PROXY_SDK:-/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.2.sdk}"
-if [ ! -d "$sdk" ]; then
-  echo "macOS SDK not found: $sdk" >&2
-  exit 1
-fi
-/usr/bin/clang++ -std=c++17 -pthread \
-  -isysroot "$sdk" \
-  -I"$root/AiraBrowser/entry/src/main/cpp" \
-  "$root/AiraBrowser/entry/src/main/cpp/download_core.cpp" \
-  "$root/tools/download-proxy-check/download_proxy_host_test.cpp" \
-  -lcurl \
-  -o "$work/download_proxy_host_test"
+"$root/tools/download-native-check/build-host.sh" "$work" \
+  "$root/tools/download-proxy-check/download_proxy_host_test.cpp"
 
-"$work/download_proxy_host_test" \
+"$work/download_host_test" \
   "$origin_port" \
   "$http_port" \
   "$socks_port" \

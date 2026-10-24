@@ -130,11 +130,22 @@ export class DownloadFileResolutionService implements DownloadFileResolutionAdap
 
   async deleteLocalPath(path: string): Promise<DownloadLocalDeleteResult> {
     const normalizedPath = path.trim();
-    if (normalizedPath.length <= 0 || !await this.pathExists(normalizedPath)) {
+    if (normalizedPath.length <= 0) {
       return 'missing';
     }
-    await fileIo.unlink(normalizedPath);
-    return 'deleted';
+    const existed = await this.pathExists(normalizedPath);
+    if (existed) {
+      await fileIo.unlink(normalizedPath);
+    }
+    // A restored task may no longer have a native handle to cancel. Remove its
+    // entity validator even when the partial file has already been deleted.
+    const metadataPaths = [`${normalizedPath}.aira-resume`, `${normalizedPath}.aira-resume.tmp`];
+    for (const metadataPath of metadataPaths) {
+      if (await this.pathExists(metadataPath)) {
+        await fileIo.unlink(metadataPath);
+      }
+    }
+    return existed ? 'deleted' : 'missing';
   }
 
   async movePublicDocumentToTrash(uri: string): Promise<DownloadLocalDeleteResult> {

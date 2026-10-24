@@ -56,6 +56,8 @@ export interface WebLinkContextMenuState {
   tabId: string;
   url: string;
   title: string;
+  referer?: string;
+  userAgent?: string;
   x: number;
   y: number;
   items: WebLinkContextMenuItem[];
@@ -116,6 +118,8 @@ export interface WebContextMenuEffect {
   tabId?: string;
   url?: string;
   title?: string;
+  referer?: string;
+  userAgent?: string;
 }
 
 interface WebContextMenuApplicationResult {
@@ -147,6 +151,8 @@ export type WebLinkContextMenuActionApplicationResolver = () => WebLinkContextMe
 interface WebLinkContextMenuRequest {
   tabId: string;
   pageTitle: string;
+  pageUrl?: string;
+  userAgent?: string;
   privacyMode?: BrowserSessionPrivacyMode | string;
   dataScope?: BrowserDataScope | string;
   event: OnContextMenuShowEvent;
@@ -224,6 +230,8 @@ export class WebLinkContextMenuCoordinator {
     const state = this.buildState({
       tabId: tabId,
       pageTitle: this.resolvePageTitle(facts),
+      pageUrl: facts.pageUrl,
+      userAgent: this.resolveDownloadUserAgent(controller),
       privacyMode: facts.privacyMode,
       dataScope: facts.dataScope,
       event: event,
@@ -367,7 +375,9 @@ export class WebLinkContextMenuCoordinator {
         this.applyResult(this.buildResult([{
           type: 'download_link',
           tabId: state.tabId,
-          url: state.url
+          url: state.url,
+          referer: state.referer,
+          userAgent: state.userAgent
         }]));
         return;
       case 'run_userscript':
@@ -423,6 +433,8 @@ export class WebLinkContextMenuCoordinator {
       tabId: request.tabId,
       url: url,
       title: title,
+      referer: this.isWebLinkUrl(request.pageUrl ?? '') ? request.pageUrl?.trim() : undefined,
+      userAgent: request.userAgent,
       x: this.safeNumber(() => request.event.param.x()),
       y: this.safeNumber(() => request.event.param.y()),
       items: this.cloneItems()
@@ -657,6 +669,12 @@ export class WebLinkContextMenuCoordinator {
     } catch (_error) {
       return undefined;
     }
+  }
+
+  private resolveDownloadUserAgent(controller: webview.WebviewController): string | undefined {
+    const custom = this.safeString(() => controller.getCustomUserAgent());
+    const userAgent = custom.length > 0 ? custom : this.safeString(() => controller.getUserAgent());
+    return userAgent.length > 0 ? userAgent : undefined;
   }
 
   private closePendingResultOnce(): void {

@@ -98,7 +98,9 @@ export class WebLinkContextMenuFixedActionApplication implements WebLinkContextM
       case 'download_link':
         this.dependencies.downloadConfirmOverlayCoordinator.requestAndPresent({
           url: url,
-          totalBytes: 0
+          totalBytes: 0,
+          referer: effect.referer,
+          userAgent: effect.userAgent
         });
         return;
     }

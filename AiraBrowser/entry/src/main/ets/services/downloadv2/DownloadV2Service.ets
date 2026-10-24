@@ -63,10 +63,6 @@ import {
   DownloadTargetResolutionService
 } from '../download/DownloadTargetResolutionService';
 import { DownloadTriggerDiagnosticsService } from '../download/DownloadTriggerDiagnosticsService';
-import {
-  DownloadHtmlRedirectResolution,
-  DownloadHtmlRedirectResolverService
-} from './DownloadHtmlRedirectResolverService';
 import { ActivityTracker } from '../activity/ActivityTracker';
 import { DownloadTaskBoundary } from '../../domain/download/DownloadTypes';
 import { resolveCustomDownloadDirectory } from '../download/DownloadLocationDirectoryService';
@@ -125,7 +121,6 @@ export class DownloadV2Service {
   private downloadQueuePolicyService: DownloadQueuePolicyService;
   private downloadNetworkPolicyService: DownloadNetworkPolicyService;
   private downloadTargetResolutionService: DownloadTargetResolutionService;
-  private htmlRedirectResolverService: DownloadHtmlRedirectResolverService;
   private systemNotificationService?: DownloadV2SystemNotificationService;
   private callbacks: DownloadV2ServiceCallbacks = {};
   private completedPersistenceGuids: Record<string, boolean | undefined> = {};
@@ -147,7 +142,6 @@ export class DownloadV2Service {
     platformAdapter?: PlatformDownloadAdapter,
     fileResolutionService?: DownloadFileResolutionAdapter,
     downloadPolicyService?: DownloadPolicyService,
-    htmlRedirectResolverService?: DownloadHtmlRedirectResolverService,
     fileNameService?: DownloadFileNameService,
     activityTracker?: ActivityTracker,
     downloadTriggerDiagnosticsService?: DownloadTriggerDiagnosticsService,
@@ -162,7 +156,6 @@ export class DownloadV2Service {
     this.fileResolutionService = fileResolutionService ?? new DownloadFileResolutionService();
     this.fileNameService = fileNameService ?? new DownloadFileNameService();
     this.downloadPolicyService = downloadPolicyService ?? new DownloadPolicyService();
-    this.htmlRedirectResolverService = htmlRedirectResolverService ?? new DownloadHtmlRedirectResolverService();
     this.activityTracker = activityTracker;
     this.downloadTriggerDiagnosticsService = downloadTriggerDiagnosticsService ?? new DownloadTriggerDiagnosticsService();
     this.downloadTargetResolutionService = downloadTargetResolutionService ??
@@ -783,63 +776,26 @@ export class DownloadV2Service {
 
   async retryTask(guid: string): Promise<boolean> {
     const task = this.engine.findTask(guid);
-    if (task === undefined) {
+    if (task === undefined || task.status !== 'failed' ||
+      (task.persistence.downloadDriver === 'arkweb' && task.failure.code === 'context_lost' &&
+        !task.failure.retriable) ||
+      (task.persistence.tempFilePath?.trim().length ?? 0) <= 0) {
       return false;
     }
-    const tempFilePath = task.persistence.tempFilePath?.trim() ?? '';
-    if (tempFilePath.length <= 0) {
-      return false;
-    }
-    const retried = await this.platformAdapter.retryDownload(
-      task.guid,
-      tempFilePath,
-      task.runtime.platformTaskId,
-      task.runtime.platformTaskToken,
-      this.resolveTaskHlsSegmentConcurrency(task)
-    );
-    if (!retried) {
-      const restartedSnapshot = await this.restartTaskFromPersistedRequest(task, tempFilePath);
-      if (restartedSnapshot === undefined) {
-        return false;
-      }
-      const restartedTask = this.engine.dispatch(task.guid, 'retry', {
-        progress: {
-          totalBytes: restartedSnapshot.totalBytes > 0 ? restartedSnapshot.totalBytes : task.progress.totalBytes,
-          receivedBytes: restartedSnapshot.receivedBytes,
-          speedBytesPerSecond: restartedSnapshot.currentSpeed
-        },
-        runtime: {
-          platformTaskId: restartedSnapshot.platformTaskId,
-          platformTaskToken: restartedSnapshot.platformTaskToken,
-          resumeCapability: this.resolveResumeCapability(restartedSnapshot.state)
-        },
-        failure: buildDownloadV2EmptyFailure(),
-        timing: {
-          startedAt: Date.now()
-        }
-      });
-      this.rememberExpectedStatus(task.guid, 'running');
-      await this.repository.flushPersistence();
-      return restartedTask !== undefined;
-    }
-    const updatedTask = this.engine.dispatch(task.guid, 'retry', {
-      progress: {
-        receivedBytes: 0,
-        speedBytesPerSecond: 0
-      },
-      runtime: {
-        platformTaskId: task.runtime.platformTaskId,
-        platformTaskToken: task.runtime.platformTaskToken,
-        resumeCapability: 'live_resume'
-      },
-      failure: buildDownloadV2EmptyFailure(),
-      timing: {
-        startedAt: Date.now()
-      }
+    // Queue before invoking either adapter: a resume may synchronously emit running/finished.
+    // Dispatching retry afterwards would overwrite that state and start the same transfer twice.
+    const queuedTask = this.engine.dispatch(task.guid, 'retry', {
+      progress: { speedBytesPerSecond: 0 },
+      failure: buildDownloadV2EmptyFailure()
     });
-    this.rememberExpectedStatus(task.guid, 'running');
+    if (queuedTask === undefined) {
+      return false;
+    }
     await this.repository.flushPersistence();
-    return updatedTask !== undefined;
+    const request = this.buildCapturedRequestFromTask(queuedTask);
+    const started = await this.startPreparedTaskFromRequest(request, queuedTask, 'retry');
+    await this.repository.flushPersistence();
+    return started || this.engine.findTask(guid)?.status === 'queued';
   }
 
   async cancelTask(guid: string): Promise<boolean> {
@@ -964,14 +920,10 @@ export class DownloadV2Service {
     this.applyRememberedPageDownloadIdentity(request);
     await this.initialize();
     this.applyRememberedPageDownloadIdentity(request);
-    let resolvedRequest: DownloadHtmlRedirectResolution = {
-      resolved: false,
-      request: request
-    };
-    if (request.platformSnapshot === undefined) {
-      resolvedRequest = await this.htmlRedirectResolverService.resolve(request);
-    }
-    const requestToCreate = resolvedRequest.request;
+    // The selected transport owns every request, including HTTP redirects and cookies.
+    // A speculative HTML GET would consume one-use URLs before that transport starts.
+    // Manual downloads save the selected resource; HTML/JS navigation belongs to ArkWeb.
+    const requestToCreate = request;
     const normalizedConfirmedFileName = confirmedFileName?.trim() ?? '';
     if (normalizedConfirmedFileName.length > 0) {
       const userFileName = this.fileNameService.ensureExtension(
@@ -993,24 +945,15 @@ export class DownloadV2Service {
     })) {
       return undefined;
     }
-    if (resolvedRequest.resolved) {
-      this.downloadTriggerDiagnosticsService.recordCapturedRequest(
-        'html_redirect',
-        requestToCreate,
-        'captured',
-        'resolved'
-      );
-    }
     hilog.info(
       DOWNLOAD_V2_SERVICE_DOMAIN,
       DOWNLOAD_V2_SERVICE_TAG,
-      'create task begin guid=%{public}s file=%{public}s url=%{public}s snapshot=%{public}s confirm=%{public}s htmlRedirect=%{public}s boundary=%{public}s/%{public}s/%{public}s/%{public}s',
+      'create task begin guid=%{public}s file=%{public}s url=%{public}s snapshot=%{public}s confirm=%{public}s boundary=%{public}s/%{public}s/%{public}s/%{public}s',
       requestToCreate.guid,
       requestToCreate.suggestedFileName,
       requestToCreate.url,
       requestToCreate.platformSnapshot !== undefined ? 'yes' : 'no',
       requiresConfirmation ? 'true' : 'false',
-      resolvedRequest.resolved ? 'true' : 'false',
       requestToCreate.boundary.windowId,
       requestToCreate.boundary.profileId,
       requestToCreate.boundary.privacyMode,
@@ -1215,9 +1158,27 @@ export class DownloadV2Service {
       targetPath,
       downloadDriver
     );
-    const startedSnapshot = await this.startDirectRequest(request, targetPath);
+    let startedSnapshot: PlatformDownloadSnapshot | undefined;
+    if (downloadDriver !== 'arkweb' && currentTask.timing.failedAt !== undefined) {
+      const retried = await this.platformAdapter.retryDownload(
+        currentTask.guid, targetPath, currentTask.runtime.platformTaskId,
+        currentTask.runtime.platformTaskToken, this.resolveTaskHlsSegmentConcurrency(currentTask)
+      );
+      if (retried) {
+        startedSnapshot = this.platformAdapter.getActiveDownloadSnapshot(currentTask.guid) ??
+          this.buildPlatformSnapshotFromTask(currentTask);
+        startedSnapshot.state = 'IN_PROGRESS';
+      }
+    }
+    if (startedSnapshot === undefined) {
+      startedSnapshot = await this.startDirectRequest(request, targetPath, currentTask);
+    }
     if (startedSnapshot === undefined) {
       await this.failPreparedTaskStart(currentTask, request, downloadDriver);
+      return false;
+    }
+    const statusAfterStart = this.engine.findTask(currentTask.guid)?.status;
+    if (statusAfterStart === 'failed' || statusAfterStart === 'canceled' || statusAfterStart === 'removed') {
       return false;
     }
     this.downloadTriggerDiagnosticsService.recordStartResult(request, true, downloadDriver);
@@ -1260,15 +1221,17 @@ export class DownloadV2Service {
       task.persistence.tempFilePath ?? '',
       downloadDriver
     );
-    this.engine.dispatch(task.guid, 'fail', {
-      failure: {
+    const failure: DownloadV2Failure = downloadDriver === 'arkweb' &&
+      !this.platformAdapter.hasActiveDownload(task.guid)
+      ? this.buildArkWebContextUnavailableFailure(task)
+      : {
         code: 'unknown',
         message: resolveAppResourceText($r('app.string.download_start_failed', request.suggestedFileName)),
         retriable: true
-      }
-    });
+      };
+    this.engine.dispatch(task.guid, 'fail', { failure: failure });
     await this.repository.flushPersistence();
-    this.callbacks.onError?.(resolveAppResourceText($r('app.string.download_start_failed', request.suggestedFileName)));
+    this.callbacks.onError?.(failure.message);
     void this.scheduleNextQueuedDownloads('start_failed');
   }
 
@@ -1517,7 +1480,9 @@ export class DownloadV2Service {
       headers: task.request.headers,
       hlsSegmentConcurrency: this.resolveTaskHlsSegmentConcurrency(task),
       platformTaskId: task.runtime.platformTaskId,
-      platformTaskToken: task.runtime.platformTaskToken
+      platformTaskToken: task.runtime.platformTaskToken,
+      downloadDriver: task.persistence.downloadDriver,
+      privacyMode: task.privacyMode
     };
   }
 
@@ -1583,6 +1548,10 @@ export class DownloadV2Service {
       failure: nextFailure
     };
     const previousStatus = currentTask.status;
+    if (currentTask.status === 'queued' && (eventName === 'finish' || eventName === 'pause')) {
+      // ArkWeb can finish a resumed temporary file before an intermediate progress callback.
+      this.engine.dispatch(currentTask.guid, 'start');
+    }
     const updated = this.engine.dispatch(currentTask.guid, eventName, patch);
     if (updated === undefined) {
       return false;
@@ -1679,13 +1648,16 @@ export class DownloadV2Service {
       contentDisposition: snapshot.contentDisposition,
       headers: snapshot.headers,
       platformTaskId: snapshot.platformTaskId,
-      platformTaskToken: snapshot.platformTaskToken
+      platformTaskToken: snapshot.platformTaskToken,
+      downloadDriver: snapshot.downloadDriver,
+      privacyMode: snapshot.privacyMode
     };
   }
 
   private startDirectRequest(
     request: DownloadV2CapturedRequest,
-    targetPath: string
+    targetPath: string,
+    task?: DownloadV2TaskEntity
   ): Promise<PlatformDownloadSnapshot | undefined> {
     hilog.info(
       DOWNLOAD_V2_SERVICE_DOMAIN,
@@ -1713,7 +1685,10 @@ export class DownloadV2Service {
       contentDisposition: request.contentDisposition,
       headers: request.headers,
       hlsSegmentConcurrency: this.resolveHlsSegmentConcurrency(request.boundary),
-      platformTaskToken: request.platformSnapshot?.platformTaskToken
+      platformTaskId: task?.runtime.platformTaskId ?? request.platformSnapshot?.platformTaskId,
+      platformTaskToken: task?.runtime.platformTaskToken ?? request.platformSnapshot?.platformTaskToken,
+      downloadDriver: task?.persistence.downloadDriver ?? this.resolveInitialDownloadDriver(request),
+      privacyMode: request.boundary.privacyMode
     }, targetPath).then((snapshot?: PlatformDownloadSnapshot) => {
       hilog.info(
         DOWNLOAD_V2_SERVICE_DOMAIN,
@@ -1965,8 +1940,8 @@ export class DownloadV2Service {
         speedBytesPerSecond: 0
       },
       runtime: {
-        platformTaskId: '',
-        platformTaskToken: undefined,
+        platformTaskId: task.runtime.platformTaskId,
+        platformTaskToken: task.runtime.platformTaskToken,
         resumeCapability: 'retry_only'
       },
       failure: this.buildTaskLostFailure(task),
@@ -1976,30 +1951,6 @@ export class DownloadV2Service {
       }
     });
     await this.repository.flushPersistence();
-  }
-
-  private async restartTaskFromPersistedRequest(
-    task: DownloadV2TaskEntity,
-    targetPath: string
-  ): Promise<PlatformDownloadSnapshot | undefined> {
-    return this.platformAdapter.startDirectDownload({
-      guid: task.guid,
-      url: task.request.url,
-      originalUrl: task.request.originalUrl,
-      suggestedFileName: task.suggestedFileName,
-      totalBytes: task.progress.totalBytes,
-      receivedBytes: 0,
-      currentSpeed: 0,
-      state: 'PENDING',
-      lastErrorCode: 0,
-      mimeType: task.request.mimeType,
-      method: task.request.method,
-      userAgent: task.request.userAgent,
-      referer: task.request.referer,
-      contentDisposition: task.request.contentDisposition,
-      headers: task.request.headers,
-      hlsSegmentConcurrency: this.resolveTaskHlsSegmentConcurrency(task)
-    }, targetPath);
   }
 
   private resolveTaskHlsSegmentConcurrency(task: DownloadV2TaskEntity): number {
@@ -2109,7 +2060,8 @@ export class DownloadV2Service {
     if (!isDownloadV2ActiveStatus(task.status)) {
       return false;
     }
-    return (task.runtime.platformTaskId?.trim().length ?? 0) > 0;
+    return task.persistence.downloadDriver === 'arkweb' ||
+      (task.runtime.platformTaskId?.trim().length ?? 0) > 0;
   }
 
   private markTaskRestoreUnavailable(guid: string): void {
@@ -2149,7 +2101,19 @@ export class DownloadV2Service {
     this.activityTracker?.recordDownloadComplete(Date.now());
   }
 
+  private buildArkWebContextUnavailableFailure(task: DownloadV2TaskEntity): DownloadV2Failure {
+    return {
+      code: 'context_lost',
+      sourceCode: task.failure.sourceCode,
+      message: resolveAppResourceText($r('app.string.download_browser_context_unavailable')),
+      retriable: false
+    };
+  }
+
   private buildTaskLostFailure(task: DownloadV2TaskEntity): DownloadV2Failure {
+    if (task.persistence.downloadDriver === 'arkweb') {
+      return this.buildArkWebContextUnavailableFailure(task);
+    }
     const partialBytes = Math.max(task.progress.receivedBytes, task.persistence.writtenBytes ?? 0);
     return {
       code: 'context_lost',

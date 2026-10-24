@@ -613,7 +613,14 @@ export class MediaCandidateProjector {
   }
 
   private mediaResourceActions(candidate: MediaCandidate): MediaResourceAction[] {
-    return this.rawMediaResourceActions(candidate);
+    const actions = this.rawMediaResourceActions(candidate);
+    // Resource discovery and native playback cover more formats than file export.
+    // AES-128 identity-key HLS is downloadable; DRM and separate adaptive tracks are not.
+    if (candidate.kind === 'dash' || candidate.acquisition?.mode === 'paired_adaptive' ||
+      candidate.playabilityState === 'protected' || candidate.validation?.state === 'protected') {
+      return actions.filter((action: MediaResourceAction): boolean => action !== 'download');
+    }
+    return actions;
   }
 
   private rawMediaResourceActions(candidate: MediaCandidate): MediaResourceAction[] {

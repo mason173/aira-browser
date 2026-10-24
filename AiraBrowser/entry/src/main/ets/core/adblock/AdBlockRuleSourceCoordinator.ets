@@ -53,6 +53,7 @@ interface AdBlockRemoteFetchGeneration {
   sourceId: string;
   generation: number;
   requiresExistingSource: boolean;
+  automatic: boolean;
 }
 
 export class AdBlockRuleSourceCoordinator {
@@ -178,7 +179,7 @@ export class AdBlockRuleSourceCoordinator {
   }
 
   private async updateDueRemoteSources(): Promise<AdBlockRuleSourceResult | undefined> {
-    if (!this.repository.getSettings().preferences.updateOnForeground) {
+    if (!this.canAutoUpdateRemoteSources()) {
       return undefined;
     }
     const now = Date.now();
@@ -189,14 +190,21 @@ export class AdBlockRuleSourceCoordinator {
     for (const candidate of dueSources) {
       // A manual change may have removed/disabled/refreshed a source while an
       // earlier download was pending. Re-read before each request.
+      if (!this.canAutoUpdateRemoteSources()) {
+        break;
+      }
       const source = this.findSource(candidate.id);
-      if (!this.repository.getSettings().preferences.updateOnForeground || source === undefined ||
-        !this.shouldAutoUpdateRemoteSource(source, Date.now())) {
+      if (source === undefined || !this.shouldAutoUpdateRemoteSource(source, Date.now())) {
         continue;
       }
-      result = await this.fetchAndStore(source.url, source);
+      result = await this.fetchAndStore(source.url, source, undefined, true);
     }
     return result;
+  }
+
+  private canAutoUpdateRemoteSources(): boolean {
+    const preferences = this.repository.getSettings().preferences;
+    return preferences.enabled && preferences.updateOnForeground;
   }
 
   async importLocalSource(uri: string, boundary: AdBlockSettingsBoundary): Promise<AdBlockRuleSourceResult> {
@@ -402,15 +410,21 @@ export class AdBlockRuleSourceCoordinator {
   private async fetchAndStore(
     url: string,
     existing?: AdBlockCustomRuleSource,
-    preset?: AdBlockThirdPartyRuleSourceDefinition
+    preset?: AdBlockThirdPartyRuleSourceDefinition,
+    automatic: boolean = false
   ): Promise<AdBlockRuleSourceResult> {
     const title = preset?.title ?? existing?.title ?? this.metadataService.buildTitle(url);
     const sourceId = existing?.id ?? preset?.id ?? this.metadataService.buildSource(url, title).id;
     const fetchGeneration = this.beginRemoteFetch(sourceId,
-      existing !== undefined || this.findSource(sourceId) !== undefined);
+      existing !== undefined || this.findSource(sourceId) !== undefined, automatic);
     try {
       await this.repository.initializeMetadata();
-      const subscription = await this.fetchService.fetchSubscription(url);
+      this.requireCurrentRemoteFetch(fetchGeneration);
+      const subscription = await this.fetchService.fetchSubscription(url,
+        (): boolean => this.isCurrentRemoteFetch(fetchGeneration));
+      // A disabled automatic refresh must not compile a newly downloaded list
+      // or overwrite retained source metadata after the user turned filtering off.
+      this.requireCurrentRemoteFetch(fetchGeneration);
       const source = this.metadataService.buildSource(url, title, existing);
       source.updateIntervalMs = subscription.updateIntervalMs;
       if (preset !== undefined) {
@@ -475,6 +489,7 @@ export class AdBlockRuleSourceCoordinator {
       let payloadCommitted: boolean = false;
       try {
         await this.nativeRuleProvider.stageSourcePayload(source.id, payload);
+        this.requireCurrentRemoteFetch(fetchGeneration);
         const payloadInfo = await this.nativeRuleProvider.validateStagedSourcePayload(source.id);
         source.payloadIdentity = payloadInfo.identity;
         source.nativeNetworkRuleCount = payloadInfo.networkRuleCount;
@@ -697,7 +712,11 @@ export class AdBlockRuleSourceCoordinator {
     });
   }
 
-  private beginRemoteFetch(sourceId: string, requiresExistingSource: boolean): AdBlockRemoteFetchGeneration {
+  private beginRemoteFetch(
+    sourceId: string,
+    requiresExistingSource: boolean,
+    automatic: boolean = false
+  ): AdBlockRemoteFetchGeneration {
     let generations = AdBlockRuleSourceCoordinator.remoteFetchGenerationsByRepository.get(this.repository);
     if (generations === undefined) {
       generations = new Map<string, number>();
@@ -705,13 +724,16 @@ export class AdBlockRuleSourceCoordinator {
     }
     const generation = ++AdBlockRuleSourceCoordinator.nextRemoteFetchGeneration;
     generations.set(sourceId, generation);
-    return { sourceId: sourceId, generation: generation, requiresExistingSource: requiresExistingSource };
+    return { sourceId: sourceId, generation: generation,
+      requiresExistingSource: requiresExistingSource, automatic: automatic };
   }
 
   private isCurrentRemoteFetch(fetch: AdBlockRemoteFetchGeneration): boolean {
-    return AdBlockRuleSourceCoordinator.remoteFetchGenerationsByRepository.get(this.repository)
+    const source = this.findSource(fetch.sourceId);
+    return (!fetch.automatic || (this.canAutoUpdateRemoteSources() && source?.enabled === true)) &&
+      AdBlockRuleSourceCoordinator.remoteFetchGenerationsByRepository.get(this.repository)
       ?.get(fetch.sourceId) === fetch.generation &&
-      (!fetch.requiresExistingSource || this.findSource(fetch.sourceId) !== undefined);
+      (!fetch.requiresExistingSource || source !== undefined);
   }
 
   private requireCurrentRemoteFetch(fetch: AdBlockRemoteFetchGeneration | undefined): void {

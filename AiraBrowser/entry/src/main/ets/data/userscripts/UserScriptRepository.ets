@@ -14,12 +14,22 @@ import { UserScriptIconService } from '../../services/userscripts/UserScriptIcon
 
 const PREFERENCES_NAME: string = 'aira_browser_userscripts';
 const USER_SCRIPT_SETTINGS_KEY: string = 'user_script_settings';
+const STARTUP_PREFERENCES_NAME: string = 'aira_browser_userscript_startup';
+const STARTUP_HINT_KEY: string = 'user_script_startup_hint';
+const STARTUP_HINT_SCHEMA_VERSION: number = 1;
+
+interface UserScriptStartupHint {
+  schemaVersion: number;
+  hasEnabledScripts?: boolean;
+}
 
 export class UserScriptRepository {
   private capabilityContract: UserScriptCapabilityContractService = new UserScriptCapabilityContractService();
   private iconService: UserScriptIconService = new UserScriptIconService();
   private store?: preferences.Preferences;
   private storePromise?: Promise<preferences.Preferences>;
+  private startupStore?: preferences.Preferences;
+  private startupStorePromise?: Promise<preferences.Preferences>;
   private initializationPromise?: Promise<void>;
   private initialized: boolean = false;
   private settings: UserScriptSettings = {
@@ -46,6 +56,23 @@ export class UserScriptRepository {
     return this.getSettings();
   }
 
+  async mayHaveEnabledScriptsAtStartup(): Promise<boolean> {
+    if (this.initialized) {
+      return this.settings.scripts.some((script: InstalledUserScriptState): boolean => script.enabled);
+    }
+    try {
+      const store = await this.getStartupStore();
+      const rawHint = String(store.getSync(STARTUP_HINT_KEY, ''));
+      const hint = JSON.parse(rawHint) as UserScriptStartupHint;
+      // This is only a skip-work cache. Missing, invalid, or interrupted writes must
+      // fall back to the authoritative package metadata before any script is omitted.
+      return hint === undefined || hint === null || hint.schemaVersion !== STARTUP_HINT_SCHEMA_VERSION ||
+        hint.hasEnabledScripts !== false;
+    } catch (_error) {
+      return true;
+    }
+  }
+
   private async loadSettings(): Promise<void> {
     const store = await this.getStore();
     const rawSettings = String(store.getSync(USER_SCRIPT_SETTINGS_KEY, ''));
@@ -54,6 +81,7 @@ export class UserScriptRepository {
       await this.persistSettings(this.settings);
     } else {
       this.settings = this.normalizeSettings(this.parseSettings(rawSettings));
+      await this.refreshStartupHint();
     }
     this.initialized = true;
   }
@@ -334,11 +362,39 @@ export class UserScriptRepository {
   }
 
   private async persistSettings(settings: UserScriptSettings): Promise<UserScriptSettings> {
-    this.settings = this.normalizeSettings(settings);
+    const nextSettings = this.normalizeSettings(settings);
     const store = await this.getStore();
-    store.putSync(USER_SCRIPT_SETTINGS_KEY, JSON.stringify(this.settings));
+    const startupStore = await this.getStartupStore();
+    // Invalidate and durably flush before changing the authoritative payload. A
+    // process exit between the two stores can only cause extra work, never hide an
+    // enabled script behind an old all-disabled hint.
+    this.writeStartupHint(startupStore);
+    store.putSync(USER_SCRIPT_SETTINGS_KEY, JSON.stringify(nextSettings));
     store.flushSync();
+    this.settings = nextSettings;
+    try {
+      this.writeStartupHint(startupStore, nextSettings);
+    } catch (_error) {
+      // The payload is already committed and the durable hint remains unknown.
+    }
     return this.getSettings();
+  }
+
+  private async refreshStartupHint(): Promise<void> {
+    try {
+      this.writeStartupHint(await this.getStartupStore(), this.settings);
+    } catch (_error) {
+      // An unavailable optimization cache must not make existing packages unreadable.
+    }
+  }
+
+  private writeStartupHint(store: preferences.Preferences, settings?: UserScriptSettings): void {
+    const hint: UserScriptStartupHint = { schemaVersion: STARTUP_HINT_SCHEMA_VERSION };
+    if (settings !== undefined) {
+      hint.hasEnabledScripts = settings.scripts.some((script: InstalledUserScriptState): boolean => script.enabled);
+    }
+    store.putSync(STARTUP_HINT_KEY, JSON.stringify(hint));
+    store.flushSync();
   }
 
   private normalizeTimestamp(value: number | undefined): number {
@@ -365,5 +421,27 @@ export class UserScriptRepository {
         });
     }
     return this.storePromise;
+  }
+
+  private async getStartupStore(): Promise<preferences.Preferences> {
+    if (this.startupStore !== undefined) {
+      return this.startupStore;
+    }
+    if (this.startupStorePromise === undefined) {
+      this.startupStorePromise = preferences.getPreferences(AppRuntimeContext.getApplicationContext(), STARTUP_PREFERENCES_NAME)
+        .then((store: preferences.Preferences) => {
+          this.startupStore = store;
+          return store;
+        });
+    }
+    try {
+      return await this.startupStorePromise;
+    } catch (error) {
+      this.startupStorePromise = undefined;
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error('User script startup hint initialization failed.');
+    }
   }
 }

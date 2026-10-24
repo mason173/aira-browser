@@ -105,6 +105,9 @@ export function canContinueDownloadV2TaskFromPersistedData(task: DownloadV2TaskE
     task.runtime.resumeCapability !== 'retry_only') {
     return false;
   }
+  if (task.persistence.downloadDriver === 'arkweb' && !task.failure.retriable) {
+    return false;
+  }
   const partialBytes = Math.max(task.progress.receivedBytes, task.persistence.writtenBytes ?? 0);
   const tempFilePath = task.persistence.tempFilePath?.trim() ?? '';
   return partialBytes > 0 && tempFilePath.length > 0;

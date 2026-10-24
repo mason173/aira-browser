@@ -12,7 +12,6 @@ export type DownloadTriggerSource =
   'arkweb_delegate' |
   'on_download_start' |
   'manual' |
-  'html_redirect' |
   'resource_sniff' |
   'site_video' |
   'userscript';

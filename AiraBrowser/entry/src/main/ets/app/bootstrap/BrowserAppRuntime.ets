@@ -403,7 +403,6 @@ export const sharedDownloadV2Service: DownloadV2Service = new DownloadV2Service(
   undefined,
   sharedDownloadPolicyService,
   undefined,
-  undefined,
   sharedActivityTracker
 );
 sharedDownloadV2Service.attachRuntimeDiagnosticRecorder(sharedAppCrashDiagnosticsService);

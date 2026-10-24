@@ -20205,6 +20205,10 @@
       "value": "下載已暫停，已有進度已保留。"
     },
     {
+      "name": "download_browser_context_unavailable",
+      "value": "網頁下載已無法恢復，請返回原網頁重新發起下載。"
+    },
+    {
       "name": "download_connection_lost",
       "value": "下載連線已中斷，請重試。"
     },

@@ -280,6 +280,7 @@ export class UserScriptManagementSessionCoordinator {
   private updateResults: UserScriptUpdateResult[] = [];
   private automaticCheckBusy: boolean = false;
   private autoUpdatePreferenceSerial: number = 0;
+  private activationSerial: number = 0;
   private currentSnapshot: UserScriptManagementSnapshot;
 
   constructor(
@@ -327,6 +328,8 @@ export class UserScriptManagementSessionCoordinator {
   }
 
   activate(facts: UserScriptManagementSurfaceFacts): void {
+    this.activationSerial += 1;
+    const serial = this.activationSerial;
     this.facts = new UserScriptManagementSurfaceFacts(
       facts.visible,
       facts.entitlementContext
@@ -339,16 +342,48 @@ export class UserScriptManagementSessionCoordinator {
       this.publish();
       return;
     }
-    if (!this.riskConsentRepository.hasAcceptedCurrentVersion()) {
-      this.activeSheet = 'riskConsent';
-      this.publish();
+    this.publish();
+    void this.initializeManagementState(serial);
+  }
+
+  private async initializeManagementState(serial: number): Promise<void> {
+    // Disabled startup leaves installed packages and their GM state unloaded. Show the
+    // package list as soon as metadata is ready; recovery/diagnostics must not hide it.
+    const readiness: boolean[] = await Promise.all([
+      this.packageLifecycle.initializeMetadata().then((): boolean => true).catch((): boolean => false),
+      this.riskConsentRepository.initialize().then((): boolean => true).catch((): boolean => false)
+    ]);
+    if (!this.isCurrentActivation(serial)) {
       return;
     }
-    if (this.activeSheet === 'riskConsent') {
+    if (!this.riskConsentRepository.hasAcceptedCurrentVersion()) {
+      this.activeSheet = 'riskConsent';
+    } else if (this.activeSheet === 'riskConsent') {
       this.activeSheet = 'none';
     }
+    const metadataReady = readiness[0];
+    this.publish(metadataReady && readiness[1] ? [] : [UserScriptManagementEffect.message(
+      resolveAppResourceText($r('app.string.user_script_read_failed'))
+    )]);
+    if (!metadataReady) {
+      return;
+    }
+    await Promise.all([
+      this.valueStore.initialize().then((): void => {}).catch((): void => {}),
+      this.runtimeStateRepository.initialize().then((): void => {}).catch((): void => {}),
+      this.noticeRepository.initialize().then((): void => {}).catch((): void => {})
+    ]);
+    if (!this.isCurrentActivation(serial)) {
+      return;
+    }
     this.publish();
-    void this.runAutomaticUpdateCheck();
+    if (readiness[1]) {
+      void this.runAutomaticUpdateCheck();
+    }
+  }
+
+  private isCurrentActivation(serial: number): boolean {
+    return this.facts.visible && serial === this.activationSerial;
   }
 
   action(action: UserScriptManagementAction): void {

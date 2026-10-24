@@ -158,6 +158,10 @@ export class UserScriptPackageLifecycleCoordinator {
     return this.repository.findScript(scriptId.trim());
   }
 
+  async initializeMetadata(): Promise<void> {
+    await this.repository.initialize();
+  }
+
   async restoreBackupState(
     state: UserScriptBackupRestoreState,
     entitlementContext: EntitlementContext = {
@@ -167,6 +171,7 @@ export class UserScriptPackageLifecycleCoordinator {
     }
   ): Promise<UserScriptPackageCommitResult> {
     this.ensureCanWriteDevicePreference(entitlementContext);
+    await this.initializeMetadata();
     const installSource = resolveUserScriptPackageSource(state.installSource, state.sourceUrl);
     const parsed = this.parser.parse(state.source, installSource, state.sourceUrl);
     if (!parsed.valid || parsed.candidate === undefined) {
@@ -206,7 +211,7 @@ export class UserScriptPackageLifecycleCoordinator {
       );
     const shouldEnable = state.enabled === true;
     nextState = setInstalledUserScriptEnabled(nextState, shouldEnable, restoredAt);
-    await this.repository.saveInstalledState(nextState);
+    await this.saveExecutableInstalledState(nextState);
     await this.runtimeStateRepository?.deleteScriptState(nextState.id);
     if (existing === undefined) {
       await this.membershipFeature.recordUsage(AIRA_FEATURE_USERSCRIPT_INSTALL);
@@ -240,6 +245,7 @@ export class UserScriptPackageLifecycleCoordinator {
       loggedIn: true
     }
   ): Promise<UserScriptPackageMutationResult> {
+    await this.initializeMetadata();
     const preview = this.previewSource(input);
     switch (preview.status) {
       case 'failed':
@@ -272,6 +278,7 @@ export class UserScriptPackageLifecycleCoordinator {
       loggedIn: true
     }
   ): Promise<UserScriptPackageCommitResult> {
+    await this.initializeMetadata();
     const normalizedUrl = url.trim();
     const fetchResult: UserScriptSourceFetchResult = await this.sourceFetchService.fetchSource(normalizedUrl);
     if (!fetchResult.ok) {
@@ -299,6 +306,7 @@ export class UserScriptPackageLifecycleCoordinator {
       loggedIn: true
     }
   ): Promise<UserScriptUpdateResult> {
+    await this.initializeMetadata();
     if (!this.canWriteDevicePreference(entitlementContext)) {
       return this.buildPolicyDeniedUpdateResult(scriptId, checkedAt);
     }
@@ -322,6 +330,7 @@ export class UserScriptPackageLifecycleCoordinator {
       loggedIn: true
     }
   ): Promise<UserScriptUpdateResult> {
+    await this.initializeMetadata();
     if (!this.canWriteDevicePreference(entitlementContext)) {
       return this.buildPolicyDeniedUpdateResult(scriptId, checkedAt);
     }
@@ -340,7 +349,7 @@ export class UserScriptPackageLifecycleCoordinator {
         result.checkedAt,
         Date.now()
       );
-      await this.repository.saveInstalledState(updatedState);
+      await this.saveExecutableInstalledState(updatedState);
       await this.runtimeStateRepository?.deleteScriptState(updatedState.id);
       return this.withUpdatedState(result, updatedState, materialized.warnings);
     }
@@ -360,11 +369,12 @@ export class UserScriptPackageLifecycleCoordinator {
     }
   ): Promise<void> {
     this.ensureCanWriteDevicePreference(entitlementContext);
+    await this.initializeMetadata();
     const state = this.repository.findScript(scriptId.trim());
     if (state === undefined) {
       return;
     }
-    await this.repository.saveInstalledState(setInstalledUserScriptEnabled(state, enabled, Date.now()));
+    await this.saveExecutableInstalledState(setInstalledUserScriptEnabled(state, enabled, Date.now()));
     if (enabled && !state.enabled) {
       await this.runtimeStateRepository?.deleteScriptState(state.id);
     }
@@ -379,6 +389,7 @@ export class UserScriptPackageLifecycleCoordinator {
     }
   ): Promise<void> {
     this.ensureCanWriteDevicePreference(entitlementContext);
+    await this.initializeMetadata();
     const normalizedId = scriptId.trim();
     await this.valueStore.deletePackageValues(normalizedId);
     await this.runtimeStateRepository?.deleteScriptState(normalizedId);
@@ -449,7 +460,7 @@ export class UserScriptPackageLifecycleCoordinator {
         checkedAt > 0 ? checkedAt : existing.lastCheckedAt,
         committedAt
       );
-    await this.repository.saveInstalledState(nextState);
+    await this.saveExecutableInstalledState(nextState);
     if (existing !== undefined) {
       await this.runtimeStateRepository?.deleteScriptState(nextState.id);
     }
@@ -464,6 +475,16 @@ export class UserScriptPackageLifecycleCoordinator {
       scriptName: nextState.name,
       warnings: combinedWarnings
     };
+  }
+
+  private async saveExecutableInstalledState(state: InstalledUserScriptState): Promise<void> {
+    if (state.enabled) {
+      // Cold startup can skip all GM files while every package is disabled. Load
+      // the existing commit authority before exposing a newly executable package;
+      // never manufacture an empty value snapshot for an enable or install.
+      await this.valueStore.initialize();
+    }
+    await this.repository.saveInstalledState(state);
   }
 
   private preserveRemoteUpdateUrls(
