@@ -135,6 +135,7 @@ export struct BrowserLargeScreenTabStripSurface {
   }
 
   aboutToDisappear(): void {
+    sharedBrowserLargeScreenWindowChromeService.cancelPendingMoveLease(this.windowChromeLeaseId);
     this.siteIconListPresenter.dispose();
   }
 
@@ -670,10 +671,9 @@ export struct BrowserLargeScreenTabStripSurface {
   }
 
   private handleWindowMoveTouch(event: TouchEvent): void {
-    if (!this.presentation.windowMoveEnabled || event.type !== TouchType.Down) {
-      return;
-    }
-    sharedBrowserLargeScreenWindowChromeService.startMovingLease(this.windowChromeLeaseId);
+    sharedBrowserLargeScreenWindowChromeService.handleMoveTouchLease(
+      this.windowChromeLeaseId, event, this.presentation.windowMoveEnabled
+    );
   }
 
   private syncSiteIcons(): void {

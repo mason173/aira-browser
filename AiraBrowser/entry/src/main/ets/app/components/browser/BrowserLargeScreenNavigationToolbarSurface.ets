@@ -282,6 +282,7 @@ export struct BrowserLargeScreenNavigationToolbarSurface {
   @State private downloadIndicatorVisible: boolean = false;
 
   aboutToDisappear(): void {
+    sharedBrowserLargeScreenWindowChromeService.cancelPendingMoveLease(this.windowChromeLeaseId);
     this.unbindDownloadIndicator();
     this.clearFocusRequest();
     this.clearSelectionRequest();
@@ -466,9 +467,9 @@ export struct BrowserLargeScreenNavigationToolbarSurface {
             .width(BROWSER_LARGE_SCREEN_TITLE_BAR_MIN_DRAG_WIDTH_VP)
             .height('100%')
             .onTouch((event: TouchEvent): void => {
-              if (event.type === TouchType.Down) {
-                sharedBrowserLargeScreenWindowChromeService.startMovingLease(this.windowChromeLeaseId);
-              }
+              sharedBrowserLargeScreenWindowChromeService.handleMoveTouchLease(
+                this.windowChromeLeaseId, event, this.windowMoveEnabled
+              );
             })
             .bindContextMenuWithResponse(
               this.buildTitleBarBlankContextMenuResponse,

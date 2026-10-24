@@ -1,9 +1,18 @@
 import { window } from '@kit.ArkUI';
 
+const WINDOW_MOVE_THRESHOLD_VP: number = 4;
+
+interface BrowserWindowMovePress {
+  pointerId: number;
+  windowX: number;
+  windowY: number;
+}
+
 interface BrowserLargeScreenWindowChromeBinding {
   leaseId: string;
   mainWindow: window.Window;
   integrated: boolean;
+  movePress?: BrowserWindowMovePress;
   onIntegrationChange?: () => void;
 }
 
@@ -12,8 +21,8 @@ interface BrowserLargeScreenWindowChromeBinding {
  *
  * Presentation policy remains in BrowserLargeScreenPresentationViewModel.
  * This service only binds concrete main windows, hides/restores their system
- * title text region, and starts system window movement from a synchronous
- * ArkUI TouchType.Down callback.
+ * title text region, and starts system window movement synchronously from
+ * TouchType.Move after a press crosses the drag threshold.
  */
 export class BrowserLargeScreenWindowChromeService {
   private bindings: Record<string, BrowserLargeScreenWindowChromeBinding | undefined> = {};
@@ -38,6 +47,9 @@ export class BrowserLargeScreenWindowChromeService {
     const normalizedPreviousWindowId = this.normalizeWindowId(previousWindowId);
     const normalizedNextWindowId = this.normalizeWindowId(nextWindowId);
     const binding = this.bindings[normalizedPreviousWindowId];
+    if (binding !== undefined) {
+      binding.movePress = undefined;
+    }
     if (normalizedPreviousWindowId === normalizedNextWindowId) {
       if (binding !== undefined) {
         binding.mainWindow = mainWindow;
@@ -82,6 +94,9 @@ export class BrowserLargeScreenWindowChromeService {
 
   restoreLease(leaseId: string): void {
     const binding = this.resolveBindingByLeaseId(leaseId);
+    if (binding !== undefined) {
+      binding.movePress = undefined;
+    }
     if (binding === undefined || !binding.integrated) {
       return;
     }
@@ -98,14 +113,56 @@ export class BrowserLargeScreenWindowChromeService {
     return this.bindings[this.normalizeWindowId(windowId)]?.integrated === true;
   }
 
-  startMovingLease(leaseId: string): void {
+  cancelPendingMoveLease(leaseId: string): void {
     const binding = this.resolveBindingByLeaseId(leaseId);
-    if (binding === undefined || !binding.integrated) {
+    if (binding !== undefined) {
+      binding.movePress = undefined;
+    }
+  }
+
+  handleMoveTouchLease(leaseId: string, event: TouchEvent, enabled: boolean): void {
+    const binding = this.resolveBindingByLeaseId(leaseId);
+    if (binding === undefined) {
       return;
     }
-    void binding.mainWindow.startMoving().catch((): void => {
+    if (!enabled || !binding.integrated || event.type === TouchType.Up ||
+      event.type === TouchType.Cancel || event.touches.length !== 1 || event.changedTouches.length === 0) {
+      binding.movePress = undefined;
+      return;
+    }
+    const touch = event.changedTouches[0];
+    if (event.type === TouchType.Down) {
+      binding.movePress = {
+        pointerId: touch.id,
+        windowX: touch.windowX,
+        windowY: touch.windowY
+      };
+      return;
+    }
+    const press = binding.movePress;
+    if (event.type !== TouchType.Move || press === undefined) {
+      return;
+    }
+    if (touch.id !== press.pointerId) {
+      binding.movePress = undefined;
+      return;
+    }
+    const deltaX = touch.windowX - press.windowX;
+    const deltaY = touch.windowY - press.windowY;
+    if (deltaX * deltaX + deltaY * deltaY <= WINDOW_MOVE_THRESHOLD_VP * WINDOW_MOVE_THRESHOLD_VP) {
+      return;
+    }
+    // Huawei's Window API permits Move after Down. Starting on Down makes even
+    // a click enter native dragging, which can restore a maximized window.
+    // Clear before handing off so subsequent Move events cannot start it twice.
+    binding.movePress = undefined;
+    try {
+      void binding.mainWindow.startMoving().catch((): void => {
+        // Unsupported/transient window states must not break title-bar input.
+      });
+    } catch (_error) {
       // Unsupported/transient window states must not break title-bar input.
-    });
+    }
   }
 
   private normalizeWindowId(windowId: string): string {

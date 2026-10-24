@@ -58,6 +58,8 @@ jobs:
         run: node scripts/check-aira-search-style-isolation.cjs
       - name: Check search list viewport
         run: node scripts/check-aira-search-list-viewport.cjs
+      - name: Check title-bar click and drag behavior
+        run: node --test scripts/check-aira-window-title-drag.cjs
       - name: Check download directory lifecycle
         run: node scripts/check-aira-download-directory-lifecycle.cjs
       - name: Check download recovery and captured request context

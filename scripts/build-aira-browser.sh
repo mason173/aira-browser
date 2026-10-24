@@ -539,6 +539,7 @@ fi
 
 "${NODE_BIN}" "${SPLIT_TOOLBAR_FRAME_GUARD_SCRIPT}"
 "${NODE_BIN}" "${TOOLBAR_SETTINGS_REFRESH_GUARD_SCRIPT}"
+"${NODE_BIN}" --test "${REPO_ROOT}/scripts/check-aira-window-title-drag.cjs"
 "${NODE_BIN}" "${REPO_ROOT}/scripts/check-aira-search-style-isolation.cjs"
 "${NODE_BIN}" "${REPO_ROOT}/scripts/check-aira-search-list-viewport.cjs"
 "${NODE_BIN}" "${REPO_ROOT}/scripts/check-aira-download-directory-lifecycle.cjs"

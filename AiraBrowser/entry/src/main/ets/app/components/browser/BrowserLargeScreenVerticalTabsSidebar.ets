@@ -148,6 +148,7 @@ export struct BrowserLargeScreenVerticalTabsSidebar {
   }
 
   aboutToDisappear(): void {
+    sharedBrowserLargeScreenWindowChromeService.cancelPendingMoveLease(this.windowChromeLeaseId);
     this.clearPeekCollapseTimer();
     this.siteIconListPresenter.dispose();
   }
@@ -968,10 +969,9 @@ export struct BrowserLargeScreenVerticalTabsSidebar {
   }
 
   private handleWindowMoveTouch(event: TouchEvent): void {
-    if (!this.windowMoveEnabled || event.type !== TouchType.Down) {
-      return;
-    }
-    sharedBrowserLargeScreenWindowChromeService.startMovingLease(this.windowChromeLeaseId);
+    sharedBrowserLargeScreenWindowChromeService.handleMoveTouchLease(
+      this.windowChromeLeaseId, event, this.windowMoveEnabled
+    );
   }
 
   private shouldShowClose(tab: BrowserLargeScreenTabProjection): boolean {
