@@ -1,4 +1,5 @@
 import { fileIo, fileUri, picker } from '@kit.CoreFileKit';
+import { util } from '@kit.ArkTS';
 import { DownloadLocationDirectoryService } from './DownloadLocationDirectoryService';
 import { fileManagerService } from '@kit.FileManagerServiceKit';
 import { BusinessError } from '@kit.BasicServicesKit';
@@ -79,6 +80,7 @@ export interface DownloadFileResolutionAdapter {
 }
 
 export class DownloadFileResolutionService implements DownloadFileResolutionAdapter {
+  private static reservedExportUris: Set<string> = new Set<string>();
   private fileNameService: DownloadFileNameService = new DownloadFileNameService();
   private filenameConflictService: DownloadFilenameConflictService = new DownloadFilenameConflictService();
 
@@ -432,7 +434,8 @@ export class DownloadFileResolutionService implements DownloadFileResolutionAdap
   }
 
   private buildTemporaryFileName(suggestedFileName: string, now: number): string {
-    return `${now}-${this.sanitizeFileName(suggestedFileName)}`;
+    const extension = this.sanitizeFileName(suggestedFileName).match(/\.[a-zA-Z0-9]{1,12}$/)?.[0] ?? '.part';
+    return `${now}-${util.generateRandomUUID()}${extension}`;
   }
 
   private normalizeTargetBaseUri(targetBaseUri: string): string {
@@ -485,27 +488,34 @@ export class DownloadFileResolutionService implements DownloadFileResolutionAdap
       }
       const fallbackStartIndex = resolvedTarget.targetUri === targetUri ? 1 : 2;
       const fallbackTarget = await this.resolveAvailableConflictTarget(targetUri, fallbackStartIndex);
-      await this.copyLocalPathToUri(sourcePath, fallbackTarget.targetUri, sourceSize, 'fallback');
-      return fallbackTarget.targetUri;
+      try {
+        await this.copyLocalPathToUri(sourcePath, fallbackTarget.targetUri, sourceSize, 'fallback');
+        return fallbackTarget.targetUri;
+      } finally {
+        DownloadFileResolutionService.reservedExportUris.delete(fallbackTarget.targetUri);
+      }
+    } finally {
+      DownloadFileResolutionService.reservedExportUris.delete(resolvedTarget.targetUri);
     }
+  }
+
+  private async reserveCopyTarget(uri: string, label: string): Promise<DownloadCopyTargetResolution | undefined> {
+    if (DownloadFileResolutionService.reservedExportUris.has(uri) || await this.uriExists(uri)) return undefined;
+    // Recheck after the asynchronous provider query. All app instances share the
+    // reservation so two completed downloads cannot both select an absent name.
+    if (DownloadFileResolutionService.reservedExportUris.has(uri)) return undefined;
+    DownloadFileResolutionService.reservedExportUris.add(uri);
+    return { targetUri: uri, label: label };
   }
 
   private async resolveAvailableCopyTarget(
     targetUri: string,
     conflictResolvedUri: string
   ): Promise<DownloadCopyTargetResolution> {
-    if (!await this.uriExists(targetUri)) {
-      return {
-        targetUri: targetUri,
-        label: 'target'
-      };
-    }
-    if (!await this.uriExists(conflictResolvedUri)) {
-      return {
-        targetUri: conflictResolvedUri,
-        label: 'conflict'
-      };
-    }
+    const original = await this.reserveCopyTarget(targetUri, 'target');
+    if (original !== undefined) return original;
+    const conflict = await this.reserveCopyTarget(conflictResolvedUri, 'conflict');
+    if (conflict !== undefined) return conflict;
     return this.resolveAvailableConflictTarget(targetUri, 2);
   }
 
@@ -516,21 +526,17 @@ export class DownloadFileResolutionService implements DownloadFileResolutionAdap
     const normalizedStartIndex = Math.max(1, Math.floor(startIndex));
     for (let index = normalizedStartIndex; index <= 999; index += 1) {
       const candidateUri = this.buildConflictCandidateUri(targetUri, index);
-      if (!await this.uriExists(candidateUri)) {
-        return {
-          targetUri: candidateUri,
-          label: 'conflict'
-        };
-      }
+      const candidate = await this.reserveCopyTarget(candidateUri, 'conflict');
+      if (candidate !== undefined) return candidate;
     }
     const timestampPlan: DownloadFilenameConflictPlan = this.filenameConflictService.buildUniquifyPlan(
-      `${Date.now()}-${this.resolveFileNameFromUri(targetUri)}`,
+      `${util.generateRandomUUID()}-${this.resolveFileNameFromUri(targetUri)}`,
       1
     );
-    return {
-      targetUri: this.appendFileNameToUri(this.resolveBaseUriFromUri(targetUri), timestampPlan.fileName),
-      label: 'conflict'
-    };
+    const uniqueUri = this.appendFileNameToUri(this.resolveBaseUriFromUri(targetUri), timestampPlan.fileName);
+    const unique = await this.reserveCopyTarget(uniqueUri, 'conflict');
+    if (unique === undefined) throw new Error('copy_destination_unavailable');
+    return unique;
   }
 
   private buildConflictCandidateUri(targetUri: string, conflictIndex: number): string {
@@ -707,11 +713,12 @@ export class DownloadFileResolutionService implements DownloadFileResolutionAdap
       // number: the official copy sample only passes the buffer length and lets
       // the destination descriptor advance. Passing the file position here drops
       // everything after the first chunk.
-      const bytesWritten = await fileIo.write(outputFd, payload, {
-        length: payload.byteLength
-      });
-      if (bytesWritten <= 0) {
-        throw new Error('copy_write_stalled');
+      let written = 0;
+      while (written < payload.byteLength) {
+        const remaining = written === 0 ? payload : payload.slice(written);
+        const bytesWritten = await fileIo.write(outputFd, remaining, { length: remaining.byteLength });
+        if (bytesWritten <= 0 || bytesWritten > remaining.byteLength) throw new Error('copy_write_stalled');
+        written += bytesWritten;
       }
       inputOffset += bytesRead;
     }

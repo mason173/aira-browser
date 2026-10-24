@@ -71,6 +71,7 @@ function environment({ existingGrant = false, overlapProbeStats = false, failPro
     fileIo: {
       OpenMode: { CREATE: 1, READ_WRITE: 2, TRUNC: 4 },
       async access(uri) { return files.has(uri); },
+      async mkdir(uri) { files.set(uri, { size: 0 }); },
       async open(uri) {
         if (uri.startsWith('file://docs/')) {
           requireAccess();
@@ -137,6 +138,7 @@ function environment({ existingGrant = false, overlapProbeStats = false, failPro
   const directory = load(path.join(sourceRoot, 'services/download/DownloadLocationDirectoryService.ets'));
   const { DownloadFileResolutionService } = load(path.join(sourceRoot, 'services/download/DownloadFileResolutionService.ets'));
   const service = new DownloadFileResolutionService();
+  const copyOriginal = service.copyLocalPathWithoutOverwrite.bind(service);
   service.copyLocalPathWithoutOverwrite = async (_source, target) => { requireAccess(); return target; };
   let fallbackCount = 0;
   service.persistToSystemDownloads = async () => {
@@ -159,6 +161,8 @@ function environment({ existingGrant = false, overlapProbeStats = false, failPro
   return {
     directory: new directory.DownloadLocationDirectoryService(),
     fileResolution: service,
+    fileIo: coreFileKit.fileIo,
+    copyOriginal,
     complete: name => completion.persistFinishedDownload('/sandbox/result.png', name, {}),
     restart() { temporary = false; active = false; },
     revoke() { temporary = false; active = false; persisted.clear(); },
@@ -257,6 +261,49 @@ async function run() {
     env.files.set(target + '.aira-resume', { size: 10 });
     assert.equal(await env.fileResolution.deleteLocalPath(target), 'missing');
     assert.deepEqual(Array.from(env.files.keys()), [target + '.unrelated']);
+  });
+  await scenario('same-named tasks created in the same millisecond get independent temporary files', async () => {
+    const env = environment(); env.fileResolution.getDownloadsTempDir = () => '/sandbox/incomplete';
+    const plans = await Promise.all([
+      env.fileResolution.resolveTemporaryTarget('same.zip', 123),
+      env.fileResolution.resolveTemporaryTarget('same.zip', 123)
+    ]);
+    assert.notEqual(plans[0].targetPath, plans[1].targetPath);
+  });
+  await scenario('concurrent exports with the same filename cannot select the same destination', async () => {
+    const env = environment();
+    env.files.set('/sandbox/one', { size: 10 }); env.files.set('/sandbox/two', { size: 10 });
+    env.fileResolution.copyLocalPathToUri = async (source, target) => {
+      await Promise.resolve(); env.files.set(target, { size: 10, source });
+    };
+    const otherWindow = new env.fileResolution.constructor();
+    otherWindow.copyLocalPathToUri = env.fileResolution.copyLocalPathToUri;
+    const target = folderUri + '/same.zip', conflict = folderUri + '/same%20(1).zip';
+    const destinations = await Promise.all([
+      env.copyOriginal('/sandbox/one', target, conflict), otherWindow.copyLocalPathWithoutOverwrite('/sandbox/two', target, conflict)
+    ]);
+    assert.notEqual(destinations[0], destinations[1]);
+    assert.equal(new Set(destinations.map(uri => env.files.get(uri).source)).size, 2);
+  });
+  await scenario('a failed export releases its destination reservation for a later retry', async () => {
+    const env = environment(); env.files.set('/sandbox/one', { size: 10 });
+    const target = folderUri + '/retry.zip', conflict = folderUri + '/retry%20(1).zip';
+    env.fileResolution.copyLocalPathToUri = async () => { throw { code: 13900012, message: 'Permission denied' }; };
+    await assert.rejects(env.copyOriginal('/sandbox/one', target, conflict));
+    env.fileResolution.copyLocalPathToUri = async (_source, uri) => { env.files.set(uri, { size: 10 }); };
+    assert.equal(await env.copyOriginal('/sandbox/one', target, conflict), target);
+  });
+  await scenario('descriptor-copy fallback handles short writes without dropping the rest of a chunk', async () => {
+    const env = environment(); const source = Buffer.from('abcdefghij'), chunks = [];
+    env.fileIo.read = async (_fd, output, options) => {
+      const bytes = source.subarray(options.offset, options.offset + options.length);
+      new Uint8Array(output).set(bytes); return bytes.length;
+    };
+    env.fileIo.write = async (_fd, payload) => {
+      const bytes = Buffer.from(payload).subarray(0, 3); chunks.push(bytes); return bytes.length;
+    };
+    await env.fileResolution.rewriteFileDescriptors(1, 2);
+    assert.equal(Buffer.concat(chunks).toString(), source.toString());
   });
   if (failures.length) throw new Error(`${failures.length} download directory lifecycle scenarios failed`);
 }

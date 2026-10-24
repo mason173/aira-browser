@@ -13,26 +13,30 @@ import {
 
 export default function downloadSelectionModeTest(): void {
   describe('Download edit-mode selection', () => {
-    it('only offers completed downloads for batch selection', 0, () => {
+    it('offers active and completed downloads for batch selection', 0, () => {
       expect(canSelectDownloadTask('completed')).assertTrue();
-      expect(canSelectDownloadTask('running')).assertFalse();
-      expect(canSelectDownloadTask('paused')).assertFalse();
-      expect(canSelectDownloadTask('queued')).assertFalse();
-      expect(canSelectDownloadTask('failed')).assertFalse();
+      expect(canSelectDownloadTask('running')).assertTrue();
+      expect(canSelectDownloadTask('paused')).assertTrue();
+      expect(canSelectDownloadTask('queued')).assertTrue();
+      expect(canSelectDownloadTask('failed')).assertTrue();
       expect(canSelectDownloadTask('canceled')).assertFalse();
+      expect(canSelectDownloadTask('removed')).assertFalse();
     });
 
-    it('selects every completed row and skips the active ones', 0, () => {
+    it('selects every active and completed row and skips removed tasks', 0, () => {
       const candidates: DownloadSelectionCandidate[] = [
         { guid: 'a', status: 'completed' },
         { guid: 'b', status: 'running' },
         { guid: 'c', status: 'completed' },
-        { guid: 'd', status: 'failed' }
+        { guid: 'd', status: 'failed' },
+        { guid: 'e', status: 'removed' }
       ];
       const selected = collectSelectableDownloadGuids(candidates);
-      expect(selected.length).assertEqual(2);
+      expect(selected.length).assertEqual(4);
       expect(selected[0]).assertEqual('a');
-      expect(selected[1]).assertEqual('c');
+      expect(selected[1]).assertEqual('b');
+      expect(selected[2]).assertEqual('c');
+      expect(selected[3]).assertEqual('d');
     });
 
     it('drops selections that are no longer selectable after a refresh', 0, () => {
@@ -66,12 +70,13 @@ export default function downloadSelectionModeTest(): void {
       expect(views[5].action).assertEqual('copy_link');
     });
 
-    it('keeps the multi-select entry off a running download menu', 0, () => {
+    it('leads a running download menu with the multi-select entry', 0, () => {
       const viewModel = new DownloadManagerViewModel();
       const views = viewModel.buildRowMenuActions(['pause', 'cancel'], 'running', 'pause');
-      expect(views.length).assertEqual(2);
-      expect(views[0].action).assertEqual('cancel');
-      expect(views[1].action).assertEqual('copy_link');
+      expect(views.length).assertEqual(3);
+      expect(views[0].action).assertEqual(DOWNLOAD_ROW_ENTER_SELECTION_ACTION);
+      expect(views[1].action).assertEqual('cancel');
+      expect(views[2].action).assertEqual('copy_link');
     });
   });
 }

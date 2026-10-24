@@ -263,11 +263,14 @@ std::string DescribeCurlTransfer(CURL* handle, CURLcode result, long response_co
 }
 
 std::string CurlFailureMessage(CURLcode result, long response_code) {
-  if (response_code >= 400) {
+  if (response_code >= 300) {
     return "下载服务器返回 HTTP " + std::to_string(response_code) + "。";
   }
   if (result == CURLE_COULDNT_RESOLVE_PROXY || result == CURLE_PROXY) {
     return "无法连接下载代理。";
+  }
+  if (result == CURLE_WRITE_ERROR) {
+    return "无法写入下载文件，请检查剩余空间与保存权限。";
   }
   if (result == CURLE_SSL_CONNECT_ERROR) {
     return "SSL 连接失败。";
@@ -330,8 +333,7 @@ bool IsTaskTransferInterrupted(DownloadTask* task) {
   return state == TaskState::kCanceled || state == TaskState::kPausing || state == TaskState::kPaused;
 }
 
-bool WaitForHlsRetry(DownloadTask* task, int failed_attempt) {
-  const int delay_ms = HlsRetryDelayMsAfterAttempt(failed_attempt);
+bool WaitForTransferRetry(DownloadTask* task, int delay_ms) {
   const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(delay_ms);
   while (std::chrono::steady_clock::now() < deadline) {
     if (IsTaskTransferInterrupted(task)) {
@@ -343,6 +345,13 @@ bool WaitForHlsRetry(DownloadTask* task, int failed_attempt) {
     std::this_thread::sleep_for(std::chrono::milliseconds(poll_delay_ms));
   }
   return !IsTaskTransferInterrupted(task);
+}
+
+bool WaitForHlsRetry(DownloadTask* task, int failed_attempt, curl_off_t retry_after) {
+  if (retry_after > 30) return false;
+  const int delay_ms = std::max(HlsRetryDelayMsAfterAttempt(failed_attempt),
+    static_cast<int>(std::max<curl_off_t>(0, retry_after)) * 1000);
+  return WaitForTransferRetry(task, delay_ms);
 }
 
 std::uint64_t StableHash(const std::string& value) {
@@ -492,6 +501,8 @@ bool FetchText(const TaskOptions& options, const std::string& url, std::string* 
     const CURLcode result = curl_easy_perform(handle);
     long response_code = 0;
     curl_easy_getinfo(handle, CURLINFO_RESPONSE_CODE, &response_code);
+    curl_off_t retry_after = 0;
+    curl_easy_getinfo(handle, CURLINFO_RETRY_AFTER, &retry_after);
     const bool retryable = IsRetryableHlsTransferFailure(result, response_code);
     const std::string transfer_diagnostic = AppendRetryDiagnostic(
       DescribeCurlTransfer(handle, result, response_code, phase, options, url, diagnostics),
@@ -504,7 +515,7 @@ bool FetchText(const TaskOptions& options, const std::string& url, std::string* 
     session->Capture(handle, initial_cookies);
     curl_slist_free_all(header_list);
     curl_easy_cleanup(handle);
-    if (result == CURLE_OK && response_code >= 200 && response_code < 400) {
+    if (result == CURLE_OK && response_code >= 200 && response_code < 300) {
       *output = std::move(context.data);
       return true;
     }
@@ -512,7 +523,7 @@ bool FetchText(const TaskOptions& options, const std::string& url, std::string* 
     *error_code = static_cast<std::int32_t>(result);
     *diagnostic_message = transfer_diagnostic;
     *failure_phase = phase;
-    if (!retryable || attempt >= kHlsTransferMaxAttempts || !WaitForHlsRetry(task, attempt)) {
+    if (!retryable || attempt >= kHlsTransferMaxAttempts || !WaitForHlsRetry(task, attempt, retry_after)) {
       return false;
     }
   }
@@ -958,9 +969,13 @@ bool DownloadTask::TransferHlsFile(const HlsResource& resource, const std::strin
       curl_easy_setopt(handle, CURLOPT_CAPATH, options_.ca_path.c_str());
     }
 
-    const CURLcode result = curl_easy_perform(handle);
+    CURLcode result = curl_easy_perform(handle);
+    const bool write_failed = std::ferror(file) != 0;
+    if (std::fclose(file) != 0 || write_failed) result = CURLE_WRITE_ERROR;
     long response_code = 0;
     curl_easy_getinfo(handle, CURLINFO_RESPONSE_CODE, &response_code);
+    curl_off_t retry_after = 0;
+    curl_easy_getinfo(handle, CURLINFO_RETRY_AFTER, &retry_after);
     const bool retryable = IsRetryableHlsTransferFailure(result, response_code);
     const std::string transfer_diagnostic = AppendRetryDiagnostic(
       DescribeCurlTransfer(handle, result, response_code, phase.c_str(), options_, url, diagnostics),
@@ -968,7 +983,6 @@ bool DownloadTask::TransferHlsFile(const HlsResource& resource, const std::strin
     session_->Capture(handle, initial_cookies);
     curl_slist_free_all(headers);
     curl_easy_cleanup(handle);
-    std::fclose(file);
 
     const bool interrupted = cancel_requested_.load(std::memory_order_acquire) ||
       pause_requested_.load(std::memory_order_acquire);
@@ -1006,7 +1020,7 @@ bool DownloadTask::TransferHlsFile(const HlsResource& resource, const std::strin
       "下载服务器返回了空分片。" : CurlFailureMessage(result, response_code);
     *error_code = static_cast<std::int32_t>(result);
     *diagnostic_message = transfer_diagnostic;
-    if (!retryable || attempt >= kHlsTransferMaxAttempts || !WaitForHlsRetry(this, attempt)) {
+    if (!retryable || attempt >= kHlsTransferMaxAttempts || !WaitForHlsRetry(this, attempt, retry_after)) {
       return false;
     }
   }
@@ -1018,12 +1032,16 @@ bool StrongEtag(const std::string& value) {
   return value.size() >= 2 && value.front() == '"' && value.back() == '"' &&
     value.find_first_of("\r\n") == std::string::npos;
 }
-std::string ResumeEtag(const TaskOptions& options) {
+std::string ResumeEtag(const TaskOptions& options, std::string* effective_url_hash) {
   std::ifstream metadata(options.target_path + ".aira-resume");
-  std::string version, url_hash, etag;
-  if (std::getline(metadata, version) && version == "aira-http-v1" &&
+  std::string version, url_hash, target_hash, etag;
+  if (std::getline(metadata, version) && version == "aira-http-v2" &&
       std::getline(metadata, url_hash) && url_hash == std::to_string(StableHash(options.url)) &&
-      std::getline(metadata, etag) && StrongEtag(etag)) return etag;
+      std::getline(metadata, target_hash) && !target_hash.empty() &&
+      std::getline(metadata, etag) && StrongEtag(etag)) {
+    *effective_url_hash = target_hash;
+    return etag;
+  }
   return {};
 }
 void RemoveResumeMetadata(const std::string& path) {
@@ -1031,11 +1049,11 @@ void RemoveResumeMetadata(const std::string& path) {
   std::filesystem::remove(path + ".aira-resume", error);
   std::filesystem::remove(path + ".aira-resume.tmp", error);
 }
-void SaveResumeEtag(const TaskOptions& options, const std::string& etag) {
+void SaveResumeEtag(const TaskOptions& options, const std::string& etag, const std::string& effective_url) {
   if (!StrongEtag(etag)) { RemoveResumeMetadata(options.target_path); return; }
   const std::string path = options.target_path + ".aira-resume";
   std::ofstream metadata(path + ".tmp", std::ios::trunc);
-  metadata << "aira-http-v1\n" << StableHash(options.url) << '\n' << etag << '\n';
+  metadata << "aira-http-v2\n" << StableHash(options.url) << '\n' << StableHash(effective_url) << '\n' << etag << '\n';
   metadata.close();
   std::error_code error;
   if (!metadata.fail()) std::filesystem::rename(path + ".tmp", path, error);
@@ -1056,14 +1074,22 @@ void DownloadTask::RunHttp() {
   }
 
   std::int64_t existing_size = ExistingFileSize(options_.target_path);
-  const std::string resume_etag = ResumeEtag(options_);
   CURLcode result = CURLE_FAILED_INIT;
   long response_code = 0;
   std::string diagnostic_message;
   std::string failure_phase = "http_download";
 
-  for (int attempt = 0; attempt < 2; ++attempt) {
-    const bool use_resume = existing_size > 0 && !resume_etag.empty() && attempt == 0;
+  const auto max_attempts = std::clamp<std::size_t>(options_.http_max_attempts, 1, 5);
+  std::size_t failed_attempts = 0;
+  bool full_restart_used = false;
+  bool force_full_restart = false;
+  // Entity mismatch gets one clean restart in addition to the bounded transient
+  // retry budget. Each network attempt uses the validator of the bytes on disk.
+  for (std::size_t request = 0; request < max_attempts + 1; ++request) {
+    existing_size = ExistingFileSize(options_.target_path);
+    std::string expected_effective_url_hash;
+    const std::string resume_etag = ResumeEtag(options_, &expected_effective_url_hash);
+    const bool use_resume = existing_size > 0 && !resume_etag.empty() && !force_full_restart;
     if (!use_resume && existing_size > 0) {
       std::error_code truncate_error;
       std::filesystem::resize_file(options_.target_path, 0, truncate_error);
@@ -1075,6 +1101,7 @@ void DownloadTask::RunHttp() {
       existing_size = 0;
       RemoveResumeMetadata(options_.target_path);
     }
+    force_full_restart = false;
     FILE* file = std::fopen(options_.target_path.c_str(), use_resume ? "ab" : "wb");
     if (file == nullptr) {
       SetTerminalState(TaskState::kFailed, "无法打开下载目标文件。");
@@ -1120,6 +1147,9 @@ void DownloadTask::RunHttp() {
       headers = appended;
     }
     curl_easy_setopt(handle, CURLOPT_URL, options_.url.c_str());
+    // This is also the compatibility transport after an ArkWeb HTTP/2 interruption.
+    // Keep one HTTP/1.1 stream instead of renegotiating the failing h2 path.
+    curl_easy_setopt(handle, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
     ApplyDownloadProxy(handle, options_, options_.url);
     curl_easy_setopt(handle, CURLOPT_FOLLOWLOCATION, 1L);
     curl_easy_setopt(handle, CURLOPT_MAXREDIRS, 10L);
@@ -1148,20 +1178,29 @@ void DownloadTask::RunHttp() {
       curl_easy_setopt(handle, CURLOPT_RESUME_FROM_LARGE, static_cast<curl_off_t>(existing_size));
     }
     result = curl_easy_perform(handle);
+    const bool write_failed = std::ferror(file) != 0;
+    if (std::fclose(file) != 0 || write_failed) {
+      result = CURLE_WRITE_ERROR;
+    }
     curl_easy_getinfo(handle, CURLINFO_RESPONSE_CODE, &response_code);
+    curl_off_t retry_after = 0;
+    curl_easy_getinfo(handle, CURLINFO_RETRY_AFTER, &retry_after);
+    char* final_url = nullptr;
+    curl_easy_getinfo(handle, CURLINFO_EFFECTIVE_URL, &final_url);
+    const std::string effective_url = final_url == nullptr ? options_.url : final_url;
     failure_phase = use_resume ? "http_resume" : "http_download";
     diagnostic_message = DescribeCurlTransfer(
       handle, result, response_code, failure_phase.c_str(), options_, options_.url, diagnostics);
     session_->Capture(handle, initial_cookies);
     curl_slist_free_all(headers);
     curl_easy_cleanup(handle);
-    std::fclose(file);
 
     const auto downloaded_size = ExistingFileSize(options_.target_path);
     // A successful curl transfer only proves its Content-Length was received.
     // A 206 may advertise a longer representation in Content-Range: do not
     // publish a truncated suffix as a complete file.
     const bool resume_valid = !use_resume || (response_code == 206 && context.RangeMatches() &&
+      expected_effective_url_hash == std::to_string(StableHash(effective_url)) &&
       (result != CURLE_OK || downloaded_size == context.content_range_total));
     const bool complete_unsolicited_range = context.saw_content_range &&
       context.content_range_start == 0 && context.content_range_end == context.content_range_total - 1 &&
@@ -1174,15 +1213,40 @@ void DownloadTask::RunHttp() {
     }
     const bool interrupted = cancel_requested_.load(std::memory_order_acquire) ||
       pause_requested_.load(std::memory_order_acquire);
-    const bool resume_rejected = use_resume && !interrupted &&
+    const bool entity_rejected = use_resume &&
       (((response_code >= 200 && response_code < 300) && !resume_valid) ||
        response_code == 416 || result == CURLE_RANGE_ERROR);
-    if (resume_rejected) {
+    // A pause must not bind an old prefix (or a partially appended new target)
+    // to the replacement entity's validator. Missing metadata forces a safe restart.
+    if (entity_rejected) RemoveResumeMetadata(options_.target_path);
+    const bool resume_rejected = entity_rejected && !interrupted;
+    if (resume_rejected && !full_restart_used) {
       RemoveResumeMetadata(options_.target_path);
+      full_restart_used = true;
+      force_full_restart = true;
       continue;
     }
-    if (!invalid_initial_range && (response_code == 200 || (response_code == 206 && resume_valid)) &&
-        ExistingFileSize(options_.target_path) > 0) SaveResumeEtag(options_, context.response_etag);
+    if (resume_rejected) result = CURLE_PARTIAL_FILE;
+    if (!entity_rejected && !invalid_initial_range && result != CURLE_WRITE_ERROR &&
+        (response_code == 200 || (response_code == 206 && resume_valid)) &&
+        ExistingFileSize(options_.target_path) > 0) SaveResumeEtag(options_, context.response_etag, effective_url);
+    if (result == CURLE_OK && (response_code < 200 || response_code >= 300)) {
+      result = CURLE_HTTP_RETURNED_ERROR;
+    }
+    if (result == CURLE_OK && !resume_rejected) break;
+    ++failed_attempts;
+    const bool retryable_status = response_code == 408 || response_code == 429 || response_code == 500 ||
+      response_code == 502 || response_code == 503 || response_code == 504;
+    const bool retryable = !interrupted && !invalid_initial_range && !resume_rejected &&
+      (response_code >= 400 ? retryable_status : IsRetryableHlsTransferFailure(result, response_code));
+    diagnostic_message += "|attempt=" + std::to_string(failed_attempts) +
+      "|maxAttempts=" + std::to_string(max_attempts) + "|retryAfterSeconds=" + std::to_string(retry_after);
+    // Never shorten a server's backoff. Long waits remain explicit failures for
+    // the user to retry, rather than tying up a native worker indefinitely.
+    if (!retryable || failed_attempts >= max_attempts || retry_after > 30) break;
+    const int delay_ms = std::max(HlsRetryDelayMsAfterAttempt(static_cast<int>(failed_attempts)),
+      static_cast<int>(std::max<curl_off_t>(0, retry_after)) * 1000);
+    if (WaitForTransferRetry(this, delay_ms)) continue;
     break;
   }
 
@@ -1190,7 +1254,7 @@ void DownloadTask::RunHttp() {
     SetTerminalState(TaskState::kCanceled, "下载已取消。");
   } else if (pause_requested_.load(std::memory_order_acquire) || result == CURLE_ABORTED_BY_CALLBACK) {
     SetTerminalState(TaskState::kPaused, "");
-  } else if (result != CURLE_OK || response_code < 200 || response_code >= 400) {
+  } else if (result != CURLE_OK || response_code < 200 || response_code >= 300) {
     SetTerminalState(TaskState::kFailed, CurlFailureMessage(result, response_code),
                      static_cast<std::int32_t>(result), diagnostic_message, failure_phase);
   } else {
@@ -1453,7 +1517,7 @@ void DownloadTask::RunHls() {
   for (std::size_t index = 0; merge_ok && index < plan.resources.size(); ++index) {
     merge_ok = append_file(part_prefix + std::to_string(index));
   }
-  std::fclose(output);
+  if (std::fclose(output) != 0) merge_ok = false;
   if (cancel_requested_.load(std::memory_order_acquire)) {
     std::error_code remove_error;
     std::filesystem::remove(options_.target_path, remove_error);

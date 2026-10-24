@@ -1,5 +1,6 @@
 import { resolveAppResourceText } from '../resources/AppResourceText';
 import { DownloadStatusCounts } from './DownloadQueryService';
+import { canSelectDownloadTask } from './DownloadSelectionViewModel';
 import { DownloadRuntimeService } from '../../services/download/DownloadRuntimeService';
 import {
   DownloadQueryGroup,
@@ -496,7 +497,7 @@ export class DownloadManagerViewModel {
     }
   }
 
-  /** Owns the long-press menu order, so a completed download leads with the batch-selection entry. */
+  /** Keep the multi-select entry first for both active and completed downloads. */
   buildRowMenuActions(
     actions: DownloadV2ManagementAction[],
     status: DownloadV2Status,
@@ -507,7 +508,7 @@ export class DownloadManagerViewModel {
       menuActions.push('copy_link');
     }
     const views: DownloadManagementRowMenuActionView[] = [];
-    if (status === 'completed') {
+    if (canSelectDownloadTask(status)) {
       views.push({
         action: DOWNLOAD_ROW_ENTER_SELECTION_ACTION,
         label: DOWNLOAD_ROW_ENTER_SELECTION_LABEL
@@ -535,6 +536,7 @@ export class DownloadManagerViewModel {
   private buildOptimisticMenuActions(status: DownloadV2Status): DownloadManagementRowMenuActionView[] {
     if (status === 'paused' || status === 'running') {
       return [
+        { action: DOWNLOAD_ROW_ENTER_SELECTION_ACTION, label: DOWNLOAD_ROW_ENTER_SELECTION_LABEL },
         { action: 'copy_link', label: resolveAppResourceText($r('app.string.download_action_copy_link')) },
         { action: 'cancel', label: resolveAppResourceText($r('app.string.settings_account_cancel')) }
       ];

@@ -1,5 +1,17 @@
 # Changelog
 
+## 3.8.4 (1000555)
+
+2026-10-24
+
+This release fixes QQ website sign-in and improves video, downloads and browsing.
+
+- Fixed QQ quick sign-in failing to return to the website and complete sign-in on some pages.
+- Improved video playback and casting, including fixes for live-stream progress and some casting connection issues.
+- Improved ad-blocking compatibility and startup loading to reduce waiting on some webpages.
+- Improved download recovery, resuming interrupted downloads and downloading some videos.
+- Fixed title-bar clicks on desktop accidentally starting a drag and restoring a maximized window.
+
 ## 3.8.3 (1000549)
 
 2026-10-22

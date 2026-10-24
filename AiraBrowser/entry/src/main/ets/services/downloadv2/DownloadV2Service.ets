@@ -559,6 +559,7 @@ export class DownloadV2Service {
         partialFilePath: task.persistence.partialFilePath,
         finalFilePath: task.persistence.finalFilePath,
         writtenBytes: task.persistence.writtenBytes,
+        expectedTotalBytes: task.persistence.expectedTotalBytes,
         etag: task.persistence.etag,
         lastModified: task.persistence.lastModified,
         acceptRanges: task.persistence.acceptRanges,
@@ -588,6 +589,7 @@ export class DownloadV2Service {
           partialFilePath: undefined,
           finalFilePath: refreshedTask.persistence.finalFilePath,
           writtenBytes: refreshedTask.persistence.writtenBytes,
+          expectedTotalBytes: refreshedTask.persistence.expectedTotalBytes,
           etag: refreshedTask.persistence.etag,
           lastModified: refreshedTask.persistence.lastModified,
           acceptRanges: refreshedTask.persistence.acceptRanges,
@@ -732,46 +734,24 @@ export class DownloadV2Service {
       );
       return this.retryTask(task.guid);
     }
-    const resumed = await this.platformAdapter.resumeDownload(
-      task.guid,
-      task.runtime.platformTaskId,
-      task.runtime.platformTaskToken
-    );
-    hilog.info(
-      DOWNLOAD_V2_SERVICE_DOMAIN,
-      DOWNLOAD_V2_SERVICE_TAG,
-      'resume result guid=%{public}s resumed=%{public}s',
-      task.guid,
-      resumed ? 'true' : 'false'
-    );
-    if (!resumed) {
-      hilog.warn(DOWNLOAD_V2_SERVICE_DOMAIN, DOWNLOAD_V2_SERVICE_TAG, 'resume platform failed guid=%{public}s', task.guid);
-      await this.markTaskResumeUnavailable(task);
+    if (task.status !== 'paused') {
       return false;
     }
-    const updatedTask = this.engine.dispatch(task.guid, 'resume', {
-      progress: {
-        speedBytesPerSecond: 0
-      },
-      runtime: {
-        platformTaskId: task.runtime.platformTaskId,
-        platformTaskToken: task.runtime.platformTaskToken,
-        resumeCapability: 'live_resume'
-      },
+    const persistence = this.mergePersistenceSnapshot(task, this.buildPlatformSnapshotFromTask(task));
+    persistence.resumeMode = task.persistence.downloadDriver === 'libcurl' && !this.platformAdapter.hasActiveDownload(task.guid)
+      ? 'platform_live_resume' : 'queued_live_resume';
+    const queued = this.engine.dispatch(task.guid, 'queue', {
+      progress: { speedBytesPerSecond: 0 },
+      persistence: persistence,
       failure: buildDownloadV2EmptyFailure()
     });
-    this.rememberExpectedStatus(task.guid, 'running');
-    hilog.info(
-      DOWNLOAD_V2_SERVICE_DOMAIN,
-      DOWNLOAD_V2_SERVICE_TAG,
-      'resume dispatch guid=%{public}s updated=%{public}s nextStatus=%{public}s nextResumeCapability=%{public}s',
-      task.guid,
-      updatedTask !== undefined ? 'true' : 'false',
-      updatedTask?.status ?? 'none',
-      updatedTask?.runtime.resumeCapability ?? 'none'
-    );
+    if (queued === undefined) {
+      return false;
+    }
     await this.repository.flushPersistence();
-    return updatedTask !== undefined;
+    const started = await this.startPreparedTaskFromRequest(this.buildCapturedRequestFromTask(queued), queued, 'resume');
+    await this.repository.flushPersistence();
+    return started || this.engine.findTask(guid)?.status === 'queued';
   }
 
   async retryTask(guid: string): Promise<boolean> {
@@ -784,8 +764,11 @@ export class DownloadV2Service {
     }
     // Queue before invoking either adapter: a resume may synchronously emit running/finished.
     // Dispatching retry afterwards would overwrite that state and start the same transfer twice.
+    const persistence = this.mergePersistenceSnapshot(task, this.buildPlatformSnapshotFromTask(task));
+    if (persistence.resumeMode === 'queued_live_resume') persistence.resumeMode = 'platform_live_resume';
     const queuedTask = this.engine.dispatch(task.guid, 'retry', {
       progress: { speedBytesPerSecond: 0 },
+      persistence: persistence,
       failure: buildDownloadV2EmptyFailure()
     });
     if (queuedTask === undefined) {
@@ -832,11 +815,15 @@ export class DownloadV2Service {
 
   async cancelAndRemoveTask(guid: string): Promise<boolean> {
     const task = this.engine.findTask(guid);
-    if (task === undefined) {
+    if (task === undefined || task.status === 'completed' || task.status === 'removed') {
       return false;
     }
     const canceled = task.status === 'canceled' ? true : await this.cancelTask(guid);
-    const latestTask = this.engine.findTask(guid) ?? task;
+    const latestTask = this.engine.findTask(guid);
+    // Completion can win while the native cancellation is in flight.
+    if (latestTask === undefined || latestTask.status === 'completed' || latestTask.status === 'removed') {
+      return false;
+    }
     if (!canceled && !this.canRemoveTaskLocally(latestTask)) {
       return false;
     }
@@ -1112,7 +1099,10 @@ export class DownloadV2Service {
     reason: string
   ): Promise<boolean> {
     this.persistPageDownloadIdentity(task, request);
-    const currentTask = this.engine.findTask(task.guid) ?? task;
+    const currentTask = this.engine.findTask(task.guid);
+    if (currentTask === undefined) {
+      return false;
+    }
     const targetPath = currentTask.persistence.tempFilePath?.trim() ?? '';
     const downloadDriver = currentTask.persistence.downloadDriver ?? 'libcurl';
     if (targetPath.length <= 0 || currentTask.status !== 'queued') {
@@ -1158,8 +1148,23 @@ export class DownloadV2Service {
       targetPath,
       downloadDriver
     );
+    // Reserve the queue slot synchronously. A cold native import or ArkWeb callback
+    // can yield long enough for a second drain or another task to be admitted.
+    this.engine.dispatch(currentTask.guid, 'start');
+    this.rememberExpectedStatus(currentTask.guid, 'running');
     let startedSnapshot: PlatformDownloadSnapshot | undefined;
-    if (downloadDriver !== 'arkweb' && currentTask.timing.failedAt !== undefined) {
+    const resumeExisting = currentTask.persistence.resumeMode === 'queued_live_resume';
+    if (resumeExisting) {
+      const resumed = await this.platformAdapter.resumeDownload(
+        currentTask.guid, currentTask.runtime.platformTaskId, currentTask.runtime.platformTaskToken
+      );
+      if (resumed) {
+        startedSnapshot = this.platformAdapter.getActiveDownloadSnapshot(currentTask.guid) ??
+          this.buildPlatformSnapshotFromTask(currentTask);
+        if (this.isPendingState(startedSnapshot.state)) startedSnapshot.state = 'IN_PROGRESS';
+      }
+    } else if (downloadDriver !== 'arkweb' && currentTask.timing.failedAt !== undefined &&
+      (currentTask.runtime.platformTaskId?.trim().length ?? 0) > 0) {
       const retried = await this.platformAdapter.retryDownload(
         currentTask.guid, targetPath, currentTask.runtime.platformTaskId,
         currentTask.runtime.platformTaskToken, this.resolveTaskHlsSegmentConcurrency(currentTask)
@@ -1170,17 +1175,24 @@ export class DownloadV2Service {
         startedSnapshot.state = 'IN_PROGRESS';
       }
     }
-    if (startedSnapshot === undefined) {
+    if (startedSnapshot === undefined && !resumeExisting) {
       startedSnapshot = await this.startDirectRequest(request, targetPath, currentTask);
     }
     if (startedSnapshot === undefined) {
+      const status = this.engine.findTask(currentTask.guid)?.status;
+      if (status !== 'running') return false;
       await this.failPreparedTaskStart(currentTask, request, downloadDriver);
       return false;
     }
     const statusAfterStart = this.engine.findTask(currentTask.guid)?.status;
-    if (statusAfterStart === 'failed' || statusAfterStart === 'canceled' || statusAfterStart === 'removed') {
+    if (statusAfterStart === undefined || statusAfterStart === 'canceled' || statusAfterStart === 'removed') {
+      await this.platformAdapter.cancelDownload(currentTask.guid, startedSnapshot.platformTaskId, startedSnapshot.platformTaskToken);
       return false;
     }
+    if (statusAfterStart === 'failed' || statusAfterStart === 'paused') {
+      return false;
+    }
+    if (statusAfterStart === 'completed') return true;
     this.downloadTriggerDiagnosticsService.recordStartResult(request, true, downloadDriver);
     hilog.info(
       DOWNLOAD_V2_SERVICE_DOMAIN,
@@ -1372,6 +1384,7 @@ export class DownloadV2Service {
         partialFilePath: task.persistence.partialFilePath,
         finalFilePath: task.persistence.finalFilePath,
         writtenBytes: task.persistence.writtenBytes,
+        expectedTotalBytes: task.persistence.expectedTotalBytes,
         etag: task.persistence.etag,
         lastModified: task.persistence.lastModified,
         acceptRanges: task.persistence.acceptRanges,
@@ -1491,6 +1504,50 @@ export class DownloadV2Service {
     if (currentTask === undefined) {
       return false;
     }
+    // Once compatibility recovery has replaced the transport, a late callback from the
+    // interrupted ArkWeb item must not fail or cancel its replacement.
+    if (currentTask.persistence.downloadDriver === 'libcurl' && event.snapshot.downloadDriver === 'arkweb') {
+      return true;
+    }
+    if (currentTask.persistence.resumeMode === 'queued_live_resume' &&
+      (this.isPausedState(event.snapshot.state) || this.isPausingState(event.snapshot.state))) {
+      return true;
+    }
+    const expectedTotalBytes = currentTask.persistence.expectedTotalBytes ?? 0;
+    if (expectedTotalBytes > 0 && this.isCompletedState(event.snapshot.state) &&
+      event.snapshot.receivedBytes !== expectedTotalBytes) {
+      // A CDN can return a 200 HTML challenge with the original attachment filename.
+      // Compatibility recovery must still produce the file the user started downloading.
+      hilog.warn(DOWNLOAD_V2_SERVICE_DOMAIN, DOWNLOAD_V2_SERVICE_TAG,
+        'reject incomplete replacement guid=%{public}s expected=%{public}d received=%{public}d',
+        currentTask.guid, expectedTotalBytes, event.snapshot.receivedBytes);
+      event = {
+        type: 'failed',
+        snapshot: {
+          guid: event.snapshot.guid,
+          url: event.snapshot.url,
+          originalUrl: event.snapshot.originalUrl,
+          suggestedFileName: event.snapshot.suggestedFileName,
+          totalBytes: event.snapshot.totalBytes,
+          receivedBytes: event.snapshot.receivedBytes,
+          currentSpeed: event.snapshot.currentSpeed,
+          mimeType: event.snapshot.mimeType,
+          method: event.snapshot.method,
+          userAgent: event.snapshot.userAgent,
+          referer: event.snapshot.referer,
+          contentDisposition: event.snapshot.contentDisposition,
+          headers: event.snapshot.headers,
+          hlsSegmentConcurrency: event.snapshot.hlsSegmentConcurrency,
+          platformTaskId: event.snapshot.platformTaskId,
+          platformTaskToken: event.snapshot.platformTaskToken,
+          downloadDriver: event.snapshot.downloadDriver,
+          privacyMode: event.snapshot.privacyMode,
+          state: 'FAILED',
+          lastErrorCode: 18,
+          errorMessage: resolveAppResourceText($r('app.string.download_response_size_mismatch'))
+        }
+      };
+    }
     if (this.shouldSuppressStaleControlEcho(currentTask, event.snapshot.state)) {
       return true;
     }
@@ -1509,8 +1566,10 @@ export class DownloadV2Service {
       resumeCapability: this.resolveResumeCapability(event.snapshot.state)
     };
     const nextProgress: Partial<DownloadV2ProgressSnapshot> = {
-      totalBytes: event.snapshot.totalBytes > 0 ? event.snapshot.totalBytes : currentTask.progress.totalBytes,
-      receivedBytes: Math.max(currentTask.progress.receivedBytes, event.snapshot.receivedBytes),
+      totalBytes: event.snapshot.downloadDriver === 'libcurl' ? Math.max(0, event.snapshot.totalBytes)
+        : event.snapshot.totalBytes > 0 ? event.snapshot.totalBytes : currentTask.progress.totalBytes,
+      receivedBytes: event.snapshot.downloadDriver === 'libcurl' ? Math.max(0, event.snapshot.receivedBytes)
+        : Math.max(currentTask.progress.receivedBytes, event.snapshot.receivedBytes),
       speedBytesPerSecond: event.snapshot.currentSpeed
     };
     const nextFailure = this.buildFailureFromPlatformEvent(event, currentTask.failure);
@@ -1585,13 +1644,16 @@ export class DownloadV2Service {
       partialFilePath: currentTask.persistence.partialFilePath ?? currentTask.persistence.tempFilePath,
       finalFilePath: currentTask.persistence.finalFilePath,
       writtenBytes: receivedBytes,
+      expectedTotalBytes: currentTask.persistence.expectedTotalBytes,
       etag: currentTask.persistence.etag,
       lastModified: currentTask.persistence.lastModified,
       acceptRanges: currentTask.persistence.acceptRanges,
       contentRange: currentTask.persistence.contentRange,
       validatorCapturedAt: currentTask.persistence.validatorCapturedAt,
-      downloadDriver: currentTask.persistence.downloadDriver ?? 'libcurl',
-      resumeMode: currentTask.persistence.resumeMode ?? 'platform_live_resume',
+      downloadDriver: snapshot.downloadDriver ?? currentTask.persistence.downloadDriver ?? 'libcurl',
+      resumeMode: currentTask.persistence.resumeMode === 'queued_live_resume' &&
+        (this.isRunningState(snapshot.state) || this.isCompletedState(snapshot.state))
+        ? 'platform_live_resume' : currentTask.persistence.resumeMode ?? 'platform_live_resume',
       needsFullRestart: currentTask.persistence.needsFullRestart,
       restartReason: currentTask.persistence.restartReason,
       segmentPlan: currentTask.persistence.segmentPlan
@@ -1710,6 +1772,10 @@ export class DownloadV2Service {
     silent: boolean = false,
     previousStatus?: DownloadV2Status
   ): Promise<void> {
+    if (this.shouldRecoverArkWebNetworkFailure(task)) {
+      await this.recoverArkWebNetworkFailure(task);
+      return;
+    }
     const shouldFinalizeCompletion = task.status === 'completed' && previousStatus !== 'completed' &&
       (event.type === 'finished' || this.isCompletedState(event.snapshot.state));
     if (shouldFinalizeCompletion) {
@@ -1726,6 +1792,54 @@ export class DownloadV2Service {
     if (task.status === 'completed' || task.status === 'failed' || task.status === 'canceled') {
       void this.scheduleNextQueuedDownloads('platform_terminal');
     }
+  }
+
+  private shouldRecoverArkWebNetworkFailure(task: DownloadV2TaskEntity): boolean {
+    const url = task.request.url.trim().toLowerCase();
+    return task.status === 'failed' && task.persistence.downloadDriver === 'arkweb' &&
+      task.failure.sourceCode === 20 && task.request.method.trim().toUpperCase() === 'GET' &&
+      (url.startsWith('https://') || url.startsWith('http://')) &&
+      task.progress.receivedBytes > 0 && task.progress.receivedBytes < task.progress.totalBytes &&
+      (task.persistence.tempFilePath?.trim().length ?? 0) > 0;
+  }
+
+  private async recoverArkWebNetworkFailure(task: DownloadV2TaskEntity): Promise<void> {
+    const current = this.engine.findTask(task.guid);
+    if (current === undefined || !this.shouldRecoverArkWebNetworkFailure(current)) {
+      return;
+    }
+    const previousPath = current.persistence.tempFilePath ?? '';
+    // ArkWeb may have parallel, sparse received slices. Its byte count is not a safe
+    // contiguous resume offset, so start a separate file and let libcurl own validators.
+    const targetPath = `${previousPath}.http1`;
+    const queued = this.engine.dispatch(current.guid, 'retry', {
+      progress: { receivedBytes: 0, speedBytesPerSecond: 0 },
+      persistence: {
+        tempFilePath: targetPath,
+        partialFilePath: targetPath,
+        writtenBytes: 0,
+        expectedTotalBytes: current.progress.totalBytes,
+        downloadDriver: 'libcurl',
+        resumeMode: 'none',
+        needsFullRestart: true,
+        restartReason: 'arkweb_network_fallback'
+      },
+      runtime: { platformTaskId: '', platformTaskToken: '', resumeCapability: 'retry_only' },
+      failure: buildDownloadV2EmptyFailure()
+    });
+    if (queued === undefined) {
+      return;
+    }
+    hilog.info(DOWNLOAD_V2_SERVICE_DOMAIN, DOWNLOAD_V2_SERVICE_TAG,
+      'recover interrupted GET guid=%{public}s sourceCode=20 received=%{public}d total=%{public}d driver=libcurl',
+      current.guid, current.progress.receivedBytes, current.progress.totalBytes);
+    // The owner change above makes this a single attempt and suppresses stale ArkWeb
+    // callbacks, including ones emitted synchronously by cancel during the handoff.
+    await this.cleanupLocalTempFile(previousPath, current.guid, current.suggestedFileName, 'retry');
+    await this.cleanupLocalTempFile(targetPath, current.guid, current.suggestedFileName, 'retry');
+    await this.repository.flushPersistence();
+    await this.startPreparedTaskFromRequest(this.buildCapturedRequestFromTask(queued), queued, 'arkweb_network_fallback');
+    await this.repository.flushPersistence();
   }
 
   private async finalizeCompletedTask(guid: string, suggestedFileName: string, silent: boolean = false): Promise<void> {
@@ -1801,6 +1915,7 @@ export class DownloadV2Service {
         partialFilePath: currentTask.persistence.partialFilePath,
         finalFilePath: currentTask.persistence.finalFilePath,
         writtenBytes: currentTask.persistence.writtenBytes,
+        expectedTotalBytes: currentTask.persistence.expectedTotalBytes,
         etag: currentTask.persistence.etag,
         lastModified: currentTask.persistence.lastModified,
         acceptRanges: currentTask.persistence.acceptRanges,
@@ -1830,6 +1945,7 @@ export class DownloadV2Service {
           partialFilePath: undefined,
           finalFilePath: refreshedTask.persistence.finalFilePath,
           writtenBytes: refreshedTask.persistence.writtenBytes,
+          expectedTotalBytes: refreshedTask.persistence.expectedTotalBytes,
           etag: refreshedTask.persistence.etag,
           lastModified: refreshedTask.persistence.lastModified,
           acceptRanges: refreshedTask.persistence.acceptRanges,
@@ -1905,6 +2021,7 @@ export class DownloadV2Service {
         partialFilePath: task.persistence.partialFilePath,
         finalFilePath: task.persistence.finalFilePath,
         writtenBytes: task.persistence.writtenBytes,
+        expectedTotalBytes: task.persistence.expectedTotalBytes,
         etag: task.persistence.etag,
         lastModified: task.persistence.lastModified,
         acceptRanges: task.persistence.acceptRanges,

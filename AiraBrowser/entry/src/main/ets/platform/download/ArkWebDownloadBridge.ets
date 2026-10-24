@@ -154,16 +154,19 @@ export class ArkWebDownloadBridge implements PlatformDownloadAdapter {
   ): Promise<PlatformDownloadSnapshot | undefined> {
     if (snapshot.downloadDriver === 'arkweb' ||
       (this.isArkWebTask(snapshot.platformTaskId, snapshot.platformTaskToken) && snapshot.downloadDriver !== 'libcurl') ||
-      this.requiresNativeDownload(snapshot) || this.shouldContinueOwnedDownload(snapshot)) {
+      this.requiresNativeDownload(snapshot) ||
+      (snapshot.downloadDriver !== 'libcurl' && this.shouldContinueOwnedDownload(snapshot))) {
       return this.startOrRestoreArkWebDownload(snapshot.guid, targetPath, snapshot.platformTaskToken);
+    }
+    const item = this.itemsByGuid[snapshot.guid];
+    if (item !== undefined) {
+      // Stop the old owner before asynchronous native-module loading or file creation.
+      // A failed GET can explicitly switch transports; POST/blob/data keep ArkWeb above.
+      this.finalizeLibcurlHandoff(snapshot.guid, item);
     }
     const createdTask = await this.libcurlAdapter.startDirectDownload(snapshot, targetPath);
     if (createdTask === undefined) {
       return undefined;
-    }
-    const item = this.itemsByGuid[snapshot.guid];
-    if (item !== undefined) {
-      this.finalizeLibcurlHandoff(snapshot.guid, item);
     }
     return createdTask;
   }
@@ -272,7 +275,7 @@ export class ArkWebDownloadBridge implements PlatformDownloadAdapter {
   cancelPendingDownload(guid: string): boolean {
     const item = this.itemsByGuid[guid];
     if (item === undefined) {
-      return false;
+      return this.libcurlAdapter.cancelPendingDownload(guid);
     }
     this.pendingCancelInFlightGuid = guid;
     try {

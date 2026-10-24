@@ -1,13 +1,15 @@
 {
   "enabled": true,
-  "noticeId": "aira-3.8.3-1000549",
-  "title": "Aira 3.8.3 update",
-  "updatedAt": "2026-10-22",
-  "summary": "This release moves the app recommendation into Settings and realigns the Home favorites grid.",
+  "noticeId": "aira-3.8.4-1000555",
+  "title": "Aira 3.8.4 update",
+  "updatedAt": "2026-10-24",
+  "summary": "This release fixes QQ website sign-in and improves video, downloads and browsing.",
   "items": [
-    "The app recommendation no longer pops up on Home. It now lives in Settings → App recommendations, where opening an app shows its introduction, reviews and questions, with a link to view it in AppGallery.",
-    "A fresh install's Home page no longer preloads default shortcuts: the favorites grid starts empty for you to fill, and favorites you already have are untouched.",
-    "Fixed the Home favorites grid drifting into the middle when it holds few items; the icons now start from the leading edge."
+    "Fixed QQ quick sign-in failing to return to the website and complete sign-in on some pages.",
+    "Improved video playback and casting, including fixes for live-stream progress and some casting connection issues.",
+    "Improved ad-blocking compatibility and startup loading to reduce waiting on some webpages.",
+    "Improved download recovery, resuming interrupted downloads and downloading some videos.",
+    "Fixed title-bar clicks on desktop accidentally starting a drag and restoring a maximized window."
   ],
   "actionLabel": "View changelog"
 }

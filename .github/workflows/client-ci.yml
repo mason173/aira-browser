@@ -62,18 +62,10 @@ jobs:
         run: node scripts/check-aira-search-list-viewport.cjs
       - name: Check title-bar click and drag behavior
         run: node --test scripts/check-aira-window-title-drag.cjs
-      - name: Check download directory lifecycle
-        run: node scripts/check-aira-download-directory-lifecycle.cjs
-      - name: Check download recovery and captured request context
-        run: |
-          node scripts/check-aira-arkweb-download-recovery.cjs
-          node scripts/check-aira-download-redirect-request.cjs
-          node scripts/check-aira-download-request-context.cjs
-          node scripts/check-aira-resource-download-context.cjs
       - name: Install native download test dependencies
         run: sudo apt-get update && sudo apt-get install -y libcurl4-openssl-dev
-      - name: Check native file and encrypted HLS downloads
-        run: ./scripts/check-download-native.sh
+      - name: Check download lifecycle, recovery, storage and native transport
+        run: ./scripts/check-aira-downloads.sh
       - name: Check ad-block document-start CSS
         run: node --test scripts/check-aira-adblock-document-start.cjs
       - name: Check ad-block replacement download prevention

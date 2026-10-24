@@ -73,6 +73,12 @@ interface LibcurlTaskBinding {
   nativeReleased: boolean;
 }
 
+interface DeferredLibcurlRequest {
+  snapshot: PlatformDownloadSnapshot;
+  targetPath: string;
+  resumeRequested?: boolean;
+}
+
 const LIBCURL_DOWNLOAD_DOMAIN = 0x0000;
 const LIBCURL_DOWNLOAD_TAG = 'LibcurlDownload';
 const LIBCURL_POLL_INTERVAL_MS = 250;
@@ -93,6 +99,9 @@ export class LibcurlDownloadAdapter {
   private nativeModule?: AiraDownloadNativeModule;
   private nativeModuleTask?: Promise<AiraDownloadNativeModule>;
   private bindingsByGuid: Record<string, LibcurlTaskBinding | undefined> = {};
+  private pendingStartsByGuid: Record<string, Promise<PlatformDownloadSnapshot | undefined> | undefined> = {};
+  private canceledStartsByGuid: Record<string, boolean | undefined> = {};
+  private deferredRequestsByGuid: Record<string, DeferredLibcurlRequest | undefined> = {};
   private pollTimer?: number;
   private proxyResolver?: DownloadNativeProxyResolver;
 
@@ -110,19 +119,25 @@ export class LibcurlDownloadAdapter {
 
   hasActiveDownload(guid: string): boolean {
     const binding = this.bindingsByGuid[guid.trim()];
-    return binding !== undefined && this.isLiveState(binding.snapshot.state);
+    return (binding !== undefined && this.isLiveState(binding.snapshot.state)) ||
+      this.deferredRequestsByGuid[guid.trim()]?.snapshot.state === 'PAUSED';
   }
 
   getActiveDownloadSnapshot(guid: string): PlatformDownloadSnapshot | undefined {
     const binding = this.bindingsByGuid[guid.trim()];
-    return binding?.snapshot;
+    return binding?.snapshot ?? this.deferredRequestsByGuid[guid.trim()]?.snapshot;
   }
 
   getActiveDownloadSnapshots(): PlatformDownloadSnapshot[] {
-    return Object.keys(this.bindingsByGuid)
+    const snapshots = Object.keys(this.bindingsByGuid)
       .map((guid: string) => this.bindingsByGuid[guid]?.snapshot)
       .filter((snapshot?: PlatformDownloadSnapshot) => snapshot !== undefined && this.isLiveState(snapshot.state)) as
       PlatformDownloadSnapshot[];
+    Object.keys(this.deferredRequestsByGuid).forEach((guid: string) => {
+      const deferred = this.deferredRequestsByGuid[guid];
+      if (deferred?.snapshot.state === 'PAUSED' && this.bindingsByGuid[guid] === undefined) snapshots.push(deferred.snapshot);
+    });
+    return snapshots;
   }
 
   async reconnectDownload(
@@ -154,6 +169,43 @@ export class LibcurlDownloadAdapter {
     targetPath: string
   ): Promise<PlatformDownloadSnapshot | undefined> {
     const guid = snapshot.guid.trim();
+    const active = this.bindingsByGuid[guid];
+    if (active !== undefined && this.isLiveState(active.snapshot.state)) {
+      return active.snapshot;
+    }
+    const pending = this.pendingStartsByGuid[guid];
+    if (pending !== undefined) {
+      return pending;
+    }
+    const deferred = this.deferredRequestsByGuid[guid];
+    if (deferred?.snapshot.state === 'PAUSED') return deferred.snapshot;
+    this.canceledStartsByGuid[guid] = undefined;
+    this.deferredRequestsByGuid[guid] = { snapshot: snapshot, targetPath: targetPath };
+    const starting = this.createDirectDownload(snapshot, targetPath)
+      .catch((error: Error): PlatformDownloadSnapshot | undefined => {
+        hilog.warn(LIBCURL_DOWNLOAD_DOMAIN, LIBCURL_DOWNLOAD_TAG,
+          'prepare failed guid=%{public}s error=%{public}s', guid, JSON.stringify(error));
+        return undefined;
+      });
+    this.pendingStartsByGuid[guid] = starting;
+    try {
+      return await starting;
+    } finally {
+      if (this.pendingStartsByGuid[guid] === starting) {
+        this.pendingStartsByGuid[guid] = undefined;
+        this.canceledStartsByGuid[guid] = undefined;
+        if (this.deferredRequestsByGuid[guid]?.snapshot.state !== 'PAUSED') {
+          this.deferredRequestsByGuid[guid] = undefined;
+        }
+      }
+    }
+  }
+
+  private async createDirectDownload(
+    snapshot: PlatformDownloadSnapshot,
+    targetPath: string
+  ): Promise<PlatformDownloadSnapshot | undefined> {
+    const guid = snapshot.guid.trim();
     const url = snapshot.url.trim();
     const normalizedTargetPath = targetPath.trim();
     if (guid.length <= 0 || url.length <= 0 || normalizedTargetPath.length <= 0) {
@@ -166,6 +218,9 @@ export class LibcurlDownloadAdapter {
       return undefined;
     }
     const nativeModule = await this.loadNativeModule();
+    if (this.canceledStartsByGuid[guid] === true) {
+      return undefined;
+    }
     const headers = this.buildHeaders(snapshot);
     const hls = this.isHlsSnapshot(snapshot);
     const hlsSegmentConcurrency = this.normalizeHlsSegmentConcurrency(snapshot.hlsSegmentConcurrency);
@@ -218,7 +273,7 @@ export class LibcurlDownloadAdapter {
       url: url,
       originalUrl: snapshot.originalUrl,
       suggestedFileName: snapshot.suggestedFileName,
-      totalBytes: snapshot.totalBytes,
+      totalBytes: hls ? 0 : snapshot.totalBytes,
       receivedBytes: snapshot.receivedBytes,
       currentSpeed: snapshot.currentSpeed,
       state: 'RUNNING',
@@ -302,6 +357,14 @@ export class LibcurlDownloadAdapter {
 
   async pauseDownload(guid: string, _platformTaskId?: string, _platformTaskToken?: string): Promise<boolean> {
     const binding = this.bindingsByGuid[guid.trim()];
+    const deferred = this.deferredRequestsByGuid[guid.trim()];
+    if (binding === undefined && deferred !== undefined) {
+      this.canceledStartsByGuid[guid.trim()] = true;
+      deferred.resumeRequested = false;
+      deferred.snapshot.state = 'PAUSED';
+      deferred.snapshot.currentSpeed = 0;
+      return true;
+    }
     if (binding === undefined || binding.nativeReleased || this.nativeModule === undefined) {
       return false;
     }
@@ -316,6 +379,20 @@ export class LibcurlDownloadAdapter {
   }
 
   async resumeDownload(guid: string, _platformTaskId?: string, _platformTaskToken?: string): Promise<boolean> {
+    const normalizedGuid = guid.trim();
+    const pendingResume = this.deferredRequestsByGuid[normalizedGuid];
+    if (pendingResume?.snapshot.state === 'PAUSED') {
+      pendingResume.resumeRequested = true;
+      // Settle the old preparation before clearing its cancel intent. A second
+      // pause/cancel can arrive while this await is in progress.
+      await this.pendingStartsByGuid[normalizedGuid];
+      const deferred = this.deferredRequestsByGuid[normalizedGuid];
+      if (deferred === undefined || deferred !== pendingResume ||
+        deferred.resumeRequested !== true || deferred.snapshot.state !== 'PAUSED') return false;
+      this.deferredRequestsByGuid[normalizedGuid] = undefined;
+      deferred.snapshot.state = 'PENDING';
+      return await this.startDirectDownload(deferred.snapshot, deferred.targetPath) !== undefined;
+    }
     const binding = this.bindingsByGuid[guid.trim()];
     if (binding === undefined || binding.nativeReleased || this.nativeModule === undefined) {
       return false;
@@ -332,6 +409,7 @@ export class LibcurlDownloadAdapter {
 
   async cancelDownload(guid: string, _platformTaskId?: string, _platformTaskToken?: string): Promise<boolean> {
     const binding = this.bindingsByGuid[guid.trim()];
+    if (binding === undefined && this.cancelDeferredStart(guid.trim())) return true;
     if (binding === undefined || this.nativeModule === undefined) {
       return false;
     }
@@ -363,6 +441,7 @@ export class LibcurlDownloadAdapter {
 
   cancelPendingDownload(guid: string): boolean {
     const binding = this.bindingsByGuid[guid.trim()];
+    if (binding === undefined && this.cancelDeferredStart(guid.trim())) return true;
     if (binding === undefined || binding.nativeReleased || this.nativeModule === undefined) {
       return false;
     }
@@ -374,6 +453,13 @@ export class LibcurlDownloadAdapter {
       this.logControl('cancel_pending', binding, false, JSON.stringify(error));
       return false;
     }
+  }
+
+  private cancelDeferredStart(guid: string): boolean {
+    if (this.pendingStartsByGuid[guid] === undefined && this.deferredRequestsByGuid[guid] === undefined) return false;
+    if (this.pendingStartsByGuid[guid] !== undefined) this.canceledStartsByGuid[guid] = true;
+    this.deferredRequestsByGuid[guid] = undefined;
+    return true;
   }
 
   private async loadNativeModule(): Promise<AiraDownloadNativeModule> {
@@ -552,7 +638,7 @@ export class LibcurlDownloadAdapter {
       nativeSnapshot.fileExtension
     );
     const reportedTotalBytes = nativeSnapshot.totalBytes > 0 ?
-      nativeSnapshot.totalBytes : binding.snapshot.totalBytes;
+      nativeSnapshot.totalBytes : binding.hls ? 0 : binding.snapshot.totalBytes;
     binding.snapshot = {
       guid: binding.snapshot.guid,
       url: binding.snapshot.url,

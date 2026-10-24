@@ -150,7 +150,7 @@ def run(name, path, expected=None, error=None, headers=(), existing=False):
     output = work / (name + '.bin')
     if not existing:
         output.unlink(missing_ok=True)
-    result = subprocess.run([binary, base + path, str(output), 'hls' if '.m3u8' in path else 'http', *headers],
+    result = subprocess.run([binary, base + path, str(output), 'hls' if '.m3u8' in path else 'http', '--single-attempt', *headers],
                             capture_output=True, text=True, timeout=12)
     actual = output.read_bytes() if output.exists() else b''
     passed = result.returncode == 0 and actual == expected if error is None else result.returncode != 0 and error in result.stdout

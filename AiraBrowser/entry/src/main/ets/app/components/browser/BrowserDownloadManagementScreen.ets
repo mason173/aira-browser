@@ -31,16 +31,19 @@ import {
   buildDownloadSelectionTitle,
   canSelectDownloadTask,
   collectSelectableDownloadGuids,
+  DownloadBatchAction,
   DownloadSelectionCandidate,
   downloadSelectionEmptyToast,
-  pruneDownloadSelection
+  pruneDownloadSelection,
+  resolveDownloadBatchTaskAction
 } from '../../../core/download/DownloadSelectionViewModel';
+import { DownloadBatchActionCoordinator } from '../../../core/download/DownloadBatchActionCoordinator';
 import {
   DownloadQueryGroup,
   DownloadTaskBoundary,
   getDownloadV2QueryGroup
 } from '../../../domain/download/DownloadTypes';
-import { DownloadV2Status } from '../../../domain/downloadv2/DownloadV2Types';
+import { DownloadV2ManagementAction, DownloadV2Status } from '../../../domain/downloadv2/DownloadV2Types';
 import {
   BROWSER_THEME_STORAGE_CONTROL_BACKGROUND_KEY,
   BROWSER_THEME_STORAGE_DIVIDER_KEY,
@@ -64,7 +67,7 @@ import { SegmentedTabOption, SegmentedTabs } from '../common/SegmentedTabs';
 import { FloatingGlassMaterialSurface } from '../common/FloatingGlassMaterialSurface';
 import { resolveFloatingGlassMaterialTintForMode } from '../common/FloatingGlassMaterialTokens';
 import { BROWSER_WINDOW_SAFE_TOP_INSET_STORAGE_KEY } from '../../../core/browser/BrowserWindowAvoidAreaCoordinator';
-import { FloatingSelectionToolbar } from '../common/FloatingSelectionToolbar';
+import { FloatingSelectionToolbar, FloatingSelectionToolbarAction } from '../common/FloatingSelectionToolbar';
 import { browserSheetHeaderBlurModifier, resolveBrowserSheetHeaderBlurRadius } from './BrowserModalBottomSheet';
 import {
   MANAGEMENT_LARGE_SCREEN_ROW_GAP,
@@ -182,6 +185,7 @@ export struct BrowserDownloadManagementScreen {
   @State locallyHiddenTasks: HiddenDownloadTaskSnapshot[] = [];
   @State isSelectionMode: boolean = false;
   @State selectedGuids: string[] = [];
+  @State private batchActionBusy: boolean = false;
   @State private downloadSettingsDialogRevision: number = 0;
   @State private headerBlurRadius: number = 0;
   private groupScrollers: DownloadGroupScrollers = new DownloadGroupScrollers();
@@ -300,6 +304,7 @@ export struct BrowserDownloadManagementScreen {
       searchQuery: this.desktopQuery,
       onSearchChange: (value: string): void => {
         this.desktopQuery = value;
+        this.pruneSelectionToVisibleRows();
       },
       sidebar: (): void => {
         this.buildDesktopSidebar()
@@ -342,13 +347,19 @@ export struct BrowserDownloadManagementScreen {
           this.selectAllVisibleRows();
         }
       })
-      ManagementLargeScreenTextButton({
-        label: resolveAppResourceText($r('app.string.settings_delete')),
-        isEnabled: this.selectedGuids.length > 0,
-        onAction: (): void => {
-          this.confirmDeleteSelectedRows();
-        }
-      })
+      if (this.selectedGroup === 'in_progress') {
+        this.buildDesktopBatchButton('pause', $r('app.string.download_batch_pause'))
+        this.buildDesktopBatchButton('resume', $r('app.string.download_batch_resume'))
+        this.buildDesktopBatchButton('cancel', $r('app.string.download_batch_cancel'))
+      } else {
+        ManagementLargeScreenTextButton({
+          label: resolveAppResourceText($r('app.string.settings_delete')),
+          isEnabled: this.selectedGuids.length > 0,
+          onAction: (): void => {
+            this.confirmDeleteSelectedRows();
+          }
+        })
+      }
       ManagementLargeScreenTextButton({
         label: resolveAppResourceText($r('app.string.settings_site_info_done')),
         onAction: (): void => {
@@ -364,6 +375,15 @@ export struct BrowserDownloadManagementScreen {
         }
       })
     }
+  }
+
+  @Builder
+  private buildDesktopBatchButton(action: DownloadBatchAction, title: ResourceStr) {
+    ManagementLargeScreenTextButton({
+      label: title,
+      isEnabled: this.canControlSelectedRows(action),
+      onAction: (): void => { this.requestSelectedTaskAction(action); }
+    })
   }
 
   @Builder
@@ -469,7 +489,7 @@ export struct BrowserDownloadManagementScreen {
     if (this.isSelectionMode) {
       Stack({ alignContent: Alignment.Bottom }) {
         FloatingSelectionToolbar({
-          actions: [
+          actions: this.selectedGroup === 'in_progress' ? this.buildActiveSelectionToolbarActions() : [
             {
               airaIconId: 'browser.toolbar.selectAll',
               title: resolveAppResourceText($r('app.string.ui_select_all')),
@@ -668,8 +688,20 @@ export struct BrowserDownloadManagementScreen {
   }
 
   private buildHeaderMenuActions(): ManagementHdsMenuAction[] {
-    if (this.presentationMode === 'native_tab' || this.isSelectionMode) {
+    if (this.presentationMode === 'native_tab') {
       return [];
+    }
+    if (this.isSelectionMode) {
+      return [
+        {
+          label: resolveAppResourceText($r('app.string.ui_select_all')),
+          action: (): void => { this.selectAllVisibleRows(); }
+        },
+        {
+          label: resolveAppResourceText($r('app.string.settings_site_info_done')),
+          action: (): void => { this.exitSelectionMode(); }
+        }
+      ];
     }
     const actions: ManagementHdsMenuAction[] = [
       {
@@ -1091,6 +1123,9 @@ export struct BrowserDownloadManagementScreen {
   }
 
   private selectGroup(group: DownloadQueryGroup): void {
+    if (group !== this.selectedGroup) {
+      this.exitSelectionMode();
+    }
     this.markInteractionQuiet();
     this.hasResolvedInitialContentGroup = true;
     this.selectedGroup = group;
@@ -1679,6 +1714,105 @@ export struct BrowserDownloadManagementScreen {
     }
   }
 
+  private buildActiveSelectionToolbarActions(): FloatingSelectionToolbarAction[] {
+    return [
+      {
+        airaIconId: 'videoAssistant.pause',
+        title: resolveAppResourceText($r('app.string.download_batch_pause')),
+        enabled: this.canControlSelectedRows('pause'),
+        action: (): void => { this.requestSelectedTaskAction('pause'); }
+      },
+      {
+        airaIconId: 'videoAssistant.play',
+        title: resolveAppResourceText($r('app.string.download_batch_resume')),
+        enabled: this.canControlSelectedRows('resume'),
+        action: (): void => { this.requestSelectedTaskAction('resume'); }
+      },
+      {
+        airaIconId: 'browser.tabs.delete',
+        title: resolveAppResourceText($r('app.string.download_batch_cancel')),
+        enabled: this.canControlSelectedRows('cancel'),
+        action: (): void => { this.requestSelectedTaskAction('cancel'); }
+      }
+    ];
+  }
+
+  private canControlSelectedRows(action: DownloadBatchAction): boolean {
+    if (this.batchActionBusy || this.selectedGroup !== 'in_progress') {
+      return false;
+    }
+    return this.getRowsForGroup(this.selectedGroup).some((row: DownloadManagementRowState): boolean => {
+      if (!this.isRowSelected(row.guid)) {
+        return false;
+      }
+      const actions: DownloadV2ManagementAction[] = [];
+      row.menuActions.forEach((menuAction) => {
+        const rowAction = menuAction.action;
+        if (rowAction === 'pause' || rowAction === 'resume' || rowAction === 'retry' || rowAction === 'cancel') {
+          actions.push(rowAction);
+        }
+      });
+      // The primary action is intentionally omitted from the context menu.
+      if (row.primaryAction !== undefined) {
+        actions.push(row.primaryAction);
+      }
+      return resolveDownloadBatchTaskAction(action, row.status, actions) !== undefined;
+    });
+  }
+
+  private requestSelectedTaskAction(action: DownloadBatchAction): void {
+    if (!this.canControlSelectedRows(action)) {
+      return;
+    }
+    const guids = this.selectedGuids.slice();
+    const boundary = this.getCurrentDownloadBoundary();
+    if (action !== 'cancel') {
+      void this.performSelectedTaskAction(action, guids, boundary);
+      return;
+    }
+    showCenteredAlertDialog({
+      title: resolveAppResourceText($r('app.string.download_batch_cancel_title')),
+      message: resolveAppResourceText($r('app.string.download_batch_cancel_message', guids.length)),
+      autoCancel: true,
+      buttons: [
+        {
+          value: resolveAppResourceText($r('app.string.settings_account_cancel')),
+          action: (): void => {}
+        },
+        {
+          value: resolveAppResourceText($r('app.string.download_batch_cancel')),
+          fontColor: $r('app.color.permission_blocked'),
+          action: (): void => { void this.performSelectedTaskAction(action, guids, boundary); }
+        }
+      ]
+    });
+  }
+
+  private async performSelectedTaskAction(
+    action: DownloadBatchAction,
+    guids: string[],
+    boundary: DownloadTaskBoundary
+  ): Promise<void> {
+    if (this.batchActionBusy) {
+      return;
+    }
+    this.batchActionBusy = true;
+    try {
+      const coordinator = new DownloadBatchActionCoordinator(sharedDownloadRuntimeService);
+      const result = await coordinator.execute(action, guids, boundary);
+      const label = action === 'pause' ? $r('app.string.download_batch_pause') :
+        (action === 'resume' ? $r('app.string.download_batch_resume') : $r('app.string.download_batch_cancel'));
+      if (this.pageActive) {
+        this.showToast(resolveAppResourceText($r('app.string.download_batch_result',
+          resolveAppResourceText(label), result.succeededGuids.length, result.failedGuids.length,
+          result.skippedGuids.length)));
+        this.refreshState();
+      }
+    } finally {
+      this.batchActionBusy = false;
+    }
+  }
+
   private exitSelectionMode(): void {
     this.isSelectionMode = false;
     this.selectedGuids = [];
@@ -1690,13 +1824,15 @@ export struct BrowserDownloadManagementScreen {
 
   private collectSelectableRows(): DownloadSelectionCandidate[] {
     const candidates: DownloadSelectionCandidate[] = [];
-    this.downloadListState.groups.forEach((group: DownloadManagementGroupState) => {
-      group.rows.forEach((row: DownloadManagementRowState) => {
+    const rows = this.presentationMode === 'native_tab' ? this.resolveDesktopRows() :
+      this.getRowsForGroup(this.selectedGroup);
+    rows.forEach((row: DownloadManagementRowState) => {
+      if (canSelectDownloadTask(row.status)) {
         candidates.push({
           guid: row.guid,
           status: row.status
         });
-      });
+      }
     });
     return candidates;
   }
@@ -1706,8 +1842,8 @@ export struct BrowserDownloadManagementScreen {
   }
 
   private setRowSelected(guid: string, isSelected: boolean): void {
-    const row = this.findVisibleRowByGuid(guid);
-    if (row === undefined || !canSelectDownloadTask(row.status)) {
+    const row = this.collectSelectableRows().find((candidate: DownloadSelectionCandidate) => candidate.guid === guid);
+    if (row === undefined) {
       this.selectedGuids = this.selectedGuids.filter((selectedGuid: string) => selectedGuid !== guid);
       return;
     }
@@ -1730,7 +1866,7 @@ export struct BrowserDownloadManagementScreen {
   }
 
   private pruneSelectionToVisibleRows(): void {
-    if (this.selectedGuids.length === 0) {
+    if (!this.isSelectionMode) {
       return;
     }
     const selectableRows = this.collectSelectableRows();
@@ -1744,6 +1880,9 @@ export struct BrowserDownloadManagementScreen {
   }
 
   private confirmDeleteSelectedRows(): void {
+    if (this.selectedGroup !== 'completed') {
+      return;
+    }
     if (this.selectedGuids.length === 0) {
       this.showToast(downloadSelectionEmptyToast());
       return;
@@ -1835,6 +1974,7 @@ export struct BrowserDownloadManagementScreen {
     }
     this.markInteractionQuiet();
     this.hasResolvedInitialContentGroup = true;
+    this.exitSelectionMode();
     this.selectedGroup = nextGroup;
     this.logDownloadManagementLifecycle(`swipe_group:${nextGroup}`);
     this.scheduleDeferredRefresh();

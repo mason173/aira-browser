@@ -20213,6 +20213,10 @@
       "value": "网页下载已无法恢复，请返回原网页重新发起下载。"
     },
     {
+      "name": "download_response_size_mismatch",
+      "value": "下载响应与原文件大小不一致，请从原页面重新下载。"
+    },
+    {
       "name": "download_connection_lost",
       "value": "下载连接已中断，请重试。"
     },
@@ -20295,6 +20299,30 @@
     {
       "name": "download_prompt_message",
       "value": "下载确认只对本次点击生效。取消后不会再次自动触发。"
+    },
+    {
+      "name": "download_batch_pause",
+      "value": "暂停"
+    },
+    {
+      "name": "download_batch_resume",
+      "value": "继续"
+    },
+    {
+      "name": "download_batch_cancel",
+      "value": "取消下载"
+    },
+    {
+      "name": "download_batch_cancel_title",
+      "value": "取消选中的下载？"
+    },
+    {
+      "name": "download_batch_cancel_message",
+      "value": "确定取消选中的 %1$d 项下载吗？可取消的任务及其已下载的临时文件将被删除，已完成的下载会保留。"
+    },
+    {
+      "name": "download_batch_result",
+      "value": "%1$s：成功 %2$d 项，失败 %3$d 项，跳过 %4$d 项"
     },
     {
       "name": "download_selection_empty",

@@ -16,6 +16,7 @@ import {
   BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY
 } from '../../../core/theme/BrowserThemeStorageKeys';
 import { resolveDownloadFileTypeImage } from './DownloadFileTypeIcon';
+import { SelectedCheckIndicator } from '../common/SelectedCheckIndicator';
 import {
   BrowserDesktopContextMenu,
   BrowserDesktopContextMenuItem,
@@ -267,7 +268,9 @@ export struct BrowserDownloadManagementRow {
       .alignItems(HorizontalAlign.Start)
 
       Row({ space: 8 }) {
-        if (this.row.primaryAction !== undefined) {
+        if (this.selectionMode) {
+          this.buildSelectionCheckbox()
+        } else if (this.row.primaryAction !== undefined) {
           this.buildPrimaryActionButton()
         }
       }
@@ -292,6 +295,11 @@ export struct BrowserDownloadManagementRow {
             this.openContextMenu();
           }),
         TapGesture()
+          .onAction((): void => {
+            if (this.selectionMode) {
+              this.onToggleSelection(this.row.guid);
+            }
+          })
       )
     )
     .bindContextMenu(this.shouldShowContextMenu(), this.buildContextMenu(), {
@@ -517,16 +525,23 @@ export struct BrowserDownloadManagementRow {
 
   @Builder
   private buildSelectionCheckbox() {
-    // Display-only: the card tap owns the toggle, so one press can never select and
-    // immediately deselect by reaching both the Checkbox and the card gesture.
-    Checkbox()
-      .width(22)
-      .height(22)
-      .shape(CheckBoxShape.CIRCLE)
-      .select(this.selected)
-      .selectedColor(this.storedAccentColor)
-      .hitTestBehavior(HitTestMode.None)
-      .focusable(false)
+    // Display-only: the row owns the single selection toggle.
+    Stack() {
+      if (this.selected) {
+        SelectedCheckIndicator({ indicatorSize: 22 })
+      } else {
+        Circle()
+          .width(22)
+          .height(22)
+          .fill(Color.Transparent)
+          .stroke(this.storedSecondaryTextColor)
+          .strokeWidth(1.5)
+      }
+    }
+    .width(22)
+    .height(22)
+    .hitTestBehavior(HitTestMode.None)
+    .focusable(false)
   }
 
   private resolveInteractiveCardBackgroundColor(): ResourceColor {

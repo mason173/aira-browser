@@ -206,6 +206,10 @@ function computeRunningTransition(event: DownloadV2Event): DownloadV2Status | un
 
 function computePausedTransition(event: DownloadV2Event): DownloadV2Status | undefined {
   switch (event) {
+    case 'queue':
+      return 'queued';
+    case 'finish':
+      return 'completed';
     case 'pause':
     case 'hydrate':
       return 'paused';

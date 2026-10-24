@@ -31,6 +31,7 @@ struct TaskOptions {
   std::vector<std::string> headers;
   std::string ca_path;
   bool hls = false;
+  std::size_t http_max_attempts = 3;
   std::size_t hls_segment_concurrency = 8;
   // Empty scheme or host disables the proxy. socks5 is applied as socks5h so the
   // proxy resolves the target name, matching ArkWeb's socks:// rule.

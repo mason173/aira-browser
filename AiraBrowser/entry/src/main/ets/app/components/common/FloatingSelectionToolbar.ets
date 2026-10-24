@@ -31,6 +31,7 @@ export interface FloatingSelectionToolbarAction {
   icon?: Resource;
   airaIconId?: AiraRenderableIconId;
   title: ResourceStr;
+  enabled?: boolean;
   action?: () => void;
   menu?: FloatingSelectionToolbarMenuItem[];
 }
@@ -40,7 +41,7 @@ export struct FloatingSelectionToolbar {
   @StorageProp(BROWSER_THEME_STORAGE_DIVIDER_KEY) private storedDividerColor: string = '#E3E8EF';
   @StorageProp(BROWSER_THEME_STORAGE_RESOLVED_MODE_KEY) private storedResolvedThemeMode: string = 'light';
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY) private storedPrimaryTextColor: string = '#111318';
-  actions: FloatingSelectionToolbarAction[] = [];
+  @Prop actions: FloatingSelectionToolbarAction[] = [];
 
   build() {
     Stack({ alignContent: Alignment.Center }) {
@@ -61,7 +62,8 @@ export struct FloatingSelectionToolbar {
             } else {
               this.buildSelectionClickAction(item)
             }
-          }, (_item: FloatingSelectionToolbarAction, index: number) => `selection-${index}`)
+          }, (item: FloatingSelectionToolbarAction, index: number) =>
+            `selection-${index}:${item.enabled === false ? 'disabled' : 'enabled'}`)
         }
         .width('100%')
         .height('100%')
@@ -116,6 +118,8 @@ export struct FloatingSelectionToolbar {
     .borderRadius(FLOATING_SELECTION_TOOLBAR_BUTTON_RADIUS)
     .stateEffect(true)
     .accessibilityText(resolveAppResourceText(item.title))
+    .enabled(item.enabled ?? true)
+    .opacity(item.enabled === false ? 0.4 : 1)
     .onClick(() => {
       if (item.action !== undefined) {
         item.action();
@@ -136,6 +140,8 @@ export struct FloatingSelectionToolbar {
     .borderRadius(FLOATING_SELECTION_TOOLBAR_BUTTON_RADIUS)
     .stateEffect(true)
     .accessibilityText(resolveAppResourceText(item.title))
+    .enabled(item.enabled ?? true)
+    .opacity(item.enabled === false ? 0.4 : 1)
     .bindMenu(item.menu !== undefined ? item.menu : [], {
       placement: Placement.Top
     })

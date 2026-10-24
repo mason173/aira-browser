@@ -233,6 +233,7 @@ function clonePersistenceSnapshot(snapshot?: DownloadV2PersistenceSnapshot): Dow
     partialFilePath: snapshot?.partialFilePath,
     finalFilePath: snapshot?.finalFilePath,
     writtenBytes: snapshot?.writtenBytes,
+    expectedTotalBytes: snapshot?.expectedTotalBytes,
     etag: snapshot?.etag,
     lastModified: snapshot?.lastModified,
     acceptRanges: snapshot?.acceptRanges,

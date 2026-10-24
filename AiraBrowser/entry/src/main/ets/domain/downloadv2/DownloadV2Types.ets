@@ -38,6 +38,7 @@ export type DownloadV2Driver =
 
 export type DownloadV2ResumeMode =
   'none' |
+  'queued_live_resume' |
   'platform_live_resume';
 
 export type DownloadV2LifecycleAction =
@@ -96,6 +97,7 @@ export interface DownloadV2PersistenceSnapshot {
   partialFilePath?: string;
   finalFilePath?: string;
   writtenBytes?: number;
+  expectedTotalBytes?: number;
   etag?: string;
   lastModified?: string;
   acceptRanges?: string;

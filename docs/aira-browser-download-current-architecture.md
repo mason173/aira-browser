@@ -87,6 +87,16 @@ Authorization 只传给原 origin 的直接资源请求；跨域重定向遵守 
 
 普通文件续传需要有效的本地强 ETag 记录，发送 Range 与 If-Range，并验证返回的范围和实体。
 没有可靠验证器、服务器忽略范围或实体改变时，从头下载，避免把两个版本拼接为“完成”的文件。
+续传记录同时绑定原地址与重定向后的最终资源地址。最终地址改变时，即使两个资源恰好使用相同
+ETag，也会重新下载。旧版缺少最终地址的记录保留文件但不直接拼接。
+
+普通 GET 默认最多进行三次暂时故障尝试；实体校验失败还允许一次干净的完整重下。
+连接中断、临时服务器错误和限流使用有上限的退避，HTTP 与 HLS 都遵守 `Retry-After`。
+服务器要求等待超过 30 秒时停止自动尝试并保留失败状态，等待期间的取消和暂停可中断等待。
+访问拒绝、证书校验失败和本地写入错误不作盲目自动重试。
+
+只有最终 2xx 响应可以作为普通文件完成；缺少有效目标的 3xx 和无缓存实体的 304 都不能当成文件。
+文件缓冲区写入及关闭失败会报告写入错误，HLS 分片和最终合并同样检查落盘结果。
 HLS 只有下载并解密成功的资源进入 checkpoint；计划、最终清单地址或密钥变化会使旧 checkpoint 失效。
 错误密钥长度、IV、填充和字节范围会失败，不把不完整产物标为成功。
 
@@ -95,16 +105,34 @@ HLS 只有下载并解密成功的资源进入 checkpoint；计划、最终清�
 任务持久化明确保存传输 owner。ArkWeb 项使用 `WebDownloadItem.serialize()` 的上下文 token，
 通过 `deserialize()` 与 `WebDownloadManager.resumeDownload()` 恢复；token 带版本并核对 GUID。
 
-失败的网页下载不会因重试退回手动 GET。上下文缺失、损坏或已失效时报告无法恢复，
+网页下载默认通过原有 ArkWeb 上下文恢复。上下文缺失、损坏或已失效时报告无法恢复，
 让用户从原页面重新发起，避免丢失 POST、blob、一次性地址或会话信息。
 冷启动重连不会自行发送网络请求；恢复仍经过下载队列与网络策略。
 状态转换先于可能同步回调的启动操作，避免同步完成被之后的“开始”状态覆盖。
+开始任务时先同步占用运行名额，再等待平台启动；adapter 合并同一任务尚未完成的启动请求。
+原生模块仍在加载时收到取消或暂停，不会在加载完成后补发网络请求；再次暂停会撤销仍在等待中的恢复。
+启动的第一个回调中取消时，操作实际创建的 native handle。用户继续暂停任务时也经过同一
+队列与网络准入；排队恢复意图持久化为 `queued_live_resume`，暂停回调不会把它退回手动暂停。
+原生进度以当前传输实际字节为准，完整重下时允许归零；HLS 清单大小不作为整个视频总大小。
+
+普通 HTTP/HTTPS GET 已收到部分文件、已知完整长度且最终被 ArkWeb 以 `NETWORK_FAILED (20)`
+中断时，自动切换一次 libcurl HTTP/1.1 单流下载。此处处理内核 HTTP/2/并行范围请求失败后反复恢复
+仍失败的情况；初次网页请求继续由 ArkWeb 持有。POST、blob/data、访问拒绝和未收到文件的任务
+不适用此恢复规则。切换保留原请求的 UA、Referer、已捕获请求头和 Cookie 隐私边界，并遵守队列准入。
+
+ArkWeb 的 receivedBytes 可能是多段稀疏文件的字节总和，不能当作连续续传偏移。
+兼容恢复使用独立临时文件，从零开始，持久化新 owner 和预期完整长度；旧 ArkWeb 事件被忽略。
+替换响应只有与原文件长度相符才可完成，避免 CDN 的小体积 HTML 验证页被作为 APK 导出。
+若替换下载仍失败，保留失败状态与重试入口，不继续自动循环恢复。
 
 ## 7. 保存与代码归属
 
 `DownloadFileResolutionService` 与 `DownloadLocationDirectoryService` 负责目标目录、授权、导出及清理。
 普通下载可使用默认系统下载位置或用户选择的目录；私密下载遵守其任务边界与保存策略。
 传输完成、导出成功和最终可见路径是不同事实，列表应显示实际保存结果。
+每个临时文件使用独立 UUID，避免同名任务在同一毫秒建任务时共用一个文件。
+导出分配在应用内预留目标 URI，避免多个任务或窗口同时选中同一个尚不存在的文件名。
+描述符复制会处理短写，写完当前数据块之后再移动源文件偏移。
 
 关键代码均位于 `AiraBrowser/entry/src/main/`：
 
@@ -119,6 +147,8 @@ HLS 只有下载并解密成功的资源进入 checkpoint；计划、最终清�
 ## 8. 验证方式与证据范围
 
 ```sh
+./scripts/check-aira-downloads.sh
+# 下列单项也可独立执行：
 ./scripts/check-download-native.sh
 ./scripts/check-download-proxy.sh
 node scripts/check-aira-download-redirect-request.cjs
@@ -136,7 +166,13 @@ ArkTS 回归执行生产方法，平台对象、存储和调度使用受控模�
 这些检查不能替代 HarmonyOS 真机的 ArkWeb token 生命周期、TLS/系统证书、系统保存权限和真实媒体播放验证。
 本次工作没有进行设备截图、设备安装或真实站点端到端验收。
 
+完整下载检查由 `scripts/check-aira-downloads.sh` 统一执行，并用于客户端 CI 和本地整包构建。
+新增故障注入覆盖模块加载期间取消/重复启动、排队恢复、同步完成、短写与同名文件竞争、
+HTTP 临时断连/限流/服务暂不可用、错误重定向/304、实体切换，以及 HTTP/HLS 缓冲落盘失败。
+原生旧有手动续传检查使用单次传输模式，另由故障注入验证生产默认的自动恢复路径。
+
 协议依据：[RFC 8216](https://www.rfc-editor.org/rfc/rfc8216.html)、
 [libcurl Cookie engine](https://curl.se/libcurl/c/CURLOPT_COOKIEFILE.html)、
+[libcurl Retry-After](https://curl.se/libcurl/c/CURLINFO_RETRY_AFTER.html)、
 [Huawei WebDownloadItem](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/arkts-apis-webview-webdownloaditem)、
 [Huawei WebDownloadManager](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/arkts-apis-webview-webdownloadmanager)。

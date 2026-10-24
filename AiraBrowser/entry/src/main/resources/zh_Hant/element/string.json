@@ -20213,6 +20213,10 @@
       "value": "網頁下載已無法恢復，請返回原網頁重新發起下載。"
     },
     {
+      "name": "download_response_size_mismatch",
+      "value": "下載回應與原檔案大小不一致，請從原頁面重新下載。"
+    },
+    {
       "name": "download_connection_lost",
       "value": "下載連線已中斷，請重試。"
     },
@@ -20295,6 +20299,30 @@
     {
       "name": "download_prompt_message",
       "value": "下載確認只對本次點選生效。取消後不會再次自動觸發。"
+    },
+    {
+      "name": "download_batch_pause",
+      "value": "暫停"
+    },
+    {
+      "name": "download_batch_resume",
+      "value": "繼續"
+    },
+    {
+      "name": "download_batch_cancel",
+      "value": "取消下載"
+    },
+    {
+      "name": "download_batch_cancel_title",
+      "value": "取消選取的下載？"
+    },
+    {
+      "name": "download_batch_cancel_message",
+      "value": "確定取消選取的 %1$d 項下載嗎？可取消的工作及其已下載的暫存檔案將被刪除，已完成的下載會保留。"
+    },
+    {
+      "name": "download_batch_result",
+      "value": "%1$s：成功 %2$d 項，失敗 %3$d 項，略過 %4$d 項"
     },
     {
       "name": "download_selection_empty",

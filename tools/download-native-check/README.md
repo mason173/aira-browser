@@ -9,6 +9,8 @@ headers/library (curl 7.85+). macOS uses the selected Xcode SDK; Linux CI can in
 `libcurl4-openssl-dev`. AES uses this repository's vendored Mbed TLS source with a
 minimal host configuration. Independent OpenSSL encryption produces the fixtures.
 The proxy regression script uses the same host compiler helper.
+Run `./scripts/check-aira-downloads.sh` for the full adapter, task, storage, native,
+and proxy reliability gate shared by client builds and CI.
 
 The cases cover HTTP redirects and Cookie replacement, interrupted downloads with
 strong ETag/If-Range validation, safe restart without a validator, redirected HLS
@@ -18,6 +20,13 @@ METHOD=NONE, encrypted initialization sections, streaming PKCS#7 removal, and
 malformed key/IV/padding/range rejection. External audio renditions, SAMPLE-AES,
 non-identity DRM key formats, and encrypted initialization sections without an
 explicit IV fail explicitly instead of producing an incomplete file.
+
+`fault_lab.py` adds production-default automatic recovery for short-lived network
+and server failures, Retry-After handling for files/manifests/segments, rejected
+3xx/304 responses, changed redirect targets with coincident ETags, and actual
+buffered write failures induced by a per-process file-size limit. The legacy
+manual/cold-resume cases explicitly request one HTTP attempt so they continue
+checking restoration separately from automatic retry.
 
 Protocol references:
 

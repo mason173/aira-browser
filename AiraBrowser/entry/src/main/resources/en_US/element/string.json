@@ -20213,6 +20213,10 @@
       "value": "This browser download can no longer be resumed. Start it again from the original page."
     },
     {
+      "name": "download_response_size_mismatch",
+      "value": "The download response does not match the original file size. Download it again from the original page."
+    },
+    {
       "name": "download_connection_lost",
       "value": "The download connection was interrupted. Try again."
     },
@@ -20295,6 +20299,30 @@
     {
       "name": "download_prompt_message",
       "value": "This confirmation applies only to this tap. Canceling won't trigger it again."
+    },
+    {
+      "name": "download_batch_pause",
+      "value": "Pause"
+    },
+    {
+      "name": "download_batch_resume",
+      "value": "Resume"
+    },
+    {
+      "name": "download_batch_cancel",
+      "value": "Cancel"
+    },
+    {
+      "name": "download_batch_cancel_title",
+      "value": "Cancel selected downloads?"
+    },
+    {
+      "name": "download_batch_cancel_message",
+      "value": "Cancel %1$d selected downloads? Tasks that support cancellation and their temporary files will be deleted. Completed downloads will be kept."
+    },
+    {
+      "name": "download_batch_result",
+      "value": "%1$s: %2$d succeeded, %3$d failed, %4$d skipped"
     },
     {
       "name": "download_selection_empty",

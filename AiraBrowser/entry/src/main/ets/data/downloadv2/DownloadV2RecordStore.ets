@@ -85,6 +85,7 @@ interface PersistedDownloadV2PersistenceSnapshot {
   partialFilePath?: string;
   finalFilePath?: string;
   writtenBytes?: number;
+  expectedTotalBytes?: number;
   etag?: string;
   lastModified?: string;
   acceptRanges?: string;
@@ -370,6 +371,7 @@ export class ArkDownloadV2RecordStore implements DownloadV2RecordStore {
         partialFilePath: record.persistence.partialFilePath,
         finalFilePath: record.persistence.finalFilePath,
         writtenBytes: record.persistence.writtenBytes,
+        expectedTotalBytes: record.persistence.expectedTotalBytes,
         etag: record.persistence.etag,
         lastModified: record.persistence.lastModified,
         acceptRanges: record.persistence.acceptRanges,
@@ -436,6 +438,7 @@ export class ArkDownloadV2RecordStore implements DownloadV2RecordStore {
       partialFilePath: this.normalizeOptionalString(snapshot?.partialFilePath),
       finalFilePath: this.normalizeOptionalString(snapshot?.finalFilePath),
       writtenBytes: this.normalizeNonNegativeNumber(snapshot?.writtenBytes),
+      expectedTotalBytes: this.normalizeNonNegativeNumber(snapshot?.expectedTotalBytes),
       etag: this.normalizeOptionalString(snapshot?.etag),
       lastModified: this.normalizeOptionalString(snapshot?.lastModified),
       acceptRanges: this.normalizeOptionalString(snapshot?.acceptRanges),
@@ -607,6 +610,7 @@ export class ArkDownloadV2RecordStore implements DownloadV2RecordStore {
   private normalizeResumeMode(value?: string): DownloadV2ResumeMode | undefined {
     switch (String(value ?? '').trim()) {
       case 'none':
+      case 'queued_live_resume':
       case 'platform_live_resume':
         return value as DownloadV2ResumeMode;
       default:
@@ -711,6 +715,7 @@ function cloneDownloadV2TaskEntity(task: DownloadV2TaskEntity): DownloadV2TaskEn
       partialFilePath: task.persistence.partialFilePath,
       finalFilePath: task.persistence.finalFilePath,
       writtenBytes: task.persistence.writtenBytes,
+      expectedTotalBytes: task.persistence.expectedTotalBytes,
       etag: task.persistence.etag,
       lastModified: task.persistence.lastModified,
       acceptRanges: task.persistence.acceptRanges,

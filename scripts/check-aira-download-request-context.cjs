@@ -82,6 +82,16 @@ async function run() {
       'User-Agent: Page-UA', 'Referer: https://page.example/watch']) assert.ok(headers.includes(expected), expected);
     assert.equal(headers.some(header => /^(range|if-range|if-none-match|if-modified-since|accept-encoding):/i.test(header)), false);
   });
+  await scenario('HLS progress never treats manifest length as the total video length', async () => {
+    const started = await adapter.startDirectDownload(snapshot('hls-progress', {
+      url: 'https://media.example/index.m3u8', mimeType: 'application/vnd.apple.mpegurl', totalBytes: 777
+    }), '/tmp/hls-progress.ts');
+    assert.equal(started.totalBytes, 0);
+    adapter.nativeModule.getSnapshot = () => ({ state: 'running', receivedBytes: 2048, totalBytes: 0,
+      speedBytesPerSecond: 100, errorCode: 0, errorMessage: '', diagnosticMessage: '', failurePhase: '', fileExtension: '.ts' });
+    const progress = await adapter.reconnectDownload('hls-progress', started.platformTaskId);
+    assert.equal(progress.totalBytes, 0); assert.equal(progress.receivedBytes, 2048);
+  });
   if (failures.length) throw new Error(`${failures.length} download context scenarios failed`);
 }
 run().catch(error => { console.error(error.message); process.exitCode = 1; });
