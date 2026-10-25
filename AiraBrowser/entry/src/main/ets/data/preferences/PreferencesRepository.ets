@@ -282,6 +282,7 @@ export const DEFAULT_BROWSER_EXPERIMENT_SETTINGS: BrowserExperimentSettings = {
   reduceMediaMotionDuringScroll: false,
   strengthenAdBlockingForSmoothScroll: false,
   pullRefreshEnabled: true,
+  swipeNavigationEnabled: false,
   forceEnableWebZoom: false,
   webBottomSafeAreaEnabled: true,
   smartGripTabsActionsEnabled: true,
@@ -1417,6 +1418,7 @@ export class PreferencesRepository {
         settings,
         DEFAULT_BROWSER_EXPERIMENT_SETTINGS.pullRefreshEnabled
       ),
+      swipeNavigationEnabled: settings?.swipeNavigationEnabled === true,
       forceEnableWebZoom: typeof settings?.forceEnableWebZoom === 'boolean'
         ? settings.forceEnableWebZoom
         : DEFAULT_BROWSER_EXPERIMENT_SETTINGS.forceEnableWebZoom,

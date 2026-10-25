@@ -577,7 +577,9 @@ export class BrowserWebPageLifecycleApplicationCoordinator implements
   beginActivePageLoadingProgress(): void {
     this.activePageLoadCompleted = false;
     this.lastAppliedPageProgress = 0;
-    this.loadingProgressCoordinator.beginLoadAndSchedule(true, this.loadingProgressHost);
+    // ArkWeb also reports lifecycle events for fast history restoration. Avoid a
+    // progress flash, while navigation explicitly primed by the user stays immediate.
+    this.loadingProgressCoordinator.beginLoadAndSchedule(true, this.loadingProgressHost, Date.now(), 120);
   }
 
   resetActivePageLoadingProgress(): void {

@@ -627,6 +627,7 @@ export class ArkPreferencesStorageAdapter implements PreferencesStorageAdapter {
           ? parsed.strengthenAdBlockingForSmoothScroll
           : defaultValue.strengthenAdBlockingForSmoothScroll,
         pullRefreshEnabled: resolveExperimentPullRefreshEnabled(parsed, defaultValue.pullRefreshEnabled),
+        swipeNavigationEnabled: parsed.swipeNavigationEnabled === true,
         forceEnableWebZoom: typeof parsed.forceEnableWebZoom === 'boolean'
           ? parsed.forceEnableWebZoom
           : defaultValue.forceEnableWebZoom,

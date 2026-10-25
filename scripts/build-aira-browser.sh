@@ -70,6 +70,7 @@ PRIVATE_TAB_SESSION_RESTORE_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-privat
 REGULAR_SESSION_COOKIE_RESTORE_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-regular-session-cookie-restore.cjs"
 SHARED_HTML_VIEWER_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-shared-html-viewer.cjs"
 QQ_WEB_LOGIN_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-qq-web-login.cjs"
+WEB_SWIPE_NAVIGATION_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-web-swipe-navigation.cjs"
 TABS_STACK_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-tabs-stack.cjs"
 SAME_DOCUMENT_RESTORABLE_STATE_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-same-document-restorable-state.cjs"
 DOWNLOAD_REWIND_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-download-rewind-does-not-move-page.cjs"
@@ -415,7 +416,8 @@ for swipe_guard in \
   "${TAB_PREVIEW_IMAGE_LEASE_GUARD_SCRIPT}" \
   "${TAB_PREVIEW_LIFECYCLE_SNAPSHOT_GUARD_SCRIPT}" \
   "${PRIVATE_TAB_SESSION_RESTORE_GUARD_SCRIPT}" \
-  "${TABS_STACK_GUARD_SCRIPT}"; do
+  "${TABS_STACK_GUARD_SCRIPT}" \
+  "${WEB_SWIPE_NAVIGATION_GUARD_SCRIPT}"; do
   if [ ! -f "${swipe_guard}" ]; then
     fail "Bottom address bar tab swipe guard not found: ${swipe_guard}"
   fi

@@ -688,6 +688,7 @@ import {
   BrowserWebHostAttachState,
   BrowserWebHostCoordinator
 } from '../../core/browser/BrowserWebHostCoordinator';
+import { BrowserWebSwipeNavigationCoordinator } from '../../core/browser/BrowserWebSwipeNavigationCoordinator';
 import { BrowserHostedWebDocumentStartScriptCoordinator } from '../../core/web/BrowserHostedWebDocumentStartScriptCoordinator';
 import {
   BrowserHostedWebHiddenSlot,
@@ -1975,7 +1976,8 @@ struct BrowserShellPage {
     new BrowserHostedWebDocumentStartScriptCoordinator(
       this.userScriptRuntimeCoordinator,
       sharedSitePolicyService,
-      this.browserMediaDiscoveryRuntime.mediaFrameRuntimeCoordinator
+      this.browserMediaDiscoveryRuntime.mediaFrameRuntimeCoordinator,
+      (): boolean => sharedPreferencesRepository.getPreferences().experiments.swipeNavigationEnabled
     );
   private tabScopedEventContextHost: BrowserTabScopedEventContextHost = {
     readFacts: (): BrowserTabScopedEventContextFacts => ({
@@ -3311,6 +3313,8 @@ struct BrowserShellPage {
         this.webpageTranslationCoordinator.handleRefreshOrBackForwardForRuntimeTab(tabId, this.activeTabId, url),
       handleActiveTabChanged: (change: BrowserWebActiveTabChange): void => {
         this.browserWebPageLifecycleApplicationCoordinator.handleActiveTabChanged(change);
+        this.browserWebSwipeNavigationCoordinator.reset();
+        this.browserWebSwipeNavigationCoordinator.sync([this.activeTabId]);
         this.syncWebToolbarClearance(true);
       }
     };
@@ -5145,6 +5149,22 @@ struct BrowserShellPage {
         showKeyboardShortcutMessage: (message: string): void => this.showKeyboardShortcutMessage(message)
       }
     );
+  private browserWebSwipeNavigationCoordinator: BrowserWebSwipeNavigationCoordinator =
+    new BrowserWebSwipeNavigationCoordinator({
+      isEnabled: (): boolean => this.webScrollExperimentSettings.swipeNavigationEnabled,
+      isEligible: (tabId: string): boolean => tabId === this.activeTabId &&
+        this.isBrowserShellVisible && this.browserPageForeground && this.isWebPageVisible() &&
+        !this.shouldSuspendHostedWebSurface() && !this.showTabsSheet && !this.webBottomAddressFocused &&
+        !this.browserFullscreenSessionPresentation.fullScreenModeEnabled &&
+        !this.webContextMenuCoordinator.isVisibleForTab(tabId) &&
+        !this.browserPageFindCoordinator.isVisibleForTab(tabId) &&
+        !this.buildCurrentDocumentViewerChromeContext().policy.active,
+      resolvePanelDetent: (): HomeSearchPanelDetent => this.rootBottomAddressPanelDetent,
+      resolveController: (tabId: string): webview.WebviewController | undefined =>
+        this.browserRuntimeLifecyclePort.resolveController(tabId),
+      navigate: (direction: BrowserWebHistoryDirection): void =>
+        this.browserWebHistoryCommandRuntimeCoordinator.handleSwipeNavigate(direction)
+    });
   private browserKeyboardShortcutCoordinator: BrowserKeyboardShortcutCoordinator =
     new BrowserKeyboardShortcutCoordinator(
       {
@@ -6727,6 +6747,7 @@ struct BrowserShellPage {
     },
     applyExperimentSettings: (settings: BrowserExperimentSettings): void => {
       this.webScrollExperimentSettings = settings;
+      this.browserWebSwipeNavigationCoordinator.sync(this.tabs.map((tab: BrowserTabState): string => tab.id));
       this.syncWebBottomSafeAreaEnabled();
       this.webScrollSmoothModeRuntimeEnabled = settings.pauseWebAnimationsDuringScroll ||
         settings.reduceMediaMotionDuringScroll;
@@ -6936,6 +6957,7 @@ struct BrowserShellPage {
     this.homeWallpaperPageForeground = false;
     this.browserWebTopImmersionSessionCoordinator.cancelCoveredStatusBarHold();
     this.browserPageForeground = false;
+    this.browserWebSwipeNavigationCoordinator.reset();
     this.homeWallpaperPlaybackGate.handlePageHide((enabled: boolean): void => {
       this.homeVideoPlaybackEnabled = enabled;
     });
@@ -12776,6 +12798,7 @@ struct BrowserShellPage {
     return this.browserWebEventHostCoordinator.buildCallbacks({
       onControllerAttached: (tabId: string) => this.handleTabWebControllerAttached(tabId),
       onBeforeWebBuild: (tabId: string) => {
+        this.browserWebSwipeNavigationCoordinator.reset(tabId);
         this.browserAddressBarTabSwipeCoordinator.noteDocumentBegin(tabId);
         this.browserWebTabsController.onBeforeWebBuild(tabId);
         this.browserWebTopImmersionSessionCoordinator.handleBeforeWebBuild(tabId);
@@ -12784,6 +12807,7 @@ struct BrowserShellPage {
         this.browserWebToolbarClearanceCoordinator.handleDocumentBegin(tabId);
       },
       onPageVisible: (tabId: string, _event: OnPageVisibleEvent) => {
+        this.browserWebSwipeNavigationCoordinator.sync([tabId]);
         this.browserAddressBarTabSwipeCoordinator.noteSurfaceVisible(tabId,
           this.browserHostedRuntimeSurfacePort.getHostedNodeGeneration(tabId));
         this.browserWebTopImmersionSessionCoordinator.handlePageVisible(tabId);
@@ -12791,6 +12815,7 @@ struct BrowserShellPage {
         this.browserWebToolbarClearanceCoordinator.apply(tabId, true);
       },
       onPageBegin: (tabId: string, event: OnPageBeginEvent) => {
+        this.browserWebSwipeNavigationCoordinator.reset(tabId);
         this.browserLargeScreenWebZoomCoordinator.handleDocumentBegin(tabId);
         this.browserAddressBarTabSwipeCoordinator.noteDocumentBegin(tabId);
         this.browserWebBottomSafeAreaCoordinator.handleDocumentBegin(tabId);
@@ -12800,6 +12825,7 @@ struct BrowserShellPage {
       onPageEnd: (tabId: string, event: OnPageEndEvent) => {
         this.browserLargeScreenWebZoomCoordinator.handleDocumentEnd(tabId, event.url);
         this.browserWebPageLifecycleApplicationCoordinator.handlePageEnd(tabId, event);
+        this.browserWebSwipeNavigationCoordinator.sync([tabId]);
         this.browserWebBottomSafeAreaCoordinator.requestCheck(tabId);
         this.browserWebToolbarClearanceCoordinator.apply(tabId, true);
         this.novelReaderApplication.handlePageReady(
@@ -12825,6 +12851,7 @@ struct BrowserShellPage {
         this.consumeSplitAddressBarScrollNote(tabId);
       },
       onTouch: (tabId: string, event: TouchEvent) => {
+        this.browserWebSwipeNavigationCoordinator.handleTouch(tabId, event);
         sharedBrowsingActivitySignal.markBrowsingInteraction();
         if (event.type === TouchType.Down || event.type === TouchType.Up || event.type === TouchType.Cancel) {
           this.browserWebBottomSafeAreaCoordinator.handleTouch(tabId, event.type === TouchType.Down);
@@ -12835,6 +12862,7 @@ struct BrowserShellPage {
         this.browserLargeScreenShellIntentApplication.handleObservedWebPageScale(tabId, event.newScale);
       },
       onNavigationEntryCommitted: (tabId: string, details: LoadCommittedDetails) => {
+        if (details.isMainFrame) this.browserWebSwipeNavigationCoordinator.reset(tabId);
         this.browserWebPageLifecycleApplicationCoordinator.handleNavigationEntryCommitted(tabId, details);
         this.novelReaderApplication.handleNavigationEntryCommitted(this.novelReaderSession, {
           tabId: tabId,
@@ -13023,6 +13051,7 @@ struct BrowserShellPage {
   }
 
   private handleTabWebControllerAttached(tabId: string): void {
+    this.browserWebSwipeNavigationCoordinator.handleControllerAttached(tabId);
     this.browserWebScrollInteractionCoordinator.handleControllerAttached(tabId);
     if (this.browserBackgroundTabPreviewRuntimeCoordinator.tryHandleControllerAttached(tabId)) {
       return;

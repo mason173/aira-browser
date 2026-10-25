@@ -129,6 +129,7 @@ export class AppServiceModeCoordinator {
       reduceMediaMotionDuringScroll: false,
       strengthenAdBlockingForSmoothScroll: false,
       pullRefreshEnabled: false,
+      swipeNavigationEnabled: false,
       forceEnableWebZoom: false,
       webBottomSafeAreaEnabled: false,
       smartGripTabsActionsEnabled: current.smartGripTabsActionsEnabled,

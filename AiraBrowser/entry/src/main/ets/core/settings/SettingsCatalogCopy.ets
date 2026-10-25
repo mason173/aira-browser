@@ -64,6 +64,8 @@ export function localizeSettingsCatalogCopy(value: ResourceStr): ResourceStr {
       return $r('app.string.settings_catalog_yandex');
     case '一次性填充已有密码':
       return $r('app.string.settings_privacy_protection_password_private_autofill');
+    case '滑动前进后退':
+      return $r('app.string.settings_experiments_swipe_navigation');
     case '下拉刷新':
       return $r('app.string.settings_experiments_pull_refresh');
     case '下载位置':

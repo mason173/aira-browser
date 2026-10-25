@@ -27,6 +27,7 @@ export class BrowserWebLoadingProgressBarPresentationViewModel {
     const visible = !input.showHomePage &&
       !input.showTabsSheet &&
       input.loadingProgressState.isLoading &&
+      input.loadingProgressState.visualVisible &&
       progress > 0 &&
       progress <= 100;
     if (!visible) {

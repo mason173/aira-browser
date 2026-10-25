@@ -62,6 +62,10 @@ export class BrowserWebHistoryCommandRuntimeCoordinator {
     this.handleToolbarNavigateForward();
   }
 
+  handleSwipeNavigate(direction: BrowserWebHistoryDirection): void {
+    this.navigate(direction);
+  }
+
   handleToolbarNavigateBack(): void {
     const result = this.navigate('back');
     this.presentCommandFeedback('back', 'toolbar_back', result, '');

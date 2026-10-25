@@ -23671,6 +23671,18 @@
     {
       "name": "app_recommendation_open_market",
       "value": "View in AppGallery"
+    },
+    {
+      "name": "settings_experiments_swipe_navigation",
+      "value": "Swipe navigation"
+    },
+    {
+      "name": "settings_experiments_toast_swipe_navigation_on",
+      "value": "Swipe navigation enabled"
+    },
+    {
+      "name": "settings_experiments_toast_swipe_navigation_off",
+      "value": "Swipe navigation disabled"
     }
   ]
 }

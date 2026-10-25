@@ -16,6 +16,7 @@ import {
   sharedAdBlockDocumentStartScriptProviderRegistry
 } from '../adblock/AdBlockDocumentStartScriptProviderRegistry';
 import { WebBackForwardCacheCoordinator } from './WebBackForwardCacheCoordinator';
+import { WebSwipeNavigationScriptService } from '../../services/web/WebSwipeNavigationScriptService';
 import { AiraWebFreezeProbe } from '../../common/debug/AiraWebFreezeProbe';
 
 const BROWSER_HOME_SUBMIT_DIAGNOSTIC_DOMAIN: number = 0x0000;
@@ -61,13 +62,16 @@ export class BrowserHostedWebDocumentStartScriptCoordinator
   private readonly localScrollSignalService: BrowserWebLocalScrollSignalService =
     new BrowserWebLocalScrollSignalService();
   private readonly mediaFrameRuntimeCoordinator: BrowserMediaFrameRuntimeCoordinator;
+  private readonly isSwipeNavigationEnabled: () => boolean;
   private cachedDocumentScripts?: BrowserHostedWebDocumentScripts;
 
   constructor(
     userScriptRuntimeCoordinator: UserScriptRuntimeCoordinator,
     sitePolicyService: SitePolicyService,
-    mediaFrameRuntimeCoordinator: BrowserMediaFrameRuntimeCoordinator
+    mediaFrameRuntimeCoordinator: BrowserMediaFrameRuntimeCoordinator,
+    isSwipeNavigationEnabled: () => boolean = (): boolean => false
   ) {
+    this.isSwipeNavigationEnabled = isSwipeNavigationEnabled;
     this.userScriptRuntimeCoordinator = userScriptRuntimeCoordinator;
     this.sitePolicyService = sitePolicyService;
     this.mediaFrameRuntimeCoordinator = mediaFrameRuntimeCoordinator;
@@ -81,12 +85,14 @@ export class BrowserHostedWebDocumentStartScriptCoordinator
       dataScope: tab.dataScope,
       sessionId: tab.id
     });
+    const swipeNavigationEnabled = this.isSwipeNavigationEnabled();
     const clipboardPermissionRule = this.resolveClipboardPermissionRule(tab);
     const userScriptBundle: UserScriptDocumentStartScriptBundle =
       this.userScriptRuntimeCoordinator.buildDocumentStartScriptBundle(privateMode);
     const documentStartScriptKey = [
       'browser-document-start-v3',
       'freeze-loaf-9f2a',
+      swipeNavigationEnabled ? 'swipe-navigation-on' : 'swipe-navigation-off',
       privateMode ? 'private' : 'regular',
       tab.profileId,
       this.resolveTabUrl(tab),
@@ -131,6 +137,10 @@ export class BrowserHostedWebDocumentStartScriptCoordinator
         clipboardPermissionRule
       ), 'clipboard-permission')
     ].concat(userScriptBundle.items);
+    if (swipeNavigationEnabled) {
+      browserScripts.push(labelInjectedScript(new WebSwipeNavigationScriptService().buildDocumentStartScriptItem(),
+        'swipe-navigation'));
+    }
     const documentStartScripts = browserScripts.concat(adBlockScripts);
     const result: BrowserHostedWebDocumentScripts = {
       documentStartScripts: documentStartScripts,

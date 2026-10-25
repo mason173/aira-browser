@@ -23671,6 +23671,18 @@
     {
       "name": "app_recommendation_open_market",
       "value": "前往应用市场查看"
+    },
+    {
+      "name": "settings_experiments_swipe_navigation",
+      "value": "滑动前进后退"
+    },
+    {
+      "name": "settings_experiments_toast_swipe_navigation_on",
+      "value": "滑动前进后退已开启"
+    },
+    {
+      "name": "settings_experiments_toast_swipe_navigation_off",
+      "value": "滑动前进后退已关闭"
     }
   ]
 }

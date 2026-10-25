@@ -48,6 +48,8 @@ jobs:
         run: bash scripts/check-aira-app-recommendation-contract.sh
       - name: Check geolocation permission flow
         run: node scripts/check-aira-geolocation-permission.cjs
+      - name: Check web swipe navigation
+        run: node scripts/check-aira-web-swipe-navigation.cjs
       - name: Check shared HTML viewer response flow
         run: node scripts/check-aira-shared-html-viewer.cjs
       - name: Check QQ webpage login round trip

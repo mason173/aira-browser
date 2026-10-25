@@ -12,6 +12,8 @@ export function localizeExperimentsSettingsCopy(value: ResourceStr): ResourceStr
       return $r('app.string.settings_experiments_title');
     case '页面手势':
       return $r('app.string.settings_experiments_page_gestures');
+    case '滑动前进后退':
+      return $r('app.string.settings_experiments_swipe_navigation');
     case '下拉刷新':
       return $r('app.string.settings_experiments_pull_refresh');
     case '强制允许网页缩放':
@@ -80,6 +82,10 @@ export function localizeExperimentUpdateToast(value: string): ResourceStr {
       return $r('app.string.settings_experiments_toast_strengthen_ads_on');
     case '增强拦截已关闭':
       return $r('app.string.settings_experiments_toast_strengthen_ads_off');
+    case '滑动前进后退已开启':
+      return $r('app.string.settings_experiments_toast_swipe_navigation_on');
+    case '滑动前进后退已关闭':
+      return $r('app.string.settings_experiments_toast_swipe_navigation_off');
     case '下拉刷新已开启':
       return $r('app.string.settings_experiments_toast_pull_refresh_on');
     case '下拉刷新已关闭':
@@ -127,6 +133,8 @@ export function localizeSettingsSearchTargetCopy(value: string): ResourceStr {
   switch (value) {
     case '实验室':
       return $r('app.string.settings_experiments_title');
+    case '滑动前进后退':
+      return $r('app.string.settings_experiments_swipe_navigation');
     case '下拉刷新':
       return $r('app.string.settings_experiments_pull_refresh');
     case '强制允许网页缩放':

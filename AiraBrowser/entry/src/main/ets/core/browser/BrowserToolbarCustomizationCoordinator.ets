@@ -147,6 +147,7 @@ export class BrowserToolbarCustomizationCoordinator {
       reduceMediaMotionDuringScroll: current.reduceMediaMotionDuringScroll,
       strengthenAdBlockingForSmoothScroll: current.strengthenAdBlockingForSmoothScroll,
       pullRefreshEnabled: current.pullRefreshEnabled,
+      swipeNavigationEnabled: current.swipeNavigationEnabled,
       forceEnableWebZoom: current.forceEnableWebZoom,
       webBottomSafeAreaEnabled: webBottomSafeAreaEnabled,
       smartGripTabsActionsEnabled: current.smartGripTabsActionsEnabled,

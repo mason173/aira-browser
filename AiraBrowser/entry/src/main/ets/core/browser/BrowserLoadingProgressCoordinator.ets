@@ -6,6 +6,7 @@ export interface BrowserLoadingProgressState {
   lastUpdatedAt: number;
   completionPending: boolean;
   visualState: BrowserLoadingProgressVisualState;
+  visualVisible: boolean;
 }
 
 export type BrowserLoadingProgressVisualState = 'idle' | 'loading' | 'completing' | 'complete' | 'error';
@@ -32,6 +33,7 @@ export class BrowserLoadingProgressCoordinator {
   private downloadHandoffTimer: number = -1;
   private generation: number = 0;
   private navigationIntentAwaitingPageBegin: boolean = false;
+  private visualRevealAt: number = 0;
   private readonly terminalHoldMs: number;
 
   constructor(options?: BrowserLoadingProgressCoordinatorOptions) {
@@ -72,19 +74,25 @@ export class BrowserLoadingProgressCoordinator {
     return nextState;
   }
 
-  beginLoad(isDifferentDocument: boolean, now: number = Date.now()): BrowserLoadingProgressState {
+  beginLoad(
+    isDifferentDocument: boolean,
+    now: number = Date.now(),
+    visualDelayMs: number = 0
+  ): BrowserLoadingProgressState {
     this.cancelTimers();
     this.generation += 1;
     if (!isDifferentDocument) {
       return this.createIdleState(now);
     }
+    this.visualRevealAt = now + Math.max(0, visualDelayMs);
     return this.createLoadingState(0, ESTIMATED_PROGRESS_START, now, now);
   }
 
   beginLoadAndSchedule(
     isDifferentDocument: boolean,
     host: BrowserLoadingProgressHost,
-    now: number = Date.now()
+    now: number = Date.now(),
+    visualDelayMs: number = 0
   ): BrowserLoadingProgressState {
     if (isDifferentDocument && this.navigationIntentAwaitingPageBegin) {
       this.navigationIntentAwaitingPageBegin = false;
@@ -93,7 +101,7 @@ export class BrowserLoadingProgressCoordinator {
         return currentState;
       }
     }
-    const nextState = this.beginLoad(isDifferentDocument, now);
+    const nextState = this.beginLoad(isDifferentDocument, now, visualDelayMs);
     this.applyStateAndSchedule(nextState, host);
     return nextState;
   }
@@ -179,7 +187,9 @@ export class BrowserLoadingProgressCoordinator {
       startedAt: startedAt,
       lastUpdatedAt: now,
       completionPending: true,
-      visualState: 'complete'
+      visualState: 'complete',
+      // A quick restoration (or a lone completion callback) must not flash a full bar.
+      visualVisible: state.isLoading && state.visualVisible
     };
   }
 
@@ -220,7 +230,8 @@ export class BrowserLoadingProgressCoordinator {
       startedAt: state.startedAt > 0 ? state.startedAt : now,
       lastUpdatedAt: now,
       completionPending: true,
-      visualState: 'error'
+      visualState: 'error',
+      visualVisible: true
     };
   }
 
@@ -261,7 +272,7 @@ export class BrowserLoadingProgressCoordinator {
   shouldScheduleVisualTick(state: BrowserLoadingProgressState): boolean {
     return state.isLoading &&
       state.visualState === 'loading' &&
-      state.displayProgress < ESTIMATED_PROGRESS_CAP;
+      (!state.visualVisible || state.displayProgress < ESTIMATED_PROGRESS_CAP);
   }
 
   getNextVisualTickDelayMs(_state: BrowserLoadingProgressState): number {
@@ -269,11 +280,12 @@ export class BrowserLoadingProgressCoordinator {
   }
 
   shouldShowVisualState(state: BrowserLoadingProgressState): boolean {
-    return state.isLoading && state.displayProgress > 0 && state.displayProgress <= 100;
+    return state.isLoading && state.visualVisible && state.displayProgress > 0 && state.displayProgress <= 100;
   }
 
   cancelTimers(): void {
     this.navigationIntentAwaitingPageBegin = false;
+    this.visualRevealAt = 0;
     this.cancelVisualTick();
     this.cancelTerminalClear();
     this.cancelDownloadHandoff();
@@ -360,7 +372,8 @@ export class BrowserLoadingProgressCoordinator {
       startedAt: startedAt,
       lastUpdatedAt: now,
       completionPending: false,
-      visualState: 'loading'
+      visualState: 'loading',
+      visualVisible: now >= this.visualRevealAt
     };
   }
 
@@ -372,7 +385,8 @@ export class BrowserLoadingProgressCoordinator {
       startedAt: 0,
       lastUpdatedAt: now,
       completionPending: false,
-      visualState: 'idle'
+      visualState: 'idle',
+      visualVisible: false
     };
   }
 

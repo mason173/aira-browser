@@ -1270,6 +1270,7 @@ export interface BrowserExperimentSettings {
   reduceMediaMotionDuringScroll: boolean;
   strengthenAdBlockingForSmoothScroll: boolean;
   pullRefreshEnabled: boolean;
+  swipeNavigationEnabled: boolean;
   forceEnableWebZoom: boolean;
   webBottomSafeAreaEnabled: boolean;
   smartGripTabsActionsEnabled: boolean;

@@ -119,6 +119,7 @@ export type SettingsDetailRowAction =
   'toggle_reduce_media_motion_during_scroll' |
   'toggle_strengthen_ad_blocking_for_smooth_scroll' |
   'toggle_pull_refresh' |
+  'toggle_swipe_navigation' |
   'toggle_force_enable_web_zoom' |
   'toggle_web_bottom_safe_area' |
   'toggle_smart_grip_tabs_actions' |
@@ -256,6 +257,9 @@ export class SettingsDetailViewModel {
     if (previousSettings.strengthenAdBlockingForSmoothScroll !== nextSettings.strengthenAdBlockingForSmoothScroll) {
       return nextSettings.strengthenAdBlockingForSmoothScroll ? '增强拦截已开启' : '增强拦截已关闭';
     }
+    if (previousSettings.swipeNavigationEnabled !== nextSettings.swipeNavigationEnabled) {
+      return nextSettings.swipeNavigationEnabled ? '滑动前进后退已开启' : '滑动前进后退已关闭';
+    }
     if (previousSettings.pullRefreshEnabled !== nextSettings.pullRefreshEnabled) {
       return nextSettings.pullRefreshEnabled ? '下拉刷新已开启' : '下拉刷新已关闭';
     }
@@ -338,6 +342,7 @@ export class SettingsDetailViewModel {
       reduceMediaMotionDuringScroll: false,
       strengthenAdBlockingForSmoothScroll: false,
       pullRefreshEnabled: false,
+      swipeNavigationEnabled: false,
       forceEnableWebZoom: false,
       webBottomSafeAreaEnabled: true,
       smartGripTabsActionsEnabled: true,
@@ -1373,6 +1378,14 @@ export class SettingsDetailViewModel {
               '',
               'toggle_pull_refresh',
               experiments.pullRefreshEnabled,
+              canEditDevicePreferences
+            ),
+            this.switchRow(
+              'swipe_navigation',
+              '滑动前进后退',
+              '',
+              'toggle_swipe_navigation',
+              experiments.swipeNavigationEnabled,
               canEditDevicePreferences
             ),
             this.switchRow(

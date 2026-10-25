@@ -128,6 +128,9 @@ export class SettingsDetailActionResolver {
     if (action === 'toggle_strengthen_ad_blocking_for_smooth_scroll') {
       return this.copyExperimentSettings(current, { strengthenAdBlockingForSmoothScroll: nextChecked });
     }
+    if (action === 'toggle_swipe_navigation') {
+      return this.copyExperimentSettings(current, { swipeNavigationEnabled: nextChecked });
+    }
     if (action === 'toggle_pull_refresh') {
       return this.copyExperimentSettings(current, { pullRefreshEnabled: nextChecked });
     }
@@ -193,6 +196,7 @@ export class SettingsDetailActionResolver {
       strengthenAdBlockingForSmoothScroll:
         patch.strengthenAdBlockingForSmoothScroll ?? current.strengthenAdBlockingForSmoothScroll,
       pullRefreshEnabled: patch.pullRefreshEnabled ?? current.pullRefreshEnabled,
+      swipeNavigationEnabled: patch.swipeNavigationEnabled ?? current.swipeNavigationEnabled,
       forceEnableWebZoom: patch.forceEnableWebZoom ?? current.forceEnableWebZoom,
       webBottomSafeAreaEnabled: patch.webBottomSafeAreaEnabled ?? current.webBottomSafeAreaEnabled,
       smartGripTabsActionsEnabled: patch.smartGripTabsActionsEnabled ?? current.smartGripTabsActionsEnabled,

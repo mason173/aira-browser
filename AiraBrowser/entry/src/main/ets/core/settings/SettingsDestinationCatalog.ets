@@ -453,6 +453,8 @@ const ADVANCED_TARGETS: SettingsDestinationCatalogTarget[] = [
     ['实验'], ['页面手势', '丝滑模式', '应用内代理']),
   target('pull_refresh', 'experiments', 'experiments', '下拉刷新', '高级 / 实验室 / 页面手势', 'row',
     'pull_refresh', '', ['下滑刷新']),
+  target('swipe_navigation', 'experiments', 'experiments', '滑动前进后退',
+    '高级 / 实验室 / 页面手势', 'row', 'swipe_navigation', '', ['左右滑动', '滑动返回', '手势导航']),
   target('force_enable_web_zoom', 'experiments', 'experiments', '强制允许网页缩放',
     '高级 / 实验室 / 页面手势', 'row', 'force_enable_web_zoom', '', ['强制网页缩放']),
   target('smart_grip_tabs_actions', 'experiments', 'experiments', '智感握姿',

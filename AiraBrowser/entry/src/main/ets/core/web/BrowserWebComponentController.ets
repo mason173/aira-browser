@@ -7,6 +7,21 @@ import {
 
 export type BrowserWebHistoryDirection = 'back' | 'forward';
 
+// Use the same ArkWeb history capability query for toolbar and touch navigation.
+export function canTraverseWebHistory(
+  controller: webview.WebviewController, direction: BrowserWebHistoryDirection
+): boolean {
+  try {
+    return direction === 'back' ? controller.accessBackward() : controller.accessForward();
+  } catch (_error) {
+  }
+  try {
+    return controller.accessStep(direction === 'back' ? -1 : 1);
+  } catch (_error) {
+    return false;
+  }
+}
+
 export type BrowserWebComponentNavigationReason =
   'issued' |
   'dialog_back' |
@@ -492,15 +507,7 @@ export class BrowserWebComponentController {
     if (controller === undefined) {
       return false;
     }
-    try {
-      return direction === 'back' ? controller.accessBackward() : controller.accessForward();
-    } catch (_error) {
-    }
-    try {
-      return controller.accessStep(direction === 'back' ? -1 : 1);
-    } catch (_error) {
-      return false;
-    }
+    return canTraverseWebHistory(controller, direction);
   }
 
   private navigateController(
