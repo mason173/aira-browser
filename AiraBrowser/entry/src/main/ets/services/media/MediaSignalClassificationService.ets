@@ -61,6 +61,7 @@ export interface MediaResourceDomObservation {
   pageTitle: string;
   privacyMode: BrowserSessionPrivacyMode;
   url: string;
+  mediaTitle?: string;
   signal?: MediaResourceDomSignal;
   frameType?: MediaResourceFrameType;
   frameUrl?: string;
@@ -115,6 +116,7 @@ export interface MediaVideoDomObservation {
   pageTitle: string;
   privacyMode: BrowserSessionPrivacyMode;
   url: string;
+  mediaTitle?: string;
   frameType?: MediaResourceFrameType;
   frameUrl?: string;
   isMainFrame?: boolean;
@@ -251,6 +253,7 @@ export class MediaSignalClassificationService {
       pageTitle: observation.pageTitle,
       privacyMode: observation.privacyMode,
       url: observation.url,
+      mediaTitle: observation.mediaTitle,
       source: 'dom',
       fromBlob: observation.fromBlob,
       signal: observation.signal,
@@ -323,6 +326,7 @@ export class MediaSignalClassificationService {
       pageTitle: observation.pageTitle,
       privacyMode: observation.privacyMode,
       url: observation.url,
+      mediaTitle: observation.mediaTitle,
       source: 'dom',
       fromBlob: observation.fromBlob,
       extension: classification.extension,
@@ -765,6 +769,7 @@ export class MediaSignalClassificationService {
   ): MediaPlaybackMetadata {
     return {
       displayName: this.resolveDisplayName(input),
+      mediaTitle: input.mediaTitle,
       sourceHost: this.resourceRules.resolveHost(input.url),
       extension: classification.extension,
       mimeType: this.resolveMimeType(input),
@@ -783,6 +788,7 @@ export class MediaSignalClassificationService {
   ): MediaPlaybackMetadata {
     return {
       extension: extension,
+      mediaTitle: input.mediaTitle,
       mimeType: input.mimeType,
       durationMs: input.durationMs,
       width: input.width,

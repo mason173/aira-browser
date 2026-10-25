@@ -19,6 +19,7 @@ interface HlsMediaPlaylistAnalysis {
   segmentCount: number;
   targetDuration: number;
   durationSeconds: number;
+  live: boolean;
   encrypted: boolean;
   protectedContent: boolean;
   keyUrls: string[];
@@ -98,6 +99,7 @@ export class MediaManifestProcessingService {
     summary.protectedContent = media.protectedContent;
     summary.targetDuration = media.targetDuration;
     summary.durationSeconds = media.durationSeconds;
+    summary.live = media.live;
     summary.sampleSegments = media.sampleSegments;
     summary.keyUrls = media.keyUrls;
     summary.keyMethods = media.keyMethods;
@@ -127,6 +129,7 @@ export class MediaManifestProcessingService {
       variant.segmentCount = analysis.segmentCount;
       variant.targetDuration = analysis.targetDuration;
       variant.durationSeconds = analysis.durationSeconds;
+      variant.live = analysis.live;
       variant.encrypted = analysis.encrypted;
       variant.protectedContent = analysis.protectedContent;
       variant.sampleSegments = analysis.sampleSegments;
@@ -135,6 +138,7 @@ export class MediaManifestProcessingService {
       variant.mapUrls = analysis.mapUrls;
       summary.segmentCount += analysis.segmentCount;
       summary.durationSeconds = Math.max(summary.durationSeconds, analysis.durationSeconds);
+      summary.live = summary.live === true || analysis.live;
       summary.targetDuration = Math.max(summary.targetDuration, analysis.targetDuration);
       summary.encrypted = summary.encrypted || analysis.encrypted;
       summary.protectedContent = summary.protectedContent || analysis.protectedContent;
@@ -144,6 +148,9 @@ export class MediaManifestProcessingService {
       this.appendSampleSegments(summary.sampleSegments, analysis.sampleSegments);
     }
     summary.keyCount = summary.keyUrls.length;
+    if (summary.live === true) {
+      summary.durationSeconds = 0;
+    }
     if (summary.variants.length > limit) {
       summary.warnings.push(resolveAppResourceText($r('app.string.media_manifest_probe_limit', limit)));
     }
@@ -199,6 +206,7 @@ export class MediaManifestProcessingService {
       segmentCount: 0,
       targetDuration: 0,
       durationSeconds: 0,
+      live: true,
       encrypted: false,
       protectedContent: false,
       keyUrls: [],
@@ -206,14 +214,28 @@ export class MediaManifestProcessingService {
       mapUrls: [],
       sampleSegments: []
     };
+    let pendingDuration = -1;
+    let completeDurations = true;
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
+      if (line === '#EXT-X-ENDLIST') {
+        result.live = false;
+        continue;
+      }
+      if (line.startsWith('#EXT-X-SKIP:')) {
+        // A delta update omits earlier segments even if it now contains ENDLIST.
+        completeDurations = false;
+        continue;
+      }
       if (line.startsWith('#EXT-X-TARGETDURATION:')) {
         result.targetDuration = this.parsePositiveNumber(line.substring('#EXT-X-TARGETDURATION:'.length));
         continue;
       }
       if (line.startsWith('#EXTINF:')) {
-        result.durationSeconds += this.parseExtInfDuration(line);
+        if (pendingDuration >= 0) {
+          completeDurations = false;
+        }
+        pendingDuration = this.parseExtInfDuration(line);
         continue;
       }
       if (line.startsWith('#EXT-X-KEY:')) {
@@ -235,9 +257,20 @@ export class MediaManifestProcessingService {
         continue;
       }
       if (line.length > 0 && !line.startsWith('#')) {
+        if (pendingDuration > 0) {
+          result.durationSeconds += pendingDuration;
+        } else {
+          completeDurations = false;
+        }
+        pendingDuration = -1;
         result.segmentCount += 1;
         this.appendSampleSegments(result.sampleSegments, [this.resolveUrl(url, line)]);
       }
+    }
+    // EXTINF describes one segment; only a finished, complete playlist supplies
+    // the full duration. An open/live window may contain just a few seconds.
+    if (result.live || !completeDurations || pendingDuration >= 0 || !Number.isFinite(result.durationSeconds)) {
+      result.durationSeconds = 0;
     }
     return result;
   }

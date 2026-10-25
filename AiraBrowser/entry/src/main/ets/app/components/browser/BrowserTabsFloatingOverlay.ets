@@ -365,6 +365,7 @@ export struct BrowserTabsFloatingOverlay {
   onSelectTab: (tabId: string, rect?: BrowserTabOverviewCardSelectRect) => void =
     (_tabId: string, _rect?: BrowserTabOverviewCardSelectRect) => {};
   onCloseTab: (tabId: string) => void = (_tabId: string) => {};
+  onAcceptTabClose: (tabId: string, delayMs: number) => void = (_tabId: string, _delayMs: number) => {};
   onPreviewRectChange: (
     tabId: string,
     left: number,
@@ -1156,6 +1157,10 @@ export struct BrowserTabsFloatingOverlay {
         this.deckSwipeTabId = '';
         this.closeTabFromOverlay(tabId);
       },
+      onSwipeDismissAccepted: (tabId: string, durationMs: number) => {
+        this.onAcceptTabClose(tabId,
+          durationMs + (this.isStackLayout() ? FLOATING_TABS_REORDER_DURATION_MS : 0));
+      },
       onSwipeThresholdReached: (_tabId: string) => {
         this.performSwipeThresholdFeedback();
       },
@@ -1657,6 +1662,9 @@ export struct BrowserTabsFloatingOverlay {
       tabId.trim().length <= 0 || this.isLocallyRemovedTab(tabId)) {
       return;
     }
+    // Every style must preserve the close before its local row/card disappears. The deck alone
+    // delays completion for its fill-in; list, grid and strip buttons can commit immediately.
+    this.onAcceptTabClose(tabId, this.isStackLayout() ? FLOATING_TABS_REORDER_DURATION_MS : 0);
     if (this.isStackLayout()) {
       this.beginDeckDismiss(tabId);
       return;
@@ -2865,7 +2873,8 @@ export struct BrowserTabsFloatingOverlay {
    */
   private beginDeckDismiss(tabId: string): void {
     if (this.pendingDeckDismissTabId.length > 0) {
-      return;
+      if (this.pendingDeckDismissTabId === tabId) { return; }
+      this.commitPendingDeckDismiss();
     }
     this.stopDeckMotion();
     const previousIds = this.deckItems.map((item: BrowserTabsFloatingItem): string => item.id);

@@ -1,3 +1,8 @@
+import {
+  resolveDownloadProgressPercent,
+  resolveDownloadDisplayTotal,
+  isDownloadTotalEstimated
+} from '../../domain/downloadv2/DownloadV2Progress';
 import { resolveAppResourceText } from '../resources/AppResourceText';
 import { DownloadStatusCounts } from './DownloadQueryService';
 import { canSelectDownloadTask } from './DownloadSelectionViewModel';
@@ -358,19 +363,19 @@ export class DownloadManagerViewModel {
   }
 
   private buildTaskProgressValue(task: DownloadV2TaskEntity): number {
-    const totalBytes = task.progress.totalBytes;
-    if (totalBytes <= 0) {
-      return task.status === 'completed' ? 100 : 0;
-    }
-    return Math.max(0, Math.min(100, Math.floor(task.progress.receivedBytes * 100 / totalBytes)));
+    return resolveDownloadProgressPercent(task.progress, task.status);
   }
 
   private buildTaskProgressText(task: DownloadV2TaskEntity): string {
     const downloaded = this.formatBytes(task.progress.receivedBytes);
-    if (task.progress.totalBytes <= 0) {
+    const total = resolveDownloadDisplayTotal(task.progress);
+    if (total <= 0) {
       return resolveAppResourceText($r('app.string.download_progress_unknown_size', downloaded));
     }
-    return `${downloaded} / ${this.formatBytes(task.progress.totalBytes)}`;
+    const totalText = isDownloadTotalEstimated(task.progress)
+      ? resolveAppResourceText($r('app.string.download_size_estimated', this.formatBytes(total)))
+      : this.formatBytes(total);
+    return `${downloaded} / ${totalText}`;
   }
 
   private buildManagementStatusText(task: DownloadV2TaskEntity, presentation: DownloadV2TaskPresentation): string {

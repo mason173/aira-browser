@@ -24,6 +24,8 @@ import {
 import { DESKTOP_DIALOG_PADDING_VP } from '../../../core/browser/BrowserDialogPresentationTokens';
 import { resolveAppResourceText } from '../../../core/resources/AppResourceText';
 import { AppEmptyState } from '../common/AppEmptyState';
+import { FloatingSelectionToolbar } from '../common/FloatingSelectionToolbar';
+import { SelectedCheckIndicator } from '../common/SelectedCheckIndicator';
 import { FloatingGlassMaterialSurface } from '../common/FloatingGlassMaterialSurface';
 import { HdsImmersiveMaterialSurface } from '../common/HdsImmersiveMaterialSurface';
 import { isHdsMaterialAvailable } from '../common/HdsImmersiveMaterialTokens';
@@ -53,7 +55,14 @@ import {
   systemMaterialModifier
 } from '../common/FloatingGlassMaterialTokens';
 
-type MediaResourceSurfaceTab = 'video' | 'other';
+import {
+  MediaResourceSurfaceTab,
+  MediaResourceBatchAction,
+  belongsToMediaResourceTab,
+  isSelectableMediaResource,
+  reconcileMediaResourceSelection,
+  selectedMediaResourcesForAction
+} from '../../../features/mediaDiscovery/MediaResourceSelection';
 
 const RESOURCE_TABS: MediaResourceSurfaceTab[] = [
   'video',
@@ -147,24 +156,6 @@ function describeFailureReason(reason: string | undefined): string {
     return resolveAppResourceText($r('app.string.media_resource_failure_hls_auth'));
   }
   return resolveAppResourceText($r('app.string.media_resource_failure_unsupported'));
-}
-
-function belongsToTab(candidate: MediaResourceListItem, tab: MediaResourceSurfaceTab): boolean {
-  if (candidate.family === 'segment') {
-    return false;
-  }
-  const videoFamily = candidate.family === 'video' ||
-    (candidate.family === 'manifest' && candidate.acquisition?.primaryTrack.role !== 'audio');
-  const actionableVideo = candidate.actions.indexOf('download') >= 0 ||
-    candidate.actions.indexOf('parse_manifest') >= 0;
-  const exceptionalVideo = candidate.status === 'protected' ||
-    candidate.status === 'expired' ||
-    candidate.status === 'unsupported' ||
-    candidate.status === 'failed';
-  if (tab === 'video') {
-    return videoFamily && (actionableVideo || exceptionalVideo);
-  }
-  return !videoFamily || (!actionableVideo && !exceptionalVideo);
 }
 
 function shortenUrl(url: string): string {
@@ -272,7 +263,7 @@ export struct BrowserMediaResourcesSheet {
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY) private storedPrimaryTextColor: string = '#111318';
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY) private storedSecondaryTextColor: string = '#5F6875';
   @Prop
-  @Watch('pruneFailedImageCandidates')
+  @Watch('onCandidatesChanged')
   candidates: MediaResourceListItem[] = [];
   @Prop
   @Watch('syncActiveTab')
@@ -282,6 +273,8 @@ export struct BrowserMediaResourcesSheet {
   @Prop scanning: boolean = false;
   @Prop layoutMode: 'phone' | 'large_screen' = 'phone';
   @State activeTab: MediaResourceSurfaceTab = 'video';
+  @State selectionMode: boolean = false;
+  @State selectedCandidateIds: string[] = [];
   @State contentWidth: number = BROWSER_RESOURCE_SHEET_MAX_WIDTH;
   @State failedImageCandidateIds: string[] = [];
   private resourceTabSwiperController: SwiperController = new SwiperController();
@@ -290,6 +283,9 @@ export struct BrowserMediaResourcesSheet {
   @State private sheetScrollOffset: number = 0;
   @State private tabBarWidth: number = 1;
   onAction: (candidateId: string, action: MediaResourceAction) => void = (_candidateId: string, _action: MediaResourceAction) => {};
+
+  onBatchAction: (candidateIds: string[], action: MediaResourceBatchAction) => void =
+    (_candidateIds: string[], _action: MediaResourceBatchAction) => {};
 
   aboutToAppear(): void {
     this.pruneFailedImageCandidates();
@@ -337,9 +333,9 @@ export struct BrowserMediaResourcesSheet {
       Stack() {
         BrowserImmersiveSheetLayout({
           closeVisible: true,
-          closeAccessibilityLabel: $r('app.string.media_resource_close'),
+          closeAccessibilityLabel: this.selectionMode ? $r('app.string.ui_done') : $r('app.string.media_resource_close'),
           onClose: (): void => {
-            this.onClose();
+            this.handleClose();
           },
           scrollContent: () => {
             this.buildList()
@@ -364,7 +360,7 @@ export struct BrowserMediaResourcesSheet {
         title: this.buildTitle(),
         dialogMode: true,
         onClose: (): void => {
-          this.onClose();
+          this.handleClose();
         }
       })
 
@@ -453,7 +449,7 @@ export struct BrowserMediaResourcesSheet {
         fallbackColor: $r('sys.color.ohos_id_color_background_transparent'),
         barMaterialEnabled: false,
         onSelect: (id: string) => {
-          this.activeTab = id as MediaResourceSurfaceTab;
+          this.changeActiveTab(id as MediaResourceSurfaceTab);
           this.syncSwiperToActiveTab(true);
         }
       })
@@ -468,20 +464,54 @@ export struct BrowserMediaResourcesSheet {
 
   @Builder
   private buildList() {
-    Swiper(this.resourceTabSwiperController) {
-      this.buildResourcePage('video')
-      this.buildResourcePage('other')
+    Stack({ alignContent: Alignment.Bottom }) {
+      Swiper(this.resourceTabSwiperController) {
+        this.buildResourcePage('video')
+        this.buildResourcePage('other')
+      }
+      .index(this.resolveActiveTabIndex())
+      .indicator(false)
+      .loop(false)
+      .duration(280)
+      .cachedCount(2)
+      .width('100%')
+      .height('100%')
+      .onChange((index: number) => {
+        this.syncActiveTabFromIndex(index);
+      })
+
+      if (this.selectionMode && this.activeTab === 'other') {
+        this.buildSelectionToolbar()
+      }
     }
-    .index(this.resolveActiveTabIndex())
-    .indicator(false)
-    .loop(false)
-    .duration(280)
-    .cachedCount(2)
     .width('100%')
     .height('100%')
-    .onChange((index: number) => {
-      this.syncActiveTabFromIndex(index);
+  }
+
+  @Builder
+  private buildSelectionToolbar() {
+    FloatingSelectionToolbar({
+      actions: [
+        {
+          airaIconId: 'browser.toolbar.selectAll',
+          title: this.allOtherResourcesSelected() ? $r('app.string.media_resource_deselect_all') : $r('app.string.ui_select_all'),
+          action: () => { this.toggleSelectAll(); }
+        },
+        {
+          airaIconId: 'browser.toolbar.copyLink',
+          title: $r('app.string.media_resource_batch_copy'),
+          enabled: this.selectedForAction('copy').length > 0,
+          action: () => { this.runBatchAction('copy'); }
+        },
+        {
+          airaIconId: 'browser.shortcut.downloads',
+          title: $r('app.string.media_resource_batch_download', this.selectedForAction('download').length),
+          enabled: this.selectedForAction('download').length > 0,
+          action: () => { this.runBatchAction('download'); }
+        }
+      ]
     })
+      .margin({ bottom: 16 })
   }
 
   @Builder
@@ -523,7 +553,8 @@ export struct BrowserMediaResourcesSheet {
         left: this.layoutMode === 'phone' ? 16 : 0,
         right: this.layoutMode === 'phone' ? 16 : 0,
         top: this.layoutMode === 'phone' ? BROWSER_RESOURCE_SHEET_CONTENT_TOP_PADDING : 0,
-        bottom: this.layoutMode === 'phone' ? BROWSER_SHEET_IMMERSIVE_BOTTOM_PADDING : 0
+        bottom: this.selectionMode && tab === 'other' ? 96 :
+          this.layoutMode === 'phone' ? BROWSER_SHEET_IMMERSIVE_BOTTOM_PADDING : 0
       })
     }
     .width('100%')
@@ -543,6 +574,10 @@ export struct BrowserMediaResourcesSheet {
   @Builder
   private buildOtherResourceList() {
     Column({ space: 12 }) {
+      Text($r('app.string.media_resource_selection_hint'))
+        .width('100%')
+        .fontSize(12)
+        .fontColor(this.storedSecondaryTextColor)
       if (this.imageCandidates().length > 0) {
         Text($r('app.string.media_resource_images_count', this.imageCandidates().length))
           .width('100%')
@@ -739,6 +774,16 @@ export struct BrowserMediaResourcesSheet {
     BrowserResourceImageGridCard({
       candidate: candidate,
       cardBackgroundColor: this.storedControlBackgroundColor,
+      selectionMode: this.selectionMode,
+      selected: this.isSelected(candidate.id),
+      selectable: isSelectableMediaResource(candidate),
+      accentColor: this.storedAccentColor,
+      onSelect: (candidateId: string) => {
+        this.toggleSelection(candidateId);
+      },
+      onBeginSelection: (candidateId: string) => {
+        this.beginSelection(candidateId);
+      },
       onImageLoadFailed: (candidateId: string) => {
         this.markImageLoadFailed(candidateId);
       },
@@ -751,6 +796,13 @@ export struct BrowserMediaResourcesSheet {
   @Builder
   private buildResourceRow(candidate: MediaResourceListItem) {
     Row({ space: 12 }) {
+      if (this.selectionMode) {
+        BrowserResourceSelectionIndicator({
+          selected: this.isSelected(candidate.id),
+          accentColor: this.storedAccentColor
+        })
+          .opacity(isSelectableMediaResource(candidate) ? 1 : 0.35)
+      }
       this.buildResourceIcon(candidate)
 
       Column({ space: 5 }) {
@@ -786,7 +838,9 @@ export struct BrowserMediaResourcesSheet {
             .fontColor(this.storedSecondaryTextColor)
             .layoutWeight(1)
 
-          this.buildActionButtons(candidate)
+          if (!this.selectionMode) {
+            this.buildActionButtons(candidate)
+          }
         }
         .width('100%')
         .alignItems(VerticalAlign.Center)
@@ -798,7 +852,24 @@ export struct BrowserMediaResourcesSheet {
     .constraintSize({ minHeight: RESOURCE_ROW_MIN_HEIGHT })
     .padding({ left: 12, right: 12, top: 12, bottom: 12 })
     .alignItems(VerticalAlign.Center)
-    .backgroundColor($r('sys.color.ohos_id_color_background_transparent'))
+    .backgroundColor(this.isSelected(candidate.id) ? this.storedPressedBackgroundColor : Color.Transparent)
+    .accessibilityDescription(this.selectionMode ? resolveAppResourceText(this.isSelected(candidate.id)
+      ? $r('app.string.media_resource_selected') : $r('app.string.media_resource_not_selected')) : '')
+    .gesture(
+      GestureGroup(
+        GestureMode.Exclusive,
+        LongPressGesture({ fingers: 1, repeat: false, duration: 450 })
+          .onAction(() => {
+            this.beginSelection(candidate.id);
+          }),
+        TapGesture()
+          .onAction(() => {
+            if (this.selectionMode) {
+              this.toggleSelection(candidate.id);
+            }
+          })
+      )
+    )
   }
 
   @Builder
@@ -882,11 +953,81 @@ export struct BrowserMediaResourcesSheet {
   private filteredCandidatesForTab(tab: MediaResourceSurfaceTab): MediaResourceListItem[] {
     const results: MediaResourceListItem[] = [];
     for (let i = 0; i < this.candidates.length; i++) {
-      if (belongsToTab(this.candidates[i], tab) && !this.isHiddenFailedImageCandidate(this.candidates[i])) {
+      if (belongsToMediaResourceTab(this.candidates[i], tab) && !this.isHiddenFailedImageCandidate(this.candidates[i])) {
         results.push(this.candidates[i]);
       }
     }
     return results;
+  }
+
+  private onCandidatesChanged(): void {
+    this.pruneFailedImageCandidates();
+    this.reconcileSelection();
+  }
+
+  private reconcileSelection(): void {
+    this.selectedCandidateIds = reconcileMediaResourceSelection(
+      this.selectedCandidateIds, this.filteredCandidatesForTab('other')
+    );
+    if (this.selectionMode && this.filteredCandidatesForTab('other').length === 0) {
+      this.exitSelection();
+    }
+  }
+
+  private beginSelection(candidateId: string): void {
+    const candidate = this.filteredCandidatesForTab('other').find((item: MediaResourceListItem) => item.id === candidateId);
+    if (candidate === undefined || !isSelectableMediaResource(candidate)) {
+      return;
+    }
+    this.selectionMode = true;
+    if (!this.isSelected(candidateId)) {
+      this.selectedCandidateIds = this.selectedCandidateIds.concat([candidateId]);
+    }
+  }
+
+  private toggleSelection(candidateId: string): void {
+    if (!this.isSelected(candidateId)) {
+      this.beginSelection(candidateId);
+      return;
+    }
+    this.selectedCandidateIds = this.selectedCandidateIds.filter((id: string) => id !== candidateId);
+  }
+
+  private isSelected(candidateId: string): boolean {
+    return this.selectedCandidateIds.indexOf(candidateId) >= 0;
+  }
+
+  private allOtherResourcesSelected(): boolean {
+    const selectable = this.filteredCandidatesForTab('other').filter(isSelectableMediaResource);
+    return selectable.length > 0 && selectable.every((item: MediaResourceListItem) => this.isSelected(item.id));
+  }
+
+  private toggleSelectAll(): void {
+    this.selectedCandidateIds = this.allOtherResourcesSelected() ? [] :
+      this.filteredCandidatesForTab('other').filter(isSelectableMediaResource).map((item: MediaResourceListItem) => item.id);
+  }
+
+  private selectedForAction(action: MediaResourceBatchAction): MediaResourceListItem[] {
+    return selectedMediaResourcesForAction(this.selectedCandidateIds, this.filteredCandidatesForTab('other'), action);
+  }
+
+  private runBatchAction(action: MediaResourceBatchAction): void {
+    const ids = this.selectedForAction(action).map((item: MediaResourceListItem) => item.id);
+    if (ids.length > 0) {
+      this.onBatchAction(ids, action);
+    }
+  }
+
+  private exitSelection(): void {
+    this.selectionMode = false;
+    this.selectedCandidateIds = [];
+  }
+
+  private changeActiveTab(tab: MediaResourceSurfaceTab): void {
+    if (tab !== this.activeTab) {
+      this.exitSelection();
+      this.activeTab = tab;
+    }
   }
 
   private markImageLoadFailed(candidateId: string): void {
@@ -897,6 +1038,7 @@ export struct BrowserMediaResourcesSheet {
     const nextFailedIds = this.failedImageCandidateIds.slice();
     nextFailedIds.push(normalizedId);
     this.failedImageCandidateIds = nextFailedIds;
+    this.reconcileSelection();
   }
 
   private pruneFailedImageCandidates(): void {
@@ -946,7 +1088,7 @@ export struct BrowserMediaResourcesSheet {
     const results: MediaResourceListItem[] = [];
     for (let i = 0; i < this.candidates.length; i++) {
       const candidate = this.candidates[i];
-      if (belongsToTab(candidate, 'other') && candidate.family !== 'image' &&
+      if (belongsToMediaResourceTab(candidate, 'other') && candidate.family !== 'image' &&
         !this.isHiddenFailedImageCandidate(candidate)) {
         results.push(candidate);
       }
@@ -980,6 +1122,9 @@ export struct BrowserMediaResourcesSheet {
   }
 
   private syncActiveTab(): void {
+    if (this.selectionMode) {
+      return;
+    }
     if (RESOURCE_TABS.indexOf(this.activeTab) >= 0 && this.resolveVisibleCountForTab(this.activeTab) > 0) {
       return;
     }
@@ -995,8 +1140,17 @@ export struct BrowserMediaResourcesSheet {
     this.syncSwiperToActiveTab(false);
   }
 
+  private handleClose(): void {
+    if (this.selectionMode) {
+      this.exitSelection();
+    } else {
+      this.onClose();
+    }
+  }
+
   private buildTitle(): ResourceStr {
-    return $r('app.string.media_resource_title');
+    return this.selectionMode ? $r('app.string.media_resource_selected_count', this.selectedCandidateIds.length) :
+      $r('app.string.media_resource_title');
   }
 
   private buildEmptyTitle(tab: MediaResourceSurfaceTab): ResourceStr {
@@ -1084,7 +1238,7 @@ export struct BrowserMediaResourcesSheet {
     if (nextTab === this.activeTab) {
       return;
     }
-    this.activeTab = nextTab;
+    this.changeActiveTab(nextTab);
   }
 
   private syncSwiperToActiveTab(withAnimation: boolean): void {
@@ -1359,17 +1513,32 @@ struct BrowserResourceImageGridCard {
   @StorageProp(BROWSER_THEME_STORAGE_RESOLVED_MODE_KEY) private storedResolvedThemeMode: string = 'light';
   @Prop candidate: MediaResourceListItem = createEmptyMediaResourceListItem();
   @Prop cardBackgroundColor: ResourceColor = '#EEF2F6';
-  @State menuVisible: boolean = false;
+  @Prop selectionMode: boolean = false;
+  @Prop selected: boolean = false;
+  @Prop selectable: boolean = false;
+  @Prop accentColor: ResourceColor = '#0A59F7';
   @State previewVisible: boolean = false;
+  onSelect: (candidateId: string) => void = (_candidateId: string) => {};
+  onBeginSelection: (candidateId: string) => void = (_candidateId: string) => {};
   onImageLoadFailed: (candidateId: string) => void = (_candidateId: string) => {};
   onAction: (candidateId: string, action: MediaResourceAction) => void =
     (_candidateId: string, _action: MediaResourceAction) => {};
 
   build() {
-    Column() {
+    Stack({ alignContent: Alignment.TopEnd }) {
       this.buildImageCard()
+      if (this.selectionMode) {
+        BrowserResourceSelectionIndicator({ selected: this.selected, accentColor: this.accentColor })
+          .margin(8)
+          .opacity(this.selectable ? 1 : 0.35)
+          .hitTestBehavior(HitTestMode.None)
+      }
     }
     .width('100%')
+    .border({ width: this.selected ? 2 : 0, color: this.accentColor, radius: RESOURCE_IMAGE_GRID_CARD_RADIUS })
+    .accessibilityText(this.candidate.displayName)
+    .accessibilityDescription(this.selectionMode ? resolveAppResourceText(this.selected
+      ? $r('app.string.media_resource_selected') : $r('app.string.media_resource_not_selected')) : '')
     .bindContextMenu(this.buildMenu(), ResponseType.RightClick)
   }
 
@@ -1391,21 +1560,18 @@ struct BrowserResourceImageGridCard {
           GestureMode.Exclusive,
           LongPressGesture({ fingers: 1, repeat: false, duration: 450 })
             .onAction(() => {
-              this.openMenu();
+              this.onBeginSelection(this.candidate.id);
             }),
           TapGesture()
             .onAction(() => {
-              this.openPreview();
+              if (this.selectionMode) {
+                this.onSelect(this.candidate.id);
+              } else {
+                this.openPreview();
+              }
             })
         )
       )
-      .bindContextMenu(this.menuVisible, this.buildMenu(), {
-        preview: this.buildMenuPreview(),
-        previewBorderRadius: RESOURCE_IMAGE_GRID_CARD_RADIUS,
-        onDisappear: () => {
-          this.menuVisible = false;
-        }
-      })
       .bindContentCover($$this.previewVisible, this.buildPreview(), {
         modalTransition: ModalTransition.DEFAULT
       })
@@ -1414,6 +1580,15 @@ struct BrowserResourceImageGridCard {
   @Builder
   private buildMenu() {
     Menu() {
+      if (this.selectable) {
+        MenuItem({
+          startIcon: $r('sys.symbol.checkmark_circle'),
+          content: $r('app.string.media_resource_select')
+        })
+          .onClick(() => {
+            this.onBeginSelection(this.candidate.id);
+          })
+      }
       if (this.candidate.actions.indexOf('copy') >= 0) {
         MenuItem({
           startIcon: $r('sys.symbol.link'),
@@ -1439,21 +1614,6 @@ struct BrowserResourceImageGridCard {
     .attributeModifier(systemMaterialModifier(createFloatingGlassMaterialIfAvailable(
       resolveFloatingGlassMaterialTintForMode(this.storedResolvedThemeMode)
     )))
-  }
-
-  @Builder
-  private buildMenuPreview() {
-    Image(this.candidate.url)
-      .width(180)
-      .height(180)
-      .objectFit(ImageFit.Cover)
-      .backgroundColor(this.cardBackgroundColor)
-      .borderRadius(RESOURCE_IMAGE_GRID_CARD_RADIUS)
-      .clip(true)
-      .draggable(false)
-      .onError(() => {
-        this.markLoadFailed();
-      })
   }
 
   @Builder
@@ -1496,13 +1656,6 @@ struct BrowserResourceImageGridCard {
     .backgroundColor(RESOURCE_IMAGE_PREVIEW_BACKGROUND_COLOR)
   }
 
-  private openMenu(): void {
-    if (this.candidate.actions.length <= 0) {
-      return;
-    }
-    this.menuVisible = true;
-  }
-
   private openPreview(): void {
     if (this.candidate.url.trim().length <= 0) {
       return;
@@ -1515,14 +1668,38 @@ struct BrowserResourceImageGridCard {
   }
 
   private markLoadFailed(): void {
-    this.menuVisible = false;
     this.previewVisible = false;
     this.onImageLoadFailed(this.candidate.id);
   }
 
   private runAction(action: MediaResourceAction): void {
-    this.menuVisible = false;
     this.onAction(this.candidate.id, action);
+  }
+}
+
+@Component
+struct BrowserResourceSelectionIndicator {
+  @StorageProp(BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY) private storedSecondaryTextColor: string = '#5F6875';
+  @StorageProp(BROWSER_THEME_STORAGE_SURFACE_BACKGROUND_KEY) private storedSurfaceBackgroundColor: string = '#FFFFFF';
+  @Prop selected: boolean = false;
+  @Prop accentColor: ResourceColor = '#0A59F7';
+
+  build() {
+    Stack({ alignContent: Alignment.Center }) {
+      if (this.selected) {
+        SelectedCheckIndicator({ indicatorSize: 24, indicatorColor: this.accentColor })
+      } else {
+        Circle()
+          .width(24)
+          .height(24)
+          .fill(this.storedSurfaceBackgroundColor)
+          .stroke(this.storedSecondaryTextColor)
+          .strokeWidth(1.5)
+      }
+    }
+    .width(24)
+    .height(24)
+    .hitTestBehavior(HitTestMode.None)
   }
 }
 

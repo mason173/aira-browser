@@ -214,6 +214,42 @@ test('toolbar availability follows selection, task state changes, and the batch 
     'a retained ForEach item must not keep an obsolete enabled flag');
 });
 
+test('a mounted toolbar refreshes formatted counts and select-all labels while actions stay enabled', () => {
+  const toolbar = read('app/components/common/FloatingSelectionToolbar.ets');
+  const keyExpression = toolbar.match(
+    /\}, \(item: FloatingSelectionToolbarAction, index: number\) =>\s*(`[^`]+`)\)/
+  );
+  assert.ok(keyExpression, 'use the production ForEach key generator');
+  const text = title => typeof title === 'string' ? title : `Download (${title.params[0]})`;
+  const { actionKey } = evaluate(`export const actionKey = (item, index) => ${keyExpression[1]};`, {
+    resolveAppResourceText: text
+  });
+  // Model ArkUI retaining a child when its key has not changed.
+  let mounted = new Map();
+  const render = actions => {
+    const next = new Map();
+    const rows = actions.map((action, index) => {
+      const key = actionKey(action, index);
+      const row = mounted.get(key) || { label: text(action.title), enabled: action.enabled };
+      next.set(key, row);
+      return row;
+    });
+    mounted = next;
+    return rows;
+  };
+  for (const count of [1, 2, 12, 192, 2, 0, 1]) {
+    const selectAllLabel = count === 192 ? 'Deselect all' : 'Select all';
+    const rows = render([
+      { title: selectAllLabel, enabled: true },
+      { title: 'Copy links', enabled: count > 0 },
+      { title: { id: 77, params: [count] }, enabled: count > 0 }
+    ]);
+    assert.equal(rows[0].label, selectAllLabel);
+    assert.equal(rows[2].label, `Download (${count})`);
+    assert.equal(rows[2].enabled, count > 0);
+  }
+});
+
 const { Service } = evaluate(`export class Service {
   ${method(read('services/downloadv2/DownloadV2Service.ets'), 'cancelAndRemoveTask')}
 }`);

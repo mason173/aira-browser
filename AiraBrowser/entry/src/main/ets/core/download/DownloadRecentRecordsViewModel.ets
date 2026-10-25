@@ -1,4 +1,10 @@
 import {
+  resolveDownloadProgressFraction,
+  resolveDownloadProgressPercent,
+  resolveDownloadDisplayTotal,
+  isDownloadTotalEstimated
+} from '../../domain/downloadv2/DownloadV2Progress';
+import {
   BrowserDataScope,
   BrowserProfileId,
   BrowserSessionPrivacyMode
@@ -136,7 +142,7 @@ export class DownloadRecentRecordsViewModel {
   }
 
   private buildRecord(task: DownloadV2TaskEntity, now: number): DownloadRecentRecordView {
-    const totalBytes = this.normalizeBytes(task.progress.totalBytes);
+    const totalBytes = resolveDownloadDisplayTotal(task.progress);
     const receivedBytes = this.normalizeBytes(task.progress.receivedBytes);
     return {
       guid: task.guid,
@@ -145,8 +151,8 @@ export class DownloadRecentRecordsViewModel {
       subtitle: this.buildSubtitle(task, receivedBytes, totalBytes, now),
       struckThrough: task.status === 'canceled',
       showProgress: this.showsProgress(task.status),
-      progressKnown: totalBytes > 0,
-      progressValue: this.progressValue(task.status, receivedBytes, totalBytes),
+      progressKnown: resolveDownloadProgressFraction(task.progress) >= 0,
+      progressValue: resolveDownloadProgressPercent(task.progress, task.status),
       canOpenFile: task.status === 'completed',
       leadingHoverAction: this.leadingHoverAction(task.status),
       trailingHoverAction: this.trailingHoverAction(task.status),
@@ -186,18 +192,6 @@ export class DownloadRecentRecordsViewModel {
       status === 'created' || status === 'awaiting_confirmation';
   }
 
-  private progressValue(status: DownloadV2Status, receivedBytes: number, totalBytes: number): number {
-    if (totalBytes <= 0) {
-      return 0;
-    }
-    const value = Math.floor(receivedBytes * 100 / totalBytes);
-    const capped = Math.max(0, Math.min(100, value));
-    if (status !== 'completed' && capped >= 100) {
-      return 99;
-    }
-    return capped;
-  }
-
   private buildSubtitle(
     task: DownloadV2TaskEntity,
     receivedBytes: number,
@@ -212,8 +206,10 @@ export class DownloadRecentRecordsViewModel {
       const timeText = this.timeViewModel.formatClosedTime(task.timing.completedAt ?? task.timing.updatedAt, now);
       return sizeText.length > 0 ? `${sizeText} · ${timeText}` : timeText;
     }
-    const amountText = totalBytes > 0 ?
-      this.formatBytePair(receivedBytes, totalBytes) : this.formatBytes(receivedBytes);
+    const amountText = isDownloadTotalEstimated(task.progress)
+      ? `${this.formatBytes(receivedBytes)} / ` +
+        resolveAppResourceText($r('app.string.download_size_estimated', this.formatBytes(totalBytes)))
+      : totalBytes > 0 ? this.formatBytePair(receivedBytes, totalBytes) : this.formatBytes(receivedBytes);
     const statusText = this.statusText(task.status);
     return amountText.length > 0 ? `${amountText} · ${statusText}` : statusText;
   }

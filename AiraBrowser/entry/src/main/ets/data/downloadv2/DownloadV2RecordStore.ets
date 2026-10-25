@@ -73,6 +73,8 @@ interface PersistedDownloadV2RequestContext {
 }
 
 interface PersistedDownloadV2ProgressSnapshot {
+  progressFraction?: number;
+  estimatedTotalBytes?: number;
   totalBytes?: number;
   receivedBytes?: number;
   speedBytesPerSecond?: number;
@@ -361,6 +363,8 @@ export class ArkDownloadV2RecordStore implements DownloadV2RecordStore {
       status: record.status,
       progress: {
         totalBytes: record.progress.totalBytes,
+        progressFraction: record.progress.progressFraction,
+        estimatedTotalBytes: record.progress.estimatedTotalBytes,
         receivedBytes: record.progress.receivedBytes,
         speedBytesPerSecond: record.progress.speedBytesPerSecond
       },
@@ -425,6 +429,9 @@ export class ArkDownloadV2RecordStore implements DownloadV2RecordStore {
   private toProgressSnapshot(progress?: PersistedDownloadV2ProgressSnapshot): DownloadV2ProgressSnapshot {
     return {
       totalBytes: this.normalizeNonNegativeNumber(progress?.totalBytes),
+      progressFraction: progress?.progressFraction !== undefined && Number.isFinite(progress.progressFraction)
+        ? Math.max(-1, Math.min(1, progress.progressFraction)) : -1,
+      estimatedTotalBytes: this.normalizeNonNegativeNumber(progress?.estimatedTotalBytes),
       receivedBytes: this.normalizeNonNegativeNumber(progress?.receivedBytes),
       speedBytesPerSecond: this.normalizeNonNegativeNumber(progress?.speedBytesPerSecond)
     };
@@ -705,6 +712,8 @@ function cloneDownloadV2TaskEntity(task: DownloadV2TaskEntity): DownloadV2TaskEn
     status: task.status,
     progress: {
       totalBytes: task.progress.totalBytes,
+      progressFraction: task.progress.progressFraction,
+      estimatedTotalBytes: task.progress.estimatedTotalBytes,
       receivedBytes: task.progress.receivedBytes,
       speedBytesPerSecond: task.progress.speedBytesPerSecond
     },

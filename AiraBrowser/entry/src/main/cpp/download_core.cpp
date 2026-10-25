@@ -661,6 +661,7 @@ struct DownloadTask::TransferContext {
   FILE* file = nullptr;
   std::int64_t initial_offset = 0;
   std::atomic<std::int64_t>* aggregate_received = nullptr;
+  std::size_t hls_resource_index = 0;
   std::int64_t last_download_now = 0;
   bool track_progress = true;
   bool saw_content_range = false;
@@ -784,7 +785,11 @@ TaskSnapshot DownloadTask::Snapshot() const {
     error_message_,
     diagnostic_message_,
     failure_phase_,
-    file_extension_
+    file_extension_,
+    hls_progress_ == nullptr ? -1 : state_ == TaskState::kCompleted ? 1 : hls_progress_->Fraction(),
+    hls_progress_ == nullptr || state_ == TaskState::kCompleted ? 0 :
+      (hls_progress_->EstimatedTotalBytes() > 0 ?
+        std::max(received_bytes_, hls_progress_->EstimatedTotalBytes()) : 0)
   };
 }
 
@@ -888,6 +893,9 @@ int DownloadTask::ProgressCallback(void* user_data, std::int64_t download_total,
     task->received_bytes_ = received;
     task->total_bytes_ = context->aggregate_received == nullptr && download_total > 0
       ? context->initial_offset + download_total : 0;
+    if (context->aggregate_received != nullptr && task->hls_progress_ != nullptr) {
+      task->hls_progress_->Update(context->hls_resource_index, download_now, download_total);
+    }
     if (task->speed_sample_time_ms_ <= 0 || received < task->speed_sample_bytes_) {
       task->speed_sample_bytes_ = received;
       task->speed_sample_time_ms_ = now_ms;
@@ -909,7 +917,8 @@ int DownloadTask::ProgressCallback(void* user_data, std::int64_t download_total,
   return 0;
 }
 
-bool DownloadTask::TransferHlsFile(const HlsResource& resource, const std::string& path, const std::string& phase,
+bool DownloadTask::TransferHlsFile(const HlsResource& resource, std::size_t resource_index,
+                                   const std::string& path, const std::string& phase,
                                    std::atomic<std::int64_t>* aggregate_received, std::string* error,
                                    std::int32_t* error_code, std::string* diagnostic_message) {
   const std::string& url = resource.url;
@@ -928,6 +937,7 @@ bool DownloadTask::TransferHlsFile(const HlsResource& resource, const std::strin
     context.task = this;
     context.file = file;
     context.aggregate_received = aggregate_received;
+    context.hls_resource_index = resource_index;
     context.validate_range = resource.offset >= 0;
     context.initial_offset = std::max<std::int64_t>(0, resource.offset);
     context.requested_length = resource.length;
@@ -1011,6 +1021,7 @@ bool DownloadTask::TransferHlsFile(const HlsResource& resource, const std::strin
       std::lock_guard<std::mutex> lock(mutex_);
       received_bytes_ = aggregate_received->load(std::memory_order_relaxed);
       total_bytes_ = 0;
+      hls_progress_->Update(resource_index, 0, 0);
     }
     if (interrupted) {
       return false;
@@ -1387,6 +1398,10 @@ void DownloadTask::RunHls() {
     total_bytes_ = 0;
     speed_sample_bytes_ = received_bytes_;
     speed_sample_time_ms_ = 0;
+    hls_progress_ = std::make_unique<HlsProgressTracker>(plan.resources);
+    for (const std::size_t index : completed) {
+      hls_progress_->Complete(index, ExistingFileSize(part_prefix + std::to_string(index)));
+    }
   }
   std::atomic<std::size_t> next_index{0};
   std::atomic<bool> failed{false};
@@ -1410,7 +1425,7 @@ void DownloadTask::RunHls() {
     std::string segment_error;
     std::int32_t segment_error_code = 0;
     std::string segment_diagnostic;
-    bool transferred = TransferHlsFile(resource, part_path, segment_phase, &received,
+    bool transferred = TransferHlsFile(resource, index, part_path, segment_phase, &received,
                                        &segment_error, &segment_error_code, &segment_diagnostic);
     if (transferred && resource.key_index >= 0) {
       const auto encrypted_size = ExistingFileSize(part_path);
@@ -1425,6 +1440,10 @@ void DownloadTask::RunHls() {
       }
     }
     if (!transferred) {
+      {
+        std::lock_guard<std::mutex> lock(mutex_);
+        hls_progress_->Update(index, 0, 0);
+      }
       if (cancel_requested_.load(std::memory_order_acquire) || pause_requested_.load(std::memory_order_acquire)) {
         return;
       }
@@ -1447,6 +1466,7 @@ void DownloadTask::RunHls() {
       std::lock_guard<std::mutex> lock(mutex_);
       received_bytes_ = received.load(std::memory_order_relaxed);
       total_bytes_ = 0;
+      hls_progress_->Complete(index, ExistingFileSize(part_path));
     }
   };
 

@@ -23,8 +23,11 @@ int main(int argc, char** argv) {
   options.target_path = argv[2];
   options.hls = argc > 3 && std::string(argv[3]) == "hls";
   int cancel_after_ms = -1, pause_after_ms = -1;
+  bool observe_progress = false;
   for (int index = 4; index < argc; ++index) {
-    if (std::string(argv[index]) == "--single-attempt") options.http_max_attempts = 1;
+    if (std::string(argv[index]) == "--observe-progress") observe_progress = true;
+    else if (std::string(argv[index]) == "--hls-serial") options.hls_segment_concurrency = 1;
+    else if (std::string(argv[index]) == "--single-attempt") options.http_max_attempts = 1;
     else if (std::string(argv[index]) == "--cancel-retry") cancel_after_ms = 100;
     else if (std::string(argv[index]) == "--pause-retry") pause_after_ms = 100;
     else options.headers.emplace_back(argv[index]);
@@ -34,8 +37,14 @@ int main(int argc, char** argv) {
   aira::download::TaskSnapshot snapshot;
   const auto began = std::chrono::steady_clock::now();
   const auto deadline = began + std::chrono::seconds(8);
+  auto print_progress = [&]() {
+    if (observe_progress) std::cout << "progress " << aira::download::TaskStateName(snapshot.state)
+      << ' ' << snapshot.received_bytes << ' ' << snapshot.total_bytes
+      << ' ' << snapshot.progress_fraction << ' ' << snapshot.estimated_total_bytes << '\n';
+  };
   while (std::chrono::steady_clock::now() < deadline) {
     snapshot = task.Snapshot();
+    print_progress();
     if (snapshot.state == aira::download::TaskState::kCompleted ||
         snapshot.state == aira::download::TaskState::kFailed ||
         snapshot.state == aira::download::TaskState::kCanceled ||

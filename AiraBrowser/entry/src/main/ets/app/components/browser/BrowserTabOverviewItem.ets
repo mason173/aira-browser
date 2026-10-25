@@ -113,6 +113,8 @@ export struct BrowserTabOverviewItem {
   onSwipeEnd: (tabId: string, offset: number, direction: number) => void =
     (_tabId: string, _offset: number, _direction: number) => {};
   onSwipeCancel: (tabId: string) => void = (_tabId: string) => {};
+  onSwipeDismissAccepted: (tabId: string, durationMs: number) => void =
+    (_tabId: string, _durationMs: number) => {};
   onSwipeThresholdReached: (tabId: string) => void = (_tabId: string) => {};
   onPreviewRectChange: (
     tabId: string,
@@ -186,6 +188,9 @@ export struct BrowserTabOverviewItem {
     this.onSwipeEnd = params.onSwipeEnd as (tabId: string, offset: number, direction: number) => void;
     this.onSwipeCancel = params.onSwipeCancel === undefined ?
       (_tabId: string) => {} : params.onSwipeCancel as (tabId: string) => void;
+    this.onSwipeDismissAccepted = params.onSwipeDismissAccepted === undefined ?
+      (_tabId: string, _durationMs: number) => {} :
+      params.onSwipeDismissAccepted as (tabId: string, durationMs: number) => void;
     this.onSwipeThresholdReached = params.onSwipeThresholdReached as (tabId: string) => void;
     this.onPreviewRectChange = params.onPreviewRectChange as (
       tabId: string,
@@ -592,6 +597,14 @@ export struct BrowserTabOverviewItem {
     // own implicit animation reads the same value, so both clocks agree.
     this.swipeFlyoutDurationMs = this.swipeDismissPolicy.resolveFlyoutDurationMs(
       Math.abs(flyout - swipeOffset), releaseVelocity);
+    // Register the user's accepted close before animation, recycling, or navigation can hide us.
+    // The session preserves this intent; the timer below only finishes the visual flight.
+    this.onSwipeDismissAccepted(this.tab.id, this.swipeFlyoutDurationMs);
+    this.clearSwipeDismissTimer();
+    this.swipeDismissTimer = setTimeout(() => {
+      this.swipeDismissTimer = 0;
+      this.completePendingSwipeDismiss();
+    }, this.swipeFlyoutDurationMs);
     animateTo({
       duration: this.swipeFlyoutDurationMs,
       curve: TAB_OVERVIEW_ITEM_SWIPE_FLYOUT_CURVE
@@ -604,11 +617,6 @@ export struct BrowserTabOverviewItem {
       this.localSwipeOffsetX = flyout;
       this.localSwipeOffsetY = 0;
     });
-    this.clearSwipeDismissTimer();
-    this.swipeDismissTimer = setTimeout(() => {
-      this.swipeDismissTimer = 0;
-      this.completePendingSwipeDismiss();
-    }, this.swipeFlyoutDurationMs);
   }
 
   /**

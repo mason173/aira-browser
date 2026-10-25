@@ -77,6 +77,8 @@ export function createDownloadV2TaskEntity(input: CreateDownloadV2TaskEntityInpu
     status: input.status ?? 'created',
     progress: {
       totalBytes: input.progress?.totalBytes ?? 0,
+      progressFraction: input.progress?.progressFraction ?? -1,
+      estimatedTotalBytes: input.progress?.estimatedTotalBytes ?? 0,
       receivedBytes: input.progress?.receivedBytes ?? 0,
       speedBytesPerSecond: input.progress?.speedBytesPerSecond ?? 0
     },
@@ -135,6 +137,8 @@ export function patchDownloadV2TaskEntity(
     status: patch.status ?? current.status,
     progress: {
       totalBytes: patch.progress?.totalBytes ?? current.progress.totalBytes,
+      progressFraction: patch.progress?.progressFraction ?? current.progress.progressFraction ?? -1,
+      estimatedTotalBytes: patch.progress?.estimatedTotalBytes ?? current.progress.estimatedTotalBytes ?? 0,
       receivedBytes: patch.progress?.receivedBytes ?? current.progress.receivedBytes,
       speedBytesPerSecond: patch.progress?.speedBytesPerSecond ?? current.progress.speedBytesPerSecond
     },

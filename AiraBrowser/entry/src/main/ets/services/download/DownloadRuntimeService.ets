@@ -113,6 +113,11 @@ export interface ManualDownloadRequestResult {
   started: boolean;
 }
 
+export interface ManualDownloadBatchResult {
+  queued: number;
+  failed: number;
+}
+
 export interface DownloadRuntimeServiceCallbacks {
   onTaskListChange?: (tasks: DownloadV2TaskEntity[]) => void;
   onInfo?: (message: string) => void;
@@ -695,6 +700,49 @@ export class DownloadRuntimeService {
       return undefined;
     }
     return this.withPromptLocation(prompt);
+  }
+
+  async requestConfirmedManualDownloads(inputs: ManualDownloadRequestInput[]): Promise<ManualDownloadBatchResult> {
+    // Capture the initiating session before yielding so a tab/window switch cannot move later tasks.
+    const boundary: DownloadTaskBoundary = {
+      windowId: this.activeBoundary.windowId,
+      profileId: this.activeBoundary.profileId,
+      privacyMode: this.activeBoundary.privacyMode,
+      dataScope: this.activeBoundary.dataScope,
+      sourcePageUrl: this.activeBoundary.sourcePageUrl
+    };
+    const result: ManualDownloadBatchResult = { queued: 0, failed: 0 };
+    for (let index = 0; index < inputs.length; index++) {
+      const input = inputs[index];
+      if (!this.downloadPolicyService.canWriteSessionTasks(boundary)) {
+        result.failed += 1;
+        continue;
+      }
+      try {
+        const task = await this.downloadV2Service.createConfirmedManualRequest(input.url, {
+          windowId: boundary.windowId ?? '',
+          profileId: boundary.profileId,
+          privacyMode: boundary.privacyMode,
+          dataScope: boundary.dataScope,
+          sourcePageUrl: boundary.sourcePageUrl
+        }, input.suggestedFileName, input.sourceHost, {
+          userAgent: input.userAgent,
+          referer: input.referer,
+          mimeType: input.mimeType,
+          contentDisposition: input.contentDisposition,
+          totalBytes: input.totalBytes,
+          headers: input.headers
+        });
+        if (task !== undefined && task.status !== 'failed' && task.status !== 'canceled' && task.status !== 'removed') {
+          result.queued += 1;
+        } else {
+          result.failed += 1;
+        }
+      } catch (_error) {
+        result.failed += 1;
+      }
+    }
+    return result;
   }
 
   requestManualDownload(input: ManualDownloadRequestInput): ManualDownloadRequestResult | undefined {

@@ -146,6 +146,7 @@ export interface MediaManifestContext {
 
 export interface MediaPlaybackMetadata {
   displayName?: string;
+  mediaTitle?: string;
   sourceHost?: string;
   extension?: string;
   mimeType?: string;

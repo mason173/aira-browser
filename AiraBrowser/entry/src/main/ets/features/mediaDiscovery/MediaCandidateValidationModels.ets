@@ -65,6 +65,7 @@ export interface MediaValidationHlsVariantSummary {
   estimatedBitrate?: number;
   bitrateEstimateSource?: 'average_bandwidth' | 'declared_bandwidth' | 'url_hint';
   durationSeconds?: number;
+  live?: boolean;
   estimatedTotalBytes?: number;
 }
 

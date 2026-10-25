@@ -1,7 +1,11 @@
+import { MEDIA_LOCATOR_TEXT_RUNTIME, normalizeMediaLocatorText, mediaLocatorQueryValues } from './MediaLocatorText';
+import { MEDIA_TITLE_PROBE_RUNTIME } from './MediaTitleProbeScript';
+import { MEDIA_DURATION_PROBE_RUNTIME } from './MediaDurationProbeScript';
 import { MediaResourceDomSignal } from '../mediaDiscovery/MediaResourceClassificationModels';
 
 export interface MediaVideoDomProbeResult {
   url: string;
+  mediaTitle?: string;
   signal?: MediaResourceDomSignal;
   mimeType?: string;
   posterUrl?: string;
@@ -17,6 +21,7 @@ export interface MediaVideoDomProbeResult {
 
 export interface MediaVideoDomProbePayload {
   ok: boolean;
+  pageTitle?: string;
   results: MediaVideoDomProbeResult[];
   error?: string;
 }
@@ -25,36 +30,26 @@ const DOM_SCAN_SCRIPT: string = `(function () {
   try {
     var results = [];
     var seen = Object.create(null);
-    var mediaUrlPattern = /(?:https?:\\/\\/|\\/\\/)[^"'<>\\s]+?\\.(?:m3u8|m3u|mpd|mp4|m4v|mov|webm)(?=$|[?#"'<>\\s])(?:[?#][^"'<>\\s]*)?/ig;
+    var mediaUrlPattern = /(?:https?:\\/\\/|\\/\\/)[^"'<>\\s]+/ig;
+    var mediaExtensionPattern = /\\.(?:m3u8|m3u|mpd|mp4|m4v|mov|webm)(?:[?#]|$)/i;
+
+    ${MEDIA_LOCATOR_TEXT_RUNTIME}
+    ${MEDIA_TITLE_PROBE_RUNTIME}
+    ${MEDIA_DURATION_PROBE_RUNTIME}
+    var pageTitle = readMediaPageTitle();
 
     function decodeLooseText(value) {
-      var text = String(value || '');
-      for (var i = 0; i < 3; i++) {
-        try {
-          var decoded = decodeURIComponent(text);
-          if (decoded === text) break;
-          text = decoded;
-        } catch (e) {
-          break;
-        }
-      }
-      return text;
+      return normalizeMediaLocatorText(value);
     }
 
     function normalizeMediaUrl(value) {
-      var url = decodeLooseText(value)
-        .replace(/\\\\u002[fF]/g, '/')
-        .replace(/\\\\+\\//g, '/')
-        .replace(/&amp;/g, '&')
-        .replace(/\\\\u0026/g, '&')
-        .replace(/\\\\u003[dD]/g, '=')
-        .replace(/\\\\u003[fF]/g, '?');
+      var url = normalizeMediaLocatorText(value).trim();
       if (url.indexOf('//') === 0) {
         url = location.protocol + url;
       }
       try {
         if (!/^(https?:|blob:)/i.test(url)) {
-          url = new URL(url, location.href).href;
+          url = new URL(url, document.baseURI || location.href).href;
         }
       } catch (e) {
       }
@@ -62,13 +57,7 @@ const DOM_SCAN_SCRIPT: string = `(function () {
     }
 
     function normalizeMediaText(value) {
-      return decodeLooseText(value)
-        .replace(/\\\\u002[fF]/g, '/')
-        .replace(/\\\\+\\//g, '/')
-        .replace(/&amp;/g, '&')
-        .replace(/\\\\u0026/g, '&')
-        .replace(/\\\\u003[dD]/g, '=')
-        .replace(/\\\\u003[fF]/g, '?');
+      return normalizeMediaLocatorText(value);
     }
 
     function isLikelyMediaNoiseUrl(value) {
@@ -96,6 +85,7 @@ const DOM_SCAN_SCRIPT: string = `(function () {
       results.push({
         url: normalizedUrl,
         signal: extra && extra.signal ? extra.signal : undefined,
+        mediaTitle: extra && extra.mediaTitle ? extra.mediaTitle : undefined,
         mimeType: extra && extra.mimeType ? extra.mimeType : undefined,
         posterUrl: extra && extra.posterUrl ? extra.posterUrl : undefined,
         durationMs: extra && extra.durationMs ? extra.durationMs : undefined,
@@ -114,7 +104,7 @@ const DOM_SCAN_SCRIPT: string = `(function () {
       mediaUrlPattern.lastIndex = 0;
       var match;
       while ((match = mediaUrlPattern.exec(normalizedText)) !== null && results.length < 48) {
-        if (!isDeferredMediaFieldMatch(normalizedText, match.index)) {
+        if (mediaExtensionPattern.test(match[0]) && !isDeferredMediaFieldMatch(normalizedText, match.index)) {
           addResult(match[0], { signal: signal || 'script_text' });
         }
       }
@@ -140,7 +130,7 @@ const DOM_SCAN_SCRIPT: string = `(function () {
       mediaUrlPattern.lastIndex = 0;
       var match;
       while ((match = mediaUrlPattern.exec(normalizedText)) !== null && results.length < 48) {
-        if (!isDeferredMediaFieldMatch(normalizedText, match.index)) {
+        if (mediaExtensionPattern.test(match[0]) && !isDeferredMediaFieldMatch(normalizedText, match.index)) {
           addResult(match[0], { signal: signal || 'script_text' });
         }
       }
@@ -219,14 +209,10 @@ const DOM_SCAN_SCRIPT: string = `(function () {
 
     function scanQueryStyleMediaFields(text, signal) {
       var resultSignal = (signal === 'video_element' || signal === 'audio_element') ? signal : 'embedded_attribute';
-      var paramPattern = /(?:^|[?&#;,\\s])(?:file|source|src|video_url|video|url|hls|m3u8|mpd|dash)=((?:https?:\\/\\/|\\/\\/|\\/|\\.{1,2}\\/)?[^"'&<>\\s]{1,2000}\\.(?:m3u8|m3u|mpd|mp4|m4v|mov|webm)(?=$|[?#&"'<>\\s])(?:\\?[^"'&<>\\s]*)?)/ig;
-      var match;
-      while ((match = paramPattern.exec(String(text || ''))) !== null && results.length < 48) {
-        if (looksLikeStructuredMediaUrl('url', match[1])) {
-          addResult(match[1], {
-            signal: resultSignal,
-            mimeType: inferMimeForMediaField('url', match[1])
-          });
+      var values = mediaLocatorQueryValues(text);
+      for (var index = 0; index < values.length && results.length < 48; index++) {
+        if (looksLikeStructuredMediaUrl('url', values[index])) {
+          addResult(values[index], { signal: resultSignal, mimeType: inferMimeForMediaField('url', values[index]) });
         }
       }
     }
@@ -463,8 +449,8 @@ const DOM_SCAN_SCRIPT: string = `(function () {
       var records = collectSourceRecords(el);
       var signal = mediaSignal(el);
       var extra = {
+        mediaTitle: readMediaElementTitle(el),
         posterUrl: el.poster || undefined,
-        durationMs: isFinite(el.duration) && el.duration > 0 ? Math.round(el.duration * 1000) : undefined,
         width: el.videoWidth || undefined,
         height: el.videoHeight || undefined,
         isPlaying: !el.paused && !el.ended,
@@ -475,9 +461,10 @@ const DOM_SCAN_SCRIPT: string = `(function () {
       for (var recordIndex = 0; recordIndex < records.length && recordIndex < 12; recordIndex++) {
         addResult(records[recordIndex].url, {
           signal: signal,
+          mediaTitle: extra.mediaTitle,
           mimeType: records[recordIndex].mimeType,
           posterUrl: extra.posterUrl,
-          durationMs: extra.durationMs,
+          durationMs: mediaElementDurationMs(el, normalizeMediaUrl(records[recordIndex].url)),
           width: extra.width,
           height: extra.height,
           isPlaying: extra.isPlaying,
@@ -507,7 +494,7 @@ const DOM_SCAN_SCRIPT: string = `(function () {
       scanTextForMediaUrls(scriptText, 'script_text');
       if (results.length >= 48) break;
     }
-    return JSON.stringify({ ok: true, results: results });
+    return JSON.stringify({ ok: true, pageTitle: pageTitle, results: results });
   } catch (e) {
     return JSON.stringify({ ok: false, results: [], error: String((e && e.message) || e) });
   }
@@ -538,7 +525,7 @@ export class MediaVideoDomProbeScript {
 
 export function extractMediaUrlsFromText(text: string): string[] {
   const normalizedText = normalizeMediaText(text);
-  const pattern = /(?:https?:\/\/|\/\/)[^"'<>\s]+?\.(?:m3u8|m3u|mpd|mp4|m4v|mov|webm)(?=$|[?#"'<>\s])(?:[?#][^"'<>\s]*)?/ig;
+  const pattern = /(?:https?:\/\/|\/\/)[^"'<>\s]+/ig;
   const results: string[] = [];
   const seen: Record<string, boolean> = {};
   collectMediaUrls(normalizedText, pattern, results, seen, 48);
@@ -571,7 +558,8 @@ function collectMediaUrls(
   while (match !== null && results.length < limit) {
     const normalizedUrl = normalizeMediaText(match[0]);
     const finalUrl = normalizedUrl.indexOf('//') === 0 ? `https:${normalizedUrl}` : normalizedUrl;
-    if (!isDeferredMediaFieldMatch(text, match.index) &&
+    if (/\.(?:m3u8|m3u|mpd|mp4|m4v|mov|webm)(?:[?#]|$)/i.test(finalUrl) &&
+      !isDeferredMediaFieldMatch(text, match.index) &&
       seen[finalUrl] !== true && !isLikelyMediaNoiseUrl(finalUrl)) {
       seen[finalUrl] = true;
       results.push(finalUrl);
@@ -641,12 +629,9 @@ function collectQueryStyleMediaFieldUrls(
   seen: Record<string, boolean>,
   limit: number
 ): void {
-  const pattern =
-    /(?:^|[?&#;,\s])(?:file|source|src|video_url|video|url|hls|m3u8|mpd|dash)=((?:https?:\/\/|\/\/|\/|\.{1,2}\/)?[^"'&<>\s]{1,2000}\.(?:m3u8|m3u|mpd|mp4|m4v|mov|webm)(?=$|[?#&"'<>\s])(?:\?[^"'&<>\s]*)?)/ig;
-  let match: RegExpExecArray | null = pattern.exec(text);
-  while (match !== null && results.length < limit) {
-    addStructuredMediaUrl('url', match[1], results, seen, limit);
-    match = pattern.exec(text);
+  const values = mediaLocatorQueryValues(text);
+  for (let i = 0; i < values.length && results.length < limit; i++) {
+    addStructuredMediaUrl('url', values[i], results, seen, limit);
   }
 }
 
@@ -695,26 +680,7 @@ function isDeferredMediaFieldMatch(text: string, index: number): boolean {
 }
 
 function normalizeMediaText(value: string): string {
-  let text = value;
-  for (let i = 0; i < 3; i++) {
-    try {
-      const decoded: string = decodeURIComponent(text);
-      if (decoded === text) {
-        break;
-      }
-      text = decoded;
-    } catch (_error) {
-      break;
-    }
-  }
-  return text
-    .replace(/\\u002[fF]/g, '/')
-    .replace(/\\\\\//g, '/')
-    .replace(/\\\//g, '/')
-    .replace(/&amp;/g, '&')
-    .replace(/\\u0026/g, '&')
-    .replace(/\\u003[dD]/g, '=')
-    .replace(/\\u003[fF]/g, '?');
+  return normalizeMediaLocatorText(value);
 }
 
 function extractEncodedPlayerFields(text: string): string[] {

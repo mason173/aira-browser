@@ -63,7 +63,7 @@ export struct FloatingSelectionToolbar {
               this.buildSelectionClickAction(item)
             }
           }, (item: FloatingSelectionToolbarAction, index: number) =>
-            `selection-${index}:${item.enabled === false ? 'disabled' : 'enabled'}`)
+            `selection-${index}:${item.enabled === false ? 'disabled' : 'enabled'}:${resolveAppResourceText(item.title)}`)
         }
         .width('100%')
         .height('100%')

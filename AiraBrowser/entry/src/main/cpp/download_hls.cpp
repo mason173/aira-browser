@@ -99,6 +99,54 @@ HlsKey::~HlsKey() {
   mbedtls_platform_zeroize(bytes.data(), bytes.size());
 }
 
+HlsProgressTracker::HlsProgressTracker(const std::vector<HlsResource>& resources) {
+  for (const auto& resource : resources) {
+    resources_.push_back({resource.initialization, false, 0});
+    if (resource.initialization) ++map_count_;
+    else ++media_count_;
+  }
+}
+
+void HlsProgressTracker::Update(std::size_t index, std::int64_t received, std::int64_t total) {
+  if (index >= resources_.size() || resources_[index].completed) return;
+  auto& resource = resources_[index];
+  // Reserve the last fraction until the file has been validated and decrypted.
+  const double fraction = total > 0 ? std::clamp(static_cast<double>(received) / total, 0.0, 0.99) : 0;
+  completed_units_ += fraction - resource.fraction;
+  resource.fraction = fraction;
+}
+
+void HlsProgressTracker::Complete(std::size_t index, std::int64_t bytes) {
+  if (index >= resources_.size() || resources_[index].completed || bytes <= 0) return;
+  auto& resource = resources_[index];
+  completed_units_ += 1 - resource.fraction;
+  resource.fraction = 1;
+  resource.completed = true;
+  if (resource.initialization) {
+    ++completed_map_count_;
+    map_bytes_ += bytes;
+  } else {
+    ++completed_media_count_;
+    media_bytes_ += bytes;
+  }
+}
+
+double HlsProgressTracker::Fraction() const {
+  // Only the owning task may report 100%, after the merged file is closed.
+  return resources_.empty() ? -1 : std::clamp(completed_units_ / resources_.size(), 0.0, 0.99);
+}
+
+std::int64_t HlsProgressTracker::EstimatedTotalBytes() const {
+  if (completed_media_count_ == 0) return 0;
+  // Tiny initialization sections must not skew the media sample average.
+  const double estimate = media_bytes_ / completed_media_count_ * media_count_ +
+    (completed_map_count_ > 0 ? map_bytes_ / completed_map_count_ * map_count_ : 0);
+  if (estimate >= static_cast<double>(std::numeric_limits<std::int64_t>::max())) {
+    return std::numeric_limits<std::int64_t>::max();
+  }
+  return static_cast<std::int64_t>(estimate);
+}
+
 // RFC 8216 sections 4.3.2.2, 4.3.2.4, 4.3.2.5 and 5.2. AES-128 is whole-segment
 // CBC with PKCS#7; SAMPLE-AES/DRM need a demuxer and are deliberately rejected.
 bool ParseHlsMedia(const std::string& playlist, const std::string& base_url,

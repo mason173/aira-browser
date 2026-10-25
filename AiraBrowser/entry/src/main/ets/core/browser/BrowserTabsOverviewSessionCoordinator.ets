@@ -54,6 +54,7 @@ import {
   buildBrowserTabsSharedSnapshotIdleState
 } from './BrowserTabsSharedSnapshotTransitionCoordinator';
 import { BrowserTabsOverviewStyleEntryPolicy } from './tabsOverview/BrowserTabsOverviewStyleEntryPolicy';
+import { BrowserTabsOverviewDismissCoordinator } from './tabsOverview/BrowserTabsOverviewDismissCoordinator';
 import {
   BrowserTabsOverviewSnapshotMorphSource,
   BrowserTabsOverviewSnapshotPipelineCoordinator
@@ -589,7 +590,18 @@ const REGULAR_HOME_OPTIONS: BrowserCreateTabOptions = {
 
 export class BrowserTabsOverviewSessionCoordinator {
   private deferredOpenTimer: number = -1;
+  private closeAllAnimationFallbackTimer: number = -1;
   private operationGeneration: number = 0;
+  private dismissActionVersion: number = 0;
+  private tabDismissCoordinator: BrowserTabsOverviewDismissCoordinator =
+    new BrowserTabsOverviewDismissCoordinator(
+      (tabId: string): Promise<void> =>
+        this.commitAcceptedTabClose(tabId),
+      (tabId: string): void => {
+        this.resolveHost().executeEffect({ type: 'record_session_trace',
+          traceType: 'tabs_overview_close_failed', message: 'Accepted tab close failed', tabId: tabId });
+      }
+    );
   private interruptedSelectionCompletionGeneration: number = -1;
   private homeSurfaceCloseGeneration: number = -1;
   private backdropSettleRunId: number = 0;
@@ -714,7 +726,8 @@ export class BrowserTabsOverviewSessionCoordinator {
     width?: number,
     height?: number
   ): void {
-    if (this.presentationState.exiting || this.presentationState.homeSurfaceCloseInFlight) {
+    if (this.presentationState.exiting || this.presentationState.homeSurfaceCloseInFlight ||
+      this.presentationState.closeAllAnimationPending) {
       return;
     }
     if (left !== undefined && top !== undefined && width !== undefined && height !== undefined) {
@@ -731,10 +744,32 @@ export class BrowserTabsOverviewSessionCoordinator {
   }
 
   closeTabFromOverlay(tabId: string): void {
-    if (this.presentationState.homeSurfaceCloseInFlight) {
+    this.handle({ type: 'close_tab', tabId: tabId });
+  }
+
+  acceptTabCloseFromOverlay(tabId: string, delayMs: number): void {
+    const facts = this.resolveHost().readSessionFacts();
+    if (!facts.tabsOverviewMounted || this.presentationState.exiting ||
+      this.presentationState.homeSurfaceCloseInFlight || this.presentationState.closeAllAnimationPending ||
+      !facts.tabs.some((tab) => tab.id === tabId)) {
       return;
     }
-    this.handle({ type: 'close_tab', tabId: tabId });
+    this.tabDismissCoordinator.accept(tabId, delayMs);
+  }
+
+  private async commitAcceptedTabClose(tabId: string): Promise<void> {
+    const host = this.resolveHost();
+    const facts = host.readSessionFacts();
+    if (!facts.tabs.some((tab) => tab.id === tabId)) {
+      return;
+    }
+    // An external navigation may have already hidden the overview. Its lifetime cannot revoke
+    // a close the user accepted while it was visible.
+    if (!facts.tabsOverviewMounted) {
+      await this.tabCloseCoordinator.closeTab(tabId);
+      return;
+    }
+    await this.closeTabFromOverview(tabId, host, this.beginOperation());
   }
 
   finishCloseAllAnimationFromOverlay(): void {
@@ -1166,15 +1201,29 @@ export class BrowserTabsOverviewSessionCoordinator {
 
   handle(action: BrowserTabsOverviewSessionAction): BrowserTabsOverviewKeyboardCommandResult | undefined {
     const host = this.resolveHost();
+    if (action.type === 'close_tab' && this.tabDismissCoordinator.complete(action.tabId)) {
+      return;
+    }
+    if (action.type === 'close_all_animation_finished' &&
+      (!this.presentationState.closeAllAnimationPending || !host.readSessionFacts().tabsOverviewMounted)) {
+      return;
+    }
+    if (this.presentationState.closeAllAnimationPending &&
+      (this.shouldFlushDismissalsBefore(action) || action.type === 'close_tab')) {
+      return;
+    }
     // A resident card can finish a dismiss while selection is already exiting. Reject these
     // callbacks before beginOperation/invalidateOperations: their handlers would otherwise do
     // nothing, but the new generation would cancel the only owner of the selection close.
-    if (this.presentationState.exiting &&
-      (action.type === 'select_tab' || action.type === 'close_tab' ||
-        action.type === 'request_close' || action.type === 'request_close_all' ||
-        action.type === 'close_all_animation_finished' || action.type === 'change_section' ||
-        action.type === 'activate_section_home' || action.type === 'dismiss_to_home' ||
-        action.type === 'create_home')) {
+    if ((this.presentationState.exiting || this.presentationState.homeSurfaceCloseInFlight) &&
+      (this.shouldFlushDismissalsBefore(action) || action.type === 'close_tab' ||
+        action.type === 'close_all_animation_finished')) {
+      return;
+    }
+    // The swipe is accepted at release, before either visual timer. Finish accepted closes before
+    // a new operation owns the exit; a late visual callback can then only acknowledge that close.
+    if (this.tabDismissCoordinator.hasPending() && this.shouldFlushDismissalsBefore(action)) {
+      void this.resumeAfterTabDismissals(action);
       return;
     }
     switch (action.type) {
@@ -1235,7 +1284,10 @@ export class BrowserTabsOverviewSessionCoordinator {
         void this.enterPrivateMode(action.helperMessage, action.options, host, this.beginOperation());
         return;
       case 'close_tab':
-        void this.closeTabFromOverview(action.tabId, host, this.beginOperation());
+        // Buttons and direct dispatches use the same queue as swipes. Starting a second close
+        // directly here would let its mutation race a foreground tab's asynchronous cleanup.
+        this.acceptTabCloseFromOverlay(action.tabId, 0);
+        this.tabDismissCoordinator.complete(action.tabId);
         return;
       case 'request_close_all':
         this.requestCloseAllTabs(host, this.beginOperation());
@@ -1254,9 +1306,30 @@ export class BrowserTabsOverviewSessionCoordinator {
     }
   }
 
-  private selectTab(tabId: string): Promise<void> {
-    if (this.presentationState.exiting) {
-      return Promise.resolve();
+  private shouldFlushDismissalsBefore(action: BrowserTabsOverviewSessionAction): boolean {
+    return action.type === 'select_tab' || action.type === 'interrupt_entry_selection' ||
+      action.type === 'request_open' || action.type === 'request_open_from_root_bottom_panel' ||
+      action.type === 'request_close' || action.type === 'request_close_all' ||
+      action.type === 'change_section' || action.type === 'activate_section_home' ||
+      action.type === 'dismiss_to_home' || action.type === 'create_home' || action.type === 'enter_private';
+  }
+
+  private async resumeAfterTabDismissals(action: BrowserTabsOverviewSessionAction): Promise<void> {
+    const version = ++this.dismissActionVersion;
+    await this.tabDismissCoordinator.flush();
+    if (version === this.dismissActionVersion && this.resolveHost().readSessionFacts().tabsOverviewMounted) {
+      this.handle(action);
+    }
+  }
+
+  private async selectTab(tabId: string): Promise<void> {
+    if (this.presentationState.exiting || this.presentationState.homeSurfaceCloseInFlight ||
+      this.presentationState.closeAllAnimationPending) {
+      return;
+    }
+    if (this.tabDismissCoordinator.hasPending()) {
+      await this.resumeAfterTabDismissals({ type: 'select_tab', tabId: tabId });
+      return;
     }
     return this.finishSelectionFromOverview(tabId, this.resolveHost(), this.beginOperation());
   }
@@ -2323,12 +2396,14 @@ export class BrowserTabsOverviewSessionCoordinator {
     host: BrowserTabsOverviewSessionHost,
     patch?: BrowserTabsOverviewSceneResetPatch
   ): void {
+    this.clearCloseAllAnimationFallback();
     const resetPatch = patch ?? this.sceneDriver.buildClosedResetPatch();
     this.cancelBackdropSettleRun();
     this.updatePresentationState({
       sceneState: resetPatch.sceneState,
       exiting: resetPatch.exiting,
       homeSurfaceCloseInFlight: resetPatch.homeSurfaceCloseInFlight,
+      closeAllAnimationPending: false,
       entryAnimationActive: resetPatch.entryAnimationActive,
       surface: {
         webLayerOpacity: resetPatch.webLayerOpacity,
@@ -2815,10 +2890,27 @@ export class BrowserTabsOverviewSessionCoordinator {
     if (this.presentationState.closeAllAnimationPending) {
       return;
     }
+    const requestVersion = this.presentationState.closeAllAnimationRequestVersion + 1;
+    this.clearCloseAllAnimationFallback();
+    // Arm before publishing: the UI callback may be synchronous, interrupted, or never arrive.
+    // The session must still remove the tabs and release the full-screen interaction layer.
+    this.closeAllAnimationFallbackTimer = setTimeout(() => {
+      this.closeAllAnimationFallbackTimer = -1;
+      if (this.presentationState.closeAllAnimationRequestVersion === requestVersion) {
+        this.finishCloseAllAnimationFromOverlay();
+      }
+    }, this.sharedSnapshotAnimationViewModel.getExitDurationMs() + SHARED_SNAPSHOT_COMPLETION_GRACE_MS);
     this.updatePresentationState({
       closeAllAnimationPending: true,
-      closeAllAnimationRequestVersion: this.presentationState.closeAllAnimationRequestVersion + 1
+      closeAllAnimationRequestVersion: requestVersion
     }, host);
+  }
+
+  private clearCloseAllAnimationFallback(): void {
+    if (this.closeAllAnimationFallbackTimer >= 0) {
+      clearTimeout(this.closeAllAnimationFallbackTimer);
+      this.closeAllAnimationFallbackTimer = -1;
+    }
   }
 
   private async finishCloseAllTabsAfterOverviewAnimation(
@@ -2829,6 +2921,7 @@ export class BrowserTabsOverviewSessionCoordinator {
       !this.presentationState.closeAllAnimationPending) {
       return;
     }
+    this.clearCloseAllAnimationFallback();
     this.updatePresentationState({ closeAllAnimationPending: false }, host);
     await this.closeAllTabs(host, generation);
   }

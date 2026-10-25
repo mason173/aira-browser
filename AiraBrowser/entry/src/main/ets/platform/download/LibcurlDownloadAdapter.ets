@@ -12,6 +12,8 @@ interface AiraDownloadSnapshot {
   state: 'created' | 'running' | 'pausing' | 'paused' | 'completed' | 'failed' | 'canceled';
   receivedBytes: number;
   totalBytes: number;
+  progressFraction: number;
+  estimatedTotalBytes: number;
   speedBytesPerSecond: number;
   errorCode: number;
   errorMessage: string;
@@ -639,6 +641,8 @@ export class LibcurlDownloadAdapter {
     );
     const reportedTotalBytes = nativeSnapshot.totalBytes > 0 ?
       nativeSnapshot.totalBytes : binding.hls ? 0 : binding.snapshot.totalBytes;
+    const progressChanged = binding.snapshot.progressFraction !== (binding.hls ? nativeSnapshot.progressFraction ?? -1 : -1) ||
+      binding.snapshot.estimatedTotalBytes !== (binding.hls ? nativeSnapshot.estimatedTotalBytes ?? 0 : 0);
     binding.snapshot = {
       guid: binding.snapshot.guid,
       url: binding.snapshot.url,
@@ -658,11 +662,14 @@ export class LibcurlDownloadAdapter {
       state: state,
       receivedBytes: nativeSnapshot.receivedBytes,
       totalBytes: reportedTotalBytes,
+      progressFraction: binding.hls ? nativeSnapshot.progressFraction ?? -1 : -1,
+      estimatedTotalBytes: binding.hls ? nativeSnapshot.estimatedTotalBytes ?? 0 : 0,
       currentSpeed: nativeSnapshot.speedBytesPerSecond,
       lastErrorCode: state === 'FAILED' ? nativeSnapshot.errorCode : 0,
       errorMessage: nativeSnapshot.errorMessage.trim().length > 0 ? nativeSnapshot.errorMessage : undefined
     };
-    const changed = state !== binding.lastState || nativeSnapshot.receivedBytes !== binding.lastReceivedBytes;
+    const changed = state !== binding.lastState || nativeSnapshot.receivedBytes !== binding.lastReceivedBytes ||
+      progressChanged;
     binding.lastState = state;
     binding.lastReceivedBytes = nativeSnapshot.receivedBytes;
     if (!changed) {

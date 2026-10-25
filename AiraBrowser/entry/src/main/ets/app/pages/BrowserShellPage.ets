@@ -9202,6 +9202,9 @@ struct BrowserShellPage {
       onCloseTab: (tabId: string) => {
         this.tabsOverviewSessionCoordinator.closeTabFromOverlay(tabId);
       },
+      onAcceptTabClose: (tabId: string, delayMs: number) => {
+        this.tabsOverviewSessionCoordinator.acceptTabCloseFromOverlay(tabId, delayMs);
+      },
       onPreviewRectChange: (tabId: string, left: number, top: number, width: number, height: number) => {
         this.tabsOverviewSessionCoordinator.rememberSharedSnapshotPreviewRect(tabId, left, top, width, height);
       },

@@ -6861,6 +6861,58 @@
       "value": "其他資源"
     },
     {
+      "name": "media_resource_selected_count",
+      "value": "已選 %1$d 項"
+    },
+    {
+      "name": "media_resource_deselect_all",
+      "value": "取消全選"
+    },
+    {
+      "name": "media_resource_batch_copy",
+      "value": "複製連結"
+    },
+    {
+      "name": "media_resource_batch_download",
+      "value": "下載 (%1$d)"
+    },
+    {
+      "name": "media_resource_batch_links_copied",
+      "value": "已複製 %1$d 個資源連結"
+    },
+    {
+      "name": "media_resource_batch_unavailable",
+      "value": "所選資源已失效，請重新選擇"
+    },
+    {
+      "name": "media_resource_batch_adding",
+      "value": "正在加入 %1$d 項下載"
+    },
+    {
+      "name": "media_resource_batch_partial",
+      "value": "已加入 %1$d 項下載，%2$d 項未能加入"
+    },
+    {
+      "name": "media_resource_batch_added",
+      "value": "已加入 %1$d 項下載，可在下載管理中查看"
+    },
+    {
+      "name": "media_resource_selected",
+      "value": "已選擇"
+    },
+    {
+      "name": "media_resource_not_selected",
+      "value": "未選擇"
+    },
+    {
+      "name": "media_resource_select",
+      "value": "多選"
+    },
+    {
+      "name": "media_resource_selection_hint",
+      "value": "長按資源可多選，批次下載或複製連結"
+    },
+    {
       "name": "media_resource_images_count",
       "value": "圖片 %1$d"
     },
@@ -20099,6 +20151,10 @@
     {
       "name": "download_status_raw",
       "value": "狀態：%1$s"
+    },
+    {
+      "name": "download_size_estimated",
+      "value": "預計 %s"
     },
     {
       "name": "download_progress_unknown_size",

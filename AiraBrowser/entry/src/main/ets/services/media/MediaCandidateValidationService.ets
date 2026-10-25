@@ -487,7 +487,7 @@ export class MediaCandidateValidationService {
           variant.bandwidth
         );
         const estimatedTotalBytes = this.estimateHlsTotalBytes(
-          variant.durationSeconds,
+          variant.live === true ? 0 : variant.durationSeconds,
           estimatedBitrate.bitrate
         );
         hlsVariants.push({
@@ -496,7 +496,8 @@ export class MediaCandidateValidationService {
           averageBandwidth: variant.averageBandwidth > 0 ? variant.averageBandwidth : undefined,
           estimatedBitrate: estimatedBitrate.bitrate > 0 ? estimatedBitrate.bitrate : undefined,
           bitrateEstimateSource: estimatedBitrate.source,
-          durationSeconds: variant.durationSeconds > 0 ? variant.durationSeconds : undefined,
+          durationSeconds: variant.live !== true && variant.durationSeconds > 0 ? variant.durationSeconds : undefined,
+          live: variant.live,
           estimatedTotalBytes: estimatedTotalBytes
         });
       }
@@ -508,7 +509,8 @@ export class MediaCandidateValidationService {
       variantCount: summary.variantCount,
       probedVariantCount: this.countProbedVariants(summary),
       segmentCount: summary.segmentCount,
-      durationSeconds: summary.durationSeconds > 0 ? summary.durationSeconds : undefined,
+      durationSeconds: summary.live !== true && summary.durationSeconds > 0 ? summary.durationSeconds : undefined,
+      live: summary.live,
       sampleSegmentUrl: summary.sampleSegments.length > 0 ? summary.sampleSegments[0] : undefined,
       mapUrl: summary.mapUrls.length > 0 ? summary.mapUrls[0] : undefined,
       keyUrl: summary.keyUrls.length > 0 ? summary.keyUrls[0] : undefined,

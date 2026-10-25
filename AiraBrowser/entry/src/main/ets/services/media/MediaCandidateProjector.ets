@@ -1,4 +1,5 @@
 import { resolveAppResourceText } from '../../core/resources/AppResourceText';
+import { MediaResourceName, resolveMediaResourceName } from '../../features/mediaDiscovery/MediaResourceNamePolicy';
 import {
   MediaActionHint,
   MediaCandidate,
@@ -543,22 +544,31 @@ export class MediaCandidateProjector {
   }
 
   private projectedMediaMetrics(candidate: MediaCandidate, candidates: MediaCandidate[]): MediaProjectedMetrics {
-    let durationMs = (candidate.playbackMetadata?.durationMs ?? 0) > 0 ?
-      candidate.playbackMetadata?.durationMs : undefined;
+    const playerDurationMs = candidate.playbackMetadata?.durationMs ?? 0;
+    let durationMs = Number.isFinite(playerDurationMs) && playerDurationMs > 0 ? playerDurationMs : undefined;
     if (candidate.kind !== 'hls') {
       return { durationMs: durationMs };
     }
-    const graphDurationSeconds = candidate.validation?.graph?.durationSeconds ?? 0;
-    if (durationMs === undefined && graphDurationSeconds > 0) {
-      durationMs = Math.round(graphDurationSeconds * 1000);
-    }
+    // Until a complete HLS playlist is known, a finite player duration can be
+    // just its currently appended/buffered range. Leave total duration unknown.
+    durationMs = undefined;
+    const graph = candidate.validation?.graph;
     const variant = this.resolveHlsVariantSummary(candidate, candidates);
-    if (durationMs === undefined && (variant?.durationSeconds ?? 0) > 0) {
-      durationMs = Math.round((variant?.durationSeconds ?? 0) * 1000);
+    if (graph?.live === true || (graph?.live === undefined && variant?.live === true)) {
+      return {};
+    }
+    const graphDurationSeconds = graph?.durationSeconds ?? 0;
+    const variantDurationSeconds = variant?.live !== true ? variant?.durationSeconds ?? 0 : 0;
+    // A complete manifest is stronger evidence than a provisional player value.
+    if (Number.isFinite(graphDurationSeconds) && graphDurationSeconds > 0) {
+      durationMs = Math.round(graphDurationSeconds * 1000);
+    } else if (Number.isFinite(variantDurationSeconds) && variantDurationSeconds > 0) {
+      durationMs = Math.round(variantDurationSeconds * 1000);
     }
     return {
       durationMs: durationMs,
-      estimatedTotalBytes: (variant?.estimatedTotalBytes ?? 0) > 0 ? variant?.estimatedTotalBytes : undefined
+      estimatedTotalBytes: variant?.live !== true && (variant?.estimatedTotalBytes ?? 0) > 0 ?
+        variant?.estimatedTotalBytes : undefined
     };
   }
 
@@ -767,6 +777,7 @@ export class MediaCandidateProjector {
     const playbackMetadata = candidate.playbackMetadata;
     const authContext = candidate.authContext;
     const projectedMetrics = this.projectedMediaMetrics(candidate, candidates);
+    const name = this.mediaResourceName(candidate);
     return {
       candidateId: candidate.id,
       tabId: candidate.tabId,
@@ -777,35 +788,20 @@ export class MediaCandidateProjector {
       acquisition: candidate.acquisition,
       actions: this.mediaResourceActions(candidate),
       score: candidate.confidence,
-      displayName: this.downloadFileNameForCandidate(candidate),
+      displayName: name.fileName,
       sourceHost: playbackMetadata?.sourceHost ?? this.resolveHost(candidate.url),
       totalBytes: playbackMetadata?.totalBytes,
       estimatedTotalBytes: projectedMetrics.estimatedTotalBytes,
       durationMs: projectedMetrics.durationMs,
       mimeType: playbackMetadata?.mimeType,
-      contentDisposition: candidate.kind === 'hls' ? undefined : playbackMetadata?.contentDisposition,
+      // The original header stays in candidate evidence. Once we choose a title,
+      // do not let the download resolver replace it with the opaque server name.
+      contentDisposition: candidate.kind === 'hls' || name.usesTitle ? undefined : playbackMetadata?.contentDisposition,
       referer: authContext?.referer ?? authContext?.pageUrl,
       userAgent: authContext?.userAgent,
       originUrl: authContext?.originUrl,
       requestHeaders: authContext?.requestHeaders
     };
-  }
-
-  private downloadFileNameForCandidate(candidate: MediaCandidate): string {
-    const displayName = this.displayNameForMediaCandidate(candidate).trim();
-    if (candidate.kind !== 'hls') {
-      return displayName;
-    }
-    if (displayName.length <= 0) {
-      return 'video.ts';
-    }
-    if (/\.(?:m3u8|m3u)$/i.test(displayName)) {
-      return displayName.replace(/\.(?:m3u8|m3u)$/i, '.ts');
-    }
-    if (/\.[A-Za-z0-9]{1,8}$/.test(displayName)) {
-      return displayName.replace(/\.[A-Za-z0-9]{1,8}$/, '.ts');
-    }
-    return displayName + '.ts';
   }
 
   private mediaHlsManifestEvidence(evidence: MediaEvidence[]): MediaHlsManifestEvidence | undefined {
@@ -924,6 +920,14 @@ export class MediaCandidateProjector {
   }
 
   private displayNameForMediaCandidate(candidate: MediaCandidate): string {
+    return this.mediaResourceName(candidate).displayName;
+  }
+
+  private mediaResourceName(candidate: MediaCandidate): MediaResourceName {
+    return resolveMediaResourceName(candidate, this.originalNameForMediaCandidate(candidate));
+  }
+
+  private originalNameForMediaCandidate(candidate: MediaCandidate): string {
     const nativeTitle = candidate.nativeIdentity?.title?.trim() ?? '';
     if (nativeTitle.length > 0) {
       return nativeTitle;
@@ -937,24 +941,7 @@ export class MediaCandidateProjector {
   }
 
   private resourceDisplayNameForCandidate(candidate: MediaCandidate): string {
-    const displayName = this.displayNameForMediaCandidate(candidate);
-    if (candidate.kind !== 'hls' || !this.isGenericHlsDisplayName(displayName)) {
-      return displayName;
-    }
-    const pageTitle = candidate.pageTitle.trim();
-    return pageTitle.length > 0 ? pageTitle : resolveAppResourceText($r('app.string.media_resource_web_video_title'));
-  }
-
-  private isGenericHlsDisplayName(value: string): boolean {
-    const lower = value.trim().toLowerCase();
-    const dotIndex = lower.lastIndexOf('.');
-    const baseName = dotIndex > 0 ? lower.substring(0, dotIndex) : lower;
-    return baseName === 'index' ||
-      baseName === 'master' ||
-      baseName === 'playlist' ||
-      baseName === 'mixed' ||
-      baseName === 'video' ||
-      baseName === 'download';
+    return this.displayNameForMediaCandidate(candidate);
   }
 
   private failureReasonFromEvidence(evidence: MediaEvidence[]): string | undefined {

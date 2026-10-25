@@ -1,3 +1,8 @@
+import {
+  resolveDownloadProgressFraction,
+  resolveDownloadDisplayTotal,
+  isDownloadTotalEstimated
+} from '../../domain/downloadv2/DownloadV2Progress';
 import { common, WantAgent, wantAgent } from '@kit.AbilityKit';
 import { backgroundTaskManager } from '@kit.BackgroundTasksKit';
 import { BusinessError } from '@kit.BasicServicesKit';
@@ -38,6 +43,7 @@ interface DownloadV2AggregateProgress {
   receivedBytes: number;
   progressPercent: number;
   progressDeterminate: boolean;
+  totalEstimated: boolean;
 }
 
 export class DownloadV2SystemNotificationService {
@@ -338,28 +344,34 @@ export class DownloadV2SystemNotificationService {
     let primaryTask = tasks[0];
     let totalBytes = 0;
     let receivedBytes = 0;
+    let totalWeight = 0;
+    let completedWeight = 0;
     let progressDeterminate = true;
+    let totalKnown = true;
+    let totalEstimated = false;
     tasks.forEach((task: DownloadV2TaskEntity): void => {
-      if (task.timing.updatedAt > primaryTask.timing.updatedAt) {
-        primaryTask = task;
-      }
-      if (task.progress.totalBytes <= 0) {
-        progressDeterminate = false;
-      } else {
-        totalBytes += task.progress.totalBytes;
-        receivedBytes += Math.min(task.progress.totalBytes, Math.max(0, task.progress.receivedBytes));
-      }
+      if (task.timing.updatedAt > primaryTask.timing.updatedAt) primaryTask = task;
+      const fraction = resolveDownloadProgressFraction(task.progress);
+      const total = resolveDownloadDisplayTotal(task.progress);
+      const weight = Math.max(1, total);
+      if (fraction < 0) progressDeterminate = false;
+      if (total <= 0) totalKnown = false;
+      totalEstimated = totalEstimated || isDownloadTotalEstimated(task.progress);
+      totalWeight += weight;
+      completedWeight += Math.max(0, fraction) * weight;
+      totalBytes += total;
+      receivedBytes += Math.max(0, task.progress.receivedBytes);
     });
-    const progressPercent = progressDeterminate && totalBytes > 0
-      ? Math.min(100, Math.max(0, Math.floor((receivedBytes * 100) / totalBytes)))
-      : 0;
+    const progressPercent = progressDeterminate && totalWeight > 0
+      ? Math.min(99, Math.max(0, Math.floor(completedWeight * 100 / totalWeight))) : 0;
     return {
       taskCount: tasks.length,
       primaryTask: primaryTask,
-      totalBytes: totalBytes,
+      totalBytes: totalKnown ? totalBytes : 0,
       receivedBytes: receivedBytes,
       progressPercent: progressPercent,
-      progressDeterminate: progressDeterminate
+      progressDeterminate: progressDeterminate,
+      totalEstimated: totalEstimated
     };
   }
 
@@ -372,9 +384,12 @@ export class DownloadV2SystemNotificationService {
 
   private buildProgressAdditionalText(progress: DownloadV2AggregateProgress): string {
     if (!progress.progressDeterminate || progress.totalBytes <= 0) {
-      return `${this.formatSize(progress.primaryTask.progress.receivedBytes)} · ${this.formatSpeed(progress.primaryTask)}`;
+      return `${this.formatSize(progress.receivedBytes)} · ${this.formatSpeed(progress.primaryTask)}`;
     }
-    return `${this.formatSize(progress.receivedBytes)} / ${this.formatSize(progress.totalBytes)} · ` +
+    const totalText = progress.totalEstimated
+      ? resolveAppResourceText($r('app.string.download_size_estimated', this.formatSize(progress.totalBytes)))
+      : this.formatSize(progress.totalBytes);
+    return `${this.formatSize(progress.receivedBytes)} / ${totalText} · ` +
       this.formatSpeed(progress.primaryTask);
   }
 

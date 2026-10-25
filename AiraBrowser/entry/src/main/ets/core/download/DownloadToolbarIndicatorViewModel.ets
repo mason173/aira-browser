@@ -1,3 +1,7 @@
+import {
+  resolveDownloadProgressFraction,
+  resolveDownloadDisplayTotal
+} from '../../domain/downloadv2/DownloadV2Progress';
 import { DownloadV2TaskEntity } from '../../domain/downloadv2/DownloadV2TaskEntity';
 import { resolveAppResourceText } from '../resources/AppResourceText';
 
@@ -87,12 +91,11 @@ export class DownloadToolbarIndicatorViewModel {
     let knownTotalBytes = 0;
     let knownReceivedBytes = 0;
     activeTasks.forEach((task: DownloadV2TaskEntity): void => {
-      const totalBytes = this.normalizeByteCount(task.progress.totalBytes);
-      if (totalBytes <= 0) {
-        return;
-      }
-      knownTotalBytes += totalBytes;
-      knownReceivedBytes += Math.min(totalBytes, this.normalizeByteCount(task.progress.receivedBytes));
+      const fraction = resolveDownloadProgressFraction(task.progress);
+      if (fraction < 0) return;
+      const weight = Math.max(1, resolveDownloadDisplayTotal(task.progress));
+      knownTotalBytes += weight;
+      knownReceivedBytes += fraction * weight;
     });
 
     const progressKnown = knownTotalBytes > 0;
@@ -101,10 +104,4 @@ export class DownloadToolbarIndicatorViewModel {
     return new DownloadToolbarIndicatorState(true, progressValue, progressKnown, activeTasks.length);
   }
 
-  private normalizeByteCount(value: number): number {
-    if (!Number.isFinite(value) || value <= 0) {
-      return 0;
-    }
-    return value;
-  }
 }

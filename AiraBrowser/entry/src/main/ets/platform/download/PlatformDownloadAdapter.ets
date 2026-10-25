@@ -17,6 +17,9 @@ export interface PlatformDownloadSnapshot {
   originalUrl?: string;
   suggestedFileName: string;
   totalBytes: number;
+  /** Presentation only; -1/absent means unknown. */
+  progressFraction?: number;
+  estimatedTotalBytes?: number;
   receivedBytes: number;
   currentSpeed: number;
   state: string;

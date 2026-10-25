@@ -9,13 +9,18 @@ import {
   MediaResourceTabCounts,
   emptyMediaResourceTabCounts
 } from '../../features/mediaDiscovery/MediaResourceProjectionModels';
-import { DownloadRuntimeService } from '../../services/download/DownloadRuntimeService';
+import { DownloadRuntimeService, ManualDownloadRequestInput } from '../../services/download/DownloadRuntimeService';
+import {
+  MediaResourceBatchAction,
+  selectedMediaResourcesForAction
+} from '../../features/mediaDiscovery/MediaResourceSelection';
 import { MediaManifestProcessingService } from '../../services/media/MediaManifestProcessingService';
 import { BrowserHlsTakeoverViewModel } from './BrowserHlsTakeoverViewModel';
 import { BrowserDownloadConfirmOverlayCoordinator } from './BrowserDownloadConfirmOverlayCoordinator';
 import { BrowserMediaDiscoveryCoordinator } from './media/BrowserMediaDiscoveryCoordinator';
 import {
   BrowserMediaDiscoveryHost,
+  BrowserMediaDiscoverySurfaceInput,
   BrowserMediaDiscoverySurfaceState
 } from './media/BrowserMediaDiscoveryModels';
 import { resolveAppResourceText } from '../resources/AppResourceText';
@@ -38,9 +43,11 @@ export interface BrowserMediaResourceSessionSnapshot {
 }
 
 export interface BrowserMediaResourcesOverlayAction {
-  type: 'close' | 'resource';
+  type: 'close' | 'resource' | 'batch';
   candidateId?: string;
   resourceAction?: MediaResourceAction;
+  candidateIds?: string[];
+  batchAction?: MediaResourceBatchAction;
 }
 
 export type BrowserHlsTakeoverAction =
@@ -107,6 +114,7 @@ export class BrowserMediaResourceSessionCoordinator {
   private readonly hlsTakeoverViewModel: BrowserHlsTakeoverViewModel = new BrowserHlsTakeoverViewModel();
   private snapshot: BrowserMediaResourceSessionSnapshot = createBrowserMediaResourceSessionSnapshot();
   private activePlaybackDownloadInFlight: boolean = false;
+  private batchDownloadInFlight: boolean = false;
 
   constructor(
     mediaDiscoveryCoordinator: BrowserMediaDiscoveryCoordinator,
@@ -167,6 +175,10 @@ export class BrowserMediaResourceSessionCoordinator {
   handleResourcesOverlayAction(action: BrowserMediaResourcesOverlayAction): void {
     if (action.type === 'close') {
       this.closeResources();
+      return;
+    }
+    if (action.type === 'batch') {
+      void this.handleResourceBatchAction(action.candidateIds ?? [], action.batchAction);
       return;
     }
     if (action.candidateId !== undefined && action.resourceAction !== undefined) {
@@ -339,6 +351,58 @@ export class BrowserMediaResourceSessionCoordinator {
         return;
       default:
         return;
+    }
+  }
+
+  private async handleResourceBatchAction(candidateIds: string[], action?: MediaResourceBatchAction): Promise<void> {
+    if (action === undefined || this.batchDownloadInFlight) {
+      return;
+    }
+    const selected = selectedMediaResourcesForAction(candidateIds, this.snapshot.resourceListItems, action);
+    const input: BrowserMediaDiscoverySurfaceInput = {
+      tabId: this.mediaDiscoveryHost.resolveActiveTabId(),
+      runtime: this.mediaDiscoveryHost.buildRuntimeContext(),
+      resourcePanelOpen: true
+    };
+    const requests: ManualDownloadRequestInput[] = [];
+    const urls: string[] = [];
+    for (let index = 0; index < selected.length; index++) {
+      if (selected[index].tabId !== input.tabId) {
+        continue;
+      }
+      const resolution = this.mediaDiscoveryCoordinator.resolveMediaResourceAction(input, selected[index].id, action);
+      if (resolution.state !== undefined) {
+        this.applyDiscoverySurfaceState(resolution.state);
+      }
+      const url = action === 'copy' ? resolution.copyUrl : resolution.downloadRequest?.url;
+      if (url === undefined || url.trim().length === 0 || urls.indexOf(url) >= 0) {
+        continue;
+      }
+      urls.push(url);
+      if (resolution.downloadRequest !== undefined) {
+        requests.push(resolution.downloadRequest);
+      }
+    }
+    if (action === 'copy') {
+      this.shell.copyText(urls.join('\n'),
+        resolveAppResourceText($r('app.string.media_resource_toast_no_resource_link')),
+        resolveAppResourceText($r('app.string.media_resource_batch_links_copied', urls.length)));
+      return;
+    }
+    if (requests.length === 0) {
+      this.mediaDiscoveryHost.showToast(resolveAppResourceText($r('app.string.media_resource_batch_unavailable')));
+      return;
+    }
+    this.batchDownloadInFlight = true;
+    this.closeResources();
+    this.mediaDiscoveryHost.showToast(resolveAppResourceText($r('app.string.media_resource_batch_adding', requests.length)));
+    try {
+      const result = await this.downloadService.requestConfirmedManualDownloads(requests);
+      this.mediaDiscoveryHost.showToast(resolveAppResourceText(result.failed > 0
+        ? $r('app.string.media_resource_batch_partial', result.queued, result.failed)
+        : $r('app.string.media_resource_batch_added', result.queued)));
+    } finally {
+      this.batchDownloadInFlight = false;
     }
   }
 

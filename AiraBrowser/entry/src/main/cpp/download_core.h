@@ -14,6 +14,7 @@ namespace aira::download {
 
 struct DownloadSession;
 struct HlsResource;
+class HlsProgressTracker;
 
 enum class TaskState {
   kCreated,
@@ -53,6 +54,8 @@ struct TaskSnapshot {
   std::string diagnostic_message;
   std::string failure_phase;
   std::string file_extension;
+  double progress_fraction = -1;
+  std::int64_t estimated_total_bytes = 0;
 };
 
 class DownloadTask final {
@@ -88,12 +91,14 @@ class DownloadTask final {
   static std::size_t HeaderCallback(char* data, std::size_t size, std::size_t count, void* user_data);
   static int ProgressCallback(void* user_data, std::int64_t download_total, std::int64_t download_now,
                               std::int64_t upload_total, std::int64_t upload_now);
-  bool TransferHlsFile(const HlsResource& resource, const std::string& path, const std::string& phase,
+  bool TransferHlsFile(const HlsResource& resource, std::size_t resource_index,
+                       const std::string& path, const std::string& phase,
                        std::atomic<std::int64_t>* aggregate_received, std::string* error,
                        std::int32_t* error_code, std::string* diagnostic_message);
 
   const TaskOptions options_;
   std::unique_ptr<DownloadSession> session_;
+  std::unique_ptr<HlsProgressTracker> hls_progress_;
   mutable std::mutex mutex_;
   std::thread worker_;
   TaskState state_ = TaskState::kCreated;

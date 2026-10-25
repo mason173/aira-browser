@@ -178,6 +178,8 @@ export class InMemoryDownloadV2Repository implements DownloadV2Repository {
       },
       progress: {
         totalBytes: task.progress.totalBytes,
+        progressFraction: task.progress.progressFraction,
+        estimatedTotalBytes: task.progress.estimatedTotalBytes,
         receivedBytes: task.progress.receivedBytes,
         speedBytesPerSecond: task.progress.speedBytesPerSecond
       },

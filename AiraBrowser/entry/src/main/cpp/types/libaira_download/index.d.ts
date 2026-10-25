@@ -2,6 +2,8 @@ export interface AiraDownloadSnapshot {
   state: 'created' | 'running' | 'pausing' | 'paused' | 'completed' | 'failed' | 'canceled';
   receivedBytes: number;
   totalBytes: number;
+  progressFraction: number;
+  estimatedTotalBytes: number;
   speedBytesPerSecond: number;
   errorCode: number;
   errorMessage: string;

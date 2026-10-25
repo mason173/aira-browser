@@ -6861,6 +6861,58 @@
       "value": "其他资源"
     },
     {
+      "name": "media_resource_selected_count",
+      "value": "已选 %1$d 项"
+    },
+    {
+      "name": "media_resource_deselect_all",
+      "value": "取消全选"
+    },
+    {
+      "name": "media_resource_batch_copy",
+      "value": "复制链接"
+    },
+    {
+      "name": "media_resource_batch_download",
+      "value": "下载 (%1$d)"
+    },
+    {
+      "name": "media_resource_batch_links_copied",
+      "value": "已复制 %1$d 个资源链接"
+    },
+    {
+      "name": "media_resource_batch_unavailable",
+      "value": "所选资源已失效，请重新选择"
+    },
+    {
+      "name": "media_resource_batch_adding",
+      "value": "正在添加 %1$d 项下载"
+    },
+    {
+      "name": "media_resource_batch_partial",
+      "value": "已添加 %1$d 项下载，%2$d 项未能添加"
+    },
+    {
+      "name": "media_resource_batch_added",
+      "value": "已添加 %1$d 项下载，可在下载管理中查看"
+    },
+    {
+      "name": "media_resource_selected",
+      "value": "已选择"
+    },
+    {
+      "name": "media_resource_not_selected",
+      "value": "未选择"
+    },
+    {
+      "name": "media_resource_select",
+      "value": "多选"
+    },
+    {
+      "name": "media_resource_selection_hint",
+      "value": "长按资源可多选，批量下载或复制链接"
+    },
+    {
       "name": "media_resource_images_count",
       "value": "图片 %1$d"
     },
@@ -20099,6 +20151,10 @@
     {
       "name": "download_status_raw",
       "value": "状态：%1$s"
+    },
+    {
+      "name": "download_size_estimated",
+      "value": "预计 %s"
     },
     {
       "name": "download_progress_unknown_size",

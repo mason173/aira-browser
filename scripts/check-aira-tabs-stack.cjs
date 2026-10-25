@@ -5,7 +5,7 @@ const vm = require('node:vm');
 const { test } = require('node:test');
 const ts = require('./lib/deveco-typescript.cjs');
 
-function load(relative, requireDependency) {
+function load(relative, requireDependency, globals = {}) {
   const filename = path.resolve(__dirname, '..', relative);
   const compiled = ts.transpileModule(fs.readFileSync(filename, 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
@@ -15,7 +15,7 @@ function load(relative, requireDependency) {
     0, `Transpile errors in ${filename}`);
   const module = { exports: {} };
   vm.runInNewContext(compiled.outputText, {
-    module, exports: module.exports, require: requireDependency
+    module, exports: module.exports, require: requireDependency, ...globals
   }, { filename });
   return module.exports;
 }
@@ -30,6 +30,16 @@ const close = (actual, expected, tolerance = 1e-9) =>
 // replays a stack dismiss callback at the publication boundary where @Watch observes the exit.
 function selectionExitHarness(lateAction, selectOtherTab = false) {
   const timers = [];
+  let nextTimerId = 0;
+  const schedule = (callback, delay) => {
+    const id = ++nextTimerId;
+    timers.push({ id, callback, delay });
+    return id;
+  };
+  const cancel = id => {
+    const index = timers.findIndex(timer => timer.id === id);
+    if (index >= 0) timers.splice(index, 1);
+  };
   const sessionPath = 'AiraBrowser/entry/src/main/ets/core/browser/BrowserTabsOverviewSessionCoordinator.ets';
   const filename = path.resolve(__dirname, '..', sessionPath);
   const compiled = ts.transpileModule(fs.readFileSync(filename, 'utf8'), {
@@ -42,7 +52,7 @@ function selectionExitHarness(lateAction, selectOtherTab = false) {
     module, exports: module.exports,
     require: name => name === './BrowserTabsSharedSnapshotTransitionCoordinator' ?
       { buildBrowserTabsSharedSnapshotIdleState: idle } : {},
-    setTimeout: (callback, delay) => { timers.push({ callback, delay }); return timers.length; }
+    setTimeout: schedule, clearTimeout: cancel
   }, { filename });
   const sceneExports = load(
     'AiraBrowser/entry/src/main/ets/core/browser/tabsOverview/BrowserTabsOverviewSceneDriver.ets', () => ({}));
@@ -78,7 +88,7 @@ function selectionExitHarness(lateAction, selectOtherTab = false) {
     }
   };
   Object.assign(session, {
-    operationGeneration: 0, interruptedSelectionCompletionGeneration: -1,
+    operationGeneration: 0, dismissActionVersion: 0, interruptedSelectionCompletionGeneration: -1,
     backdropSettleRunId: 0, sceneDriver, resolveHost: () => host,
     presentationState: { activeSection: 'tabs', exiting: false, homeSurfaceCloseInFlight: false,
       animationVersion: 0, sharedSnapshotRunId: 1, sharedSnapshotState: idle(),
@@ -98,11 +108,17 @@ function selectionExitHarness(lateAction, selectOtherTab = false) {
       withProgress: (state, progress) => ({ ...state, phase: 'exitAnimating', progress })
     },
     sharedSnapshotEntryCoordinator: { finish: idle },
-    snapshotPipelineCoordinator: { releaseSession() {} },
+    snapshotPipelineCoordinator: { releaseSession() {}, resetMeasuredEntryFrameForOwner() {} },
     fixedDependencies: { webTopImmersionSessionCoordinator: { syncPolicy() {} } },
     unlockTabsOverviewSnapshot() {}, hideBackdropSnapshot() {},
     tabCloseCoordinator: { closeTab: async id => { closedTabs.push(id); } }
   });
+  const { BrowserTabsOverviewDismissCoordinator } = load(
+    'AiraBrowser/entry/src/main/ets/core/browser/tabsOverview/BrowserTabsOverviewDismissCoordinator.ets',
+    () => ({}), { setTimeout: schedule, clearTimeout: cancel });
+  session.tabDismissCoordinator = new BrowserTabsOverviewDismissCoordinator(
+    id => session.commitAcceptedTabClose(id),
+    id => { throw new Error(`Close failed: ${id}`); });
   return { session, host, facts, closedTabs,
     drainTimers: () => {
       while (timers.length > 0) {
@@ -176,6 +192,381 @@ test('an ordinary close before selection remains accepted', async () => {
   h.drainTimers();
   assert.equal(h.facts.tabsOverviewMounted, false);
   assert.equal(h.render().webLayerInteractive, true);
+});
+
+const flushMicrotasks = async () => {
+  for (let index = 0; index < 12; index++) await Promise.resolve();
+};
+
+test('a swipe accepted during fly-out is really closed before selection starts', async () => {
+  const h = selectionExitHarness(false);
+  let finishCleanup;
+  h.session.tabCloseCoordinator.closeTab = async id => {
+    h.closedTabs.push(id);
+    await new Promise(resolve => { finishCleanup = resolve; });
+    h.facts.tabs = h.facts.tabs.filter(tab => tab.id !== id);
+  };
+  h.session.acceptTabCloseFromOverlay('closing', 900);
+  // The card's flight and the deck's fill-in have not delivered either completion callback.
+  h.session.selectTabFromOverlay('selected');
+  assert.deepEqual(h.closedTabs, ['closing']);
+  assert.equal(h.session.presentationState.exiting, false);
+  finishCleanup();
+  await flushMicrotasks();
+  h.drainTimers();
+  assert.equal(h.facts.tabs.some(tab => tab.id === 'closing'), false);
+  assert.equal(h.facts.tabsOverviewMounted, false);
+  assert.equal(h.render().webLayerInteractive, true);
+  // Recycling the old card must not submit a second close or invalidate a later operation.
+  const generation = h.session.operationGeneration;
+  h.session.closeTabFromOverlay('closing');
+  assert.equal(h.session.operationGeneration, generation);
+  assert.deepEqual(h.closedTabs, ['closing']);
+});
+
+test('session timer closes an accepted swipe even when both visual callbacks disappear', async () => {
+  const h = selectionExitHarness(false);
+  h.session.tabCloseCoordinator.closeTab = async id => {
+    h.closedTabs.push(id);
+    h.facts.tabs = h.facts.tabs.filter(tab => tab.id !== id);
+  };
+  h.session.acceptTabCloseFromOverlay('closing', 900);
+  h.drainTimers();
+  await flushMicrotasks();
+  h.facts.tabs.push({ ...h.facts.tabs[0], id: 'new-page' });
+  assert.deepEqual(h.facts.tabs.map(tab => tab.id), ['selected', 'new-page']);
+  assert.equal(h.session.tabDismissCoordinator.hasPending(), false);
+});
+
+test('external navigation hiding the overview cannot revoke an accepted close', async () => {
+  const h = selectionExitHarness(false);
+  h.session.tabCloseCoordinator.closeTab = async id => {
+    h.closedTabs.push(id);
+    h.facts.tabs = h.facts.tabs.filter(tab => tab.id !== id);
+  };
+  h.session.acceptTabCloseFromOverlay('closing', 900);
+  h.facts.tabsOverviewMounted = false;
+  h.facts.tabs.push({ ...h.facts.tabs[0], id: 'new-page' });
+  const generation = h.session.operationGeneration;
+  h.drainTimers();
+  await flushMicrotasks();
+  assert.deepEqual(h.facts.tabs.map(tab => tab.id), ['selected', 'new-page']);
+  assert.equal(h.session.operationGeneration, generation);
+});
+
+test('consecutive closes cannot restore a tab from an earlier cleanup snapshot', async () => {
+  const h = selectionExitHarness(false, true);
+  h.facts.tabs.push({ ...h.facts.tabs[0], id: 'third' });
+  let finishCleanup;
+  h.session.tabCloseCoordinator.closeTab = async id => {
+    h.closedTabs.push(id);
+    const next = h.facts.tabs.filter(tab => tab.id !== id);
+    if (id === 'closing') await new Promise(resolve => { finishCleanup = resolve; });
+    h.facts.tabs = next;
+  };
+  h.session.acceptTabCloseFromOverlay('closing', 700);
+  h.session.acceptTabCloseFromOverlay('third', 300);
+  h.session.acceptTabCloseFromOverlay('closing', 900);
+  // Completion order may differ from gesture order, and recycling may repeat a callback.
+  h.session.closeTabFromOverlay('third');
+  h.session.closeTabFromOverlay('closing');
+  h.session.closeTabFromOverlay('closing');
+  assert.deepEqual(h.closedTabs, ['closing']);
+  finishCleanup();
+  await h.session.tabDismissCoordinator.flush();
+  h.drainTimers();
+  assert.deepEqual(h.closedTabs, ['closing', 'third']);
+  assert.deepEqual(h.facts.tabs.map(tab => tab.id), ['selected']);
+});
+
+test('a failed close releases the queue and reports the error without stranding navigation', async () => {
+  const { BrowserTabsOverviewDismissCoordinator } = load(
+    'AiraBrowser/entry/src/main/ets/core/browser/tabsOverview/BrowserTabsOverviewDismissCoordinator.ets',
+    () => ({}), { setTimeout: () => 0, clearTimeout() {} });
+  const closed = [];
+  const errors = [];
+  const coordinator = new BrowserTabsOverviewDismissCoordinator(async id => {
+    if (id === 'broken') throw new Error('cleanup failed');
+    closed.push(id);
+  }, id => errors.push(id));
+  coordinator.accept('broken', 500);
+  coordinator.accept('next', 500);
+  await coordinator.flush();
+  assert.deepEqual(errors, ['broken']);
+  assert.deepEqual(closed, ['next']);
+  assert.equal(coordinator.hasPending(), false);
+});
+
+for (const type of ['create_home', 'dismiss_to_home', 'request_close', 'request_close_all',
+  'change_section', 'activate_section_home', 'interrupt_entry_selection', 'enter_private']) {
+  test(`${type} waits for an accepted swipe before starting its operation`, async () => {
+    const h = selectionExitHarness(false);
+    h.session.tabCloseCoordinator.closeTab = async id => {
+      h.facts.tabs = h.facts.tabs.filter(tab => tab.id !== id);
+    };
+    const called = [];
+    const action = { type, section: 'tabs', tabId: 'selected' };
+    const dispatch = h.session.handle.bind(h.session);
+    h.session.handle = current => {
+      if (h.session.tabDismissCoordinator.hasPending()) return dispatch(current);
+      called.push(current.type);
+      assert.equal(h.facts.tabs.some(tab => tab.id === 'closing'), false);
+    };
+    h.session.acceptTabCloseFromOverlay('closing', 900);
+    dispatch(action);
+    assert.deepEqual(called, []);
+    await flushMicrotasks();
+    assert.deepEqual(called, [type]);
+  });
+}
+
+test('late actions cannot cancel a last-tab home exit before its animation completes', async () => {
+  const h = selectionExitHarness(false);
+  h.session.presentationState.homeSurfaceCloseInFlight = true;
+  h.session.sharedSnapshotAnimationViewModel = {
+    buildHomeRevealExitAnimationPlan: () => ({ durationMs: 300, completionDelayMs: 400,
+      targetState: { homeExitProgress: 1, backdropProgress: 0 } })
+  };
+  h.session.playBackdropHomeRevealFadeWithHost = () => {};
+  h.session.closeTabsOverviewToHomeWithoutSheetExit = () => { h.facts.tabsOverviewMounted = false; };
+  const generation = h.session.beginOperation();
+  const completion = h.session.playPreparedHomeRevealClose(h.host, generation);
+  for (const type of ['create_home', 'dismiss_to_home', 'request_close', 'request_close_all',
+    'change_section', 'activate_section_home', 'select_tab', 'close_tab', 'close_all_animation_finished',
+    'interrupt_entry_selection', 'enter_private', 'request_open', 'request_open_from_root_bottom_panel']) {
+    h.session.handle({ type, tabId: 'selected', section: 'tabs' });
+    assert.equal(h.session.operationGeneration, generation, `late ${type} stole the home exit`);
+  }
+  await h.session.selectTab('selected');
+  h.drainTimers();
+  await completion;
+  assert.equal(h.facts.tabsOverviewMounted, false);
+});
+
+function loadComponentMethods(relative, names, globals = {}) {
+  const source = fs.readFileSync(path.resolve(__dirname, '..', relative), 'utf8');
+  const methods = names.map(name => {
+    const start = source.indexOf(`  private ${name}(`);
+    assert.ok(start >= 0, name);
+    const end = source.indexOf('\n  }', start) + 4;
+    return source.slice(start, end);
+  });
+  const compiled = ts.transpileModule(`class Boundary {\n${methods.join('\n')}\n}`, {
+    compilerOptions: { target: ts.ScriptTarget.ES2020 }
+  });
+  return vm.runInNewContext(`${compiled.outputText}\nBoundary;`, globals);
+}
+
+for (const style of ['grid', 'horizontal_cards', 'stack', 'list']) {
+  test(`${style}: close buttons register removal before changing the local presentation`, () => {
+    const accepted = [];
+    const Boundary = loadComponentMethods(
+      'AiraBrowser/entry/src/main/ets/app/components/browser/BrowserTabsFloatingOverlay.ets',
+      ['closeTabFromOverlay'], {
+        FLOATING_TABS_REORDER_DURATION_MS: 260,
+        animateTo: (_plan, apply) => {
+          assert.deepEqual(accepted.map(item => item.id), ['closing']);
+          apply();
+        }
+      });
+    const boundary = Object.assign(new Boundary(), {
+      interactionEnabled: true, exiting: false, closeAllExitActive: false,
+      isLocallyRemovedTab: () => false, isStackLayout: () => style === 'stack',
+      onAcceptTabClose: (id, delay) => accepted.push({ id, delay }),
+      beginDeckDismiss: () => assert.equal(accepted.length, 1),
+      animationViewModel: { getFloatingCardEntryCurve: () => 'linear' },
+      shadowViewModel: { markLocalRemoval: () => ({ locallyRemovedTabIds: ['closing'] }) },
+      refreshBottomChromeCounts() {}, onCloseTab() {}
+    });
+    boundary.closeTabFromOverlay('closing');
+    assert.deepEqual(accepted, [{ id: 'closing', delay: style === 'stack' ? 260 : 0 }]);
+  });
+}
+
+test('all card styles register a swipe at release; only stack waits for the extra fill-in', () => {
+  const source = fs.readFileSync(path.resolve(__dirname,
+    '../AiraBrowser/entry/src/main/ets/app/components/browser/BrowserTabsFloatingOverlay.ets'), 'utf8');
+  const start = source.indexOf('onSwipeDismissAccepted: ') + 'onSwipeDismissAccepted: '.length;
+  const end = source.indexOf('\n      onSwipeThresholdReached:', start);
+  const callback = source.slice(start, end).trim().replace(/,$/, '');
+  const compiled = ts.transpileModule(`class Boundary { accept = ${callback}; }`, {
+    compilerOptions: { target: ts.ScriptTarget.ES2020 }
+  });
+  const Boundary = vm.runInNewContext(`${compiled.outputText}\nBoundary;`, {
+    FLOATING_TABS_REORDER_DURATION_MS: 260
+  });
+  for (const style of ['grid', 'horizontal_cards', 'stack']) {
+    const accepted = [];
+    const boundary = Object.assign(new Boundary(), {
+      isStackLayout: () => style === 'stack',
+      onAcceptTabClose: (id, delay) => accepted.push([id, delay])
+    });
+    boundary.accept('closing', 350);
+    assert.deepEqual(accepted, [['closing', style === 'stack' ? 610 : 350]], style);
+  }
+});
+
+// Exercise the actual asynchronous close flow as well as the session. Only platform services,
+// persistence, and TabManager's synchronous mutation are replaced by small ports.
+function attachDelayedRuntimeClose(h) {
+  const { BrowserTabCloseCoordinator } = load(
+    'AiraBrowser/entry/src/main/ets/core/browser/BrowserTabCloseCoordinator.ets',
+    name => name === '../resources/AppResourceText' ? { resolveAppResourceText: value => value } : {},
+    { $r: value => value });
+  const coordinator = Object.create(BrowserTabCloseCoordinator.prototype);
+  const host = {
+    readState: () => ({ ...h.facts, tabSequence: 3, tabsOverviewVisible: h.facts.tabsOverviewMounted }),
+    applyActiveTabState: id => { h.facts.activeTabId = id; },
+    applyTabList: tabs => { h.facts.tabs = tabs; },
+    executeTabListAnimation: plan => plan.apply(), setHelperMessage() {}
+  };
+  let release;
+  Object.assign(coordinator, {
+    resolveApplicationHost: () => host,
+    transitionCoordinator: { closeTab: (_manager, tabs, active, id, sequence) => {
+      const next = tabs.filter(tab => tab.id !== id);
+      return { tabs: next, activeTabId: id === active ? next[0]?.id ?? '' : active,
+        tabSequence: sequence, helperMessage: '' };
+    } },
+    dependencies: {
+      resolveWebPageLifecycleCoordinator: () => ({ prepareTabForTerminalClose() {} }),
+      backgroundOpenPromptCoordinator: { dismissTab() {} },
+      tabSwitchCoordinator: { synchronizeWebTabsAndPreviewAssets() {} }
+    },
+    isSessionEphemeralTab: () => false, isHomeOptionsSessionEphemeral: () => false,
+    recordRecentlyClosedTabForAction() {}, removeClosedTabPreview() {},
+    refreshPostCloseBoundaryState() {}, runSessionEphemeralCleanupIfNeeded() {},
+    clearSiteDataForTabOnCloseIfNeeded() {}, scheduleDeferredCloseTabCleanup() {},
+    applyPostCloseTabSurfacePlan: async () => {},
+    runCloseTabCleanup: async plan => {
+      h.closedTabs.push(plan.tabId);
+      if (plan.tabId === 'closing') await new Promise(resolve => { release = resolve; });
+    }
+  });
+  h.session.tabCloseCoordinator = coordinator;
+  return () => release();
+}
+
+test('list/button closes wait for real runtime cleanup before selection and cannot restore a closed sibling', async () => {
+  const h = selectionExitHarness(false, true);
+  h.facts.tabs.push({ ...h.facts.tabs[0], id: 'third' });
+  const finishCleanup = attachDelayedRuntimeClose(h);
+  h.session.closeTabFromOverlay('closing');
+  h.session.closeTabFromOverlay('third');
+  h.session.selectTabFromOverlay('selected');
+  await flushMicrotasks();
+  const exitedBeforeCleanup = h.session.presentationState.exiting;
+  finishCleanup();
+  await h.session.tabDismissCoordinator.flush();
+  await flushMicrotasks();
+  h.drainTimers();
+  assert.equal(exitedBeforeCleanup, false, 'Selection must not race the active-tab cleanup');
+  assert.deepEqual(h.facts.tabs.map(tab => tab.id), ['selected']);
+  assert.equal(h.facts.activeTabId, 'selected');
+  assert.equal(h.facts.tabsOverviewMounted, false);
+  assert.equal(h.render().webLayerInteractive, true);
+});
+
+test('close-all completes without a visual finish callback and ignores duplicate completion', async () => {
+  const h = selectionExitHarness(false);
+  h.session.presentationState.closeAllAnimationRequestVersion = 0;
+  h.session.presentationState.closeAllAnimationPending = false;
+  h.session.sharedSnapshotAnimationViewModel = { getExitDurationMs: () => 280 };
+  h.session.actionPolicy = { buildDeletePlan: () => ({ count: 2 }) };
+  let completed = 0;
+  h.session.closeAllTabs = async () => { completed++; h.facts.tabsOverviewMounted = false; };
+  h.session.confirmCloseAllTabs(h.host);
+  const generation = h.session.operationGeneration;
+  h.session.handle({ type: 'select_tab', tabId: 'selected' });
+  assert.equal(h.session.operationGeneration, generation, 'Close-all owns the exit until completion');
+  h.drainTimers();
+  await flushMicrotasks();
+  assert.equal(completed, 1);
+  const completedGeneration = h.session.operationGeneration;
+  h.session.finishCloseAllAnimationFromOverlay();
+  assert.equal(completed, 1);
+  assert.equal(h.session.operationGeneration, completedGeneration);
+});
+
+test('closing the last tab reaches an interactive home even without animation completion', async () => {
+  const h = selectionExitHarness(false, true);
+  const closeErrors = [];
+  const commit = h.session.commitAcceptedTabClose.bind(h.session);
+  h.session.commitAcceptedTabClose = async id => {
+    try { await commit(id); } catch (error) { closeErrors.push(error); }
+  };
+  h.facts.tabs = [h.facts.tabs.find(tab => tab.id === 'closing')];
+  Object.assign(h.session, {
+    isHomeOptionsSessionEphemeral: () => false,
+    actionPolicy: { buildReturnPlan: () => ({ homeOptions: { privacyMode: 'regular' } }) },
+    sharedSnapshotEntryCoordinator: { cancel: () => ({}), finish: () => ({}) },
+    sharedSnapshotAnimationViewModel: {
+      buildHomeRevealExitAnimationPlan: () => ({ durationMs: 360, completionDelayMs: 540,
+        targetState: { homeExitProgress: 1, backdropProgress: 0 } })
+    },
+    tabHomeCoordinator: { showHomeSurface: () => { h.facts.homeSurfaceVisible = true; } },
+    tabCloseCoordinator: { closeTabsToHomeAfterReveal: async ids => {
+      h.facts.tabs = h.facts.tabs.filter(tab => !ids.includes(tab.id));
+      h.facts.activeTabId = '';
+    } },
+    playBackdropProgressTransition() {}, playBackdropHomeRevealFadeWithHost() {}
+  });
+  h.session.closeTabFromOverlay('closing');
+  const generation = h.session.operationGeneration;
+  h.session.closeTabFromOverlay('closing');
+  h.session.handle({ type: 'create_home' });
+  h.session.selectTabFromOverlay('closing');
+  assert.equal(h.session.operationGeneration, generation);
+  for (let round = 0; round < 4; round++) {
+    h.drainTimers();
+    await flushMicrotasks();
+  }
+  assert.equal(h.session.tabDismissCoordinator.hasPending(), false);
+  assert.deepEqual(closeErrors, []);
+  assert.equal(h.facts.tabs.length, 0);
+  assert.equal(h.facts.tabsOverviewMounted, false);
+  assert.equal(h.facts.homeSurfaceVisible, true);
+  assert.equal(h.session.presentationState.homeSurfaceCloseInFlight, false);
+  assert.equal(h.render().cardsLayerMounted, false);
+});
+
+test('a second deck fill-in finishes the first instead of dropping the second close', () => {
+  const Boundary = loadComponentMethods(
+    'AiraBrowser/entry/src/main/ets/app/components/browser/BrowserTabsFloatingOverlay.ets',
+    ['beginDeckDismiss']);
+  const closed = [];
+  const boundary = Object.assign(new Boundary(), {
+    pendingDeckDismissTabId: 'first', deckItems: [{ id: 'second' }],
+    stopDeckMotion() {}, stackLayoutPolicy: policy, horizontalDeckPosition: 0,
+    commitPendingDeckDismiss() { closed.push(this.pendingDeckDismissTabId); this.pendingDeckDismissTabId = ''; }
+  });
+  boundary.beginDeckDismiss('second');
+  assert.deepEqual(closed, ['first', 'second']);
+});
+
+test('swipe acceptance and fallback are armed even if the animation cannot start', () => {
+  const callbacks = [];
+  const accepted = [];
+  const completed = [];
+  const Boundary = loadComponentMethods(
+    'AiraBrowser/entry/src/main/ets/app/components/browser/BrowserTabOverviewItem.ets',
+    ['dismissLocalSwipe', 'completePendingSwipeDismiss', 'clearSwipeDismissTimer'], {
+      TAB_OVERVIEW_ITEM_SWIPE_FLYOUT_CURVE: 'linear',
+      setTimeout: callback => { callbacks.push(callback); return callbacks.length; },
+      clearTimeout() {}, animateTo() { throw new Error('animation unavailable'); }
+    });
+  const boundary = Object.assign(new Boundary(), {
+    tab: { id: 'closing' }, swipeDismissMode: 'upward', swipeDismissTimer: 0,
+    resolveLocalSwipeFlyoutOffset: () => -800,
+    swipeDismissPolicy: { resolveFlyoutDurationMs: () => 350 },
+    onSwipeDismissAccepted: (id, duration) => accepted.push([id, duration]),
+    onSwipeEnd: id => completed.push(id)
+  });
+  assert.throws(() => boundary.dismissLocalSwipe(-1, -200, -900), /animation unavailable/);
+  assert.deepEqual(accepted, [['closing', 350]]);
+  callbacks.forEach(callback => callback());
+  boundary.completePendingSwipeDismiss();
+  assert.deepEqual(completed, ['closing']);
 });
 // Every card reports the same shape; only `offsetY` is not a golden column, because the resting
 // deck is a single baseline (it is asserted to stay 0 below).
@@ -819,6 +1210,10 @@ test('the overlay deck wires the policy, per-frame motion and the reference visu
   // `endLocalSwipe` removed the ForEach node in the release frame, so the fly-out never painted.
   assert.doesNotMatch(item, /this\.dismissLocalSwipe\([^)]*\);\s*this\.onSwipeEnd/);
   assert.match(item, /private completePendingSwipeDismiss\(\): void/);
+  assert.match(item, /this\.onSwipeDismissAccepted = params\.onSwipeDismissAccepted/);
+  const shell = fs.readFileSync(path.resolve(__dirname,
+    '../AiraBrowser/entry/src/main/ets/app/pages/BrowserShellPage.ets'), 'utf8');
+  assert.match(shell, /onAcceptTabClose: \(tabId: string, delayMs: number\) => \{\s*this\.tabsOverviewSessionCoordinator\.acceptTabCloseFromOverlay\(tabId, delayMs\);/);
   assert.match(item, /this\.onSwipeEnd\(tabId, offset, direction\)/);
   // The flight is as quick as the flick: the duration comes from the release speed, and the node's
   // own implicit animation reads the same value so both clocks agree.

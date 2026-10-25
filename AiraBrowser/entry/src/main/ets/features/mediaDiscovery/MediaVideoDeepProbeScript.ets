@@ -1,3 +1,5 @@
+import { MEDIA_LOCATOR_TEXT_RUNTIME } from './MediaLocatorText';
+import { MEDIA_DURATION_PROBE_RUNTIME } from './MediaDurationProbeScript';
 import { MediaResourceDomSignal } from '../mediaDiscovery/MediaResourceClassificationModels';
 import {
   VIDEO_COMPATIBILITY_XLPLAYER_LINES_RUNTIME_FRAGMENT
@@ -104,6 +106,7 @@ const DEEP_PROBE_SCRIPT: string = `(function () {
     var probeConfiguration = __AIRA_DEEP_PROBE_CONFIGURATION__;
     var pendingAsyncWork = false;
     var responseScanDeadline = 0;
+    var responseReadsInFlight = 0;
     var staticScanState = window.__airaVideoDeepProbeStaticScanState;
     var currentPageKey = location && location.href ? String(location.href) : '';
     if (!staticScanState || staticScanState.pageKey !== currentPageKey) {
@@ -115,7 +118,8 @@ const DEEP_PROBE_SCRIPT: string = `(function () {
     }
     var allowStaticScan = Number(staticScanState.passCount || 0) < 2;
     staticScanState.passCount = Number(staticScanState.passCount || 0) + 1;
-    var mediaUrlPattern = /(?:https?:\\/\\/|\\/\\/)[^"'<>\\s]+?\\.(?:m3u8|m3u|mpd|mp4|m4v|mov|webm)(?=$|[?#"'<>\\s])(?:[?#][^"'<>\\s]*)?/ig;
+    var mediaUrlPattern = /(?:https?:\\/\\/|\\/\\/)[^"'<>\\s]+/ig;
+    var mediaExtensionPattern = /\\.(?:m3u8|m3u|mpd|mp4|m4v|mov|webm)(?:[?#]|$)/i;
     window.__airaVideoDeepProbeResults = window.__airaVideoDeepProbeResults || [];
     window.__airaVideoDeepProbeSeen = window.__airaVideoDeepProbeSeen || Object.create(null);
     window.__airaVideoDeepProbeSourceHints = window.__airaVideoDeepProbeSourceHints || [];
@@ -197,34 +201,21 @@ const DEEP_PROBE_SCRIPT: string = `(function () {
       }
     }
 
+    ${MEDIA_LOCATOR_TEXT_RUNTIME}
+    ${MEDIA_DURATION_PROBE_RUNTIME}
+
     function decodeLooseText(value) {
-      var text = String(value || '');
-      for (var i = 0; i < 3; i++) {
-        try {
-          var decoded = decodeURIComponent(text);
-          if (decoded === text) break;
-          text = decoded;
-        } catch (e) {
-          break;
-        }
-      }
-      return text;
+      return normalizeMediaLocatorText(value);
     }
 
     function normalizeUrl(value) {
-      var url = decodeLooseText(value)
-        .replace(/\\\\u002[fF]/g, '/')
-        .replace(/\\\\+\\//g, '/')
-        .replace(/&amp;/g, '&')
-        .replace(/\\\\u0026/g, '&')
-        .replace(/\\\\u003[dD]/g, '=')
-        .replace(/\\\\u003[fF]/g, '?');
+      var url = normalizeMediaLocatorText(value).trim();
       if (url.indexOf('//') === 0) {
         url = location.protocol + url;
       }
       try {
         if (!/^(https?:|blob:)/i.test(url)) {
-          url = new URL(url, location.href).href;
+          url = new URL(url, document.baseURI || location.href).href;
         }
       } catch (e) {
       }
@@ -232,13 +223,7 @@ const DEEP_PROBE_SCRIPT: string = `(function () {
     }
 
     function normalizeText(value) {
-      return decodeLooseText(value)
-        .replace(/\\\\u002[fF]/g, '/')
-        .replace(/\\\\+\\//g, '/')
-        .replace(/&amp;/g, '&')
-        .replace(/\\\\u0026/g, '&')
-        .replace(/\\\\u003[dD]/g, '=')
-        .replace(/\\\\u003[fF]/g, '?');
+      return normalizeMediaLocatorText(value);
     }
 
     function isLikelyMediaNoiseUrl(value) {
@@ -252,6 +237,13 @@ const DEEP_PROBE_SCRIPT: string = `(function () {
     }
 
     function addResult(url, source, extra) {
+      // Hooks outlive the invocation that installed them. Async discoveries must
+      // enter the bounded runtime store, not that invocation's returned array.
+      if (responseScanDeadline > 0) {
+        addRuntimeResult(url, source, extra);
+        return;
+      }
+      if (results.length >= 80 || !url || String(url).length > 16384) return;
       var normalizedUrl = normalizeUrl(url);
       if (!normalizedUrl || seen[normalizedUrl]) return;
       if (!/^(https?:|blob:)/i.test(normalizedUrl)) return;
@@ -286,10 +278,21 @@ const DEEP_PROBE_SCRIPT: string = `(function () {
     }
 
     function addRuntimeResult(url, source, extra) {
+      if (!url || String(url).length > 16384) return;
       var normalizedUrl = normalizeUrl(url);
       if (!normalizedUrl || !/^(https?:|blob:)/i.test(normalizedUrl)) return;
       if (isLikelyMediaNoiseUrl(normalizedUrl)) return;
-      if (window.__airaVideoDeepProbeSeen[normalizedUrl]) return;
+      if (window.__airaVideoDeepProbeSeen[normalizedUrl]) {
+        var existing = window.__airaVideoDeepProbeResults;
+        for (var index = 0; extra && index < existing.length; index++) {
+          if (existing[index].url !== normalizedUrl) continue;
+          if (extra.mimeType) existing[index].mimeType = extra.mimeType;
+          if (extra.manifestText) existing[index].manifestText = extra.manifestText;
+          if (extra.manifestBaseUrl) existing[index].manifestBaseUrl = normalizeUrl(extra.manifestBaseUrl);
+          break;
+        }
+        return;
+      }
       window.__airaVideoDeepProbeSeen[normalizedUrl] = true;
       window.__airaVideoDeepProbeResults.push({
         url: normalizedUrl,
@@ -314,7 +317,8 @@ const DEEP_PROBE_SCRIPT: string = `(function () {
         fromBlob: normalizedUrl.indexOf('blob:') === 0
       });
       if (window.__airaVideoDeepProbeResults.length > 80) {
-        window.__airaVideoDeepProbeResults.shift();
+        var removed = window.__airaVideoDeepProbeResults.shift();
+        if (removed) delete window.__airaVideoDeepProbeSeen[removed.url];
       }
     }
 
@@ -496,7 +500,7 @@ const DEEP_PROBE_SCRIPT: string = `(function () {
       var lowerMimeType = String(mimeType || '').split(';')[0].trim().toLowerCase();
       if (isHlsManifestMimeType(lowerMimeType) || lowerMimeType === 'application/dash+xml' ||
         lowerMimeType.indexOf('video/') === 0 ||
-        /\.(?:m3u8|m3u|mpd|mp4|m4v|mov|webm)(?:[?#]|$)/i.test(responseUrl)) {
+        /\\.(?:m3u8|m3u|mpd|mp4|m4v|mov|webm)(?:[?#]|$)/i.test(responseUrl)) {
         return true;
       }
       var responseText = String(text || '');
@@ -534,13 +538,13 @@ const DEEP_PROBE_SCRIPT: string = `(function () {
     }
 
     function isManifestUrl(url) {
-      return /\.(?:m3u8|m3u|mpd)(?:[?#]|$)/i.test(String(url || ''));
+      return /\\.(?:m3u8|m3u|mpd)(?:[?#]|$)/i.test(String(url || ''));
     }
 
     function hasMediaUrlHint(url) {
       var value = String(url || '');
-      return isManifestUrl(value) || /\.(?:mp4|m4v|mov|webm)(?:[?#]|$)/i.test(value) ||
-        /(?:\/media\/|\/stream\/|\/video\/|videoplayback)/i.test(value);
+      return isManifestUrl(value) || /\\.(?:mp4|m4v|mov|webm)(?:[?#]|$)/i.test(value) ||
+        /(?:\\/media\\/|\\/stream\\/|\\/video\\/|videoplayback)/i.test(value);
     }
 
     function isTextResponseMimeType(mimeType) {
@@ -557,6 +561,9 @@ const DEEP_PROBE_SCRIPT: string = `(function () {
 
     // Returns the maximum number of bytes worth reading, or 0 for a response that should not be read.
     function responseBodyScanLimit(url, mimeType, contentLength) {
+      var normalizedMime = String(mimeType || '').split(';')[0].trim().toLowerCase();
+      if (normalizedMime === 'text/event-stream' || normalizedMime === 'application/x-ndjson' ||
+        normalizedMime === 'application/stream+json') return 0;
       var manifestResponse = isHlsManifestMimeType(mimeType) || String(mimeType || '').toLowerCase()
         .split(';')[0].trim() === 'application/dash+xml' || isManifestUrl(url);
       if (manifestResponse) {
@@ -567,49 +574,63 @@ const DEEP_PROBE_SCRIPT: string = `(function () {
       return hasMediaUrlHint(url) ? 100000 : 0;
     }
 
+    function recordMediaResponseLocator(url, mimeType) {
+      var type = String(mimeType || '').split(';')[0].trim().toLowerCase();
+      if (type === 'video/mp2t' || type === 'application/m4s' ||
+        /\\.(?:ts|m4s|cmfv|cmfa)(?:[?#]|$)/i.test(String(url || ''))) return;
+      if (!/^https?:/i.test(String(url || '')) ||
+        !(isHlsManifestMimeType(type) || type === 'application/dash+xml' ||
+          type.indexOf('video/') === 0 || type.indexOf('audio/') === 0)) return;
+      // Response metadata also finds extensionless streams, without reading media bytes.
+      addRuntimeResult(url, 'performance', { signal: 'performance_entry', mimeType: type });
+    }
+
     function readFetchResponsePrefix(response, maxBytes, callback) {
+      if (responseReadsInFlight >= 2 || !response.body ||
+        typeof response.body.getReader !== 'function' || typeof TextDecoder !== 'function') return;
+      responseReadsInFlight++;
       var finished = false;
-      function finish(value) {
+      var reader;
+      var timer;
+      function finish(value, cancel) {
         if (finished) return;
         finished = true;
+        responseReadsInFlight--;
+        if (timer !== undefined) clearTimeout(timer);
+        if (cancel && reader) {
+          // Cancellation of a tee branch may wait for the page's branch; never await it.
+          try { var pending = reader.cancel(); if (pending && pending.catch) pending.catch(function() {}); } catch (e) {}
+        }
         callback(String(value || ''));
       }
       try {
-        if (response.body && typeof response.body.getReader === 'function' &&
-          typeof TextDecoder === 'function') {
-          var reader = response.body.getReader();
-          var decoder = new TextDecoder();
-          var text = '';
-          var bytesRead = 0;
-          var pump = function() {
-            reader.read().then(function(part) {
-              if (part.done) {
-                text += decoder.decode();
-                finish(text);
-                return;
-              }
-              var value = part.value;
-              bytesRead += value && value.byteLength ? value.byteLength : 0;
-              text += decoder.decode(value, { stream: bytesRead < maxBytes });
-              if (bytesRead >= maxBytes) {
-                try { reader.cancel(); } catch (_error) {}
-                finish(text);
-                return;
-              }
-              pump();
-            }).catch(function() { finish(text); });
-          };
-          pump();
-          return;
-        }
-        // Avoid an unbounded fallback when the stream reader is unavailable.
-        var contentLength = parseContentLength(response.headers && response.headers.get ?
-          response.headers.get('content-length') : '');
-        if (contentLength >= 0 && contentLength <= maxBytes && typeof response.text === 'function') {
-          response.text().then(function(value) { finish(value); }).catch(function() { finish(''); });
-        }
+        reader = response.body.getReader();
+        timer = setTimeout(function() { finish('', true); }, 1500);
+        var decoder = new TextDecoder();
+        var text = '';
+        var bytesRead = 0;
+        var pump = function() {
+          reader.read().then(function(part) {
+            if (finished) return;
+            if (part.done) {
+              text += decoder.decode();
+              finish(text, false);
+              return;
+            }
+            var value = part.value;
+            bytesRead += value && value.byteLength ? value.byteLength : 0;
+            if (bytesRead > maxBytes) {
+              // A partial manifest or signed URL is not a usable download target.
+              finish('', true);
+              return;
+            }
+            text += decoder.decode(value, { stream: true });
+            pump();
+          }).catch(function() { finish('', true); });
+        };
+        pump();
       } catch (_error) {
-        finish('');
+        finish('', true);
       }
     }
 
@@ -623,26 +644,36 @@ const DEEP_PROBE_SCRIPT: string = `(function () {
     }
 
     function readBlobTextPrefix(blob, callback) {
+      if (!blob || !blob.size || blob.size > 300000 || responseReadsInFlight >= 2 ||
+        typeof blob.slice !== 'function') return;
+      responseReadsInFlight++;
+      var finished = false;
+      var reader;
+      var timer = setTimeout(function() {
+        if (reader && typeof reader.abort === 'function') { try { reader.abort(); } catch (e) {} }
+        finish('');
+      }, 1500);
+      function finish(value) {
+        if (finished) return;
+        finished = true;
+        responseReadsInFlight--;
+        clearTimeout(timer);
+        callback(String(value || ''));
+      }
       try {
-        if (!blob || typeof blob.slice !== 'function') return;
-        var maxBytes = Math.min(blob.size || 0, 300000);
-        if (maxBytes <= 0) return;
-        var chunk = blob.slice(0, maxBytes, blob.type || 'text/plain');
+        var chunk = blob.slice(0, blob.size, blob.type || 'text/plain');
         if (chunk && typeof chunk.text === 'function') {
-          chunk.text().then(function(text) {
-            callback(String(text || ''));
-          }).catch(function() {});
-          return;
-        }
-        if (typeof FileReader !== 'undefined') {
-          var reader = new FileReader();
-          reader.onload = function() {
-            callback(String(reader.result || ''));
-          };
-          reader.onerror = function() {};
+          chunk.text().then(finish).catch(function() { finish(''); });
+        } else if (typeof FileReader !== 'undefined') {
+          reader = new FileReader();
+          reader.onload = function() { finish(reader.result); };
+          reader.onerror = function() { finish(''); };
           reader.readAsText(chunk);
+        } else {
+          finish('');
         }
       } catch (e) {
+        finish('');
       }
     }
 
@@ -650,7 +681,8 @@ const DEEP_PROBE_SCRIPT: string = `(function () {
       try {
         if (!blob || typeof Blob === 'undefined' || !(blob instanceof Blob)) return;
         var blobMimeType = mimeType || blob.type || '';
-        var shouldRead = isHlsManifestMimeType(blobMimeType) || (blob.size || 0) <= 300000;
+        var shouldRead = (blob.size || 0) > 0 && blob.size <= 300000 &&
+          (isHlsManifestMimeType(blobMimeType) || !blobMimeType || isTextResponseMimeType(blobMimeType));
         if (!shouldRead) return;
         readBlobTextPrefix(blob, function(text) {
           if (!text || String(text).toUpperCase().indexOf('#EXTM3U') < 0) return;
@@ -695,6 +727,7 @@ const DEEP_PROBE_SCRIPT: string = `(function () {
                 if (xhr.readyState !== 4 || xhr.status < 200 || xhr.status >= 300) return;
                 var responseUrl = xhr.responseURL || xhr.__airaVideoDeepProbeUrl || '';
                 var contentType = xhr.getResponseHeader ? (xhr.getResponseHeader('content-type') || '') : '';
+                recordMediaResponseLocator(responseUrl, contentType);
                 var contentLength = parseContentLength(xhr.getResponseHeader ?
                   xhr.getResponseHeader('content-length') : '');
                 if (xhr.responseType && xhr.responseType !== '' && xhr.responseType !== 'text') {
@@ -704,9 +737,10 @@ const DEEP_PROBE_SCRIPT: string = `(function () {
                   }
                   return;
                 }
-                if (responseBodyScanLimit(responseUrl, contentType, contentLength) <= 0) return;
+                var scanLimit = responseBodyScanLimit(responseUrl, contentType, contentLength);
+                if (scanLimit <= 0) return;
                 var text = typeof xhr.responseText === 'string' ? xhr.responseText : '';
-                maybeRecordMediaResponse(responseUrl, text, 'manifest_text', contentType);
+                if (text.length <= scanLimit) maybeRecordMediaResponse(responseUrl, text, 'manifest_text', contentType);
               } catch (e) {
               }
             };
@@ -722,19 +756,24 @@ const DEEP_PROBE_SCRIPT: string = `(function () {
         var originalFetch = window.fetch;
         window.fetch = function(input, init) {
           var requestUrl = '';
+          var requestMethod = 'GET';
           try {
             requestUrl = typeof input === 'string' ? input : (input && input.url ? input.url : '');
+            requestMethod = String(init && init.method ? init.method : (input && input.method ? input.method : 'GET')).toUpperCase();
           } catch (e) {
           }
           return originalFetch.apply(this, arguments).then(function(response) {
             try {
+              if (response.status < 200 || response.status >= 300) return response;
               var responseUrl = response.url || requestUrl;
               var contentType = response.headers && response.headers.get ?
                 (response.headers.get('content-type') || '') : '';
               var contentLength = parseContentLength(response.headers && response.headers.get ?
                 response.headers.get('content-length') : '');
+              if (requestMethod === 'GET' || requestMethod === 'HEAD') recordMediaResponseLocator(responseUrl, contentType);
               var maxBytes = responseBodyScanLimit(responseUrl, contentType, contentLength);
-              if (maxBytes > 0) {
+              if (maxBytes > 0 && responseReadsInFlight < 2 && response.body &&
+                typeof response.body.getReader === 'function' && typeof TextDecoder === 'function') {
                 var clone = response.clone();
                 readFetchResponsePrefix(clone, maxBytes, function(text) {
                   maybeRecordMediaResponse(responseUrl, text, 'manifest_text', contentType);
@@ -763,15 +802,7 @@ const DEEP_PROBE_SCRIPT: string = `(function () {
                     mimeType: recent.mimeType || blobType || undefined
                   });
                 }
-                maybeRecordBlobManifest(objectUrl || '', value, 'manifest_text', blobType);
-                if (value && typeof value.text === 'function') {
-                  value.text().then(function(text) {
-                    addRuntimeManifestSource(recent && recent.url ? recent.url : '', text, 'manifest_text',
-                      blobType || 'application/vnd.apple.mpegurl');
-                    maybeRecordMediaResponse(recent && recent.url ? recent.url : objectUrl, text, 'manifest_text',
-                      blobType || 'application/vnd.apple.mpegurl');
-                  }).catch(function() {});
-                }
+                maybeRecordBlobManifest(recent && recent.url ? recent.url : objectUrl, value, 'manifest_text', blobType);
               }
             } catch (e) {
             }
@@ -814,7 +845,9 @@ const DEEP_PROBE_SCRIPT: string = `(function () {
       var match;
       while ((match = mediaUrlPattern.exec(normalizedText)) !== null && results.length < 80 &&
         hasResponseScanBudget()) {
-        addResult(match[0], source || 'script_text', { signal: signal || 'script_text' });
+        if (mediaExtensionPattern.test(match[0])) {
+          addResult(match[0], source || 'script_text', { signal: signal || 'script_text' });
+        }
       }
       if (!hasResponseScanBudget()) return;
       addManifestText(normalizedText, source || 'manifest_text');
@@ -843,7 +876,9 @@ const DEEP_PROBE_SCRIPT: string = `(function () {
       var match;
       while ((match = mediaUrlPattern.exec(normalizedText)) !== null && results.length < 80 &&
         hasResponseScanBudget()) {
-        addResult(match[0], source || 'script_text', { signal: signal || 'script_text' });
+        if (mediaExtensionPattern.test(match[0])) {
+          addResult(match[0], source || 'script_text', { signal: signal || 'script_text' });
+        }
       }
       if (!hasResponseScanBudget()) return;
       addManifestText(normalizedText, source || 'manifest_text');
@@ -922,13 +957,11 @@ const DEEP_PROBE_SCRIPT: string = `(function () {
 
     function scanQueryStyleMediaFields(text, source, signal) {
       var resultSignal = (signal === 'video_element' || signal === 'audio_element') ? signal : 'embedded_attribute';
-      var paramPattern = /(?:^|[?&#;,\\s])([A-Za-z_$][A-Za-z0-9_$-]{0,63})=((?:https?:\\/\\/|\\/\\/|\\/|\\.{1,2}\\/)?[^"'&<>\\s]{1,2000}\\.(?:m3u8|m3u|mpd|mp4|m4v|mov|webm)(?=$|[?#&"'<>\\s])(?:\\?[^"'&<>\\s]*)?)/ig;
-      var match;
-      while ((match = paramPattern.exec(String(text || ''))) !== null && results.length < 80) {
-        if (isMediaQueryParameterName(match[1]) && looksLikeStructuredMediaUrl('url', match[2])) {
-          addResult(match[2], source || 'script_text', {
-            signal: resultSignal,
-            mimeType: inferMimeForMediaField('url', match[2])
+      var values = mediaLocatorQueryValues(text, probeConfiguration.mediaQueryParameterNames);
+      for (var index = 0; index < values.length && results.length < 80 && hasResponseScanBudget(); index++) {
+        if (looksLikeStructuredMediaUrl('url', values[index])) {
+          addResult(values[index], source || 'script_text', {
+            signal: resultSignal, mimeType: inferMimeForMediaField('url', values[index])
           });
         }
       }
@@ -1583,7 +1616,7 @@ __AIRA_XLPLAYER_LINES_RUNTIME_FRAGMENT__
             signal: signal,
             mimeType: records[recordIndex].mimeType,
             posterUrl: el.poster || undefined,
-            durationMs: isFinite(el.duration) && el.duration > 0 ? Math.round(el.duration * 1000) : undefined,
+            durationMs: mediaElementDurationMs(el, normalizeUrl(records[recordIndex].url)),
             width: el.videoWidth || undefined,
             height: el.videoHeight || undefined
           });

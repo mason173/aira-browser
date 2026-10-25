@@ -13,6 +13,7 @@ import {
 } from '../../../core/userscripts/BrowserUserScriptApplicationCoordinator';
 import { UserScriptPageActionsState } from '../../../features/userscripts/UserScriptRuntimeModels';
 import { MediaResourceAction } from '../../../features/mediaDiscovery/MediaResourceProjectionModels';
+import { MediaResourceBatchAction } from '../../../features/mediaDiscovery/MediaResourceSelection';
 import { AppProxyQuickSheetContent } from '../settings/AppProxyQuickSheetContent';
 import { UserScriptPageActionsSheet } from '../userscripts/UserScriptPageActionsSheet';
 import { BrowserMediaResourcesSheet } from './BrowserMediaResourcesSheet';
@@ -96,6 +97,13 @@ export struct BrowserToolbarSystemSheetContent {
             type: 'resource',
             candidateId: candidateId,
             resourceAction: action
+          });
+        },
+        onBatchAction: (candidateIds: string[], action: MediaResourceBatchAction) => {
+          this.onMediaResourceAction({
+            type: 'batch',
+            candidateIds: candidateIds,
+            batchAction: action
           });
         }
       })

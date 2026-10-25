@@ -5,10 +5,15 @@ root=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
 download_node=${AIRA_NODE_BIN:-node}
 for check in \
   check-aira-download-lifecycle.cjs \
+  check-aira-hls-progress.cjs \
   check-aira-arkweb-download-recovery.cjs \
   check-aira-download-redirect-request.cjs \
   check-aira-download-request-context.cjs \
   check-aira-resource-download-context.cjs \
+  check-aira-media-resource-selection.cjs \
+  check-aira-media-discovery.cjs \
+  check-aira-media-resource-names.cjs \
+  check-aira-media-durations.cjs \
   check-aira-download-directory-lifecycle.cjs \
   check-aira-download-export-ghost-guard.cjs \
   check-aira-download-selection.cjs \

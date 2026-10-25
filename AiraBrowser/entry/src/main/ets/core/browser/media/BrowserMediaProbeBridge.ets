@@ -102,6 +102,7 @@ export class BrowserMediaProbeBridge {
       if (classification.family === 'unknown' && classification.noise) {
         return undefined;
       }
+      const headers = this.safeHeaders(input.request);
       const isMainFrame = this.safeIsMainFrame(input.request);
       return this.signalClassifier.buildResourceNetworkSignal({
         tabId: input.tabId,
@@ -110,12 +111,12 @@ export class BrowserMediaProbeBridge {
         privacyMode: input.privacyMode,
         requestUrl: url,
         frameType: isMainFrame ? 'main_frame' : 'sub_frame',
-        frameUrl: isMainFrame ? input.pageUrl : this.safeHeader(input.request, 'Referer'),
+        frameUrl: isMainFrame ? input.pageUrl : this.safeHeader(headers, 'Referer'),
         isMainFrame: isMainFrame,
-        referer: this.safeHeader(input.request, 'Referer'),
-        userAgent: this.safeHeader(input.request, 'User-Agent'),
-        originUrl: this.safeHeader(input.request, 'Origin'),
-        requestHeaders: this.safeHeaders(input.request)
+        referer: this.safeHeader(headers, 'Referer'),
+        userAgent: this.safeHeader(headers, 'User-Agent'),
+        originUrl: this.safeHeader(headers, 'Origin'),
+        requestHeaders: headers
       });
     } catch (_error) {
       return undefined;
@@ -131,9 +132,10 @@ export class BrowserMediaProbeBridge {
       if (this.videoTypeRules.classifyByUrl(url).kind === 'unknown') {
         return undefined;
       }
-      const referer = this.safeHeader(input.request, 'Referer');
-      const userAgent = this.safeHeader(input.request, 'User-Agent');
-      const origin = this.safeHeader(input.request, 'Origin');
+      const headers = this.safeHeaders(input.request);
+      const referer = this.safeHeader(headers, 'Referer');
+      const userAgent = this.safeHeader(headers, 'User-Agent');
+      const origin = this.safeHeader(headers, 'Origin');
       return this.signalClassifier.buildVideoNetworkSignal({
         tabId: input.tabId,
         pageUrl: input.pageUrl,
@@ -144,7 +146,7 @@ export class BrowserMediaProbeBridge {
         referer: referer,
         userAgent: userAgent,
         originUrl: origin,
-        requestHeaders: this.safeHeaders(input.request)
+        requestHeaders: headers
       });
     } catch (_error) {
       return undefined;
@@ -161,17 +163,21 @@ export class BrowserMediaProbeBridge {
       return this.emptySignalReport();
     }
     const options = this.probeSignalOptions(input.signalKind ?? 'dom_probe');
+    const userAgent = this.probeUserAgent(input.controller);
     for (let i = 0; i < payload.results.length; i++) {
       const item = payload.results[i];
       const signal = this.signalClassifier.buildResourceDomSignal({
         tabId: input.tabId,
         pageUrl: input.pageUrl,
-        pageTitle: input.pageTitle,
+        pageTitle: payload.pageTitle ?? input.pageTitle,
         privacyMode: input.privacyMode,
         url: item.url,
+        mediaTitle: item.mediaTitle,
         signal: item.signal,
         frameType: item.frameType,
         frameUrl: item.frameUrl,
+        referer: item.frameUrl ?? input.pageUrl,
+        userAgent: userAgent,
         mimeType: item.mimeType,
         posterUrl: item.posterUrl,
         durationMs: item.durationMs,
@@ -197,20 +203,24 @@ export class BrowserMediaProbeBridge {
       return this.emptySignalReport();
     }
     const options = this.probeSignalOptions(input.signalKind ?? 'dom_probe');
+    const userAgent = this.probeUserAgent(input.controller);
     for (let i = 0; i < payload.results.length; i++) {
       const item = payload.results[i];
       const signal = this.signalClassifier.buildVideoDomSignal({
         tabId: input.tabId,
         pageUrl: input.pageUrl,
-        pageTitle: input.pageTitle,
+        pageTitle: payload.pageTitle ?? input.pageTitle,
         privacyMode: input.privacyMode,
         url: item.url,
+        mediaTitle: item.mediaTitle,
         signal: item.signal,
         mimeType: item.mimeType,
         posterUrl: item.posterUrl,
         durationMs: item.durationMs,
         width: item.width,
         height: item.height,
+        referer: input.pageUrl,
+        userAgent: userAgent,
         isPlaying: item.isPlaying,
         hasPlayed: item.hasPlayed,
         readyState: item.readyState,
@@ -564,21 +574,22 @@ export class BrowserMediaProbeBridge {
     };
   }
 
-  private safeHeader(request: WebResourceRequest, name: string): string | undefined {
+  private safeHeader(headers: Record<string, string> | undefined, name: string): string | undefined {
+    if (headers === undefined) return undefined;
+    const target = name.toLowerCase();
+    const key = Object.keys(headers).find((value: string) => value.toLowerCase() === target);
+    return key !== undefined ? headers[key] : undefined;
+  }
+
+  private probeUserAgent(controller: webview.WebviewController): string | undefined {
     try {
-      const headers = request.getRequestHeader();
-      if (headers === undefined || headers === null) {
-        return undefined;
-      }
-      const lowerTarget = name.toLowerCase();
-      for (let i = 0; i < headers.length; i++) {
-        const headerName = headers[i].headerKey ?? '';
-        if (headerName.toLowerCase() === lowerTarget) {
-          const value = headers[i].headerValue;
-          return value !== undefined && value.length > 0 ? value : undefined;
-        }
-      }
-      return undefined;
+      const custom = controller.getCustomUserAgent()?.trim() ?? '';
+      if (custom.length > 0) return custom;
+    } catch (_error) {
+    }
+    try {
+      const fallback = controller.getUserAgent()?.trim() ?? '';
+      return fallback.length > 0 ? fallback : undefined;
     } catch (_error) {
       return undefined;
     }

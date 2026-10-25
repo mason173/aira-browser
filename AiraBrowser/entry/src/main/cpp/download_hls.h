@@ -40,6 +40,32 @@ struct HlsPlan {
   bool fragmented_mp4 = false;
 };
 
+// Presentation only: estimates never participate in transfer integrity checks.
+// The owning DownloadTask serializes access with its snapshot mutex.
+class HlsProgressTracker {
+ public:
+  explicit HlsProgressTracker(const std::vector<HlsResource>& resources);
+  void Update(std::size_t index, std::int64_t received, std::int64_t total);
+  void Complete(std::size_t index, std::int64_t bytes);
+  double Fraction() const;
+  std::int64_t EstimatedTotalBytes() const;
+
+ private:
+  struct ResourceProgress {
+    bool initialization = false;
+    bool completed = false;
+    double fraction = 0;
+  };
+  std::vector<ResourceProgress> resources_;
+  double completed_units_ = 0;
+  std::size_t media_count_ = 0;
+  std::size_t map_count_ = 0;
+  std::size_t completed_media_count_ = 0;
+  std::size_t completed_map_count_ = 0;
+  double media_bytes_ = 0;
+  double map_bytes_ = 0;
+};
+
 bool ParseHlsMedia(const std::string& playlist, const std::string& base_url,
                    HlsPlan* plan, std::vector<HlsVariant>* variants, std::string* error);
 bool DecryptHlsFile(const std::string& path, const HlsKey& key,

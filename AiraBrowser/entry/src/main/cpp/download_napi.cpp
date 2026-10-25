@@ -237,10 +237,14 @@ napi_value GetSnapshot(napi_env env, napi_callback_info info) {
   napi_value diagnostic = nullptr;
   napi_value failure_phase = nullptr;
   napi_value extension = nullptr;
+  napi_value fraction = nullptr;
+  napi_value estimated_total = nullptr;
   if (napi_create_object(env, &result) != napi_ok ||
       napi_create_string_utf8(env, aira::download::TaskStateName(snapshot.state), NAPI_AUTO_LENGTH, &state) != napi_ok ||
       napi_create_int64(env, snapshot.received_bytes, &received) != napi_ok ||
       napi_create_int64(env, snapshot.total_bytes, &total) != napi_ok ||
+      napi_create_double(env, snapshot.progress_fraction, &fraction) != napi_ok ||
+      napi_create_int64(env, snapshot.estimated_total_bytes, &estimated_total) != napi_ok ||
       napi_create_int64(env, snapshot.speed_bytes_per_second, &speed) != napi_ok ||
       napi_create_int32(env, snapshot.error_code, &error_code) != napi_ok ||
       napi_create_string_utf8(env, snapshot.error_message.c_str(), snapshot.error_message.size(), &error) != napi_ok ||
@@ -252,6 +256,8 @@ napi_value GetSnapshot(napi_env env, napi_callback_info info) {
       napi_set_named_property(env, result, "state", state) != napi_ok ||
       napi_set_named_property(env, result, "receivedBytes", received) != napi_ok ||
       napi_set_named_property(env, result, "totalBytes", total) != napi_ok ||
+      napi_set_named_property(env, result, "progressFraction", fraction) != napi_ok ||
+      napi_set_named_property(env, result, "estimatedTotalBytes", estimated_total) != napi_ok ||
       napi_set_named_property(env, result, "speedBytesPerSecond", speed) != napi_ok ||
       napi_set_named_property(env, result, "errorCode", error_code) != napi_ok ||
       napi_set_named_property(env, result, "errorMessage", error) != napi_ok ||

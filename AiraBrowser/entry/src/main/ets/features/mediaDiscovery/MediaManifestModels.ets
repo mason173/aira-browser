@@ -20,7 +20,9 @@ export interface MediaManifestVariant {
   name: string;
   segmentCount: number;
   targetDuration: number;
+  // Total duration only; zero means it is not known from a complete playlist.
   durationSeconds: number;
+  live?: boolean;
   encrypted: boolean;
   protectedContent?: boolean;
   sampleSegments?: string[];
@@ -48,7 +50,9 @@ export interface MediaManifestSummary {
   keyCount: number;
   encrypted: boolean;
   targetDuration: number;
+  // Do not expose a rolling playlist window as the full resource duration.
   durationSeconds: number;
+  live?: boolean;
   variants: MediaManifestVariant[];
   media: MediaManifestMediaRendition[];
   sampleSegments: string[];

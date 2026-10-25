@@ -204,6 +204,7 @@ export class MediaDiscoveryStore {
       (manifest?.pairedAudioInitializationRange ?? '') + '|' +
       (manifest?.pairedAudioIndexRange ?? '') + '|' +
       (playback?.displayName ?? '') + '|' +
+      (playback?.mediaTitle ?? '') + '|' +
       (playback?.sourceHost ?? '') + '|' +
       (playback?.mimeType ?? '') + '|' +
       (playback?.extension ?? '') + '|' +
@@ -331,6 +332,9 @@ export class MediaDiscoveryStore {
   }
 
   private mergeCandidateContexts(current: MediaCandidate, next: MediaCandidate): void {
+    if ((next.source === 'resource_dom' || next.source === 'video_dom') && next.pageTitle.trim().length > 0) {
+      current.pageTitle = next.pageTitle;
+    }
     if (current.frameContext === undefined && next.frameContext !== undefined) {
       current.frameContext = next.frameContext;
     }
@@ -411,9 +415,13 @@ export class MediaDiscoveryStore {
     if (next === undefined) {
       return current;
     }
+    // Promote an observed finished playlist once, without revalidating every
+    // rolling live-window update and adding more background network traffic.
+    const promoteCompleted = this.isCompletedHlsText(next.manifestText) && !this.isCompletedHlsText(current.manifestText);
     return {
-      manifestText: this.preferText(current.manifestText, next.manifestText),
-      manifestBaseUrl: this.preferText(current.manifestBaseUrl, next.manifestBaseUrl),
+      manifestText: promoteCompleted ? next.manifestText : this.preferText(current.manifestText, next.manifestText),
+      manifestBaseUrl: promoteCompleted ? this.preferText(next.manifestBaseUrl, current.manifestBaseUrl) :
+        this.preferText(current.manifestBaseUrl, next.manifestBaseUrl),
       pairedAudioUrl: this.preferText(current.pairedAudioUrl, next.pairedAudioUrl),
       pairedAudioMimeType: this.preferText(current.pairedAudioMimeType, next.pairedAudioMimeType),
       codecs: this.preferText(current.codecs, next.codecs),
@@ -432,6 +440,12 @@ export class MediaDiscoveryStore {
     };
   }
 
+  private isCompletedHlsText(value: string | undefined): boolean {
+    const text = value?.trim() ?? '';
+    return text.startsWith('#EXTM3U') && /(?:^|\n)#EXT-X-ENDLIST(?:\r?\n|$)/.test(text) &&
+      !/(?:^|\n)#EXT-X-SKIP:/.test(text);
+  }
+
   private mergePlaybackMetadata(
     current: MediaPlaybackMetadata | undefined,
     next: MediaPlaybackMetadata | undefined
@@ -443,13 +457,15 @@ export class MediaDiscoveryStore {
       return current;
     }
     return {
-      displayName: this.preferText(current.displayName, next.displayName),
+      displayName: (next.contentDisposition?.trim().length ?? 0) > 0
+        ? this.preferText(next.displayName, current.displayName) : this.preferText(current.displayName, next.displayName),
+      mediaTitle: this.preferText(next.mediaTitle, current.mediaTitle),
       sourceHost: this.preferText(current.sourceHost, next.sourceHost),
       extension: this.preferText(current.extension, next.extension),
       mimeType: this.preferText(current.mimeType, next.mimeType),
-      contentDisposition: this.preferText(current.contentDisposition, next.contentDisposition),
+      contentDisposition: this.preferText(next.contentDisposition, current.contentDisposition),
       totalBytes: this.preferNumber(current.totalBytes, next.totalBytes),
-      durationMs: this.preferNumber(current.durationMs, next.durationMs),
+      durationMs: this.latestValidDuration(current.durationMs, next.durationMs),
       width: this.preferNumber(current.width, next.width),
       height: this.preferNumber(current.height, next.height),
       posterUrl: this.preferText(current.posterUrl, next.posterUrl)
@@ -547,6 +563,13 @@ export class MediaDiscoveryStore {
 
   private preferNumber(current: number | undefined, next: number | undefined): number | undefined {
     return current !== undefined ? current : next;
+  }
+
+  private latestValidDuration(current: number | undefined, next: number | undefined): number | undefined {
+    if (next !== undefined && Number.isFinite(next) && next > 0) {
+      return next;
+    }
+    return current !== undefined && Number.isFinite(current) && current > 0 ? current : undefined;
   }
 
   private collectIdentityIndexes(records: MediaDiscoveryCandidateRecord[]): Map<string, number> {

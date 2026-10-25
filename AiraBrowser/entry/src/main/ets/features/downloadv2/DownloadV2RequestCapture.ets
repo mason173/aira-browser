@@ -32,6 +32,7 @@ export class DownloadV2RequestCapture {
   private callbacks: DownloadV2RequestCaptureCallbacks = {};
   private pendingRequests: Record<string, DownloadV2CapturedRequest | undefined> = {};
   private fileNameService: DownloadFileNameService = new DownloadFileNameService();
+  private nextManualRequestId: number = 0;
 
   setCallbacks(callbacks: DownloadV2RequestCaptureCallbacks): void {
     this.callbacks = callbacks;
@@ -78,7 +79,7 @@ export class DownloadV2RequestCapture {
       return undefined;
     }
     const request: DownloadV2CapturedRequest = {
-      guid: `download-v2-prompt-${Date.now()}`,
+      guid: `download-v2-prompt-${Date.now()}-${++this.nextManualRequestId}`,
       url: trimmedUrl,
       suggestedFileName: this.fileNameService.resolveFileName({
         suggestedFileName: suggestedFileName,
@@ -204,7 +205,7 @@ export class DownloadV2RequestCapture {
     return removedCount;
   }
 
-  confirmRequest(guid: string): DownloadV2CapturedRequest | undefined {
+  confirmRequest(guid: string, notifyPrompt: boolean = true): DownloadV2CapturedRequest | undefined {
     const request = this.pendingRequests[guid];
     if (request === undefined) {
       hilog.warn(
@@ -218,7 +219,9 @@ export class DownloadV2RequestCapture {
       return undefined;
     }
     this.pendingRequests[guid] = undefined;
-    this.callbacks.onPromptChanged?.(this.getPendingPrompt());
+    if (notifyPrompt) {
+      this.callbacks.onPromptChanged?.(this.getPendingPrompt());
+    }
     hilog.info(
       DOWNLOAD_V2_CAPTURE_DOMAIN,
       DOWNLOAD_V2_CAPTURE_TAG,

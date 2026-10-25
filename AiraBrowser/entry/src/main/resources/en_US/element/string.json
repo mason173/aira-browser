@@ -6861,6 +6861,58 @@
       "value": "Other"
     },
     {
+      "name": "media_resource_selected_count",
+      "value": "%1$d selected"
+    },
+    {
+      "name": "media_resource_deselect_all",
+      "value": "Deselect all"
+    },
+    {
+      "name": "media_resource_batch_copy",
+      "value": "Copy links"
+    },
+    {
+      "name": "media_resource_batch_download",
+      "value": "Download (%1$d)"
+    },
+    {
+      "name": "media_resource_batch_links_copied",
+      "value": "Copied %1$d resource links"
+    },
+    {
+      "name": "media_resource_batch_unavailable",
+      "value": "Selected resources are no longer available. Select them again."
+    },
+    {
+      "name": "media_resource_batch_adding",
+      "value": "Adding %1$d downloads"
+    },
+    {
+      "name": "media_resource_batch_partial",
+      "value": "Added %1$d downloads; %2$d could not be added"
+    },
+    {
+      "name": "media_resource_batch_added",
+      "value": "Added %1$d downloads. View them in Downloads."
+    },
+    {
+      "name": "media_resource_selected",
+      "value": "Selected"
+    },
+    {
+      "name": "media_resource_not_selected",
+      "value": "Not selected"
+    },
+    {
+      "name": "media_resource_select",
+      "value": "Select multiple"
+    },
+    {
+      "name": "media_resource_selection_hint",
+      "value": "Long press resources to select, download, or copy links in bulk"
+    },
+    {
       "name": "media_resource_images_count",
       "value": "Images %1$d"
     },
@@ -20099,6 +20151,10 @@
     {
       "name": "download_status_raw",
       "value": "Status: %1$s"
+    },
+    {
+      "name": "download_size_estimated",
+      "value": "Est. %s"
     },
     {
       "name": "download_progress_unknown_size",

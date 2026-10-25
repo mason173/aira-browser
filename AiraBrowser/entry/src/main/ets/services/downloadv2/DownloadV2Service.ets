@@ -362,6 +362,28 @@ export class DownloadV2Service {
     return this.requestCapture.getPendingPrompt();
   }
 
+  /** The caller's batch download button already confirms these requests. Keep unrelated prompts intact. */
+  async createConfirmedManualRequest(
+    url: string,
+    boundary: DownloadV2CaptureBoundary,
+    suggestedFileName?: string,
+    sourceHost?: string,
+    context?: DownloadV2ManualRequestContext
+  ): Promise<DownloadV2TaskEntity | undefined> {
+    const request = this.requestCapture.createManualRequest(
+      url, boundary, suggestedFileName, sourceHost, false, context
+    );
+    if (request === undefined) {
+      return undefined;
+    }
+    const confirmed = this.requestCapture.confirmRequest(request.guid, false);
+    if (confirmed === undefined) {
+      return undefined;
+    }
+    this.downloadTriggerDiagnosticsService.recordCapturedRequest('manual', confirmed, 'captured', 'batch_confirmed');
+    return this.createTaskFromCapturedRequest(confirmed, true);
+  }
+
   createManualRequest(
     url: string,
     boundary: DownloadV2CaptureBoundary,
@@ -1263,7 +1285,9 @@ export class DownloadV2Service {
       progress: {
         totalBytes: snapshot.totalBytes > 0 ? snapshot.totalBytes : latestTask.progress.totalBytes,
         receivedBytes: Math.max(latestTask.progress.receivedBytes, snapshot.receivedBytes),
-        speedBytesPerSecond: snapshot.currentSpeed
+        speedBytesPerSecond: snapshot.currentSpeed,
+        progressFraction: snapshot.progressFraction ?? -1,
+        estimatedTotalBytes: snapshot.estimatedTotalBytes ?? 0
       },
       persistence: nextPersistence,
       runtime: {
@@ -1481,6 +1505,8 @@ export class DownloadV2Service {
       originalUrl: task.request.originalUrl,
       suggestedFileName: task.resolvedFileName ?? task.suggestedFileName,
       totalBytes: task.progress.totalBytes,
+      progressFraction: task.progress.progressFraction,
+      estimatedTotalBytes: task.progress.estimatedTotalBytes,
       receivedBytes: task.progress.receivedBytes,
       currentSpeed: task.progress.speedBytesPerSecond,
       state: 'PENDING',
@@ -1570,7 +1596,9 @@ export class DownloadV2Service {
         : event.snapshot.totalBytes > 0 ? event.snapshot.totalBytes : currentTask.progress.totalBytes,
       receivedBytes: event.snapshot.downloadDriver === 'libcurl' ? Math.max(0, event.snapshot.receivedBytes)
         : Math.max(currentTask.progress.receivedBytes, event.snapshot.receivedBytes),
-      speedBytesPerSecond: event.snapshot.currentSpeed
+      speedBytesPerSecond: event.snapshot.currentSpeed,
+      progressFraction: event.snapshot.progressFraction ?? -1,
+      estimatedTotalBytes: event.snapshot.estimatedTotalBytes ?? 0
     };
     const nextFailure = this.buildFailureFromPlatformEvent(event, currentTask.failure);
     const eventName = this.resolveEngineEvent(currentTask.status, event);
@@ -1699,6 +1727,8 @@ export class DownloadV2Service {
       originalUrl: snapshot.originalUrl,
       suggestedFileName: snapshot.suggestedFileName,
       totalBytes: snapshot.totalBytes,
+      progressFraction: snapshot.progressFraction,
+      estimatedTotalBytes: snapshot.estimatedTotalBytes,
       receivedBytes: snapshot.receivedBytes,
       currentSpeed: snapshot.currentSpeed,
       state: 'PENDING',

@@ -86,6 +86,9 @@ export interface DownloadV2Failure {
 
 export interface DownloadV2ProgressSnapshot {
   totalBytes: number;
+  /** Presentation only; -1/absent means unknown. */
+  progressFraction?: number;
+  estimatedTotalBytes?: number;
   receivedBytes: number;
   speedBytesPerSecond: number;
 }
