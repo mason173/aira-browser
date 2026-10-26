@@ -38,7 +38,6 @@ import { BrowserTabPreviewCoordinator } from './BrowserTabPreviewCoordinator';
 import {
   BrowserTabsOverviewSnapshotPipelineCoordinator
 } from './tabsOverview/BrowserTabsOverviewSnapshotPipelineCoordinator';
-import { BrowserApplicationTerminationService } from '../../services/browser/BrowserApplicationTerminationService';
 
 export type BrowserClosedTabsHelperMessageMode = 'provided' | 'closed_count';
 
@@ -90,8 +89,8 @@ interface BrowserCloseTabExecutionPlan {
   persistDelayMs: number;
 }
 
-type BrowserPostCloseTabSurfaceKind = 'tabs' | 'home' | 'terminate_application';
-type BrowserLastTabCloseBehavior = 'return_home' | 'terminate_application';
+type BrowserPostCloseTabSurfaceKind = 'tabs' | 'home' | 'create_home_tab';
+type BrowserLastTabCloseBehavior = 'return_home' | 'create_home_tab';
 
 interface BrowserPostCloseTabSurfacePlan {
   kind: BrowserPostCloseTabSurfaceKind;
@@ -161,8 +160,7 @@ export class BrowserTabCloseCoordinator {
   private readonly dependencies: BrowserTabCloseCoordinatorDependencies;
   private profileBoundaryService: BrowserProfileBoundaryService = new BrowserProfileBoundaryService();
   private transitionCoordinator: BrowserTabTransitionCoordinator = new BrowserTabTransitionCoordinator();
-  private applicationTerminationService: BrowserApplicationTerminationService =
-    new BrowserApplicationTerminationService();
+  private desktopTabCloseQueue: Promise<void> = Promise.resolve();
   private deferredPersistTimer: number = -1;
 
   constructor(
@@ -178,7 +176,11 @@ export class BrowserTabCloseCoordinator {
   }
 
   async closeDesktopTab(tabId: string): Promise<void> {
-    await this.closeTabWithLastTabBehavior(tabId, 'terminate_application');
+    const close = this.desktopTabCloseQueue.then((): Promise<void> =>
+      this.closeTabWithLastTabBehavior(tabId, 'create_home_tab')
+    );
+    this.desktopTabCloseQueue = close.catch((_error: Error): void => {});
+    await close;
   }
 
   async removeDesktopTabAfterWindowMove(tabId: string): Promise<boolean> {
@@ -198,29 +200,24 @@ export class BrowserTabCloseCoordinator {
     const postMoveSurfacePlan = this.buildPostCloseTabSurfacePlan(
       transition.tabs,
       movedTab,
-      'terminate_application'
+      'create_home_tab'
     );
     const cleanupPlan = this.buildCloseTabCleanupPlan(state.tabs, state.activeTabId, tabId);
     this.dependencies.resolveWebPageLifecycleCoordinator().prepareTabForTerminalClose(tabId);
     await this.runCloseTabCleanup(cleanupPlan);
-    this.applyCloseTabTransition(transition, host);
+    const finalTransition = postMoveSurfacePlan.kind === 'create_home_tab'
+      ? this.buildDesktopCloseTransition(tabId, postMoveSurfacePlan.homeOptions, host)
+      : transition;
+    this.applyCloseTabTransition(finalTransition, host);
     await this.removeClosedTabPreviewBeforeActivation(tabId, host);
     this.dependencies.backgroundOpenPromptCoordinator.dismissTab(tabId);
     this.refreshPostCloseBoundaryState(host.readState().activeTabId);
     host.setHelperMessage(resolveAppResourceText($r('app.string.browser_browser_tab_close_coordinator_003')));
-    if (postMoveSurfacePlan.kind === 'terminate_application') {
+    this.dependencies.tabSwitchCoordinator.synchronizeActiveTab();
+    if (postMoveSurfacePlan.kind === 'create_home_tab') {
       await this.persistTabsAndWait();
-      try {
-        await this.applicationTerminationService.terminateCurrentApplication();
-      } catch (_error) {
-        this.dependencies.resolveTabHomeCoordinator().showHomeSurface(
-          resolveAppResourceText($r('app.string.browser_browser_tab_close_coordinator_003')),
-          postMoveSurfacePlan.homeOptions
-        );
-      }
       return true;
     }
-    this.dependencies.tabSwitchCoordinator.synchronizeActiveTab();
     this.persistTabs();
     return true;
   }
@@ -234,6 +231,9 @@ export class BrowserTabCloseCoordinator {
     const tabs = state.tabs;
     const activeTabId = state.activeTabId;
     const closingTab = this.findTabById(tabs, tabId);
+    if (closingTab === undefined) {
+      return;
+    }
     const transition = this.transitionCoordinator.closeTab(
       this.tabManager,
       tabs,
@@ -431,9 +431,9 @@ export class BrowserTabCloseCoordinator {
     }
     const homeOptions = this.buildHomeOptionsFromClosedTab(closedTab);
     const privateHome = this.isHomeOptionsSessionEphemeral(homeOptions);
-    if (closedTab !== undefined && lastTabBehavior === 'terminate_application') {
+    if (closedTab !== undefined && lastTabBehavior === 'create_home_tab') {
       return {
-        kind: 'terminate_application',
+        kind: 'create_home_tab',
         homeOptions: homeOptions,
         helperMessage: privateHome
           ? resolveAppResourceText($r('app.string.browser_browser_tabs_overview_action_bar_policy_006'))
@@ -522,15 +522,22 @@ export class BrowserTabCloseCoordinator {
       request.tabId
     );
     const executionPlan = this.buildCloseTabExecutionPlan(cleanupPlan, request.postCloseSurfacePlan);
-    if (request.postCloseSurfacePlan.kind === 'terminate_application') {
+    if (request.postCloseSurfacePlan.kind === 'create_home_tab') {
       await this.runCloseTabCleanup(cleanupPlan);
-      this.applyCloseTabTransition(request.transition, host);
+      // Finish the old private session before a replacement private tab can
+      // make the cleanup owner see a remaining private tab.
+      await this.runSessionEphemeralCleanupAndWaitIfNeeded(cleanupPlan);
+      this.clearSiteDataForTabOnCloseIfNeeded(request.closingTab);
+      const transition = this.buildDesktopCloseTransition(
+        request.tabId,
+        request.postCloseSurfacePlan.homeOptions,
+        host
+      );
+      this.applyCloseTabTransition(transition, host);
       await this.removeClosedTabPreviewBeforeActivation(request.tabId, host);
       this.dependencies.backgroundOpenPromptCoordinator.dismissTab(request.tabId);
       this.refreshPostCloseBoundaryState(host.readState().activeTabId);
-      await this.runSessionEphemeralCleanupAndWaitIfNeeded(cleanupPlan);
-      this.clearSiteDataForTabOnCloseIfNeeded(request.closingTab);
-      host.setHelperMessage(request.transition.helperMessage);
+      host.setHelperMessage(transition.helperMessage);
       await this.applyPostCloseTabSurfacePlan(
         request.postCloseSurfacePlan,
         executionPlan,
@@ -642,6 +649,38 @@ export class BrowserTabCloseCoordinator {
     this.executeTabListAnimation(host, (): void => {
       host.applyTabList(transition.tabs);
     });
+  }
+
+  private buildDesktopCloseTransition(
+    tabId: string,
+    homeOptions: BrowserCreateTabOptions,
+    host: BrowserCloseTabApplicationHost
+  ): BrowserTabTransitionResult {
+    const state = host.readState();
+    const transition = this.transitionCoordinator.closeTab(
+      this.tabManager,
+      state.tabs,
+      state.activeTabId,
+      tabId,
+      state.tabSequence
+    );
+    if (transition.tabs.length > 0) {
+      return transition;
+    }
+    // Publish a real new tab in the same mutation that removes the final tab.
+    const mutation = this.tabManager.createTab(
+      transition.tabs,
+      transition.tabSequence,
+      undefined,
+      resolveAppResourceText($r('app.string.browser_shell_015')),
+      homeOptions
+    );
+    return {
+      tabs: mutation.tabs,
+      activeTabId: mutation.activeTabId,
+      tabSequence: mutation.tabSequence,
+      helperMessage: transition.helperMessage
+    };
   }
 
   private executeTabListAnimation(
@@ -845,10 +884,10 @@ export class BrowserTabCloseCoordinator {
         persistDelayMs: 0
       };
     }
-    if (postCloseSurfacePlan?.kind === 'terminate_application') {
+    if (postCloseSurfacePlan?.kind === 'create_home_tab') {
       return {
         mode: 'cleanup_first',
-        reason: 'terminate_application_last_tab',
+        reason: 'create_home_after_last_tab',
         shouldPersistImmediately: true,
         persistDelayMs: 0
       };
@@ -898,23 +937,13 @@ export class BrowserTabCloseCoordinator {
     executionPlan: BrowserCloseTabExecutionPlan,
     host: BrowserCloseTabApplicationHost
   ): Promise<void> {
-    if (plan.kind === 'terminate_application') {
-      await this.persistTabsAndWait();
-      try {
-        await this.applicationTerminationService.terminateCurrentApplication();
-        return;
-      } catch (_error) {
-        if (host.readState().tabsOverviewVisible) {
-          await this.dependencies.revealHomeSurfaceFromTabsOverview(
-            plan.helperMessage,
-            plan.homeOptions,
-            'steady'
-          );
-          return;
-        }
-        this.dependencies.resolveTabHomeCoordinator().showHomeSurface(plan.helperMessage, plan.homeOptions);
-        return;
+    if (plan.kind === 'create_home_tab') {
+      if (host.readState().tabsOverviewVisible) {
+        host.requestCloseTabsOverview();
       }
+      this.dependencies.tabSwitchCoordinator.synchronizeActiveTab();
+      await this.persistTabsAndWait();
+      return;
     }
     this.scheduleTabSessionPersist(executionPlan);
     if (plan.kind !== 'home') {

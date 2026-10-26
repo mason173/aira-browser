@@ -1291,3 +1291,191 @@ test('each tab overview style owns a closed entry profile', () => {
   assert.equal((source.match(/morphHost: 'deck'/g) || []).length, 1);
   assert.equal((source.match(/snapshotMotion: 'clip'/g) || []).length, 1);
 });
+
+// Replay desktop closes with the production TabManager and transition policy.
+// Native runtime cleanup and persistence are ports so their ordering is observable.
+function desktopCloseHarness(urls = ['https://example.com'], privacyMode = 'regular') {
+  const models = load('AiraBrowser/entry/src/main/ets/common/models/BrowserModels.ets', () => ({}));
+  const boundary = load('AiraBrowser/entry/src/main/ets/core/browser/BrowserProfileBoundaryService.ets',
+    () => models);
+  const runtime = load('AiraBrowser/entry/src/main/ets/core/browser/BrowserRuntimeStateTransitionTable.ets',
+    () => ({}));
+  const { TabManager } = load('AiraBrowser/entry/src/main/ets/core/tabs/TabManager.ets', name => {
+    if (name.endsWith('/BrowserModels')) return models;
+    if (name.endsWith('/BrowserRuntimeStateTransitionTable')) return runtime;
+    return { browserNativeTabSceneService: { isNativeTabUrl: url => url.startsWith('aira://system/') } };
+  });
+  const transition = load('AiraBrowser/entry/src/main/ets/core/browser/BrowserTabTransitionCoordinator.ets',
+    () => boundary);
+  const globals = { $r: value => value, setTimeout: () => 1, clearTimeout() {} };
+  const resource = { resolveAppResourceText: value => value };
+  const { BrowserTabCloseCoordinator } = load(
+    'AiraBrowser/entry/src/main/ets/core/browser/BrowserTabCloseCoordinator.ets', name => {
+      if (name.endsWith('/BrowserModels')) return models;
+      if (name.endsWith('/BrowserProfileBoundaryService')) return boundary;
+      if (name.endsWith('/BrowserTabTransitionCoordinator')) return transition;
+      if (name.endsWith('/AppResourceText')) return resource;
+      throw new Error(`Unexpected close dependency: ${name}`);
+    }, globals);
+  const manager = new TabManager('aira://home', 'desktop');
+  const options = { profileId: 'profile-main', privacyMode,
+    dataScope: privacyMode === 'private' ? 'session_ephemeral' : 'profile_persistent' };
+  const state = { tabs: [], activeTabId: '', tabSequence: 0, tabsOverviewVisible: false, ...options };
+  for (const url of urls) Object.assign(state, manager.createTab(state.tabs, state.tabSequence, url, url, options));
+  const events = [], publications = [], persisted = [], recorded = [];
+  const host = {
+    readState: () => state,
+    applyActiveTabState: (id, sequence) => { state.activeTabId = id; state.tabSequence = sequence; },
+    applyTabList: tabs => { state.tabs = tabs; publications.push(Array.from(tabs, tab => tab.id)); },
+    executeTabListAnimation: plan => plan.apply(), setHelperMessage() {}, notifyTabPreviewChanged() {},
+    requestCloseTabsOverview: () => { state.tabsOverviewVisible = false; }
+  };
+  const hooks = { cleanup: async () => {}, privateCleanup: async () => {} };
+  const persist = () => { persisted.push(Array.from(state.tabs, tab => tab.id)); };
+  const dependencies = {
+    resolveApplicationHost: () => host,
+    resolveWebPageLifecycleCoordinator: () => ({
+      prepareTabForTerminalClose: id => events.push(`prepare:${id}`),
+      cleanupClosedTabRuntime: async request => { events.push(`cleanup:${request.tabId}`); await hooks.cleanup(); }
+    }),
+    resolveTabSessionPersistenceCoordinator: () => ({ persist, persistAndWait: async () => persist() }),
+    resolveTabHomeCoordinator: () => ({ showHomeSurface: () => events.push('home_surface') }),
+    tabSwitchCoordinator: { synchronizeActiveTab: () => events.push(`activate:${state.activeTabId}`),
+      synchronizeWebTabsAndPreviewAssets() {} },
+    pageFindCoordinator: { handleActiveTabChanged() {} },
+    privateModeLockCoordinator: { synchronizeCurrentBoundary() {} },
+    backgroundOpenPromptCoordinator: { dismissTab() {} },
+    tabsOverviewSnapshotPipelineCoordinator: { clearTabThumbnail: () => false },
+    tabPreviewCoordinator: { removeTab: async id => { events.push(`preview:${id}`); return false; } },
+    recentlyClosedApplicationCoordinator: { recordClosedTab: tab => recorded.push(tab.id) },
+    documentViewerService: { resolveChromePolicy: () => ({ active: false }) },
+    siteClearOnCloseCoordinator: { shouldSkipRecentlyClosed: () => false, handleExplicitSiteExit() {} },
+    resolveSiteClearOnCloseHost: () => ({}),
+    privateSessionCleanupCoordinator: { runLastPrivateTabClosedCleanup: async (_profile, id) => {
+      assert.equal(state.tabs.filter(tab => tab.id !== id && tab.privacyMode === 'private').length, 0,
+        'the replacement private tab must be published after old-session cleanup');
+      events.push('private_cleanup');
+      await hooks.privateCleanup();
+    } }
+  };
+  const coordinator = new BrowserTabCloseCoordinator(manager, dependencies);
+  return { coordinator, manager, options, state, events, publications, persisted, recorded, hooks, globals, resource };
+}
+
+for (const url of ['https://example.com', 'aira://home', 'aira://system/settings']) {
+  test(`desktop final tab ${url} is replaced by a real, persisted home tab`, async () => {
+    const h = desktopCloseHarness([url]);
+    const closedId = h.state.activeTabId;
+    await h.coordinator.closeDesktopTab(closedId);
+    assert.equal(h.state.tabs.length, 1);
+    const tab = h.state.tabs[0];
+    assert.notEqual(tab.id, closedId);
+    assert.equal(tab.id, h.state.activeTabId);
+    assert.equal(tab.url, 'aira://home');
+    assert.equal(tab.isHome, true);
+    assert.equal(tab.runtimeState, 'active');
+    assert.equal(h.state.tabSequence, 2);
+    assert.deepEqual(h.recorded, [closedId]);
+    assert.ok(h.events.includes(`cleanup:${closedId}`));
+    assert.ok(h.events.includes(`preview:${closedId}`));
+    assert.ok(h.events.includes(`activate:${tab.id}`));
+    assert.deepEqual(h.persisted.at(-1), [tab.id]);
+    assert.ok(h.publications.every(ids => ids.length > 0), 'never publish an empty desktop tab list');
+  });
+}
+
+test('repeatedly closing the fallback still leaves exactly one new tab', async () => {
+  const h = desktopCloseHarness(['aira://home']);
+  const ids = new Set([h.state.activeTabId]);
+  for (let index = 0; index < 4; index++) {
+    await h.coordinator.closeDesktopTab(h.state.activeTabId);
+    assert.equal(h.state.tabs.length, 1);
+    assert.equal(h.state.tabs[0].isHome, true);
+    assert.ok(!ids.has(h.state.activeTabId));
+    ids.add(h.state.activeTabId);
+  }
+});
+
+test('queued desktop closes remove all requested siblings without resurrecting a tab', async () => {
+  const h = desktopCloseHarness(['https://one.example', 'https://two.example']);
+  const ids = h.state.tabs.map(tab => tab.id);
+  await Promise.all([h.coordinator.closeDesktopTab(ids[1]), h.coordinator.closeDesktopTab(ids[0]),
+    h.coordinator.closeDesktopTab(ids[0])]);
+  assert.equal(h.state.tabs.length, 1);
+  assert.equal(h.state.tabs[0].isHome, true);
+  assert.equal(h.state.tabSequence, 3, 'a duplicate callback cannot create a second fallback');
+  assert.ok(h.publications.every(tabs => tabs.length > 0));
+});
+
+test('closing a desktop tab with a surviving sibling does not create a home tab', async () => {
+  const h = desktopCloseHarness(['https://one.example', 'https://two.example']);
+  const survivor = h.state.tabs[0].id;
+  await h.coordinator.closeDesktopTab(h.state.activeTabId);
+  assert.equal(h.state.tabs.length, 1);
+  assert.equal(h.state.activeTabId, survivor);
+  assert.equal(h.state.tabs[0].isHome, false);
+  assert.equal(h.state.tabSequence, 2);
+});
+
+test('the final private tab is cleaned before a fresh private home tab is published', async () => {
+  const h = desktopCloseHarness(['https://private.example'], 'private');
+  const closedId = h.state.activeTabId;
+  await h.coordinator.closeDesktopTab(closedId);
+  const tab = h.state.tabs[0];
+  assert.equal(tab.privacyMode, 'private');
+  assert.equal(tab.dataScope, 'session_ephemeral');
+  assert.equal(tab.profileId, 'profile-main');
+  assert.ok(h.events.indexOf('private_cleanup') < h.events.indexOf(`activate:${tab.id}`));
+  assert.equal(tab.navigationHistory.length, 0);
+});
+
+test('a tab opened while final-tab cleanup waits survives without an extra fallback', async () => {
+  const h = desktopCloseHarness();
+  let release;
+  h.hooks.cleanup = () => new Promise(resolve => { release = resolve; });
+  const closing = h.coordinator.closeDesktopTab(h.state.activeTabId);
+  await flushMicrotasks();
+  Object.assign(h.state, h.manager.createTab(h.state.tabs, h.state.tabSequence,
+    'https://new.example', 'New', h.options));
+  const newId = h.state.activeTabId;
+  release();
+  await closing;
+  assert.equal(h.state.tabs.length, 1);
+  assert.equal(h.state.activeTabId, newId);
+  assert.equal(h.state.tabs[0].url, 'https://new.example');
+});
+
+test('moving the final tab keeps a home tab in the source window', async () => {
+  const h = desktopCloseHarness();
+  assert.equal(await h.coordinator.removeDesktopTabAfterWindowMove(h.state.activeTabId), true);
+  assert.equal(h.state.tabs.length, 1);
+  assert.equal(h.state.tabs[0].url, 'aira://home');
+  assert.deepEqual(h.recorded, [], 'moving a tab must not record it as closed');
+  assert.deepEqual(h.persisted.at(-1), [h.state.activeTabId]);
+});
+
+test('phone final-tab close keeps its return-home behavior', async () => {
+  const h = desktopCloseHarness();
+  await h.coordinator.closeTab(h.state.activeTabId);
+  assert.equal(h.state.tabs.length, 0);
+  assert.ok(h.events.includes('home_surface'));
+});
+
+for (const surface of ['large_screen', 'phone']) {
+  test(`${surface}: the close-tab keyboard shortcut follows its surface policy`, async () => {
+    const h = desktopCloseHarness();
+    const { BrowserKeyboardShortcutCoordinator } = load(
+      'AiraBrowser/entry/src/main/ets/core/browser/BrowserKeyboardShortcutCoordinator.ets', name => {
+        if (name.endsWith('/BrowserWindowRuntime')) return {
+          BrowserWindowRuntime: { resolveActiveShellPresentationSurface: () => surface }
+        };
+        if (name.endsWith('/AppResourceText')) return h.resource;
+        return {};
+      }, h.globals);
+    const keyboard = new BrowserKeyboardShortcutCoordinator({ tabCloseCoordinator: h.coordinator },
+      { showMessage() {} });
+    await keyboard.closeActiveTab(h.state.activeTabId, h.state.tabs, 'Closed');
+    assert.equal(h.state.tabs.length, surface === 'large_screen' ? 1 : 0);
+    if (surface === 'large_screen') assert.equal(h.state.tabs[0].isHome, true);
+  });
+}

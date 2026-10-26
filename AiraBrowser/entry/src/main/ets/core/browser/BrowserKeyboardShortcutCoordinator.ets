@@ -322,16 +322,12 @@ export class BrowserKeyboardShortcutCoordinator {
       this.shell.showMessage(resolveAppResourceText($r('app.string.browser_browser_keyboard_shortcut_coordinator_019')));
       return;
     }
-    const closesApplication = tabs.length <= 1 &&
-      BrowserWindowRuntime.resolveActiveShellPresentationSurface() === 'large_screen';
-    if (closesApplication) {
+    if (BrowserWindowRuntime.resolveActiveShellPresentationSurface() === 'large_screen') {
       await this.dependencies.tabCloseCoordinator.closeDesktopTab(activeTabId);
     } else {
       await this.dependencies.tabCloseCoordinator.closeTab(activeTabId);
     }
-    if (!closesApplication) {
-      this.shell.showMessage(message);
-    }
+    this.shell.showMessage(message);
   }
 
   private handleEscapeShortcut(facts: BrowserKeyboardShortcutFacts): void {
