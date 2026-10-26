@@ -1,5 +1,5 @@
-export const APP_PREVIEW_VERSION_NAME: string = '3.8.4';
-export const APP_PREVIEW_VERSION_CODE: number = 1000555;
+export const APP_PREVIEW_VERSION_NAME: string = '3.8.5';
+export const APP_PREVIEW_VERSION_CODE: number = 1000558;
 export const APP_BUNDLE_NAME: string = 'org.aira.browser';
 export const APP_ICP_FILING_NUMBER: string = '浙ICP备2026038543号-2A';
 export const APP_ICP_FILING_QUERY_URL: string = 'https://beian.miit.gov.cn/';

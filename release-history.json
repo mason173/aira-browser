@@ -1,14 +1,23 @@
 {
   "latestAppGalleryRelease": {
-    "versionName": "3.8.4",
-    "versionCode": 1000555,
-    "releasedAt": "2026-10-24",
+    "versionName": "3.8.5",
+    "versionCode": 1000558,
+    "releasedAt": "2026-10-26",
     "source": "formal-package-generated",
-    "notes": "Rebuilt the unpublished Official 3.8.4 (1000555) AppGallery candidate from committed HEAD 90f7ce31019efa8ac576aa1fecaa0bdfbc7703e9. Includes the QQ website sign-in callback fix and the latest download reliability and batch-management changes: bounded transport retries, safe resume and native retry, task recovery, download-directory handling, and batch selection/actions. Built as Official/release/APP for com.aira.browser using the release signing configuration. The build contract checks, native/proxy download reliability suites, release APP build, hap-sign-tool verify-app and verify-profile passed. Package metadata confirms debug=false, matching Official Huawei Account Kit app/client identity, bundled private AGConnect configuration, QQ return registration and paired 3.8.4 release notes. Exact-build ArkTS and native crash symbols were archived and their hashes verified. This candidate supersedes SHA256 6a15611e829fa616c0f011aba08e01b4c7c6fbe2d981dac1bdb51efa1bba4dc2; the preceding package is preserved locally under ignored dist/packages. This records a locally generated formal package and does not claim AppGallery review approval or publication.",
-    "artifact": "AiraBrowser/build/outputs/default/Aira-official-v3.8.4-1000555-release-signed.app",
-    "sha256": "bf2e89cc9900cda8096cbfc5c2109c3c1284413ae1072cf56787ce183a737a05"
+    "notes": "Generated the Official 3.8.5 (1000558) AppGallery candidate from committed HEAD a43a1cb126e758690ce9e75578e47806e67b8030, with the version and paired Chinese/English release-note changes in the same working tree. Includes improved media discovery and video naming/duration, HLS progress and size estimates, tab overview interactions, experimental webpage swipe history navigation, and automatic new-tab replacement when closing or moving the final desktop tab. Built as Official/release/APP for com.aira.browser with the release signing configuration. Build contract checks, the release APP build, hap-sign-tool verify-app for the APP, and verify-profile for its embedded AppGallery release Profile passed. The APP signing certificate matches the configured release certificate. Package metadata confirms version 3.8.5 (1000558), debug=false, matching Official Huawei Account Kit app/client identity, bundled private AGConnect configuration, and paired 3.8.5 release notes. Standard APP packaging is used; its inner HAP is not separately signed. Exact-build ArkTS and native crash symbols were archived and all artifact hashes verified. This records a locally generated formal package and does not claim AppGallery review approval or publication.",
+    "artifact": "AiraBrowser/build/outputs/default/Aira-official-v3.8.5-1000558-release-signed.app",
+    "sha256": "052b9d130112c9eace6841a105edbc1d2118a6d98df7328d5c512688ec18b05d"
   },
   "history": [
+    {
+      "versionName": "3.8.5",
+      "versionCode": 1000558,
+      "releasedAt": "2026-10-26",
+      "source": "formal-package-generated",
+      "notes": "Generated the Official 3.8.5 (1000558) AppGallery candidate from committed HEAD a43a1cb126e758690ce9e75578e47806e67b8030, with the version and paired Chinese/English release-note changes in the same working tree. Includes improved media discovery and video naming/duration, HLS progress and size estimates, tab overview interactions, experimental webpage swipe history navigation, and automatic new-tab replacement when closing or moving the final desktop tab. Built as Official/release/APP for com.aira.browser with the release signing configuration. Build contract checks, the release APP build, hap-sign-tool verify-app for the APP, and verify-profile for its embedded AppGallery release Profile passed. The APP signing certificate matches the configured release certificate. Package metadata confirms version 3.8.5 (1000558), debug=false, matching Official Huawei Account Kit app/client identity, bundled private AGConnect configuration, and paired 3.8.5 release notes. Standard APP packaging is used; its inner HAP is not separately signed. Exact-build ArkTS and native crash symbols were archived and all artifact hashes verified. This records a locally generated formal package and does not claim AppGallery review approval or publication.",
+      "artifact": "AiraBrowser/build/outputs/default/Aira-official-v3.8.5-1000558-release-signed.app",
+      "sha256": "052b9d130112c9eace6841a105edbc1d2118a6d98df7328d5c512688ec18b05d"
+    },
     {
       "versionName": "3.8.4",
       "versionCode": 1000555,

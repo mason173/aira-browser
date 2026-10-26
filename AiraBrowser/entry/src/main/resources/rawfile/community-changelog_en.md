@@ -1,5 +1,16 @@
 # Changelog
 
+## 3.8.5 (1000558)
+
+2026-10-26
+
+This release adds webpage swipe navigation and improves video downloads and tabs.
+
+- Added Swipe navigation in Experiments to move backward and forward through webpage history with a horizontal swipe.
+- Improved webpage video detection and selection, including video titles and durations.
+- Improved video download progress and estimated size displays.
+- Improved tab overview interactions. Closing the last desktop tab now opens a new tab automatically.
+
 ## 3.8.4 (1000555)
 
 2026-10-24

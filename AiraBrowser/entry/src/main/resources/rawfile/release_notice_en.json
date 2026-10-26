@@ -1,15 +1,14 @@
 {
   "enabled": true,
-  "noticeId": "aira-3.8.4-1000555",
-  "title": "Aira 3.8.4 update",
-  "updatedAt": "2026-10-24",
-  "summary": "This release fixes QQ website sign-in and improves video, downloads and browsing.",
+  "noticeId": "aira-3.8.5-1000558",
+  "title": "Aira 3.8.5 update",
+  "updatedAt": "2026-10-26",
+  "summary": "This release adds webpage swipe navigation and improves video downloads and tabs.",
   "items": [
-    "Fixed QQ quick sign-in failing to return to the website and complete sign-in on some pages.",
-    "Improved video playback and casting, including fixes for live-stream progress and some casting connection issues.",
-    "Improved ad-blocking compatibility and startup loading to reduce waiting on some webpages.",
-    "Improved download recovery, resuming interrupted downloads and downloading some videos.",
-    "Fixed title-bar clicks on desktop accidentally starting a drag and restoring a maximized window."
+    "Added Swipe navigation in Experiments to move backward and forward through webpage history with a horizontal swipe.",
+    "Improved webpage video detection and selection, including video titles and durations.",
+    "Improved video download progress and estimated size displays.",
+    "Improved tab overview interactions. Closing the last desktop tab now opens a new tab automatically."
   ],
   "actionLabel": "View changelog"
 }
