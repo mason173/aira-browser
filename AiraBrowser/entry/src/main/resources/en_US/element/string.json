@@ -5890,7 +5890,7 @@
     },
     {
       "name": "web_ua_preset_aira_default_desc",
-      "value": "Uses the ArkWeb system page identity, with per-site compatibility identities"
+      "value": "Uses Aira’s default web identity, with separate settings for each site"
     },
     {
       "name": "web_ua_preset_arkweb_original",

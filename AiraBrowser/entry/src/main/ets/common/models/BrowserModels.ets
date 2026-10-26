@@ -1067,6 +1067,8 @@ export type BrowserPrivateDownloadFilePolicy =
 export type BrowserPrivateDownloadRecordPolicy =
   'keep_until_window_close' |
   'clear_after_export';
+// Legacy selection/resolution vocabulary, not an identity kind or device family.
+// The catalog's kind/presentationMode and the runtime profile carry those separate concepts.
 export type BrowserUserAgentMode =
   'mobile' |
   'desktop' |

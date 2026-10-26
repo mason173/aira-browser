@@ -1,6 +1,5 @@
 import {
   BrowserCustomUserAgentRecord,
-  BrowserProfileId,
   BrowserUserAgentMode,
   BrowserUserAgentPresetId,
   BrowserUserAgentSettings
@@ -9,11 +8,15 @@ import { SiteSettingTarget } from '../../common/models/SiteSettingModels';
 import { resolveAppResourceText } from '../../core/resources/AppResourceText';
 import { SiteIdentityService } from './SiteIdentityService';
 
+export type BrowserUserAgentPresetKind = 'application_default' | 'native' | 'preset';
+export type BrowserUserAgentIdentityKind = 'follow_global' | 'native' | 'preset' | 'custom';
+
 export interface BrowserUserAgentPreset {
   id: BrowserUserAgentPresetId;
   title: string;
   subtitle: string;
-  mode: BrowserUserAgentMode;
+  kind: BrowserUserAgentPresetKind;
+  presentationMode: BrowserDesktopSiteMode;
   userAgent: string;
 }
 
@@ -29,23 +32,15 @@ export interface BrowserCustomUserAgentDraft {
   userAgent: string;
 }
 
-export interface BrowserUserAgentResolutionInput {
+// One already-selected scoped identity, not a second policy/precedence input.
+export interface BrowserUserAgentIdentityResolutionInput {
+  identityId: string;
   settings: BrowserUserAgentSettings;
   systemDefaultUserAgent: string;
-  applicationFamily?: BrowserUserAgentApplicationFamily;
-  pageUrl?: string;
-  mandatoryCompatibility?: BrowserUserAgentMandatoryCompatibility;
-  siteSettingTarget?: SiteSettingTarget;
-  siteOverrides?: BrowserUserAgentSiteOverride[];
-  temporaryIdentityId?: string;
-  profileId?: BrowserProfileId;
-}
-
-export interface BrowserUserAgentSiteOverride {
-  profileId: BrowserProfileId;
-  target: SiteSettingTarget;
-  identityId: string;
-  updatedAt: number;
+  applicationFamily: BrowserUserAgentApplicationFamily;
+  scope: 'current_tab' | 'exact_origin';
+  pageUrl: string;
+  targetOrigin?: string;
 }
 
 export interface BrowserUserAgentMandatoryCompatibility {
@@ -61,11 +56,13 @@ export interface BrowserUserAgentIdentity {
   id: string;
   title: string;
   subtitle: string;
-  mode: BrowserUserAgentMode;
+  kind: BrowserUserAgentIdentityKind;
+  presentationMode: BrowserDesktopSiteMode;
   userAgent: string;
-  source: 'global' | 'preset' | 'custom' | 'arkweb_original';
 }
 
+// Legacy execution classification retained for runtime/history and redirect-affinity compatibility.
+// It is not policy precedence: BrowserBrowsingIdentityDecision.winningSource records that separately.
 export type BrowserUserAgentResolutionSource =
   'mandatory_compatibility' |
   'site_setting' |
@@ -117,7 +114,8 @@ export const FOLLOW_GLOBAL_BROWSER_IDENTITY_ID: string = 'follow_global';
 export const AIRA_DEFAULT_BROWSER_IDENTITY_ID: string = 'aira_default';
 export const AIRA_DESKTOP_DEFAULT_BROWSER_IDENTITY_ID: string = 'aira_default_desktop';
 
-export const SYSTEM_DEFAULT_USER_AGENT_PRESET_ID: BrowserUserAgentPresetId = 'system_default';
+// Keep the stored ID for existing preferences; this is Aira's automatic choice, not native ArkWeb.
+export const APPLICATION_DEFAULT_USER_AGENT_PRESET_ID: BrowserUserAgentPresetId = 'system_default';
 export const DESKTOP_CHROME_USER_AGENT_PRESET_ID: BrowserUserAgentPresetId = 'desktop_chrome_windows';
 export const ARKWEB_ORIGINAL_USER_AGENT_PRESET_ID: BrowserUserAgentPresetId = 'arkweb_original';
 export const AIRA_COMPAT_MOBILE_USER_AGENT: string =
@@ -143,7 +141,7 @@ export const BROWSER_USER_AGENT_RISK_NOTICE: BrowserUserAgentRiskNotice = {
 
 export const DEFAULT_BROWSER_USER_AGENT_SETTINGS: BrowserUserAgentSettings = {
   defaultMode: 'mobile',
-  selectedPresetId: SYSTEM_DEFAULT_USER_AGENT_PRESET_ID,
+  selectedPresetId: APPLICATION_DEFAULT_USER_AGENT_PRESET_ID,
   customUserAgent: '',
   selectedCustomUserAgentId: '',
   customUserAgents: [],
@@ -159,66 +157,75 @@ interface BrowserUserAgentPresetCopy {
 
 export const BROWSER_USER_AGENT_PRESETS: BrowserUserAgentPreset[] = [
   {
-    id: SYSTEM_DEFAULT_USER_AGENT_PRESET_ID,
+    id: APPLICATION_DEFAULT_USER_AGENT_PRESET_ID,
     title: 'Aira默认',
-    subtitle: '使用 ArkWeb 系统网页标识，可按站点选择兼容标识',
-    mode: 'mobile',
+    subtitle: '使用 Aira 默认网页标识，可按站点单独设置',
+    kind: 'application_default',
+    presentationMode: 'default',
     userAgent: AIRA_COMPAT_MOBILE_USER_AGENT
   },
   {
     id: ARKWEB_ORIGINAL_USER_AGENT_PRESET_ID,
     title: 'ArkWeb 原始标识',
     subtitle: '直接使用系统网页标识，用于网页登录验证或问题排查',
-    mode: 'mobile',
+    kind: 'native',
+    presentationMode: 'default',
     userAgent: ''
   },
   {
     id: 'mobile_huawei_browser',
     title: '华为浏览器',
     subtitle: '使用 OpenHarmony/HuaweiBrowser 原始兼容标识',
-    mode: 'mobile',
+    kind: 'preset',
+    presentationMode: 'mobile',
     userAgent: HUAWEI_BROWSER_USER_AGENT
   },
   {
     id: 'mobile_chrome_android',
     title: 'Chrome Android',
     subtitle: '常见 Android 手机上的 Chrome 标识',
-    mode: 'mobile',
+    kind: 'preset',
+    presentationMode: 'mobile',
     userAgent: CHROME_ANDROID_USER_AGENT
   },
   {
     id: 'mobile_safari_iphone',
     title: 'Safari iPhone',
     subtitle: '常见 iPhone Safari 标识',
-    mode: 'mobile',
+    kind: 'preset',
+    presentationMode: 'mobile',
     userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1'
   },
   {
     id: DESKTOP_CHROME_USER_AGENT_PRESET_ID,
     title: 'Chrome Windows',
     subtitle: '适合请求桌面版网页',
-    mode: 'desktop',
+    kind: 'preset',
+    presentationMode: 'desktop',
     userAgent: AIRA_COMPAT_DESKTOP_USER_AGENT
   },
   {
     id: 'desktop_edge_windows',
     title: 'Microsoft Edge Windows',
     subtitle: '桌面 Edge 兼容标识',
-    mode: 'desktop',
+    kind: 'preset',
+    presentationMode: 'desktop',
     userAgent: `${AIRA_COMPAT_DESKTOP_USER_AGENT} Edg/140.0.0.0`
   },
   {
     id: 'desktop_safari_mac',
     title: 'Safari macOS',
     subtitle: '桌面 Safari 兼容标识',
-    mode: 'desktop',
+    kind: 'preset',
+    presentationMode: 'desktop',
     userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 15_5) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Safari/605.1.15'
   },
   {
     id: 'desktop_firefox_windows',
     title: 'Firefox Windows',
     subtitle: '桌面 Firefox 兼容标识',
-    mode: 'desktop',
+    kind: 'preset',
+    presentationMode: 'desktop',
     userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:139.0) Gecko/20100101 Firefox/139.0'
   }
 ];
@@ -229,7 +236,7 @@ export class BrowserUserAgentService {
   normalizeSettings(settings: BrowserUserAgentSettings | undefined): BrowserUserAgentSettings {
     const selectedPresetId = this.normalizePresetId(settings?.selectedPresetId ?? '');
     const preset = this.findPreset(selectedPresetId);
-    const defaultMode = this.normalizeMode(settings?.defaultMode ?? preset.mode);
+    const defaultMode = this.normalizeMode(settings?.defaultMode ?? this.resolvePresetSettingsMode(preset.id));
     const customUserAgents = this.normalizeCustomUserAgentRecords(settings?.customUserAgents ?? []);
     const legacyCustomUserAgent = this.normalizeCustomUserAgent(settings?.customUserAgent ?? '');
     const selectedCustomUserAgentId = this.normalizeSelectedCustomUserAgentId(
@@ -258,18 +265,19 @@ export class BrowserUserAgentService {
       id: FOLLOW_GLOBAL_BROWSER_IDENTITY_ID,
       title: resolveAppResourceText($r('app.string.settings_site_customization_follow_global')),
       subtitle: resolveAppResourceText($r('app.string.web_ua_follow_global_desc')),
-      mode: normalized.defaultMode,
-      userAgent: '',
-      source: 'global'
+      kind: 'follow_global',
+      presentationMode: 'default',
+      userAgent: ''
     }];
     this.getPresets().forEach((preset: BrowserUserAgentPreset) => {
       identities.push({
-        id: preset.id === SYSTEM_DEFAULT_USER_AGENT_PRESET_ID ? AIRA_DEFAULT_BROWSER_IDENTITY_ID : preset.id,
+        id: preset.id === APPLICATION_DEFAULT_USER_AGENT_PRESET_ID ? AIRA_DEFAULT_BROWSER_IDENTITY_ID : preset.id,
         title: preset.title,
         subtitle: preset.subtitle,
-        mode: preset.mode,
-        userAgent: preset.userAgent,
-        source: preset.id === ARKWEB_ORIGINAL_USER_AGENT_PRESET_ID ? 'arkweb_original' : 'preset'
+        kind: preset.kind === 'native' ? 'native' : 'preset',
+        // The explicit site/tab Aira identity remains the established mobile compatibility choice.
+        presentationMode: preset.kind === 'application_default' ? 'mobile' : preset.presentationMode,
+        userAgent: preset.userAgent
       });
     });
     normalized.customUserAgents.forEach((record: BrowserCustomUserAgentRecord) => {
@@ -277,9 +285,9 @@ export class BrowserUserAgentService {
         id: record.id,
         title: record.name,
         subtitle: resolveAppResourceText($r('app.string.web_ua_custom_identity')),
-        mode: 'custom',
-        userAgent: record.userAgent,
-        source: 'custom'
+        kind: 'custom',
+        presentationMode: 'default',
+        userAgent: record.userAgent
       });
     });
     return identities;
@@ -301,7 +309,8 @@ export class BrowserUserAgentService {
       id: preset.id,
       title: copy.title,
       subtitle: copy.subtitle,
-      mode: preset.mode,
+      kind: preset.kind,
+      presentationMode: preset.presentationMode,
       userAgent: preset.userAgent
     };
   }
@@ -363,7 +372,7 @@ export class BrowserUserAgentService {
     const preset = this.findPreset(this.normalizePresetId(presetId));
     const normalizedCurrent = this.normalizeSettings(currentSettings);
     return {
-      defaultMode: preset.mode,
+      defaultMode: this.resolvePresetSettingsMode(preset.id),
       selectedPresetId: preset.id,
       customUserAgent: normalizedCurrent.customUserAgent,
       selectedCustomUserAgentId: normalizedCurrent.selectedCustomUserAgentId,
@@ -434,7 +443,7 @@ export class BrowserUserAgentService {
     if (normalized.defaultMode === 'custom' || normalized.defaultMode === 'desktop') {
       return true;
     }
-    return normalized.selectedPresetId !== SYSTEM_DEFAULT_USER_AGENT_PRESET_ID;
+    return normalized.selectedPresetId !== APPLICATION_DEFAULT_USER_AGENT_PRESET_ID;
   }
 
   shouldWarnForModeSwitch(targetMode: BrowserUserAgentMode): boolean {
@@ -450,29 +459,10 @@ export class BrowserUserAgentService {
     };
   }
 
-  resolveEffectiveUserAgent(
-    settings: BrowserUserAgentSettings,
-    systemDefaultUserAgent: string
-  ): string {
-    const resolution = this.resolveUserAgent({
-      settings: settings,
-      systemDefaultUserAgent: systemDefaultUserAgent
-    });
-    if (resolution.source === 'system_default') {
-      return this.resolveApplicationDefaultUserAgent(settings, systemDefaultUserAgent);
-    }
-    return resolution.userAgent;
-  }
-
-  resolveApplicationDefaultUserAgent(
-    _settings: BrowserUserAgentSettings,
-    _systemDefaultUserAgent: string,
-    applicationFamily: BrowserUserAgentApplicationFamily = 'mobile'
-  ): string {
-    if (applicationFamily !== 'mobile') {
-      return AIRA_COMPAT_DESKTOP_USER_AGENT;
-    }
-    return AIRA_COMPAT_MOBILE_USER_AGENT;
+  // Storage/UI selection compatibility only. A native or automatic identity is not a mobile preset.
+  // Existing preferences encode both as defaultMode=mobile; preserve that on reads and writes.
+  resolvePresetSettingsMode(presetId: BrowserUserAgentPresetId): BrowserUserAgentMode {
+    return this.findPreset(presetId).presentationMode === 'desktop' ? 'desktop' : 'mobile';
   }
 
   resolveApplicationFamilyForDevice(detectedFormFactor: string): BrowserUserAgentApplicationFamily {
@@ -525,10 +515,10 @@ export class BrowserUserAgentService {
     if (identity === undefined) {
       return 'default';
     }
-    if (identity.mode === 'desktop') {
+    if (identity.presentationMode === 'desktop') {
       return 'desktop';
     }
-    if (identity.mode === 'mobile') {
+    if (identity.presentationMode === 'mobile') {
       return 'mobile';
     }
     return this.resolveCustomPresentationMode(identity.userAgent, applicationFamily);
@@ -549,7 +539,7 @@ export class BrowserUserAgentService {
       );
       return this.resolveCustomPresentationMode(selected?.userAgent ?? normalized.customUserAgent, applicationFamily);
     }
-    if (normalized.selectedPresetId === SYSTEM_DEFAULT_USER_AGENT_PRESET_ID) {
+    if (normalized.selectedPresetId === APPLICATION_DEFAULT_USER_AGENT_PRESET_ID) {
       return applicationFamily === 'mobile' ? 'mobile' : 'desktop';
     }
     return this.resolvePresentationModeForIdentity(
@@ -559,79 +549,52 @@ export class BrowserUserAgentService {
     );
   }
 
-  resolveUserAgent(input: BrowserUserAgentResolutionInput): BrowserUserAgentResolution {
-    const settings = this.normalizeSettings(input.settings);
-    const pageUrl = input.pageUrl ?? '';
-    const applicationFamily = this.normalizeApplicationFamily(input.applicationFamily);
-    const mode = this.normalizeMode(settings.defaultMode);
+  buildMandatoryUserAgent(compatibility: BrowserUserAgentMandatoryCompatibility): BrowserUserAgentResolution {
+    return this.buildResolution(
+      compatibility.userAgent,
+      compatibility.mode,
+      'mandatory_compatibility',
+      compatibility.reason,
+      compatibility.host,
+      compatibility.identityId
+    );
+  }
 
-    const mandatoryCompatibility = input.mandatoryCompatibility;
-    if (mandatoryCompatibility !== undefined &&
-      this.hostMatches(
-        this.extractHost(pageUrl),
-        mandatoryCompatibility.host,
-        false
-      )) {
-      return this.buildResolution(
-        mandatoryCompatibility.userAgent,
-        mandatoryCompatibility.mode,
-        'mandatory_compatibility',
-        mandatoryCompatibility.reason,
-        mandatoryCompatibility.host,
-        mandatoryCompatibility.identityId
-      );
+  resolveIdentityUserAgent(input: BrowserUserAgentIdentityResolutionInput): BrowserUserAgentResolution | undefined {
+    const identity = this.resolveIdentity(
+      input.identityId,
+      input.settings,
+      input.systemDefaultUserAgent,
+      input.applicationFamily
+    );
+    if (identity === undefined) {
+      return undefined;
     }
+    const isSite = input.scope === 'exact_origin';
+    return this.buildResolution(
+      identity.userAgent,
+      identity.kind === 'custom' ? 'custom' : identity.presentationMode === 'desktop' ? 'desktop' : 'mobile',
+      identity.kind === 'native' ? 'system_default' : isSite ? 'site_setting' : 'preset',
+      isSite ? 'The exact Origin selected a site browsing identity.' :
+        'The current tab temporarily selected a browsing identity.',
+      this.extractHost(isSite ? input.targetOrigin ?? input.pageUrl : input.pageUrl),
+      identity.id,
+      input.targetOrigin
+    );
+  }
 
-    const temporaryIdentityId = input.temporaryIdentityId?.trim() ?? '';
-    const hasTemporaryIdentity = temporaryIdentityId.length > 0;
-    if (hasTemporaryIdentity && temporaryIdentityId !== FOLLOW_GLOBAL_BROWSER_IDENTITY_ID) {
-      const temporary = this.resolveIdentity(
-        temporaryIdentityId,
-        settings,
-        input.systemDefaultUserAgent,
-        applicationFamily
-      );
-      if (temporary !== undefined) {
-        return this.buildResolution(
-          temporary.userAgent,
-          temporary.mode,
-          temporary.source === 'arkweb_original' ? 'system_default' : 'preset',
-          'The current tab temporarily selected a browsing identity.',
-          this.extractHost(pageUrl),
-          temporary.id,
-          input.siteSettingTarget?.canonicalOrigin
-        );
-      }
-    }
-
-    const siteOverride = hasTemporaryIdentity
-      ? undefined
-      : this.findSiteOverride(
-        pageUrl,
-        input.siteSettingTarget,
-        input.siteOverrides ?? [],
-        input.profileId
-      );
-    if (siteOverride !== undefined && siteOverride.identityId !== FOLLOW_GLOBAL_BROWSER_IDENTITY_ID) {
-      const siteIdentity = this.resolveIdentity(
-        siteOverride.identityId,
-        settings,
-        input.systemDefaultUserAgent,
-        applicationFamily
-      );
-      if (siteIdentity !== undefined) {
-        return this.buildResolution(
-          siteIdentity.userAgent,
-          siteIdentity.mode,
-          siteIdentity.source === 'arkweb_original' ? 'system_default' : 'site_setting',
-          'The exact Origin selected a site browsing identity.',
-          this.extractHost(siteOverride.target.canonicalOrigin),
-          siteIdentity.id,
-          siteOverride.target.canonicalOrigin
-        );
-      }
-    }
-
+  /**
+   * Resolve only the global choice and its application default. Tab/Origin/Host precedence
+   * belongs to the browsing-identity policy; these candidates must not re-enter that policy.
+   * Legacy settings modes are decoded here, independently of the catalog's identity kind.
+   */
+  resolveGlobalUserAgent(
+    inputSettings: BrowserUserAgentSettings,
+    systemDefaultUserAgent: string,
+    applicationFamily: BrowserUserAgentApplicationFamily = 'mobile'
+  ): BrowserUserAgentResolution {
+    const settings = this.normalizeSettings(inputSettings);
+    const mode = settings.defaultMode;
     if (mode === 'custom') {
       const selectedCustomUserAgent = this.findCustomUserAgent(
         settings.customUserAgents,
@@ -639,7 +602,7 @@ export class BrowserUserAgentService {
       );
       const customUserAgent = this.normalizeCustomUserAgent(selectedCustomUserAgent?.userAgent ?? settings.customUserAgent);
       return this.buildResolution(
-        customUserAgent.length > 0 ? customUserAgent : this.resolvePresetUserAgent(settings, input.systemDefaultUserAgent),
+        customUserAgent.length > 0 ? customUserAgent : this.resolvePresetUserAgent(settings, systemDefaultUserAgent),
         'custom',
         customUserAgent.length > 0 ? 'custom' : 'preset',
         customUserAgent.length > 0 ? 'User selected a custom UA.' : 'Custom UA is empty; using selected preset.',
@@ -647,20 +610,26 @@ export class BrowserUserAgentService {
         customUserAgent.length > 0 ? settings.selectedCustomUserAgentId : settings.selectedPresetId
       );
     }
+    const selectedPreset = this.findPreset(settings.selectedPresetId);
     if (mode === 'desktop') {
+      // Older settings can request desktop pages without naming a desktop preset.
+      // Keep Chrome as that fallback, while honoring every explicitly selected desktop preset.
+      const desktopPreset = selectedPreset.presentationMode === 'desktop'
+        ? selectedPreset
+        : this.findPreset(DESKTOP_CHROME_USER_AGENT_PRESET_ID);
       return this.buildResolution(
-        this.findPreset(DESKTOP_CHROME_USER_AGENT_PRESET_ID).userAgent,
+        desktopPreset.userAgent,
         'desktop',
         'preset',
         'User requested desktop pages.',
         '',
-        DESKTOP_CHROME_USER_AGENT_PRESET_ID
+        desktopPreset.id
       );
     }
-    if (settings.selectedPresetId !== SYSTEM_DEFAULT_USER_AGENT_PRESET_ID &&
-      this.findPreset(settings.selectedPresetId).mode === 'mobile') {
+    if (settings.selectedPresetId !== APPLICATION_DEFAULT_USER_AGENT_PRESET_ID &&
+      (selectedPreset.kind === 'native' || selectedPreset.presentationMode === 'mobile')) {
       return this.buildResolution(
-        this.resolvePresetUserAgent(settings, input.systemDefaultUserAgent),
+        this.resolvePresetUserAgent(settings, systemDefaultUserAgent),
         'mobile',
         settings.selectedPresetId === ARKWEB_ORIGINAL_USER_AGENT_PRESET_ID ? 'system_default' : 'preset',
         settings.selectedPresetId === ARKWEB_ORIGINAL_USER_AGENT_PRESET_ID
@@ -670,11 +639,20 @@ export class BrowserUserAgentService {
         settings.selectedPresetId
       );
     }
+    return this.resolveApplicationDefault(systemDefaultUserAgent, applicationFamily);
+  }
+
+  resolveApplicationDefault(
+    systemDefaultUserAgent: string,
+    applicationFamily: BrowserUserAgentApplicationFamily = 'mobile'
+  ): BrowserUserAgentResolution {
     if (applicationFamily !== 'mobile') {
+      // Keep the native Controller untouched, including its real platform and engine identity.
+      // Passing this text through the custom-UA setter would not restore native identity.
       return this.buildResolution(
-        AIRA_COMPAT_DESKTOP_USER_AGENT,
+        systemDefaultUserAgent.trim(),
         'desktop',
-        'app_default',
+        'system_default',
         this.resolveApplicationDefaultReason(applicationFamily),
         '',
         AIRA_DESKTOP_DEFAULT_BROWSER_IDENTITY_ID
@@ -732,23 +710,11 @@ export class BrowserUserAgentService {
     return 'mobile';
   }
 
-  private normalizeApplicationFamily(
-    applicationFamily: BrowserUserAgentApplicationFamily | undefined
-  ): BrowserUserAgentApplicationFamily {
-    if (applicationFamily === 'tablet' || applicationFamily === 'desktop') {
-      return applicationFamily;
-    }
-    return 'mobile';
-  }
-
   private resolveApplicationDefaultReason(applicationFamily: BrowserUserAgentApplicationFamily): string {
-    if (applicationFamily === 'tablet') {
-      return 'Aira defaults a physical tablet to its desktop compatibility identity.';
+    if (applicationFamily !== 'mobile') {
+      return 'Aira defaults the large-screen presentation to untouched ArkWeb identity.';
     }
-    if (applicationFamily === 'desktop') {
-      return 'Aira defaults a physical desktop device to its desktop compatibility identity.';
-    }
-    return 'Aira defaults a physical phone to its Android-compatible mobile identity.';
+    return 'Aira defaults the phone presentation to its Android-compatible mobile identity.';
   }
 
   private resolveCustomPresentationMode(
@@ -772,12 +738,12 @@ export class BrowserUserAgentService {
 
   private normalizePresetId(id: BrowserUserAgentPresetId): BrowserUserAgentPresetId {
     if (id === 'custom') {
-      return SYSTEM_DEFAULT_USER_AGENT_PRESET_ID;
+      return APPLICATION_DEFAULT_USER_AGENT_PRESET_ID;
     }
     const normalized = id.trim();
     return BROWSER_USER_AGENT_PRESETS.some((preset: BrowserUserAgentPreset) => preset.id === normalized)
       ? normalized
-      : SYSTEM_DEFAULT_USER_AGENT_PRESET_ID;
+      : APPLICATION_DEFAULT_USER_AGENT_PRESET_ID;
   }
 
   normalizeCustomUserAgent(userAgent: string): string {
@@ -974,8 +940,7 @@ export class BrowserUserAgentService {
         wow64: false
       };
     }
-    if (identityId === DESKTOP_CHROME_USER_AGENT_PRESET_ID ||
-      identityId === AIRA_DESKTOP_DEFAULT_BROWSER_IDENTITY_ID) {
+    if (identityId === DESKTOP_CHROME_USER_AGENT_PRESET_ID) {
       return {
         brand: 'Google Chrome',
         majorVersion: '148',
@@ -1004,9 +969,9 @@ export class BrowserUserAgentService {
         id: normalizedId,
         title: resolveAppResourceText($r('app.string.web_ua_preset_aira_default')),
         subtitle: resolveAppResourceText($r('app.string.web_ua_android_compat')),
-        mode: 'mobile',
-        userAgent: AIRA_COMPAT_MOBILE_USER_AGENT,
-        source: 'preset'
+        kind: 'preset',
+        presentationMode: 'mobile',
+        userAgent: AIRA_COMPAT_MOBILE_USER_AGENT
       };
     }
     const catalog = this.getIdentityCatalog(settings);
@@ -1014,40 +979,20 @@ export class BrowserUserAgentService {
     if (catalogIdentity === undefined || catalogIdentity.id === FOLLOW_GLOBAL_BROWSER_IDENTITY_ID) {
       return undefined;
     }
-    if (catalogIdentity.source === 'arkweb_original') {
+    if (catalogIdentity.kind === 'native') {
       return {
         id: catalogIdentity.id,
         title: catalogIdentity.title,
         subtitle: catalogIdentity.subtitle,
-        mode: applicationFamily === 'mobile' ? 'mobile' : 'desktop',
+        kind: 'native',
+        presentationMode: applicationFamily === 'mobile' ? 'mobile' : 'desktop',
         userAgent: systemDefaultUserAgent.trim(),
-        source: 'arkweb_original'
       };
     }
     return catalogIdentity;
   }
 
-  private findSiteOverride(
-    url: string,
-    target: SiteSettingTarget | undefined,
-    overrides: BrowserUserAgentSiteOverride[],
-    profileId: BrowserProfileId | undefined
-  ): BrowserUserAgentSiteOverride | undefined {
-    const resolvedTarget = target ?? this.siteIdentityService.resolveSiteSettingTarget(url);
-    if (resolvedTarget === undefined) {
-      return undefined;
-    }
-    return overrides.find((override: BrowserUserAgentSiteOverride) => {
-      return (profileId === undefined || override.profileId === profileId) &&
-        override.target.canonicalOrigin === resolvedTarget.canonicalOrigin;
-    });
-  }
-
   extractHost(url: string): string {
     return this.siteIdentityService.extractHost(url);
-  }
-
-  private hostMatches(actualHost: string, ruleHost: string, includeSubdomains: boolean): boolean {
-    return this.siteIdentityService.hostMatches(actualHost, ruleHost, includeSubdomains);
   }
 }

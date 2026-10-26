@@ -31,7 +31,7 @@ export class WebScrollSmoothModeService {
     if (!this.shouldInstallRuntime(settings)) {
       return;
     }
-    this.runScript(controller, this.buildInstallScript(settings), 'scroll-smooth-install');
+    this.runScript(controller, this.buildInstallScript(settings));
     this.stateByTabId.set(tabId, {
       installed: true,
       scrollingActive: false
@@ -57,7 +57,7 @@ export class WebScrollSmoothModeService {
     }
     const currentState = this.ensureTabState(tabId, controller, settings);
     if (!currentState.scrollingActive) {
-      this.runScript(controller, this.buildEnterScrollingScript(), 'scroll-smooth-enter');
+      this.runScript(controller, this.buildEnterScrollingScript());
       currentState.scrollingActive = true;
       this.stateByTabId.set(tabId, currentState);
     }
@@ -68,7 +68,7 @@ export class WebScrollSmoothModeService {
     this.clearReleaseTimer(tabId);
     const state = this.stateByTabId.get(tabId);
     if (state?.scrollingActive === true) {
-      this.runScript(controller, this.buildExitScrollingScript(), 'scroll-smooth-exit');
+      this.runScript(controller, this.buildExitScrollingScript());
     }
     this.stateByTabId.delete(tabId);
   }
@@ -86,7 +86,7 @@ export class WebScrollSmoothModeService {
     if (existingState !== undefined) {
       return existingState;
     }
-    this.runScript(controller, this.buildInstallScript(settings), 'scroll-smooth-install');
+    this.runScript(controller, this.buildInstallScript(settings));
     const state: WebScrollSmoothModeTabState = {
       installed: true,
       scrollingActive: false
@@ -103,7 +103,7 @@ export class WebScrollSmoothModeService {
       if (state === undefined || !state.scrollingActive) {
         return;
       }
-      this.runScript(controller, this.buildExitScrollingScript(), 'scroll-smooth-exit');
+      this.runScript(controller, this.buildExitScrollingScript());
       state.scrollingActive = false;
       this.stateByTabId.set(tabId, state);
     }, QF_SCROLLING_RELEASE_DELAY_MS));
@@ -117,16 +117,12 @@ export class WebScrollSmoothModeService {
     this.releaseTimersByTabId.delete(tabId);
   }
 
-  private runScript(controller: webview.WebviewController | undefined, script: string, label: string): void {
+  private runScript(controller: webview.WebviewController | undefined, script: string): void {
     if (controller === undefined) {
       return;
     }
     try {
-      // Temporary [DEBUG-web-freeze-9f2a]. Name the injected source so trace and
-      // long-animation-frame attribution can identify it. Remove with the freeze probe.
-      const named = script.includes('//# sourceURL=') ?
-        script : `${script}\n//# sourceURL=aira-injected-${label}.js\n`;
-      void controller.runJavaScript(named);
+      void controller.runJavaScript(script);
     } catch (_error) {
     }
   }

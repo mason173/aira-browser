@@ -333,7 +333,7 @@ export class SiteCustomizationManagementCoordinator {
     if (identity === undefined) {
       return 'default';
     }
-    return identity.mode === 'desktop' ? 'desktop' : 'mobile';
+    return identity.presentationMode === 'desktop' ? 'desktop' : 'mobile';
   }
 
   async setSiteUserAgentMode(

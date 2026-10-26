@@ -20,10 +20,8 @@ import {
   BrowserUserAgentMandatoryCompatibility,
   BrowserUserAgentResolution,
   BrowserUserAgentService,
-  BrowserUserAgentSiteOverride,
-  DEFAULT_BROWSER_USER_AGENT_SETTINGS,
   FOLLOW_GLOBAL_BROWSER_IDENTITY_ID,
-  SYSTEM_DEFAULT_USER_AGENT_PRESET_ID
+  APPLICATION_DEFAULT_USER_AGENT_PRESET_ID
 } from '../../services/web/BrowserUserAgentService';
 
 const BROWSING_IDENTITY_DIAGNOSTIC_LOG_DOMAIN: number = 0x0000;
@@ -190,20 +188,14 @@ export class BrowserBrowsingIdentityPolicyCoordinator {
       host,
       managedHostApplicationFamily
     );
-    const mandatoryHost = this.buildMandatoryCandidate(
-      request,
-      settings,
-      applicationFamily,
-      mandatoryCompatibility
-    );
+    const mandatoryHost = this.buildMandatoryCandidate(mandatoryCompatibility);
     const currentTab = this.buildIdentityCandidate(
       'current_tab',
       currentTabIdentityId,
       request,
       settings,
       applicationFamily,
-      target,
-      undefined
+      target
     );
     const exactOriginIdentityId = siteEntry?.overrides.userAgentIdentityId ?? '';
     const exactOrigin = this.buildIdentityCandidate(
@@ -212,8 +204,7 @@ export class BrowserBrowsingIdentityPolicyCoordinator {
       request,
       settings,
       applicationFamily,
-      target,
-      siteEntry
+      target
     );
     const global = this.buildGlobalCandidate(request, settings, applicationFamily);
     const applicableDefault = this.buildApplicableDefaultCandidate(request, applicationFamily);
@@ -235,32 +226,22 @@ export class BrowserBrowsingIdentityPolicyCoordinator {
   }
 
   private buildMandatoryCandidate(
-    request: BrowserBrowsingIdentityPolicyRequest,
-    settings: BrowserUserAgentSettings,
-    applicationFamily: BrowserUserAgentApplicationFamily,
     mandatoryCompatibility: BrowserUserAgentMandatoryCompatibility | undefined
   ): BrowserBrowsingIdentityCandidate {
     if (mandatoryCompatibility === undefined) {
       return this.emptyCandidate('mandatory_host');
     }
-    const resolution = this.userAgentService.resolveUserAgent({
-      settings: settings,
-      systemDefaultUserAgent: request.systemDefaultUserAgent,
-      applicationFamily: applicationFamily,
-      pageUrl: request.currentUrl,
-      mandatoryCompatibility: mandatoryCompatibility
-    });
+    const resolution = this.userAgentService.buildMandatoryUserAgent(mandatoryCompatibility);
     return this.availableCandidate('mandatory_host', mandatoryCompatibility.identityId, resolution);
   }
 
   private buildIdentityCandidate(
-    source: BrowserBrowsingIdentityPrecedenceSource,
+    source: 'current_tab' | 'exact_origin',
     identityId: string,
     request: BrowserBrowsingIdentityPolicyRequest,
     settings: BrowserUserAgentSettings,
     applicationFamily: BrowserUserAgentApplicationFamily,
-    target: SiteSettingTarget | undefined,
-    siteEntry: SavedSiteSettingEntry | undefined
+    target: SiteSettingTarget | undefined
   ): BrowserBrowsingIdentityCandidate {
     const normalizedIdentityId = identityId.trim();
     if (normalizedIdentityId.length <= 0 || normalizedIdentityId === FOLLOW_GLOBAL_BROWSER_IDENTITY_ID) {
@@ -269,33 +250,16 @@ export class BrowserBrowsingIdentityPolicyCoordinator {
     if (!this.hasIdentity(normalizedIdentityId, settings)) {
       return this.unavailableCandidate(source, normalizedIdentityId, 'The referenced Browsing Identity is unavailable.');
     }
-    let resolution: BrowserUserAgentResolution;
-    if (source === 'exact_origin' && target !== undefined && siteEntry !== undefined) {
-      const siteOverride: BrowserUserAgentSiteOverride = {
-        profileId: siteEntry.profileId,
-        target: target,
-        identityId: normalizedIdentityId,
-        updatedAt: siteEntry.updatedAt
-      };
-      resolution = this.userAgentService.resolveUserAgent({
-        settings: settings,
-        systemDefaultUserAgent: request.systemDefaultUserAgent,
-        applicationFamily: applicationFamily,
-        pageUrl: request.currentUrl,
-        siteSettingTarget: target,
-        siteOverrides: [siteOverride],
-        profileId: request.profileId
-      });
-    } else {
-      resolution = this.userAgentService.resolveUserAgent({
-        settings: settings,
-        systemDefaultUserAgent: request.systemDefaultUserAgent,
-        applicationFamily: applicationFamily,
-        pageUrl: request.currentUrl,
-        temporaryIdentityId: normalizedIdentityId
-      });
-    }
-    if ((resolution.identityId ?? '').trim() !== normalizedIdentityId) {
+    const resolution = this.userAgentService.resolveIdentityUserAgent({
+      identityId: normalizedIdentityId,
+      settings: settings,
+      systemDefaultUserAgent: request.systemDefaultUserAgent,
+      applicationFamily: applicationFamily,
+      scope: source,
+      pageUrl: request.currentUrl,
+      targetOrigin: source === 'exact_origin' ? target?.canonicalOrigin : undefined
+    });
+    if (resolution === undefined) {
       return this.unavailableCandidate(source, normalizedIdentityId, 'The referenced Browsing Identity could not be resolved.');
     }
     return this.availableCandidate(source, normalizedIdentityId, resolution);
@@ -309,12 +273,11 @@ export class BrowserBrowsingIdentityPolicyCoordinator {
     if (!this.hasExplicitGlobalChoice(settings)) {
       return this.emptyCandidate('global');
     }
-    const resolution = this.userAgentService.resolveUserAgent({
-      settings: settings,
-      systemDefaultUserAgent: request.systemDefaultUserAgent,
-      applicationFamily: applicationFamily,
-      pageUrl: request.currentUrl
-    });
+    const resolution = this.userAgentService.resolveGlobalUserAgent(
+      settings,
+      request.systemDefaultUserAgent,
+      applicationFamily
+    );
     return this.availableCandidate('global', resolution.profile.identityId, resolution);
   }
 
@@ -322,12 +285,10 @@ export class BrowserBrowsingIdentityPolicyCoordinator {
     request: BrowserBrowsingIdentityPolicyRequest,
     applicationFamily: BrowserUserAgentApplicationFamily
   ): BrowserBrowsingIdentityCandidate {
-    const resolution = this.userAgentService.resolveUserAgent({
-      settings: DEFAULT_BROWSER_USER_AGENT_SETTINGS,
-      systemDefaultUserAgent: request.systemDefaultUserAgent,
-      applicationFamily: applicationFamily,
-      pageUrl: request.currentUrl
-    });
+    const resolution = this.userAgentService.resolveApplicationDefault(
+      request.systemDefaultUserAgent,
+      applicationFamily
+    );
     return this.availableCandidate('applicable_default', AIRA_DEFAULT_BROWSER_IDENTITY_ID, resolution);
   }
 
@@ -335,7 +296,7 @@ export class BrowserBrowsingIdentityPolicyCoordinator {
     if (settings.defaultMode === 'custom' || settings.defaultMode === 'desktop') {
       return true;
     }
-    return settings.selectedPresetId !== SYSTEM_DEFAULT_USER_AGENT_PRESET_ID;
+    return settings.selectedPresetId !== APPLICATION_DEFAULT_USER_AGENT_PRESET_ID;
   }
 
   private hasIdentity(identityId: string, settings: BrowserUserAgentSettings): boolean {

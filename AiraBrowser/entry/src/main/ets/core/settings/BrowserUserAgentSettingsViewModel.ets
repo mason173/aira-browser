@@ -6,9 +6,11 @@ import {
 } from '../../common/models/BrowserModels';
 import {
   BrowserUserAgentPreset,
+  BrowserUserAgentPresetKind,
+  BrowserDesktopSiteMode,
   BrowserUserAgentService,
   ARKWEB_ORIGINAL_USER_AGENT_PRESET_ID,
-  SYSTEM_DEFAULT_USER_AGENT_PRESET_ID
+  APPLICATION_DEFAULT_USER_AGENT_PRESET_ID
 } from '../../services/web/BrowserUserAgentService';
 import { resolveAppResourceText } from '../resources/AppResourceText';
 
@@ -16,7 +18,9 @@ export interface BrowserUserAgentOptionView {
   id: BrowserUserAgentPresetId;
   title: ResourceStr;
   subtitle: ResourceStr;
-  mode: BrowserUserAgentMode;
+  kind: BrowserUserAgentPresetKind;
+  presentationMode: BrowserDesktopSiteMode;
+  selectionMode: BrowserUserAgentMode;
   icon: Resource;
 }
 
@@ -24,7 +28,7 @@ export interface BrowserCustomUserAgentOptionView {
   id: string;
   title: string;
   subtitle: ResourceStr;
-  mode: BrowserUserAgentMode;
+  selectionMode: BrowserUserAgentMode;
   userAgent: string;
 }
 
@@ -47,9 +51,16 @@ export class BrowserUserAgentSettingsViewModel {
       customUserAgent: normalized.customUserAgent,
       selectedCustomUserAgentId: normalized.selectedCustomUserAgentId,
       customUserAgents: this.buildCustomUserAgentOptions(normalized.customUserAgents),
-      mobileOptions: this.buildOptions(normalized, 'mobile'),
-      desktopOptions: this.buildOptions(normalized, 'desktop')
+      mobileOptions: this.buildOptions('mobile'),
+      desktopOptions: this.buildOptions('desktop')
     };
+  }
+
+  resolveDesktopPresentationOptions(state: BrowserUserAgentSettingsViewState): BrowserUserAgentOptionView[] {
+    // Automatic/native choices are neutral; their phone UI grouping does not restrict availability.
+    return state.mobileOptions.filter((option: BrowserUserAgentOptionView): boolean =>
+      option.presentationMode === 'default'
+    ).concat(state.desktopOptions);
   }
 
   /**
@@ -72,17 +83,19 @@ export class BrowserUserAgentSettingsViewModel {
   }
 
   private buildOptions(
-    settings: BrowserUserAgentSettings,
-    mode: BrowserUserAgentMode
+    mode: 'mobile' | 'desktop'
   ): BrowserUserAgentOptionView[] {
     return this.service.getPresets()
-      .filter((preset: BrowserUserAgentPreset) => preset.mode === mode)
+      .filter((preset: BrowserUserAgentPreset) => preset.presentationMode === mode ||
+        (mode === 'mobile' && preset.presentationMode === 'default'))
       .map((preset: BrowserUserAgentPreset) => {
         const option: BrowserUserAgentOptionView = {
           id: preset.id,
           title: this.resolvePresetTitle(preset.id),
           subtitle: this.resolveOptionSubtitle(preset),
-          mode: preset.mode,
+          kind: preset.kind,
+          presentationMode: preset.presentationMode,
+          selectionMode: this.service.resolvePresetSettingsMode(preset.id),
           icon: this.resolveOptionIcon(preset)
         };
         return option;
@@ -91,7 +104,7 @@ export class BrowserUserAgentSettingsViewModel {
 
   private resolvePresetTitle(presetId: BrowserUserAgentPresetId): ResourceStr {
     switch (presetId) {
-      case SYSTEM_DEFAULT_USER_AGENT_PRESET_ID:
+      case APPLICATION_DEFAULT_USER_AGENT_PRESET_ID:
         return $r('app.string.web_ua_preset_aira_default');
       case ARKWEB_ORIGINAL_USER_AGENT_PRESET_ID:
         return $r('app.string.web_ua_preset_arkweb_original');
@@ -116,7 +129,7 @@ export class BrowserUserAgentSettingsViewModel {
 
   private resolvePresetSubtitle(presetId: BrowserUserAgentPresetId): ResourceStr {
     switch (presetId) {
-      case SYSTEM_DEFAULT_USER_AGENT_PRESET_ID:
+      case APPLICATION_DEFAULT_USER_AGENT_PRESET_ID:
         return $r('app.string.web_ua_preset_aira_default_desc');
       case ARKWEB_ORIGINAL_USER_AGENT_PRESET_ID:
         return $r('app.string.web_ua_preset_arkweb_original_desc');
@@ -141,11 +154,11 @@ export class BrowserUserAgentSettingsViewModel {
 
   private resolveOptionSubtitle(preset: BrowserUserAgentPreset): ResourceStr {
     const presetSubtitle = this.resolvePresetSubtitle(preset.id);
-    if (preset.id === SYSTEM_DEFAULT_USER_AGENT_PRESET_ID) {
+    if (preset.presentationMode === 'default') {
       return presetSubtitle;
     }
     const presetSubtitleText = this.resolveResourceText(presetSubtitle);
-    if (preset.mode === 'desktop') {
+    if (preset.presentationMode === 'desktop') {
       return $r('app.string.web_ua_option_desktop_note', presetSubtitleText);
     }
     return $r('app.string.web_ua_option_mobile_note', presetSubtitleText);
@@ -159,7 +172,7 @@ export class BrowserUserAgentSettingsViewModel {
     if (preset.id === ARKWEB_ORIGINAL_USER_AGENT_PRESET_ID) {
       return $r('sys.symbol.compass_circle_fill');
     }
-    if (preset.mode === 'desktop') {
+    if (preset.presentationMode === 'desktop') {
       return $r('sys.symbol.rectangle_on_rectangle_fill');
     }
     return $r('sys.symbol.phone_fill');
@@ -171,7 +184,7 @@ export class BrowserUserAgentSettingsViewModel {
         id: record.id,
         title: record.name,
         subtitle: this.resolveCustomUserAgentSubtitle(record.userAgent),
-        mode: 'custom',
+        selectionMode: 'custom',
         userAgent: record.userAgent
       };
       return option;

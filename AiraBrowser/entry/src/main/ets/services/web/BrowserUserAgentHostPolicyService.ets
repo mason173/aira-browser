@@ -71,7 +71,7 @@ export class BrowserUserAgentHostPolicyService {
   }
 
   applyApplicationUserAgentForSettings(
-    settings: BrowserUserAgentSettings
+    _settings: BrowserUserAgentSettings
   ): BrowserUserAgentApplicationPolicyApplyResult {
     const hostPolicyResult = this.applyHostCompatibilityPolicy();
     let systemDefaultUserAgent = '';
@@ -79,14 +79,13 @@ export class BrowserUserAgentHostPolicyService {
       systemDefaultUserAgent = webview.WebviewController.getDefaultUserAgent();
     } catch (_error) {
     }
-    const applicableDefaultUserAgent = this.userAgentService.resolveApplicationDefaultUserAgent(
-      settings,
+    const applicableDefaultUserAgent = this.userAgentService.resolveApplicationDefault(
       systemDefaultUserAgent,
       this.applicationFamily
-    );
+    ).userAgent;
     const applicableDefaultMessage = this.applicationFamily === 'mobile'
       ? 'Phone Shell uses the Android-compatible Aira Default through the per-controller Browsing Identity runtime.'
-      : 'Large-Screen Shell uses the desktop default through the per-controller Browsing Identity runtime.';
+      : 'Large-Screen Shell defaults to untouched ArkWeb identity through the per-controller Browsing Identity runtime.';
     return {
       applied: hostPolicyResult.applied,
       userAgent: applicableDefaultUserAgent,

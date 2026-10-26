@@ -134,18 +134,51 @@ lowest-priority applicable default family:
 | Physical/presentation state | Default webpage identity | Higher-priority choices |
 |---|---|---|
 | Phone + Phone Shell (folded or ordinary phone) | Bounded Android-compatible Aira mobile identity | Mandatory Host, tab, exact-Origin, global, and explicit identities remain authoritative |
-| Phone + Large-Screen Shell (expanded foldable or manual Desktop mode) | Aira desktop compatibility identity | Mandatory Host, tab, exact-Origin, global, and explicit identities remain authoritative |
-| Tablet / 2-in-1 / PC / desktop | Aira desktop compatibility identity | Window resize, split screen, orientation, and pointer/keyboard changes |
+| Phone + Large-Screen Shell (expanded foldable or manual Desktop mode) | Untouched ArkWeb native identity | Mandatory Host, tab, exact-Origin, global, and explicit identities remain authoritative |
+| Tablet / 2-in-1 / PC / desktop default family | Untouched ArkWeb native identity | Mandatory Host, tab, exact-Origin, global, and explicit identities remain authoritative |
 
 `arkweb_original` remains an explicit `system_untouched` identity. It is not the ordinary physical-phone default because
 verified consumer sites can reject the native OpenHarmony token even with a correct mobile viewport. It remains the
-escape hatch for native engine identity, login compatibility, or BFCache-sensitive browsing.
+escape hatch for native engine identity, login compatibility, or BFCache-sensitive browsing. Large-Screen Shell now
+uses the same untouched-native execution path as its automatic default, retaining `aira_default_desktop` as a distinct
+policy identity. On 2026-10-27 the user verified that `https://next.bgm.tv/demo/login` passed Cloudflare verification on
+the same HarmonyOS PC emulator after switching from the previous fixed Windows Chrome default to ArkWeb Original.
+This motivates the default change; it does not establish that every challenge will pass. Native defaults keep system
+Client Hints and must not synthesize Windows/Chrome metadata or write the platform UA text through the custom setter.
 
 The Android-compatible phone default is a custom Controller identity and therefore accepts ArkWeb's observed BFCache
 tradeoff. This is an Aira product decision, not a Huawei platform guarantee. A foldable phone's active Shell family is
 an explicit input to its applicable default only: `phone` selects the mobile identity and `large_screen` selects the
-desktop identity. Explicit Host/tab/Origin/global choices still win, and Shell changes never rewrite a committed
+untouched ArkWeb identity. Explicit Host/tab/Origin/global choices still win, and Shell changes never rewrite a committed
 navigation transaction; they request a new UA runtime transaction for the active page.
+
+## Catalog And Candidate Boundaries
+
+The 2026-10-27 behavior-preserving cleanup separates catalog identity `kind` from `presentationMode`.
+Automatic and native presets have neutral presentation; concrete presets describe mobile or desktop presentation.
+Custom identities and Follow Global remain distinct catalog kinds. The settings ViewModel projects these choices
+into the existing phone and desktop lists; neutral identities are available on both presentations.
+
+The stored `system_default` ID still means Aira's automatic default. Its code constant is named
+`APPLICATION_DEFAULT_USER_AGENT_PRESET_ID` to distinguish it from `arkweb_original`. Existing preference fields,
+custom IDs, and exact-Origin records are unchanged. `resolvePresetSettingsMode` and UI `selectionMode` retain the old
+mobile/desktop/custom selection encoding only at the storage/UI boundary. In particular, explicit native selections
+retain their existing managed-Host presentation mapping; changing that mapping is a separate behavior change.
+
+`BrowserBrowsingIdentityPolicyCoordinator` alone assembles the scoped candidates, and
+`BrowserBrowsingIdentityDecisionService` alone selects precedence. `BrowserUserAgentService` builds one mandatory,
+scoped, global, or applicable-default identity at a time. An unavailable scoped identity returns `undefined`; it must
+not silently substitute a global/default identity under an exact-Origin or current-tab label. The old multi-scope
+`resolveUserAgent`, its duplicated Origin matching, and unused `resolveEffectiveUserAgent` fallback are removed.
+Current-tab choices remain tab-local and carry no saved-Origin affinity target; exact-Origin choices carry their
+canonical Origin. The Host catalog owns matching before a mandatory candidate is constructed.
+
+The legacy resolution `mode`/`source` and compiled runtime profiles remain stable in this pass. Policy provenance is
+`winningSource`; native execution is `profile.uaStringMode`. No runtime setter, navigation ordering, redirect affinity,
+history ledger, controller replacement, Client Hints value, or fixed compatibility UA is changed by this cleanup.
+Regression checks cover legacy settings round-trips, unavailable candidates, private/profile/Origin isolation,
+neutral UI choices, host precedence, and navigation/history behavior. A temporary comparison against pre-cleanup code
+also checks the complete decisions across 16,464 combinations of family, global/site/tab choice, host, and privacy.
 
 ## Navigation Identity Transaction
 

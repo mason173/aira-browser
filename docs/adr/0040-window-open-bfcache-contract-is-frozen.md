@@ -847,6 +847,12 @@ Browsing Identity runtime then reloads or replaces only the active Web Controlle
 exact-Origin, global, and user-selected identities remain higher priority. No site viewport, CSS breakpoint, DOM, or
 layout behavior is changed by this revision.
 
+The 2026-10-27 default revision supersedes the desktop-compatibility choice in the paragraph above: Large-Screen Shell
+and the tablet/desktop default family now use untouched ArkWeb identity. Phone Shell keeps its Android-compatible
+default. The explicit choices, Host compatibility rules, runtime transition ordering, and committed history identity
+contract remain unchanged; see ADR 0073. This preserves the native path rather than writing ArkWeb's default UA text
+back through `setCustomUserAgent`.
+
 ## HTTPS-First confirmed HTTP presentation-host redirect repair
 
 On 2026-08-28 the physical-phone repro for `http://www.dawenks.com/` showed that the user-confirmed HTTP load was issued

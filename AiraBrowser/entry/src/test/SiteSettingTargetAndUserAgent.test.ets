@@ -1,3 +1,5 @@
+import { BrowserBrowsingIdentityPolicyCoordinator } from '../main/ets/core/browser/BrowserBrowsingIdentityPolicyCoordinator';
+import { BrowserBrowsingIdentityDecisionService } from '../main/ets/services/web/BrowserBrowsingIdentityDecisionService';
 import { describe, expect, it } from '@ohos/hypium';
 import { DEFAULT_BROWSER_PROFILE_ID } from '../main/ets/common/models/BrowserModels';
 import {
@@ -8,7 +10,6 @@ import { SiteIdentityService } from '../main/ets/services/web/SiteIdentityServic
 import {
   AIRA_DEFAULT_BROWSER_IDENTITY_ID,
   BrowserUserAgentService,
-  BrowserUserAgentSiteOverride,
   CHROME_ANDROID_USER_AGENT,
   DEFAULT_BROWSER_USER_AGENT_SETTINGS,
   DESKTOP_CHROME_USER_AGENT_PRESET_ID
@@ -68,45 +69,34 @@ export default function siteSettingTargetAndUserAgentTest(): void {
       expect(repository.findEntry(target, DEFAULT_BROWSER_PROFILE_ID) === undefined).assertTrue();
     });
 
-    it('resolves temporary, exact-Origin and explicit-global identities in order', 0, () => {
+    it('resolves temporary, exact-Origin and explicit-global identities through the policy owner', 0, async () => {
       const identityService = new SiteIdentityService();
       const service = new BrowserUserAgentService();
       const target = identityService.resolveSiteSettingTarget('http://server.local:8080')!;
-      const siteOverrides: BrowserUserAgentSiteOverride[] = [{
-        profileId: DEFAULT_BROWSER_PROFILE_ID,
-        target: target,
-        identityId: DESKTOP_CHROME_USER_AGENT_PRESET_ID,
-        updatedAt: 1
-      }];
-
-      const exact = service.resolveUserAgent({
-        settings: DEFAULT_BROWSER_USER_AGENT_SETTINGS,
-        systemDefaultUserAgent: 'ArkWeb/System',
-        pageUrl: 'http://server.local:8080/login',
-        siteSettingTarget: target,
-        siteOverrides: siteOverrides,
-        profileId: DEFAULT_BROWSER_PROFILE_ID
+      const repository = new SavedSiteSettingRepository(new InMemorySavedSiteSettingStorageAdapter());
+      await repository.initialize();
+      await repository.commit(target, DEFAULT_BROWSER_PROFILE_ID, {
+        userAgentIdentityId: DESKTOP_CHROME_USER_AGENT_PRESET_ID
+      }, 0);
+      let settings = DEFAULT_BROWSER_USER_AGENT_SETTINGS;
+      const coordinator = new BrowserBrowsingIdentityPolicyCoordinator(
+        { getSettings: () => settings }, repository, service,
+        new BrowserBrowsingIdentityDecisionService(), {
+          resolveApplicationFamily: () => 'mobile',
+          resolveMandatoryCompatibility: () => undefined
+        }
+      );
+      const resolve = (url: string) => coordinator.resolve({
+        tabId: 'tab', currentUrl: url, profileId: DEFAULT_BROWSER_PROFILE_ID,
+        privateBrowsing: false, systemDefaultUserAgent: 'ArkWeb/System'
       });
-      const otherPort = service.resolveUserAgent({
-        settings: DEFAULT_BROWSER_USER_AGENT_SETTINGS,
-        systemDefaultUserAgent: 'ArkWeb/System',
-        pageUrl: 'http://server.local:9090/login',
-        siteOverrides: siteOverrides,
-        profileId: DEFAULT_BROWSER_PROFILE_ID
-      });
-      const temporary = service.resolveUserAgent({
-        settings: DEFAULT_BROWSER_USER_AGENT_SETTINGS,
-        systemDefaultUserAgent: 'ArkWeb/System',
-        pageUrl: 'http://server.local:8080/login',
-        siteOverrides: siteOverrides,
-        temporaryIdentityId: AIRA_DEFAULT_BROWSER_IDENTITY_ID,
-        profileId: DEFAULT_BROWSER_PROFILE_ID
-      });
-      const explicitGlobal = service.resolveUserAgent({
-        settings: service.buildPresetSettings('mobile_chrome_android', DEFAULT_BROWSER_USER_AGENT_SETTINGS),
-        systemDefaultUserAgent: 'ArkWeb/System',
-        pageUrl: 'https://compat.example/'
-      });
+      const exact = resolve('http://server.local:8080/login');
+      const otherPort = resolve('http://server.local:9090/login');
+      coordinator.setCurrentTabIdentity('tab', AIRA_DEFAULT_BROWSER_IDENTITY_ID);
+      const temporary = resolve('http://server.local:8080/login');
+      coordinator.releaseTab('tab');
+      settings = service.buildPresetSettings('mobile_chrome_android', DEFAULT_BROWSER_USER_AGENT_SETTINGS);
+      const explicitGlobal = resolve('https://compat.example/');
 
       expect(exact.source).assertEqual('site_setting');
       expect(exact.identityId ?? '').assertEqual(DESKTOP_CHROME_USER_AGENT_PRESET_ID);

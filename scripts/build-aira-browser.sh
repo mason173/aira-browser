@@ -551,6 +551,7 @@ fi
 "${NODE_BIN}" --test "${REPO_ROOT}/scripts/check-aira-window-title-drag.cjs"
 "${NODE_BIN}" "${REPO_ROOT}/scripts/check-aira-search-style-isolation.cjs"
 "${NODE_BIN}" "${REPO_ROOT}/scripts/check-aira-search-list-viewport.cjs"
+"${NODE_BIN}" --test "${REPO_ROOT}/scripts/check-aira-user-agent-policy.cjs"
 AIRA_NODE_BIN="${NODE_BIN}" "${REPO_ROOT}/scripts/check-aira-downloads.sh"
 "${NODE_BIN}" --test "${REPO_ROOT}/scripts/check-aira-adblock-document-start.cjs"
 "${NODE_BIN}" --test "${REPO_ROOT}/scripts/check-aira-adblock-download-response.cjs"

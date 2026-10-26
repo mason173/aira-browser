@@ -231,7 +231,7 @@ export default function browserBrowsingIdentityPolicyCoordinatorTest(): void {
       expect(decision.userAgent).assertEqual(CHROME_ANDROID_USER_AGENT);
     });
 
-    it('physical phone, tablet, and desktop select their stable default identities', 0, async () => {
+    it('phone keeps its compatible default while tablet and desktop default to untouched ArkWeb', 0, async () => {
       const phone = await createPolicyFixture(DEFAULT_BROWSER_USER_AGENT_SETTINGS, 'mobile');
       const tablet = await createPolicyFixture(DEFAULT_BROWSER_USER_AGENT_SETTINGS, 'tablet');
       const desktop = await createPolicyFixture(DEFAULT_BROWSER_USER_AGENT_SETTINGS, 'desktop');
@@ -242,8 +242,14 @@ export default function browserBrowsingIdentityPolicyCoordinatorTest(): void {
 
       expect(phoneDecision.winningSource).assertEqual('applicable_default');
       expect(phoneDecision.userAgent).assertEqual(AIRA_COMPAT_MOBILE_USER_AGENT);
-      expect(tabletDecision.userAgent).assertEqual(AIRA_COMPAT_DESKTOP_USER_AGENT);
-      expect(desktopDecision.userAgent).assertEqual(AIRA_COMPAT_DESKTOP_USER_AGENT);
+      expect(phoneDecision.profile.uaStringMode).assertEqual('known_preset');
+      expect(tabletDecision.winningSource).assertEqual('applicable_default');
+      expect(tabletDecision.userAgent).assertEqual('ArkWeb/System');
+      expect(tabletDecision.profile.uaStringMode).assertEqual('system_untouched');
+      expect(desktopDecision.winningSource).assertEqual('applicable_default');
+      expect(desktopDecision.userAgent).assertEqual('ArkWeb/System');
+      expect(desktopDecision.profile.uaStringMode).assertEqual('system_untouched');
+      expect(desktopDecision.profile.clientHintsMode).assertEqual('system');
     });
 
     it('decision carries selected evidence, snapshot identity, and execution fingerprint', 0, async () => {

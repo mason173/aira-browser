@@ -5890,7 +5890,7 @@
     },
     {
       "name": "web_ua_preset_aira_default_desc",
-      "value": "使用 ArkWeb 系統網頁標識，可按站點選擇相容標識"
+      "value": "使用 Aira 預設網頁標識，可按網站單獨設定"
     },
     {
       "name": "web_ua_preset_arkweb_original",

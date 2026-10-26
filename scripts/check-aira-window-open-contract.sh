@@ -490,15 +490,24 @@ require_literal "${UA_POLICY_SERVICE}" \
   'must derive the foldable/manual presentation UA family from the active Shell profile.'
 require_literal "${UA_POLICY_SERVICE}" \
   "if (applicationFamily !== 'mobile') {" \
-  'must give physical tablet/desktop devices a concrete desktop default identity.'
+  'must keep the large-screen applicable default separate from the compatible phone default.'
 require_literal "${UA_POLICY_SERVICE}" \
   'AIRA_DESKTOP_DEFAULT_BROWSER_IDENTITY_ID' \
   'must keep the automatic desktop default distinguishable from explicit user presets.'
+forbid_regex "${UA_POLICY_SERVICE}" \
+  'resolveEffectiveUserAgent\(|resolveUserAgent\(|siteOverrides|temporaryIdentityId' \
+  'must build individual identities without a second scope-precedence or legacy effective-UA resolver.'
+require_literal "${UA_POLICY_SERVICE}" \
+  "export type BrowserUserAgentPresetKind = 'application_default' | 'native' | 'preset';" \
+  'must distinguish native/automatic identity selection from mobile/desktop presentation.'
+require_literal "${UA_IDENTITY_POLICY_COORDINATOR}" \
+  'this.userAgentService.resolveIdentityUserAgent({' \
+  'must build each scoped candidate explicitly before the single Decision owner selects precedence.'
 require_literal "${UA_POLICY_SERVICE}" \
   'userAgent: systemDefaultUserAgent.trim(),' \
   'must keep the explicit ArkWeb-original native identity path available.'
 require_literal "${UA_POLICY_SERVICE}" \
-  'userAgent: AIRA_COMPAT_MOBILE_USER_AGENT,' \
+  'userAgent: AIRA_COMPAT_MOBILE_USER_AGENT' \
   'must keep Aira Default distinct from ArkWeb Original by resolving it to the Android-compatible mobile identity.'
 require_literal "${UA_HOST_POLICY_SERVICE}" \
   "private applicationFamily: BrowserUserAgentApplicationFamily = 'mobile';" \
@@ -514,7 +523,7 @@ require_literal "${UA_HOST_POLICY_SERVICE}" \
   'must resolve complete host-UA profile groups through the compatibility catalog owner.'
 require_order "${UA_HOST_POLICY_SERVICE}" \
   'const hostPolicyResult = this.applyHostCompatibilityPolicy();' \
-  'const applicableDefaultUserAgent = this.userAgentService.resolveApplicationDefaultUserAgent(' \
+  'const applicableDefaultUserAgent = this.userAgentService.resolveApplicationDefault(' \
   'must apply the complete Host-UA catalog before resolving the physical-device applicable default.'
 require_order "${UA_HOST_POLICY_SERVICE}" \
   'if (policyKey === this.lastAppliedHostPolicyKey) {' \

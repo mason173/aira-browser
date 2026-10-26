@@ -205,12 +205,8 @@ export class BrowserWebBottomSafeAreaCoordinator {
   private install(session: BottomSafeAreaDocumentSession): void {
     session.running = true;
     try {
-      // Temporary [DEBUG-web-freeze-9f2a]. Name the injected source so trace and
-      // long-animation-frame attribution can identify it. Remove with the freeze probe.
       const script = WebBottomSafeAreaScriptService.buildInstallScript(session.token);
-      const named = script.includes('//# sourceURL=') ?
-        script : `${script}\n//# sourceURL=aira-injected-bottom-safe-area.js\n`;
-      void session.controller.runJavaScript(named)
+      void session.controller.runJavaScript(script)
         .catch(() => {
           // Retry only at the next lifecycle event, never through a native polling loop.
           if (this.sessions.get(session.tabId) === session) session.running = false;

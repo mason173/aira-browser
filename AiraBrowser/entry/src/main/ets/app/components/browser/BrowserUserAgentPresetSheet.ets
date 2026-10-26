@@ -166,7 +166,7 @@ export struct BrowserUserAgentPresetSheet {
           if (index < options.length - 1) {
             SettingsGroupDivider({ dividerColor: this.storedDividerColor })
           }
-        }, (option: BrowserUserAgentOptionView) => `${option.mode}:${option.id}:${this.isSelected(option) ? 'selected' : 'idle'}`)
+        }, (option: BrowserUserAgentOptionView) => `${option.selectionMode}:${option.id}:${this.isSelected(option) ? 'selected' : 'idle'}`)
       }
     }
     .width('100%')
@@ -187,7 +187,7 @@ export struct BrowserUserAgentPresetSheet {
             if (index < this.customOptions.length - 1) {
               SettingsGroupDivider({ dividerColor: this.storedDividerColor })
             }
-          }, (option: BrowserCustomUserAgentOptionView) => `${option.mode}:${option.id}:${this.isCustomSelected(option) ? 'selected' : 'idle'}`)
+          }, (option: BrowserCustomUserAgentOptionView) => `${option.selectionMode}:${option.id}:${this.isCustomSelected(option) ? 'selected' : 'idle'}`)
         }
       }
       .width('100%')
@@ -203,7 +203,7 @@ export struct BrowserUserAgentPresetSheet {
       isSelected: this.isCustomSelected(option),
       isEnabled: true,
       radioGroup: BROWSER_USER_AGENT_PRESET_RADIO_GROUP,
-      radioValue: `${option.mode}:${option.id}`,
+      radioValue: `${option.selectionMode}:${option.id}`,
       primaryTextColor: this.storedPrimaryTextColor,
       secondaryTextColor: this.storedSecondaryTextColor,
       pressedBackgroundColor: this.storedPressedBackgroundColor,
@@ -223,7 +223,7 @@ export struct BrowserUserAgentPresetSheet {
       isSelected: this.isSelected(option),
       isEnabled: true,
       radioGroup: BROWSER_USER_AGENT_PRESET_RADIO_GROUP,
-      radioValue: `${option.mode}:${option.id}`,
+      radioValue: `${option.selectionMode}:${option.id}`,
       primaryTextColor: this.storedPrimaryTextColor,
       secondaryTextColor: this.storedSecondaryTextColor,
       pressedBackgroundColor: this.storedPressedBackgroundColor,
@@ -235,7 +235,7 @@ export struct BrowserUserAgentPresetSheet {
   }
 
   private isSelected(option: BrowserUserAgentOptionView): boolean {
-    return this.selectedMode === option.mode && this.selectedPresetId === option.id;
+    return this.selectedMode === option.selectionMode && this.selectedPresetId === option.id;
   }
 
   private isCustomSelected(option: BrowserCustomUserAgentOptionView): boolean {

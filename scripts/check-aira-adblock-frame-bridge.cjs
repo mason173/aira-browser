@@ -40,7 +40,7 @@ const { HostedWebNodeNativeBridge, buildTrackedHostedWebNodeConfig, registeredMe
   'const HOSTED_WEB_NODE_NOOP_USER_SCRIPT_BRIDGE = {};\n' +
   productionSection('const HOSTED_WEB_NATIVE_BRIDGE_METHODS:', 'const HOSTED_WEB_NATIVE_BRIDGE_ALIAS_SCRIPT:') +
   productionSection('class HostedWebNodeNativeBridge {', 'const HOSTED_WEB_NODE_NOOP_NATIVE_BRIDGE:') +
-  productionSection('function buildTrackedHostedWebNodeConfig(', 'function hostedWebTouchPhase(') +
+  productionSection('function buildTrackedHostedWebNodeConfig(', 'function resolveHostedWebNestedScrollOptions(') +
   '\nmodule.exports = { HostedWebNodeNativeBridge, buildTrackedHostedWebNodeConfig, ' +
   'registeredMethods: HOSTED_WEB_NATIVE_BRIDGE_METHODS };', hostPath
 );

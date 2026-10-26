@@ -109,12 +109,7 @@ function emptyCandidate(source: BrowserBrowsingIdentityPrecedenceSource): Browse
 function buildDecision(presetId: string, snapshotKey: string): BrowserBrowsingIdentityDecision {
   const userAgentService = new BrowserUserAgentService();
   const settings = userAgentService.buildPresetSettings(presetId, DEFAULT_BROWSER_USER_AGENT_SETTINGS);
-  const resolution: BrowserUserAgentResolution = userAgentService.resolveUserAgent({
-    settings: settings,
-    systemDefaultUserAgent: 'ArkWeb/System',
-    applicationFamily: 'mobile',
-    pageUrl: 'https://example.com/'
-  });
+  const resolution: BrowserUserAgentResolution = userAgentService.resolveGlobalUserAgent(settings, 'ArkWeb/System', 'mobile');
   const selected: BrowserBrowsingIdentityCandidate = {
     source: 'global',
     identityId: resolution.profile.identityId,

@@ -19,10 +19,7 @@ import {
   BrowserUserAgentSettingsCoordinator,
   BrowserUserAgentSettingsMutationResult
 } from '../../../core/settings/BrowserUserAgentSettingsCoordinator';
-import {
-  BrowserUserAgentService,
-  SYSTEM_DEFAULT_USER_AGENT_PRESET_ID
-} from '../../../services/web/BrowserUserAgentService';
+import { BrowserUserAgentService } from '../../../services/web/BrowserUserAgentService';
 import {
   sharedBrowserUserAgentSettingsRepository,
   sharedSavedSiteSettingRepository
@@ -194,7 +191,8 @@ export struct BrowserUserAgentSettingsScreen {
           }
           this.buildSummarySection()
           if (this.desktopPresentation) {
-            this.buildOptionSection($r('app.string.site_version_preset_desktop_group'), this.resolveDesktopPresentationOptions())
+            this.buildOptionSection($r('app.string.site_version_preset_desktop_group'),
+              this.viewModel.resolveDesktopPresentationOptions(this.viewState))
           } else {
             this.buildMobileSection()
             this.buildDesktopSection()
@@ -258,19 +256,6 @@ export struct BrowserUserAgentSettingsScreen {
   @Builder
   private buildDesktopSection() {
     this.buildOptionSection($r('app.string.site_version_preset_desktop_group'), this.viewState.desktopOptions)
-  }
-
-  private resolveDesktopPresentationOptions(): BrowserUserAgentOptionView[] {
-    const options: BrowserUserAgentOptionView[] = [];
-    this.viewState.mobileOptions.forEach((option: BrowserUserAgentOptionView) => {
-      if (option.id === SYSTEM_DEFAULT_USER_AGENT_PRESET_ID) {
-        options.push(option);
-      }
-    });
-    this.viewState.desktopOptions.forEach((option: BrowserUserAgentOptionView) => {
-      options.push(option);
-    });
-    return options;
   }
 
   @Builder
@@ -682,7 +667,7 @@ export struct BrowserUserAgentSettingsScreen {
       if (this.desktopPresentation) {
         SettingsDesktopOptionRow({
           title: option.title,
-          isSelected: this.isPresetSelected(option.id, option.mode),
+          isSelected: this.isPresetSelected(option.id, option.selectionMode),
           isEnabled: !this.isSaving,
           radioGroup: 'browser-user-agent-presets',
           radioValue: option.id,
@@ -699,7 +684,7 @@ export struct BrowserUserAgentSettingsScreen {
           title: option.title,
           helperText: option.subtitle,
           rowPosition: this.resolveRowPosition(index, total),
-          isSelected: this.isPresetSelected(option.id, option.mode),
+          isSelected: this.isPresetSelected(option.id, option.selectionMode),
           isEnabled: !this.isSaving,
           onAction: (): void => {
             this.confirmAndSavePreset(option.id);

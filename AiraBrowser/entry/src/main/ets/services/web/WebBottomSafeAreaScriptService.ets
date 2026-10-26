@@ -372,42 +372,35 @@ export class WebBottomSafeAreaScriptService {
         if (resize) { resize.disconnect(); if (candidate) resize.observe(candidate); }
       }
       function flush() {
-        var costStarted = Date.now();
-        try {
-          timer = 0;
-          if (!active || !pending || touched) return;
-          if (Date.now() - lastInput < quietMs) { queue(120); return; }
-          var relevant = force || candidate && !candidate.isConnected || interestingRoots();
-          roots = [];
-          force = false;
-          pending = false;
-          if (!relevant) return;
-          lastScan = Date.now();
-          var found = null;
-          var result = sample(candidate, function(node) { found = node; });
-          if (result === 'deferred' || result === 'unavailable') {
-            // At most two recovery attempts per invalidation, never an idle polling loop.
-            if (retries++ < 2) { force = pending = true; queue(500); }
-            return;
-          }
-          if (result === 'detected') {
-            missing = 0;
-            observeCandidate(found);
-            report(result);
-          } else if (result === 'absent') {
-            // Confirm removal once to avoid reacting to a framework's transient replacement.
-            if (candidate && ++missing < 2) { force = pending = true; queue(300); return; }
-            missing = 0;
-            observeCandidate(null);
-            report(result);
-          } else report(result);
-        } finally {
-          if (window.__airaFreezeCostAdd) window.__airaFreezeCostAdd('safeFlush', costStarted);
+        timer = 0;
+        if (!active || !pending || touched) return;
+        if (Date.now() - lastInput < quietMs) { queue(120); return; }
+        var relevant = force || candidate && !candidate.isConnected || interestingRoots();
+        roots = [];
+        force = false;
+        pending = false;
+        if (!relevant) return;
+        lastScan = Date.now();
+        var found = null;
+        var result = sample(candidate, function(node) { found = node; });
+        if (result === 'deferred' || result === 'unavailable') {
+          // At most two recovery attempts per invalidation, never an idle polling loop.
+          if (retries++ < 2) { force = pending = true; queue(500); }
+          return;
         }
+        if (result === 'detected') {
+          missing = 0;
+          observeCandidate(found);
+          report(result);
+        } else if (result === 'absent') {
+          // Confirm removal once to avoid reacting to a framework's transient replacement.
+          if (candidate && ++missing < 2) { force = pending = true; queue(300); return; }
+          missing = 0;
+          observeCandidate(null);
+          report(result);
+        } else report(result);
       }
       function onMutation(records) {
-        var costStarted = Date.now();
-        try {
         if (!active) return;
         var relevant = false;
         // Callbacks only inspect identity/attributes and collect roots, never style or geometry.
@@ -436,9 +429,6 @@ export class WebBottomSafeAreaScriptService {
         // A truncated batch merits one bounded fallback; do not walk the remaining records.
         if (!candidate && records.length > 48) force = relevant = true;
         if (relevant) invalidate(force);
-        } finally {
-          if (window.__airaFreezeCostAdd) window.__airaFreezeCostAdd('safeMut', costStarted);
-        }
       }
       function input(event) {
         lastInput = Date.now();

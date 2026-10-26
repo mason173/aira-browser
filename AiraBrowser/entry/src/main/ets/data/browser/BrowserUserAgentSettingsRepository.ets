@@ -8,7 +8,7 @@ import {
 import {
   BrowserUserAgentService,
   DEFAULT_BROWSER_USER_AGENT_SETTINGS,
-  SYSTEM_DEFAULT_USER_AGENT_PRESET_ID
+  APPLICATION_DEFAULT_USER_AGENT_PRESET_ID
 } from '../../services/web/BrowserUserAgentService';
 
 const PREFERENCES_NAME: string = 'aira_browser_user_agent';
@@ -105,7 +105,7 @@ export class BrowserUserAgentSettingsRepository implements BrowserUserAgentSetti
       return this.getSettings();
     }
     const removingSelectedRecord = this.settings.selectedCustomUserAgentId === normalizedRecordId;
-    const fallbackSettings = this.service.buildPresetSettings(SYSTEM_DEFAULT_USER_AGENT_PRESET_ID, this.settings);
+    const fallbackSettings = this.service.buildPresetSettings(APPLICATION_DEFAULT_USER_AGENT_PRESET_ID, this.settings);
     const nextSettings: BrowserUserAgentSettings = {
       defaultMode: removingSelectedRecord ? fallbackSettings.defaultMode : this.settings.defaultMode,
       selectedPresetId: removingSelectedRecord ? fallbackSettings.selectedPresetId : this.settings.selectedPresetId,
