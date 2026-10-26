@@ -46,12 +46,27 @@ export interface BrowserDesktopBookmarkBarRootAction {
   scope: BookmarkStorageScope;
 }
 
+export interface BrowserDesktopBookmarkBarReorderAction {
+  kind: 'reorder_node';
+  scope: BookmarkStorageScope;
+  nodeId: string;
+  anchorId: string;
+  placement: 'before' | 'after';
+}
+
 export type BrowserDesktopBookmarkBarAction =
   BrowserDesktopBookmarkBarManagerAction |
   BrowserDesktopBookmarkBarOpenAction |
   BrowserDesktopBookmarkBarNodeAction |
   BrowserDesktopBookmarkBarVisibilityAction |
-  BrowserDesktopBookmarkBarRootAction;
+  BrowserDesktopBookmarkBarRootAction |
+  BrowserDesktopBookmarkBarReorderAction;
+
+export interface BrowserDesktopBookmarkBarDropTarget {
+  anchorId: string;
+  placement: 'before' | 'after';
+  indicatorLeftVp: number;
+}
 
 export interface BrowserDesktopBookmarkBarSnapshot {
   scope: BookmarkStorageScope;
@@ -112,6 +127,32 @@ export class BrowserDesktopBookmarkBarViewModel {
     }
     const estimatedWidth = BAR_ITEM_CHROME_WIDTH_VP + Math.max(1, titleUnits) * BAR_ITEM_TEXT_UNIT_WIDTH_VP;
     return Math.min(BAR_ITEM_MAX_WIDTH_VP, Math.max(BAR_ITEM_MIN_WIDTH_VP, estimatedWidth));
+  }
+
+  resolveDropTarget(
+    snapshot: BrowserDesktopBookmarkBarSnapshot,
+    offsetXVp: number
+  ): BrowserDesktopBookmarkBarDropTarget | undefined {
+    if (!Number.isFinite(offsetXVp) || snapshot.visibleItems.length === 0) {
+      return undefined;
+    }
+    let left = BAR_HORIZONTAL_INSET_VP + BAR_LEADING_ENTRY_WIDTH_VP + BAR_ITEM_GAP_VP;
+    for (const node of snapshot.visibleItems) {
+      const width = this.resolveItemWidth(node);
+      if (offsetXVp < left + width / 2) {
+        return { anchorId: node.id, placement: 'before', indicatorLeftVp: left - BAR_ITEM_GAP_VP / 2 };
+      }
+      left += width + BAR_ITEM_GAP_VP;
+    }
+    // The overflow button represents the remaining siblings. Dropping at its
+    // edge inserts before them without losing or reshuffling hidden entries.
+    const firstOverflow = snapshot.overflowItems[0];
+    const lastVisible = snapshot.visibleItems[snapshot.visibleItems.length - 1];
+    return {
+      anchorId: firstOverflow?.id ?? lastVisible.id,
+      placement: firstOverflow === undefined ? 'after' : 'before',
+      indicatorLeftVp: left - BAR_ITEM_GAP_VP / 2
+    };
   }
 
   resolveMenuTitle(title: string): string {

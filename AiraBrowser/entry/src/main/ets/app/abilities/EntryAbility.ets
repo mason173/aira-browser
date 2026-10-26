@@ -57,6 +57,10 @@ import {
 } from '../../core/browser/BrowserDeviceFormFactorCoordinator';
 import { BrowserShellFamily } from '../../core/browser/BrowserWindowPresentationProfile';
 import { BrowserWindowPresentationProfileInputService } from '../../services/browser/BrowserWindowPresentationProfileInputService';
+import { BrowserStartupWindowService } from '../../services/browser/BrowserStartupWindowService';
+import {
+  resolveBrowserWindowSessionShellPresentationBinding
+} from '../../core/browser/BrowserWindowSessionApplication';
 import {
   sharedBrowserLargeScreenWindowChromeService
 } from '../../services/browser/BrowserLargeScreenWindowChromeService';
@@ -153,6 +157,7 @@ export default class EntryAbility extends UIAbility {
   private browserShellAdapterCatalog: BrowserShellAdapterCatalog = new BrowserShellAdapterCatalog();
   private browserWindowPresentationProfileInputService: BrowserWindowPresentationProfileInputService =
     new BrowserWindowPresentationProfileInputService();
+  private browserStartupWindowService: BrowserStartupWindowService = new BrowserStartupWindowService();
   private browserWindowPresentationProfileRevision: number = 0;
   private browserLargeScreenWindowFactsRequestRevision: number = 0;
   private browserPointerAvailable: boolean = false;
@@ -383,7 +388,7 @@ export default class EntryAbility extends UIAbility {
         this.connectContinuationEligibility(windowId);
         this.applyPendingMissionIdentityAfterWindowStageCreate(windowId);
         return this.regularSessionCookieRestore
-          .then(() => this.waitForInitialRouteReadiness())
+          .then(() => this.waitForInitialRouteReadiness(mainWindow, windowStageGeneration, source))
           .then((initialRoute: string) => {
             if (windowStageGeneration !== this.windowStageLifecycleGeneration) {
               return;
@@ -904,15 +909,43 @@ export default class EntryAbility extends UIAbility {
       });
   }
 
-  private waitForInitialRouteReadiness(): Promise<string> {
+  private waitForInitialRouteReadiness(
+    mainWindow: window.Window,
+    windowStageGeneration: number,
+    source: 'create' | 'restore'
+  ): Promise<string> {
     return this.launchReadinessPromise
       .then(() => this.initialExternalShareIngressReadiness)
       .then(() => this.waitForInitialBrowserPresentationFacts())
+      .then(async (): Promise<void> => {
+        if (windowStageGeneration !== this.windowStageLifecycleGeneration) {
+          return;
+        }
+        // The stored interface preference is ready now. Resolve the same Shell
+        // Family the first page will use, including tablet desktop overrides.
+        this.reconcileBrowserWindowPresentationProfile(mainWindow, 'initial-route-ready');
+        if (source !== 'create') {
+          return;
+        }
+        const presentation = resolveBrowserWindowSessionShellPresentationBinding(
+          BrowserWindowRuntime.connectShellPresentation(this.pageStorage)
+        )?.snapshot();
+        const maximized = await this.browserStartupWindowService.maximizeForDesktopStartup(
+          mainWindow,
+          presentation?.shellFamily
+        );
+        if (!maximized || windowStageGeneration !== this.windowStageLifecycleGeneration) {
+          return;
+        }
+        this.reconcileBrowserWindowPresentationProfile(mainWindow, 'startup-window-maximized');
+        await this.reconcileBrowserLargeScreenWindowFacts(mainWindow, windowStageGeneration, 'startup-window-maximized');
+        await this.waitForInitialBrowserPresentationFacts();
+      })
       .then(() => {
-        const presentationInput = this.browserPresentationMainWindow === undefined
-          ? undefined
-          : this.browserWindowPresentationProfileInputService.resolve(this.browserPresentationMainWindow);
-        BrowserWindowRuntime.prepareInitialShellPresentation(this.pageStorage, presentationInput);
+        if (windowStageGeneration === this.windowStageLifecycleGeneration) {
+          const presentationInput = this.browserWindowPresentationProfileInputService.resolve(mainWindow);
+          BrowserWindowRuntime.prepareInitialShellPresentation(this.pageStorage, presentationInput);
+        }
         return this.resolveInitialRoute();
       });
   }

@@ -7,6 +7,7 @@ import {
   BOOKMARK_TOOLBAR_ROOT_ID,
   PRIVATE_BOOKMARK_TOOLBAR_ROOT_ID,
   isBookmarkRootNodeId,
+  resolveBookmarkScope,
   sanitizeBookmarkTitle
 } from '../../data/repositories/BookmarkRepositoryCore';
 import { BookmarkRepository } from '../../data/repositories/BrowserRepositories';
@@ -20,7 +21,12 @@ import {
   BookmarkFolderSelectionViewModel
 } from './BookmarkFolderSelectionViewModel';
 import { BrowserConfirmationRequest } from './BrowserConfirmationSink';
-import { BrowserDesktopBookmarkBarNodeActionKind, BrowserDesktopBookmarkBarRootActionKind } from './BrowserDesktopBookmarkBarViewModel';
+import {
+  BrowserDesktopBookmarkBarNodeActionKind,
+  BrowserDesktopBookmarkBarReorderAction,
+  BrowserDesktopBookmarkBarRootActionKind
+} from './BrowserDesktopBookmarkBarViewModel';
+import { planDesktopBookmarkBarReorder } from './BrowserDesktopBookmarkBarDragCoordinator';
 import { setDesktopBookmarkBarVisibility } from './DesktopBookmarkBarVisibility';
 import { resolveAppResourceText } from '../resources/AppResourceText';
 import { resolveBookmarkNodeDisplayTitle } from '../resources/HistoryBookmarkDisplayText';
@@ -85,6 +91,7 @@ export class BrowserDesktopBookmarkBarActionCoordinator {
   private readonly shell: BrowserDesktopBookmarkBarActionShell;
   private readonly folderSelectionViewModel: BookmarkFolderSelectionViewModel = new BookmarkFolderSelectionViewModel();
   private clipboard?: BrowserDesktopBookmarkBarClipboardEntry;
+  private reorderQueue: Promise<void> = Promise.resolve();
 
   constructor(
     options: BrowserDesktopBookmarkBarActionCoordinatorOptions,
@@ -97,6 +104,26 @@ export class BrowserDesktopBookmarkBarActionCoordinator {
 
   async initialize(): Promise<void> {
     await this.options.repository.initialize();
+  }
+
+  handleReorder(action: BrowserDesktopBookmarkBarReorderAction): void {
+    // Resolve each drop against the latest committed order, even when a user
+    // starts the next drag before the previous database write completes.
+    this.reorderQueue = this.reorderQueue.then(async (): Promise<void> => {
+      await this.initialize();
+      const rootId = this.resolveToolbarRootId(action.scope);
+      const siblings = this.options.repository.listChildren(rootId, action.scope)
+        .filter((node: BookmarkNode): boolean => {
+          return node.parentId === rootId && resolveBookmarkScope(node.scope) === action.scope &&
+            node.sync.deletedAt === undefined;
+        });
+      const childIds = planDesktopBookmarkBarReorder(siblings, action.nodeId, action.anchorId, action.placement);
+      if (childIds !== undefined) {
+        await this.mutationService.reorderChildren({ parentId: rootId, childIds: childIds });
+      }
+    }).catch((_error: Error): void => {
+      this.shell.showToast($r('app.string.bookmark_bar_save_failed'));
+    });
   }
 
   handleNodeAction(kind: BrowserDesktopBookmarkBarNodeActionKind, node: BookmarkNode): void {    if (kind === 'rename_node') {

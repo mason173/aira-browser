@@ -243,6 +243,10 @@ export class BrowserLargeScreenShellIntentApplication {
       this.dependencies.bookmarkBarActionCoordinator.handleSetBarVisibility(action.visibility);
       return;
     }
+    if (action.kind === 'reorder_node') {
+      this.dependencies.bookmarkBarActionCoordinator.handleReorder(action);
+      return;
+    }
     if (action.kind === 'add_bookmark_to_bar' || action.kind === 'add_folder_to_bar') {
       this.dependencies.bookmarkBarActionCoordinator.handleBarRootAddAction(action.kind, action.scope);
       return;

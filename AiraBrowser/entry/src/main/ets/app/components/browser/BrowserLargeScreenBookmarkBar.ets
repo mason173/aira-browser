@@ -8,6 +8,7 @@ import {
   BrowserDesktopBookmarkBarViewModel,
   DESKTOP_BOOKMARK_BAR_LAYOUT
 } from '../../../core/browser/BrowserDesktopBookmarkBarViewModel';
+import { BrowserDesktopBookmarkBarDragCoordinator } from '../../../core/browser/BrowserDesktopBookmarkBarDragCoordinator';
 import {
   BrowserDesktopBookmarkBarMenuItem,
   BrowserDesktopBookmarkBarMenuItemId,
@@ -42,6 +43,7 @@ import {
 import {
   BROWSER_APPEARANCE_STORAGE_DESKTOP_BOOKMARK_BAR_VISIBILITY_KEY,
   BROWSER_APPEARANCE_STORAGE_SITE_ICON_CORNER_RATIO_KEY,
+  BROWSER_THEME_STORAGE_ACCENT_KEY,
   BROWSER_THEME_STORAGE_CONTROL_BACKGROUND_KEY,
   BROWSER_THEME_STORAGE_DIVIDER_KEY,
   BROWSER_THEME_STORAGE_FLOATING_SURFACE_KEY,
@@ -355,6 +357,9 @@ struct BrowserLargeScreenBookmarkBarEntry {
   @Prop folderMenuOpen: boolean = false;
   @Prop privateMode: boolean = false;
   @Prop menuModel: BrowserDesktopBookmarkBarMenuModel = EMPTY_BOOKMARK_BAR_MENU_MODEL;
+  @Prop dragging: boolean = false;
+  onStartDrag: (node: BookmarkNode) => boolean = (_node: BookmarkNode): boolean => false;
+  onEndDrag: () => void = (): void => {};
   onOpenBookmark: () => void = (): void => {};
   onOpenFolderMenu: () => void = (): void => {};
   onCloseFolderMenu: () => void = (): void => {};
@@ -362,6 +367,24 @@ struct BrowserLargeScreenBookmarkBarEntry {
   onMenuItem: (id: BrowserDesktopBookmarkBarMenuItemId) => void =
     (_id: BrowserDesktopBookmarkBarMenuItemId): void => {};
   private touchDownAtMs: number = 0;
+  private dragInProgress: boolean = false;
+  private suppressClickUntilMs: number = 0;
+
+  private startDrag(event: DragEvent): DragItemInfo {
+    if (!this.onStartDrag(this.node)) {
+      event.setResult(DragResult.DRAG_CANCELED);
+      return {};
+    }
+    this.dragInProgress = true;
+    this.getUIContext().getContextMenuController().close();
+    return { extraInfo: this.node.id };
+  }
+
+  private endDrag(): void {
+    this.dragInProgress = false;
+    this.suppressClickUntilMs = Date.now() + BOOKMARK_BAR_LONG_PRESS_CLICK_SUPPRESS_MS;
+    this.onEndDrag();
+  }
 
   @Builder
   private buildFolderPopup() {
@@ -422,6 +445,7 @@ struct BrowserLargeScreenBookmarkBarEntry {
       .width('100%')
       .height(BOOKMARK_BAR_ENTRY_HEIGHT_VP)
       .clip(true)
+      .hitTestBehavior(HitTestMode.None)
     }
     .width(this.itemWidthVp)
     .height(BOOKMARK_BAR_ENTRY_HEIGHT_VP)
@@ -430,6 +454,7 @@ struct BrowserLargeScreenBookmarkBarEntry {
     .buttonStyle(ButtonStyleMode.TEXTUAL)
     .backgroundColor($r('sys.color.ohos_id_color_background_transparent'))
     .stateEffect(true)
+    .opacity(this.dragging ? 0.45 : 1)
     .accessibilityText(resolveAppResourceText(this.node.type === 'folder' ? $r('app.string.bookmark_bar_folder_a11y', this.node.title) : this.node.title))
     .onTouch((event: TouchEvent): void => {
       if (event.type === TouchType.Down) {
@@ -437,7 +462,8 @@ struct BrowserLargeScreenBookmarkBarEntry {
       }
     })
     .onClick((event: ClickEvent): void => {
-      if (isBookmarkBarLongPressRelease(event.source, this.touchDownAtMs)) {
+      if (this.dragInProgress || Date.now() < this.suppressClickUntilMs ||
+        isBookmarkBarLongPressRelease(event.source, this.touchDownAtMs)) {
         return;
       }
       if (this.node.type === 'folder') {
@@ -446,6 +472,12 @@ struct BrowserLargeScreenBookmarkBarEntry {
       }
       this.onOpenBookmark();
     })
+    .draggable(true)
+    // Native drag starts on mouse movement or on touch movement after a long
+    // press. A stationary long press keeps the existing context-menu behavior.
+    .dragPreviewOptions({}, { isLiftingDisabled: true })
+    .onDragStart((event: DragEvent): DragItemInfo => this.startDrag(event))
+    .onDragEnd((): void => this.endDrag())
     .bindContextMenuWithResponse(this.buildContextMenu, buildBrowserDesktopMenuOptions({
       preview: MenuPreviewMode.NONE
     }))
@@ -479,7 +511,7 @@ struct BrowserLargeScreenBookmarkBarEntry {
 
 @Component
 export struct BrowserLargeScreenBookmarkBar {
-  @Prop privateMode: boolean = false;
+  @Prop @Watch('handleScopeChanged') privateMode: boolean = false;
   /** Bookmark-bar content width in vp; the parent surface owns bar visibility. */
   @Prop @Watch('handleLayoutChanged') availableWidthVp: number = 0;
   onAction: (action: BrowserDesktopBookmarkBarAction) => void =
@@ -502,6 +534,8 @@ export struct BrowserLargeScreenBookmarkBar {
   private storedPressedBackgroundColor: string = DEFAULT_THEME_PALETTE.light.pressedBackground;
   @StorageProp(BROWSER_THEME_STORAGE_DIVIDER_KEY)
   private storedDividerColor: string = DEFAULT_THEME_PALETTE.light.divider;
+  @StorageProp(BROWSER_THEME_STORAGE_ACCENT_KEY)
+  private storedAccentColor: string = DEFAULT_THEME_PALETTE.light.accent;
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY)
   private storedPrimaryTextColor: string = DEFAULT_THEME_PALETTE.light.textPrimary;
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY)
@@ -511,10 +545,15 @@ export struct BrowserLargeScreenBookmarkBar {
   @State private iconStates: SiteIconListRenderState[] = [];
   @State private openFolderMenuId: string = '';
   @State private overflowMenuOpen: boolean = false;
+  @State private draggingNodeId: string = '';
+  @State private dropIndicatorLeftVp: number = -1;
+  private barLeftVp: number = 0;
   private preparationVersion: number = 0;
   private managerTouchDownAtMs: number = 0;
   private readonly viewModel: BrowserDesktopBookmarkBarViewModel =
     new BrowserDesktopBookmarkBarViewModel(sharedBookmarkRepository);
+  private readonly dragCoordinator: BrowserDesktopBookmarkBarDragCoordinator =
+    new BrowserDesktopBookmarkBarDragCoordinator(this.viewModel);
   private readonly iconPresenter: SiteIconListPresenter = new SiteIconListPresenter();
 
   aboutToAppear(): void {
@@ -529,12 +568,13 @@ export struct BrowserLargeScreenBookmarkBar {
   }
 
   aboutToDisappear(): void {
+    this.cancelBookmarkDrag();
     this.preparationVersion += 1;
     this.iconPresenter.dispose();
   }
 
   build() {
-    Column() {
+    Stack({ alignContent: Alignment.TopStart }) {
       Row({ space: DESKTOP_BOOKMARK_BAR_LAYOUT.itemGapVp }) {
         this.buildManagerEntry()
         ForEach(this.snapshot.visibleItems, (node: BookmarkNode): void => {
@@ -549,9 +589,26 @@ export struct BrowserLargeScreenBookmarkBar {
       .padding({ left: DESKTOP_BOOKMARK_BAR_LAYOUT.horizontalInsetVp, right: DESKTOP_BOOKMARK_BAR_LAYOUT.horizontalInsetVp })
       .backgroundColor(this.storedPageBackgroundColor)
       .border({ width: { bottom: 1 }, color: this.storedDividerColor })
+      .onAreaChange((_oldArea: Area, newArea: Area): void => {
+        this.barLeftVp = Number(newArea.globalPosition.x);
+      })
+      .onDragEnter((event: DragEvent): void => this.updateBookmarkDrag(event))
+      .onDragMove((event: DragEvent): void => this.updateBookmarkDrag(event))
+      .onDragLeave((): void => {
+        this.dropIndicatorLeftVp = -1;
+      })
+      .onDrop((event: DragEvent): void => this.dropBookmarkDrag(event))
       .bindContextMenuWithResponse(this.buildBlankAreaContextMenuResponse, buildBrowserDesktopMenuOptions({
         preview: MenuPreviewMode.NONE
       }))
+      if (this.dropIndicatorLeftVp >= 0) {
+        Rect()
+          .width(2)
+          .height(24)
+          .fill(this.storedAccentColor)
+          .position({ x: this.dropIndicatorLeftVp, y: 6 })
+          .hitTestBehavior(HitTestMode.None)
+      }
     }
     .width('100%')
     .height(DESKTOP_BOOKMARK_BAR_LAYOUT.heightVp)
@@ -562,6 +619,9 @@ export struct BrowserLargeScreenBookmarkBar {
   private refresh(): void {
     const scope: BookmarkStorageScope = this.privateMode ? 'private' : 'regular';
     this.snapshot = this.viewModel.buildSnapshot(scope, this.availableWidthVp);
+    if (this.draggingNodeId.length > 0 && !this.dragCoordinator.isActive(this.snapshot)) {
+      this.cancelBookmarkDrag();
+    }
     if (this.openFolderMenuId.length > 0 &&
       !this.snapshot.visibleItems.some((node: BookmarkNode): boolean => node.id === this.openFolderMenuId)) {
       this.openFolderMenuId = '';
@@ -583,6 +643,44 @@ export struct BrowserLargeScreenBookmarkBar {
 
   private handleLayoutChanged(): void {
     this.refresh();
+  }
+
+  private handleScopeChanged(): void {
+    this.cancelBookmarkDrag();
+    this.openFolderMenuId = '';
+    this.overflowMenuOpen = false;
+    this.refresh();
+  }
+
+  private startBookmarkDrag(node: BookmarkNode): boolean {
+    this.openFolderMenuId = '';
+    this.overflowMenuOpen = false;
+    this.dropIndicatorLeftVp = -1;
+    const started = this.dragCoordinator.begin(this.snapshot, node.id);
+    this.draggingNodeId = started ? node.id : '';
+    return started;
+  }
+
+  private updateBookmarkDrag(event: DragEvent): void {
+    const target = this.dragCoordinator.update(this.snapshot, event.getWindowX() - this.barLeftVp);
+    this.dropIndicatorLeftVp = target?.indicatorLeftVp ?? -1;
+    event.dragBehavior = DragBehavior.MOVE;
+    event.setResult(target === undefined ? DragResult.DROP_DISABLED : DragResult.DROP_ENABLED);
+  }
+
+  private dropBookmarkDrag(event: DragEvent): void {
+    const action = this.dragCoordinator.finish(this.snapshot, event.getWindowX() - this.barLeftVp);
+    this.cancelBookmarkDrag();
+    event.setResult(action === undefined ? DragResult.DRAG_CANCELED : DragResult.DRAG_SUCCESSFUL);
+    if (action !== undefined) {
+      this.onAction(action);
+    }
+  }
+
+  private cancelBookmarkDrag(): void {
+    this.dragCoordinator.cancel();
+    this.draggingNodeId = '';
+    this.dropIndicatorLeftVp = -1;
   }
 
   private handleBookmarkStatsChanged(): void {
@@ -639,6 +737,9 @@ export struct BrowserLargeScreenBookmarkBar {
       secondaryTextColor: this.storedSecondaryTextColor,
       controlBackgroundColor: this.storedControlBackgroundColor,
       folderMenuOpen: node.type === 'folder' && this.openFolderMenuId === node.id,
+      dragging: this.draggingNodeId === node.id,
+      onStartDrag: (source: BookmarkNode): boolean => this.startBookmarkDrag(source),
+      onEndDrag: (): void => this.cancelBookmarkDrag(),
       menuModel: this.buildMenuModel(node),
       onOpenBookmark: (): void => {
         this.onAction({ kind: 'open_bookmark', node: node, target: 'current' });
@@ -858,6 +959,10 @@ export struct BrowserLargeScreenBookmarkBar {
     if (event.type !== KeyType.Down) {
       return false;
     }
-    return event.keyCode === KeyCode.KEYCODE_ESCAPE;
+    if (event.keyCode === KeyCode.KEYCODE_ESCAPE) {
+      this.cancelBookmarkDrag();
+      return true;
+    }
+    return false;
   }
 }
