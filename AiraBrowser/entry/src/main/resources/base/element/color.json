@@ -611,6 +611,22 @@
     {
       "name": "reader_image_preview_icon",
       "value": "#FFFFFF"
+    },
+    {
+      "name": "app_recommendation_feature_blue",
+      "value": "#0a84ff"
+    },
+    {
+      "name": "app_recommendation_feature_orange",
+      "value": "#f2a14a"
+    },
+    {
+      "name": "app_recommendation_feature_purple",
+      "value": "#9b7bf6"
+    },
+    {
+      "name": "app_recommendation_feature_green",
+      "value": "#42c98a"
     }
   ]
 }

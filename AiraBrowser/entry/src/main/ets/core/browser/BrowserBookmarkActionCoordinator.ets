@@ -1,3 +1,4 @@
+import { BookmarkAddDraft, cloneBookmarkAddDraft, createBookmarkAddDraft, validateBookmarkAddDraft, isBookmarkAddDraftValid } from '../bookmarks/BookmarkAddDraft';
 import {
   BookmarkStorageScope,
   BrowserDataScope
@@ -44,6 +45,9 @@ export interface BrowserBookmarkRemoveConfirmation {
 
 export interface BrowserBookmarkActionSessionSnapshot {
   actionVersion: number;
+  sessionVersion: number;
+  active: boolean;
+  draft: BookmarkAddDraft;
   scope: BookmarkStorageScope;
   addToHome: boolean;
   preparing: boolean;
@@ -51,7 +55,8 @@ export interface BrowserBookmarkActionSessionSnapshot {
 }
 
 export interface BrowserBookmarkFolderSelectionAction {
-  type: 'set_add_to_home' | 'preview_folder' | 'dismiss' | 'confirm_add';
+  type: 'set_add_to_home' | 'preview_folder' | 'dismiss' | 'confirm_add' | 'edit_title' | 'edit_url' | 'select_folder' | 'set_folder_picker' | 'back';
+  value?: string;
   selected?: boolean;
   folderId?: string;
 }
@@ -83,6 +88,9 @@ export class BrowserBookmarkActionCoordinator {
   private readonly shell: BrowserBookmarkActionShell;
   private snapshot: BrowserBookmarkActionSessionSnapshot = {
     actionVersion: 0,
+    sessionVersion: 0,
+    active: false,
+    draft: createBookmarkAddDraft(),
     scope: 'regular',
     addToHome: false,
     preparing: false,
@@ -176,6 +184,40 @@ export class BrowserBookmarkActionCoordinator {
   }
 
   handleFolderSelectionAction(action: BrowserBookmarkFolderSelectionAction): void {
+    if (!this.snapshot.active || this.snapshot.draft.saving) {
+      return;
+    }
+    if (action.type === 'set_folder_picker' || (action.type === 'back' && this.snapshot.draft.choosingFolder)) {
+      this.snapshot.draft.choosingFolder = action.type === 'set_folder_picker' && action.selected === true;
+      this.emitSnapshot();
+      return;
+    }
+    if (action.type === 'back') {
+      this.dismiss();
+      return;
+    }
+    if (action.type === 'edit_title' || action.type === 'edit_url') {
+      if (action.value !== undefined) {
+        if (action.type === 'edit_title') {
+          this.snapshot.draft.title = action.value;
+          this.snapshot.draft.titleError = '';
+        } else {
+          this.snapshot.draft.url = action.value;
+          this.snapshot.draft.urlError = '';
+        }
+        this.snapshot.draft.saveError = '';
+        this.emitSnapshot();
+      }
+      return;
+    }
+    if (action.type === 'select_folder') {
+      if (this.snapshot.options.some((option: BookmarkFolderOptionView) => option.id === action.folderId)) {
+        this.snapshot.draft.folderId = action.folderId ?? '';
+        this.snapshot.draft.saveError = '';
+        this.emitSnapshot();
+      }
+      return;
+    }
     if (action.type === 'set_add_to_home') {
       if (action.selected !== undefined) {
         this.setAddToHome(action.selected);
@@ -192,8 +234,8 @@ export class BrowserBookmarkActionCoordinator {
       this.dismiss();
       return;
     }
-    if (action.folderId !== undefined) {
-      this.confirmAdd(action.folderId);
+    if (action.type === 'confirm_add') {
+      this.confirmAdd();
     }
   }
 
@@ -203,18 +245,17 @@ export class BrowserBookmarkActionCoordinator {
   }
 
   private async previewFolder(folderId: string): Promise<void> {
-    const token = this.options.transientSurfaceCoordinator.currentToken('bookmark_folder_selection');
-    if (token === undefined) {
-      return;
-    }
+    const version = this.snapshot.sessionVersion;
     const scope = this.snapshot.scope;
     try {
       const options = await this.options.folderPreparationCoordinator.prepareFolderPreview(
-        scope,
-        folderId,
-        this.snapshot.options
+        scope, folderId, this.snapshot.options
       );
-      this.applyPreparedOptions(scope, token, options);
+      if (this.snapshot.active && this.snapshot.sessionVersion === version) {
+        this.snapshot.options = options;
+        this.resolveSelectedFolder();
+        this.emitSnapshot();
+      }
     } catch (_error) {
     }
   }
@@ -222,19 +263,47 @@ export class BrowserBookmarkActionCoordinator {
   private dismiss(): void {
     this.pendingTarget = undefined;
     this.anchoredPreparationSequence += 1;
+    this.snapshot.sessionVersion += 1;
+    this.snapshot.active = false;
     this.options.transientSurfaceCoordinator.dismiss('bookmark_folder_selection');
+    this.emitSnapshot();
   }
 
-  private confirmAdd(targetFolderId: string): void {
+  private confirmAdd(): void {
     const target = this.pendingTarget;
-    const scope = this.snapshot.scope;
-    const addToHome = this.snapshot.addToHome;
-    this.pendingTarget = undefined;
-    this.anchoredPreparationSequence += 1;
-    this.options.transientSurfaceCoordinator.reset('bookmark_folder_selection');
-    if (target !== undefined) {
-      void this.addBookmark(target, scope, targetFolderId, addToHome);
+    if (target === undefined || this.snapshot.draft.saving) {
+      return;
     }
+    this.snapshot.draft = validateBookmarkAddDraft(this.snapshot.draft);
+    const folder = this.options.repository.findNodeById(this.snapshot.draft.folderId);
+    if (folder === undefined || folder.type !== 'folder' ||
+      !this.snapshot.options.some((option: BookmarkFolderOptionView) => option.id === folder.id)) {
+      this.snapshot.draft.saveError = $r('app.string.bookmark_add_choose_folder');
+    }
+    if (isBookmarkAddDraftValid(this.snapshot.draft) &&
+      this.options.repository.findBookmarkByUrl(this.snapshot.draft.url, this.snapshot.scope) !== undefined) {
+      this.snapshot.draft.saveError = $r('app.string.history_already_bookmarked');
+    }
+    if (!isBookmarkAddDraftValid(this.snapshot.draft) || this.snapshot.draft.saveError !== '') {
+      this.emitSnapshot();
+      return;
+    }
+    const editedTarget: BrowserBookmarkActionTarget = {
+      source: target.source,
+      dataScope: target.dataScope,
+      privacyMode: target.privacyMode,
+      enabled: target.enabled,
+      homeShortcutScenarioId: target.homeShortcutScenarioId,
+      title: this.snapshot.draft.title,
+      url: this.snapshot.draft.url
+    };
+    if (this.snapshot.scope === 'regular' && !this.allowPersistentWrite(target)) {
+      return;
+    }
+    this.snapshot.draft.saving = true;
+    this.emitSnapshot();
+    void this.addBookmark(editedTarget, this.snapshot.scope, this.snapshot.draft.folderId,
+      this.snapshot.addToHome, this.snapshot.sessionVersion);
   }
 
   async removeConfirmed(confirmation: BrowserBookmarkRemoveConfirmation): Promise<void> {
@@ -255,21 +324,35 @@ export class BrowserBookmarkActionCoordinator {
     target: BrowserBookmarkActionTarget,
     scope: BookmarkStorageScope,
     targetFolderId: string,
-    addToHome: boolean
+    addToHome: boolean,
+    sessionVersion: number
   ): Promise<void> {
-    if (scope === 'regular' && !this.allowPersistentWrite(target)) {
-      return;
-    }
     const url = target.url.trim();
     const title = target.title.trim().length > 0 ? target.title.trim() : url;
     try {
-      await this.mutationService.createBookmarkIfMissing({
+      const operation = this.mutationService.beginCreateBookmarkIfMissing({
         type: 'bookmark',
         title: title,
         url: url,
         parentId: targetFolderId.trim().length > 0 ? targetFolderId.trim() : undefined,
         scope: scope
       });
+      let localCommitted = false;
+      void operation.completion.catch((_error: Error): void => {
+        if (localCommitted) {
+          this.shell.showToast($r('app.string.bookmark_add_saved_sync_pending'));
+        }
+      });
+      await operation.localCommit;
+      localCommitted = true;
+      if (this.snapshot.sessionVersion === sessionVersion) {
+        this.pendingTarget = undefined;
+        this.anchoredPreparationSequence += 1;
+        this.snapshot.active = false;
+        this.snapshot.draft.saving = false;
+        this.options.transientSurfaceCoordinator.reset('bookmark_folder_selection');
+        this.emitSnapshot();
+      }
       this.refreshBookmarkSurfaces(scope);
       if (addToHome && scope === 'regular') {
         try {
@@ -291,6 +374,11 @@ export class BrowserBookmarkActionCoordinator {
         $r('app.string.bottom_panel_bookmark_added_private') :
         $r('app.string.bottom_panel_bookmark_added'));
     } catch (_error) {
+      if (this.snapshot.sessionVersion === sessionVersion && this.snapshot.active) {
+        this.snapshot.draft.saving = false;
+        this.snapshot.draft.saveError = $r('app.string.bottom_panel_bookmark_add_failed');
+        this.emitSnapshot();
+      }
       this.shell.showToast($r('app.string.bottom_panel_bookmark_add_failed'));
     }
   }
@@ -352,6 +440,7 @@ export class BrowserBookmarkActionCoordinator {
       }
       this.snapshot.preparing = false;
       this.snapshot.options = options;
+      this.resolveSelectedFolder();
       this.emitSnapshot();
     } catch (_error) {
       if (requestId === this.anchoredPreparationSequence) {
@@ -363,11 +452,23 @@ export class BrowserBookmarkActionCoordinator {
 
   private prepareAddSession(target: BrowserBookmarkActionTarget, scope: BookmarkStorageScope): void {
     this.anchoredPreparationSequence += 1;
-    this.pendingTarget = target;
+    this.pendingTarget = {
+      source: target.source,
+      title: target.title,
+      url: target.url,
+      dataScope: target.dataScope,
+      privacyMode: target.privacyMode,
+      enabled: target.enabled,
+      homeShortcutScenarioId: target.homeShortcutScenarioId
+    };
+    this.snapshot.sessionVersion += 1;
+    this.snapshot.active = true;
     this.snapshot.scope = scope;
     this.snapshot.addToHome = false;
     this.snapshot.preparing = this.options.folderPreparationCoordinator.getCachedOptions(scope).length <= 0;
     this.snapshot.options = this.options.folderPreparationCoordinator.getResponsiveOptions(scope);
+    this.snapshot.draft = createBookmarkAddDraft(target.title, target.url);
+    this.resolveSelectedFolder();
     this.emitSnapshot();
   }
 
@@ -381,7 +482,14 @@ export class BrowserBookmarkActionCoordinator {
     }
     this.snapshot.preparing = false;
     this.snapshot.options = options;
+    this.resolveSelectedFolder();
     this.emitSnapshot();
+  }
+
+  private resolveSelectedFolder(): void {
+    if (!this.snapshot.options.some((option: BookmarkFolderOptionView) => option.id === this.snapshot.draft.folderId)) {
+      this.snapshot.draft.folderId = this.snapshot.options.length > 0 ? this.snapshot.options[0].id : '';
+    }
   }
 
   private refreshBookmarkSurfaces(scope: BookmarkStorageScope): void {
@@ -389,9 +497,11 @@ export class BrowserBookmarkActionCoordinator {
       this.options.searchSuggestionCoordinator.invalidate();
     }
     this.options.folderPreparationCoordinator.invalidate(scope);
-    void this.options.folderPreparationCoordinator.prepare(scope, true);
     this.snapshot.actionVersion += 1;
     this.emitSnapshot();
+    setTimeout((): void => {
+      void this.options.folderPreparationCoordinator.prepare(scope, true).catch(() => undefined);
+    }, 0);
   }
 
   private emitSnapshot(): void {
@@ -401,6 +511,9 @@ export class BrowserBookmarkActionCoordinator {
   private cloneSnapshot(): BrowserBookmarkActionSessionSnapshot {
     return {
       actionVersion: this.snapshot.actionVersion,
+      sessionVersion: this.snapshot.sessionVersion,
+      active: this.snapshot.active,
+      draft: cloneBookmarkAddDraft(this.snapshot.draft),
       scope: this.snapshot.scope,
       addToHome: this.snapshot.addToHome,
       preparing: this.snapshot.preparing,

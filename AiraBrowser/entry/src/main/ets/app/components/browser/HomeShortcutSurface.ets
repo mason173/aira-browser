@@ -48,7 +48,6 @@ import { AiraLoadScrollJankProbe } from '../../../common/debug/AiraLoadScrollJan
 
 const HOME_SHORTCUT_ICON_BORDER_WIDTH: number = 0;
 const HOME_FIXED_SHORTCUT_ICON_SIZE_VP: number = 24;
-const HOME_SHORTCUT_MIN_INTERACTION_WIDTH_VP: number = 48;
 const HOME_SHORTCUT_MIN_GLYPH_SIZE_VP: number = 18;
 const HOME_SHORTCUT_MIN_FALLBACK_FONT_SIZE_VP: number = 16;
 const HOME_SHORTCUT_CONTEXT_MENU_DISMISS_DELAY_MS: number = 240;
@@ -720,14 +719,9 @@ export struct HomeShortcutSurface {
   }
 
   private resolveShortcutCardWidth(): number {
-    const preferred = Math.max(
-      this.viewModel.getShortcutTileSize(this.gridWidth, this.metrics),
-      HOME_SHORTCUT_MIN_INTERACTION_WIDTH_VP,
-      this.metrics.minimumTileSize
-    );
-    // The add tile is last. A card wider than its lane overflows the clipped icon region
-    // and is the tile that gets cut off.
-    return Math.max(1, Math.min(preferred, this.resolveShortcutLaneWidth()));
+    // Labels use the full lane while the icon keeps its independent, smaller size.
+    // Staying inside the lane also keeps the trailing add tile within the clipped rail.
+    return this.resolveShortcutLaneWidth();
   }
 
   private resolveShortcutLaneWidth(): number {

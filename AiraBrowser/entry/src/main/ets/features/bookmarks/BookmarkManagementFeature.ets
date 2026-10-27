@@ -13,6 +13,7 @@ import {
 } from '../../common/models/AiraSyncModels';
 import { BookmarksFeature } from './BookmarksFeature';
 import {
+  BookmarkCreateNodeOperation,
   BookmarkMutationService,
   BookmarkUpdateNodeOperation
 } from '../../services/bookmarks/BookmarkMutationService';
@@ -129,6 +130,18 @@ export class BookmarkManagementFeature {
   createNode(command: BookmarkCreateNodeCommand): Promise<BookmarkNode> {
     this.assertMutationAllowed();
     return this.mutationService.createNode(command);
+  }
+
+  beginCreateRegularBookmarkIfMissing(command: BookmarkCreateNodeCommand): BookmarkCreateNodeOperation {
+    this.assertRegularScope();
+    this.assertMutationAllowed();
+    return this.mutationService.beginCreateBookmarkIfMissing({
+      type: 'bookmark',
+      title: command.title,
+      url: command.url,
+      parentId: command.parentId,
+      scope: 'regular'
+    });
   }
 
   createRegularBookmarksIfMissing(commands: BookmarkCreateNodeCommand[]): Promise<BookmarkNode[]> {

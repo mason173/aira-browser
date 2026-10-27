@@ -512,7 +512,7 @@ BOOKMARK_MANAGEMENT_FEATURE_REL="AiraBrowser/entry/src/main/ets/features/bookmar
 BOOKMARK_MANAGEMENT_FEATURE="${REPO_ROOT}/${BOOKMARK_MANAGEMENT_FEATURE_REL}"
 BOOKMARK_MUTATION_SERVICE_REL="AiraBrowser/entry/src/main/ets/services/bookmarks/BookmarkMutationService.ets"
 BOOKMARK_MUTATION_SERVICE="${REPO_ROOT}/${BOOKMARK_MUTATION_SERVICE_REL}"
-BOOKMARK_FOLDER_SELECTION_COMPONENT_REL="AiraBrowser/entry/src/main/ets/app/components/bookmarks/BookmarkMoveFolderSelectionSheet.ets"
+BOOKMARK_FOLDER_SELECTION_COMPONENT_REL="AiraBrowser/entry/src/main/ets/app/components/bookmarks/BookmarkAddOverlay.ets"
 BOOKMARK_FOLDER_SELECTION_COMPONENT="${REPO_ROOT}/${BOOKMARK_FOLDER_SELECTION_COMPONENT_REL}"
 OLD_BOOKMARK_ACTION_VIEW_MODEL_REL="AiraBrowser/entry/src/main/ets/core/browser/BrowserBookmarkActionViewModel.ets"
 OLD_BOOKMARK_ACTION_VIEW_MODEL="${REPO_ROOT}/${OLD_BOOKMARK_ACTION_VIEW_MODEL_REL}"
@@ -2587,8 +2587,8 @@ check_file_contains_rule "${SHELL_PAGE}" "${SHELL_PAGE_REL}" \
   'browserBookmarkActionShell: BrowserBookmarkActionShell' \
   "BrowserShellPage must expose one narrow Bookmark Action UI/platform shell."
 check_file_contains_rule "${BOOKMARK_FOLDER_SELECTION_COMPONENT}" "${BOOKMARK_FOLDER_SELECTION_COMPONENT_REL}" \
-  'export struct BookmarkMoveFolderSelectionOverlay' \
-  "Bookmark Folder Selection must keep Overlay plus Sheet composition in its feature component."
+  'export struct BookmarkAddOverlay' \
+  "Bookmark Add must keep Overlay plus editable Form composition in its feature component."
 check_file_contains_rule "${BOOKMARK_ACTION_COORDINATOR}" "${BOOKMARK_ACTION_COORDINATOR_REL}" \
   'handleFolderSelectionAction\(action: BrowserBookmarkFolderSelectionAction\)' \
   "Bookmark Folder Selection actions must enter through one typed owner action."

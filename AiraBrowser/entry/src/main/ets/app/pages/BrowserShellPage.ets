@@ -1083,7 +1083,7 @@ import {
   SiteReportDialog
 } from '../components/browser/BrowserShellDialogs';
 import { BrowserSitePermissionPromptHost } from '../components/browser/BrowserSitePermissionPromptHost';
-import { BookmarkMoveFolderSelectionOverlay } from '../components/bookmarks/BookmarkMoveFolderSelectionSheet';
+import { BookmarkAddOverlay } from '../components/bookmarks/BookmarkAddOverlay';
 import { BrowserWebTextZoomSheet } from '../components/browser/BrowserWebTextZoomSheet';
 import { sharedBrowserWebTextZoomSiteMemory } from '../../core/browser/BrowserWebTextZoomSiteMemory';
 import { BrowserLargeScreenWebZoomDialog } from '../components/browser/BrowserLargeScreenWebZoomDialog';
@@ -3768,6 +3768,8 @@ struct BrowserShellPage {
   };
   private browserWebTopImmersionSessionHost: BrowserWebTopImmersionSessionHost = {
     resolveVisibleTopInsetPx: (): number => this.getWebTopChromeStableInsetPx(),
+    resolveHiddenTopInsetPx: (): number => this.shouldUseSplitToolbarChrome()
+      ? this.resolveChromeRowTopReservePx(false) : 0,
     applyPresentation: (visible: boolean, targetTopInsetPx: number, _source: string,
       animationDurationMs: number): void => {
       if (this.browserPageForeground === false) {
@@ -10403,7 +10405,7 @@ struct BrowserShellPage {
         }
       })
     } else if (this.browserTransientSurfaceSnapshot.activeCustomBottomSurfaceId === 'bookmark_folder_selection') {
-      BookmarkMoveFolderSelectionOverlay({
+      BookmarkAddOverlay({
         visible: this.browserTransientSurfaceSnapshot.activeCustomBottomSurfaceVisible,
         snapshot: this.browserBookmarkActionSessionSnapshot,
         layoutMode: this.browserShellPresentationOperations?.snapshot()?.shellFamily ?? 'phone',

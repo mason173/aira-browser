@@ -22981,6 +22981,10 @@
       "value": "長按可以關閉全部"
     },
     {
+      "name": "tabs_overview_close_all_hint",
+      "value": "長按這裡，關閉全部"
+    },
+    {
       "name": "tabs_guide_continue",
       "value": "輕點繼續"
     },
@@ -23673,6 +23677,126 @@
       "value": "前往應用市場查看"
     },
     {
+      "name": "app_recommendation_features_title",
+      "value": "會員功能"
+    },
+    {
+      "name": "app_recommendation_pinecone_name",
+      "value": "松果清單"
+    },
+    {
+      "name": "app_recommendation_pinecone_tagline",
+      "value": "待辦、習慣與專注的清單工具"
+    },
+    {
+      "name": "app_recommendation_pinecone_badge_productivity",
+      "value": "專注高效生活"
+    },
+    {
+      "name": "app_recommendation_pinecone_badge_design",
+      "value": "堅持簡潔設計"
+    },
+    {
+      "name": "app_recommendation_pinecone_feature_images",
+      "value": "任務配圖不設上限"
+    },
+    {
+      "name": "app_recommendation_pinecone_feature_lists",
+      "value": "無限清單"
+    },
+    {
+      "name": "app_recommendation_pinecone_feature_colors",
+      "value": "全部 20 種主題顏色"
+    },
+    {
+      "name": "app_recommendation_pinecone_feature_stats",
+      "value": "完整專注統計"
+    },
+    {
+      "name": "app_recommendation_pinecone_review_author_habit",
+      "value": "小樹"
+    },
+    {
+      "name": "app_recommendation_pinecone_review_title_habit",
+      "value": "習慣養成好用"
+    },
+    {
+      "name": "app_recommendation_pinecone_review_message_habit",
+      "value": "每天打卡的小習慣放在清單裡，提醒一響就去做，堅持下來很有成就感。"
+    },
+    {
+      "name": "app_recommendation_pinecone_review_author_clear",
+      "value": "阿哲"
+    },
+    {
+      "name": "app_recommendation_pinecone_review_title_clear",
+      "value": "安排一目瞭然"
+    },
+    {
+      "name": "app_recommendation_pinecone_review_message_clear",
+      "value": "任務按清單分好類，重要的事不會漏，劃掉一條特別解壓。"
+    },
+    {
+      "name": "app_recommendation_pinecone_review_author_focus",
+      "value": "栗子"
+    },
+    {
+      "name": "app_recommendation_pinecone_review_title_focus",
+      "value": "專注模式貼心"
+    },
+    {
+      "name": "app_recommendation_pinecone_review_message_focus",
+      "value": "開專注統計看著時間流走，做事不容易分心，一天下來很充實。"
+    },
+    {
+      "name": "app_recommendation_pinecone_review_author_remind",
+      "value": "周老師"
+    },
+    {
+      "name": "app_recommendation_pinecone_review_title_remind",
+      "value": "提醒不遲到"
+    },
+    {
+      "name": "app_recommendation_pinecone_review_message_remind",
+      "value": "提醒配合卡片展示得很清楚，改時間也順手，再沒忘記過重要的事。"
+    },
+    {
+      "name": "app_recommendation_pinecone_review_author_tidy",
+      "value": "一葦"
+    },
+    {
+      "name": "app_recommendation_pinecone_review_title_tidy",
+      "value": "介面清爽"
+    },
+    {
+      "name": "app_recommendation_pinecone_review_message_tidy",
+      "value": "沒有多餘的東西，打開就是今天的安排，用起來很舒服。"
+    },
+    {
+      "name": "app_recommendation_pinecone_faq_scope_title",
+      "value": "能管理哪些內容？"
+    },
+    {
+      "name": "app_recommendation_pinecone_faq_scope_text",
+      "value": "任務、習慣、倒數紀念日都能管，提醒和專注統計一體，日常安排放在一起就夠了。"
+    },
+    {
+      "name": "app_recommendation_pinecone_faq_remind_title",
+      "value": "提醒好用嗎？"
+    },
+    {
+      "name": "app_recommendation_pinecone_faq_remind_text",
+      "value": "到點提醒可以配合實況窗和卡片展示，抬手就能看到接下來要做的事，改時間也順手。"
+    },
+    {
+      "name": "app_recommendation_pinecone_faq_devices_title",
+      "value": "能多裝置用嗎？"
+    },
+    {
+      "name": "app_recommendation_pinecone_faq_devices_text",
+      "value": "手機、平板、電腦都能用，登入帳號後雲端同步，換台裝置接著安排。"
+    },
+    {
       "name": "settings_experiments_swipe_navigation",
       "value": "滑動前進後退"
     },
@@ -23683,6 +23807,26 @@
     {
       "name": "settings_experiments_toast_swipe_navigation_off",
       "value": "滑動前進後退已關閉"
+    },
+    {
+      "name": "bookmark_add_url_invalid",
+      "value": "請輸入有效的網址。"
+    },
+    {
+      "name": "bookmark_add_choose_folder",
+      "value": "請選擇儲存資料夾。"
+    },
+    {
+      "name": "bookmark_add_saving",
+      "value": "儲存中…"
+    },
+    {
+      "name": "bookmark_add_select_folder",
+      "value": "選擇此資料夾"
+    },
+    {
+      "name": "bookmark_add_saved_sync_pending",
+      "value": "書籤已儲存，同步準備暫未完成。"
     }
   ]
 }

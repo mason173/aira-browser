@@ -4,10 +4,6 @@ import {
   BookmarkFolderOptionView,
   BookmarkFolderSelectionViewModel
 } from '../../../core/browser/BookmarkFolderSelectionViewModel';
-import {
-  BrowserBookmarkActionSessionSnapshot,
-  BrowserBookmarkFolderSelectionAction
-} from '../../../core/browser/BrowserBookmarkActionCoordinator';
 import { BookmarkListDataSource } from '../../../features/bookmarks/BookmarkListDataSource';
 import {
   BROWSER_THEME_STORAGE_CONTROL_BACKGROUND_KEY,
@@ -25,13 +21,6 @@ import {
 import {
   BROWSER_MODAL_BOTTOM_SHEET_CORNER_RADIUS
 } from '../browser/BrowserModalBottomSheet';
-import { BrowserAdaptiveModalOverlay } from '../browser/BrowserAdaptiveModalOverlay';
-import {
-  BOOKMARK_FOLDER_OVERLAY_ANIMATION_DURATION_MS,
-  BOOKMARK_FOLDER_OVERLAY_ENTER_OFFSET_Y,
-  BOOKMARK_FOLDER_OVERLAY_SHEET_HEIGHT,
-  BROWSER_MODAL_BOTTOM_OVERLAY_Z_INDEX
-} from '../browser/BrowserShellPresentationTokens';
 import { AppEmptyState } from '../common/AppEmptyState';
 import {
   RECORD_LIST_ROW_HEIGHT,
@@ -76,6 +65,7 @@ export struct BookmarkMoveFolderSelectionSheet {
   @Prop message: ResourceStr = '';
   @Prop isPreparing: boolean = false;
   @Prop rootTitle: ResourceStr = $r('app.string.bookmark_move_title');
+  @Prop rootBackIconKind: 'close' | 'back' = 'close';
   @Prop preparingTitle: ResourceStr = $r('app.string.bookmark_preparing_folders');
   @Prop rootEmptyTitle: ResourceStr = $r('app.string.bookmark_no_move_folder');
   @Prop leafEmptyTitle: ResourceStr = $r('app.string.bookmark_no_child_folder');
@@ -162,6 +152,7 @@ export struct BookmarkMoveFolderSelectionSheet {
       secondaryTextColor: this.storedSecondaryTextColor,
       title: this.resolveTitle(folderId),
       isRootDestination: folderId.length <= 0,
+      rootBackIconKind: this.rootBackIconKind,
       onBack: () => {
         if (folderId.length > 0) {
           this.navigateBackFolder();
@@ -224,62 +215,6 @@ export struct BookmarkMoveFolderSelectionSheet {
 }
 
 @Component
-export struct BookmarkMoveFolderSelectionOverlay {
-  @Prop visible: boolean = false;
-  @Prop snapshot: BrowserBookmarkActionSessionSnapshot = {
-    actionVersion: 0,
-    scope: 'regular',
-    addToHome: false,
-    preparing: false,
-    options: []
-  };
-  @Prop layoutMode: 'phone' | 'large_screen' = 'phone';
-  onAction: (action: BrowserBookmarkFolderSelectionAction) => void =
-    (_action: BrowserBookmarkFolderSelectionAction) => {};
-
-  build() {
-    BrowserAdaptiveModalOverlay({
-      visible: this.visible,
-      layoutMode: this.layoutMode,
-      showDesktopHeader: false,
-      phoneSheetHeight: BOOKMARK_FOLDER_OVERLAY_SHEET_HEIGHT,
-      phoneEnterOffsetY: BOOKMARK_FOLDER_OVERLAY_ENTER_OFFSET_Y,
-      animationDurationMs: BOOKMARK_FOLDER_OVERLAY_ANIMATION_DURATION_MS,
-      zIndexValue: BROWSER_MODAL_BOTTOM_OVERLAY_Z_INDEX,
-      tier: 'm',
-      onDismiss: () => {
-        this.onAction({ type: 'dismiss' });
-      }
-    }) {
-      BookmarkMoveFolderSelectionSheet({
-        layoutMode: this.layoutMode,
-        rootTitle: $r('app.string.history_add_bookmark'),
-        preparingTitle: $r('app.string.bookmark_preparing_folders'),
-        rootEmptyTitle: $r('app.string.bookmark_no_save_folder'),
-        leafEmptyTitle: $r('app.string.bookmark_no_child_folder'),
-        confirmLabel: $r('app.string.bookmark_add_here'),
-        showAddToHome: this.snapshot.scope === 'regular',
-        addToHome: this.snapshot.addToHome,
-        isPreparing: this.snapshot.preparing,
-        options: this.snapshot.options,
-        onAddToHomeChange: (selected: boolean) => {
-          this.onAction({ type: 'set_add_to_home', selected: selected });
-        },
-        onFolderOpened: (folderId: string) => {
-          this.onAction({ type: 'preview_folder', folderId: folderId });
-        },
-        onDismiss: () => {
-          this.onAction({ type: 'dismiss' });
-        },
-        onConfirm: (result: BookmarkMoveFolderSelectionResult) => {
-          this.onAction({ type: 'confirm_add', folderId: result.targetFolderId });
-        }
-      })
-    }
-  }
-}
-
-@Component
 struct BookmarkMoveFolderDestinationContent {
   @Prop folderId: string = '';
   @Prop @Watch('scheduleReloadRows') options: BookmarkFolderOptionView[] = [];
@@ -299,6 +234,7 @@ struct BookmarkMoveFolderDestinationContent {
   @Prop secondaryTextColor: ResourceColor = '#5F6875';
   @Prop title: ResourceStr = $r('app.string.bookmark_move_title');
   @Prop isRootDestination: boolean = true;
+  @Prop rootBackIconKind: 'close' | 'back' = 'close';
   folderSelectionViewModel: BookmarkFolderSelectionViewModel = new BookmarkFolderSelectionViewModel();
   private folderListDataSource: BookmarkListDataSource = new BookmarkListDataSource();
   private listScroller: Scroller = new Scroller();
@@ -328,7 +264,7 @@ struct BookmarkMoveFolderDestinationContent {
   build() {
     ManagementHdsScaffold({
       title: this.title,
-      backIconKind: this.isRootDestination ? 'close' : 'back',
+      backIconKind: this.isRootDestination ? this.rootBackIconKind : 'back',
       pageBackground: this.pageBackgroundColor,
       primaryTextColor: this.primaryTextColor,
       dividerColor: this.dividerColor,

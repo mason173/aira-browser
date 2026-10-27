@@ -41,6 +41,7 @@ import {
   BROWSER_TABS_OVERVIEW_BOTTOM_CHROME_HEIGHT
 } from './BrowserTabsOverviewBottomChrome';
 import { BrowserTabsOverviewSegmentGuide } from './BrowserTabsOverviewSegmentGuide';
+import { BrowserTabsOverviewCloseAllHint } from './BrowserTabsOverviewCloseAllHint';
 import { BrowserTabsOverviewEmptyState } from './BrowserTabsOverviewEmptyState';
 import { BrowserCrossDeviceTabsSheet } from './BrowserCrossDeviceTabsOverlay';
 import { CrossDeviceTabsEmptyAction } from '../../../core/deviceTabs/CrossDeviceTabsEmptyPresentation';
@@ -252,6 +253,7 @@ export struct BrowserTabsFloatingOverlay {
   @State private chromeMounted: boolean = false;
   @State private segmentGuidePending: boolean = false;
   @State private segmentGuideStep: number = 0;
+  @State private closeAllHintDiscovered: boolean = false;
   @State private bottomChromeRegularTabCount: number = 0;
   /**
    * Continuous deck position, in card units: 2 means the third card is focused, 2.4 means 40% of
@@ -478,6 +480,20 @@ export struct BrowserTabsFloatingOverlay {
     Stack({ alignContent: Alignment.TopStart }) {
       this.buildBackgroundDismissLayer()
 
+      if (this.chromeMounted && this.shouldShowBottomChrome() && this.interactionEnabled &&
+        !this.exiting && !this.closeAllExitActive && !this.closeAllHintDiscovered &&
+        !this.shouldPresentSegmentGuide() && !this.isCrossDeviceSectionSelected() &&
+        !this.isSelectedSectionEmpty()) {
+        BrowserTabsOverviewCloseAllHint({
+          selectedSection: this.selectedSection,
+          viewportWidth: this.resolveRootWidth(),
+          viewportHeight: this.resolveRootHeight(),
+          bottomChromeLiftVp: this.bottomChromeLiftVp,
+          surfaceOpacity: this.resolveBottomChromeOpacity()
+        })
+        .zIndex(1)
+      }
+
       if (this.isCrossDeviceSectionSelected()) {
         // The cross-device page owns the whole content area.
         this.buildCrossDeviceSectionLayer()
@@ -525,6 +541,9 @@ export struct BrowserTabsFloatingOverlay {
             chromeInteractionEnabled: this.interactionEnabled && !this.exiting && !this.closeAllExitActive,
             regularChromeIconTone: this.regularChromeIconTone,
             adaptiveForeground: true,
+            onCloseAllHintDiscovered: () => {
+              this.closeAllHintDiscovered = true;
+            },
             onReturn: () => {
               this.returnToEntryTab();
             },

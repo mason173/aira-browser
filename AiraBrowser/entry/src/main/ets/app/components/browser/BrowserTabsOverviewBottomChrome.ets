@@ -92,6 +92,7 @@ export struct BrowserTabsOverviewBottomChrome {
   onSwitchToPrivacy: () => void = () => {};
   onOpenDeviceTabs: () => void = () => {};
   onCloseAll: () => void = () => {};
+  onCloseAllHintDiscovered: () => void = () => {};
 
   private responsiveViewModel: BrowserBottomPanelResponsiveViewModel = new BrowserBottomPanelResponsiveViewModel();
 
@@ -237,6 +238,8 @@ export struct BrowserTabsOverviewBottomChrome {
     .backgroundColor(this.resolveSegmentBackground(target))
     .borderRadius(this.resolveSegmentHeight() / 2)
     .accessibilityText(this.resolveSegmentAccessibilityText(target))
+    .accessibilityDescription(target === 'privacy'
+      ? resolveAppResourceText($r('app.string.tabs_guide_close_all')) : '')
     .onTouch((event: TouchEvent) => {
       this.handleSegmentTouch(target, event.type);
     })
@@ -310,6 +313,7 @@ export struct BrowserTabsOverviewBottomChrome {
     .backgroundColor(this.resolveSegmentBackground('tabs'))
     .borderRadius(this.resolveSegmentHeight() / 2)
     .accessibilityText(this.regularTabsLabel)
+    .accessibilityDescription(resolveAppResourceText($r('app.string.tabs_guide_close_all')))
     .onTouch((event: TouchEvent) => {
       this.handleSegmentTouch('tabs', event.type);
     })
@@ -444,6 +448,7 @@ export struct BrowserTabsOverviewBottomChrome {
     if (section === '') {
       return;
     }
+    this.onCloseAllHintDiscovered();
     this.suppressNextSegmentClick = true;
     this.closeAllMenuSection = section;
     BrowserTabsOverviewSwipeFeedbackService.performLongPressFeedback();

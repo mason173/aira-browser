@@ -905,7 +905,7 @@ export class RdbBookmarkRepository implements BookmarkRepository {
       scope
     );
     await this.database.upsertBookmarkNode(node);
-    await this.refresh();
+    await this.patchBookmarkNodeCacheAsync([node]);
     this.recordBookmarkActivity();
     this.bumpBookmarkStatsVersion();
     return node;

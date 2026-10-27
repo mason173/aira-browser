@@ -222,7 +222,9 @@ export class HomeShortcutLogicService {
   }
 
   private getAlignedGridColumnWidth(gridWidth: number, metrics: HomeShortcutLayoutMetrics): number {
-    return this.getTileSize(gridWidth, metrics);
+    // A column owns both the icon and its label. Shrinking the icon must not turn the
+    // remaining label space into a larger gutter between narrow cards.
+    return this.getGridColumnWidth(gridWidth, metrics);
   }
 
   getAlignedGridColumnGap(gridWidth: number, metrics: HomeShortcutLayoutMetrics): number {

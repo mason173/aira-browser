@@ -1052,4 +1052,5 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
+require('./check-aira-home-shortcut-label-width.cjs');
 console.log('Home Chrome Scroll contract passed.');

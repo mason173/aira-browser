@@ -1,3 +1,6 @@
+import { BookmarkAddDraft, createBookmarkAddDraft } from '../../../core/bookmarks/BookmarkAddDraft';
+import { HistoryBookmarkAddCoordinator } from '../../../core/bookmarks/HistoryBookmarkAddCoordinator';
+import { BrowserBookmarkFolderSelectionAction } from '../../../core/browser/BrowserBookmarkActionCoordinator';
 import { localizeHistoryHost } from '../../../core/resources/HistoryBookmarkDisplayText';
 import { DEFAULT_THEME_PALETTE } from '../../../features/theme/palettes/DefaultThemePalette';
 import { showCenteredAlertDialog } from '../common/CenteredDialogSurface';
@@ -177,6 +180,35 @@ export struct HistoryManagerScreen {
     new BookmarksFeature(sharedBookmarkRepository),
     new BookmarkMutationService(sharedBookmarkRepository)
   );
+  private singleBookmarkAddCoordinator: HistoryBookmarkAddCoordinator = new HistoryBookmarkAddCoordinator({
+    applyDraft: (draft: BookmarkAddDraft): void => { this.singleBookmarkDraft = draft; },
+    resolveFolders: (): BookmarkFolderOptionView[] => this.bookmarkFolderSelectionOptions,
+    hasBookmark: (url: string): boolean => this.bookmarkManagementFeature.hasBookmarkForUrl(url),
+    isFolderAvailable: (folderId: string): boolean => {
+      const folder = this.bookmarkManagementFeature.findNodeById(folderId);
+      return folder !== undefined && folder.type === 'folder';
+    },
+    previewFolder: (folderId: string): void => { void this.prepareBookmarkFolderSelectionFolderPreview(folderId); },
+    dismiss: (): void => { this.dismissBookmarkFolderSelection(); },
+    beginSave: (title: string, url: string, folderId: string) => {
+      return this.bookmarkManagementFeature.beginCreateRegularBookmarkIfMissing({
+        type: 'bookmark', title: title, url: url, parentId: folderId
+      });
+    },
+    refreshBookmarks: (): void => {
+      sharedBookmarkFolderSelectionPreparationCoordinator.invalidate('regular');
+      void sharedBookmarkFolderSelectionPreparationCoordinator.prepare('regular', true).catch(() => undefined);
+      if (this.isActive) { this.refreshBookmarkMarkers(this.visits); }
+    },
+    onSyncPreparationFailed: (): void => {
+      if (this.isActive) { this.showNativeToast($r('app.string.bookmark_add_saved_sync_pending')); }
+    },
+    onSaved: (): void => {
+      this.dismissBookmarkFolderSelection();
+      this.exitSelectionMode();
+      this.showNativeToast($r('app.string.bottom_panel_bookmark_added'));
+    }
+  });
   private homeShortcutToggleService: HomeShortcutToggleService = new HomeShortcutToggleService(sharedShortcutRepository);
   private webPageShareService: WebPageShareService = new WebPageShareService();
   private siteIconListPresenter: SiteIconListPresenter = new SiteIconListPresenter();
@@ -224,6 +256,9 @@ export struct HistoryManagerScreen {
   @State selectionMenuVisible: boolean = false;
   @State selectionMenuHostWidth: number = 0;
   @State selectionMenuHostHeight: number = 0;
+  @State private singleBookmarkDraft: BookmarkAddDraft = createBookmarkAddDraft();
+  @State private editSingleBookmark: boolean = false;
+  @State private singleBookmarkSessionVersion: number = 0;
   @State bookmarkFolderSelectionVisible: boolean = false;
   @State bookmarkFolderSelectionSheetVisible: boolean = false;
   @State bookmarkFolderSelectionPreparing: boolean = false;
@@ -264,7 +299,11 @@ export struct HistoryManagerScreen {
     });
     this.controller.setBackHandler((): boolean => {
       if (this.bookmarkFolderSelectionVisible) {
-        this.dismissBookmarkFolderSelection();
+        if (this.editSingleBookmark) {
+          this.singleBookmarkAddCoordinator.handleAction({ type: 'back' });
+        } else {
+          this.dismissBookmarkFolderSelection();
+        }
         return true;
       }
       if (this.controller.closeTimelineSwipeActions()) {
@@ -308,6 +347,10 @@ export struct HistoryManagerScreen {
 
   aboutToDisappear(): void {
     this.isActive = false;
+    this.singleBookmarkAddCoordinator.cancel();
+    this.bookmarkFolderSelectionOverlayGeneration += 1;
+    this.bookmarkFolderSelectionVisible = false;
+    this.bookmarkFolderSelectionSheetVisible = false;
     this.deferredEnterWork.cancel();
     this.cancelHistoryScrollRestore();
     this.sitePageController.setStatusListener(undefined);
@@ -890,6 +933,12 @@ export struct HistoryManagerScreen {
     HistoryBookmarkFolderSelectionOverlay({
       visible: this.bookmarkFolderSelectionVisible,
       sheetVisible: this.bookmarkFolderSelectionSheetVisible,
+      editSingleBookmark: this.editSingleBookmark,
+      draft: this.singleBookmarkDraft,
+      sessionVersion: this.singleBookmarkSessionVersion,
+      onAction: (action: BrowserBookmarkFolderSelectionAction): void => {
+        this.singleBookmarkAddCoordinator.handleAction(action);
+      },
       options: this.bookmarkFolderSelectionOptions,
       isPreparing: this.bookmarkFolderSelectionPreparing,
       onDismiss: () => {
@@ -2114,6 +2163,14 @@ export struct HistoryManagerScreen {
       sharedBookmarkFolderSelectionPreparationCoordinator.getResponsiveOptions('regular');
     this.bookmarkFolderSelectionPreparing =
       sharedBookmarkFolderSelectionPreparationCoordinator.getCachedOptions('regular').length <= 0;
+    this.editSingleBookmark = visits.length === 1;
+    this.singleBookmarkSessionVersion += 1;
+    if (this.editSingleBookmark) {
+      this.singleBookmarkAddCoordinator.begin(visits[0].title, visits[0].url);
+    } else {
+      this.singleBookmarkAddCoordinator.cancel();
+      this.singleBookmarkDraft = createBookmarkAddDraft();
+    }
     this.bookmarkFolderSelectionSheetVisible = false;
     this.bookmarkFolderSelectionVisible = true;
     void this.prepareBookmarkFolderSelectionOptions(overlayGeneration);
@@ -2128,6 +2185,10 @@ export struct HistoryManagerScreen {
   }
 
   private dismissBookmarkFolderSelection(): void {
+    if (this.editSingleBookmark && this.singleBookmarkDraft.saving) {
+      return;
+    }
+    this.singleBookmarkAddCoordinator.cancel();
     const overlayGeneration = this.bookmarkFolderSelectionOverlayGeneration + 1;
     this.bookmarkFolderSelectionOverlayGeneration = overlayGeneration;
     this.bookmarkFolderSelectionSheetVisible = false;
@@ -2177,6 +2238,7 @@ export struct HistoryManagerScreen {
         return;
       }
       this.bookmarkFolderSelectionOptions = options;
+      if (this.editSingleBookmark) { this.singleBookmarkAddCoordinator.refreshFolders(); }
       this.bookmarkFolderSelectionPreparing = false;
     } catch (error) {
       if (this.bookmarkFolderSelectionOverlayGeneration !== overlayGeneration ||
@@ -2201,6 +2263,7 @@ export struct HistoryManagerScreen {
         return;
       }
       this.bookmarkFolderSelectionOptions = options;
+      if (this.editSingleBookmark) { this.singleBookmarkAddCoordinator.refreshFolders(); }
     } catch (_error) {
     }
   }

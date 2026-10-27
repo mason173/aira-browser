@@ -29,6 +29,11 @@ import {
   sanitizeBookmarkTitle
 } from '../../data/repositories/BookmarkRepositoryCore';
 
+export interface BookmarkCreateNodeOperation {
+  localCommit: Promise<BookmarkNode>;
+  completion: Promise<BookmarkNode>;
+}
+
 export interface BookmarkUpdateNodeOperation {
   localCommit: Promise<BookmarkNode | undefined>;
   completion: Promise<BookmarkNode | undefined>;
@@ -53,18 +58,30 @@ export class BookmarkMutationService {
   }
 
   async createNode(command: BookmarkCreateNodeCommand): Promise<BookmarkNode> {
-    const node = await this.repository.createNode(command);
-    await this.markBookmarkSyncPending(node.updatedAt);
-    return node;
+    return this.beginCreateNode(command).completion;
+  }
+
+  beginCreateNode(command: BookmarkCreateNodeCommand): BookmarkCreateNodeOperation {
+    const localCommit = this.repository.createNode(command);
+    const completion = localCommit.then(async (node: BookmarkNode): Promise<BookmarkNode> => {
+      await this.markBookmarkSyncPending(node.updatedAt);
+      return node;
+    });
+    return { localCommit: localCommit, completion: completion };
   }
 
   async createBookmarkIfMissing(command: BookmarkCreateNodeCommand): Promise<BookmarkNode> {
+    return this.beginCreateBookmarkIfMissing(command).completion;
+  }
+
+  beginCreateBookmarkIfMissing(command: BookmarkCreateNodeCommand): BookmarkCreateNodeOperation {
     const scope = resolveBookmarkScope(command.scope);
     const existing = command.type === 'bookmark' ? this.findBookmarkByUrl(command.url ?? '', scope) : undefined;
     if (existing !== undefined) {
-      return existing;
+      const localCommit = Promise.resolve(existing);
+      return { localCommit: localCommit, completion: localCommit };
     }
-    return this.createNode(command);
+    return this.beginCreateNode(command);
   }
 
   async createBookmarksIfMissing(commands: BookmarkCreateNodeCommand[]): Promise<BookmarkNode[]> {

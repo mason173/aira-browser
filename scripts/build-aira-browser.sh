@@ -32,6 +32,7 @@ ARCH_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-architecture-guardrails.sh"
 ICON_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-icons-generated.sh"
 HOME_CHROME_SCROLL_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-home-chrome-scroll-contract.cjs"
 SPLIT_TOOLBAR_FRAME_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-split-toolbar-frame-contract.cjs"
+SPLIT_TOOLBAR_IMMERSION_FRAME_TEST="${REPO_ROOT}/scripts/check-aira-split-toolbar-immersion-frame.cjs"
 TOOLBAR_SETTINGS_REFRESH_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-toolbar-settings-refresh.cjs"
 IMMERSIVE_LIGHT_SENSE_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-immersive-light-sense-contract.sh"
 SYNC_FIRST_ACTIVATION_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-sync-first-activation-contract.sh"
@@ -49,6 +50,8 @@ HUAWEI_LOGIN_DIAGNOSTICS_TEST="${REPO_ROOT}/scripts/check-aira-huawei-login-diag
 WEBDAV_LOCK_NULL_PLACEHOLDER_TEST="${REPO_ROOT}/scripts/check-aira-webdav-lock-null-placeholder.cjs"
 DIALOG_ACTION_LAYOUT_TEST="${REPO_ROOT}/scripts/check-aira-dialog-action-layout.cjs"
 BOOKMARK_DESKTOP_MENU_TEST="${REPO_ROOT}/scripts/check-aira-bookmark-desktop-menu.cjs"
+BOOKMARK_ADD_TEST="${REPO_ROOT}/scripts/check-aira-bookmark-add.cjs"
+BOOKMARK_ADD_FEEDBACK_TEST="${REPO_ROOT}/scripts/check-aira-bookmark-add-feedback.cjs"
 DOWNLOAD_EXPORT_GHOST_GUARD_TEST="${REPO_ROOT}/scripts/check-aira-download-export-ghost-guard.cjs"
 BOOKMARK_SNAPSHOT_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-bookmark-snapshot-contract.sh"
 HOME_SHORTCUT_SEED_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-home-shortcut-seed-contract.sh"
@@ -358,6 +361,8 @@ node "${HUAWEI_LOGIN_DIAGNOSTICS_TEST}"
 node "${WEBDAV_LOCK_NULL_PLACEHOLDER_TEST}"
 node "${DIALOG_ACTION_LAYOUT_TEST}"
 node "${BOOKMARK_DESKTOP_MENU_TEST}"
+node "${BOOKMARK_ADD_TEST}"
+node "${BOOKMARK_ADD_FEEDBACK_TEST}"
 node "${DOWNLOAD_EXPORT_GHOST_GUARD_TEST}"
 
 if [ ! -x "${BOOKMARK_SNAPSHOT_GUARD_SCRIPT}" ]; then
@@ -547,6 +552,7 @@ if [ ! -f "${SPLIT_TOOLBAR_FRAME_GUARD_SCRIPT}" ]; then
 fi
 
 "${NODE_BIN}" "${SPLIT_TOOLBAR_FRAME_GUARD_SCRIPT}"
+"${NODE_BIN}" "${SPLIT_TOOLBAR_IMMERSION_FRAME_TEST}"
 "${NODE_BIN}" "${TOOLBAR_SETTINGS_REFRESH_GUARD_SCRIPT}"
 "${NODE_BIN}" --test "${REPO_ROOT}/scripts/check-aira-window-title-drag.cjs"
 "${NODE_BIN}" "${REPO_ROOT}/scripts/check-aira-search-style-isolation.cjs"

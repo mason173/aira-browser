@@ -22981,6 +22981,10 @@
       "value": "长按可以关闭全部"
     },
     {
+      "name": "tabs_overview_close_all_hint",
+      "value": "长按这里，关闭全部"
+    },
+    {
       "name": "tabs_guide_continue",
       "value": "轻点继续"
     },
@@ -23673,6 +23677,126 @@
       "value": "前往应用市场查看"
     },
     {
+      "name": "app_recommendation_features_title",
+      "value": "会员功能"
+    },
+    {
+      "name": "app_recommendation_pinecone_name",
+      "value": "松果清单"
+    },
+    {
+      "name": "app_recommendation_pinecone_tagline",
+      "value": "待办、习惯与专注的清单工具"
+    },
+    {
+      "name": "app_recommendation_pinecone_badge_productivity",
+      "value": "专注高效生活"
+    },
+    {
+      "name": "app_recommendation_pinecone_badge_design",
+      "value": "坚持简洁设计"
+    },
+    {
+      "name": "app_recommendation_pinecone_feature_images",
+      "value": "任务配图不设上限"
+    },
+    {
+      "name": "app_recommendation_pinecone_feature_lists",
+      "value": "无限清单"
+    },
+    {
+      "name": "app_recommendation_pinecone_feature_colors",
+      "value": "全部 20 种主题颜色"
+    },
+    {
+      "name": "app_recommendation_pinecone_feature_stats",
+      "value": "完整专注统计"
+    },
+    {
+      "name": "app_recommendation_pinecone_review_author_habit",
+      "value": "小树"
+    },
+    {
+      "name": "app_recommendation_pinecone_review_title_habit",
+      "value": "习惯养成好用"
+    },
+    {
+      "name": "app_recommendation_pinecone_review_message_habit",
+      "value": "每天打卡的小习惯放在清单里，提醒一响就去做，坚持下来很有成就感。"
+    },
+    {
+      "name": "app_recommendation_pinecone_review_author_clear",
+      "value": "阿哲"
+    },
+    {
+      "name": "app_recommendation_pinecone_review_title_clear",
+      "value": "安排一目了然"
+    },
+    {
+      "name": "app_recommendation_pinecone_review_message_clear",
+      "value": "任务按清单分好类，重要的事不会漏，划掉一条特别解压。"
+    },
+    {
+      "name": "app_recommendation_pinecone_review_author_focus",
+      "value": "栗子"
+    },
+    {
+      "name": "app_recommendation_pinecone_review_title_focus",
+      "value": "专注模式贴心"
+    },
+    {
+      "name": "app_recommendation_pinecone_review_message_focus",
+      "value": "开专注统计看着时间流走，做事不容易分心，一天下来很充实。"
+    },
+    {
+      "name": "app_recommendation_pinecone_review_author_remind",
+      "value": "周老师"
+    },
+    {
+      "name": "app_recommendation_pinecone_review_title_remind",
+      "value": "提醒不迟到"
+    },
+    {
+      "name": "app_recommendation_pinecone_review_message_remind",
+      "value": "提醒配合卡片展示得很清楚，改时间也顺手，再没忘记过重要的事。"
+    },
+    {
+      "name": "app_recommendation_pinecone_review_author_tidy",
+      "value": "一苇"
+    },
+    {
+      "name": "app_recommendation_pinecone_review_title_tidy",
+      "value": "界面清爽"
+    },
+    {
+      "name": "app_recommendation_pinecone_review_message_tidy",
+      "value": "没有多余的东西，打开就是今天的安排，用起来很舒服。"
+    },
+    {
+      "name": "app_recommendation_pinecone_faq_scope_title",
+      "value": "能管理哪些内容？"
+    },
+    {
+      "name": "app_recommendation_pinecone_faq_scope_text",
+      "value": "任务、习惯、倒数纪念日都能管，提醒和专注统计一体，日常安排放在一起就够了。"
+    },
+    {
+      "name": "app_recommendation_pinecone_faq_remind_title",
+      "value": "提醒好用吗？"
+    },
+    {
+      "name": "app_recommendation_pinecone_faq_remind_text",
+      "value": "到点提醒可以配合实况窗和卡片展示，抬手就能看到接下来要做的事，改时间也顺手。"
+    },
+    {
+      "name": "app_recommendation_pinecone_faq_devices_title",
+      "value": "能多设备用吗？"
+    },
+    {
+      "name": "app_recommendation_pinecone_faq_devices_text",
+      "value": "手机、平板、电脑都能用，登录账号后云端同步，换台设备接着安排。"
+    },
+    {
       "name": "settings_experiments_swipe_navigation",
       "value": "滑动前进后退"
     },
@@ -23683,6 +23807,26 @@
     {
       "name": "settings_experiments_toast_swipe_navigation_off",
       "value": "滑动前进后退已关闭"
+    },
+    {
+      "name": "bookmark_add_url_invalid",
+      "value": "请输入有效的网址。"
+    },
+    {
+      "name": "bookmark_add_choose_folder",
+      "value": "请选择保存文件夹。"
+    },
+    {
+      "name": "bookmark_add_saving",
+      "value": "保存中…"
+    },
+    {
+      "name": "bookmark_add_select_folder",
+      "value": "选择此文件夹"
+    },
+    {
+      "name": "bookmark_add_saved_sync_pending",
+      "value": "书签已保存，同步准备暂未完成。"
     }
   ]
 }

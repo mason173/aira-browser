@@ -1,3 +1,4 @@
+import { createBookmarkAddDraft } from '../../../core/bookmarks/BookmarkAddDraft';
 import { DEFAULT_THEME_PALETTE } from '../../../features/theme/palettes/DefaultThemePalette';
 import {
   BrowserLargeScreenPresentationSnapshot
@@ -77,6 +78,9 @@ const EMPTY_SEARCH_SUGGESTION_SNAPSHOT: BrowserSearchSuggestionSnapshot = {
 
 const EMPTY_BOOKMARK_ACTION_SESSION: BrowserBookmarkActionSessionSnapshot = {
   actionVersion: 0,
+  sessionVersion: 0,
+  active: false,
+  draft: createBookmarkAddDraft(),
   scope: 'regular',
   addToHome: false,
   preparing: false,

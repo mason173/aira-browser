@@ -43,6 +43,8 @@ interface BrowserWebTopImmersionVisibilityRequest {
 
 export interface BrowserWebTopImmersionSessionHost {
   resolveVisibleTopInsetPx: () => number;
+  /** System-bar immersion can leave app-owned top chrome on screen. */
+  resolveHiddenTopInsetPx?: () => number;
   applyPresentation: (visible: boolean, targetTopInsetPx: number, source: string,
     animationDurationMs: number) => void;
   applyWindowVisibility: (
@@ -499,7 +501,9 @@ export class BrowserWebTopImmersionSessionCoordinator {
   ): void {
     const facts = this.dependencies.resolveFacts();
     if (facts.statusBarVisible !== visible) {
-      const targetTopInsetPx = visible ? Math.max(0, Math.ceil(host.resolveVisibleTopInsetPx())) : 0;
+      const targetTopInsetPx = Math.max(0, Math.ceil(visible
+        ? host.resolveVisibleTopInsetPx()
+        : (host.resolveHiddenTopInsetPx?.() ?? 0)));
       host.applyPresentation(visible, targetTopInsetPx, source, animationDurationMs);
     }
     this.enqueueWindowVisibility(visible, source, host, requestGeneration, false);

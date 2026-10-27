@@ -22981,6 +22981,10 @@
       "value": "Long-press to close all"
     },
     {
+      "name": "tabs_overview_close_all_hint",
+      "value": "Hold here to close all"
+    },
+    {
       "name": "tabs_guide_continue",
       "value": "Tap to continue"
     },
@@ -23673,6 +23677,126 @@
       "value": "View in AppGallery"
     },
     {
+      "name": "app_recommendation_features_title",
+      "value": "Member features"
+    },
+    {
+      "name": "app_recommendation_pinecone_name",
+      "value": "Pinecone List"
+    },
+    {
+      "name": "app_recommendation_pinecone_tagline",
+      "value": "A list app for to-dos, habits and focus"
+    },
+    {
+      "name": "app_recommendation_pinecone_badge_productivity",
+      "value": "Focus on a productive life"
+    },
+    {
+      "name": "app_recommendation_pinecone_badge_design",
+      "value": "Keep things simple"
+    },
+    {
+      "name": "app_recommendation_pinecone_feature_images",
+      "value": "Unlimited task images"
+    },
+    {
+      "name": "app_recommendation_pinecone_feature_lists",
+      "value": "Unlimited lists"
+    },
+    {
+      "name": "app_recommendation_pinecone_feature_colors",
+      "value": "All 20 theme colors"
+    },
+    {
+      "name": "app_recommendation_pinecone_feature_stats",
+      "value": "Complete focus statistics"
+    },
+    {
+      "name": "app_recommendation_pinecone_review_author_habit",
+      "value": "Little Tree"
+    },
+    {
+      "name": "app_recommendation_pinecone_review_title_habit",
+      "value": "Great for building habits"
+    },
+    {
+      "name": "app_recommendation_pinecone_review_message_habit",
+      "value": "I keep my daily habits in a list and get going as soon as the reminder sounds. Keeping up with them feels rewarding."
+    },
+    {
+      "name": "app_recommendation_pinecone_review_author_clear",
+      "value": "Azhe"
+    },
+    {
+      "name": "app_recommendation_pinecone_review_title_clear",
+      "value": "Plans at a glance"
+    },
+    {
+      "name": "app_recommendation_pinecone_review_message_clear",
+      "value": "Sorting tasks into lists keeps important things from slipping through. Checking one off is so satisfying."
+    },
+    {
+      "name": "app_recommendation_pinecone_review_author_focus",
+      "value": "Chestnut"
+    },
+    {
+      "name": "app_recommendation_pinecone_review_title_focus",
+      "value": "A thoughtful focus mode"
+    },
+    {
+      "name": "app_recommendation_pinecone_review_message_focus",
+      "value": "Watching time add up in the focus stats helps me stay on task. It makes the whole day feel productive."
+    },
+    {
+      "name": "app_recommendation_pinecone_review_author_remind",
+      "value": "Teacher Zhou"
+    },
+    {
+      "name": "app_recommendation_pinecone_review_title_remind",
+      "value": "Reminders right on time"
+    },
+    {
+      "name": "app_recommendation_pinecone_review_message_remind",
+      "value": "Reminders and widgets make everything clear, and changing the time is easy. I no longer forget important things."
+    },
+    {
+      "name": "app_recommendation_pinecone_review_author_tidy",
+      "value": "Yiewei"
+    },
+    {
+      "name": "app_recommendation_pinecone_review_title_tidy",
+      "value": "A clean interface"
+    },
+    {
+      "name": "app_recommendation_pinecone_review_message_tidy",
+      "value": "Nothing gets in the way. I open it and see today's plans. It feels comfortable to use."
+    },
+    {
+      "name": "app_recommendation_pinecone_faq_scope_title",
+      "value": "What can I manage?"
+    },
+    {
+      "name": "app_recommendation_pinecone_faq_scope_text",
+      "value": "Manage tasks, habits and countdowns to important dates, with reminders and focus statistics together in one place."
+    },
+    {
+      "name": "app_recommendation_pinecone_faq_remind_title",
+      "value": "How do reminders work?"
+    },
+    {
+      "name": "app_recommendation_pinecone_faq_remind_text",
+      "value": "Reminders work with Live View and widgets so you can see what is next at a glance and adjust the time easily."
+    },
+    {
+      "name": "app_recommendation_pinecone_faq_devices_title",
+      "value": "Can I use it on multiple devices?"
+    },
+    {
+      "name": "app_recommendation_pinecone_faq_devices_text",
+      "value": "Use it on your phone, tablet and computer. Sign in to sync through the cloud and continue planning on another device."
+    },
+    {
       "name": "settings_experiments_swipe_navigation",
       "value": "Swipe navigation"
     },
@@ -23683,6 +23807,26 @@
     {
       "name": "settings_experiments_toast_swipe_navigation_off",
       "value": "Swipe navigation disabled"
+    },
+    {
+      "name": "bookmark_add_url_invalid",
+      "value": "Enter a valid URL."
+    },
+    {
+      "name": "bookmark_add_choose_folder",
+      "value": "Choose a folder to save to."
+    },
+    {
+      "name": "bookmark_add_saving",
+      "value": "Saving…"
+    },
+    {
+      "name": "bookmark_add_select_folder",
+      "value": "Select this folder"
+    },
+    {
+      "name": "bookmark_add_saved_sync_pending",
+      "value": "Bookmark saved. Sync preparation could not finish."
     }
   ]
 }

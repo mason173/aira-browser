@@ -128,7 +128,7 @@ export class BrowserMainBackCoordinator {
         this.dependencies.webpageTranslationCoordinator.handleTargetLanguageAction({ type: 'dismiss' });
         return true;
       case 'handle_bookmark_folder_selection_back':
-        this.dependencies.bookmarkActionCoordinator.handleFolderSelectionAction({ type: 'dismiss' });
+        this.dependencies.bookmarkActionCoordinator.handleFolderSelectionAction({ type: 'back' });
         return true;
       case 'dismiss_app_proxy_quick_sheet':
         this.dependencies.appProxyQuickSheetCoordinator.handleAction({ type: 'dismiss' });

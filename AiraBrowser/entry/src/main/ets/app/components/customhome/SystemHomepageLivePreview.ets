@@ -343,10 +343,10 @@ export struct SystemHomepageLivePreview {
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
           .textAlign(TextAlign.Center)
-          .width(this.desktopTileSize())
+          .width('100%')
       }
     }
-    .width(this.desktopTileSize())
+    .width(this.desktopShortcutColumnWidth())
     .alignItems(HorizontalAlign.Center)
   }
 
@@ -1288,6 +1288,13 @@ export struct SystemHomepageLivePreview {
   private desktopColumnGap(): number {
     return this.desktopUnit(
       this.shortcutLogicService.getAlignedGridColumnGap(this.desktopGridWidthVp(), this.desktopMetrics())
+    );
+  }
+
+  private desktopShortcutColumnWidth(): number {
+    const columns = Math.max(1, this.desktopMetrics().columns);
+    return Math.max(1,
+      (this.desktopContentWidth() - this.desktopColumnGap() * (columns - 1)) / columns
     );
   }
 

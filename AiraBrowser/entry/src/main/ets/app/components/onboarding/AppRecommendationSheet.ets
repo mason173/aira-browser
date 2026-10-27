@@ -1,7 +1,9 @@
 import { AnimatorResult } from '@kit.ArkUI';
+import { drawing } from '@kit.ArkGraphics2D';
 import { resolveAppResourceText } from '../../../core/resources/AppResourceText';
 import {
   BROWSER_THEME_STORAGE_ACCENT_KEY,
+  BROWSER_THEME_STORAGE_DIVIDER_KEY,
   BROWSER_THEME_STORAGE_PAGE_BACKGROUND_KEY,
   BROWSER_THEME_STORAGE_SURFACE_BACKGROUND_KEY,
   BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY,
@@ -21,6 +23,7 @@ import {
 import {
   AppRecommendationEntry,
   AppRecommendationFaq,
+  AppRecommendationFeature,
   AppRecommendationReview,
   appRecommendationEntryFor,
   buildEmptyAppRecommendationEntry
@@ -28,7 +31,7 @@ import {
 
 // The card mirrors the offered app's own product page: an app icon in a
 // rounded square, the product name and phrase, a product phrase held by two
-// laurel branches, a sample review band, and centred questions. The measurements
+// laurel branches, member features, a sample review band, and centred questions. The measurements
 // are that page's, so the card and the app it points at read as one product
 // family.
 //
@@ -54,6 +57,13 @@ const FAQ_TITLE_GAP: number = 4;
 const FAQ_ICON_SIZE: number = 24;
 const FAQ_TEXT_INSET: number = 16;
 const CONTENT_INSET: number = 16;
+/** Kitapp's member-feature card uses the same row, icon and inset dimensions. */
+const FEATURE_CARD_RADIUS: number = 24;
+const FEATURE_ROW_PADDING: number = 14;
+const FEATURE_ICON_SIZE: number = 24;
+const FEATURE_ICON_PLATE_SIZE: number = 34;
+const FEATURE_ICON_PLATE_RADIUS: number = 11;
+const FEATURE_ICON_GAP: number = 18;
 const LAUREL_ICON_WIDTH: number = 17;
 const LAUREL_ICON_HEIGHT: number = 36;
 const LAUREL_COPY_GAP: number = 4;
@@ -95,6 +105,8 @@ const ACCENT_FALLBACK: string = '#0A59F7';
 @Component
 export struct AppRecommendationSheet {
   @StorageProp(BROWSER_THEME_STORAGE_ACCENT_KEY) private storedAccentColor: string = ACCENT_FALLBACK;
+  @StorageProp(BROWSER_THEME_STORAGE_DIVIDER_KEY) private storedDividerColor: string = '#E3E8EF';
+  @StorageProp(BROWSER_THEME_STORAGE_SURFACE_BACKGROUND_KEY) private storedSurfaceBackgroundColor: string = '#FFFFFF';
   @StorageProp(BROWSER_THEME_STORAGE_PAGE_BACKGROUND_KEY) private storedPageBackgroundColor: string =
     DEFAULT_THEME_PALETTE.light.pageBackground;
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY) private storedPrimaryTextColor: string = '#111318';
@@ -150,7 +162,7 @@ export struct AppRecommendationSheet {
   @Builder
   private buildHeader() {
     BrowserFeatureSheetHeader({
-      title: $r('app.string.app_recommendation_title')
+      title: this.entry.name
     })
   }
 
@@ -186,6 +198,10 @@ export struct AppRecommendationSheet {
         this.Hero()
         if (this.entry.badges.length > 0) {
           AppRecommendationLaurelBadges({ labels: this.entry.badges })
+        }
+        if (this.entry.features.length > 0) {
+          this.SectionHeading(this.entry.featuresTitle)
+          this.Features()
         }
         if (this.entry.reviews.length > 0) {
           this.SectionHeading(this.entry.reviewsTitle)
@@ -259,7 +275,7 @@ export struct AppRecommendationSheet {
         .width('100%')
         .fontSize(TITLE_FONT_SIZE)
         .lineHeight(TITLE_LINE_HEIGHT)
-        .fontWeight(FontWeight.Bold)
+        .fontWeight(600)
         .fontColor(this.storedPrimaryTextColor)
         .textAlign(TextAlign.Center)
         .margin({ top: HERO_ICON_NAME_GAP })
@@ -282,9 +298,70 @@ export struct AppRecommendationSheet {
       .width('100%')
       .fontSize(BODY_FONT_SIZE)
       .lineHeight(BODY_LINE_HEIGHT)
-      .fontWeight(FontWeight.Medium)
+      .fontWeight(600)
       .fontColor(this.storedPrimaryTextColor)
       .padding({ top: HEADING_TOP_GAP, bottom: HEADING_BOTTOM_GAP })
+  }
+
+  @Builder
+  private Features() {
+    Column() {
+      ForEach(this.entry.features, (feature: AppRecommendationFeature, index: number) => {
+        Column() {
+          Row({ space: FEATURE_ICON_GAP }) {
+            Stack({ alignContent: Alignment.Center }) {
+              this.IntroIcon(feature.icon, '#FFFFFF', FEATURE_ICON_SIZE)
+            }
+            .width(FEATURE_ICON_PLATE_SIZE)
+            .height(FEATURE_ICON_PLATE_SIZE)
+            .borderRadius(FEATURE_ICON_PLATE_RADIUS)
+            .backgroundColor(feature.plate)
+            Text(feature.title)
+              .layoutWeight(1)
+              .fontSize(BODY_FONT_SIZE)
+              .fontWeight(FontWeight.Regular)
+              .fontColor(this.storedPrimaryTextColor)
+              .maxLines(1)
+              .textOverflow({ overflow: TextOverflow.Ellipsis })
+          }
+          .width('100%')
+          .padding(FEATURE_ROW_PADDING)
+          if (index < this.entry.features.length - 1) {
+            Row() {
+              Blank()
+                .width(FEATURE_ICON_PLATE_SIZE)
+                .margin({ left: FEATURE_ROW_PADDING, right: FEATURE_ICON_GAP })
+              Row()
+                .layoutWeight(1)
+                .height(1)
+                .margin({ right: FEATURE_ROW_PADDING })
+                .backgroundColor(this.storedDividerColor)
+            }
+            .width('100%')
+          }
+        }
+        .width('100%')
+      }, (feature: AppRecommendationFeature): string => feature.key)
+    }
+    .width('100%')
+    .backgroundColor(this.storedSurfaceBackgroundColor)
+    .borderRadius(FEATURE_CARD_RADIUS)
+    .clip(true)
+  }
+
+  /** Kitapp's original SVGs retain their strokes while following Aira's theme. */
+  @Builder
+  private IntroIcon(icon: Resource, color: ResourceColor, size: number) {
+    Image(icon)
+      .width(size)
+      .height(size)
+      .objectFit(ImageFit.Contain)
+      .draggable(false)
+      .supportSvg2(true)
+      .colorFilter(drawing.ColorFilter.createBlendModeColorFilter(
+        drawing.Tool.makeColorFromResourceColor(color), drawing.BlendMode.SRC_IN
+      ))
+      .accessibilityLevel('no-hide-descendants')
   }
 
   @Builder
@@ -292,13 +369,11 @@ export struct AppRecommendationSheet {
     Column({ space: SECTION_GAP }) {
       ForEach(this.entry.faqs, (faq: AppRecommendationFaq) => {
         Column({ space: FAQ_TITLE_GAP }) {
-          SymbolGlyph(faq.icon)
-            .fontSize(FAQ_ICON_SIZE)
-            .fontColor([this.resolveAccentColor()])
+          this.IntroIcon(faq.icon, this.resolveAccentColor(), FAQ_ICON_SIZE)
           Text(faq.title)
             .fontSize(BODY_FONT_SIZE)
             .lineHeight(BODY_LINE_HEIGHT)
-            .fontWeight(FontWeight.Medium)
+            .fontWeight(600)
             .fontColor(this.storedPrimaryTextColor)
             .textAlign(TextAlign.Center)
           Text(faq.text)
@@ -339,10 +414,9 @@ export struct AppRecommendationLaurelBadges {
           Text(label)
             .fontSize(CAPTION_FONT_SIZE)
             .lineHeight(CAPTION_LINE_HEIGHT)
-            .fontWeight(FontWeight.Medium)
+            .fontWeight(600)
             .fontColor(this.storedPrimaryTextColor)
             .textAlign(TextAlign.Center)
-            .maxLines(1)
           Image($r('app.media.app_recommendation_laurel_right'))
             .width(LAUREL_ICON_WIDTH)
             .height(LAUREL_ICON_HEIGHT)
@@ -583,9 +657,16 @@ export struct AppRecommendationReviewMarquee {
     Column({ space: REVIEW_COPY_GAP }) {
       Row({ space: REVIEW_STAR_GAP }) {
         ForEach(this.stars(), (index: number) => {
-          SymbolGlyph($r('sys.symbol.star_fill'))
-            .fontSize(REVIEW_STAR_SIZE)
-            .fontColor([REVIEW_STAR_COLOR])
+          Image($r('app.media.app_recommendation_star_fill'))
+            .width(REVIEW_STAR_SIZE)
+            .height(REVIEW_STAR_SIZE)
+            .objectFit(ImageFit.Contain)
+            .draggable(false)
+            .supportSvg2(true)
+            .colorFilter(drawing.ColorFilter.createBlendModeColorFilter(
+              drawing.Tool.makeColorFromResourceColor(REVIEW_STAR_COLOR), drawing.BlendMode.SRC_IN
+            ))
+            .accessibilityLevel('no-hide-descendants')
         }, (index: number): string => index.toString())
       }
       .width('100%')
@@ -594,7 +675,7 @@ export struct AppRecommendationReviewMarquee {
         .width('100%')
         .fontSize(BODY_FONT_SIZE)
         .lineHeight(BODY_LINE_HEIGHT)
-        .fontWeight(FontWeight.Medium)
+        .fontWeight(600)
         .fontColor(this.storedPrimaryTextColor)
         .maxLines(1)
         .textOverflow({ overflow: TextOverflow.Ellipsis })

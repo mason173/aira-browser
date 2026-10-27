@@ -359,6 +359,22 @@
       ]
     },
     {
+      "owner": "app-recommendation-kitapp-product-artwork",
+      "reason": "Kitapp's original noninteractive feature, review and FAQ illustrations accompany its corresponding app introductions; preserve their geometry instead of replacing them with Aira Operational Icons.",
+      "resourcePaths": [
+        "base/media/app_recommendation_focus_play.svg",
+        "base/media/app_recommendation_focus_reset.svg",
+        "base/media/app_recommendation_ic_bell.svg",
+        "base/media/app_recommendation_ic_laptop.svg",
+        "base/media/app_recommendation_ic_music.svg",
+        "base/media/app_recommendation_image_01.svg",
+        "base/media/app_recommendation_inbox_fill.svg",
+        "base/media/app_recommendation_star_fill.svg",
+        "base/media/app_recommendation_task_01.svg",
+        "base/media/app_recommendation_timer_01.svg"
+      ]
+    },
+    {
       "owner": "app-recommendation-laurel-artwork",
       "reason": "The laurel branches are decorative recommendation artwork whose geometry belongs to the card layout, not a colorable Operational Icon.",
       "resourcePaths": [
