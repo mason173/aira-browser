@@ -1,13 +1,6 @@
-import {
-  BrowserWebViewportCoordinator,
-  BrowserWebViewportPresentationState
-} from '../../../core/browser/BrowserWebViewportCoordinator';
+import { BrowserWebViewportPresentationState } from '../../../core/browser/BrowserWebViewportCoordinator';
 
 import { BrowserWebSafeAreaBackground } from './BrowserWebSafeAreaBackground';
-import { browserSheetHeaderBlurModifier } from './BrowserModalBottomSheet';
-
-// Same blur strength as the immersive settings, bookmark, and history lists.
-const WEB_SCROLL_TOP_BLUR_RADIUS: number = 20;
 
 /**
  * Renders the complete Web viewport geometry projected by its coordinator.
@@ -21,8 +14,7 @@ export struct BrowserWebViewportSurfaceHost {
     topSafeOverlayHeightPx: 0,
     contentTopPx: 0,
     contentHeightPx: 1,
-    fillParentHeight: false,
-    scrollHiddenTopBlurHeightPx: 0
+    fillParentHeight: false
   };
   @Prop backdropSnapshotId: string = '';
   @Prop overlayVisible: boolean = false;
@@ -52,12 +44,7 @@ export struct BrowserWebViewportSurfaceHost {
           this.topChrome()
 
           Column() {
-            Column() {
-              this.content()
-            }
-            .width('100%')
-            .height('100%')
-            .attributeModifier(browserSheetHeaderBlurModifier(this.presentation.scrollHiddenTopBlurHeightPx > 0 ? WEB_SCROLL_TOP_BLUR_RADIUS : 0, BrowserWebViewportCoordinator.resolveTopBlurFractionStops(this.presentation)))
+            this.content()
           }
           .width('100%')
           .height(this.presentation.fillParentHeight ? '100%' : Math.max(1, this.presentation.contentHeightPx))
@@ -65,7 +52,6 @@ export struct BrowserWebViewportSurfaceHost {
             x: 0,
             y: this.presentation.fillParentHeight ? 0 : this.presentation.contentTopPx
           })
-          // Clip after the blur so the kernel cannot paint up into the safe strip.
           // No unconditional geometry animation: history restores still settle in one pass.
           .clip(true)
 

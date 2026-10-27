@@ -31,7 +31,6 @@ export interface BrowserWebViewportLayerLayoutInput {
   fullViewport: boolean;
   largeScreenShellActive: boolean;
   nativeVideoTakeoverActive: boolean;
-  scrollHiddenTopBlurHeightPx?: number;
 }
 
 export interface BrowserWebViewportVisibleTopChromeInput {
@@ -46,7 +45,6 @@ export interface BrowserWebViewportPresentationState {
   contentTopPx: number;
   contentHeightPx: number;
   fillParentHeight: boolean;
-  scrollHiddenTopBlurHeightPx: number;
 }
 
 export interface BrowserWebViewportPresentationUpdateInput {
@@ -100,16 +98,13 @@ export class BrowserWebViewportCoordinator {
     // exactly the same geometry as an ordinary screen of this shorter height.
     const hostHeightPx = availableHeightPx - bottomInsetPx;
     const contentHeightPx = input.fullViewport ? hostHeightPx : Math.max(1, hostHeightPx - topInsetPx);
-    const scrollHiddenTopBlurHeightPx = input.fullViewport || fillParentHeight || topInsetPx > 0
-      ? 0 : Math.min(contentHeightPx, Math.max(0, input.scrollHiddenTopBlurHeightPx ?? 0));
     return {
       hostHeightPx,
       reservedBottomInsetPx: bottomInsetPx,
       topSafeOverlayHeightPx: topInsetPx,
       contentTopPx: topInsetPx,
       contentHeightPx,
-      fillParentHeight,
-      scrollHiddenTopBlurHeightPx
+      fillParentHeight
     };
   }
 
@@ -125,26 +120,9 @@ export class BrowserWebViewportCoordinator {
       input.current.topSafeOverlayHeightPx === input.next.topSafeOverlayHeightPx &&
       input.current.contentTopPx === input.next.contentTopPx &&
       input.current.contentHeightPx === input.next.contentHeightPx &&
-      input.current.scrollHiddenTopBlurHeightPx === input.next.scrollHiddenTopBlurHeightPx &&
       input.current.fillParentHeight === input.next.fillParentHeight) {
       return input.current;
     }
     return input.next;
-  }
-
-  static resolveTopBlurFractionStops(presentation: BrowserWebViewportPresentationState): FractionStop[] {
-    const contentHeightPx = Math.max(1, presentation.contentHeightPx);
-    const blurHeightPx = Math.max(0, presentation.scrollHiddenTopBlurHeightPx);
-    if (blurHeightPx <= 0) {
-      return [[0, 0], [0, 1]];
-    }
-    // Full blur starts on the first pixel under the safe strip. An offset
-    // here leaves a sharp band between the strip and the gradient.
-    const fraction = Math.min(1, blurHeightPx / contentHeightPx);
-    const stops: FractionStop[] = [[1, 0], [1, fraction * 5 / 14], [0, fraction]];
-    if (fraction < 1) {
-      stops.push([0, 1]);
-    }
-    return stops;
   }
 }

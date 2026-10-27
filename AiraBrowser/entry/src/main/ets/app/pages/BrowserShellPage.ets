@@ -8904,11 +8904,7 @@ struct BrowserShellPage {
       // the parent with no top inset. The installed Web App is not that shell, so it keeps the
       // inset path and lands below the system safe area.
       largeScreenShellActive: this.isLargeScreenShellSurfaceActive(),
-      nativeVideoTakeoverActive: this.isAssistantVideoTakeoverActive(),
-      scrollHiddenTopBlurHeightPx: this.browserWebTopImmersionSessionCoordinator.resolveScrollHiddenTopBlurHeightVp(
-        this.browserWindowAvoidAreaCoordinator.readStoredWebTopGeometryInsets(this.getSharedStageStorage()),
-        WEB_TOP_CHROME_CONTENT_GAP_VP
-      )
+      nativeVideoTakeoverActive: this.isAssistantVideoTakeoverActive()
     });
   }
 

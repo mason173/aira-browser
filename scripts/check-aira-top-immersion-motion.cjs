@@ -205,60 +205,13 @@ const refresh = fixture();
 refresh.coordinator.refreshVisibleInset('quick-search');
 assert.equal(refresh.updates.at(-1).durationMs, 0, 'Chrome content changes must settle immediately');
 
-const blur = fixture();
-const geometry = { systemTopInsetVp: 48, cutoutTopInsetVp: 32 };
-const resolveBlur = () => blur.coordinator.resolveScrollHiddenTopBlurHeightVp(geometry, 16);
-assert.equal(resolveBlur(), 0, 'Visible top chrome must not blur Web content');
-blur.hide();
-assert.equal(resolveBlur(), 72, 'Blur height must be 1.5 times the visible cutout + gap, without quick-search height');
-for (const field of ['fullScreenModeEnabled', 'webAppTopSafeAreaHidden',
-  'assistantVideoTakeoverActive', 'homePageVisible', 'tabsSheetVisible']) {
-  blur.facts[field] = true;
-  assert.equal(resolveBlur(), 0, `${field} must not enable scroll blur`);
-  blur.facts[field] = false;
-}
-blur.facts.scrollTopImmersionEnabled = false;
-blur.facts.alwaysTopImmersionEnabled = true;
-blur.facts.statusBarVisible = true;
-assert.equal(resolveBlur(), 0, 'Always-on immersion must not blur before the top has collapsed');
-blur.facts.statusBarVisible = false;
-assert.equal(resolveBlur(), 72, 'Always-on immersion blurs once the top has collapsed');
-blur.facts.alwaysTopImmersionEnabled = false;
-blur.facts.scrollTopImmersionEnabled = true;
-blur.facts.scrollTopImmersionEnabled = false;
-assert.equal(resolveBlur(), 0);
-blur.facts.scrollTopImmersionEnabled = true;
-const viewportInput = {
-  hostHeightPx: 800, visualTopInsetPx: 0, fullViewport: false,
-  largeScreenShellActive: false, nativeVideoTakeoverActive: false,
-  scrollHiddenTopBlurHeightPx: resolveBlur()
-};
-const blurred = BrowserWebViewportCoordinator.resolvePresentation(viewportInput);
-assert.equal(blurred.contentTopPx, 0, 'Blur must not restore occupied top space');
-assert.equal(blurred.contentHeightPx, 800, 'Blur must not resize the Web viewport');
-const stops = BrowserWebViewportCoordinator.resolveTopBlurFractionStops(blurred);
-assert.equal(stops[0][0], 1);
-assert.equal(stops[0][1], 0, 'Full blur begins on the safe-strip edge, with no gap');
-assert.equal(stops[2][0], 0);
-assert.equal(stops[2][1] * blurred.contentHeightPx, 72, 'Blur must end at 1.5 times the safe-area height');
-for (let i = 1; i < stops.length; i++) assert.ok(stops[i][1] > stops[i - 1][1]);
-const clear = BrowserWebViewportCoordinator.resolvePresentation({ ...viewportInput, scrollHiddenTopBlurHeightPx: 0 });
-assert.equal(BrowserWebViewportCoordinator.resolvePresentationUpdate({ current: blurred, next: clear }), clear,
-  'Blur-only changes must be published even when viewport geometry stays unchanged');
-for (const field of ['fullViewport', 'largeScreenShellActive', 'nativeVideoTakeoverActive']) {
-  assert.equal(BrowserWebViewportCoordinator.resolvePresentation({ ...viewportInput, [field]: true })
-    .scrollHiddenTopBlurHeightPx, 0);
-}
-assert.equal(BrowserWebViewportCoordinator.resolvePresentation({ ...viewportInput, visualTopInsetPx: 48 })
-  .scrollHiddenTopBlurHeightPx, 0);
-
 const renderer = fs.readFileSync(path.join(sourceRoot,
   'app/components/browser/BrowserWebViewportSurfaceHost.ets'), 'utf8');
 assert.doesNotMatch(renderer, /if\s*\(this\.presentation\.topSafeOverlayHeightPx\s*>\s*0\)/,
   'Top chrome must remain mounted while its height animates to/from zero');
 assert.doesNotMatch(renderer, /\.animation\(/,
   'Do not apply unconditional animations to history-navigation geometry');
-console.log('Top immersion motion passed: scroll motion and safe-area blur; navigation and forced changes stay immediate.');
+console.log('Top immersion motion passed: scroll motion; navigation and forced changes stay immediate.');
 
 // Execute the actual shell callback: bottom avoidance must retain the same scroll
 // animation as normal pages. Native chrome and Web bounds share one transaction.
@@ -309,7 +262,7 @@ for (const topInset of [0, 13, 40, 88]) {
   const reserved = BrowserWebViewportCoordinator.resolvePresentation({ ...input, visualBottomInsetPx: 101 });
   const shorter = BrowserWebViewportCoordinator.resolvePresentation({ ...input, hostHeightPx: 743 });
   assert.equal(reserved.hostHeightPx, shorter.hostHeightPx, 'shorten the native host, not only its Web child');
-  for (const field of ['contentTopPx', 'contentHeightPx', 'topSafeOverlayHeightPx', 'scrollHiddenTopBlurHeightPx']) {
+  for (const field of ['contentTopPx', 'contentHeightPx', 'topSafeOverlayHeightPx']) {
     assert.equal(reserved[field], shorter[field], `shorter native screen must preserve normal ${field}`);
   }
   assert.equal(reserved.reservedBottomInsetPx, 101);

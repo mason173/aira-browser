@@ -7,7 +7,6 @@ const TOP_IMMERSION_LOG_DOMAIN: number = 0x0000;
 const TOP_IMMERSION_DEVICE_LOG_TAG: string = 'BrowserShellPage';
 const TOP_IMMERSION_SCROLL_TRANSITION_MS: number = 180;
 const COVERED_PAGE_STATUS_BAR_HOLD_MS: number = 450;
-const TOP_IMMERSION_BLUR_HEIGHT_SCALE: number = 1.5;
 
 type BrowserWebTopImmersionForcedReason =
   'none' |
@@ -109,25 +108,6 @@ export class BrowserWebTopImmersionSessionCoordinator {
       return cutoutTopInsetVp;
     }
     return Math.max(systemTopInsetVp, cutoutTopInsetVp);
-  }
-
-  resolveScrollHiddenTopBlurHeightVp(
-    geometryInsets: BrowserWindowWebTopGeometryInsets,
-    contentGapVp: number
-  ): number {
-    const facts = this.dependencies.resolveFacts();
-    const forcedReason = this.resolveForcedReason(facts);
-    const immersionCollapsed = !facts.statusBarVisible &&
-      (facts.scrollTopImmersionEnabled || facts.alwaysTopImmersionEnabled);
-    if (!this.isEligibleWebSurface(facts) || !immersionCollapsed ||
-      forcedReason === 'fullscreen' || forcedReason === 'webapp' || forcedReason === 'assistant' ||
-      this.visibilityOverride !== undefined) {
-      return 0;
-    }
-    // Extend the blur to 1.5 times the visible strip, excluding any quick-search
-    // row. Cutout geometry survives the status bar becoming hidden.
-    const safeStripHeightVp = Math.max(0, Math.ceil(geometryInsets.cutoutTopInsetVp + contentGapVp));
-    return safeStripHeightVp * TOP_IMMERSION_BLUR_HEIGHT_SCALE;
   }
 
   syncPolicy(source: string): void {
