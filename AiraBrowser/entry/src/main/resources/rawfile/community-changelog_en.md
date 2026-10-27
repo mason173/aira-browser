@@ -1,5 +1,17 @@
 # Changelog
 
+## 3.9.1 (1000562)
+
+2026-10-27
+
+This release improves bookmark saving, desktop browsing, and Home and tab interactions.
+
+- Edit a bookmark’s name, URL and folder before saving, with quicker save feedback.
+- Added a desktop bookmark bar with drag-to-reorder support. Desktop windows now start maximized.
+- Improved desktop website compatibility and page layout during immersive browsing.
+- Improved Home shortcut labels and added a hint for long-pressing to close all tabs.
+- Added Pinecone List to App recommendations and expanded app introductions.
+
 ## 3.8.5 (1000558)
 
 2026-10-26
