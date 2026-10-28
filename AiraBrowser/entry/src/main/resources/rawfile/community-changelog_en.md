@@ -1,5 +1,14 @@
 # Changelog
 
+## 3.9.2 (1000565)
+
+2026-10-28
+
+This release fixes tab restoration and improves the display at the top of webpages.
+
+- Fixed closed tabs reappearing after restarting the app.
+- Removed the progressive blur at the top of webpages for clearer content.
+
 ## 3.9.1 (1000562)
 
 2026-10-27

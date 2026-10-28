@@ -1,15 +1,12 @@
 {
   "enabled": true,
-  "noticeId": "aira-3.9.1-1000562",
-  "title": "Aira 3.9.1 update",
-  "updatedAt": "2026-10-27",
-  "summary": "This release improves bookmark saving, desktop browsing, and Home and tab interactions.",
+  "noticeId": "aira-3.9.2-1000565",
+  "title": "Aira 3.9.2 update",
+  "updatedAt": "2026-10-28",
+  "summary": "This release fixes tab restoration and improves the display at the top of webpages.",
   "items": [
-    "Edit a bookmark’s name, URL and folder before saving, with quicker save feedback.",
-    "Added a desktop bookmark bar with drag-to-reorder support. Desktop windows now start maximized.",
-    "Improved desktop website compatibility and page layout during immersive browsing.",
-    "Improved Home shortcut labels and added a hint for long-pressing to close all tabs.",
-    "Added Pinecone List to App recommendations and expanded app introductions."
+    "Fixed closed tabs reappearing after restarting the app.",
+    "Removed the progressive blur at the top of webpages for clearer content."
   ],
   "actionLabel": "View changelog"
 }
