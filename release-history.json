@@ -1,14 +1,23 @@
 {
   "latestAppGalleryRelease": {
-    "versionName": "3.9.1",
-    "versionCode": 1000562,
-    "releasedAt": "2026-10-27",
+    "versionName": "3.9.2",
+    "versionCode": 1000565,
+    "releasedAt": "2026-10-28",
     "source": "formal-package-generated",
-    "notes": "Generated the Official 3.9.1 (1000562) AppGallery candidate from committed HEAD f3694ea447091b8dd0f67c0732bfe40053935fd3, with the version and paired Chinese/English release-note changes in the same working tree. Includes editable bookmark creation with prompt local-save feedback and background sync preparation, desktop bookmark bar drag sorting and maximized startup, native desktop user-agent policy, shortcut label sizing, immersive toolbar layout, tab close-all guidance, and expanded app recommendations. Built as Official/release/APP for com.aira.browser using the release signing configuration. Build contract checks, the release APP build, hap-sign-tool verify-app, and verify-profile for the embedded AppGallery release Profile passed. The APP certificate and embedded Profile match the configured release signing inputs. Package metadata confirms version 3.9.1 (1000562), debug=false, matching Official Huawei app/client identity, bundled private AGConnect configuration, and paired 3.9.1 release notes. Standard APP packaging is used; its inner HAP is not separately signed. Exact-build ArkTS and native crash symbols were archived and all three symbol artifact hashes verified. Source distribution and packaging identity were restored to Community after building. This records a locally generated formal package and does not claim AppGallery review approval or publication.",
-    "artifact": "dist/packages/Aira-official-v3.9.1-1000562.app",
-    "sha256": "aa50a46b3e124cbd2eaabaa5034a9dbab48ca66e1e26bd0da01d428c50a8e0e5"
+    "notes": "Generated the Official 3.9.2 (1000565) AppGallery candidate from committed HEAD 88651ba4e8c535541522f048f20ff2964eef50b7. Includes the closed-tab restart fix, protection for unread sessions after failed startup restoration, and removal of progressive blur from the top of webpages. Built as Official/release/APP for com.aira.browser using the release signing configuration. Build contract checks, the release APP build, hap-sign-tool verify-app and verify-profile passed. The APP certificate and embedded AppGallery release Profile match the configured release signing inputs. Package metadata confirms version 3.9.2 (1000565), debug=false, matching Official Huawei app/client identity, bundled private AGConnect configuration, and paired Chinese/English release notes. Exact-build ArkTS and native crash symbols were archived and all three symbol artifact hashes verified. Source distribution and packaging identity were restored to Community after building. This records a locally generated formal package and does not claim AppGallery review approval or publication.",
+    "artifact": "dist/packages/Aira-official-v3.9.2-1000565.app",
+    "sha256": "fd83d7413d2e4f83b18b4c01f4f6d3ed2095b00649c072defd68d72c77b72613"
   },
   "history": [
+    {
+      "versionName": "3.9.2",
+      "versionCode": 1000565,
+      "releasedAt": "2026-10-28",
+      "source": "formal-package-generated",
+      "notes": "Generated the Official 3.9.2 (1000565) AppGallery candidate from committed HEAD 88651ba4e8c535541522f048f20ff2964eef50b7. Includes the closed-tab restart fix, protection for unread sessions after failed startup restoration, and removal of progressive blur from the top of webpages. Built as Official/release/APP for com.aira.browser using the release signing configuration. Build contract checks, the release APP build, hap-sign-tool verify-app and verify-profile passed. The APP certificate and embedded AppGallery release Profile match the configured release signing inputs. Package metadata confirms version 3.9.2 (1000565), debug=false, matching Official Huawei app/client identity, bundled private AGConnect configuration, and paired Chinese/English release notes. Exact-build ArkTS and native crash symbols were archived and all three symbol artifact hashes verified. Source distribution and packaging identity were restored to Community after building. This records a locally generated formal package and does not claim AppGallery review approval or publication.",
+      "artifact": "dist/packages/Aira-official-v3.9.2-1000565.app",
+      "sha256": "fd83d7413d2e4f83b18b4c01f4f6d3ed2095b00649c072defd68d72c77b72613"
+    },
     {
       "versionName": "3.9.1",
       "versionCode": 1000562,
