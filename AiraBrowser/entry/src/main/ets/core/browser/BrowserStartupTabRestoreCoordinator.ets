@@ -440,6 +440,7 @@ export class BrowserStartupTabRestoreCoordinator {
         );
       }
     }
+    this.dependencies.tabSessionPersistenceCoordinator.handleStartupRestoreCompleted(true);
     this.host.applyState({ restoreCompleted: true });
     const pendingLaunchSource = result.openHomeSurface ? 'restore-tabs-home' : 'restore-tabs';
     const pendingWebSceneLaunchConsumed = this.dependencies.resolveWindowContextCoordinator()
@@ -491,6 +492,7 @@ export class BrowserStartupTabRestoreCoordinator {
       return;
     }
     this.host.setStartupHomeSurfacePending(false);
+    this.dependencies.tabSessionPersistenceCoordinator.handleStartupRestoreCompleted(false);
     this.host.applyState({ restoreCompleted: true });
     const pendingLaunchSource = 'restore-tabs-fallback';
     const pendingWebSceneLaunchConsumed = this.dependencies.resolveWindowContextCoordinator()

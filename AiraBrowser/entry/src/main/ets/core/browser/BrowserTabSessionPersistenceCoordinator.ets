@@ -51,6 +51,7 @@ export class BrowserTabSessionPersistenceCoordinator {
   private recordFilterCoordinator: BrowserTabSessionRecordFilterCoordinator =
     new BrowserTabSessionRecordFilterCoordinator();
   private persistQueue: Promise<void> = Promise.resolve();
+  private preserveUnrestoredEmptySession: boolean = false;
 
   constructor(
     dependencies: BrowserTabSessionPersistenceDependencies,
@@ -63,6 +64,10 @@ export class BrowserTabSessionPersistenceCoordinator {
   persist(): void {
     void this.persistAndWait().catch((_error: Error) => {
     });
+  }
+
+  handleStartupRestoreCompleted(succeeded: boolean): void {
+    this.preserveUnrestoredEmptySession = !succeeded;
   }
 
   async persistAndWait(): Promise<void> {
@@ -86,10 +91,19 @@ export class BrowserTabSessionPersistenceCoordinator {
     const currentWindowId = host.getCurrentWindowId();
     const activeTabId = host.getActiveTabId();
     const tabs = host.getTabs();
+    // A failed startup can leave an uninitialized empty shell after the restoring flag clears.
+    // Preserve the unread session until restoration succeeds or a live tab is serialized.
+    if (tabs.length === 0 && this.preserveUnrestoredEmptySession) {
+      AiraTabSessionProbe.logPersistSkip(currentWindowId, 'startup_restore_failed_empty_session');
+      return;
+    }
     const records = this.dependencies.tabManager.serializeTabs(tabs, activeTabId)
       .map((record: TabRecord): TabRecord => {
         return this.dependencies.downloadNavigationStateCoordinator.sanitizePersistedRecord(record).record;
       });
+    if (records.length > 0) {
+      this.preserveUnrestoredEmptySession = false;
+    }
     const siteClearFilter = this.dependencies.siteClearOnCloseCoordinator.filterPersistableTabRecords(records);
     this.dependencies.siteClearOnCloseCoordinator.persistPendingRecords(
       siteClearFilter.removedRecords,
@@ -126,15 +140,15 @@ export class BrowserTabSessionPersistenceCoordinator {
           `autoclose=${persistencePreparation.droppedAutoClosedCount}`
       );
     }
-    // Fail closed on an empty write that no policy explains. The shell can still hold tabs after
-    // its window session is torn down, at which point the injected tab manager serializes to an
-    // empty list (its binding is disconnected) even though `tabs` is non-empty. Writing that empty
-    // set would delete the persisted tabs, so an unexplained zero is never a valid snapshot to
-    // save. A policy-driven empty write (auto-close / ephemeral drop, e.g. 'on_app_exit') still
-    // falls through, because those tabs are meant to be gone.
+    // Reject an unexplained empty serialization only while the shell still holds tabs.
+    // An empty tab list is a valid session after explicit closure and must clear both the
+    // database and the lifecycle fallback snapshot so closed tabs cannot return on restart.
+    // After window-session teardown, the shell can retain tabs while its disconnected
+    // tab manager serializes to an empty list. That cannot replace the saved session.
+    // Policy-driven empty writes (auto-close / ephemeral drop) still clear saved tabs.
     const policyDroppedCount = persistencePreparation.droppedEphemeralCount +
       persistencePreparation.droppedAutoClosedCount;
-    if (persistencePreparation.records.length === 0 && policyDroppedCount === 0) {
+    if (tabs.length > 0 && persistencePreparation.records.length === 0 && policyDroppedCount === 0) {
       AiraTabSessionProbe.logPersistSkip(
         currentWindowId,
         `unexplained_empty_write tabs=${tabs.length} serialized=${records.length}`

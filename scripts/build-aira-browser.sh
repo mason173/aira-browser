@@ -70,6 +70,7 @@ TAB_SWIPE_COVER_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-tab-swipe-cover.cj
 TAB_PREVIEW_IMAGE_LEASE_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-tab-preview-image-lease.cjs"
 TAB_PREVIEW_LIFECYCLE_SNAPSHOT_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-tab-preview-lifecycle-snapshot.cjs"
 PRIVATE_TAB_SESSION_RESTORE_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-private-tab-session-restore.cjs"
+CLOSED_TAB_SESSION_RESTORE_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-closed-tab-session-restore.cjs"
 REGULAR_SESSION_COOKIE_RESTORE_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-regular-session-cookie-restore.cjs"
 SHARED_HTML_VIEWER_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-shared-html-viewer.cjs"
 QQ_WEB_LOGIN_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-qq-web-login.cjs"
@@ -421,6 +422,7 @@ for swipe_guard in \
   "${TAB_PREVIEW_IMAGE_LEASE_GUARD_SCRIPT}" \
   "${TAB_PREVIEW_LIFECYCLE_SNAPSHOT_GUARD_SCRIPT}" \
   "${PRIVATE_TAB_SESSION_RESTORE_GUARD_SCRIPT}" \
+  "${CLOSED_TAB_SESSION_RESTORE_GUARD_SCRIPT}" \
   "${TABS_STACK_GUARD_SCRIPT}" \
   "${WEB_SWIPE_NAVIGATION_GUARD_SCRIPT}"; do
   if [ ! -f "${swipe_guard}" ]; then
