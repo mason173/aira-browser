@@ -489,7 +489,7 @@ export class CustomHomepageBridgeCoordinator {
       return false;
     }
     const shortcut = shortcuts.find((item: ShortcutRecord): boolean => item.id === shortcutId);
-    if (shortcut === undefined || shortcut.kind === 'folder') {
+    if (shortcut === undefined) {
       this.requestShortcutSync(documentGeneration);
       this.showMessage(resolveAppResourceText($r('app.string.home_shortcut_missing')));
       return true;

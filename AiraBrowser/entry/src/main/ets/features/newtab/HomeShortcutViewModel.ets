@@ -34,8 +34,6 @@ export class HomeShortcutViewModel {
       parts.push([
         shortcut.id,
         shortcut.kind ?? 'web',
-        shortcut.parentId ?? '',
-        shortcut.folderDisplayMode ?? '',
         shortcut.title,
         shortcut.url,
         shortcut.icon ?? '',

@@ -278,8 +278,8 @@ if [ "${failures}" -eq 0 ]; then
     "history_sync_retention_v1" \
     "History retention must keep a stale-device resurrection frontier"
   require_pattern "${DATABASE_REL}" \
-    "CURRENT_BROWSER_DATABASE_SCHEMA_VERSION = (7|[89]|[1-9][0-9]+)" \
-    "Huawei History tables must advance the local browser database schema to version 7 or newer"
+    "CURRENT_BROWSER_DATABASE_SCHEMA_VERSION = 7" \
+    "Huawei History tables must advance the local browser database schema to version 7"
   require_pattern "${DATABASE_REL}" \
     "schemaVersion < 6" \
     "version-5 browser databases must run the idempotent History schema migration"

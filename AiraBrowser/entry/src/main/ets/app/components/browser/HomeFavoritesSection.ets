@@ -1,6 +1,3 @@
-import { HomeShortcutGridPolicy } from '../../../features/newtab/HomeShortcutGridPolicy';
-import { HomeShortcutDragViewport } from '../../../features/newtab/HomeShortcutDragGeometry';
-import { HomeShortcutFolderService } from '../../../services/shortcuts/HomeShortcutFolderService';
 import { resolveAppResourceText } from '../../../core/resources/AppResourceText';
 import {
   HomeContentThemePresentationState,
@@ -55,9 +52,6 @@ export struct HomeFavoritesSection {
 
   private shortcutViewModel: HomeShortcutViewModel = new HomeShortcutViewModel();
 
-  getDragViewport: () => HomeShortcutDragViewport | undefined = () => undefined;
-  onDragScroll: (delta: number) => void = (_delta: number) => {};
-
   onToggle: () => void = () => {};
   onShortcutAction: (action: HomeShortcutUserAction) => void = (_action: HomeShortcutUserAction) => {};
   onOpenAddEntry: () => void = () => {};
@@ -107,9 +101,6 @@ export struct HomeFavoritesSection {
         textShadow: this.theme.textShadow,
         gridWidth: this.resolveShortcutGridWidth(),
         showAddEntry: this.shortcuts.showAddEntry,
-        allowMutations: this.shortcuts.showAddEntry,
-        getDragViewport: this.getDragViewport,
-        onDragScroll: this.onDragScroll,
         showPinnedSettingsEntry: this.showPinnedSettingsEntry,
         alignPartialRowsToStart: this.alignPartialRowsToStart,
         centerPartialRows: this.centerPartialRows,
@@ -138,7 +129,7 @@ export struct HomeFavoritesSection {
   }
 
   private resolveSectionWidth(): number {
-    const itemCount = new HomeShortcutGridPolicy().footprint(new HomeShortcutFolderService().listContainer(this.shortcuts.shortcuts)) +
+    const itemCount = this.shortcuts.shortcuts.length +
       (this.shortcuts.showAddEntry ? 1 : 0) +
       (this.showPinnedSettingsEntry ? 1 : 0);
     const occupiedContentWidth = this.shortcutViewModel.getOccupiedGridContentWidth(

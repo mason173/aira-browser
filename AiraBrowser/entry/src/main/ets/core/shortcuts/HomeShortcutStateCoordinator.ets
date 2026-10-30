@@ -1,5 +1,3 @@
-import { util } from '@kit.ArkTS';
-import { HomeShortcutFolderService, HomeShortcutFolderCommand } from '../../services/shortcuts/HomeShortcutFolderService';
 import { resolveAppResourceText } from '../resources/AppResourceText';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import {
@@ -204,7 +202,6 @@ interface HomeShortcutPersistWaiter {
 }
 
 interface HomeShortcutPersistBatch {
-  baseShortcuts: ShortcutRecord[];
   scenarioId: string;
   shortcuts: ShortcutRecord[];
   waiters: HomeShortcutPersistWaiter[];
@@ -455,8 +452,6 @@ export class HomeShortcutStateCoordinator {
 
   handleUserAction(action: HomeShortcutUserAction): HomeShortcutActionDispatchResult {
     switch (action.type) {
-      case 'folder_mutation':
-        return this.mutateFolder(action.command);
       case 'shortcut_action':
         return this.handleItemAction(action.shortcutId, action.actionId);
       case 'move_shortcut':
@@ -466,22 +461,6 @@ export class HomeShortcutStateCoordinator {
       case 'reorder_shortcuts':
         return this.reorderShortcuts(action.orderedShortcutIds);
     }
-  }
-
-  private mutateFolder(command: HomeShortcutFolderCommand): HomeShortcutActionDispatchResult {
-    if (!this.ensurePersistentWriteAllowed('move_home_shortcut')) return 'not_allowed';
-    if (command.operation === 'merge' || command.dropOperation === 'merge') {
-      command.title = resolveAppResourceText($r('app.string.home_shortcut_folder_default'));
-    }
-    const result = new HomeShortcutFolderService().apply(
-      this.shortcuts, command, command.createdFolderId ?? `home-folder-${util.generateRandomUUID()}`, Date.now()
-    );
-    if (!result.changed) return 'invalid_request';
-    const mutation: HomeShortcutTreeMutationResult = { shortcuts: result.shortcuts, changed: result.changed };
-    void this.commitMutation(mutation, DRAG_ORDER_MUTATION_POLICY).catch((): void => {
-      this.showToast(resolveAppResourceText($r('app.string.home_shortcut_order_restore')));
-    });
-    return 'accepted';
   }
 
   private async loadCurrentScenario(): Promise<HomeShortcutApplicationSnapshot> {
@@ -534,13 +513,6 @@ export class HomeShortcutStateCoordinator {
         return this.openShortcut(shortcutId, 'new_tab');
       case 'open_background_tab':
         return this.openShortcut(shortcutId, 'background_tab');
-      case 'rename_folder': return 'invalid_request';
-      case 'toggle_folder_size':
-        return this.mutateFolder({ operation: 'resize', shortcutId: shortcutId, large: this.findShortcut(shortcutId)?.folderDisplayMode !== 'large' });
-      case 'dissolve_folder':
-        return this.mutateFolder({ operation: 'dissolve', shortcutId: shortcutId });
-      case 'move_out':
-        return this.mutateFolder({ operation: 'move', shortcutId: shortcutId, parentId: '' });
       case 'copy_link':
         return this.copyShortcutUrl(shortcutId);
       case 'edit':
@@ -807,14 +779,10 @@ export class HomeShortcutStateCoordinator {
     if (!this.ensurePersistentWriteAllowed('move_home_shortcut')) {
       return 'not_allowed';
     }
-    const leafIds = this.shortcuts.filter((item: ShortcutRecord): boolean => item.kind !== 'folder')
-      .map((item: ShortcutRecord): string => item.id);
-    if (orderedShortcutIds.length !== leafIds.length || new Set(orderedShortcutIds).size !== leafIds.length ||
-      orderedShortcutIds.some((id: string): boolean => leafIds.indexOf(id) < 0)) return 'invalid_request';
-    let leafCursor = 0;
-    const aggregateIds = this.shortcuts.map((item: ShortcutRecord): string =>
-      item.kind === 'folder' ? item.id : orderedShortcutIds[leafCursor++]);
-    const result: HomeShortcutReorderResult = this.logicService.reorderByIds(this.shortcuts, aggregateIds);
+    const result: HomeShortcutReorderResult = this.logicService.reorderByIds(
+      this.shortcuts,
+      orderedShortcutIds
+    );
     if (!result.valid) {
       return 'invalid_request';
     }
@@ -859,7 +827,6 @@ export class HomeShortcutStateCoordinator {
       return Promise.resolve(false);
     }
     this.nextLoadGeneration();
-    const baseShortcuts = this.logicService.cloneList(this.shortcuts);
     const nextShortcuts = this.logicService.normalizeListPositions(result.shortcuts);
     this.executeEffect({ type: 'dismiss_context_menu' });
     this.shortcuts = nextShortcuts;
@@ -871,12 +838,11 @@ export class HomeShortcutStateCoordinator {
     if (policy.refreshIcons) {
       this.resolveIcons();
     }
-    return this.enqueuePersist(nextShortcuts, baseShortcuts, policy.notifyMoveFailure).then(() => true);
+    return this.enqueuePersist(nextShortcuts, policy.notifyMoveFailure).then(() => true);
   }
 
   private enqueuePersist(
     shortcuts: ShortcutRecord[],
-    baseShortcuts: ShortcutRecord[],
     notifyMoveFailure: boolean
   ): Promise<void> {
     const scenarioId = this.scenarioId;
@@ -894,7 +860,6 @@ export class HomeShortcutStateCoordinator {
         lastBatch.waiters.push(waiter);
       } else {
         this.persistQueue.push({
-          baseShortcuts: baseShortcuts,
           scenarioId: scenarioId,
           shortcuts: snapshot,
           waiters: [waiter]
@@ -918,8 +883,7 @@ export class HomeShortcutStateCoordinator {
           continue;
         }
         try {
-          await this.persistHomeShortcutTree(batch.scenarioId, batch.shortcuts, batch.baseShortcuts);
-          this.refreshPending = true;
+          await this.persistHomeShortcutTree(batch.scenarioId, batch.shortcuts);
           this.resolveWaiters(batch.waiters);
         } catch (error) {
           const normalizedError = this.normalizeThrowable(error);
@@ -943,15 +907,12 @@ export class HomeShortcutStateCoordinator {
 
   private persistHomeShortcutTree(
     scenarioId: string,
-    shortcuts: ShortcutRecord[],
-    baseShortcuts: ShortcutRecord[]
+    shortcuts: ShortcutRecord[]
   ): Promise<ShortcutRecord[]> {
-    return sharedShortcutRepository.runExclusiveMutation(() => sharedShortcutRepository.replaceScenarioShortcuts({
-      baseShortcuts: baseShortcuts,
+    return sharedShortcutRepository.replaceScenarioShortcuts({
       scenarioId: scenarioId,
-      preserveScenarios: true,
       shortcuts: this.logicService.normalizeListPositions(shortcuts)
-    }));
+    });
   }
 
   private recoverPersistFailure(
@@ -980,7 +941,7 @@ export class HomeShortcutStateCoordinator {
   }
 
   private resolveIcons(): void {
-    void this.iconHydrationCoordinator.resolveFor(this.shortcuts.filter((item: ShortcutRecord): boolean => item.kind !== 'folder'), this.iconHydrationCallbacks);
+    void this.iconHydrationCoordinator.resolveFor(this.shortcuts, this.iconHydrationCallbacks);
   }
 
   private applyIconHydrationSnapshot(snapshot: HomeShortcutIconHydrationSnapshot): void {
@@ -1091,8 +1052,6 @@ export class HomeShortcutStateCoordinator {
         shortcut.title,
         shortcut.url,
         shortcut.folderName,
-        shortcut.parentId ?? '',
-        shortcut.folderDisplayMode ?? '',
         shortcut.position.toString(),
         shortcut.icon ?? '',
         shortcut.iconRendering ?? '',

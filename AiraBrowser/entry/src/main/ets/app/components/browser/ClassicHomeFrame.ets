@@ -1,5 +1,3 @@
-import { util } from '@kit.ArkTS';
-import { HomeShortcutDragViewport } from '../../../features/newtab/HomeShortcutDragGeometry';
 import {
   createDefaultHomeContentSectionsPresentationState,
   createDefaultHomeContentThemePresentationState,
@@ -36,7 +34,6 @@ import { HomeSettingsActionRow } from './HomeSettingsActionRow';
 @Component
 export struct ClassicHomeFrame {
   private scroller: Scroller = new Scroller();
-  private scrollNodeId: string = `home-scroll-${util.generateRandomUUID()}`;
   private shortcutViewModel: HomeShortcutViewModel = new HomeShortcutViewModel();
   @StorageProp(HOME_PAGE_PRESENTATION_SHOW_FAVORITES_TITLE_KEY)
   private storedShowFavoritesTitle: boolean = true;
@@ -75,8 +72,6 @@ export struct ClassicHomeFrame {
             theme: this.theme,
             contextMenuShortcutId: $contextMenuShortcutId,
             shortcutDragActive: $shortcutDragActive,
-            getDragViewport: () => this.dragViewport(),
-            onDragScroll: (delta: number) => { this.scroller.scrollBy(0, delta); },
             onToggle: () => {
               animateTo({ duration: 180, curve: Curve.EaseInOut }, () => {
                 this.favoritesExpanded = !this.favoritesExpanded;
@@ -139,7 +134,6 @@ export struct ClassicHomeFrame {
     .height('100%')
     .clip(true)
     .scrollBar(BarState.Off)
-    .id(this.scrollNodeId)
     .enableScrollInteraction(!this.shortcutDragActive)
     .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
     .onDidScroll((_scrollDelta: number, _scrollState: ScrollState) => {
@@ -168,12 +162,4 @@ export struct ClassicHomeFrame {
     }
     return resolveHomeFullGridWidth(this.presentation);
   }
-  private dragViewport(): HomeShortcutDragViewport | undefined {
-    try {
-      const rect = this.getUIContext().getComponentUtils().getRectangleById(this.scrollNodeId);
-      return { x: this.getUIContext().px2vp(rect.windowOffset.x), y: this.getUIContext().px2vp(rect.windowOffset.y),
-        width: this.getUIContext().px2vp(rect.size.width), height: this.getUIContext().px2vp(rect.size.height) };
-    } catch (_error) { return undefined; }
-  }
-
 }

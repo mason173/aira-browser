@@ -23827,30 +23827,6 @@
     {
       "name": "bookmark_add_saved_sync_pending",
       "value": "书签已保存，同步准备暂未完成。"
-    },
-    {
-      "name": "home_shortcut_folder_default",
-      "value": "文件夹"
-    },
-    {
-      "name": "home_shortcut_folder_rename",
-      "value": "重命名文件夹"
-    },
-    {
-      "name": "home_shortcut_folder_large",
-      "value": "显示为大文件夹"
-    },
-    {
-      "name": "home_shortcut_folder_small",
-      "value": "显示为小文件夹"
-    },
-    {
-      "name": "home_shortcut_folder_dissolve",
-      "value": "解散文件夹"
-    },
-    {
-      "name": "home_shortcut_folder_move_out",
-      "value": "移出文件夹"
     }
   ]
 }

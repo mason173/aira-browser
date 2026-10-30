@@ -23827,30 +23827,6 @@
     {
       "name": "bookmark_add_saved_sync_pending",
       "value": "Bookmark saved. Sync preparation could not finish."
-    },
-    {
-      "name": "home_shortcut_folder_default",
-      "value": "Folder"
-    },
-    {
-      "name": "home_shortcut_folder_rename",
-      "value": "Rename folder"
-    },
-    {
-      "name": "home_shortcut_folder_large",
-      "value": "Show large folder"
-    },
-    {
-      "name": "home_shortcut_folder_small",
-      "value": "Show small folder"
-    },
-    {
-      "name": "home_shortcut_folder_dissolve",
-      "value": "Dissolve folder"
-    },
-    {
-      "name": "home_shortcut_folder_move_out",
-      "value": "Move out of folder"
     }
   ]
 }

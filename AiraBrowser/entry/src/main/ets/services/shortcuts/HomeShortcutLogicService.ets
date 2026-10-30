@@ -1,4 +1,3 @@
-import { HomeShortcutFolderService } from './HomeShortcutFolderService';
 import {
   ShortcutKind,
   ShortcutRecord,
@@ -120,7 +119,6 @@ export class HomeShortcutLogicService {
   }
 
   resolveDestinationIdentity(kind: ShortcutKind | undefined, url: string): string {
-    if (kind === 'folder') return '';
     if (resolveHomeShortcutKind(kind) === 'system') {
       const target = resolveHomeSystemShortcutTarget(url);
       return target === undefined ? '' : `system:${target}`;
@@ -279,7 +277,7 @@ export class HomeShortcutLogicService {
 
   removeById(shortcuts: ShortcutRecord[], shortcutId: string): HomeShortcutTreeRemovalResult {
     const flatShortcuts = this.flattenToLinkShortcuts(shortcuts);
-    const nextShortcuts = new HomeShortcutFolderService().remove(flatShortcuts, shortcutId);
+    const nextShortcuts = flatShortcuts.filter((shortcut: ShortcutRecord) => shortcut.id !== shortcutId);
     return {
       shortcuts: nextShortcuts,
       removed: nextShortcuts.length !== flatShortcuts.length
@@ -292,11 +290,6 @@ export class HomeShortcutLogicService {
     boundary: HomeShortcutMoveBoundary
   ): HomeShortcutTreeMutationResult {
     const flatShortcuts = this.flattenToLinkShortcuts(shortcuts);
-    if (flatShortcuts.some((item: ShortcutRecord): boolean => item.kind === 'folder')) {
-      const leaves = flatShortcuts.filter((item: ShortcutRecord): boolean => item.kind !== 'folder');
-      const reordered = this.moveById(leaves, shortcutId, boundary);
-      return this.replaceLeafOrder(flatShortcuts, reordered);
-    }
     const currentIndex = flatShortcuts.findIndex((shortcut: ShortcutRecord) => shortcut.id === shortcutId);
     if (currentIndex < 0) {
       return { shortcuts: flatShortcuts, changed: false };
@@ -326,11 +319,6 @@ export class HomeShortcutLogicService {
     step: HomeShortcutMoveStep
   ): HomeShortcutTreeMutationResult {
     const flatShortcuts = this.flattenToLinkShortcuts(shortcuts);
-    if (flatShortcuts.some((item: ShortcutRecord): boolean => item.kind === 'folder')) {
-      const leaves = flatShortcuts.filter((item: ShortcutRecord): boolean => item.kind !== 'folder');
-      const reordered = this.moveByIdStep(leaves, shortcutId, step);
-      return this.replaceLeafOrder(flatShortcuts, reordered);
-    }
     const currentIndex = flatShortcuts.findIndex((shortcut: ShortcutRecord) => shortcut.id === shortcutId);
     if (currentIndex < 0) {
       return { shortcuts: flatShortcuts, changed: false };
@@ -413,19 +401,11 @@ export class HomeShortcutLogicService {
     return { shortcuts: nextShortcuts, changed: changed, valid: true };
   }
 
-  private replaceLeafOrder(records: ShortcutRecord[], mutation: HomeShortcutTreeMutationResult): HomeShortcutTreeMutationResult {
-    let cursor = 0;
-    return { shortcuts: records.map((item: ShortcutRecord): ShortcutRecord => item.kind === 'folder'
-      ? item : mutation.shortcuts[cursor++]), changed: mutation.changed };
-  }
-
   cloneRecord(shortcut: ShortcutRecord): ShortcutRecord {
     const cloned: ShortcutRecord = {
       id: shortcut.id,
       scenarioId: shortcut.scenarioId,
       kind: shortcut.kind,
-      parentId: shortcut.parentId,
-      folderDisplayMode: shortcut.folderDisplayMode,
       title: shortcut.title,
       url: shortcut.url,
       folderName: shortcut.folderName,

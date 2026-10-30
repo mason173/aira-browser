@@ -8,7 +8,6 @@ import { ShortcutRepository } from '../../data/repositories/BrowserRepositories'
 import { BrowserProfileBoundaryService } from '../../core/browser/BrowserProfileBoundaryService';
 import { BrowserPrivacyEffectPolicyService } from '../privacy/BrowserPrivacyEffectPolicyService';
 import { HomeShortcutLogicService } from './HomeShortcutLogicService';
-import { HomeShortcutFolderService } from './HomeShortcutFolderService';
 import {
   resolveHomeShortcutKind,
   resolveHomeSystemShortcutDefinitionByUrl
@@ -89,14 +88,6 @@ export class HomeShortcutToggleService {
     const shortcuts = await this.refresh();
     const matches = this.findMatchingShortcutsForTarget(target, shortcuts, target.scenarioId);
     if (matches.length > 0) {
-      if (shortcuts.some((item: ShortcutRecord): boolean => item.kind === 'folder')) {
-        const folders = new HomeShortcutFolderService();
-        let next = shortcuts;
-        matches.forEach((item: ShortcutRecord): void => { next = folders.remove(next, item.id); });
-        await this.repository.replaceScenarioShortcuts({ scenarioId: target.scenarioId ?? 'aira_default_scenario',
-          preserveScenarios: true, baseShortcuts: shortcuts, shortcuts: next });
-        return { added: false, removed: true, changed: true, shortcuts: this.repository.listAll() };
-      }
       let removedCount = 0;
       for (const shortcut of matches) {
         const deleted = await this.repository.deleteShortcut(shortcut.id);

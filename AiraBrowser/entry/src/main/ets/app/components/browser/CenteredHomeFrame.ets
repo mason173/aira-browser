@@ -1,5 +1,3 @@
-import { util } from '@kit.ArkTS';
-import { HomeShortcutDragViewport } from '../../../features/newtab/HomeShortcutDragGeometry';
 import { ExternalAppSearchTargetId, SearchSuggestion } from '../../../common/models/BrowserModels';
 import {
   createDefaultHomeContentSectionsPresentationState,
@@ -35,7 +33,6 @@ import { WordmarkHomeHeaderBlock } from './WordmarkHomeHeaderBlock';
 @Component
 export struct CenteredHomePageFrame {
   private scroller: Scroller = new Scroller();
-  private scrollNodeId: string = `home-scroll-${util.generateRandomUUID()}`;
   private shortcutViewModel: HomeShortcutViewModel = new HomeShortcutViewModel();
   @StorageProp(HOME_PAGE_PRESENTATION_HOME_LOGO_SCALE_RATIO_KEY)
   private storedLogoScaleRatio: number = HOME_LOGO_SCALE_DEFAULT_RATIO;
@@ -100,8 +97,6 @@ export struct CenteredHomePageFrame {
                 theme: this.theme,
                 contextMenuShortcutId: $contextMenuShortcutId,
                 shortcutDragActive: $shortcutDragActive,
-            getDragViewport: () => this.dragViewport(),
-            onDragScroll: (delta: number) => { this.scroller.scrollBy(0, delta); },
                 onShortcutAction: (action: HomeShortcutUserAction) => {
                   this.onAction({ type: 'shortcut', shortcutAction: action });
                 },
@@ -129,8 +124,7 @@ export struct CenteredHomePageFrame {
           .align(Alignment.TopStart)
           .clip(true)
           .scrollBar(BarState.Off)
-          .id(this.scrollNodeId)
-    .enableScrollInteraction(!this.shortcutDragActive && !this.inlineSearchActive)
+          .enableScrollInteraction(!this.shortcutDragActive && !this.inlineSearchActive)
           .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
           .onDidScroll((_scrollDelta: number, _scrollState: ScrollState) => {
             this.onAction({
@@ -239,18 +233,9 @@ export struct CenteredHomePageFrame {
       this.surfaceHeight = height;
     }
   }
-  private dragViewport(): HomeShortcutDragViewport | undefined {
-    try {
-      const rect = this.getUIContext().getComponentUtils().getRectangleById(this.scrollNodeId);
-      return { x: this.getUIContext().px2vp(rect.windowOffset.x), y: this.getUIContext().px2vp(rect.windowOffset.y),
-        width: this.getUIContext().px2vp(rect.size.width), height: this.getUIContext().px2vp(rect.size.height) };
-    } catch (_error) { return undefined; }
-  }
 }
 
 function parseAreaLength(value: Length): number {
   const parsed = Number(`${value}`.replace('vp', '').replace('px', '').trim());
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
-
-
 }

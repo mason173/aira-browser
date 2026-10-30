@@ -19,7 +19,6 @@ function evaluate(source, globals = {}) {
   return module.exports;
 }
 
-const { HomeShortcutGridPolicy } = evaluate(read('features/newtab/HomeShortcutGridPolicy.ets'));
 const { HomeShortcutLogicService } = evaluate(read('services/shortcuts/HomeShortcutLogicService.ets'));
 const { HomeShortcutViewModel } = evaluate(read('features/newtab/HomeShortcutViewModel.ets'));
 const surface = read('app/components/browser/HomeShortcutSurface.ets');
@@ -44,11 +43,8 @@ const metrics = applyCenteredHomeShortcutLayout({ shortcutMetrics: {
 for (const gridWidth of [320, 360, 412, 800]) {
   for (const itemCount of [1, 2, 5, 7, 11]) {
     const layout = Object.assign(new SurfaceLayout(), {
-      viewModel, metrics, gridWidth, contentInset: 0, centerPartialRows: true, containerParentId: '',
-      liveShortcuts: Array.from({ length: itemCount - 1 }, (_, index) => ({id: `item-${index}`})),
-      gridPolicy: new HomeShortcutGridPolicy(),
-      containerShortcuts() { return this.liveShortcuts; },
-      hasAddEntry() { return this.showAddEntry; },
+      viewModel, metrics, gridWidth, contentInset: 0, centerPartialRows: true,
+      liveShortcuts: Array.from({ length: itemCount - 1 }),
       showAddEntry: true, showPinnedSettingsEntry: false
     });
     const labelWidth = layout.resolveShortcutCardWidth();

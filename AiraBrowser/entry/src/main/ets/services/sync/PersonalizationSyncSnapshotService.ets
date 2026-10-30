@@ -157,22 +157,13 @@ export class PersonalizationSyncSnapshotService {
     }
     return {
       meta: {
-        version: this.resolveSnapshotSchemaVersion(sections),
+        version: PERSONALIZATION_SYNC_SCHEMA_VERSION,
         deviceId: deviceId,
         generatedAt: new Date(now).toISOString()
       },
       sections: sections,
       checksum: this.buildChecksum(sections)
     };
-  }
-
-  resolveSnapshotSchemaVersion(sections: Record<string, PersonalizationSyncSection>): number {
-    const section = sections['home_shortcuts'];
-    if (section === undefined) return 2;
-    const payload = section.payload as PersonalizationHomeShortcutsPayload;
-    return (payload.shortcuts ?? []).some((shortcut: ShortcutRecord): boolean => shortcut.kind === 'folder' ||
-      (shortcut.parentId ?? '').length > 0 || shortcut.folderDisplayMode !== undefined)
-      ? PERSONALIZATION_SYNC_SCHEMA_VERSION : 2;
   }
 
   buildLocalSectionStates(

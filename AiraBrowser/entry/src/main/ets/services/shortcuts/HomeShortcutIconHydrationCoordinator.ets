@@ -56,7 +56,6 @@ export class HomeShortcutIconHydrationCoordinator {
     shortcuts: ShortcutRecord[],
     callbacks: HomeShortcutIconHydrationCallbacks
   ): HomeShortcutIconHydrationSnapshot {
-    shortcuts = shortcuts.filter((shortcut: ShortcutRecord): boolean => shortcut.kind !== 'folder');
     const startedAt = Date.now();
     this.activeShortcuts = shortcuts.slice();
     this.activeCallbacks = shortcuts.length > 0 ? callbacks : undefined;
@@ -124,7 +123,6 @@ export class HomeShortcutIconHydrationCoordinator {
     callbacks: HomeShortcutIconHydrationCallbacks,
     publicationMode: HomeShortcutIconHydrationPublicationMode = 'progressive'
   ): Promise<void> {
-    shortcuts = shortcuts.filter((shortcut: ShortcutRecord): boolean => shortcut.kind !== 'folder');
     const startedAt = Date.now();
     if (shortcuts.length === 0) {
       hilog.info(

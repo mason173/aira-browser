@@ -16,7 +16,7 @@ import {
 import { BrowserHomePageStyle } from './HomePagePresentationSettingsModels';
 import { WallpaperMode } from './WallpaperModels';
 
-export const PERSONALIZATION_SYNC_SCHEMA_VERSION: number = 3;
+export const PERSONALIZATION_SYNC_SCHEMA_VERSION: number = 2;
 
 export type PersonalizationSyncItemId =
   | 'home_shortcuts'

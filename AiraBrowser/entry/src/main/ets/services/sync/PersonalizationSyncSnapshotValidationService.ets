@@ -16,7 +16,7 @@ export class PersonalizationSyncSnapshotValidationService {
   validate(snapshot: PersonalizationSyncSnapshot, sourceLabel: string): PersonalizationSyncSnapshot {
     if (snapshot === undefined || snapshot === null || typeof snapshot !== 'object' ||
       snapshot.meta === undefined || snapshot.meta === null ||
-      (snapshot.meta.version !== 2 && snapshot.meta.version !== PERSONALIZATION_SYNC_SCHEMA_VERSION) ||
+      snapshot.meta.version !== PERSONALIZATION_SYNC_SCHEMA_VERSION ||
       !this.isNonEmptyString(snapshot.meta.deviceId) ||
       !this.isNonEmptyString(snapshot.meta.generatedAt) ||
       snapshot.sections === undefined || snapshot.sections === null ||
@@ -102,9 +102,7 @@ export class PersonalizationSyncSnapshotValidationService {
     return this.isNonEmptyString(record.id as string) && typeof record.title === 'string' &&
       typeof record.url === 'string' && typeof record.folderName === 'string' &&
       this.isNonNegativeInteger(record.position as number) && this.isValidSyncMetadata(record.sync) &&
-      this.isOptionalNonEmptyString(record.scenarioId) && this.isOptionalAllowedString(record.kind, ['web', 'system', 'folder']) &&
-      this.isOptionalNonEmptyString(record.parentId) &&
-      this.isOptionalAllowedString(record.folderDisplayMode, ['small', 'large']) &&
+      this.isOptionalNonEmptyString(record.scenarioId) && this.isOptionalAllowedString(record.kind, ['web', 'system']) &&
       this.isOptionalString(record.icon) && this.isOptionalString(record.description) &&
       this.isOptionalBoolean(record.useOfficialIcon) && this.isOptionalBoolean(record.autoUseOfficialIcon) &&
       this.isOptionalBoolean(record.officialIconAvailableAtSave) &&

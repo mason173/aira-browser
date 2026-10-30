@@ -1,4 +1,3 @@
-import { HomeShortcutFolderCommand } from '../../services/shortcuts/HomeShortcutFolderService';
 import { image } from '@kit.ImageKit';
 import { HomeShortcutMoveRequest } from '../../services/shortcuts/HomeShortcutLogicService';
 
@@ -11,10 +10,6 @@ export interface HomeShortcutIconState {
 }
 
 export type HomeShortcutContextActionId =
-  'rename_folder' |
-  'toggle_folder_size' |
-  'dissolve_folder' |
-  'move_out' |
   'open' |
   'open_new_tab' |
   'open_background_tab' |
@@ -65,13 +60,7 @@ export interface HomeShortcutReorderUserAction {
   orderedShortcutIds: string[];
 }
 
-export interface HomeShortcutFolderUserAction {
-  type: 'folder_mutation';
-  command: HomeShortcutFolderCommand;
-}
-
 export type HomeShortcutUserAction =
-  HomeShortcutFolderUserAction |
   HomeShortcutItemUserAction |
   HomeShortcutConfirmEditUserAction |
   HomeShortcutMoveUserAction |
