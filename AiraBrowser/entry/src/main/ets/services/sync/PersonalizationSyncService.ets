@@ -944,7 +944,11 @@ export class PersonalizationSyncService {
       }
     });
     return {
-      meta: snapshot.meta,
+      meta: {
+        version: this.snapshotService.resolveSnapshotSchemaVersion(sections),
+        deviceId: snapshot.meta.deviceId,
+        generatedAt: snapshot.meta.generatedAt
+      },
       sections: sections,
       checksum: JSON.stringify(sections)
     };

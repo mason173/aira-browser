@@ -56,6 +56,9 @@ export class HomeShortcutOpenPolicyService {
     activeTabId: string,
     intent: HomeShortcutOpenIntent = 'current_tab'
   ): HomeShortcutOpenPlan {
+    if (shortcut.kind === 'folder') {
+      throw new Error(resolveAppResourceText($r('app.string.home_shortcut_open_unavailable')));
+    }
     if (resolveHomeShortcutKind(shortcut.kind) === 'system') {
       const target = resolveHomeSystemShortcutTarget(shortcut.url);
       if (target === undefined) {

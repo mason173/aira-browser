@@ -74,7 +74,7 @@ function resolveHomeSystemShortcutTitle(target: HomeSystemShortcutTarget): strin
 }
 
 export function resolveHomeShortcutKind(kind: ShortcutKind | undefined): ShortcutKind {
-  return kind === 'system' ? 'system' : 'web';
+  return kind === 'folder' ? 'folder' : kind === 'system' ? 'system' : 'web';
 }
 
 export function isHomeSystemShortcut(shortcut: ShortcutRecord): boolean {

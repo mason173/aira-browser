@@ -192,7 +192,7 @@ export class CustomHomepageBridgeService {
     _effectiveMode: BrowserResolvedThemeMode = 'light'
   ): Promise<string> {
     const items: CustomHomepageShortcutItem[] = [];
-    const ordered = shortcuts.slice().sort((left: ShortcutRecord, right: ShortcutRecord): number => {
+    const ordered = shortcuts.filter((item: ShortcutRecord): boolean => item.kind !== 'folder').slice().sort((left: ShortcutRecord, right: ShortcutRecord): number => {
       return left.position - right.position;
     });
     for (const shortcut of ordered) {

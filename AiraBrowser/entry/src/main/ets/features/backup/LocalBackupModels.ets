@@ -100,6 +100,8 @@ export interface LocalBackupShortcutScenarioRecord {
 
 export interface LocalBackupShortcutRecord {
   id: string;
+  parentId?: string;
+  folderDisplayMode?: 'small' | 'large';
   scenarioId?: string;
   kind?: ShortcutKind;
   title: string;

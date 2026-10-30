@@ -1053,4 +1053,5 @@ if (failures.length > 0) {
 }
 
 require('./check-aira-home-shortcut-label-width.cjs');
+require('./check-aira-home-shortcut-folders.cjs');
 console.log('Home Chrome Scroll contract passed.');

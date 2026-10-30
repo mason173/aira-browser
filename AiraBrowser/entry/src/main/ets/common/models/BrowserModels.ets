@@ -738,7 +738,7 @@ function normalizeBrowserDataBoundaryStoragePartitionId(
   return `${profileId}:persistent`;
 }
 
-export type ShortcutKind = 'web' | 'system';
+export type ShortcutKind = 'web' | 'system' | 'folder';
 
 export type HomeSystemShortcutTarget =
   'bookmarks' |
@@ -752,6 +752,8 @@ export type HomeSystemShortcutTarget =
 
 export interface ShortcutRecord {
   id: string;
+  parentId?: string;
+  folderDisplayMode?: 'small' | 'large';
   scenarioId?: string;
   kind?: ShortcutKind;
   title: string;
@@ -788,6 +790,8 @@ export interface UpdateShortcutCommand {
 }
 
 export interface ReplaceScenarioShortcutsCommand {
+  baseShortcuts?: ShortcutRecord[];
+  preserveScenarios?: boolean;
   scenarioId: string;
   shortcuts: ShortcutRecord[];
 }

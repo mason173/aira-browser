@@ -88,7 +88,7 @@ interface HistoryVisitDeleteRef {
 const DOMAIN = 0x0000;
 const TAG = 'BrowserDatabase';
 const DATABASE_NAME = 'aira_browser.db';
-const CURRENT_BROWSER_DATABASE_SCHEMA_VERSION = 7;
+const CURRENT_BROWSER_DATABASE_SCHEMA_VERSION = 8;
 const INITIAL_BROWSER_DATABASE_SCHEMA_VERSION = 1;
 const BROWSER_SCHEMA_STATE_TABLE = 'browser_schema_state';
 const BROWSER_SCHEMA_STATE_CURRENT_KEY = 'current';
@@ -575,6 +575,7 @@ const SHORTCUT_COLUMNS: string[] = [
   'kind',
   'children',
   'folder_display_mode',
+  'parent_id',
   'use_official_icon',
   'auto_use_official_icon',
   'official_icon_available_at_save',
@@ -604,6 +605,7 @@ const SHORTCUT_SCHEMA_SQL: string[] = [
     kind TEXT,
     children TEXT,
     folder_display_mode TEXT,
+    parent_id TEXT,
     use_official_icon INTEGER,
     auto_use_official_icon INTEGER,
     official_icon_available_at_save INTEGER,
@@ -3195,6 +3197,9 @@ export class BrowserDatabase {
       if (schemaVersion >= 6 && schemaVersion < 7) {
         await this.ensureHistoryRetentionOrderingIndex(store);
       }
+      if (schemaVersion < 8) {
+        await this.ensureOptionalShortcutColumns(store);
+      }
       await this.writeSchemaVersion(store, CURRENT_BROWSER_DATABASE_SCHEMA_VERSION);
     } catch (error) {
       hilog.error(DOMAIN, TAG, 'Failed to ensure browser schema: %{public}s', JSON.stringify(error));
@@ -3298,11 +3303,21 @@ export class BrowserDatabase {
   }
 
   private async ensureOptionalShortcutColumns(store: relationalStore.RdbStore): Promise<void> {
+    const columns: string[] = ['parent_id TEXT', 'folder_display_mode TEXT'];
+    for (const column of columns) {
+      try {
+        await store.executeSql(`ALTER TABLE ${SHORTCUTS_TABLE} ADD COLUMN ${column}`);
+      } catch (_error) {
+        // Existing installs already carry this optional column.
+      }
+    }
     try {
       await store.executeSql(`ALTER TABLE ${SHORTCUTS_TABLE} ADD COLUMN children TEXT`);
     } catch (_error) {
       // Existing installs already have this column after the first migration run.
     }
+    const verification = await store.querySql(`SELECT parent_id, folder_display_mode FROM ${SHORTCUTS_TABLE} LIMIT 0`);
+    verification.close();
   }
 
   private async ensureOptionalRecentlyClosedTabColumns(store: relationalStore.RdbStore): Promise<void> {
@@ -6755,6 +6770,8 @@ export class BrowserDatabase {
       const urlIndex = resultSet.getColumnIndex('url');
       const kindIndex = resultSet.getColumnIndex('kind');
       const folderNameIndex = resultSet.getColumnIndex('folder_name');
+      const parentIdIndex = resultSet.getColumnIndex('parent_id');
+      const folderModeIndex = resultSet.getColumnIndex('folder_display_mode');
       const positionIndex = resultSet.getColumnIndex('position');
       const iconIndex = resultSet.getColumnIndex('icon');
       const descriptionIndex = resultSet.getColumnIndex('description');
@@ -6778,10 +6795,12 @@ export class BrowserDatabase {
         const shortcut: ShortcutRecord = {
           id: resultSet.getString(idIndex),
           scenarioId: resultSet.getString(scenarioIdIndex),
-          kind: resultSet.isColumnNull(kindIndex) ? undefined : resultSet.getString(kindIndex) as 'web' | 'system',
+          kind: resultSet.isColumnNull(kindIndex) ? undefined : resultSet.getString(kindIndex) as 'web' | 'system' | 'folder',
           title: resultSet.getString(titleIndex),
           url: resultSet.getString(urlIndex),
           folderName: resultSet.getString(folderNameIndex),
+          parentId: resultSet.isColumnNull(parentIdIndex) ? undefined : resultSet.getString(parentIdIndex),
+          folderDisplayMode: resultSet.isColumnNull(folderModeIndex) ? undefined : resultSet.getString(folderModeIndex) as 'small' | 'large',
           position: resultSet.getLong(positionIndex),
           icon: resultSet.isColumnNull(iconIndex) ? undefined : resultSet.getString(iconIndex),
           description: resultSet.isColumnNull(descriptionIndex) ? undefined : resultSet.getString(descriptionIndex),
@@ -6831,7 +6850,8 @@ export class BrowserDatabase {
       description: shortcut.description ?? null,
       kind: shortcut.kind ?? null,
       children: null,
-      folder_display_mode: null,
+      folder_display_mode: shortcut.folderDisplayMode ?? null,
+      parent_id: shortcut.parentId ?? null,
       use_official_icon: shortcut.useOfficialIcon === undefined ? null : shortcut.useOfficialIcon ? 1 : 0,
       auto_use_official_icon: shortcut.autoUseOfficialIcon === undefined ? null : shortcut.autoUseOfficialIcon ? 1 : 0,
       official_icon_available_at_save: shortcut.officialIconAvailableAtSave === undefined ? null : shortcut.officialIconAvailableAtSave ? 1 : 0,

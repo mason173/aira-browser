@@ -342,13 +342,14 @@ export class InMemoryShortcutRepository implements ShortcutRepository {
   }
 
   async replaceScenarioShortcuts(command: ReplaceScenarioShortcutsCommand): Promise<ShortcutRecord[]> {
-    const normalized = normalizeShortcutTreeForLocalReplace(command.scenarioId, command.shortcuts);
+    const normalized = normalizeShortcutTreeForLocalReplace(command.scenarioId, rebaseShortcutReplacement(command, this.shortcuts), this.shortcuts, command.preserveScenarios === true);
     const nextRootIds = new Set<string>(normalized.map((shortcut: ShortcutRecord) => shortcut.id));
     const staleRoots = this.shortcuts.filter((shortcut: ShortcutRecord) => {
       return shortcut.sync?.deletedAt === undefined &&
         isAiraOwnedShortcut(shortcut) &&
-        (shortcut.scenarioId ?? 'aira_default_scenario') === command.scenarioId &&
-        !nextRootIds.has(shortcut.id);
+        (command.preserveScenarios === true || (shortcut.scenarioId ?? 'aira_default_scenario') === command.scenarioId) &&
+        !nextRootIds.has(shortcut.id) &&
+        (command.baseShortcuts === undefined || command.baseShortcuts.some((base: ShortcutRecord): boolean => base.id === shortcut.id));
     });
 
     this.shortcuts = this.shortcuts.map((shortcut: ShortcutRecord) => {
@@ -369,10 +370,11 @@ export class InMemoryShortcutRepository implements ShortcutRepository {
         this.shortcuts.push(shortcut);
       }
     });
-    this.touchScenarioOrder(
-      command.scenarioId,
-      resolveShortcutBatchModifiedAt(normalized.concat(deletedRoots), Date.now())
-    );
+    const revision = resolveShortcutBatchModifiedAt(normalized.concat(deletedRoots), Date.now());
+    const touchedScenarios = new Set<string>(normalized.concat(deletedRoots)
+      .map((item: ShortcutRecord): string => item.scenarioId ?? command.scenarioId));
+    touchedScenarios.add(command.scenarioId);
+    touchedScenarios.forEach((id: string): void => { this.touchScenarioOrder(id, revision); });
     this.notifyLocalChange();
     return Promise.resolve(this.listAll());
   }
@@ -600,24 +602,27 @@ export class RdbShortcutRepository implements ShortcutRepository {
 
   async replaceScenarioShortcuts(command: ReplaceScenarioShortcutsCommand): Promise<ShortcutRecord[]> {
     await this.initialize();
-    const normalized = normalizeShortcutTreeForLocalReplace(command.scenarioId, command.shortcuts);
+    const normalized = normalizeShortcutTreeForLocalReplace(command.scenarioId, rebaseShortcutReplacement(command, this.shortcutsCache), this.shortcutsCache, command.preserveScenarios === true);
     const nextRootIds = new Set<string>(normalized.map((shortcut: ShortcutRecord) => shortcut.id));
     const staleRoots = this.shortcutsCache.filter((shortcut: ShortcutRecord) => {
       return shortcut.sync?.deletedAt === undefined &&
         isAiraOwnedShortcut(shortcut) &&
-        (shortcut.scenarioId ?? 'aira_default_scenario') === command.scenarioId &&
-        !nextRootIds.has(shortcut.id);
+        (command.preserveScenarios === true || (shortcut.scenarioId ?? 'aira_default_scenario') === command.scenarioId) &&
+        !nextRootIds.has(shortcut.id) &&
+        (command.baseShortcuts === undefined || command.baseShortcuts.some((base: ShortcutRecord): boolean => base.id === shortcut.id));
     });
 
     const deletedRoots = staleRoots.map((shortcut: ShortcutRecord): ShortcutRecord => markShortcutDeleted(shortcut));
-    const scenario = this.buildOrderChangedScenario(
-      command.scenarioId,
-      resolveShortcutBatchModifiedAt(normalized.concat(deletedRoots), Date.now())
-    );
-    await this.database.upsertShortcutSnapshot(
-      scenario === undefined ? [] : [scenario],
-      normalized.concat(deletedRoots)
-    );
+    const revision = resolveShortcutBatchModifiedAt(normalized.concat(deletedRoots), Date.now());
+    const touchedScenarios = new Set<string>(normalized.concat(deletedRoots)
+      .map((item: ShortcutRecord): string => item.scenarioId ?? command.scenarioId));
+    touchedScenarios.add(command.scenarioId);
+    const scenarios: ShortcutScenarioRecord[] = [];
+    touchedScenarios.forEach((id: string): void => {
+      const scenario = this.buildOrderChangedScenario(id, revision);
+      if (scenario !== undefined) scenarios.push(scenario);
+    });
+    await this.database.upsertShortcutSnapshot(scenarios, normalized.concat(deletedRoots));
 
     await this.refresh();
     this.notifyLocalChange();
@@ -1769,6 +1774,8 @@ function applyLocalShortcutUpdate(shortcut: ShortcutRecord, command: UpdateShort
     id: shortcut.id,
     scenarioId: shortcut.scenarioId,
     kind: shortcut.kind,
+    parentId: shortcut.parentId,
+    folderDisplayMode: shortcut.folderDisplayMode,
     title: sanitizeShortcutTitle(command.title, command.url),
     url: sanitizeBookmarkUrl(command.url),
     folderName: folderName,
@@ -1794,23 +1801,85 @@ function applyLocalShortcutUpdate(shortcut: ShortcutRecord, command: UpdateShort
   };
 }
 
-function normalizeShortcutTreeForLocalReplace(scenarioId: string, shortcuts: ShortcutRecord[]): ShortcutRecord[] {
+function rebaseShortcutReplacement(command: ReplaceScenarioShortcutsCommand, current: ShortcutRecord[]): ShortcutRecord[] {
+  if (command.baseShortcuts === undefined) return command.shortcuts;
+  const base = command.baseShortcuts;
+  const next: ShortcutRecord[] = [];
+  command.shortcuts.forEach((desired: ShortcutRecord): void => {
+    const previous = base.find((item: ShortcutRecord): boolean => item.id === desired.id);
+    const latest = current.find((item: ShortcutRecord): boolean => item.id === desired.id);
+    if (previous === undefined) next.push(latest === undefined ? desired : rebaseShortcutContent(desired, desired, latest));
+    else if (latest !== undefined && latest.sync?.deletedAt === undefined) next.push(rebaseShortcutContent(previous, desired, latest));
+  });
+  current.forEach((item: ShortcutRecord): void => {
+    if (item.sync?.deletedAt === undefined && isAiraOwnedShortcut(item) &&
+      (command.preserveScenarios || (item.scenarioId ?? 'aira_default_scenario') === command.scenarioId) &&
+      !base.some((old: ShortcutRecord): boolean => old.id === item.id) &&
+      !next.some((desired: ShortcutRecord): boolean => desired.id === item.id)) next.push(item);
+  });
+  return next;
+}
+
+function rebaseShortcutContent(base: ShortcutRecord, desired: ShortcutRecord, current: ShortcutRecord): ShortcutRecord {
+  return {
+    id: current.id,
+    scenarioId: desired.scenarioId !== base.scenarioId ? desired.scenarioId : current.scenarioId,
+    kind: desired.kind !== base.kind ? desired.kind : current.kind,
+    parentId: desired.parentId !== base.parentId ? desired.parentId : current.parentId,
+    folderDisplayMode: desired.folderDisplayMode !== base.folderDisplayMode ? desired.folderDisplayMode : current.folderDisplayMode,
+    title: desired.title !== base.title ? desired.title : current.title,
+    url: desired.url !== base.url ? desired.url : current.url,
+    folderName: desired.folderName !== base.folderName ? desired.folderName : current.folderName,
+    icon: desired.icon !== base.icon ? desired.icon : current.icon,
+    description: desired.description !== base.description ? desired.description : current.description,
+    useOfficialIcon: desired.useOfficialIcon !== base.useOfficialIcon ? desired.useOfficialIcon : current.useOfficialIcon,
+    autoUseOfficialIcon: desired.autoUseOfficialIcon !== base.autoUseOfficialIcon ? desired.autoUseOfficialIcon : current.autoUseOfficialIcon,
+    officialIconAvailableAtSave: desired.officialIconAvailableAtSave !== base.officialIconAvailableAtSave ? desired.officialIconAvailableAtSave : current.officialIconAvailableAtSave,
+    officialIconColorOverride: desired.officialIconColorOverride !== base.officialIconColorOverride ? desired.officialIconColorOverride : current.officialIconColorOverride,
+    iconRendering: desired.iconRendering !== base.iconRendering ? desired.iconRendering : current.iconRendering,
+    iconColor: desired.iconColor !== base.iconColor ? desired.iconColor : current.iconColor,
+    position: desired.position, createdAt: current.createdAt, updatedAt: current.updatedAt, sync: current.sync
+  };
+}
+
+function normalizeShortcutTreeForLocalReplace(scenarioId: string, shortcuts: ShortcutRecord[], existing: ShortcutRecord[], preserveScenarios: boolean = false): ShortcutRecord[] {
   const now = Date.now();
   return flattenShortcutList(shortcuts).map((shortcut: ShortcutRecord, index: number) => {
-    return normalizeShortcutForLocalReplace(shortcut, scenarioId, index, now);
+    return normalizeShortcutForLocalReplace(shortcut, preserveScenarios ? (shortcut.scenarioId ?? scenarioId) : scenarioId, index, now, existing.find((item: ShortcutRecord): boolean => item.id === shortcut.id));
   });
+}
+
+function equalShortcutContent(left: ShortcutRecord, right: ShortcutRecord): boolean {
+  return left.kind === right.kind && left.title === right.title && left.url === right.url &&
+    (left.parentId ?? '') === (right.parentId ?? '') &&
+    (left.folderDisplayMode ?? 'small') === (right.folderDisplayMode ?? 'small') &&
+    left.icon === right.icon && (left.description ?? '首页') === (right.description ?? '首页') &&
+    left.useOfficialIcon === right.useOfficialIcon && left.autoUseOfficialIcon === right.autoUseOfficialIcon &&
+    left.officialIconAvailableAtSave === right.officialIconAvailableAtSave &&
+    left.officialIconColorOverride === right.officialIconColorOverride &&
+    left.iconRendering === right.iconRendering && left.iconColor === right.iconColor &&
+    left.sync?.deletedAt === right.sync?.deletedAt;
 }
 
 function normalizeShortcutForLocalReplace(
   shortcut: ShortcutRecord,
   scenarioId: string,
   position: number,
-  now: number
+  now: number,
+  existing?: ShortcutRecord
 ): ShortcutRecord {
+  if (existing !== undefined && (existing.scenarioId ?? 'aira_default_scenario') === scenarioId && equalShortcutContent(existing, shortcut)) {
+    const preserved = cloneShortcutWithIcon(existing, existing.icon);
+    preserved.position = position;
+    return preserved;
+  }
+  now = Math.max(now, (existing?.sync?.lastModifiedAt ?? 0) + 1);
   return {
     id: shortcut.id,
     scenarioId: scenarioId,
     kind: shortcut.kind,
+    parentId: shortcut.parentId,
+    folderDisplayMode: shortcut.folderDisplayMode,
     title: shortcut.title,
     url: shortcut.url,
     folderName: '首页',
@@ -1836,11 +1905,13 @@ function normalizeShortcutForLocalReplace(
   };
 }
 
-function cloneShortcutWithIcon(shortcut: ShortcutRecord, icon: string): ShortcutRecord {
+function cloneShortcutWithIcon(shortcut: ShortcutRecord, icon: string | undefined): ShortcutRecord {
   return {
     id: shortcut.id,
     scenarioId: shortcut.scenarioId,
     kind: shortcut.kind,
+    parentId: shortcut.parentId,
+    folderDisplayMode: shortcut.folderDisplayMode,
     title: shortcut.title,
     url: shortcut.url,
     folderName: shortcut.folderName,
@@ -1874,11 +1945,13 @@ function isAiraOwnedShortcutScenario(scenario: ShortcutScenarioRecord): boolean 
 }
 
 function markShortcutDeleted(shortcut: ShortcutRecord): ShortcutRecord {
-  const now = Date.now();
+  const now = Math.max(Date.now(), resolveShortcutRecordModifiedAt(shortcut) + 1);
   return {
     id: shortcut.id,
     scenarioId: shortcut.scenarioId,
     kind: shortcut.kind,
+    parentId: shortcut.parentId,
+    folderDisplayMode: shortcut.folderDisplayMode,
     title: shortcut.title,
     url: shortcut.url,
     folderName: shortcut.folderName,
