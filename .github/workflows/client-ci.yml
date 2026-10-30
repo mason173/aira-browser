@@ -50,6 +50,8 @@ jobs:
         run: node scripts/check-aira-geolocation-permission.cjs
       - name: Check web swipe navigation
         run: node scripts/check-aira-web-swipe-navigation.cjs
+      - name: Check Forward returns from home
+        run: node scripts/check-aira-home-forward-return.cjs
       - name: Check closed tabs stay closed after restart
         run: node scripts/check-aira-closed-tab-session-restore.cjs
       - name: Check shared HTML viewer response flow

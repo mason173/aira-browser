@@ -898,6 +898,9 @@ export class BrowserLargeScreenShellIntentApplication {
       return;
     }
     if (intent.kind === 'forward') {
+      if (this.dependencies.tabHomeCoordinator.forwardFromHome() !== undefined) {
+        return;
+      }
       if (this.dependencies.tabSwitchCoordinator.navigateNativeTabHistory(facts.activeTabId, 'forward')) {
         return;
       }

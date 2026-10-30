@@ -463,7 +463,7 @@ export class BrowserBottomPanelActionPresentationCoordinator {
       return [
         this.buildHeaderAction('webBack', bottomPanelBack(), $r('sys.symbol.chevron_left'), false, '',
           'reliableTrigger', 'browser.toolbar.back'),
-        this.buildHeaderAction('webForward', bottomPanelForward(), $r('sys.symbol.chevron_right'), false, '',
+        this.buildHeaderAction('webForward', bottomPanelForward(), $r('sys.symbol.chevron_right'), state.canGoForward, '',
           'reliableTrigger', 'browser.toolbar.forward')
       ];
     }

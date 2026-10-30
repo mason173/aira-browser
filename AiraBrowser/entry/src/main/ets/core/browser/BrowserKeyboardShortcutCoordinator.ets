@@ -174,7 +174,7 @@ export class BrowserKeyboardShortcutCoordinator {
         this.dependencies.webHistoryCommandRuntimeCoordinator.handleShortcutNavigateBack();
         return;
       case 'navigateForward':
-        if (this.isWebSurfaceUnavailable(facts)) {
+        if (facts.showTabsSheet) {
           this.shell.showMessage(resolveAppResourceText($r('app.string.browser_browser_keyboard_shortcut_coordinator_028')));
           return;
         }

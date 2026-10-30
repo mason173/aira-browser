@@ -16,6 +16,7 @@ export type BrowserWebNavigationCommandStatus =
 
 export type BrowserWebNavigationCommandReason =
   'native_history' |
+  'home_return' |
   'dialog_back' |
   'web_context_menu' |
   'page_find' |

@@ -2084,6 +2084,7 @@ struct BrowserShellPage {
         privateModeLockCoordinator: this.browserPrivateModeLockCoordinator,
         privateProfileLifecycleCoordinator: this.browserPrivateProfileLifecycleCoordinator,
         privateProfileCookieLifecycleHost: this.browserPrivateProfileCookieLifecycleHost,
+        resolveTabHomeCoordinator: (): BrowserTabHomeCoordinator => this.browserTabHomeCoordinator,
         resolveTabSwitchCoordinator: (): BrowserTabSwitchCoordinator => this.browserTabSwitchCoordinator,
         resolveTabSessionPersistenceCoordinator: (): BrowserTabSessionPersistenceCoordinator =>
           this.browserTabSessionPersistenceCoordinator,
@@ -2978,6 +2979,7 @@ struct BrowserShellPage {
       controllerAttached: this.controllerAttached,
       bottomAddressTransientMessageContext: this.buildBottomAddressTransientMessageContext(),
       homeDataScope: this.homeDataScope,
+      currentProfileId: this.tabScopedEventContextCoordinator.resolveCurrentBoundary().profileId,
       currentDataScope: this.tabScopedEventContextCoordinator.resolveCurrentBoundary().dataScope,
       currentPrivacyMode: this.tabScopedEventContextCoordinator.resolveCurrentBoundary().privacyMode,
       currentBoundaryPrivate: this.tabScopedEventContextCoordinator.isCurrentBoundaryPrivate(),
@@ -3056,7 +3058,7 @@ struct BrowserShellPage {
       }
       if (application.clearNavigationState === true) {
         this.canGoBack = false;
-        this.canGoForward = false;
+        this.canGoForward = this.browserTabHomeCoordinator.canGoForwardFromHome();
       }
       if (application.clearControllerAttachment === true) {
         this.controllerAttached = false;
@@ -4448,6 +4450,7 @@ struct BrowserShellPage {
     },
     publishSnapshot: (snapshot: BrowserRecentlyClosedApplicationSnapshot): void => {
       this.recentlyClosedApplicationSnapshot = snapshot;
+      this.reconcileShellTabPresentation();
     },
     presentBoundaryBlock: (_eventType: string, _summaryLine: string, helperText: string): void => {
       this.showNativeToast(helperText);
@@ -5147,6 +5150,7 @@ struct BrowserShellPage {
       },
       {
         resolveActiveTabId: (): string => this.activeTabId,
+        forwardFromHome: (): boolean | undefined => this.browserTabHomeCoordinator.forwardFromHome(),
         showNativeToast: (message: string): void => this.showNativeToast(message),
         showKeyboardShortcutMessage: (message: string): void => this.showKeyboardShortcutMessage(message)
       }
@@ -7432,7 +7436,10 @@ struct BrowserShellPage {
     // invalidate them here (this runs on every `tabs` change). Otherwise a tab
     // closed while the sheet is open would keep its stale preview entry.
     this.refreshTabPreviewStates();
-    const presentation = this.browserShellPresentationOperations?.reconcileTabs(this.tabs, this.activeTabId);
+    const presentation = this.browserShellPresentationOperations?.reconcileTabs(this.tabs, this.activeTabId, {
+      visible: this.showHomePage,
+      canGoForward: this.browserTabHomeCoordinator.canGoForwardFromHome()
+    });
     this.browserShellRouteCoordinator.reconcilePhoneNativeTabHandoff(
       presentation?.surface,
       this.tabs,
@@ -9374,7 +9381,10 @@ struct BrowserShellPage {
     const tab = this.tabManager.getTab(this.tabs, this.activeTabId);
     const historyCanGoForward = tab !== undefined && !tab.isHome &&
       tab.navigationIndex >= 0 && tab.navigationIndex < tab.navigationHistory.length - 1;
-    return resolveSplitToolbarCanGoForward(this.showHomePage, this.canGoForward, historyCanGoForward);
+    if (this.showHomePage) {
+      return this.browserTabHomeCoordinator.canGoForwardFromHome();
+    }
+    return resolveSplitToolbarCanGoForward(false, this.canGoForward, historyCanGoForward);
   }
 
   @Builder

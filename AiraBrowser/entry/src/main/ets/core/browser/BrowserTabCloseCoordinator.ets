@@ -270,7 +270,7 @@ export class BrowserTabCloseCoordinator {
     const tabId = activeTab.id;
     const cleanupPlan = this.buildCloseTabCleanupPlan(tabs, activeTabId, tabId);
     this.dependencies.resolveWebPageLifecycleCoordinator().prepareTabForTerminalClose(tabId);
-    this.recordRecentlyClosedTabForAction(tabId);
+    this.recordRecentlyClosedTabForAction(tabId, true);
     this.applyCloseTabsToHomeMutation(this.tabManager.closeActiveTabToHome(tabs, activeTabId), host);
     this.removeClosedTabPreview(tabId, host);
     this.dependencies.backgroundOpenPromptCoordinator.dismissTab(tabId);
@@ -363,7 +363,7 @@ export class BrowserTabCloseCoordinator {
       const cleanupPlan = this.buildCloseTabCleanupPlan(simulatedTabs, simulatedActiveTabId, tabId);
       cleanupPlans.push(cleanupPlan);
       this.dependencies.resolveWebPageLifecycleCoordinator().prepareTabForTerminalClose(tabId);
-      this.recordRecentlyClosedTabForAction(tabId);
+      this.recordRecentlyClosedTabForAction(tabId, true);
       this.dependencies.backgroundOpenPromptCoordinator.dismissTab(tabId);
       const simulatedMutation = this.tabManager.closeTabsToHome(simulatedTabs, simulatedActiveTabId, [tabId]);
       simulatedTabs = simulatedMutation.tabs;
@@ -515,7 +515,19 @@ export class BrowserTabCloseCoordinator {
     const state = host.readState();
     const tabs = state.tabs;
     const activeTabId = state.activeTabId;
-    this.recordRecentlyClosedTabForAction(request.tabId);
+    const nextActiveTab = this.findTabById(request.transition.tabs, request.transition.activeTabId);
+    const returnsToExistingHome = request.tabId === activeTabId && nextActiveTab !== undefined &&
+      nextActiveTab.isHome && nextActiveTab.navigationHistory.length === 0;
+    this.recordRecentlyClosedTabForAction(
+      request.tabId,
+      request.postCloseSurfacePlan.kind !== 'tabs' || returnsToExistingHome
+    );
+    if (returnsToExistingHome && nextActiveTab !== undefined) {
+      this.dependencies.resolveTabHomeCoordinator().bindHomeForwardTab(
+        nextActiveTab.id,
+        this.buildHomeOptionsFromClosedTab(nextActiveTab)
+      );
+    }
     const cleanupPlan = this.buildCloseTabCleanupPlan(
       tabs,
       activeTabId,
@@ -822,15 +834,21 @@ export class BrowserTabCloseCoordinator {
     return true;
   }
 
-  private recordRecentlyClosedTabForAction(tabId: string): BrowserRecentlyClosedRecordOutcome {
+  private recordRecentlyClosedTabForAction(
+    tabId: string,
+    rememberForHomeForward: boolean = false
+  ): BrowserRecentlyClosedRecordOutcome {
     const state = this.resolveApplicationHost().readState();
     const recentlyClosedOwner = this.dependencies.recentlyClosedApplicationCoordinator;
     const tab = this.findTabById(state.tabs, tabId);
+    if (rememberForHomeForward && tabId === state.activeTabId) {
+      this.dependencies.resolveTabHomeCoordinator().rememberHomeForwardTab(tab);
+    }
     const skipReason = this.resolveRecentlyClosedSkipReason(tab);
     if (skipReason.length > 0) {
       return this.buildRecentlyClosedSkippedResult(skipReason);
     }
-    return recentlyClosedOwner.recordClosedTab(tab);
+    return recentlyClosedOwner.recordClosedTab(tab, rememberForHomeForward && tabId === state.activeTabId);
   }
 
   restoreRecentlyClosedRecord(recordId: string): BrowserRecentlyClosedRestoreOutcome {
@@ -938,6 +956,7 @@ export class BrowserTabCloseCoordinator {
     host: BrowserCloseTabApplicationHost
   ): Promise<void> {
     if (plan.kind === 'create_home_tab') {
+      this.dependencies.resolveTabHomeCoordinator().bindHomeForwardTab(host.readState().activeTabId, plan.homeOptions);
       if (host.readState().tabsOverviewVisible) {
         host.requestCloseTabsOverview();
       }

@@ -23,7 +23,7 @@ import {
   BrowserWindowPresentationProfileInput
 } from './BrowserWindowPresentationProfile';
 import { BrowserShellAdapterCatalogSnapshot } from './BrowserShellAdapterCatalog';
-import { BrowserLargeScreenPresentationFacts } from './BrowserLargeScreenPresentationViewModel';
+import { BrowserHomeNavigationPresentation, BrowserLargeScreenPresentationFacts } from './BrowserLargeScreenPresentationViewModel';
 import {
   BrowserLargeScreenWindowFactsInput,
   BrowserLargeScreenWindowFactsPolicy,
@@ -758,7 +758,7 @@ export interface BrowserWindowSessionShellPresentationOperations {
   isAvailable(): boolean;
   surface(): BrowserShellPresentationSurface | undefined;
   snapshot(): BrowserShellPresentationSnapshot | undefined;
-  reconcileTabs(tabs: BrowserTabState[], activeTabId: string): BrowserShellPresentationSnapshot | undefined;
+  reconcileTabs(tabs: BrowserTabState[], activeTabId: string, homeNavigation?: BrowserHomeNavigationPresentation): BrowserShellPresentationSnapshot | undefined;
 }
 
 class BrowserWindowSessionShellPresentationOperationsImplementation
@@ -766,13 +766,13 @@ class BrowserWindowSessionShellPresentationOperationsImplementation
   private readonly isSessionAvailable: () => boolean;
   private readonly resolveSnapshot: () => BrowserShellPresentationSnapshot | undefined;
   private readonly reconcileTabPresentation:
-    (tabs: BrowserTabState[], activeTabId: string) => BrowserShellPresentationSnapshot | undefined;
+    (tabs: BrowserTabState[], activeTabId: string, homeNavigation?: BrowserHomeNavigationPresentation) => BrowserShellPresentationSnapshot | undefined;
 
   constructor(
     isSessionAvailable: () => boolean,
     resolveSnapshot: () => BrowserShellPresentationSnapshot | undefined,
     reconcileTabPresentation:
-      (tabs: BrowserTabState[], activeTabId: string) => BrowserShellPresentationSnapshot | undefined
+      (tabs: BrowserTabState[], activeTabId: string, homeNavigation?: BrowserHomeNavigationPresentation) => BrowserShellPresentationSnapshot | undefined
   ) {
     this.isSessionAvailable = isSessionAvailable;
     this.resolveSnapshot = resolveSnapshot;
@@ -794,11 +794,11 @@ class BrowserWindowSessionShellPresentationOperationsImplementation
     return this.resolveSnapshot();
   }
 
-  reconcileTabs(tabs: BrowserTabState[], activeTabId: string): BrowserShellPresentationSnapshot | undefined {
+  reconcileTabs(tabs: BrowserTabState[], activeTabId: string, homeNavigation?: BrowserHomeNavigationPresentation): BrowserShellPresentationSnapshot | undefined {
     if (!this.isAvailable()) {
       return undefined;
     }
-    return this.reconcileTabPresentation(tabs, activeTabId);
+    return this.reconcileTabPresentation(tabs, activeTabId, homeNavigation);
   }
 }
 
@@ -927,7 +927,7 @@ export class BrowserWindowSessionApplication {
     new BrowserWindowSessionShellPresentationOperationsImplementation(
       (): boolean => !this.released,
       (): BrowserShellPresentationSnapshot | undefined => this.shellPresentationCoordinator.snapshot(),
-      (tabs: BrowserTabState[], activeTabId: string): BrowserShellPresentationSnapshot | undefined => {
+      (tabs: BrowserTabState[], activeTabId: string, homeNavigation?: BrowserHomeNavigationPresentation): BrowserShellPresentationSnapshot | undefined => {
         const activeTab = tabs.find((tab: BrowserTabState): boolean => tab.id === activeTabId);
         this.novelReaderSessionCoordinator.reconcileWindowState(
           activeTab?.privacyMode === 'private' ? 'private' : 'regular',
@@ -935,7 +935,7 @@ export class BrowserWindowSessionApplication {
           tabs.map((tab: BrowserTabState): string => tab.id),
           this.browserSessionCoordinator.getRuntime(activeTabId)?.controller
         );
-        return this.shellPresentationCoordinator.reconcileLargeScreenTabs(tabs, activeTabId);
+        return this.shellPresentationCoordinator.reconcileLargeScreenTabs(tabs, activeTabId, homeNavigation);
       }
     );
   private readonly runtimeSessionPort: BrowserRuntimeSessionPort = new BrowserRuntimeSessionPort(

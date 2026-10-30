@@ -1339,7 +1339,9 @@ function desktopCloseHarness(urls = ['https://example.com'], privacyMode = 'regu
       cleanupClosedTabRuntime: async request => { events.push(`cleanup:${request.tabId}`); await hooks.cleanup(); }
     }),
     resolveTabSessionPersistenceCoordinator: () => ({ persist, persistAndWait: async () => persist() }),
-    resolveTabHomeCoordinator: () => ({ showHomeSurface: () => events.push('home_surface') }),
+    resolveTabHomeCoordinator: () => ({
+      showHomeSurface: () => events.push('home_surface'), rememberHomeForwardTab() {}, bindHomeForwardTab() {}
+    }),
     tabSwitchCoordinator: { synchronizeActiveTab: () => events.push(`activate:${state.activeTabId}`),
       synchronizeWebTabsAndPreviewAssets() {} },
     pageFindCoordinator: { handleActiveTabChanged() {} },

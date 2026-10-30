@@ -1,3 +1,4 @@
+import { BrowserTabHomeCoordinator } from './BrowserTabHomeCoordinator';
 import {
   normalizeBrowserDataScope,
   normalizeBrowserSessionPrivacyMode
@@ -67,6 +68,7 @@ export interface BrowserForegroundTabCreationDependencies {
   privateModeLockCoordinator: BrowserPrivateModeLockCoordinator;
   privateProfileLifecycleCoordinator: BrowserPrivateProfileLifecycleCoordinator;
   privateProfileCookieLifecycleHost: BrowserPrivateProfileCookieLifecycleHost;
+  resolveTabHomeCoordinator: () => BrowserTabHomeCoordinator;
   resolveTabSwitchCoordinator: () => BrowserTabSwitchCoordinator;
   resolveTabSessionPersistenceCoordinator: () => BrowserTabSessionPersistenceCoordinator;
   resolveTabsOverviewSessionCoordinator: () => BrowserTabsOverviewSessionCoordinator;
@@ -158,6 +160,10 @@ export class BrowserForegroundTabCreationCoordinator {
       void host.captureCurrentTabPreviewForForegroundCreationAsync();
     }
     const state = host.resolveForegroundTabCreationState();
+    const createsHome = request.initialUrl === state.homeUrl;
+    if (createsHome) {
+      this.dependencies.resolveTabHomeCoordinator().prepareHomeForwardForNewTab();
+    }
     const resolvedTitle = request.initialTitle === '新标签页'
       ? resolveBrowserNewWindowTestTitle(request.initialUrl, request.initialTitle)
       : request.initialTitle;
@@ -170,6 +176,9 @@ export class BrowserForegroundTabCreationCoordinator {
       state.homeUrl,
       request.options
     );
+    if (createsHome) {
+      this.dependencies.resolveTabHomeCoordinator().bindHomeForwardTab(transition.activeTabId, request.options);
+    }
     request.prepareCreatedTab?.(transition.activeTabId);
     const coldStartRestorePatch: BrowserTabRuntimePatch | undefined =
       request.runtimeOptions.restoreAsColdStart === true ? {

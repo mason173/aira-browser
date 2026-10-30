@@ -5,6 +5,7 @@ import {
   BrowserShellAdapterKind
 } from './BrowserShellAdapterCatalog';
 import {
+  BrowserHomeNavigationPresentation,
   BrowserLargeScreenPresentationFacts,
   BrowserLargeScreenPresentationSnapshot,
   BrowserLargeScreenPresentationViewModel
@@ -46,6 +47,7 @@ export class BrowserShellPresentationCoordinator {
   private webAppPresentationActive: boolean = false;
   private largeScreenTabs: BrowserTabState[] = [];
   private largeScreenActiveTabId: string = '';
+  private homeNavigation?: BrowserHomeNavigationPresentation;
   private readonly largeScreenPresentationViewModel: BrowserLargeScreenPresentationViewModel =
     new BrowserLargeScreenPresentationViewModel();
 
@@ -180,7 +182,8 @@ export class BrowserShellPresentationCoordinator {
       ? this.largeScreenPresentationViewModel.resolvePresentationForTabs(
         facts,
         this.largeScreenTabs,
-        this.largeScreenActiveTabId
+        this.largeScreenActiveTabId,
+        this.homeNavigation
       )
       : this.current.largeScreenPresentation;
     this.current = {
@@ -200,8 +203,13 @@ export class BrowserShellPresentationCoordinator {
 
   reconcileLargeScreenTabs(
     tabs: BrowserTabState[],
-    activeTabId: string
+    activeTabId: string,
+    homeNavigation?: BrowserHomeNavigationPresentation
   ): BrowserShellPresentationSnapshot | undefined {
+    this.homeNavigation = homeNavigation === undefined ? undefined : {
+      visible: homeNavigation.visible,
+      canGoForward: homeNavigation.canGoForward
+    };
     this.largeScreenTabs = tabs.slice();
     this.largeScreenActiveTabId = activeTabId.trim();
     if (!this.connected || this.current === undefined || this.current.surface !== 'large_screen' ||
@@ -211,7 +219,8 @@ export class BrowserShellPresentationCoordinator {
     const largeScreenPresentation = this.largeScreenPresentationViewModel.resolvePresentationForTabs(
       this.current.largeScreenWindowFacts,
       this.largeScreenTabs,
-      this.largeScreenActiveTabId
+      this.largeScreenActiveTabId,
+      this.homeNavigation
     );
     this.current = {
       mode: this.current.mode,
@@ -239,6 +248,7 @@ export class BrowserShellPresentationCoordinator {
     this.webAppPresentationActive = false;
     this.largeScreenTabs = [];
     this.largeScreenActiveTabId = '';
+    this.homeNavigation = undefined;
   }
 
   private copyCatalog(catalog: BrowserShellAdapterCatalogSnapshot): BrowserShellAdapterCatalogSnapshot {
@@ -329,7 +339,8 @@ export class BrowserShellPresentationCoordinator {
     return this.largeScreenPresentationViewModel.resolvePresentationForTabs(
       windowFacts,
       this.largeScreenTabs,
-      this.largeScreenActiveTabId
+      this.largeScreenActiveTabId,
+      this.homeNavigation
     );
   }
 

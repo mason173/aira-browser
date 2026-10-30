@@ -364,6 +364,10 @@ export class BrowserRootBottomPanelFixedActionApplication implements BrowserRoot
       return undefined;
     }
     if (showHomePage) {
+      if (actionId === 'webForward') {
+        this.dependencies.webHistoryCommandRuntimeCoordinator.handleRootBottomPanelWebForward();
+        return undefined;
+      }
       if (actionId === 'webReload') {
         this.dependencies.tabHomeCoordinator.reloadHome();
         return undefined;
@@ -708,6 +712,9 @@ export class BrowserRootBottomPanelFixedActionApplication implements BrowserRoot
   }
 
   private canActiveTabGoForward(facts: BrowserRootBottomPanelFixedActionFacts): boolean {
+    if (facts.showHomePage) {
+      return this.dependencies.tabHomeCoordinator.canGoForwardFromHome();
+    }
     const activeTab = this.findActiveTab(facts);
     return activeTab !== undefined && !activeTab.isHome && activeTab.navigationIndex >= 0 &&
       activeTab.navigationIndex < activeTab.navigationHistory.length - 1;

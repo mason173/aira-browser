@@ -18,6 +18,7 @@ export type BrowserWebHistoryCommandSource =
 
 export interface BrowserWebHistoryCommandRuntimeCoordinatorHost {
   resolveActiveTabId: () => string;
+  forwardFromHome?: () => boolean | undefined;
   showNativeToast: (message: string) => void;
   showKeyboardShortcutMessage: (message: string) => void;
 }
@@ -122,6 +123,17 @@ export class BrowserWebHistoryCommandRuntimeCoordinator {
   }
 
   private navigate(direction: BrowserWebHistoryDirection): BrowserWebNavigationCommandResult {
+    if (direction === 'forward') {
+      const homeResult = this.host.forwardFromHome?.();
+      if (homeResult !== undefined) {
+        return {
+          status: homeResult ? 'native_issued' : 'unavailable',
+          reason: homeResult ? 'home_return' : 'not_available',
+          targetUrl: '',
+          errorMessage: ''
+        };
+      }
+    }
     const result = direction === 'back'
       ? this.dependencies.webTabsController.goActivePageBackward()
       : this.dependencies.webTabsController.goActivePageForward();

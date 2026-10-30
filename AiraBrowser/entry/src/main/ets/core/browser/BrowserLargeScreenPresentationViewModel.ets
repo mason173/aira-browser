@@ -45,6 +45,11 @@ export type BrowserLargeScreenActiveTabScene =
   'home' | 'web' | 'bookmarks' | 'history' | 'settings' | 'downloads' | 'user_scripts' |
   'app_proxy' | 'saved_pages' | 'bookshelf';
 
+export interface BrowserHomeNavigationPresentation {
+  visible: boolean;
+  canGoForward: boolean;
+}
+
 export interface BrowserLargeScreenActiveTabChromePresentation {
   scene: BrowserLargeScreenActiveTabScene;
   tabId: string;
@@ -172,7 +177,8 @@ export class BrowserLargeScreenPresentationViewModel {
   resolvePresentationForTabs(
     windowFacts: BrowserLargeScreenWindowFactsSnapshot,
     tabs: BrowserTabState[],
-    activeTabId: string
+    activeTabId: string,
+    homeNavigation?: BrowserHomeNavigationPresentation
   ): BrowserLargeScreenPresentationSnapshot {
     const activeTab = tabs.find((tab: BrowserTabState): boolean => tab.id === activeTabId);
     const hasActiveTab = activeTab !== undefined;
@@ -238,6 +244,26 @@ export class BrowserLargeScreenPresentationViewModel {
           (activeTab.runtimeState === 'loading' || activeTab.runtimeState === 'restoring'),
         privateMode: activeTab.privacyMode === 'private'
       };
+    if (homeNavigation?.visible === true) {
+      presentation.activeTabChrome = {
+        scene: 'home',
+        tabId: activeTabId,
+        title: '新标签页',
+        displayUrl: '',
+        nativeRouteUrl: '',
+        canGoBack: false,
+        canGoForward: homeNavigation.canGoForward,
+        loading: false,
+        privateMode: activeTab?.privacyMode === 'private'
+      };
+      presentation.topChrome.actions.forEach((action: BrowserLargeScreenTopChromeActionPresentation): void => {
+        if (action.id === 'forward') {
+          action.enabled = homeNavigation.canGoForward;
+        } else if (action.id === 'back') {
+          action.enabled = false;
+        }
+      });
+    }
     return presentation;
   }
 

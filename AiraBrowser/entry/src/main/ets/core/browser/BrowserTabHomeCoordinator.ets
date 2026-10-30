@@ -1,3 +1,4 @@
+import { BrowserHomeForwardReturnState, BrowserHomeForwardTarget } from './BrowserHomeForwardReturnState';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import {
   BrowserDataScope,
@@ -150,6 +151,7 @@ interface BrowserTabHomeShellState {
   controllerAttached: boolean;
   bottomAddressTransientMessageContext: BrowserBottomAddressTransientMessageContext;
   homeDataScope: BrowserDataScope;
+  currentProfileId: BrowserProfileId;
   currentDataScope: BrowserDataScope;
   currentPrivacyMode: BrowserSessionPrivacyMode;
   currentBoundaryPrivate: boolean;
@@ -362,6 +364,8 @@ export class BrowserTabHomeCoordinator {
     new BrowserHomeChromeScrollCoordinator();
   private readonly searchEnginePresentationViewModel: BrowserSearchEnginePresentationViewModel =
     new BrowserSearchEnginePresentationViewModel();
+  private readonly homeForwardReturnState: BrowserHomeForwardReturnState = new BrowserHomeForwardReturnState();
+  private homeForwardInFlight: boolean = false;
   private deferredWorkRunId: number = 0;
   private deferredWorkTimer: number = -1;
   private optimisticThemeModeOverride: BrowserThemeMode | '' = '';
@@ -648,6 +652,76 @@ export class BrowserTabHomeCoordinator {
       });
   }
 
+  rememberHomeForwardTab(tab: BrowserTabState | undefined): void {
+    this.homeForwardReturnState.remember(tab);
+  }
+
+  prepareHomeForwardForNewTab(): void {
+    const state = this.shell.readState();
+    if (state.showHomePage) {
+      this.homeForwardReturnState.retainForHome(state.activeTabId);
+    } else {
+      this.rememberHomeForwardTab(this.findTabById(state.tabs, state.activeTabId));
+    }
+  }
+
+  bindHomeForwardTab(tabId: string, boundary?: BrowserCreateTabOptions): void {
+    this.homeForwardReturnState.bindHome(tabId);
+    if (boundary !== undefined) {
+      const privacyMode = normalizeBrowserSessionPrivacyMode(boundary.privacyMode);
+      this.applyBoundary(
+        boundary.profileId ?? DEFAULT_BROWSER_PROFILE_ID,
+        privacyMode,
+        normalizeBrowserDataScope(boundary.dataScope, privacyMode)
+      );
+    }
+  }
+
+  canGoForwardFromHome(): boolean {
+    return !this.homeForwardInFlight && this.resolveHomeForwardTarget() !== undefined;
+  }
+
+  // undefined leaves ordinary Web history navigation to its existing owner.
+  forwardFromHome(): boolean | undefined {
+    const state = this.shell.readState();
+    if (!state.showHomePage) {
+      return undefined;
+    }
+    const target = this.resolveHomeForwardTarget();
+    if (target === undefined || this.homeForwardInFlight) {
+      return false;
+    }
+    if (target.recordId.length > 0) {
+      this.dependencies.restoreRecentlyClosedRecord(target.recordId);
+      return true;
+    }
+    this.homeForwardInFlight = true;
+    void this.dependencies.tabSwitchCoordinator.switchToTab(target.tabId, (): boolean => {
+      const current = this.resolveHomeForwardTarget();
+      return current?.tabId === target.tabId;
+    }).finally((): void => {
+      this.homeForwardInFlight = false;
+    });
+    return true;
+  }
+
+  private resolveHomeForwardTarget(): BrowserHomeForwardTarget | undefined {
+    const state = this.shell.readState();
+    if (!state.showHomePage || state.showTabsSheet) {
+      return undefined;
+    }
+    return this.homeForwardReturnState.resolve(
+      state.tabs,
+      this.dependencies.recentlyClosedApplicationCoordinator.getHomeForwardRecords(),
+      {
+        profileId: state.currentProfileId,
+        privacyMode: state.currentPrivacyMode,
+        dataScope: state.currentDataScope
+      },
+      state.activeTabId
+    );
+  }
+
   showHomeSurface(
     helperMessage: string,
     boundary: BrowserCreateTabOptions,
@@ -655,6 +729,11 @@ export class BrowserTabHomeCoordinator {
     playHomeReveal: boolean = true
   ): void {
     const state = this.shell.readState();
+    const activeTab = this.findTabById(state.tabs, state.activeTabId);
+    if (!state.showHomePage && activeTab !== undefined && this.homeForwardReturnState.isReturnableTab(activeTab)) {
+      this.rememberHomeForwardTab(activeTab);
+    }
+    this.bindHomeForwardTab(state.activeTabId);
     const shouldPlayHomeReveal = playHomeReveal && !state.showHomePage;
     this.prepareHomePresentation(!keepTabsOverviewMounted, shouldPlayHomeReveal);
     const privacyMode = normalizeBrowserSessionPrivacyMode(boundary.privacyMode);
@@ -914,6 +993,7 @@ export class BrowserTabHomeCoordinator {
   }
 
   applyTabsOverviewHomeTabCreation(application: BrowserTabsOverviewHomeTabCreationApplication): void {
+    this.prepareHomeForwardForNewTab();
     this.persistActiveTabSnapshot('create-home-tab');
     this.shell.applyState({ tabsForOverviewPreviewSync: application.tabs });
     this.dependencies.tabSwitchCoordinator.synchronizeWebTabsAndPreviewAssets();
@@ -1000,6 +1080,8 @@ export class BrowserTabHomeCoordinator {
   }
 
   private applyGoHomeApplicationResult(result: BrowserGoHomeApplicationResult): void {
+    this.rememberHomeForwardTab(this.findTabById(result.tabs, result.tabId));
+    this.bindHomeForwardTab(result.nextActiveTabId);
     this.dependencies.hostedRuntimeSurfacePort.detachActive();
     this.shell.applyState({
       activeTabId: result.nextActiveTabId,
@@ -1020,6 +1102,8 @@ export class BrowserTabHomeCoordinator {
   }
 
   private applyDirectHomeSurface(tabId: string, runtimeDegradedMessage: string): void {
+    this.rememberHomeForwardTab(undefined);
+    this.bindHomeForwardTab(tabId);
     this.dependencies.hostedRuntimeSurfacePort.detachActive();
     this.shell.applyState({
       visualState: this.shellStateCoordinator.buildHomeState(runtimeDegradedMessage),

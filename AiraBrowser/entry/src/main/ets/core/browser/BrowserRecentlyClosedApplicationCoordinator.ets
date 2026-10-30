@@ -147,6 +147,7 @@ export class BrowserRecentlyClosedApplicationCoordinator {
   private readonly iconHydrationCallbacks: HomeRecentlyClosedIconHydrationCallbacks;
 
   private records: BrowserRecentlyClosedTabRecord[] = [];
+  private homeForwardRecord?: BrowserRecentlyClosedTabRecord;
   private displayRecords: BrowserRecentlyClosedTabRecord[] = [];
   private icons: HomeRecentlyClosedIconState[] = [];
   private renderVersion: number = 0;
@@ -282,8 +283,21 @@ export class BrowserRecentlyClosedApplicationCoordinator {
     }
   }
 
-  recordClosedTab(tab: BrowserTabState | undefined): BrowserRecentlyClosedRecordOutcome {
+  recordClosedTab(
+    tab: BrowserTabState | undefined,
+    rememberForHomeForward: boolean = false
+  ): BrowserRecentlyClosedRecordOutcome {
+    if (rememberForHomeForward) {
+      this.homeForwardRecord = undefined;
+    }
     if (!this.isRecentlyClosedEnabled()) {
+      if (rememberForHomeForward) {
+        // Hiding the home list disables persisted recently-closed history, but
+        // this visit's Forward still needs one memory-only return record.
+        this.homeForwardRecord = this.dependencies.tabsService.recordClosedTab(
+          [], tab, this.shell.resolveFacts().currentWindowId, 1
+        ).records[0];
+      }
       if (this.hasRecordsForCurrentBoundary()) {
         void this.clearDisabledRecords();
       }
@@ -315,8 +329,14 @@ export class BrowserRecentlyClosedApplicationCoordinator {
     activeTabId: string,
     recordId: string
   ): BrowserRestoreRecentlyClosedTabResult {
-    const records = this.isRecentlyClosedEnabled() ? this.records : [];
+    const records = this.getHomeForwardRecords();
     return this.dependencies.tabsService.restoreByRecordId(tabs, activeTabId, records, recordId);
+  }
+
+  getHomeForwardRecords(): BrowserRecentlyClosedTabRecord[] {
+    return this.isRecentlyClosedEnabled()
+      ? this.records.slice()
+      : (this.homeForwardRecord === undefined ? [] : [this.homeForwardRecord]);
   }
 
   buildRestoreBoundaryDecision(
@@ -332,6 +352,7 @@ export class BrowserRecentlyClosedApplicationCoordinator {
   }
 
   acceptRestoredRecords(records: BrowserRecentlyClosedTabRecord[]): void {
+    this.homeForwardRecord = undefined;
     this.applyMutation(records);
   }
 
@@ -339,6 +360,12 @@ export class BrowserRecentlyClosedApplicationCoordinator {
     const normalizedHost = targetHost.trim();
     if (normalizedHost.length === 0) {
       return 0;
+    }
+    if (this.homeForwardRecord !== undefined &&
+      this.dependencies.siteClearOnCloseLifecycleService.matchesHost(
+        this.resolveRecordUrl(this.homeForwardRecord), '', normalizedHost
+      )) {
+      this.homeForwardRecord = undefined;
     }
     const nextRecords = this.records.filter((record: BrowserRecentlyClosedTabRecord) => {
       return !this.dependencies.siteClearOnCloseLifecycleService.matchesHost(
@@ -462,6 +489,7 @@ export class BrowserRecentlyClosedApplicationCoordinator {
   }
 
   resetForWindowSwitch(): void {
+    this.homeForwardRecord = undefined;
     this.primeGeneration += 1;
     this.mutationGeneration += 1;
     const remountWasPending = !this.homeSectionMounted;
