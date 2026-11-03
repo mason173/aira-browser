@@ -70,11 +70,13 @@ function storage(options = {}) {
 
 function environment(data, options = {}) {
   const cache = new Map();
-  const metrics = { preferenceReads: [], fileReads: [], json: {}, iconSourceChars: 0, metadataClones: 0,
-    fileAccesses: 0, hashCalls: 0, writes: 0, preferenceOpens: [], persistenceEvents: [], logs: [] };
+  const metrics = { preferenceReads: [], fileReads: [], packageFileReads: [], json: {}, iconSourceChars: 0, metadataClones: 0,
+    fileAccesses: 0, hashCalls: 0, scalarBufferReads: 0, writes: 0, preferenceOpens: [], persistenceEvents: [], fileWrites: [], logs: [], regexCompiles: {} };
   let fdSerial = 0;
   const handles = new Map();
+  const handleModes = new Map();
   const dirs = new Set([platformRoot, platformRoot + '/scripts']);
+  if (Array.from(data.files.keys()).some(name => name.startsWith('/fixture/userscript-packages/'))) dirs.add('/fixture/userscript-packages');
   const preferences = { async getPreferences(_context, name) {
     metrics.preferenceOpens.push(name);
     if (name === 'aira_browser_userscript_runtime_state' && options.diagnosticsGate) await options.diagnosticsGate;
@@ -97,29 +99,62 @@ function environment(data, options = {}) {
     };
   } };
   const fileIo = {
-    OpenMode: { READ_ONLY: 0 },
-    async access(filename) { metrics.fileAccesses += 1; return dirs.has(filename) || data.files.has(filename); },
+    OpenMode: { READ_ONLY: 0, WRITE_ONLY: 1, CREATE: 2, TRUNC: 4, SYNC: 8, APPEND: 16 },
+    async access(filename) { if (filename.startsWith(platformRoot + '/') || filename === platformRoot) metrics.fileAccesses += 1; return dirs.has(filename) || data.files.has(filename); },
     async stat(filename) { return { size: data.files.get(filename).length }; },
-    async open(filename) { const fd = ++fdSerial; handles.set(fd, filename); return { fd }; },
-    async read(fd, target) {
-      if (options.valuesGate) await options.valuesGate;
-      const filename = handles.get(fd), bytes = data.files.get(filename);
-      new Uint8Array(target).set(bytes);
-      metrics.fileReads.push({ filename: filename.slice(platformRoot.length + 1), bytes: bytes.length });
+    async open(filename, mode = 0) {
+      if ((mode & 4) !== 0) data.files.set(filename, Buffer.alloc(0));
+      const fd = ++fdSerial; handles.set(fd, filename); handleModes.set(fd, mode); return { fd };
+    },
+    async write(fd, text) {
+      const filename = handles.get(fd);
+      options.beforeWrite?.(filename);
+      const bytes = Buffer.from(text);
+      data.files.set(filename, (handleModes.get(fd) & 16) !== 0
+        ? Buffer.concat([data.files.get(filename) ?? Buffer.alloc(0), bytes]) : bytes);
+      metrics.fileWrites.push({ filename, bytes: bytes.length });
       return bytes.length;
     },
-    async close(file) { handles.delete(file.fd); },
-    async mkdir() { assert.fail('complete manifests must not need writes'); },
-    async listFile() { assert.fail('complete manifests must not need recovery scans'); }
+    async fsync(fd) {
+      if (handles.get(fd).endsWith('/manifest.json.pending') && options.manifestWriteGate) {
+        await options.manifestWriteGate;
+      }
+    },
+    async rename(from, to) {
+      assert.ok(data.files.has(from));
+      data.files.set(to, data.files.get(from)); data.files.delete(from);
+    },
+    async unlink(filename) { options.beforeUnlink?.(filename); data.files.delete(filename); },
+    async read(fd, target) {
+      if (options.valuesGate && handles.get(fd).startsWith(platformRoot + '/')) await options.valuesGate;
+      const filename = handles.get(fd), bytes = data.files.get(filename);
+      new Uint8Array(target).set(bytes);
+      (filename.startsWith(platformRoot + '/') ? metrics.fileReads : metrics.packageFileReads).push({ filename: filename.slice(platformRoot.length + 1), bytes: bytes.length });
+      return bytes.length;
+    },
+    async close(file) { handles.delete(file.fd); handleModes.delete(file.fd); },
+    async mkdir(name) { assert.equal(name, '/fixture/userscript-packages'); dirs.add(name); },
+    async listFile(name) { assert.equal(name, '/fixture/userscript-packages'); return Array.from(data.files.keys()).filter(p => p.startsWith(name + '/')).map(p => p.slice(name.length + 1)); }
   };
+  // HarmonyOS Buffer indexing crosses a native boundary. Count those calls rather
+  // than comparing V8 wall time with phone timings; bulk conversion must avoid them.
+  const platformBuffer = options.countBufferIndexReads ? { from(...args) {
+    const result = Buffer.from(...args);
+    return new Proxy(result, { get(target, property) {
+      if (typeof property === 'string' && /^\d+$/.test(property)) metrics.scalarBufferReads += 1;
+      const value = Reflect.get(target, property, target);
+      return typeof value === 'function' ? value.bind(target) : value;
+    } });
+  } } : Buffer;
   const native = {
     '@kit.ArkData': { preferences },
+    '@ohos.url': { default: { URL: { parseURL: value => new URL(value) } } },
     '@kit.NetworkKit': { http: {}, connection: {} },
     '@kit.CoreFileKit': { fileIo },
-    '@kit.ArkTS': { buffer: Buffer, util: { TextEncoder: { create: () => ({ encodeInto: text => new Uint8Array(Buffer.from(text)) }) } } },
+    '@kit.ArkTS': { buffer: platformBuffer, util: { generateRandomUUID: () => crypto.randomUUID(), TextEncoder: { create: () => ({ encodeInto: text => new Uint8Array(Buffer.from(text)) }) } } },
     '@kit.PerformanceAnalysisKit': { hilog: Object.fromEntries(['info', 'warn', 'error', 'debug'].map(level =>
       [level, (...args) => metrics.logs.push({ level, args })])) },
-    '@kit.CryptoArchitectureKit': { cryptoFramework: { createMd() {
+    '@kit.CryptoArchitectureKit': { cryptoFramework: { createRandom: () => ({ generateRandomSync: size => ({ data: new Uint8Array(crypto.randomBytes(size)) }) }), createMd() {
       metrics.hashCalls += 1;
       const hash = crypto.createHash('sha256');
       return { updateSync: blob => hash.update(blob.data), digestSync: () => ({ data: new Uint8Array(hash.digest()) }) };
@@ -128,6 +163,8 @@ function environment(data, options = {}) {
   function load(relative) {
     const filename = path.resolve(root, relative.endsWith('.ets') ? relative : relative + '.ets');
     if (cache.has(filename)) return cache.get(filename).exports;
+    const nativeService = path.basename(filename).match(/^(UserScriptNative(?:Clipboard|Download|XmlHttpRequest|Cookie)Service)\.ets$/);
+    if (nativeService) return { [nativeService[1]]: class {} };
     if (filename.endsWith('/services/userscripts/UserScriptSourceFetchService.ets')) return { UserScriptSourceFetchService: class {} };
     if (filename.endsWith('/app/runtime/AppRuntimeContext.ets')) return { AppRuntimeContext: { getApplicationContext: () => ({ filesDir: '/fixture' }) } };
     if (filename.endsWith('/core/resources/AppResourceText.ets')) return { resolveAppResourceText: value => value };
@@ -152,6 +189,10 @@ function environment(data, options = {}) {
     };
     vm.runInNewContext(compiled.get(filename), { module, exports: module.exports, JSON: trackedJson,
       Buffer, Uint8Array, ArrayBuffer, Error, Date, setTimeout, clearTimeout, $r: value => value,
+      RegExp: new Proxy(RegExp, { construct(target, args) {
+        metrics.regexCompiles[label] = (metrics.regexCompiles[label] || 0) + 1;
+        return Reflect.construct(target, args);
+      } }),
       require(name) {
         if (name in native) return native[name];
         if (name.startsWith('.')) return load(path.resolve(path.dirname(filename), name));
@@ -184,7 +225,21 @@ function environment(data, options = {}) {
       { canUse: async () => ({ allowed: true }), recordUsage: async () => undefined }, {}, undefined,
       { materialize: async () => ({ dependencies: { requireSources: [], resources: [] }, warnings: [] }) });
   }
-  return { readiness, repository, values, metrics, lifecycle };
+  function runtime() {
+    const { UserScriptRuntimeCoordinator } = load('core/userscripts/UserScriptRuntimeCoordinator');
+    const bridge = { tokenSuffix: '', setAutomaticDocumentSignalListener() {},
+      resolveAutomaticDocumentSignalSecret: () => 'fixture-secret',
+      registerScriptToken(id) { return 'fixture-token-' + id + this.tokenSuffix; } };
+    return { bridge, coordinator: new UserScriptRuntimeCoordinator(values, diagnostics, bridge, {}, {}, readiness,
+      { getPreferences: () => ({ general: { allowUserScriptsInPrivateMode: false } }) }) };
+  }
+  function nativeBridge() {
+    const { UserScriptNativeBridgeCoordinator } = load('core/userscripts/UserScriptNativeBridgeCoordinator');
+    return new UserScriptNativeBridgeCoordinator(values, { recordBridgeRejected: async () => {} }, readiness, { showMessage() {} });
+  }
+  const matchService = () => new (load('services/userscripts/UserScriptMatchService').UserScriptMatchService)();
+  return { readiness, repository, values, metrics, lifecycle, runtime, nativeBridge, matchService,
+    createValueStore: (adapter, limits) => new UserScriptValueStateStore(adapter, 0, () => 1, limits) };
 }
 
 function counts(metrics) {
@@ -208,7 +263,7 @@ async function boot(options, nativeOptions = {}) {
 }
 
 const small = { count: 1, sourceBytes: 64, dependencyBytes: 1, resourceBytes: 0, valueBytes: 0 };
-const turns = async () => { for (let turn = 0; turn < 100; turn += 1) await Promise.resolve(); };
+const turns = async () => { for (let turn = 0; turn < 300; turn += 1) await Promise.resolve(); };
 
 function assertNoExecutionPayload(e) {
   assert.equal(e.metrics.fileAccesses, 0, 'disabled startup must not touch GM manifest, values or journals');
@@ -225,7 +280,7 @@ test('indexed disabled cold boot reads no package payload or GM values while ena
   const disabled = await boot({ enabled: false, hint: false });
   const clean = await boot({ count: 0, hint: false });
   assertNoExecutionPayload(disabled); assertNoExecutionPayload(clean);
-  assert.ok(enabled.counts.preferenceChars > 10 * MiB && enabled.counts.preferenceChars < 16 * MiB &&
+  assert.ok(enabled.counts.preferenceChars > 10 * MiB && enabled.metrics.preferenceReads.every(item => item.chars < 16 * MiB) &&
     enabled.counts.gmFileBytes > 8 * MiB, 'fixture respects the platform 16 MiB per-value Preferences limit');
   assert.equal(enabled.values.readReadiness().status, 'ready');
   assert.equal(enabled.readiness.listExecutionReadyScripts().length, 4);
@@ -341,7 +396,7 @@ test('failed hint invalidation leaves package and durable disabled hint unchange
   failUnknown = true;
   await assert.rejects(e.repository.saveInstalledState(script), /invalidation/);
   assert.equal(e.repository.findScript('script-0').enabled, false);
-  assert.equal(JSON.parse(data.preferences.get('aira_browser_userscripts').get('user_script_settings')).scripts[0].enabled, false);
+  assert.equal(JSON.parse(data.preferences.get('aira_browser_userscripts').get('user_script_settings')).packages[0].metadata.enabled, false);
   assert.equal(JSON.parse(data.preferences.get(startupStore).get(startupKey)).hasEnabledScripts, false);
 });
 
@@ -404,4 +459,609 @@ test('install and overwrite load retained disabled metadata before duplicate che
   assert.equal(e.repository.listScripts().length, 2);
   assert.equal(e.readiness.findExecutionReadyScript(installed.scriptId).runAt, 'document-start');
   assert.equal(e.values.readCommittedValueJson('script-0', 'fixture-value'), JSON.stringify('v'.repeat(32)));
+});
+
+
+test('large retained GM cache reaches first execution without per-byte native Buffer reads', async () => {
+  const data = storage({ ...small, enabled: true, hint: true, valueBytes: 5 * MiB });
+  const filename = Array.from(data.files.keys()).find(name => name.includes('/scripts/'));
+  const document = JSON.parse(data.files.get(filename).toString());
+  // JSON includes CJK, astral Unicode, NUL, escapes and an unpaired surrogate.
+  const expected = JSON.stringify('中文🌏\u0000\n\"\\\ud800' + 'v'.repeat(5 * MiB));
+  document.values[0].valueJson = expected;
+  data.files.set(filename, Buffer.from(JSON.stringify(document)));
+  const originalBytes = data.files.get(filename);
+  const e = environment(data, { countBufferIndexReads: true });
+  await e.readiness.initializeExecutionState();
+  assert.equal(e.values.readReadiness().status, 'ready');
+  assert.equal(e.readiness.findExecutionReadyScript('script-0').runAt, 'document-start');
+  assert.equal(e.values.readCommittedValueJson('script-0', 'fixture-value'), expected);
+  assert.equal(data.files.get(filename), originalBytes, 'startup must not rewrite retained state');
+  assert.equal(e.metrics.scalarBufferReads, 0,
+    'cold startup must not copy the retained cache through millions of native Buffer index reads');
+});
+
+
+test('GM commits keep exact UTF-8 bytes and byte capacity without per-byte native Buffer reads', async () => {
+  const e = environment(storage({ count: 0 }), { countBufferIndexReads: true });
+  let committed;
+  const adapter = {
+    readCommitted: async () => committed,
+    replaceCommitted: async bytes => { committed = bytes; }
+  };
+  const store = e.createValueStore(adapter);
+  await store.initialize();
+  const expected = JSON.stringify('中文🌏\u0000\n\"\\\ud800'.repeat(10000));
+  await store.commitMutations('fixture', [{ operation: 'set', key: 'cache', valueJson: expected }]);
+  const document = JSON.parse(Buffer.from(committed).toString('utf8'));
+  assert.equal(document.values[0].valueJson, expected);
+  assert.deepEqual(Buffer.from(committed), Buffer.from(JSON.stringify(document), 'utf8'));
+  const reopened = e.createValueStore(adapter);
+  await reopened.initialize();
+  assert.equal(reopened.readCommittedValueJson('fixture', 'cache'), expected);
+  assert.equal(e.metrics.scalarBufferReads, 0);
+
+  const limited = e.createValueStore(adapter, { maxValueBytes: MiB, maxStateBytes: committed.byteLength });
+  await limited.initialize();
+  const before = committed;
+  await assert.rejects(limited.commitMutations('fixture', [
+    { operation: 'set', key: 'extra', valueJson: JSON.stringify('中文🌏'.repeat(20)) }
+  ]), /state-too-large/);
+  assert.equal(committed, before, 'byte-limit rejection preserves the committed document');
+});
+
+
+test('deleting one package does not serialize or reparse another script large GM cache', async () => {
+  const data = storage({ ...small, count: 2, enabled: true, hint: true, valueBytes: 5 * MiB });
+  const e = environment(data);
+  await e.readiness.initializeExecutionState();
+  const retainedFile = platformRoot + '/scripts/' + crypto.createHash('sha256').update('script-1').digest('hex') + '.json';
+  const retainedBytes = data.files.get(retainedFile);
+  const before = counts(e.metrics);
+  await e.lifecycle().deleteScript('script-0');
+  const after = counts(e.metrics);
+  assert.equal(e.repository.findScript('script-0'), undefined);
+  assert.equal(e.values.readCommittedKeys('script-0').length, 0);
+  assert.equal(e.values.readCommittedValueJson('script-1', 'fixture-value'), JSON.stringify('v'.repeat(5 * MiB)));
+  assert.equal(data.files.get(retainedFile), retainedBytes);
+  const reopened = environment(data);
+  await reopened.readiness.initializeExecutionState();
+  assert.equal(reopened.repository.findScript('script-0'), undefined);
+  assert.equal(reopened.values.readCommittedKeys('script-0').length, 0);
+  assert.equal(reopened.values.readCommittedValueJson('script-1', 'fixture-value'), JSON.stringify('v'.repeat(5 * MiB)));
+  const work = { parseChars: after.jsonParseChars - before.jsonParseChars,
+    stringifyChars: after.jsonStringifyChars - before.jsonStringifyChars };
+  console.log(JSON.stringify({ scenario: 'delete-with-unrelated-5MiB-cache', ...work }));
+  assert.ok(work.parseChars < 64 * 1024 && work.stringifyChars < 64 * 1024,
+    'deleting a package must not encode or decode unrelated GM payloads: ' + JSON.stringify(work));
+});
+
+
+test('package deletion waits for durable manifest ACK before publishing and survives reopening', async () => {
+  let release;
+  const manifestWriteGate = new Promise(resolve => { release = resolve; });
+  const data = storage({ ...small, count: 2, enabled: true, hint: true, valueBytes: 8 });
+  const e = environment(data, { manifestWriteGate });
+  await e.readiness.initializeExecutionState();
+  let completed = false;
+  const pending = e.lifecycle().deleteScript('script-0').then(() => { completed = true; });
+  await new Promise(resolve => setTimeout(resolve, 25));
+  await turns();
+  assert.equal(completed, false);
+  assert.ok(e.metrics.fileWrites.some(write => write.filename.endsWith('/manifest.json.pending')));
+  assert.ok(e.repository.findScript('script-0'));
+  assert.equal(e.values.readCommittedValueJson('script-0', 'fixture-value'), JSON.stringify('v'.repeat(8)));
+  release(); await pending;
+  const reopened = environment(data); await reopened.readiness.initializeExecutionState();
+  assert.equal(reopened.repository.findScript('script-0'), undefined);
+  assert.equal(reopened.values.readCommittedKeys('script-0').length, 0);
+  assert.equal(reopened.values.readCommittedValueJson('script-1', 'fixture-value'), JSON.stringify('v'.repeat(8)));
+});
+
+test('failed manifest write keeps package and GM values available for retry', async () => {
+  const data = storage({ ...small, count: 2, enabled: true, hint: true, valueBytes: 8 });
+  let rejectWrites = true;
+  const e = environment(data, { beforeWrite(filename) { if (rejectWrites && filename.startsWith(platformRoot + '/')) throw new Error('fixture-write-failed'); } });
+  await e.readiness.initializeExecutionState();
+  await assert.rejects(e.lifecycle().deleteScript('script-0'));
+  assert.ok(e.repository.findScript('script-0'));
+  assert.equal(e.values.readCommittedKeys('script-0').length, 1);
+  const reopened = environment(data); await reopened.readiness.initializeExecutionState();
+  assert.ok(reopened.repository.findScript('script-0'));
+  assert.equal(reopened.values.readCommittedKeys('script-0').length, 1);
+  rejectWrites = false;
+  await e.lifecycle().deleteScript('script-0');
+  assert.equal(e.repository.findScript('script-0'), undefined);
+});
+
+test('deleting a package with an empty GM document removes its manifest entry without a value revision bump', async () => {
+  const data = storage({ ...small, enabled: true, hint: true });
+  const filename = Array.from(data.files.keys()).find(name => name.includes('/scripts/'));
+  const document = JSON.parse(data.files.get(filename).toString()); document.values = [];
+  data.files.set(filename, Buffer.from(JSON.stringify(document)));
+  const e = environment(data); await e.readiness.initializeExecutionState();
+  const revision = e.values.readReadiness().revision;
+  await e.lifecycle().deleteScript('script-0');
+  assert.equal(e.values.readReadiness().revision, revision);
+  assert.equal(JSON.parse(data.files.get(platformRoot + '/manifest.json')).entries.length, 0);
+  assert.equal(data.files.has(filename), false);
+});
+
+test('unchanged document-start bundle reuses its GM snapshot without rescanning a large value', async () => {
+  const e = environment(storage({ ...small, enabled: true, hint: true, valueBytes: 5 * MiB }));
+  await e.readiness.initializeExecutionState();
+  let snapshots = 0;
+  const readSnapshot = e.values.readCommittedRuntimeView.bind(e.values);
+  e.values.readCommittedRuntimeView = id => { snapshots += 1; return readSnapshot(id); };
+  const { coordinator } = e.runtime();
+  const first = coordinator.buildDocumentStartScriptBundle(false);
+  const coldSnapshots = snapshots;
+  let scannedChars = 0;
+  const fingerprint = coordinator.buildStringFingerprint.bind(coordinator);
+  coordinator.buildStringFingerprint = value => { scannedChars += value.length; return fingerprint(value); };
+  for (let n = 0; n < 3; n += 1) assert.deepEqual(coordinator.buildDocumentStartScriptBundle(false), first);
+  console.log(JSON.stringify({ scenario: 'warm-document-start', snapshotReads: snapshots - coldSnapshots, scannedChars }));
+  assert.equal(snapshots, coldSnapshots, 'cache hits must not rebuild the committed GM snapshot');
+  assert.equal(scannedChars, 0, 'cache hits must not hash megabytes of unchanged values');
+});
+
+test('document-start cache refreshes committed values, equal-length source changes, token rotation and deletion', async () => {
+  const e = environment(storage({ ...small, count: 2, enabled: true, hint: true, valueBytes: 8 }));
+  await e.readiness.initializeExecutionState();
+  const { coordinator, bridge } = e.runtime();
+  let snapshots = 0;
+  const readSnapshot = e.values.readCommittedRuntimeView.bind(e.values);
+  e.values.readCommittedRuntimeView = id => { snapshots += 1; return readSnapshot(id); };
+  const first = coordinator.buildDocumentStartScriptBundle(false);
+  await e.values.commitMutations('script-1', [{ operation: 'set', key: 'fixture-value', valueJson: '"updated"' }]);
+  const changed = coordinator.buildDocumentStartScriptBundle(false);
+  assert.notEqual(changed.key, first.key);
+  assert.ok(changed.items.some(item => item.script.includes('"fixture-value":"updated"')));
+  assert.equal(changed.items[2].script, first.items[2].script, 'unrelated script keeps its prepared bytes');
+  const afterRefresh = snapshots;
+  assert.deepEqual(coordinator.buildDocumentStartScriptBundle(false), changed);
+  assert.equal(snapshots, afterRefresh, 'an unrelated revision must not force repeated snapshot checks');
+
+  const script = e.repository.findScript('script-0');
+  script.source = script.source.slice(0, -1) + ';';
+  await e.repository.saveInstalledState(script);
+  const sourceChanged = coordinator.buildDocumentStartScriptBundle(false);
+  assert.notEqual(sourceChanged.items[2].script, changed.items[2].script);
+  bridge.tokenSuffix = '-rotated';
+  const rotated = coordinator.buildDocumentStartScriptBundle(false);
+  assert.notEqual(rotated.key, sourceChanged.key);
+  assert.ok(rotated.items[2].script.includes('-rotated'));
+
+  assert.equal(coordinator.buildDocumentStartScriptBundle(true).items.length, 0);
+  assert.deepEqual(coordinator.buildDocumentStartScriptBundle(false), rotated);
+  await e.lifecycle().deleteScript('script-0');
+  const deleted = coordinator.buildDocumentStartScriptBundle(false);
+  assert.equal(deleted.items.length, rotated.items.length - 1);
+  assert.equal(deleted.items.some(item => item.script.includes('fixture-token-script-0')), false);
+});
+
+test('failed GM commit leaves the cached document-start snapshot at its committed revision', async () => {
+  let failWrite = false;
+  const e = environment(storage({ ...small, enabled: true, hint: true }), {
+    beforeWrite() { if (failWrite) throw new Error('fixture-write-failed'); }
+  });
+  await e.readiness.initializeExecutionState();
+  const { coordinator } = e.runtime();
+  const first = coordinator.buildDocumentStartScriptBundle(false);
+  failWrite = true;
+  await assert.rejects(e.values.commitMutations('script-0', [
+    { operation: 'set', key: 'fixture-value', valueJson: '"must-not-publish"' }
+  ]));
+  assert.deepEqual(coordinator.buildDocumentStartScriptBundle(false), first);
+  failWrite = false;
+  await e.values.commitMutations('script-0', [{ operation: 'set', key: 'fixture-value', valueJson: '"committed"' }]);
+  assert.notEqual(coordinator.buildDocumentStartScriptBundle(false).key, first.key);
+});
+
+test('document-end preparation does not materialize unused GM snapshots', async () => {
+  const e = environment(storage({ ...small, valueBytes: 5 * MiB }));
+  await e.readiness.initializeExecutionState();
+  let reads = 0;
+  const read = e.values.readCommittedRuntimeView.bind(e.values);
+  e.values.readCommittedRuntimeView = id => { reads++; return read(id); };
+  const { coordinator } = e.runtime();
+  assert.ok(coordinator.buildPreparedDocumentEndSource(e.repository.listScripts()).length > 0);
+  assert.equal(reads, 0);
+  const manual = coordinator.buildInjectionRequests(e.repository.listScripts(), true);
+  assert.equal(reads, 1);
+  assert.ok(manual[0].valueSnapshotLiteral.length > 5 * MiB);
+});
+
+test('repeated large GM writes keep journal replay bounded and preserve latest values', async () => {
+  const data = storage(small), e = environment(data);
+  await e.readiness.initializeExecutionState();
+  for (let n = 0; n < 20; n++) await e.values.commitMutations('script-0', [
+    { operation: 'set', key: 'cache', valueJson: JSON.stringify('x'.repeat(200 * 1024) + n) }
+  ]);
+  const bytes = Array.from(data.files).filter(([name]) => name.endsWith('.journal')).reduce((sum, [, b]) => sum + b.length, 0);
+  assert.ok(bytes <= MiB, 'journal must not grow with total historical writes: ' + bytes);
+  const reopened = environment(data); await reopened.readiness.initializeExecutionState();
+  assert.equal(reopened.values.readCommittedValueJson('script-0', 'cache'), JSON.stringify('x'.repeat(200 * 1024) + 19));
+});
+
+function runtimeValueFixture(e) {
+  const calls = [], saved = new Map(), pending = [];
+  const window = {};
+  let rejectWrites = false, deferWrites = false;
+  const respond = payload => {
+    if (payload.kind === 'getValues' || payload.kind === 'getValue') {
+      const values = {};
+      (payload.keys || [payload.key]).forEach(key => { if (saved.has(key)) values[key] = saved.get(key); });
+      return { success: true, found: payload.kind === 'getValues' || saved.has(payload.key),
+        valueJson: JSON.stringify(payload.kind === 'getValues' ? values : saved.get(payload.key)) };
+    }
+    if (rejectWrites) return { success: false, error: 'fixture-write-failed' };
+    const mutations = payload.mutations || [{ key: payload.key, valueJson: payload.valueJson }];
+    const transitions = mutations.map(m => ({ key: m.key, oldValueJson: saved.has(m.key) ? JSON.stringify(saved.get(m.key)) : undefined,
+      newValueJson: m.valueJson, hasNewValue: true, hasOldValue: saved.has(m.key), scriptId: 'script-0' }));
+    mutations.forEach(m => saved.set(m.key, JSON.parse(m.valueJson)));
+    return { success: true, commit: { revision: calls.length, transitions } };
+  };
+  window.__airaUserScriptNativeBridge = {
+    readValue(json) { const p = JSON.parse(json); calls.push(p); return JSON.stringify(respond(p)); },
+    request(json) { const p = JSON.parse(json); calls.push(p);
+      const ack = () => window.__airaUserScriptValueDispatch({ id: p.id, ...respond(p) });
+      if (deferWrites && p.kind.startsWith('set')) pending.push(ack); else queueMicrotask(ack);
+    }
+  };
+  let timerSerial = 0; const timers = new Map();
+  const context = vm.createContext({ window, console, URL, setTimeout: (fn, ms) => {
+    const id = ++timerSerial; timers.set(id, setTimeout(fn, ms)); return id;
+  }, clearTimeout: id => { clearTimeout(timers.get(id)); timers.delete(id); } });
+  const injection = e.runtime().coordinator.injectionService;
+  vm.runInContext(injection.buildRuntimeFactoryInstallScript(), context);
+  const routes = {};
+  for (const name of ['getValue', 'getValues', 'setValue', 'setValues']) routes[name] = {
+    requestKind: name, capability: 'GM_' + name
+  };
+  const api = window.__airaUserScriptRuntimeFactoryV1({ scriptId: 'script-0', nativeBridgeToken: 'token',
+    grants: { getValue: true, getValues: true, setValue: true, setValues: true }, nativeRoutes: routes });
+  return { api, calls, saved, pending, reject: value => { rejectWrites = value; }, defer: value => { deferWrites = value; } };
+}
+
+test('bulk GM APIs cross the bridge once and preserve defaults, cache, provisional writes and rollback', async () => {
+  const e = environment(storage(small)), f = runtimeValueFixture(e);
+  const keys = Array.from({ length: 20 }, (_, i) => 'key-' + i);
+  keys.forEach((key, i) => f.saved.set(key, i));
+  assert.equal(Object.keys(await f.api.GM.getValues(keys)).length, 20);
+  assert.equal(f.calls.length, 1, 'one bulk native read');
+  f.calls.length = 0;
+  const values = Object.fromEntries(keys.map(key => [key, 'new-' + key]));
+  f.defer(true);
+  let settled = false;
+  const write = f.api.GM.setValues(values).then(() => { settled = true; });
+  assert.equal(f.calls.length, 1, 'one bulk native write');
+  assert.equal(f.api.GM_getValue(keys[0]), values[keys[0]], 'provisional state is visible');
+  await turns(); assert.equal(settled, false, 'wait for durable ack');
+  f.pending.shift()(); await write;
+  f.defer(false); f.reject(true);
+  await assert.rejects(f.api.GM.setValues({ 'key-0': 'rejected', extra: true }));
+  assert.equal(f.api.GM_getValue('key-0'), values['key-0']);
+  assert.equal(f.api.GM_getValue('extra', 'absent'), 'absent');
+  const defaults = await f.api.GM.getValues({ 'key-0': 0, absent: 'fallback' });
+  assert.equal(defaults.absent, 'fallback');
+  assert.equal(defaults['key-0'], values['key-0']);
+  f.calls.length = 0;
+  const g = runtimeValueFixture(e); keys.forEach(key => g.saved.set(key, 7));
+  assert.equal(Object.keys(g.api.GM_getValues(keys)).length, 20);
+  assert.equal(g.calls.length, 1, 'sync batch reads all missing keys in one request');
+  g.api.GM_getValues(keys); assert.equal(g.calls.length, 1, 'sync batch reuses loaded keys');
+});
+
+test('metadata-only toggle and deletion do not serialize or rewrite installed source payloads', async () => {
+  const data = storage({ ...small, count: 2, sourceBytes: 2 * MiB, dependencyBytes: MiB });
+  const e = environment(data); await e.repository.initialize();
+  const before = counts(e.metrics), filesBefore = e.metrics.fileWrites.length;
+  const script = e.repository.findScript('script-0'); script.enabled = false;
+  await e.repository.saveInstalledState(script);
+  await e.repository.deleteScript('script-1');
+  const chars = counts(e.metrics).jsonStringifyChars - before.jsonStringifyChars;
+  assert.ok(chars < 64 * 1024, 'small settings must not encode megabytes of source: ' + chars);
+  assert.equal(e.metrics.fileWrites.length, filesBefore, 'unchanged payload files stay untouched');
+  const reopened = environment(data); await reopened.repository.initialize();
+  assert.equal(reopened.repository.listScripts().length, 1);
+  assert.equal(reopened.repository.findScript('script-0').enabled, false);
+  assert.equal(reopened.repository.findScript('script-0').source, script.source);
+  assert.equal(reopened.repository.findScript('script-0').requireSources[0], script.requireSources[0]);
+});
+
+test('journal compaction survives interrupted cleanup and rejects a snapshot write failure without losing the previous commit', async () => {
+  for (const failure of ['snapshot', 'cleanup']) {
+    const data = storage(small);
+    let armed = false;
+    const e = environment(data, {
+      beforeWrite(name) { if (armed && failure === 'snapshot' && name.endsWith('.json.pending') && name.includes('/scripts/')) throw new Error('snapshot-failed'); },
+      beforeUnlink(name) { if (armed && failure === 'cleanup' && name.endsWith('.journal')) throw new Error('cleanup-interrupted'); }
+    });
+    await e.readiness.initializeExecutionState();
+    for (let n = 0; n < 5; n++) await e.values.commitMutations('script-0', [
+      { operation: 'set', key: 'cache', valueJson: JSON.stringify('x'.repeat(200 * 1024) + n) }
+    ]);
+    armed = true;
+    const write = e.values.commitMutations('script-0', [
+      { operation: 'set', key: 'cache', valueJson: JSON.stringify('x'.repeat(200 * 1024) + 'latest') }
+    ]);
+    if (failure === 'snapshot') await assert.rejects(write); else await write;
+    const reopened = environment(data); await reopened.readiness.initializeExecutionState();
+    assert.equal(reopened.values.readCommittedValueJson('script-0', 'cache'),
+      JSON.stringify('x'.repeat(200 * 1024) + (failure === 'snapshot' ? 4 : 'latest')));
+    assert.equal(reopened.metrics.logs.some(log => log.args.some(arg => String(arg).includes('ignored invalid records'))), false);
+    await reopened.values.commitMutations('script-0', [{ operation: 'set', key: 'after', valueJson: 'true' }]);
+    const again = environment(data); await again.readiness.initializeExecutionState();
+    assert.equal(again.values.readCommittedValueJson('script-0', 'after'), 'true');
+  }
+});
+
+test('legacy package migration keeps its original document when payload or index persistence fails', async () => {
+  for (const failure of ['payload', 'index']) {
+    const data = storage(small), legacy = data.preferences.get('aira_browser_userscripts').get('user_script_settings');
+    const e = environment(data, {
+      beforeWrite(name) { if (failure === 'payload' && name.includes('/userscript-packages/')) throw new Error('payload-failed'); },
+      beforeFlush(name) { if (failure === 'index' && name === 'aira_browser_userscripts') throw new Error('index-failed'); }
+    });
+    await assert.rejects(e.repository.initialize());
+    assert.equal(data.preferences.get('aira_browser_userscripts').get('user_script_settings'), legacy);
+    const reopened = environment(data); await reopened.repository.initialize();
+    assert.equal(reopened.repository.findScript('script-0').source, data.scripts[0].source);
+    assert.equal(JSON.parse(data.preferences.get('aira_browser_userscripts').get('user_script_settings')).schemaVersion, 2);
+  }
+});
+
+test('failed source replacement keeps old payload authoritative and restart reclaims only orphan files', async () => {
+  const data = storage(small);
+  let failIndex = false;
+  const e = environment(data, { beforeFlush(name) {
+    if (failIndex && name === 'aira_browser_userscripts') throw new Error('index-failed');
+  } });
+  await e.repository.initialize();
+  const original = e.repository.findScript('script-0');
+  const changed = { ...original, source: original.source + '\n// newer' };
+  failIndex = true;
+  await assert.rejects(e.repository.saveInstalledState(changed));
+  assert.equal(e.repository.findScript('script-0').source, original.source);
+  assert.equal(Array.from(data.files.keys()).filter(name => name.includes('/userscript-packages/')).length, 2);
+  const reopened = environment(data); await reopened.repository.initialize(); await turns();
+  assert.equal(reopened.repository.findScript('script-0').source, original.source);
+  assert.equal(Array.from(data.files.keys()).filter(name => name.includes('/userscript-packages/')).length, 1);
+  await reopened.repository.saveInstalledState(changed); await turns();
+  const again = environment(data); await again.repository.initialize();
+  assert.equal(again.repository.findScript('script-0').source, changed.source);
+});
+
+test('invalid split package payload fails closed without deleting files or falling back to stale packages', async () => {
+  const data = storage(small), e = environment(data); await e.repository.initialize();
+  const path = Array.from(data.files.keys()).find(name => name.includes('/userscript-packages/'));
+  const broken = Buffer.from('{"schemaVersion":1,"source":false}'); data.files.set(path, broken);
+  const reopened = environment(data); await assert.rejects(reopened.repository.initialize());
+  assert.deepEqual(data.files.get(path), broken);
+});
+
+test('concurrent package updates preserve independent scripts and auto-update settings', async () => {
+  const data = storage({ ...small, count: 2 }), e = environment(data); await e.repository.initialize();
+  const first = e.repository.findScript('script-0'); first.enabled = false;
+  const second = e.repository.findScript('script-1'); second.source += '\n// changed';
+  await Promise.all([e.repository.saveInstalledState(first), e.repository.saveInstalledState(second), e.repository.setAutoUpdateEnabled(true)]);
+  const reopened = environment(data); await reopened.repository.initialize();
+  assert.equal(reopened.repository.findScript('script-0').enabled, false);
+  assert.equal(reopened.repository.findScript('script-1').source, second.source);
+  assert.equal(reopened.repository.getSettings().autoUpdateEnabled, true);
+});
+
+test('native bulk routes enforce token, grant and page checks and commit the entire batch once', async () => {
+  const data = storage(small), e = environment(data); await e.readiness.initializeExecutionState();
+  const script = e.repository.findScript('script-0'); script.grants = ['GM_getValues', 'GM_setValues'];
+  await e.repository.saveInstalledState(script);
+  const bridge = e.nativeBridge(), token = bridge.registerScriptToken('script-0');
+  assert.ok(token);
+  const payload = { id: 'batch', scriptId: 'script-0', token, kind: 'getValues', capability: 'GM_getValues', keys: ['fixture-value', 'missing'] };
+  const read = (overrides = {}, url = 'https://example.com/') => JSON.parse(bridge.handleSynchronousValueRead(JSON.stringify({ ...payload, ...overrides }), url));
+  assert.equal(read().success, true);
+  assert.deepEqual(JSON.parse(read().valueJson), { 'fixture-value': '' });
+  assert.equal(read({ token: 'invalid' }).success, false);
+  assert.equal(read({}, 'https://unmatched.invalid/').success, false);
+  assert.equal(read({ keys: 'invalid' }).success, false);
+  assert.equal(read({ capability: 'GM_getValue' }).success, false, 'bulk route cannot borrow the single-read grant');
+  const send = (overrides = {}) => new Promise(resolve => {
+    const controller = { runJavaScript(source) {
+      vm.runInNewContext(source, { window: { __airaUserScriptValueDispatch: resolve } });
+      return Promise.resolve('');
+    } };
+    bridge.handleRequest(JSON.stringify({ ...payload, kind: 'setValues', capability: 'GM_setValues',
+      mutations: [{ operation: 'set', key: 'one', valueJson: '1' }, { operation: 'set', key: 'two', valueJson: '2' }], ...overrides
+    }), controller, 'tab', 'https://example.com/');
+  });
+  const before = e.values.readReadiness().revision;
+  assert.equal((await send()).success, true);
+  assert.equal(e.values.readReadiness().revision, before + 1);
+  assert.equal(e.values.readCommittedValueJson('script-0', 'two'), '2');
+  assert.equal((await send({ mutations: [{ operation: 'set', key: 'one', valueJson: '9' },
+    { operation: 'set', key: 'two', valueJson: 'broken-json' }] })).success, false);
+  assert.equal(e.values.readCommittedValueJson('script-0', 'one'), '1');
+  assert.equal((await send({ mutations: [{ operation: 'delete', key: 'one' }] })).success, false);
+  script.grants = ['GM_getValue']; await e.repository.saveInstalledState(script);
+  assert.equal(read().success, false, 'revoked bulk grant is rejected');
+  assert.equal((await send()).success, false);
+});
+
+test('repeated native URL matching reuses compiled rules including invalid regex rules', () => {
+  const e = environment(storage(small)), matcher = e.matchService();
+  const script = installed('script-0', true, 64, 1, 0);
+  script.matches = [];
+  script.includes = Array.from({ length: 200 }, (_, i) => 'https://example.com/miss-' + i + '/*');
+  script.includes.push('/[/g', 'https://example.com/actual/*');
+  for (let n = 0; n < 20; n++) assert.equal(matcher.matchesScript(script, 'https://example.com/actual/' + n), true);
+  const compiles = e.metrics.regexCompiles.UserScriptMatchService;
+  console.log(JSON.stringify({ scenario: 'repeat-native-url-match', compiles }));
+  assert.equal(compiles, 202, 'each distinct rule is compiled once rather than on every check');
+});
+
+test('GM reads and key listing do not traverse unrelated committed records', async () => {
+  const e = environment(storage(small));
+  const values = Array.from({ length: 5000 }, (_, i) => ({ scriptId: 'unrelated', key: 'key-' + i, valueJson: '1', updatedAt: 1 }));
+  values.push({ scriptId: 'target', key: 'wanted', valueJson: '42', updatedAt: 1 });
+  const bytes = Buffer.from(JSON.stringify({ schemaVersion: 1, revision: 1, values, updatedAt: 1 }));
+  const store = e.createValueStore({ readCommitted: async () => bytes, replaceCommitted: async () => {} });
+  await store.initialize();
+  let visited = 0;
+  store.document.values = new Proxy(store.document.values, { get(target, key, receiver) {
+    if (typeof key === 'string' && /^\d+$/.test(key)) visited++;
+    return Reflect.get(target, key, receiver);
+  } });
+  for (let n = 0; n < 100; n++) assert.equal(store.readCommittedValueJson('target', 'wanted'), '42');
+  assert.deepEqual(Array.from(store.readCommittedKeys('target')), ['wanted']);
+  assert.equal(store.readCommittedRuntimeView('target').snapshotLiteral, '{"wanted":42}');
+  console.log(JSON.stringify({ scenario: 'indexed-gm-reads', visited }));
+  assert.equal(visited, 0, 'read indexes must avoid scans of the full committed document');
+});
+
+test('one script writing a value does not rebuild another script large prepared snapshot', async () => {
+  const data = storage({ ...small, count: 2, valueBytes: 5 * MiB });
+  const e = environment(data); await e.readiness.initializeExecutionState();
+  const { coordinator } = e.runtime(); coordinator.buildDocumentStartScriptBundle(false);
+  const reads = [];
+  const original = e.values.readCommittedRuntimeView.bind(e.values);
+  e.values.readCommittedRuntimeView = id => { reads.push(id); return original(id); };
+  await e.values.commitMutations('script-0', [{ operation: 'set', key: 'small', valueJson: '1' }]);
+  coordinator.buildDocumentStartScriptBundle(false);
+  console.log(JSON.stringify({ scenario: 'per-script-prepared-invalidation', reads }));
+  assert.deepEqual(reads, ['script-0']);
+});
+
+test('a small GM mutation computes transitions with linear work as saved key count grows', async () => {
+  const e = environment(storage(small));
+  const records = Array.from({ length: 1000 }, (_, i) => ({ scriptId: 'script', key: 'key-' + i, valueJson: String(i), updatedAt: 1 }));
+  const store = e.createValueStore({
+    readCommitted: async () => Buffer.from(JSON.stringify({ schemaVersion: 1, revision: 1, values: records, updatedAt: 1 })),
+    replaceCommitted: async () => {}
+  });
+  await store.initialize();
+  let identities = 0;
+  const original = store.buildRecordIdentity.bind(store);
+  store.buildRecordIdentity = (...args) => { identities++; return original(...args); };
+  const result = await store.commitMutations('script', [
+    { operation: 'set', key: 'key-10', valueJson: '42' }, { operation: 'delete', key: 'key-20', valueJson: '' },
+    { operation: 'set', key: 'key-30', valueJson: '30' }
+  ]);
+  assert.deepEqual(Array.from(result.transitions, t => [t.key, t.hasNewValue, t.newValueJson]), [
+    ['key-10', true, '42'], ['key-20', false, '']
+  ]);
+  console.log(JSON.stringify({ scenario: 'small-write-with-1000-keys', identities }));
+  assert.ok(identities <= records.length * 20, 'transition calculation must not scan every key for every record: ' + identities);
+});
+
+test('cached native rules preserve exclusions, global/sticky flags, edits and bounded eviction', () => {
+  const e = environment(storage(small)), matcher = e.matchService();
+  const script = installed('script-0', true, 64, 1, 0);
+  const window = {};
+  vm.runInNewContext(e.runtime().coordinator.injectionService.buildUrlMatcherInstallScript(), { window, URL });
+  const cases = [
+    { matches: ['*://*.example.com/*'], url: 'https://child.example.com/a?b=1#c', expected: true },
+    { matches: ['*://*.example.com/*'], excludeMatches: ['*://child.example.com/private/*'], url: 'https://child.example.com/private/a', expected: false },
+    { includes: ['/https:\\/\\/example\\.com\\/a/g'], url: 'https://example.com/a', expected: true },
+    { includes: ['/https:\\/\\/example\\.com\\/a/y'], url: 'https://example.com/a', expected: true },
+    { includes: ['https://example.com/*'], excludes: ['/private/g'], url: 'https://example.com/private', expected: false },
+    { includes: ['/[/g'], url: 'https://example.com/a', expected: false },
+    { matches: ['<all_urls>'], url: 'file://example.com/a', expected: false },
+    { matches: ['*://wk.baidu.com/view/*'], url: 'https://wk.baidu.com/tfview/a', expected: true },
+    { matches: ['*://example.com/new/*'], url: 'https://example.com/old/a', expected: false },
+    { matches: ['*://example.com/old/*'], url: 'https://example.com/old/a', expected: true }
+  ];
+  for (const sample of cases) {
+    Object.assign(script, { matches: [], includes: [], excludeMatches: [], excludes: [] }, sample);
+    for (let n = 0; n < 3; n++) {
+      assert.equal(matcher.matchesScript(script, sample.url), sample.expected);
+      const web = !window.__airaUserScriptIsExcludedV1(sample.url, script.excludeMatches, script.excludes) &&
+        window.__airaUserScriptMatchesV1(sample.url, script.matches, script.includes);
+      assert.equal(web, sample.expected);
+    }
+  }
+  for (let n = 0; n < 700; n++) {
+    script.matches = []; script.includes = ['https://example.com/path-' + n];
+    assert.equal(matcher.matchesScript(script, script.includes[0]), true);
+  }
+  assert.ok(matcher.regexCache.size <= 512);
+  script.includes = ['https://example.com/path-0'];
+  assert.equal(matcher.matchesScript(script, script.includes[0]), true, 'evicted rule can compile again');
+  let parsed = 0;
+  const parse = matcher.parseUrl.bind(matcher);
+  matcher.parseUrl = url => { parsed++; return parse(url); };
+  assert.equal(matcher.resolveMatchingScripts([script, { ...script, enabled: false }, { ...script, id: 'second' }], script.includes[0]).length, 2);
+  assert.equal(parsed, 1, 'one URL parse per matching batch');
+});
+
+test('GM read indexes and per-script versions publish only after durable ACK, including deletion and recreation', async () => {
+  const e = environment(storage(small));
+  let release, rejectWrite, persist;
+  const ready = Buffer.from(JSON.stringify({ schemaVersion: 1, revision: 5, updatedAt: 1, values: [
+    { scriptId: 'target', key: 'key', valueJson: '1', updatedAt: 1 },
+    { scriptId: 'other', key: 'same', valueJson: '2', updatedAt: 1 }
+  ] }));
+  const store = e.createValueStore({ readCommitted: async () => ready, replaceCommitted: bytes => persist(bytes) });
+  await store.initialize();
+  const oldVersion = store.readCommittedScriptRevision('target');
+  let entered;
+  const enteredWrite = new Promise(resolve => { entered = resolve; });
+  persist = () => { entered(); return new Promise((yes, no) => { release = yes; rejectWrite = no; }); };
+  const pending = store.commitMutations('target', [{ operation: 'set', key: 'key', valueJson: '3' }]);
+  await enteredWrite;
+  assert.equal(store.readCommittedValueJson('target', 'key'), '1');
+  assert.equal(store.readCommittedScriptRevision('target'), oldVersion);
+  rejectWrite(new Error('not durable')); await assert.rejects(pending);
+  assert.equal(store.readCommittedValueJson('target', 'key'), '1');
+  assert.equal(store.readCommittedScriptRevision('target'), oldVersion);
+  persist = async () => {};
+  await store.commitMutations('target', [{ operation: 'set', key: 'key', valueJson: '3' }]);
+  assert.equal(store.readCommittedValueJson('target', 'key'), '3');
+  assert.equal(store.readCommittedScriptRevision('target'), 6);
+  assert.equal(store.readCommittedScriptRevision('other'), 5);
+  await store.deletePackageValues('target');
+  assert.equal(store.readCommittedRuntimeView('target').snapshotLiteral, '{}');
+  assert.equal(store.readCommittedKeys('target').length, 0);
+  await store.commitMutations('target', [{ operation: 'set', key: '__proto__', valueJson: '4' }]);
+  assert.equal(store.readCommittedValueJson('target', '__proto__'), '4');
+  assert.equal(store.readCommittedValueJson('target', 'key'), undefined);
+  assert.equal(store.readCommittedScriptRevision('other'), 5);
+  const projection = store.readScriptManagementProjection('other'); projection.records[0].valueJson = '999';
+  assert.equal(store.readCommittedValueJson('other', 'same'), '2', 'management must receive detached records');
+});
+
+test('synchronous GM commits update the same indexed read projections and preserve them on failure', async () => {
+  const e = environment(storage(small));
+  let fail = false;
+  const store = e.createValueStore({
+    readCommitted: async () => Buffer.from('{"schemaVersion":1,"revision":0,"updatedAt":0,"values":[]}'),
+    replaceCommitted: async () => {}, replaceCommittedSync: () => { if (fail) throw new Error('failed'); }
+  });
+  await store.initialize();
+  await store.commitMutations('script', [{ operation: 'set', key: 'one', valueJson: '1' }]);
+  assert.equal(store.readCommittedValueJson('script', 'one'), '1');
+  fail = true;
+  await assert.rejects(store.commitMutations('script', [{ operation: 'set', key: 'one', valueJson: '2' }]));
+  assert.equal(store.readCommittedScriptRevision('script'), 1);
+  assert.equal(store.readCommittedValueJson('script', 'one'), '1');
+  fail = false;
+  await store.deletePackageValues('script');
+  assert.equal(store.readCommittedRuntimeView('script').snapshotLiteral, '{}');
+});
+
+test('clearing imported revision-zero values invalidates their snapshot token', async () => {
+  const e = environment(storage(small));
+  const store = e.createValueStore({
+    readCommitted: async () => Buffer.from(JSON.stringify({ schemaVersion: 1, revision: 0, updatedAt: 0,
+      values: [{ scriptId: 'script', key: 'saved', valueJson: '1', updatedAt: 0 }] })),
+    replaceCommitted: async () => {}
+  });
+  await store.initialize();
+  const token = store.readCommittedScriptRevision('script');
+  const unchanged = await store.commitMutations('script', [{ operation: 'set', key: 'saved', valueJson: '1' }]);
+  assert.equal(unchanged.changed, false);
+  assert.equal(store.readCommittedScriptRevision('script'), token);
+  await store.deletePackageValues('script');
+  assert.notEqual(store.readCommittedScriptRevision('script'), token);
+  assert.equal(store.readCommittedRuntimeView('script').snapshotLiteral, '{}');
 });

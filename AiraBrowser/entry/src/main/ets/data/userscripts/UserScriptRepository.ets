@@ -1,4 +1,5 @@
 import { preferences } from '@kit.ArkData';
+import { UserScriptPackageStorage } from './UserScriptPackageStorage';
 import { AppRuntimeContext } from '../../app/runtime/AppRuntimeContext';
 import {
   cloneInstalledUserScriptState,
@@ -24,6 +25,8 @@ interface UserScriptStartupHint {
 }
 
 export class UserScriptRepository {
+  private packageStorage: UserScriptPackageStorage = new UserScriptPackageStorage();
+  private mutationQueue: Promise<void> = Promise.resolve();
   private capabilityContract: UserScriptCapabilityContractService = new UserScriptCapabilityContractService();
   private iconService: UserScriptIconService = new UserScriptIconService();
   private store?: preferences.Preferences;
@@ -80,8 +83,15 @@ export class UserScriptRepository {
       this.settings = this.normalizeSettings(undefined);
       await this.persistSettings(this.settings);
     } else {
-      this.settings = this.normalizeSettings(this.parseSettings(rawSettings));
-      await this.refreshStartupHint();
+      const loaded = await this.packageStorage.read(rawSettings);
+      this.validateSettings(loaded);
+      this.settings = this.normalizeSettings(loaded);
+      this.packageStorage.acceptLoaded(this.settings);
+      if (this.packageStorage.usesSplitLayout()) {
+        await this.refreshStartupHint();
+      } else {
+        await this.persistSettings(this.settings);
+      }
     }
     this.initialized = true;
   }
@@ -105,39 +115,51 @@ export class UserScriptRepository {
 
   async saveInstalledState(state: InstalledUserScriptState): Promise<UserScriptSettings> {
     await this.initialize();
-    const now = Date.now();
-    const nextState = cloneInstalledUserScriptState(state);
-    const nextScripts = this.settings.scripts
-      .filter((script: InstalledUserScriptState) => script.id !== nextState.id)
-      .concat(nextState)
-      .sort((left: InstalledUserScriptState, right: InstalledUserScriptState) => left.createdAt - right.createdAt);
-    return this.persistSettings({
-      scripts: nextScripts,
-      autoUpdateEnabled: this.settings.autoUpdateEnabled,
-      updatedAt: now
+    return this.enqueueMutation(async (): Promise<UserScriptSettings> => {
+      const now = Date.now();
+      const nextState = cloneInstalledUserScriptState(state);
+      const nextScripts = this.settings.scripts
+        .filter((script: InstalledUserScriptState) => script.id !== nextState.id)
+        .concat(nextState)
+        .sort((left: InstalledUserScriptState, right: InstalledUserScriptState) => left.createdAt - right.createdAt);
+      return this.persistSettings({
+        scripts: nextScripts,
+        autoUpdateEnabled: this.settings.autoUpdateEnabled,
+        updatedAt: now
+      });
     });
   }
 
   async setAutoUpdateEnabled(enabled: boolean): Promise<UserScriptSettings> {
     await this.initialize();
-    if (this.settings.autoUpdateEnabled === enabled) {
-      return this.getSettings();
-    }
-    return this.persistSettings({
-      scripts: this.settings.scripts.map((script: InstalledUserScriptState) => cloneInstalledUserScriptState(script)),
-      autoUpdateEnabled: enabled,
-      updatedAt: Date.now()
+    return this.enqueueMutation(async (): Promise<UserScriptSettings> => {
+      if (this.settings.autoUpdateEnabled === enabled) {
+        return this.getSettings();
+      }
+      return this.persistSettings({
+        scripts: this.settings.scripts.map((script: InstalledUserScriptState) => cloneInstalledUserScriptState(script)),
+        autoUpdateEnabled: enabled,
+        updatedAt: Date.now()
+      });
     });
   }
 
   async deleteScript(scriptId: string): Promise<UserScriptSettings> {
     await this.initialize();
-    const deletedAt = Date.now();
-    return this.persistSettings({
-      scripts: this.settings.scripts.filter((script: InstalledUserScriptState) => script.id !== scriptId),
-      autoUpdateEnabled: this.settings.autoUpdateEnabled,
-      updatedAt: deletedAt
+    return this.enqueueMutation(async (): Promise<UserScriptSettings> => {
+      const deletedAt = Date.now();
+      return this.persistSettings({
+        scripts: this.settings.scripts.filter((script: InstalledUserScriptState) => script.id !== scriptId),
+        autoUpdateEnabled: this.settings.autoUpdateEnabled,
+        updatedAt: deletedAt
+      });
     });
+  }
+
+  private enqueueMutation(operation: () => Promise<UserScriptSettings>): Promise<UserScriptSettings> {
+    const result = this.mutationQueue.then(operation);
+    this.mutationQueue = result.then((): void => {}, (): void => {});
+    return result;
   }
 
   private normalizeSettings(value: UserScriptSettings | undefined): UserScriptSettings {
@@ -239,14 +261,7 @@ export class UserScriptRepository {
     return value.map((item: string) => String(item ?? '').trim()).filter((item: string) => item.length > 0);
   }
 
-  private parseSettings(value: string): UserScriptSettings {
-    let parsed: UserScriptSettings;
-    try {
-      parsed = JSON.parse(value) as UserScriptSettings;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'parse-failed';
-      throw new Error(`userscript-metadata-invalid-state: invalid-json:${message}`);
-    }
+  private validateSettings(parsed: UserScriptSettings): void {
     if (parsed === undefined || parsed === null || !Array.isArray(parsed.scripts) ||
       (parsed.autoUpdateEnabled !== undefined && typeof parsed.autoUpdateEnabled !== 'boolean') ||
       !this.isValidNonNegativeNumber(parsed.updatedAt)) {
@@ -257,7 +272,6 @@ export class UserScriptRepository {
       this.validateScriptRecord(record, seenScriptIds);
       seenScriptIds.push(record.id.trim());
     });
-    return parsed;
   }
 
   private validateScriptRecord(record: InstalledUserScriptState, seenScriptIds: string[]): void {
@@ -369,8 +383,21 @@ export class UserScriptRepository {
     // process exit between the two stores can only cause extra work, never hide an
     // enabled script behind an old all-disabled hint.
     this.writeStartupHint(startupStore);
-    store.putSync(USER_SCRIPT_SETTINGS_KEY, JSON.stringify(nextSettings));
-    store.flushSync();
+    const prepared = await this.packageStorage.prepare(nextSettings);
+    const previous = String(store.getSync(USER_SCRIPT_SETTINGS_KEY, ''));
+    try {
+      store.putSync(USER_SCRIPT_SETTINGS_KEY, prepared.serialized);
+      store.flushSync();
+    } catch (error) {
+      // Preferences caches putSync before flush. Keep a failed commit out of later
+      // operations in this process; unpublished immutable files remain recoverable.
+      store.putSync(USER_SCRIPT_SETTINGS_KEY, previous);
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error('User script package index persistence failed.');
+    }
+    this.packageStorage.acceptCommitted(prepared);
     this.settings = nextSettings;
     try {
       this.writeStartupHint(startupStore, nextSettings);
@@ -405,6 +432,11 @@ export class UserScriptRepository {
     const iconUrl = String(value.iconUrl ?? '').trim();
     if (iconUrl.length > 0) {
       return this.iconService.resolveIconUrl(iconUrl, String(value.sourceUrl ?? ''));
+    }
+    const existing = this.settings.scripts.find((script: InstalledUserScriptState): boolean => script.id === value.id);
+    if (existing !== undefined && existing.iconUrl === '' &&
+      existing.source === value.source && existing.sourceUrl === value.sourceUrl) {
+      return existing.iconUrl;
     }
     return this.iconService.recoverIconUrl(String(value.source ?? ''), String(value.sourceUrl ?? ''));
   }

@@ -937,45 +937,52 @@ ${scriptBodySource}
       }
       return defaultValue;
     };
-    var GM_getValues = function(keysOrDefaults) {
-      __airaRequireGrant('GM_getValues', __airaGrants.getValues);
+    var __airaBulkValueKeys = function(keysOrDefaults) {
+      var keys = Array.isArray(keysOrDefaults) ? keysOrDefaults : Object.keys(keysOrDefaults || {});
+      return keys.map(function(key) { return String(key || ''); }).filter(function(key, index, all) {
+        return key.length > 0 && all.indexOf(key) === index;
+      });
+    };
+    var __airaAcceptBulkValues = function(keys, event) {
+      if (!event || event.success !== true || event.found !== true) { return undefined; }
+      var values = JSON.parse(String(event.valueJson || '{}'));
+      keys.forEach(function(key) {
+        if (__airaHasPendingValueMutationForKey(key)) { return; }
+        if (Object.prototype.hasOwnProperty.call(values, key)) {
+          __airaValues[key] = values[key];
+          __airaCommittedValues[key] = values[key];
+          __airaCommittedValueJson[key] = JSON.stringify(values[key]);
+        } else {
+          delete __airaValues[key];
+          delete __airaCommittedValues[key];
+          delete __airaCommittedValueJson[key];
+        }
+        __airaLoadedValueKeys[key] = true;
+      });
+      return values;
+    };
+    var __airaSelectBulkValues = function(keysOrDefaults, values) {
       var result = {};
-      if (Array.isArray(keysOrDefaults)) {
-        keysOrDefaults.forEach(function(key) {
-          var normalizedKey = String(key || '');
-          if (__airaLoadedValueKeys[normalizedKey] === true) {
-            if (Object.prototype.hasOwnProperty.call(__airaValues, normalizedKey)) {
-              result[normalizedKey] = __airaValues[normalizedKey];
-            }
-            return;
-          }
-          var committedValue = __airaReadCommittedValueSyncForKey(__airaNativeRoutes.getValues, normalizedKey);
-          if (committedValue.available) {
-            if (committedValue.found) {
-              result[normalizedKey] = committedValue.value;
-            }
-            return;
-          }
-          if (Object.prototype.hasOwnProperty.call(__airaValues, normalizedKey)) {
-            result[normalizedKey] = __airaValues[normalizedKey];
-          }
-        });
-        return result;
-      }
-      Object.keys(keysOrDefaults || {}).forEach(function(key) {
-        var defaultValue = keysOrDefaults[key];
-        if (__airaLoadedValueKeys[key] === true) {
-          result[key] = Object.prototype.hasOwnProperty.call(__airaValues, key) ? __airaValues[key] : defaultValue;
-          return;
+      __airaBulkValueKeys(keysOrDefaults).forEach(function(key) {
+        if (Object.prototype.hasOwnProperty.call(values, key)) {
+          Object.defineProperty(result, key, { value: values[key], enumerable: true, writable: true, configurable: true });
+        } else if (!Array.isArray(keysOrDefaults)) {
+          Object.defineProperty(result, key, { value: keysOrDefaults[key], enumerable: true, writable: true, configurable: true });
         }
-        var committedValue = __airaReadCommittedValueSyncForKey(__airaNativeRoutes.getValues, key);
-        if (committedValue.available) {
-          result[key] = committedValue.found ? committedValue.value : defaultValue;
-          return;
-        }
-        result[key] = Object.prototype.hasOwnProperty.call(__airaValues, key) ? __airaValues[key] : defaultValue;
       });
       return result;
+    };
+    var GM_getValues = function(keysOrDefaults) {
+      __airaRequireGrant('GM_getValues', __airaGrants.getValues);
+      var missing = __airaBulkValueKeys(keysOrDefaults).filter(function(key) {
+        return __airaLoadedValueKeys[key] !== true;
+      });
+      if (missing.length > 0) {
+        try {
+          __airaAcceptBulkValues(missing, __airaReadCommittedValueSync(__airaNativeRoutes.getValues, { keys: missing }));
+        } catch (_error) {}
+      }
+      return __airaSelectBulkValues(keysOrDefaults, __airaValues);
     };
     var __airaRequestNativeBridge = function(route, payload) {
       var bridge = window.__airaUserScriptNativeBridge;
@@ -1240,32 +1247,13 @@ ${scriptBodySource}
     };
     var __airaGetValuesPromise = function(keysOrDefaults) {
       __airaRequireGrant('GM_getValues', __airaGrants.getValues);
-      if (Array.isArray(keysOrDefaults)) {
-        return Promise.all(keysOrDefaults.map(function(key) {
-          return __airaGetValuePromiseForRoute(key, undefined, __airaNativeRoutes.getValues).then(function(value) {
-            return { key: String(key || ''), value: value, found: value !== undefined };
-          });
-        })).then(function(entries) {
-          var result = {};
-          entries.forEach(function(entry) {
-            if (entry.key && entry.found) {
-              result[entry.key] = entry.value;
-            }
-          });
-          return result;
-        });
-      }
-      var defaults = keysOrDefaults || {};
-      return Promise.all(Object.keys(defaults).map(function(key) {
-        return __airaGetValuePromiseForRoute(key, defaults[key], __airaNativeRoutes.getValues).then(function(value) {
-          return { key: key, value: value };
-        });
-      })).then(function(entries) {
-        var result = {};
-        entries.forEach(function(entry) {
-          result[entry.key] = entry.value;
-        });
-        return result;
+      var keys = __airaBulkValueKeys(keysOrDefaults);
+      if (keys.length === 0) { return Promise.resolve({}); }
+      return __airaRequestNativeValueRequest(__airaNativeRoutes.getValues, { keys: keys }).then(function(event) {
+        var values = __airaAcceptBulkValues(keys, event);
+        return __airaSelectBulkValues(keysOrDefaults, values || __airaValues);
+      }).catch(function() {
+        return __airaSelectBulkValues(keysOrDefaults, __airaValues);
       });
     };
     var __airaListValuesPromise = function() {
@@ -1309,9 +1297,23 @@ ${scriptBodySource}
     };
     var __airaSetValuesPromise = function(values) {
       __airaRequireGrant('GM_setValues', __airaGrants.setValues);
-      return Promise.all(Object.keys(values || {}).map(function(key) {
-        return __airaSetValueInternal(String(key || ''), values[key], __airaNativeRoutes.setValues);
-      })).then(function() {});
+      var mutations = [];
+      var payloadMutations = [];
+      try {
+        Object.keys(values || {}).forEach(function(key) {
+          if (!key) { return; }
+          var valueJson = JSON.stringify(values[key]);
+          if (typeof valueJson !== 'string') { throw new Error('invalid-value-json'); }
+          if (__airaLoadedValueKeys[key] === true && !__airaHasPendingValueMutationForKey(key) &&
+            __airaCommittedValueJson[key] === valueJson) { return; }
+          payloadMutations.push({ operation: 'set', key: key, valueJson: valueJson });
+          mutations.push({ operation: 'set', key: key, value: values[key] });
+        });
+      } catch (error) { return Promise.reject(error); }
+      if (mutations.length === 0) { return Promise.resolve(); }
+      return __airaSubmitProvisionalValueCommand(__airaNativeRoutes.setValues, {
+        mutations: payloadMutations
+      }, mutations);
     };
     var GM_setValues = function(values) {
       return __airaSetValuesPromise(values).catch(function(error) {

@@ -12,8 +12,10 @@ export type UserScriptNativeBridgeRequestKind =
   'saveTab' |
   'getTabs' |
   'getValue' |
+  'getValues' |
   'listValues' |
   'setValue' |
+  'setValues' |
   'deleteValue' |
   'deleteValues' |
   'setClipboard' |
@@ -31,8 +33,10 @@ export type UserScriptNativeBridgeExecutorKind =
   'tab_save' |
   'tabs_get' |
   'value_read' |
+  'values_read' |
   'value_list' |
   'value_set' |
+  'values_set' |
   'value_delete' |
   'values_delete' |
   'clipboard' |
@@ -65,6 +69,7 @@ export interface RawUserScriptNativeBridgePayload {
   name?: string;
   responseType?: string;
   key?: string;
+  keys?: string[];
   val?: Object | string | number | boolean | null;
   valueJson?: string;
   title?: string;

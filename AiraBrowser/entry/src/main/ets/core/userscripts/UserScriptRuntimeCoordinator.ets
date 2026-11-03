@@ -55,6 +55,7 @@ interface UserScriptDocumentStartItemCacheEntry {
   bridgeToken: string;
   script: InstalledUserScriptState;
   valueSnapshotLiteral: string;
+  scriptValueRevision: number;
   item: ScriptItem;
 }
 
@@ -722,20 +723,30 @@ export class UserScriptRuntimeCoordinator {
     script: InstalledUserScriptState,
     apiOnly: boolean
   ): UserScriptDocumentStartResolvedItem {
-    const valueView = this.valueStore.readCommittedRuntimeView(script.id);
     const bridgeToken = this.nativeBridgeCoordinator.registerScriptToken(script.id);
+    const cached = this.documentStartItemCacheByScriptId[script.id];
+    const scriptValueRevision = this.valueStore.readCommittedScriptRevision(script.id);
+    if (cached !== undefined && cached.scriptValueRevision === scriptValueRevision &&
+      cached.apiOnly === apiOnly && cached.bridgeToken === bridgeToken &&
+      cached.script.updatedAt === script.updatedAt && this.hasSameDocumentStartArtifactInput(cached.script, script)) {
+      // Only this script's durable values invalidate its snapshot. Another script's
+      // writes must not materialize or hash this script's multi-megabyte cache.
+      this.documentStartCacheHitCount += 1;
+      return { key: cached.artifactKey, item: this.cloneScriptItem(cached.item) };
+    }
+    const valueView = this.valueStore.readCommittedRuntimeView(script.id);
     const artifactKey = this.buildDocumentStartArtifactKey(
       script,
       apiOnly,
       bridgeToken,
       this.buildStringFingerprint(valueView.snapshotLiteral)
     );
-    const cached = this.documentStartItemCacheByScriptId[script.id];
     if (cached !== undefined && cached.artifactKey === artifactKey &&
       cached.apiOnly === apiOnly &&
       cached.bridgeToken === bridgeToken &&
       this.hasSameDocumentStartArtifactInput(cached.script, script) &&
       cached.valueSnapshotLiteral === valueView.snapshotLiteral) {
+      cached.scriptValueRevision = scriptValueRevision;
       this.documentStartCacheHitCount += 1;
       return {
         key: artifactKey,
@@ -761,6 +772,7 @@ export class UserScriptRuntimeCoordinator {
       bridgeToken: bridgeToken,
       script: cloneInstalledUserScriptState(script),
       valueSnapshotLiteral: valueView.snapshotLiteral,
+      scriptValueRevision: scriptValueRevision,
       item: this.cloneScriptItem(item)
     };
     this.documentStartCacheMissCount += 1;
@@ -1102,11 +1114,11 @@ export class UserScriptRuntimeCoordinator {
     includeValueSnapshots: boolean = false
   ): UserScriptInjectionRequest[] {
     return scripts.map((script: InstalledUserScriptState): UserScriptInjectionRequest => {
-      const valueView = this.valueStore.readCommittedRuntimeView(script.id);
+      const valueView = includeValueSnapshots ? this.valueStore.readCommittedRuntimeView(script.id) : undefined;
       return {
         script: script,
-        valueSnapshotLiteral: includeValueSnapshots ? valueView.snapshotLiteral : '',
-        valueRevision: valueView.revision,
+        valueSnapshotLiteral: valueView?.snapshotLiteral ?? '',
+        valueRevision: valueView?.revision ?? this.valueStore.readReadiness().revision,
         bridgeToken: this.nativeBridgeCoordinator.registerScriptToken(script.id)
       };
     });

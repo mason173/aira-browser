@@ -143,7 +143,7 @@ export class UserScriptNativeBridgeCoordinator {
       return this.recordDocumentStartLoaderResult(payload, tabId);
     }
     const route = this.resolveRoute(payload);
-    if (route === undefined || (route.executor !== 'value_read' && route.executor !== 'value_list')) {
+    if (route === undefined || (route.executor !== 'value_read' && route.executor !== 'values_read' && route.executor !== 'value_list')) {
       return JSON.stringify({
         success: false,
         error: 'unsupported-value-read'
@@ -164,6 +164,10 @@ export class UserScriptNativeBridgeCoordinator {
       });
     }
     try {
+      if (route.executor === 'values_read') {
+        return JSON.stringify({ success: true, found: true,
+          valueJson: this.readCommittedValuesJson(validation.scriptId, payload.keys) });
+      }
       if (route.executor === 'value_list') {
         return JSON.stringify({
           success: true,
@@ -302,7 +306,7 @@ export class UserScriptNativeBridgeCoordinator {
       this.handleSniffMedia(payload, tabId, currentUrl, route);
     } else if (route.executor === 'tab_get' || route.executor === 'tab_save' || route.executor === 'tabs_get') {
       this.handleTabStorage(payload, controller, tabId, currentUrl, route);
-    } else if (route.executor === 'value_read') {
+    } else if (route.executor === 'value_read' || route.executor === 'values_read') {
       void this.handleValueRead(payload, controller, currentUrl, route);
     } else if (route.executor === 'value_list') {
       void this.handleValueList(payload, controller, currentUrl, route);
@@ -310,8 +314,8 @@ export class UserScriptNativeBridgeCoordinator {
       this.handleValueMutation(payload, controller, currentUrl, route, 'set');
     } else if (route.executor === 'value_delete') {
       this.handleValueMutation(payload, controller, currentUrl, route, 'delete');
-    } else if (route.executor === 'values_delete') {
-      this.handleDeleteValues(payload, controller, currentUrl, route);
+    } else if (route.executor === 'values_delete' || route.executor === 'values_set') {
+      this.handleBatchValues(payload, controller, currentUrl, route);
     } else if (route.executor === 'clipboard') {
       this.handleSetClipboard(payload, currentUrl, route);
     } else if (route.executor === 'cookie_list') {
@@ -525,6 +529,15 @@ export class UserScriptNativeBridgeCoordinator {
       this.dispatchValueEvent(controller, payload, false, validation.message);
       return;
     }
+    if (route.executor === 'values_read') {
+      try {
+        this.dispatchValueEvent(controller, payload, true, '', true,
+          this.readCommittedValuesJson(validation.scriptId, payload.keys));
+      } catch (error) {
+        this.dispatchValueEvent(controller, payload, false, String((error as Error)?.message ?? 'values-read-failed'));
+      }
+      return;
+    }
     const key = String(payload.key ?? '').trim();
     if (key.length === 0) {
       this.dispatchValueEvent(controller, payload, false, 'missing-key');
@@ -541,6 +554,25 @@ export class UserScriptNativeBridgeCoordinator {
         String((error as Error)?.message ?? error ?? 'value-read-failed')
       );
     }
+  }
+
+  private readCommittedValuesJson(scriptId: string, keys: string[] | undefined): string {
+    if (!Array.isArray(keys) || !keys.every((key: string): boolean => typeof key === 'string')) {
+      throw new Error('invalid-keys');
+    }
+    const seen: Set<string> = new Set<string>();
+    const entries: string[] = [];
+    keys.forEach((key: string): void => {
+      if (key.length === 0 || seen.has(key)) {
+        return;
+      }
+      seen.add(key);
+      const valueJson = this.valueStore.readCommittedValueJson(scriptId, key.trim());
+      if (valueJson !== undefined) {
+        entries.push(`${JSON.stringify(key)}:${valueJson}`);
+      }
+    });
+    return `{${entries.join(',')}}`;
   }
 
   private async handleValueList(
@@ -606,7 +638,7 @@ export class UserScriptNativeBridgeCoordinator {
     this.commitValueMutations(validation.scriptId, [mutation], controller, payload);
   }
 
-  private handleDeleteValues(
+  private handleBatchValues(
     payload: RawUserScriptNativeBridgePayload,
     controller: webview.WebviewController,
     currentUrl: string,
@@ -624,8 +656,15 @@ export class UserScriptNativeBridgeCoordinator {
       this.dispatchValueEvent(controller, payload, false, validation.message);
       return;
     }
-    const mutations = this.normalizeInlineMutations(payload.mutations)
-      .filter((mutation: UserScriptValueMutation) => mutation.operation === 'delete');
+    const operation = route.executor === 'values_set' ? 'set' : 'delete';
+    if (!Array.isArray(payload.mutations) || !payload.mutations.every((mutation: UserScriptValueMutation): boolean =>
+      mutation !== undefined && mutation !== null && mutation.operation === operation &&
+        typeof mutation.key === 'string' && mutation.key.trim().length > 0 &&
+        (operation === 'delete' || typeof mutation.valueJson === 'string'))) {
+      this.dispatchValueEvent(controller, payload, false, 'invalid-mutations');
+      return;
+    }
+    const mutations = this.normalizeInlineMutations(payload.mutations);
     if (mutations.length === 0) {
       this.dispatchValueEvent(controller, payload, true);
       return;

@@ -1,4 +1,4 @@
-import { buffer } from '@kit.ArkTS';
+import { buffer, util } from '@kit.ArkTS';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import {
   cloneUserScriptValueCommitTransition,
@@ -45,7 +45,9 @@ export interface UserScriptValueCommittedBytesAdapter {
     updatedAt: number,
     values: UserScriptValueRecord[]
   ) => Promise<void>;
-  replaceCommittedRemovingScript?: (scriptId: string, bytes: Uint8Array) => Promise<void>;
+  // The isolated adapter already owns the committed documents. Removing one
+  // package must not serialize every other package's retained values.
+  replaceCommittedRemovingScript?: (scriptId: string, revision: number, updatedAt: number) => Promise<void>;
   isScriptAvailable?: (scriptId: string) => boolean;
   readMigrationSummary?: () => UserScriptValueMigrationSummary;
   /**
@@ -102,6 +104,7 @@ export class UserScriptValueStateLimits {
 }
 
 export class UserScriptValueStateStore {
+  private readonly encoder: util.TextEncoder = util.TextEncoder.create('utf-8');
   private readonly adapter: UserScriptValueCommittedBytesAdapter;
   private readonly batchDelayMs: number;
   private readonly clock: UserScriptValueStateStoreClock;
@@ -124,6 +127,9 @@ export class UserScriptValueStateStore {
   };
   private incidentSerial: number = 0;
   private document: UserScriptValueStateDocument = this.createEmptyDocument(0, 0);
+  private committedValuesByScript: Map<string, Map<string, UserScriptValueRecord>> =
+    new Map<string, Map<string, UserScriptValueRecord>>();
+  private committedScriptRevisions: Map<string, number> = new Map<string, number>();
   private admissionDocument: UserScriptValueStateDocument = this.createEmptyDocument(0, 0);
   private pendingCommands: UserScriptValueCommandRequest[] = [];
   private batchTimer: number = -1;
@@ -195,8 +201,7 @@ export class UserScriptValueStateStore {
   readScriptManagementProjection(scriptId: string): UserScriptValueScriptManagementProjection {
     const normalizedScriptId = scriptId.trim();
     const records = !this.isScriptStateAvailable(normalizedScriptId) ? [] :
-      this.document.values
-        .filter((record: UserScriptValueRecord): boolean => record.scriptId === normalizedScriptId)
+      Array.from(this.committedValuesByScript.get(normalizedScriptId)?.values() ?? [])
         .map((record: UserScriptValueRecord): UserScriptValueRecord => cloneUserScriptValueRecord(record));
     return {
       scriptId: normalizedScriptId,
@@ -210,10 +215,8 @@ export class UserScriptValueStateStore {
     const normalizedScriptId = scriptId.trim();
     this.requireScriptAvailable(normalizedScriptId);
     const entries: string[] = [];
-    this.document.values.forEach((record: UserScriptValueRecord): void => {
-      if (record.scriptId === normalizedScriptId) {
-        entries.push(`${JSON.stringify(record.key)}:${record.valueJson}`);
-      }
+    this.committedValuesByScript.get(normalizedScriptId)?.forEach((record: UserScriptValueRecord): void => {
+      entries.push(`${JSON.stringify(record.key)}:${record.valueJson}`);
     });
     return {
       revision: this.document.revision,
@@ -229,22 +232,46 @@ export class UserScriptValueStateStore {
     if (normalizedScriptId.length === 0 || normalizedKey.length === 0) {
       return undefined;
     }
-    return this.document.values.find((record: UserScriptValueRecord): boolean => {
-      return record.scriptId === normalizedScriptId && record.key === normalizedKey;
-    })?.valueJson;
+    return this.committedValuesByScript.get(normalizedScriptId)?.get(normalizedKey)?.valueJson;
   }
 
   readCommittedKeys(scriptId: string): string[] {
     this.requireReady();
     const normalizedScriptId = scriptId.trim();
     this.requireScriptAvailable(normalizedScriptId);
-    const keys: string[] = [];
+    return Array.from(this.committedValuesByScript.get(normalizedScriptId)?.keys() ?? []);
+  }
+
+  readCommittedScriptRevision(scriptId: string): number {
+    this.requireReady();
+    const normalizedScriptId = scriptId.trim();
+    this.requireScriptAvailable(normalizedScriptId);
+    // Empty scripts use a distinct cache token: revision zero can be a valid
+    // imported non-empty document. No per-script tombstones need to be retained.
+    return this.committedScriptRevisions.get(normalizedScriptId) ?? -1;
+  }
+
+  private publishCommittedDocument(document: UserScriptValueStateDocument, changedScriptId?: string): void {
+    this.document = this.cloneDocument(document);
+    if (changedScriptId === undefined) {
+      this.committedValuesByScript.clear();
+      this.committedScriptRevisions.clear();
+    } else {
+      this.committedValuesByScript.delete(changedScriptId);
+      this.committedScriptRevisions.delete(changedScriptId);
+    }
     this.document.values.forEach((record: UserScriptValueRecord): void => {
-      if (record.scriptId === normalizedScriptId && !keys.includes(record.key)) {
-        keys.push(record.key);
+      if (changedScriptId !== undefined && record.scriptId !== changedScriptId) {
+        return;
       }
+      let records = this.committedValuesByScript.get(record.scriptId);
+      if (records === undefined) {
+        records = new Map<string, UserScriptValueRecord>();
+        this.committedValuesByScript.set(record.scriptId, records);
+        this.committedScriptRevisions.set(record.scriptId, document.revision);
+      }
+      records.set(record.key, record);
     });
-    return keys;
   }
 
   async commitMutations(
@@ -329,7 +356,7 @@ export class UserScriptValueStateStore {
       throw this.createCommitError(error as Error);
     }
     const incidentRecovered = this.incident.active;
-    this.document = this.cloneDocument(nextDocument);
+    this.publishCommittedDocument(nextDocument, scriptId);
     this.admissionDocument = this.cloneDocument(nextDocument);
     this.readiness = {
       status: 'ready',
@@ -373,7 +400,7 @@ export class UserScriptValueStateStore {
           await this.adapter.replaceCommitted(this.encodeDocument(nextDocument));
         }
       }
-      this.document = this.cloneDocument(nextDocument);
+      this.publishCommittedDocument(nextDocument);
       this.admissionDocument = this.cloneDocument(nextDocument);
       this.readiness = {
         status: 'ready',
@@ -554,7 +581,9 @@ export class UserScriptValueStateStore {
       !nextValues.some((record: UserScriptValueRecord): boolean => record.scriptId === batchScriptId);
     if (!stateChanged) {
       if (removeScriptState && this.adapter.replaceCommittedRemovingScript !== undefined) {
-        await this.adapter.replaceCommittedRemovingScript(batchScriptId, this.encodeDocument(previousDocument));
+        await this.adapter.replaceCommittedRemovingScript(
+          batchScriptId, previousDocument.revision, previousDocument.updatedAt
+        );
       }
       return {
         document: previousDocument,
@@ -570,7 +599,7 @@ export class UserScriptValueStateStore {
       updatedAt: updatedAt
     };
     if (removeScriptState && this.adapter.replaceCommittedRemovingScript !== undefined) {
-      await this.adapter.replaceCommittedRemovingScript(batchScriptId, this.encodeDocument(nextDocument));
+      await this.adapter.replaceCommittedRemovingScript(batchScriptId, nextRevision, updatedAt);
     } else if (batchScriptId.length > 0 && this.adapter.replaceCommittedScript !== undefined) {
       const scriptValues = nextValues
         .filter((record: UserScriptValueRecord): boolean => record.scriptId === batchScriptId)
@@ -580,7 +609,7 @@ export class UserScriptValueStateStore {
       await this.adapter.replaceCommitted(this.encodeDocument(nextDocument));
     }
     const incidentRecovered = this.incident.active;
-    this.document = this.cloneDocument(nextDocument);
+    this.publishCommittedDocument(nextDocument, batchScriptId);
     this.readiness = {
       status: 'ready',
       revision: nextRevision,
@@ -644,10 +673,9 @@ export class UserScriptValueStateStore {
     previousValues: UserScriptValueRecord[],
     nextValues: UserScriptValueRecord[]
   ): void {
+    const previousRecords = this.indexValueRecords(previousValues);
     nextValues.forEach((nextRecord: UserScriptValueRecord): void => {
-      const previousRecord = previousValues.find((record: UserScriptValueRecord): boolean => {
-        return record.scriptId === nextRecord.scriptId && record.key === nextRecord.key;
-      });
+      const previousRecord = previousRecords.get(this.buildRecordIdentity(nextRecord.scriptId, nextRecord.key));
       if (previousRecord !== undefined && previousRecord.valueJson === nextRecord.valueJson) {
         nextRecord.updatedAt = previousRecord.updatedAt;
       }
@@ -658,21 +686,16 @@ export class UserScriptValueStateStore {
     previousValues: UserScriptValueRecord[],
     nextValues: UserScriptValueRecord[]
   ): UserScriptValueCommitTransition[] {
-    const keys: string[] = [];
-    previousValues.concat(nextValues).forEach((record: UserScriptValueRecord): void => {
-      const identity = this.buildRecordIdentity(record.scriptId, record.key);
-      if (!keys.includes(identity)) {
-        keys.push(identity);
-      }
+    const previousRecords = this.indexValueRecords(previousValues);
+    const nextRecords = this.indexValueRecords(nextValues);
+    const keys: Set<string> = new Set<string>(previousRecords.keys());
+    nextRecords.forEach((_record: UserScriptValueRecord, identity: string): void => {
+      keys.add(identity);
     });
     const transitions: UserScriptValueCommitTransition[] = [];
     keys.forEach((identity: string): void => {
-      const previousRecord = previousValues.find((record: UserScriptValueRecord): boolean => {
-        return this.buildRecordIdentity(record.scriptId, record.key) === identity;
-      });
-      const nextRecord = nextValues.find((record: UserScriptValueRecord): boolean => {
-        return this.buildRecordIdentity(record.scriptId, record.key) === identity;
-      });
+      const previousRecord = previousRecords.get(identity);
+      const nextRecord = nextRecords.get(identity);
       if (previousRecord?.valueJson === nextRecord?.valueJson) {
         return;
       }
@@ -690,6 +713,14 @@ export class UserScriptValueStateStore {
       });
     });
     return transitions;
+  }
+
+  private indexValueRecords(values: UserScriptValueRecord[]): Map<string, UserScriptValueRecord> {
+    const records: Map<string, UserScriptValueRecord> = new Map<string, UserScriptValueRecord>();
+    values.forEach((record: UserScriptValueRecord): void => {
+      records.set(this.buildRecordIdentity(record.scriptId, record.key), record);
+    });
+    return records;
   }
 
   private normalizeMutations(scriptId: string, mutations: UserScriptValueMutation[]): UserScriptValueMutation[] {
@@ -746,7 +777,7 @@ export class UserScriptValueStateStore {
     } catch (_error) {
       throw new UserScriptValueStateError('commit', 'userscript-value-persist-failed', 'encode', 'json');
     }
-    const encoded = buffer.from(serialized, 'utf8');
+    const encoded = this.encoder.encodeInto(serialized);
     if (!this.usesIsolatedScriptDocuments() && encoded.length > this.limits.maxStateBytes) {
       throw new UserScriptValueStateError(
         'validation',
@@ -755,11 +786,7 @@ export class UserScriptValueStateStore {
         'state-too-large'
       );
     }
-    const bytes = new Uint8Array(encoded.length);
-    for (let index = 0; index < encoded.length; index += 1) {
-      bytes[index] = encoded[index];
-    }
-    return bytes;
+    return encoded;
   }
 
   private decodeDocument(bytes: Uint8Array): UserScriptValueStateDocument {

@@ -250,7 +250,11 @@ export class UserScriptValueFileAdapter implements UserScriptValueCommittedBytes
         updatedAt: updatedAt
       });
       journalBytes = buffer.from(journalPayload, 'utf8').length;
-    } else {
+    }
+    const journalPath = this.resolveScriptJournalPath(token);
+    const journalSize = entryPublished && await fileIo.access(journalPath) ? (await fileIo.stat(journalPath)).size : 0;
+    const compactJournal = entryPublished && journalSize + journalBytes > 1024 * 1024;
+    if (!entryPublished || compactJournal) {
       const validationDocument: UserScriptValueStateDocument = {
         schemaVersion: USER_SCRIPT_VALUE_STATE_SCHEMA_VERSION,
         revision: revision,
@@ -267,15 +271,27 @@ export class UserScriptValueFileAdapter implements UserScriptValueCommittedBytes
       });
     }
     const scriptFilePath = this.resolveScriptFilePath(token);
-    if (entryPublished) {
+    if (entryPublished && !compactJournal) {
       if (journalMutations.length > 0) {
-        await this.appendJournal(this.resolveScriptJournalPath(token), journalPayload, journalBytes);
+        await this.appendJournal(journalPath, journalPayload, journalBytes);
       }
     } else {
       if (isolatedBytes === undefined) {
         throw new UserScriptValueDurableError('write', 'snapshot-missing');
       }
       await this.writeAtomicVerified(scriptFilePath, isolatedBytes);
+      if (compactJournal) {
+        // The verified snapshot is the commit point. Cleanup failure must not reject
+        // an already durable mutation; replay skips records covered by the snapshot.
+        try {
+          if (await fileIo.access(journalPath)) {
+            await fileIo.unlink(journalPath);
+          }
+        } catch (_error) {
+          hilog.warn(USER_SCRIPT_VALUE_LOG_DOMAIN, USER_SCRIPT_VALUE_LOG_TAG,
+            'script journal cleanup deferred token=%{public}s', token);
+        }
+      }
     }
     const committedManifest = this.createManifest(
       manifest.migrationState,
@@ -309,22 +325,23 @@ export class UserScriptValueFileAdapter implements UserScriptValueCommittedBytes
     };
   }
 
-  async replaceCommittedRemovingScript(scriptId: string, bytes: Uint8Array): Promise<void> {
+  async replaceCommittedRemovingScript(scriptId: string, revision: number, updatedAt: number): Promise<void> {
     const normalizedScriptId = scriptId.trim();
     if (normalizedScriptId.length === 0) {
       return;
     }
-    const nextDocument = this.decodeStateDocument(bytes);
-    if (nextDocument.values.some(
-      (record: UserScriptValueRecord): boolean => record.scriptId === normalizedScriptId
-    )) {
-      throw new UserScriptValueDurableError('delete', 'script-values-retained');
+    if (!Number.isInteger(revision) || revision < this.lastDocument.revision ||
+      !this.isNonNegativeFinite(updatedAt)) {
+      throw new UserScriptValueDurableError('delete', 'invalid-script-revision');
     }
-    const changedScriptIds = this.resolveChangedScriptIds(this.lastDocument, nextDocument);
-    if (changedScriptIds.length > 1 ||
-      (changedScriptIds.length === 1 && changedScriptIds[0] !== normalizedScriptId)) {
-      throw new UserScriptValueDurableError('delete', 'multi-script-commit');
-    }
+    const nextDocument: UserScriptValueStateDocument = {
+      schemaVersion: USER_SCRIPT_VALUE_STATE_SCHEMA_VERSION,
+      revision: revision,
+      values: this.lastDocument.values.filter(
+        (record: UserScriptValueRecord): boolean => record.scriptId !== normalizedScriptId
+      ),
+      updatedAt: updatedAt
+    };
     const token = this.buildScriptToken(normalizedScriptId);
     const manifest = this.currentManifest;
     if (manifest === undefined || manifest.migrationState === 'in_progress') {
@@ -684,9 +701,14 @@ export class UserScriptValueFileAdapter implements UserScriptValueCommittedBytes
         record = JSON.parse(trimmed) as UserScriptValueJournalRecord;
         if (record.schemaVersion !== USER_SCRIPT_VALUE_JOURNAL_SCHEMA_VERSION ||
           record.scriptId !== entry.scriptId || !Number.isInteger(record.revision) || record.revision < 0 ||
-          !this.isNonNegativeFinite(record.updatedAt) || !Array.isArray(record.mutations) ||
-          record.revision < revision) {
+          !this.isNonNegativeFinite(record.updatedAt) || !Array.isArray(record.mutations)) {
           throw new Error('journal-schema');
+        }
+        if (record.revision <= base.revision) {
+          return;
+        }
+        if (record.revision <= revision) {
+          throw new Error('journal-order');
         }
         const nextValues = values.map(
           (value: UserScriptValueRecord): UserScriptValueRecord => cloneUserScriptValueRecord(value)
@@ -1287,12 +1309,9 @@ export class UserScriptValueFileAdapter implements UserScriptValueCommittedBytes
     } catch (_error) {
       throw new UserScriptValueDurableError('write', 'json');
     }
-    const encoded = buffer.from(serialized, 'utf8');
-    const bytes = new Uint8Array(encoded.length);
-    for (let index = 0; index < encoded.length; index += 1) {
-      bytes[index] = encoded[index];
-    }
-    return bytes;
+    // Encode directly to bytes: Buffer indexing crosses a native boundary for
+    // every byte, which stalls startup for multi-megabyte retained GM caches.
+    return this.encoder.encodeInto(serialized);
   }
 
   private decodeText(bytes: Uint8Array): string {

@@ -9,11 +9,17 @@ import {
 import { resolveAppResourceText } from '../../core/resources/AppResourceText';
 
 export class UserScriptMatchService {
+  private readonly regexCache: Map<string, RegExp | undefined> = new Map<string, RegExp | undefined>();
+  private readonly regexCacheLimit: number = 512;
   private compatibilityService: UserScriptUrlCompatibilityService = new UserScriptUrlCompatibilityService();
 
   resolveMatchingScripts(scripts: InstalledUserScriptState[], url: string): InstalledUserScriptState[] {
+    const target = this.parseUrl(url);
+    if (target === undefined || (target.scheme !== 'http' && target.scheme !== 'https')) {
+      return [];
+    }
     return scripts.filter((script: InstalledUserScriptState) => {
-      return script.enabled && this.matchesScript(script, url);
+      return script.enabled && this.matchesTarget(script, target);
     });
   }
 
@@ -25,6 +31,10 @@ export class UserScriptMatchService {
     if (target.scheme !== 'http' && target.scheme !== 'https') {
       return false;
     }
+    return this.matchesTarget(script, target);
+  }
+
+  private matchesTarget(script: InstalledUserScriptState, target: UserScriptParsedUrlParts): boolean {
     if (this.matchesAny(script.excludeMatches, target, false) || this.matchesAny(script.excludes, target, true)) {
       return false;
     }
@@ -103,8 +113,13 @@ export class UserScriptMatchService {
   }
 
   private matchesWildcard(pattern: string, value: string): boolean {
+    const key = `wildcard:${pattern}`;
+    if (this.regexCache.has(key)) {
+      return this.testCachedRegex(key, value);
+    }
     const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*');
-    return new RegExp(`^${escaped}$`).test(value);
+    this.cacheRegex(key, `^${escaped}$`, '');
+    return this.testCachedRegex(key, value);
   }
 
   private isRegexRule(rule: string): boolean {
@@ -114,17 +129,43 @@ export class UserScriptMatchService {
 
   private matchesRegexRule(rule: string, value: string): boolean {
     const trimmed = rule.trim();
-    const lastSlashIndex = trimmed.lastIndexOf('/');
-    if (lastSlashIndex <= 0) {
-      return false;
+    const key = `regex:${trimmed}`;
+    if (!this.regexCache.has(key)) {
+      const lastSlashIndex = trimmed.lastIndexOf('/');
+      const pattern = trimmed.slice(1, lastSlashIndex);
+      const flags = trimmed.slice(lastSlashIndex + 1).replace(/[^dgimsuvy]/g, '');
+      this.cacheRegex(key, pattern, flags);
     }
-    const pattern = trimmed.slice(1, lastSlashIndex);
-    const flags = trimmed.slice(lastSlashIndex + 1).replace(/[^dgimsuvy]/g, '');
+    return this.testCachedRegex(key, value);
+  }
+
+  private cacheRegex(key: string, source: string, flags: string): void {
+    if (this.regexCache.size >= this.regexCacheLimit) {
+      for (const oldest of this.regexCache.keys()) {
+        this.regexCache.delete(oldest);
+        break;
+      }
+    }
+    let regex: RegExp | undefined;
     try {
-      return new RegExp(pattern, flags).test(value);
+      regex = new RegExp(source, flags);
     } catch (_error) {
+      // Cache invalid rules as well so a malformed include cannot repeatedly compile.
+    }
+    this.regexCache.set(key, regex);
+  }
+
+  private testCachedRegex(key: string, value: string): boolean {
+    const regex = this.regexCache.get(key);
+    // Keep recently used rules when a package introduces more than 512 patterns.
+    this.regexCache.delete(key);
+    this.regexCache.set(key, regex);
+    if (regex === undefined) {
       return false;
     }
+    // Cached global/sticky regexes must behave like a fresh regex on every match.
+    regex.lastIndex = 0;
+    return regex.test(value);
   }
 
   private parseUrl(url: string): UserScriptParsedUrlParts | undefined {
