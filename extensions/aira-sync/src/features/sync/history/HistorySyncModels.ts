@@ -129,6 +129,8 @@ export type HistoryTimelineDevice = {
 export type HistoryTimelinePage = {
   visits: HistorySyncVisit[];
   total: number;
+  /** Native-history surfaces can page without knowing the browser-wide total. */
+  hasMore?: boolean;
   devices: HistoryTimelineDevice[];
   lastSyncAt: number;
   lastError: string;

@@ -1439,6 +1439,7 @@ struct BrowserShellPage {
     new BrowserNativeAlertDialogPresenter();
   private browserAddressSubmissionShell: BrowserAddressSubmissionShell = {
       resolveSessionFacts: () => ({
+        activeTabId: this.activeTabId,
         availableSearchEngines: this.availableSearchEngines,
         searchEngineSettings: sharedSearchEngineRepository.getSettings(),
         experiments: sharedPreferencesRepository.getPreferences().experiments,
@@ -12887,6 +12888,8 @@ struct BrowserShellPage {
         this.browserWebPageLifecycleApplicationCoordinator.handleFaviconReceived(tabId, event),
       onSearchResultReceive: (tabId: string, event: OnSearchResultReceiveEvent) =>
         this.browserPageFindCoordinator.handleSearchResult(tabId, event),
+      onSearchSelectedText: (tabId: string, selectionText: string): void =>
+        this.addressSubmissionCoordinator.submitSelectedText(tabId, selectionText, this.selectedSearchEngine),
       onErrorReceive: (tabId: string, event: OnErrorReceiveEvent) =>
         this.browserWebPageLifecycleApplicationCoordinator.handleErrorReceive(tabId, event),
       onPermissionRequest: (tabId: string, request: PermissionRequest) =>

@@ -1,6 +1,34 @@
 {
   "string": [
     {
+      "name": "bookmark_sort_order",
+      "value": "排序方式"
+    },
+    {
+      "name": "bookmark_sort_manual",
+      "value": "手動排序"
+    },
+    {
+      "name": "bookmark_sort_newest",
+      "value": "最近新增"
+    },
+    {
+      "name": "bookmark_sort_oldest",
+      "value": "最早新增"
+    },
+    {
+      "name": "bookmark_sort_name_asc",
+      "value": "名稱升冪"
+    },
+    {
+      "name": "bookmark_sort_name_desc",
+      "value": "名稱降冪"
+    },
+    {
+      "name": "bookmark_sort_manual_drag_hint",
+      "value": "切換至手動排序後可拖曳調整"
+    },
+    {
       "name": "qq_web_login_expired",
       "value": "登入請求已失效，請返回網頁重新登入。"
     },

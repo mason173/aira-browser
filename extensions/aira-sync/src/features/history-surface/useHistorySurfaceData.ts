@@ -17,7 +17,7 @@ const EMPTY_PAGE: HistoryTimelinePage = {
 };
 
 export function useHistorySurfaceData() {
-  const [query, setQuery] = useState('');
+  const [query, setQueryValue] = useState('');
   const deferredQuery = useDeferredValue(query.trim());
   const [page, setPage] = useState<HistoryTimelinePage>(EMPTY_PAGE);
   const [status, setStatus] = useState<HistoryCapabilityStatus>('temporarily-unavailable');
@@ -25,6 +25,10 @@ export function useHistorySurfaceData() {
   const [limit, setLimit] = useState(PAGE_SIZE);
   const requestId = useRef(0);
   const opened = useRef(false);
+  const setQuery = useCallback((value: string) => {
+    setQueryValue(value);
+    setLimit(PAGE_SIZE);
+  }, []);
 
   const load = useCallback(async (action: 'open' | 'list' = 'list') => {
     const currentRequest = ++requestId.current;
@@ -34,6 +38,7 @@ export function useHistorySurfaceData() {
         action,
         query: deferredQuery,
         limit,
+        includeNative: true,
       });
       if (currentRequest !== requestId.current) return;
       if (response.page) setPage(response.page);
@@ -68,11 +73,17 @@ export function useHistorySurfaceData() {
       visitId,
       query: deferredQuery,
       limit,
+      includeNative: true,
     });
     if (response.page) setPage(response.page);
     setStatus(response.status);
     return response.success;
   }, [deferredQuery, limit]);
+
+  const hasMore = page.hasMore ?? page.visits.length < page.total;
+  const loadMore = useCallback(() => {
+    if (!loading && hasMore) setLimit((current) => current + PAGE_SIZE);
+  }, [loading, hasMore]);
 
   return {
     query,
@@ -81,8 +92,8 @@ export function useHistorySurfaceData() {
     total: page.total,
     loading,
     status,
-    hasMore: page.visits.length < page.total,
-    loadMore: () => setLimit((current) => current + PAGE_SIZE),
+    hasMore,
+    loadMore,
     deleteVisit,
   };
 }
@@ -102,3 +113,17 @@ export function historyFaviconUrl(pageUrl: string): string {
 }
 
 export type { HistorySyncVisit };
+
+export function historyRemoveLabel(visitId: string, language: string, fallback: string): string {
+  if (!visitId.startsWith('browser-native:')) return fallback;
+  return language.toLowerCase().startsWith('zh')
+    ? '删除此网址的所有本机历史记录'
+    : 'Remove all local history for this URL';
+}
+
+export function historyRemoveSelectionLabel(visitIds: string[], language: string, fallback: string): string {
+  if (!visitIds.some(id => id.startsWith('browser-native:'))) return fallback;
+  return language.toLowerCase().startsWith('zh')
+    ? '删除所选记录（本机记录按网址删除）'
+    : 'Delete selected history (local entries are removed by URL)';
+}

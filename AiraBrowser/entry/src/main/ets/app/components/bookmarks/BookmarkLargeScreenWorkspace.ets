@@ -71,6 +71,11 @@ import {
   BookmarkHtmlTransferApplicationService
 } from '../../../services/bookmarks/BookmarkHtmlTransferApplicationService';
 import { bookmarkWorkspaceSessionRuntime } from '../../runtime/BookmarkWorkspaceSessionRuntime';
+import { BOOKMARK_SORT_PREFERENCES_REVISION_KEY, BookmarkSortMode } from '../../../common/models/BookmarkSortModels';
+import { sharedBookmarkSortPreferencesRepository } from '../../../data/bookmarks/BookmarkSortPreferencesRepository';
+import {
+  BookmarkSortOptionView, buildBookmarkSortOptions, resolveBookmarkSortLabel
+} from '../../../core/bookmarks/BookmarkSortViewModel';
 
 const BOOKMARK_WORKSPACE_COMPACT_SEARCH_BREAKPOINT: number = 840;
 const BOOKMARK_WORKSPACE_ROW_HEIGHT: number = 52;
@@ -79,6 +84,9 @@ const BOOKMARK_WORKSPACE_ROUTE_DEBOUNCE_MS: number = 200;
 
 @Component
 export struct BookmarkLargeScreenWorkspace {
+  @StorageProp(BOOKMARK_SORT_PREFERENCES_REVISION_KEY) @Watch('handleBookmarkSortChanged')
+  private bookmarkSortRevision: number = 0;
+  @State private bookmarkSortMode: BookmarkSortMode = 'manual';
   @StorageProp(BROWSER_THEME_STORAGE_ACCENT_KEY) private storedAccentColor: string = '#0A59F7';
   @StorageProp(BROWSER_THEME_STORAGE_CONTROL_BACKGROUND_KEY) private storedControlBackgroundColor: string = '#ECEDEF';
   @StorageProp(BROWSER_THEME_STORAGE_DIVIDER_KEY) private storedDividerColor: string = '#E3E8EF';
@@ -286,27 +294,55 @@ export struct BookmarkLargeScreenWorkspace {
     .backgroundColor(this.storedControlBackgroundColor)
     .borderRadius(9)
     .accessibilityText($r('app.string.bookmark_actions'))
-    .bindMenu([
-      {
-        value: $r('app.string.bookmark_multi_select_label'),
-        action: (): void => {
-          this.enterSelectionMode();
-        }
-      },
-      {
-        value: $r('app.string.bookmark_import_action'),
-        action: (): void => {
-          void this.importBookmarkHtml();
-        }
-      },
-      {
-        value: $r('app.string.bookmark_export_action'),
-        action: (): void => {
-          void this.exportBookmarkHtml();
-        }
-      }
-    ])
+    .bindMenu(this.buildMoreMenu())
     }
+  }
+
+  @Builder
+  private buildMoreMenu() {
+    Menu() {
+      MenuItem({ content: $r('app.string.bookmark_sort_order'),
+        labelInfo: resolveBookmarkSortLabel(this.bookmarkSortMode), builder: this.buildSortMenu() })
+      MenuItem({ content: $r('app.string.bookmark_multi_select_label') })
+        .onClick((): void => this.enterSelectionMode())
+      MenuItemGroup() {
+        MenuItem({ content: $r('app.string.bookmark_import_action') })
+          .enabled(!this.transferBusy)
+          .onClick((): void => { void this.importBookmarkHtml(); })
+        MenuItem({ content: $r('app.string.bookmark_export_action') })
+          .enabled(!this.transferBusy)
+          .onClick((): void => { void this.exportBookmarkHtml(); })
+      }
+    }
+    .subMenuExpandingMode(SubMenuExpandingMode.SIDE_EXPAND)
+  }
+
+  @Builder
+  private buildSortMenu() {
+    Menu() {
+      ForEach(buildBookmarkSortOptions(this.bookmarkSortMode,
+        (mode: BookmarkSortMode): void => this.selectBookmarkSortMode(mode)), (option: BookmarkSortOptionView) => {
+        MenuItem({ content: option.label })
+          .selected(option.selected)
+          .selectIcon(true)
+          .onClick((): void => option.action())
+      }, (option: BookmarkSortOptionView, index: number): string => `sort-${index}-${option.selected}`)
+    }
+  }
+
+  private selectBookmarkSortMode(mode: BookmarkSortMode): void {
+    try {
+      sharedBookmarkSortPreferencesRepository.setMode(this.privateMode ? 'private' : 'regular', mode);
+      this.handleBookmarkSortChanged();
+    } catch (error) {
+      this.showMessageDialog($r('app.string.bookmark_sort_failed'),
+        $r('app.string.bookmark_sort_failed_detail', this.stringifyError(error as Error)));
+    }
+  }
+
+  private handleBookmarkSortChanged(): void {
+    this.bookmarkSortMode = sharedBookmarkSortPreferencesRepository.getMode(this.privateMode ? 'private' : 'regular');
+    this.snapshot = this.coordinator.refreshSort();
   }
 
   @Builder
@@ -588,6 +624,9 @@ export struct BookmarkLargeScreenWorkspace {
         void this.moveDraggingSelectionToFolder(node.id);
         return;
       }
+      if (this.bookmarkSortMode !== 'manual' || this.snapshot.query.trim().length > 0) {
+        return;
+      }
       void this.moveDraggingSelectionToFolder(this.snapshot.currentFolderId, rowIndex);
     })
     .bindContextMenu(this.recordContextMenuNodeId === node.id, this.buildRecordContextMenu(node), buildBrowserDesktopMenuOptions({
@@ -723,6 +762,7 @@ export struct BookmarkLargeScreenWorkspace {
       return;
     }
     const scope: BookmarkStorageScope = this.privateMode ? 'private' : 'regular';
+    this.bookmarkSortMode = sharedBookmarkSortPreferencesRepository.getMode(scope);
     const boundary = this.buildBookmarkManagementBoundary();
     this.bookmarkManagementFeature.configure(boundary, scope);
     const bindingRevision = ++this.sessionBindingRevision;

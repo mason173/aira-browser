@@ -17,6 +17,8 @@ export type HistoryRuntimeMessage = {
   offset?: number;
   limit?: number;
   visitId?: string;
+  /** Desktop history surfaces also read all browser-native history, outside sync retention. */
+  includeNative?: boolean;
 };
 
 export type HistoryRuntimeResponse = {

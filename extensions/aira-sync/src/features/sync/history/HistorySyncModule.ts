@@ -1,4 +1,5 @@
 import type { AiraDesktopAuthorizedSession } from '@/features/desktop-connection/AiraDesktopConnectionModule';
+import { callBrowserHistoryApi as callHistoryApi } from '@/platform/browserHistoryApi';
 import {
   AiraCloudHistoryRemoteError,
   AiraCloudHistoryRemoteStore,
@@ -145,7 +146,7 @@ export class HistorySyncModule {
       session.uid,
       session.deviceId,
       session.deviceName || 'Aira Desktop',
-      eventDraft,
+      eventDraft.sort((left, right) => right.visitedAt - left.visitedAt).slice(0, HISTORY_SYNC_MAX_VISITS),
       false,
       now,
     );
@@ -206,6 +207,7 @@ export class HistorySyncModule {
     }
 
     let resetAttempted = false;
+    await this.database.pruneProjection(session.uid);
     for (let round = 0; round < MAX_NETWORK_ROUNDS; round += 1) {
       const mutations = await this.database.listOutbox(
         session.uid,
@@ -348,35 +350,6 @@ function readHistoryVisits(
   url: string,
 ): Promise<chrome.history.VisitItem[]> {
   return callHistoryApi((callback) => history.getVisits({ url }, callback));
-}
-
-function callHistoryApi<T>(
-  invoke: (callback: (value: T) => void) => unknown,
-): Promise<T> {
-  return new Promise((resolve, reject) => {
-    let settled = false;
-    const finish = (value: T) => {
-      if (settled) return;
-      settled = true;
-      resolve(value);
-    };
-    try {
-      const result = invoke(finish);
-      if (result && typeof (result as Promise<T>).then === 'function') {
-        void (result as Promise<T>).then(finish, (error: unknown) => {
-          if (!settled) {
-            settled = true;
-            reject(error);
-          }
-        });
-      }
-    } catch (error) {
-      if (!settled) {
-        settled = true;
-        reject(error);
-      }
-    }
-  });
 }
 
 function requiresBootstrap(error: unknown): boolean {

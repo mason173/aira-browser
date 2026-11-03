@@ -1,6 +1,34 @@
 {
   "string": [
     {
+      "name": "bookmark_sort_order",
+      "value": "排序方式"
+    },
+    {
+      "name": "bookmark_sort_manual",
+      "value": "手动排序"
+    },
+    {
+      "name": "bookmark_sort_newest",
+      "value": "最近添加"
+    },
+    {
+      "name": "bookmark_sort_oldest",
+      "value": "最早添加"
+    },
+    {
+      "name": "bookmark_sort_name_asc",
+      "value": "名称升序"
+    },
+    {
+      "name": "bookmark_sort_name_desc",
+      "value": "名称降序"
+    },
+    {
+      "name": "bookmark_sort_manual_drag_hint",
+      "value": "切换到手动排序后可拖动调整"
+    },
+    {
       "name": "qq_web_login_expired",
       "value": "登录请求已失效，请返回网页重新登录。"
     },

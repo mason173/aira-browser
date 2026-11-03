@@ -63,6 +63,7 @@ export struct BookmarkRecordList {
   @Prop pressedNodeId: string = '';
   @Prop contextMenuNodeId: string = '';
   @Prop @Watch('handleEditModeChanged') isSelectionMode: boolean = false;
+  @Prop @Watch('handleEditModeChanged') canReorder: boolean = true;
   @Prop clipToViewport: boolean = false;
   @Prop contentStartOffset: number = BOOKMARK_LIST_TOP_PADDING;
   scroller: Scroller = new Scroller();
@@ -204,7 +205,12 @@ export struct BookmarkRecordList {
       this.onScrollVisibleRange(start, end);
     })
     .onDidScroll((_scrollDelta: number, _scrollState: ScrollState) => {
-      const offset = this.scroller.currentOffset().yOffset;
+      const position = this.scroller.offset();
+      // A queued scroll callback can outlive the list's scroller binding.
+      if (position === undefined) {
+        return;
+      }
+      const offset = position.yOffset;
       this.headerBlurRadius = resolveBrowserSheetHeaderBlurRadius(offset);
       this.onScrollOffsetChange(offset);
     })
@@ -389,7 +395,7 @@ export struct BookmarkRecordList {
 
   @Builder
   private buildEditDragHandle(node: BookmarkNode) {
-    if (this.isSelectionMode) {
+    if (this.isSelectionMode && this.canReorder) {
       Row() {
         AiraIcon({
           airaIconId: 'bookmarks.edit.dragHandle',
@@ -423,7 +429,7 @@ export struct BookmarkRecordList {
   }
 
   private beginDrag(node: BookmarkNode): void {
-    if (!this.isSelectionMode || this.reorderCommitInProgress) {
+    if (!this.isSelectionMode || !this.canReorder || this.reorderCommitInProgress) {
       return;
     }
     this.cancelDropTimer();
@@ -604,7 +610,8 @@ export struct BookmarkRecordList {
 
   private resolveScrollOffsetY(): number {
     try {
-      return Math.max(0, Number(this.scroller.currentOffset().yOffset));
+      const offset = this.scroller.offset()?.yOffset ?? 0;
+      return Number.isFinite(offset) ? Math.max(0, offset) : 0;
     } catch (_error) {
       return 0;
     }
@@ -688,7 +695,7 @@ export struct BookmarkRecordList {
   }
 
   private handleEditModeChanged(): void {
-    if (this.isSelectionMode) {
+    if (this.isSelectionMode && this.canReorder) {
       return;
     }
     this.cancelDropTimer();

@@ -26,6 +26,7 @@ export interface BrowserWebEventHostHandlers {
   onTitleReceive: (tabId: string, event: OnTitleReceiveEvent) => void;
   onFaviconReceived: (tabId: string, event: OnFaviconReceivedEvent) => void;
   onSearchResultReceive: (tabId: string, event: OnSearchResultReceiveEvent) => void;
+  onSearchSelectedText?: (tabId: string, selectionText: string) => void;
   onErrorReceive: (tabId: string, event: OnErrorReceiveEvent) => void;
   onPermissionRequest: (tabId: string, request: PermissionRequest) => void;
   onGeolocationShow: (tabId: string, event: OnGeolocationShowEvent) => void;
@@ -97,6 +98,9 @@ export class BrowserWebEventHostCoordinator {
         this.runVoid('favicon_received', tabId, () => handlers.onFaviconReceived(tabId, event)),
       onSearchResultReceive: (tabId: string, event: OnSearchResultReceiveEvent) =>
         this.runVoid('search_result_receive', tabId, () => handlers.onSearchResultReceive(tabId, event)),
+      onSearchSelectedText: handlers.onSearchSelectedText === undefined ? undefined :
+        (tabId: string, selectionText: string): void =>
+          this.runVoid('search_selected_text', tabId, () => handlers.onSearchSelectedText?.(tabId, selectionText)),
       onErrorReceive: (tabId: string, event: OnErrorReceiveEvent) =>
         this.runVoid('error_receive', tabId, () => handlers.onErrorReceive(tabId, event)),
       onPermissionRequest: (tabId: string, request: PermissionRequest) =>

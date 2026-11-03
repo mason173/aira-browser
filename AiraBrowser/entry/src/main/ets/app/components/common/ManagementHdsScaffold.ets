@@ -32,6 +32,9 @@ export type ManagementHdsBackIconKind = 'close' | 'back';
 
 export interface ManagementHdsMenuAction {
   label: ResourceStr;
+  labelInfo?: ResourceStr;
+  selected?: boolean;
+  options?: ManagementHdsMenuAction[];
   icon?: Resource;
   enabled?: boolean;
   action: () => void;
@@ -444,21 +447,46 @@ export struct ManagementHdsScaffold {
   private buildOverflowMenu() {
     Menu() {
       ForEach(this.resolveOverflowMenuActions(), (menuAction: ManagementHdsMenuAction) => {
-        MenuItem({ content: menuAction.label })
-          .enabled(menuAction.enabled !== false)
-          .onClick(() => {
-            if (menuAction.enabled !== false) {
-              menuAction.action();
-            }
-          })
-      }, (_menuAction: ManagementHdsMenuAction, index: number) => `overflow-${index}`)
+        if (menuAction.options !== undefined) {
+          MenuItem({ content: menuAction.label, labelInfo: menuAction.labelInfo,
+            builder: this.buildOverflowSubMenu(menuAction) })
+            .enabled(menuAction.enabled !== false)
+        } else {
+          MenuItem({ content: menuAction.label })
+            .enabled(menuAction.enabled !== false)
+            .onClick(() => {
+              if (menuAction.enabled !== false) {
+                menuAction.action();
+              }
+            })
+        }
+      }, (menuAction: ManagementHdsMenuAction, index: number) =>
+        `overflow-${index}-${resolveAppResourceText(menuAction.labelInfo ?? '')}`)
     }
+    .subMenuExpandingMode(SubMenuExpandingMode.STACK_EXPAND)
     .backgroundColor(resolveFloatingGlassMaterialBackgroundColor(
       $r('app.color.surface_floating_background')
     ))
     .attributeModifier(systemMaterialModifier(createFloatingGlassMaterialIfAvailable(
       resolveFloatingGlassMaterialTintForMode(this.storedResolvedThemeMode)
     )))
+  }
+
+  @Builder
+  private buildOverflowSubMenu(menuAction: ManagementHdsMenuAction) {
+    Menu() {
+      ForEach(menuAction.options ?? [], (option: ManagementHdsMenuAction) => {
+        MenuItem({ content: option.label })
+          .selected(option.selected === true)
+          .selectIcon(true)
+          .enabled(option.enabled !== false)
+          .onClick(() => {
+            if (option.enabled !== false) {
+              option.action();
+            }
+          })
+      }, (option: ManagementHdsMenuAction, index: number) => `option-${index}-${option.selected === true}`)
+    }
   }
 
   @Builder

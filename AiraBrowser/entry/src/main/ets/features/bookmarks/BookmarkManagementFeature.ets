@@ -21,6 +21,8 @@ import { BookmarkHtmlTransferService } from '../../services/bookmarks/BookmarkHt
 import { BookmarkFolderBookmarkCountsResult } from '../../services/bookmarks/BookmarkTreeQueryService';
 import { BrowserPrivacyEffectPolicyService } from '../../services/privacy/BrowserPrivacyEffectPolicyService';
 import { BrowserProfileBoundaryService } from '../../core/browser/BrowserProfileBoundaryService';
+import { BookmarkDisplaySortService } from '../../services/bookmarks/BookmarkDisplaySortService';
+import { sharedBookmarkSortPreferencesRepository } from '../../data/bookmarks/BookmarkSortPreferencesRepository';
 
 export class BookmarkManagementBoundary {
   dataScope: string;
@@ -34,6 +36,7 @@ export class BookmarkManagementBoundary {
 
 /** Owns explicit Bookmark management reads, mutations, and HTML transfer effects. */
 export class BookmarkManagementFeature {
+  private readonly displaySortService: BookmarkDisplaySortService = new BookmarkDisplaySortService();
   private readonly bookmarksFeature: BookmarksFeature;
   private readonly mutationService: BookmarkMutationService;
   private readonly htmlTransferService: BookmarkHtmlTransferService;
@@ -74,7 +77,15 @@ export class BookmarkManagementFeature {
 
   listDisplayChildren(parentId?: string): BookmarkNode[] {
     this.assertReadAllowed();
-    return this.bookmarksFeature.listDisplayChildren(parentId);
+    const nodes = this.bookmarksFeature.listDisplayChildren(parentId);
+    // Keep the collection roots in their established navigation order.
+    return parentId === undefined ? nodes : this.sortDisplayNodes(nodes);
+  }
+
+  sortDisplayNodes(nodes: BookmarkNode[]): BookmarkNode[] {
+    this.assertReadAllowed();
+    return this.displaySortService.sort(nodes,
+      sharedBookmarkSortPreferencesRepository.getMode(this.scope ?? 'regular'));
   }
 
   getSnapshot(includeDeleted: boolean = false): BookmarkRepositorySnapshot {
@@ -157,6 +168,9 @@ export class BookmarkManagementFeature {
 
   reorderChildren(command: BookmarkReorderChildrenCommand): Promise<BookmarkNode[]> {
     this.assertMutationAllowed();
+    if (sharedBookmarkSortPreferencesRepository.getMode(this.scope ?? 'regular') !== 'manual') {
+      return Promise.resolve(this.listDisplayChildren(command.parentId));
+    }
     return this.mutationService.reorderChildren(command);
   }
 

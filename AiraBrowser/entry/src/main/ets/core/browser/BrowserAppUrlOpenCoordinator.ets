@@ -85,6 +85,7 @@ export interface BrowserAppUrlOpenRequest {
   requestId?: string;
   browserGeneratedHttpFallbackUrl?: string;
   redactDiagnostics?: boolean;
+  prepareCreatedTab?: (tabId: string) => void;
 }
 
 type BrowserAppUrlOpenAction = 'open_current_tab' | 'open_new_tab' | 'open_background_tab' | 'reject';
@@ -108,6 +109,7 @@ interface BrowserAppUrlOpenPlan {
   requestId: string;
   message: string;
   browserGeneratedHttpFallbackUrl: string;
+  prepareCreatedTab?: (tabId: string) => void;
 }
 
 interface BrowserAppUrlOpenBoundary {
@@ -334,7 +336,8 @@ export class BrowserAppUrlOpenCoordinator {
       initialUrl: plan.url,
       initialTitle: resolvedTitle,
       options: options,
-      runtimeOptions: this.buildForegroundRuntimeOptions()
+      runtimeOptions: this.buildForegroundRuntimeOptions(),
+      prepareCreatedTab: plan.prepareCreatedTab
     };
     if (this.canCreateForegroundTabWithoutAsyncBoundary(options)) {
       const createdTabId = this.dependencies.foregroundTabCreationCoordinator.createNewTabNow(request);
@@ -389,7 +392,8 @@ export class BrowserAppUrlOpenCoordinator {
       initialUrl: plan.url,
       initialTitle: resolvedTitle,
       options: this.resolveCreateOptions(plan),
-      runtimeOptions: this.buildForegroundRuntimeOptions()
+      runtimeOptions: this.buildForegroundRuntimeOptions(),
+      prepareCreatedTab: plan.prepareCreatedTab
     };
     this.executeForegroundTabCreationRequest(plan, request);
   }
@@ -663,7 +667,8 @@ export class BrowserAppUrlOpenCoordinator {
       openerTabId: openerTabId,
       requestId: requestId,
       message: this.resolveMessage(intent, request.helperMessage),
-      browserGeneratedHttpFallbackUrl: request.browserGeneratedHttpFallbackUrl?.trim() ?? ''
+      browserGeneratedHttpFallbackUrl: request.browserGeneratedHttpFallbackUrl?.trim() ?? '',
+      prepareCreatedTab: request.prepareCreatedTab
     };
   }
 

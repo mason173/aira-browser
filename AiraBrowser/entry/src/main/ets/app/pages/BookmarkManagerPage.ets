@@ -112,7 +112,8 @@ import { BookmarkManagerImmersiveHost, BookmarkManagerImmersiveLayoutContext } f
 import { BOOKMARK_MANAGER_ROUTE, BROWSER_SHELL_ROUTE } from '../router/AppRoutes';
 import { BROWSER_WINDOW_SAFE_TOP_INSET_STORAGE_KEY } from '../../core/browser/BrowserWindowAvoidAreaCoordinator';
 import { applyDesktopDialogSheetChrome } from '../components/common/DesktopDialogSheetChrome';
-
+import { BOOKMARK_SORT_PREFERENCES_REVISION_KEY, BookmarkSortMode } from '../../common/models/BookmarkSortModels';
+import { sharedBookmarkSortPreferencesRepository } from '../../data/bookmarks/BookmarkSortPreferencesRepository';
 
 const BOOKMARK_CONTEXT_MENU_DISMISS_DELAY_MS: number = 240;
 const BOOKMARK_IMPORT_PROGRESS_FRAME_DELAY_MS: number = 80;
@@ -133,6 +134,9 @@ interface BookmarkManagerRouteParams {
 @Entry({ useSharedStorage: true })
 @Component
 struct BookmarkManagerPage {
+  @StorageProp(BOOKMARK_SORT_PREFERENCES_REVISION_KEY) @Watch('handleBookmarkSortChanged')
+  private bookmarkSortRevision: number = 0;
+  @State private bookmarkSortMode: BookmarkSortMode = 'manual';
   @StorageProp(BROWSER_THEME_STORAGE_DIVIDER_KEY) private storedDividerColor: string = '#E3E8EF';
   @StorageProp(BROWSER_THEME_STORAGE_PAGE_BACKGROUND_KEY) private storedPageBackgroundColor: string = DEFAULT_THEME_PALETTE.light.pageBackground;
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY) private storedPrimaryTextColor: string = '#111318';
@@ -307,6 +311,7 @@ struct BookmarkManagerPage {
       (result: SiteIconListResolvedIcon): void => this.applyResolvedSiteIcon(result)
     );
     this.applyBookmarkRouteContext();
+    this.bookmarkSortMode = sharedBookmarkSortPreferencesRepository.getMode(this.bookmarkScope);
     this.deferredEnterWork.schedule((): void => {
       this.prefillBookmarkNodesFromCache();
       this.loadCachedFolderBookmarkCounts();
@@ -410,6 +415,7 @@ struct BookmarkManagerPage {
       contentTopInset: layout.contentTopInset,
       tabsTopInset: layout.tabsTopInset,
       isSelectionMode: this.isSelectionMode,
+      canReorder: this.bookmarkSortMode === 'manual' && !this.bookmarkSearchState.isSearchMode,
       isInitialLoadPending: this.isInitialBookmarkLoadPending,
       isSearchMode: this.bookmarkSearchState.isSearchMode,
       secondaryTextColor: this.storedSecondaryTextColor,
@@ -890,14 +896,36 @@ struct BookmarkManagerPage {
       isSearchMode: this.bookmarkSearchState.isSearchMode,
       hasCurrentFolder: this.resolveActiveFolderId().length > 0,
       canEnterSelectionMode: this.canEnterSelectionMode(),
-      isTransferBusy: this.isTransferBusy
+      isTransferBusy: this.isTransferBusy,
+      sortMode: this.bookmarkSortMode
     }, {
       openSearch: () => this.enterBookmarkSearchMode(),
       createFolder: () => this.createFolder(),
       enterSelectionMode: () => this.enterSelectionMode(),
       importBookmarks: () => this.importBookmarkHtml(),
-      exportBookmarks: () => this.exportBookmarkHtml()
+      exportBookmarks: () => this.exportBookmarkHtml(),
+      selectSortMode: (mode: BookmarkSortMode): void => this.selectBookmarkSortMode(mode)
     });
+  }
+
+  private selectBookmarkSortMode(mode: BookmarkSortMode): void {
+    try {
+      sharedBookmarkSortPreferencesRepository.setMode(this.bookmarkScope, mode);
+      this.handleBookmarkSortChanged();
+    } catch (error) {
+      this.showDialog($r('app.string.bookmark_sort_failed'),
+        $r('app.string.bookmark_sort_failed_detail', this.stringifyError(error as Error)));
+    }
+  }
+
+  private handleBookmarkSortChanged(): void {
+    const mode = sharedBookmarkSortPreferencesRepository.getMode(this.bookmarkScope);
+    if (this.bookmarkSortMode === mode) {
+      return;
+    }
+    this.bookmarkSortMode = mode;
+    this.setCurrentFolderNodes(this.bookmarkManagerSearchViewModel.getCurrentFolderNodes());
+    this.refreshRootPageSnapshots();
   }
 
   private enterBookmarkSearchMode(): void {
@@ -945,6 +973,9 @@ struct BookmarkManagerPage {
       return;
     }
     this.isSelectionMode = true;
+    if (this.bookmarkSortMode !== 'manual') {
+      this.showNativeToast($r('app.string.bookmark_sort_manual_drag_hint'));
+    }
     this.contextMenuNodeId = '';
     this.message = '';
     if (initialNodeId !== undefined && initialNodeId.length > 0 && this.canSelectNode(initialNodeId) &&

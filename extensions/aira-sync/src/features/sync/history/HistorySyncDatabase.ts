@@ -151,6 +151,11 @@ export class HistorySyncDatabase {
         incomingNativeIds.add(draft.nativeVisitId);
         const existing = ledgerByNativeId.get(draft.nativeVisitId);
         if (existing) {
+          // An event can re-observe an older visit while a full search is in flight.
+          // Keep that observation so the older search cannot infer its deletion.
+          if (!existing.deleted && existing.updatedAt < now) {
+            stores.ledger.put({ ...existing, updatedAt: now });
+          }
           if (existing.syncState === 'pending' && !pendingVisitIds.has(existing.visitId)) {
             const visit = visitById.get(existing.visitId) || toHistoryVisit(clientId, deviceName, draft);
             putMutation(stores.outbox, accountUid, createUpsertMutation(clientId, visit, now), now);
@@ -190,6 +195,8 @@ export class HistorySyncDatabase {
             ledger.clientId !== clientId
             || ledger.deleted
             || ledger.visitedAt < deletionHorizon
+            || ledger.visitedAt >= now
+            || ledger.updatedAt >= now
             || incomingNativeIds.has(ledger.nativeVisitId)
           ) {
             continue;
@@ -502,7 +509,7 @@ export class HistorySyncDatabase {
     });
     filtered.sort((left, right) => right.visitedAt - left.visitedAt || right.visitId.localeCompare(left.visitId));
     const offset = Math.max(0, Math.floor(options.offset || 0));
-    const limit = Math.min(500, Math.max(1, Math.floor(options.limit || 200)));
+    const limit = Math.min(HISTORY_SYNC_MAX_VISITS, Math.max(1, Math.floor(options.limit || 200)));
     const deviceLabels = new Set<string>();
     visits.forEach((visit) => {
       deviceLabels.add(deviceKeyOf(visit));
@@ -522,10 +529,14 @@ export class HistorySyncDatabase {
 
   async pruneProjection(accountUid: string): Promise<void> {
     const database = await this.getDatabase();
-    const transaction = database.transaction(VISITS_STORE, 'readwrite');
+    const transaction = database.transaction([VISITS_STORE, OUTBOX_STORE], 'readwrite');
     const done = transactionDone(transaction);
     const store = transaction.objectStore(VISITS_STORE);
-    const visits = await readAccountRows<StoredVisit>(store, accountUid);
+    const outbox = transaction.objectStore(OUTBOX_STORE);
+    const [visits, pending] = await Promise.all([
+      readAccountRows<StoredVisit>(store, accountUid),
+      readAccountRows<StoredMutation>(outbox, accountUid),
+    ]);
     visits.sort((left, right) => right.visitedAt - left.visitedAt || right.visitId.localeCompare(left.visitId));
     // Count-only retention: the local mirror keeps the newest HISTORY_SYNC_MAX_VISITS
     // visits regardless of age.
@@ -534,6 +545,15 @@ export class HistorySyncDatabase {
         store.delete(visit.key);
       }
     });
+    // Offline browsing can accumulate more pending uploads than the sync window.
+    // Retention drops those upserts only; it never deletes browser-native history
+    // or turns count-based pruning into a user deletion mutation.
+    const retained = new Set(visits.slice(0, HISTORY_SYNC_MAX_VISITS).map(visit => visit.visitId));
+    for (const row of pending) {
+      if (row.mutation.kind === 'upsert_visit' && row.mutation.visit && !retained.has(row.mutation.visit.visitId)) {
+        outbox.delete(row.key);
+      }
+    }
     await done;
   }
 

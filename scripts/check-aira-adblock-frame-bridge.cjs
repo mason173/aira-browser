@@ -141,7 +141,8 @@ test('tracked Web configs retain the query callback and controller disposal rele
   const f = fixture();
   const tracked = buildTrackedHostedWebNodeConfig(f.config, {
     rememberWebController() {}, rememberDocumentScripts() {}, rememberAppearancePolicy() {},
-    rememberRuntimeSecurityPolicy() {}, bindHostedNativeBridge: () => f.bridge
+    rememberRuntimeSecurityPolicy() {}, bindHostedNativeBridge: () => f.bridge,
+    bindTextSelectionMenu: () => undefined
   });
   assert.equal(tracked.callbacks.onAdBlockCosmeticQuery, f.callback);
   const dispose = productionSection('  dispose(): void {', '\nfunction buildHostedWebAppearancePolicySignature(');

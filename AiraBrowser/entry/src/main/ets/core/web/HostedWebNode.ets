@@ -9,6 +9,7 @@ import {
 } from './WebAppearancePolicy';
 import { BrowserHistoryApiBridgeScriptService } from './BrowserHistoryApiBridge';
 import { BrowserWebAttributeModifier } from './WebDefaultContextMenuModifier';
+import { WebTextSelectionMenuController } from './WebTextSelectionMenuController';
 import { documentViewerHtmlFileTransport } from '../../services/viewer/DocumentViewerHtmlFileTransport';
 import { WebBackForwardCacheCoordinator } from './WebBackForwardCacheCoordinator';
 import { BrowserWebRuntimeSecurityPolicy } from '../../common/models/BrowserWebSecurityModels';
@@ -65,6 +66,7 @@ export interface HostedWebNodeCallbacks {
   onTitleReceive: (tabId: string, event: OnTitleReceiveEvent) => void;
   onFaviconReceived: (tabId: string, event: OnFaviconReceivedEvent) => void;
   onSearchResultReceive: (tabId: string, event: OnSearchResultReceiveEvent) => void;
+  onSearchSelectedText?: (tabId: string, selectionText: string) => void;
   onErrorReceive: (tabId: string, event: OnErrorReceiveEvent) => void;
   onPermissionRequest: (tabId: string, request: PermissionRequest) => void;
   onGeolocationShow: (tabId: string, event: OnGeolocationShowEvent) => void;
@@ -121,6 +123,7 @@ export interface HostedWebNodeConfig {
   documentEndScriptKey?: string;
   userScriptNativeBridge?: Object;
   hostedNativeBridge?: Object;
+  textSelectionMenu?: WebTextSelectionMenuController;
   webVideoControllerBridge?: HostedWebVideoControllerBridge;
   forceEnableWebZoom?: boolean;
   textZoomRatio?: number;
@@ -2414,6 +2417,14 @@ function HostedWebNodeBuilder(config: HostedWebNodeConfig) {
       .attributeModifier(new BrowserWebAttributeModifier({
         forceEnableWebZoom: config.forceEnableWebZoom
       }))
+      .editMenuOptions({
+        onCreateMenu: (menuItems: TextMenuItem[]): TextMenuItem[] => menuItems,
+        onMenuItemClick: (menuItem: TextMenuItem, _textRange: TextRange): boolean =>
+          config.textSelectionMenu?.handleMenuItemClick(menuItem) ?? false
+      })
+      .onTextSelectionChange((selectionText: string): void => {
+        config.textSelectionMenu?.updateSelection(selectionText);
+      })
       .onInterceptRequest((event: OnInterceptRequestEvent) => {
         // Bind directly: the attribute-modifier bridge reads a plain response object,
         // losing native WebResourceResponse fields and asynchronous readiness updates.
@@ -2465,6 +2476,7 @@ function HostedWebNodeBuilder(config: HostedWebNodeConfig) {
       })
       .onPageBegin((event: OnPageBeginEvent) => {
         const probeStartedAt = AiraLoadScrollJankProbe.beginUiTask('web_page_begin');
+        config.textSelectionMenu?.clearSelection();
         registerHostedWebNativeMediaObservation(config);
         config.callbacks.onPageBegin(config.tabId, event);
         AiraLoadScrollJankProbe.endUiTask('web_page_begin', probeStartedAt);
@@ -2583,6 +2595,7 @@ function HostedWebNodeBuilder(config: HostedWebNodeConfig) {
 export class HostedWebNodeController extends NodeController {
   private readonly tabId: string;
   private readonly hostedNativeBridge: HostedWebNodeNativeBridge = new HostedWebNodeNativeBridge();
+  private readonly textSelectionMenu: WebTextSelectionMenuController = new WebTextSelectionMenuController();
   private readonly pageBehaviorNativeBridge: HostedWebNodePageBehaviorBridge =
     new HostedWebNodePageBehaviorBridge();
   private builderNode: BuilderNode<[HostedWebNodeConfig]> | undefined;
@@ -2637,8 +2650,17 @@ export class HostedWebNodeController extends NodeController {
       return;
     }
     this.releasePageBehaviorBridge();
+    this.textSelectionMenu.clearSelection();
     this.webController = controller;
     this.webControllerAttached = false;
+  }
+
+  bindTextSelectionMenu(config: HostedWebNodeConfig): WebTextSelectionMenuController {
+    this.textSelectionMenu.bindSearch(config.callbacks.onSearchSelectedText === undefined ? undefined :
+      (selectionText: string): void => {
+        config.callbacks.onSearchSelectedText?.(config.tabId, selectionText);
+      });
+    return this.textSelectionMenu;
   }
 
   bindHostedNativeBridge(config: HostedWebNodeConfig): HostedWebNodeNativeBridge {
@@ -2753,6 +2775,7 @@ export class HostedWebNodeController extends NodeController {
     this.releasePageBehaviorBridge();
     this.pageBehaviorNativeBridge.unbind();
     this.hostedNativeBridge.unbind();
+    this.textSelectionMenu.unbind();
     this.rootNode = null;
     this.webControllerAttached = false;
     this.webController = undefined;
@@ -2807,6 +2830,7 @@ function buildTrackedHostedWebNodeConfig(
     documentEndScriptKey: config.documentEndScriptKey,
     userScriptNativeBridge: config.userScriptNativeBridge,
     hostedNativeBridge: hostedNativeBridge,
+    textSelectionMenu: hostedController.bindTextSelectionMenu(config),
     webVideoControllerBridge: config.webVideoControllerBridge,
     forceEnableWebZoom: config.forceEnableWebZoom,
     textZoomRatio: config.textZoomRatio,
@@ -2831,6 +2855,7 @@ function buildTrackedHostedWebNodeConfig(
       onTitleReceive: config.callbacks.onTitleReceive,
       onFaviconReceived: config.callbacks.onFaviconReceived,
       onSearchResultReceive: config.callbacks.onSearchResultReceive,
+      onSearchSelectedText: config.callbacks.onSearchSelectedText,
       onErrorReceive: config.callbacks.onErrorReceive,
       onPermissionRequest: config.callbacks.onPermissionRequest,
       onGeolocationShow: config.callbacks.onGeolocationShow,

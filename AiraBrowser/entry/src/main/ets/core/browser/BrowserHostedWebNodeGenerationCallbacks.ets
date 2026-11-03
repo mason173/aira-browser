@@ -60,6 +60,12 @@ export function buildGenerationBoundHostedWebNodeCallbacks(
     onTitleReceive: callbacks.onTitleReceive,
     onFaviconReceived: callbacks.onFaviconReceived,
     onSearchResultReceive: callbacks.onSearchResultReceive,
+    onSearchSelectedText: callbacks.onSearchSelectedText === undefined ? undefined :
+      (eventTabId: string, selectionText: string): void => {
+        if (eventTabId === tabId && isCurrent(tabId, generation)) {
+          callbacks.onSearchSelectedText?.(eventTabId, selectionText);
+        }
+      },
     onErrorReceive: callbacks.onErrorReceive,
     onPermissionRequest: callbacks.onPermissionRequest,
     onGeolocationShow: callbacks.onGeolocationShow,

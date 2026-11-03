@@ -70,6 +70,7 @@ export struct BookmarkManagerListPane {
   @Prop isInitialLoadPending: boolean = false;
   @Prop isSearchMode: boolean = false;
   @Prop isSelectionMode: boolean = false;
+  @Prop canReorder: boolean = true;
   @Prop secondaryTextColor: string = '#5F6875';
   @Prop emptyTitle: ResourceStr = '';
   @Prop emptyMessage: ResourceStr = '';
@@ -153,6 +154,7 @@ export struct BookmarkManagerListPane {
       pressedNodeId: this.pressedNodeId,
       contextMenuNodeId: this.contextMenuNodeId,
       isSelectionMode: this.isSelectionMode,
+      canReorder: this.canReorder,
       clipToViewport: this.isSearchMode,
       contentStartOffset: this.contentTopInset,
       scroller: this.scroller,
@@ -213,6 +215,7 @@ struct BookmarkRootSwipePage {
   @Prop contentTopInset: number = 0;
   @Prop isInitialLoadPending: boolean = false;
   @Prop isSelectionMode: boolean = false;
+  @Prop canReorder: boolean = true;
   @Prop secondaryTextColor: string = '#5F6875';
   @Prop emptyTitle: ResourceStr = '';
   @Prop emptyMessage: ResourceStr = '';
@@ -254,6 +257,7 @@ struct BookmarkRootSwipePage {
       isInitialLoadPending: this.isInitialLoadPending,
       isSearchMode: false,
       isSelectionMode: this.isSelectionMode,
+      canReorder: this.canReorder,
       secondaryTextColor: this.secondaryTextColor,
       emptyTitle: this.emptyTitle,
       emptyMessage: this.emptyMessage,
@@ -292,6 +296,7 @@ export struct BookmarkRootPageSwiper {
   @Prop scope: BookmarkStorageScope = 'regular';
   @Prop @Watch('handleSelectedRootChanged') selectedRootId: string = '';
   @Prop isSelectionMode: boolean = false;
+  @Prop canReorder: boolean = true;
   @Prop isInitialLoadPending: boolean = false;
   @Prop secondaryTextColor: string = '#5F6875';
   @Prop emptyTitle: ResourceStr = '';
@@ -368,6 +373,7 @@ export struct BookmarkRootPageSwiper {
       contentTopInset: this.contentTopInset,
       isInitialLoadPending: this.isInitialLoadPending,
       isSelectionMode: this.isSelectionMode,
+      canReorder: this.canReorder,
       secondaryTextColor: this.secondaryTextColor,
       emptyTitle: this.emptyTitle,
       emptyMessage: this.emptyMessage,
@@ -406,6 +412,7 @@ export struct BookmarkRootPageSwiper {
       contentTopInset: this.contentTopInset,
       isInitialLoadPending: this.isInitialLoadPending,
       isSelectionMode: this.isSelectionMode,
+      canReorder: this.canReorder,
       secondaryTextColor: this.secondaryTextColor,
       emptyTitle: this.emptyTitle,
       emptyMessage: this.emptyMessage,
@@ -483,6 +490,7 @@ export struct BookmarkManagerPages {
   @Prop contentTopInset: number = 0;
   @Prop tabsTopInset: number = 0;
   @Prop isSelectionMode: boolean = false;
+  @Prop canReorder: boolean = true;
   @Prop isInitialLoadPending: boolean = false;
   @Prop isSearchMode: boolean = false;
   @Prop secondaryTextColor: string = '#5F6875';
@@ -539,6 +547,7 @@ export struct BookmarkManagerPages {
           scope: this.scope,
           selectedRootId: this.selectedRootId,
           isSelectionMode: this.isSelectionMode,
+          canReorder: this.canReorder,
           isInitialLoadPending: this.isInitialLoadPending,
           secondaryTextColor: this.secondaryTextColor,
           emptyTitle: this.emptyTitle,
@@ -608,6 +617,7 @@ export struct BookmarkManagerPages {
         isInitialLoadPending: this.isInitialLoadPending,
         isSearchMode: this.isSearchMode,
         isSelectionMode: this.isSelectionMode,
+        canReorder: this.canReorder,
         secondaryTextColor: this.secondaryTextColor,
         emptyTitle: this.emptyTitle,
         emptyMessage: this.emptyMessage,

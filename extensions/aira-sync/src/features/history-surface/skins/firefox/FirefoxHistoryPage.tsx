@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import type { HistorySyncVisit } from '@/features/sync/history/HistorySyncModels';
 import {
   historyFaviconUrl,
+  historyRemoveLabel,
   historyHostname,
   useHistorySurfaceData,
 } from '../../useHistorySurfaceData';
@@ -11,6 +12,7 @@ import {
   firefoxHistoryCopy,
   type FirefoxHistoryFolder,
 } from './firefoxHistorySpec';
+import { HistoryLoadMore } from '../../HistoryLoadMore';
 import './firefox-history.css';
 
 const FOLDERS: FirefoxHistoryFolder[] = ['all', 'today', 'yesterday', 'week', 'month'];
@@ -22,7 +24,7 @@ export function FirefoxHistoryPage() {
   const [folder, setFolder] = useState<FirefoxHistoryFolder>('all');
   const [historyStack, setHistoryStack] = useState<FirefoxHistoryFolder[]>(['all']);
   const [historyIndex, setHistoryIndex] = useState(0);
-  const [query, setQuery] = useState('');
+  const { query, setQuery } = data;
   const [sortKey, setSortKey] = useState<'title' | 'url' | 'date'>('date');
   const [selectedId, setSelectedId] = useState('');
   const [menu, setMenu] = useState<{ x: number; y: number; visit: HistorySyncVisit } | null>(null);
@@ -46,18 +48,15 @@ export function FirefoxHistoryPage() {
   }, []);
 
   const rows = useMemo(() => {
-    const needle = query.trim().toLowerCase();
     const filtered = data.visits.filter((visit) => {
-      if (!matchesFolder(visit.visitedAt, folder)) return false;
-      if (!needle) return true;
-      return `${visit.title} ${visit.url}`.toLowerCase().includes(needle);
+      return matchesFolder(visit.visitedAt, folder);
     });
     return filtered.sort((left, right) => {
       if (sortKey === 'title') return (left.title || left.url).localeCompare(right.title || right.url);
       if (sortKey === 'url') return left.url.localeCompare(right.url);
       return right.visitedAt - left.visitedAt;
     });
-  }, [data.visits, folder, query, sortKey]);
+  }, [data.visits, folder, sortKey]);
 
   const selectFolder = (next: FirefoxHistoryFolder) => {
     setFolder(next);
@@ -150,6 +149,7 @@ export function FirefoxHistoryPage() {
                 <span className="firefox-history-date">{formatVisitDate(visit.visitedAt, i18n.language)}</span>
               </button>
             ))}
+            <HistoryLoadMore {...data} language={i18n.language} />
           </div>
         </section>
       </div>
@@ -158,7 +158,7 @@ export function FirefoxHistoryPage() {
           <button type="button" onClick={() => { openVisit(menu.visit.url); setMenu(null); }}>{copy.open}</button>
           <button type="button" onClick={() => { openVisit(menu.visit.url, true); setMenu(null); }}>{copy.openTab}</button>
           <button type="button" onClick={() => { void navigator.clipboard?.writeText(menu.visit.url); setMenu(null); }}>{copy.copy}</button>
-          <button type="button" onClick={() => { void data.deleteVisit(menu.visit.visitId); setMenu(null); }}>{copy.delete}</button>
+          <button type="button" onClick={() => { void data.deleteVisit(menu.visit.visitId); setMenu(null); }}>{historyRemoveLabel(menu.visit.visitId, i18n.language, copy.delete)}</button>
         </div>
       ) : null}
     </div>

@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState, type MouseEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { HistorySyncVisit } from '@/features/sync/history/HistorySyncModels';
 import {
   historyFaviconUrl,
+  historyRemoveLabel,
   historyHostname,
   useHistorySurfaceData,
 } from '../../useHistorySurfaceData';
@@ -19,6 +20,7 @@ import {
 } from './useEdgeRecentlyClosed';
 import { formatChromeHistoryDay, formatChromeHistoryTime } from '../chrome/chromeHistorySpec';
 import { rememberEdgeHistoryWindow, requestEdgeHistoryDock } from './edgeHistoryDock';
+import { HistoryLoadMore } from '../../HistoryLoadMore';
 import './edge-history.css';
 
 type EdgeMenuState = {
@@ -33,7 +35,8 @@ export function EdgeHistoryPage() {
   const copy = edgeHistoryCopy(i18n.language, globalThis.navigator?.platform || '');
   const data = useHistorySurfaceData();
   const [section, setSection] = useState<EdgeHistorySection>('all');
-  const [query, setQuery] = useState('');
+  const { query, setQuery } = data;
+  const listRef = useRef<HTMLDivElement>(null);
   const [theme, setTheme] = useState<'light' | 'dark'>(readEdgeTheme);
   const [menu, setMenu] = useState<EdgeMenuState | null>(null);
   const [hubMenu, setHubMenu] = useState(false);
@@ -65,13 +68,23 @@ export function EdgeHistoryPage() {
   }, []);
 
   const filteredVisits = useMemo(() => {
-    const matched = filterByQuery(data.visits, query);
-    return showDuplicates ? matched : uniqueByUrl(matched);
-  }, [data.visits, query, showDuplicates]);
+    return showDuplicates ? data.visits : uniqueByUrl(data.visits);
+  }, [data.visits, showDuplicates]);
   const groups = useMemo(
     () => groupVisits(filteredVisits, i18n.language),
     [filteredVisits, i18n.language],
   );
+
+  const loadNearBottom = useCallback((list: HTMLDivElement | null) => {
+    if (!list || section !== 'all' || data.loading || !data.hasMore) return;
+    if (list.scrollTop + list.clientHeight >= list.scrollHeight - 240) data.loadMore();
+  }, [section, data.loading, data.hasMore, data.loadMore]);
+
+  useEffect(() => {
+    // URL deduplication can leave a page too short to scroll. Fill the viewport
+    // from subsequent pages as well as responding to explicit scrolling.
+    loadNearBottom(listRef.current);
+  }, [loadNearBottom, filteredVisits.length]);
 
   const openUrl = (url: string, mode: 'tab' | 'window' | 'private' = 'tab') => {
     if (!url) return;
@@ -172,7 +185,7 @@ export function EdgeHistoryPage() {
           </button>
         ))}
       </div>
-      <div className="edge-history-list">
+      <div className="edge-history-list" ref={listRef} onScroll={(event) => loadNearBottom(event.currentTarget)}>
         {section === 'all' ? (
           data.status === 'login-required' ? <p className="edge-history-status">{copy.login}</p>
             : data.loading && groups.length === 0 ? <p className="edge-history-status">{copy.loading}</p>
@@ -193,7 +206,7 @@ export function EdgeHistoryPage() {
                         <button
                           type="button"
                           className="edge-history-remove"
-                          aria-label={copy.remove}
+                          aria-label={historyRemoveLabel(visit.visitId, i18n.language, copy.remove)} title={historyRemoveLabel(visit.visitId, i18n.language, copy.remove)}
                           onClick={(event) => {
                             event.stopPropagation();
                             void data.deleteVisit(visit.visitId);
@@ -206,6 +219,7 @@ export function EdgeHistoryPage() {
                   </section>
                 ))
         ) : null}
+        {section === 'all' ? <HistoryLoadMore {...data} language={i18n.language} /> : null}
         {section === 'closed' ? (
           <ClosedList
             copy={copy}
@@ -233,7 +247,7 @@ export function EdgeHistoryPage() {
           <button type="button" onClick={() => { openUrl(menu.url, 'private'); setMenu(null); }}><PrivateIcon />{copy.openPrivate}</button>
           <div className="divider" />
           <button type="button" onClick={() => { void navigator.clipboard?.writeText(menu.url); setMenu(null); }}><CopyIcon />{copy.copyLink}</button>
-          <button type="button" onClick={() => { if (menu.visitId) void data.deleteVisit(menu.visitId); setMenu(null); }}><TrashIcon />{copy.remove}</button>
+          <button type="button" onClick={() => { if (menu.visitId) void data.deleteVisit(menu.visitId); setMenu(null); }}><TrashIcon />{historyRemoveLabel(menu.visitId, i18n.language, copy.remove)}</button>
           <div className="divider" />
           <button
             type="button"
@@ -398,12 +412,6 @@ function uniqueByUrl(visits: HistorySyncVisit[]): HistorySyncVisit[] {
     seen.add(visit.url);
     return true;
   });
-}
-
-function filterByQuery(visits: HistorySyncVisit[], query: string): HistorySyncVisit[] {
-  const needle = query.trim().toLowerCase();
-  if (!needle) return visits;
-  return visits.filter((visit) => `${visit.title} ${visit.url}`.toLowerCase().includes(needle));
 }
 
 function filterClosed(entries: EdgeClosedEntry[], query: string): EdgeClosedEntry[] {

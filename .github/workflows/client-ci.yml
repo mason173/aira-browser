@@ -48,6 +48,8 @@ jobs:
         run: bash scripts/check-aira-app-recommendation-contract.sh
       - name: Check geolocation permission flow
         run: node scripts/check-aira-geolocation-permission.cjs
+      - name: Check web selection search
+        run: node scripts/check-aira-selection-search.cjs
       - name: Check web swipe navigation
         run: node scripts/check-aira-web-swipe-navigation.cjs
       - name: Check Forward returns from home
@@ -72,6 +74,10 @@ jobs:
         run: node --test scripts/check-aira-startup-window.cjs
       - name: Check bookmark-bar mouse and touch drag sorting
         run: node --test scripts/check-aira-bookmark-bar-drag.cjs
+      - name: Check bookmark management sort preferences and order preservation
+        run: node --test scripts/check-aira-bookmark-sort.cjs
+      - name: Check bookmark root switching with unbound scroll controllers
+        run: node --test scripts/check-aira-bookmark-root-scroll.cjs
       - name: Install native download test dependencies
         run: sudo apt-get update && sudo apt-get install -y libcurl4-openssl-dev
       - name: Check download lifecycle, recovery, storage and native transport

@@ -16,6 +16,9 @@ import {
 import { writeExtensionStorageRecord } from '@/platform/extensionStorage';
 import { readExtensionStorageRecord } from '@/platform/extensionStorage';
 import { HistorySyncModule } from './HistorySyncModule';
+import { HISTORY_SYNC_MAX_VISITS } from './HistorySyncModels';
+import { HistorySurfaceTimeline, nativeHistoryUrlForVisitId } from '@/features/history-surface/HistorySurfaceTimeline';
+import { callBrowserHistoryApi } from '@/platform/browserHistoryApi';
 import { AiraCloudHistoryRemoteStore } from './AiraCloudHistoryRemoteStore';
 import {
   PERSONAL_SERVER_CONNECTION_STORAGE_KEY,
@@ -58,6 +61,7 @@ export function createHistoryBackgroundSyncRuntime(config: {
   startKeepAlive: () => { stop(): void };
 }): HistoryBackgroundSyncRuntime {
   const module = new HistorySyncModule();
+  const surface = new HistorySurfaceTimeline();
   let activeRun: Promise<boolean> | null = null;
 
   async function resolveSession(
@@ -128,12 +132,14 @@ export function createHistoryBackgroundSyncRuntime(config: {
   }
 
   async function schedulePeriodic(delayMinutes = PERIODIC_SYNC_INTERVAL_MINUTES): Promise<void> {
+    if (!(await readHistorySyncDomainEnabled())) return;
     const alarms = getAlarms();
     if (!alarms?.create) return;
     alarms.create(PERIODIC_SYNC_ALARM_NAME, { delayInMinutes: delayMinutes });
   }
 
   async function scheduleLocalChange(delayMinutes = LOCAL_CHANGE_DELAY_MINUTES): Promise<void> {
+    if (!(await readHistorySyncDomainEnabled())) return;
     const alarms = getAlarms();
     if (!alarms?.create) return;
     alarms.create(LOCAL_SYNC_ALARM_NAME, { delayInMinutes: delayMinutes });
@@ -149,11 +155,12 @@ export function createHistoryBackgroundSyncRuntime(config: {
   async function runBackgroundSync(forceFullReconciliation = false): Promise<boolean> {
     if (activeRun) return activeRun;
     const run = (async () => {
-      if (!(await readHistorySyncDomainEnabled())) {
-        await clearSchedules();
-        return false;
-      }
-      const resolved = await resolveSession(true);
+      const syncEnabled = await readHistorySyncDomainEnabled();
+      // The history override must stay current even when remote sync is paused.
+      // Local capture uses the existing account ledger/outbox; only a later enabled
+      // run may send those changes. Do not refresh membership over the network here
+      // when the user has disabled History Sync.
+      const resolved = await resolveSession(syncEnabled);
       if (!resolved.session) {
         if (resolved.status === 'login-required' || resolved.status === 'pro-required') {
           await clearSchedules();
@@ -165,6 +172,11 @@ export function createHistoryBackgroundSyncRuntime(config: {
       const keepAlive = config.startKeepAlive();
       try {
         await module.reconcileNativeHistory(resolved.session, forceFullReconciliation);
+        if (!syncEnabled || !(await readHistorySyncDomainEnabled())) {
+          await clearSchedules();
+          await bumpRevision();
+          return true;
+        }
         if (resolved.status !== 'ready') {
           const message = capabilityError(resolved.status);
           await module.markSyncError(resolved.session, new Error(message));
@@ -205,7 +217,8 @@ export function createHistoryBackgroundSyncRuntime(config: {
   }
 
   async function captureVisited(item: chrome.history.HistoryItem): Promise<void> {
-    if (!(await readHistorySyncDomainEnabled())) return;
+    surface.invalidate(item.url);
+    await bumpRevision();
     const resolved = await resolveSession(false);
     if (!resolved.session) return;
     const changed = await module.captureVisitedItem(resolved.session, item);
@@ -216,7 +229,8 @@ export function createHistoryBackgroundSyncRuntime(config: {
   }
 
   async function captureRemoval(removed: chrome.history.RemovedResult): Promise<void> {
-    if (!(await readHistorySyncDomainEnabled())) return;
+    surface.invalidate();
+    await bumpRevision();
     const resolved = await resolveSession(false);
     if (!resolved.session) return;
     const changed = await module.recordNativeRemoval(resolved.session, removed);
@@ -244,6 +258,15 @@ export function createHistoryBackgroundSyncRuntime(config: {
 
   async function listForCurrentAccount(message: HistoryRuntimeMessage): Promise<HistoryRuntimeResponse> {
     const resolved = await resolveSession(false);
+    if (message.includeNative) {
+      const synced = resolved.session
+        ? await module.listTimeline(resolved.session.uid, {
+          query: message.query, deviceId: message.deviceId, limit: HISTORY_SYNC_MAX_VISITS,
+        })
+        : emptyTimelinePage();
+      const page = await surface.list(synced, resolved.session?.deviceId || '', resolved.session?.deviceName || '', message);
+      return { success: true, status: typeof globalThis.chrome?.history?.search === 'function' ? 'ready' : resolved.status, page };
+    }
     if (!resolved.session) {
       return { success: true, status: resolved.status, page: emptyTimelinePage() };
     }
@@ -258,6 +281,12 @@ export function createHistoryBackgroundSyncRuntime(config: {
 
   async function handleRuntimeMessage(message: HistoryRuntimeMessage): Promise<HistoryRuntimeResponse> {
     if (message.action === 'open') {
+      if (message.includeNative) {
+        // Native history is immediately available, even offline/unpaired. Cloud
+        // refresh publishes a revision when it finishes, without blocking this view.
+        void runBackgroundSync(false).catch(error => console.error('[Aira][History surface refresh]', error));
+        return listForCurrentAccount(message);
+      }
       const success = await runBackgroundSync(false);
       const response = await listForCurrentAccount(message);
       return {
@@ -283,6 +312,19 @@ export function createHistoryBackgroundSyncRuntime(config: {
       };
     }
     const resolved = await resolveSession(false);
+    if (message.action === 'delete' && message.includeNative) {
+      const url = nativeHistoryUrlForVisitId(String(message.visitId || ''));
+      if (url) {
+        // Only an explicit local row action may change the browser's native store.
+        // The common browser API removes all visits to this URL; UI labels say so.
+        await callBrowserHistoryApi<void>(callback => globalThis.chrome.history.deleteUrl({ url }, callback));
+        surface.invalidate(url);
+        if (resolved.session) await module.recordNativeRemoval(resolved.session, { allHistory: false, urls: [url] });
+        await bumpRevision();
+        await scheduleLocalChange();
+        return listForCurrentAccount(message);
+      }
+    }
     if (!resolved.session) {
       return { success: false, status: resolved.status, error: 'Aira desktop connection is required.' };
     }

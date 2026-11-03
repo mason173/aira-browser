@@ -58,7 +58,12 @@ export class BookmarkRootPageStore {
     if (count <= 0) {
       return false;
     }
-    const offset = this.scrollerFor(rootId, scope).currentOffset().yOffset;
+    // A populated root can be selected before its list is bound to the scroller.
+    const position = this.scrollerFor(rootId, scope).offset();
+    if (position === undefined) {
+      return false;
+    }
+    const offset = position.yOffset;
     return Number.isFinite(offset) && offset > 8;
   }
 

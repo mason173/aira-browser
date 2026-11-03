@@ -241,3 +241,15 @@ provides context access independent of the ability base class so a worker can ob
 installed Huawei SDK documents that simultaneous multithreaded opens are unsupported, so this path awaits owner
 initialization, then opens and closes the two read handles sequentially.
 The worker does not create tables, perform migrations, register distributed tables, or initiate cloud transport.
+
+Amended 2026-11-03 after the desktop-history retention clarification: Aira-sync's desktop History surface combines
+browser-native history with other devices' bounded synchronized visits. The browser remains the authority for all of its
+own history, including visits older than the latest 10,000. Native paging and search read the browser API directly;
+displaying a native visit never enrolls it in the sync ledger or upload queue. This device's synchronized copy is omitted
+from the combined surface to avoid duplicates. Pairing, membership, connectivity, and the History Sync switch do not
+gate native history visibility. The synchronization projection and pending live uploads retain the latest 10,000 visits;
+this count-only sync boundary never truncates the native view or deletes browser-owned data. Remote tombstones, clears,
+and retention remain authoritative within the sync domain and never invoke native deletion. An explicit native-row
+removal uses the browser's URL-wide deletion API, with that scope stated in its action label; native removal events keep
+the existing captured-visit deletion propagation. The native view is not a second persistent history store, a provider,
+or a new synchronization algorithm. Bookmark contracts, phone storage, and wire protocols are unchanged.

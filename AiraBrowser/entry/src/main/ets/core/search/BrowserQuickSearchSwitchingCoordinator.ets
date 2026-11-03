@@ -31,7 +31,7 @@ export interface BrowserQuickSearchSubmissionSeed {
 }
 
 export interface BrowserQuickSearchSubmissionRecorder {
-  recordAddressSubmission(seed: BrowserQuickSearchSubmissionSeed): void;
+  recordAddressSubmission(seed: BrowserQuickSearchSubmissionSeed, targetTabId?: string): void;
 }
 
 export interface BrowserQuickSearchReloadOwner {
@@ -151,7 +151,7 @@ export class BrowserQuickSearchSwitchingCoordinator implements BrowserQuickSearc
     return this.clonePresentation(this.presentation);
   }
 
-  recordAddressSubmission(seed: BrowserQuickSearchSubmissionSeed): void {
+  recordAddressSubmission(seed: BrowserQuickSearchSubmissionSeed, targetTabId?: string): void {
     if (seed.intent === 'empty') {
       return;
     }
@@ -167,10 +167,11 @@ export class BrowserQuickSearchSwitchingCoordinator implements BrowserQuickSearc
       return;
     }
     this.pendingAddressSubmission = context;
-    const activeTabId = this.host.isWebPageVisible() ? this.host.resolveActiveTabId().trim() : '';
-    this.pendingAddressSubmissionTabId = activeTabId;
-    if (activeTabId.length > 0) {
-      this.beginOwnedNavigation(activeTabId, context);
+    const submissionTabId = targetTabId?.trim() ??
+      (this.host.isWebPageVisible() ? this.host.resolveActiveTabId().trim() : '');
+    this.pendingAddressSubmissionTabId = submissionTabId;
+    if (submissionTabId.length > 0) {
+      this.beginOwnedNavigation(submissionTabId, context);
     } else {
       this.publishHidden('address-search-awaiting-tab');
     }

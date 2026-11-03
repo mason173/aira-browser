@@ -44,7 +44,7 @@ export function resolveHistoryBrowserKind(signals: HistoryBrowserSignals = {}): 
   if (/Edg\/|Edge\//i.test(ua) || hasBrand('microsoft edge') || brands.some((brand) => brand === 'edge')) return 'edge';
   if (hasBrand('google chrome')) return 'chrome';
   if (/Vivaldi\//i.test(ua) || hasBrand('vivaldi')) return 'vivaldi';
-  if (/Chrome\//i.test(ua) && signals.isBrave !== true) return 'chrome';
+  if (/Chrome\//i.test(ua)) return 'chrome';
   if (signals.isVivaldi === true) return 'vivaldi';
   return 'chromium';
 }

@@ -7,9 +7,9 @@ import {
   HISTORY_SYNC_DOMAIN_ENABLED_KEY,
 } from './leafTabSyncStorageKeys';
 
-// The domain master switches mirror the App's bookmark/history sync toggles:
-// they pause every sync, upload, and capture for that domain on this device
-// only, and they never delete local or remote data. An unset key means enabled.
+// The domain switches pause remote sync on this device without deleting data.
+// History still captures local visits/removals for the browser's history override;
+// its existing outbox waits until sync is enabled again. An unset key means enabled.
 const readDomainEnabled = async (storageKey: string): Promise<boolean> => {
   const record = await readExtensionStorageRecord([storageKey]);
   const value = record[storageKey];

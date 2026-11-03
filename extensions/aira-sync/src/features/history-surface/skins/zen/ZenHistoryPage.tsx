@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import type { HistorySyncVisit } from '@/features/sync/history/HistorySyncModels';
 import {
   historyFaviconUrl,
+  historyRemoveLabel,
   historyHostname,
   useHistorySurfaceData,
 } from '../../useHistorySurfaceData';
@@ -12,6 +13,7 @@ import {
   type ZenHistorySort,
   type ZenHistoryWhen,
 } from './zenHistorySpec';
+import { HistoryLoadMore } from '../../HistoryLoadMore';
 import './zen-history.css';
 
 const DAY_MS = 86_400_000;
@@ -125,7 +127,7 @@ export function ZenHistoryPage() {
                       </span>
                     </span>
                     <span className="zen-history-actions">
-                      <button type="button" aria-label={copy.remove} onClick={(event) => { event.stopPropagation(); void data.deleteVisit(visit.visitId); }}>
+                      <button type="button" aria-label={historyRemoveLabel(visit.visitId, i18n.language, copy.remove)} title={historyRemoveLabel(visit.visitId, i18n.language, copy.remove)} onClick={(event) => { event.stopPropagation(); void data.deleteVisit(visit.visitId); }}>
                         <TrashIcon />
                       </button>
                       <button type="button" aria-label={copy.reopen} onClick={(event) => { event.stopPropagation(); openVisit(visit.url); }}>
@@ -136,6 +138,7 @@ export function ZenHistoryPage() {
                 ))}
               </div>
             ))}
+            <HistoryLoadMore {...data} language={i18n.language} />
           </div>
         </section>
       </aside>

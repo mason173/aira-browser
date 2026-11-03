@@ -1,6 +1,12 @@
+import { BookmarkSortMode } from '../../common/models/BookmarkSortModels';
+import { buildBookmarkSortOptions, resolveBookmarkSortLabel } from './BookmarkSortViewModel';
+
 export interface BookmarkManagerHeaderActionView {
   label: ResourceStr;
-  icon: Resource;
+  icon?: Resource;
+  labelInfo?: ResourceStr;
+  selected?: boolean;
+  options?: BookmarkManagerHeaderActionView[];
   enabled?: boolean;
   action: () => void;
 }
@@ -11,6 +17,7 @@ export interface BookmarkManagerHeaderActionContext {
   hasCurrentFolder: boolean;
   canEnterSelectionMode: boolean;
   isTransferBusy: boolean;
+  sortMode: BookmarkSortMode;
 }
 
 export interface BookmarkManagerHeaderActionHandlers {
@@ -19,6 +26,7 @@ export interface BookmarkManagerHeaderActionHandlers {
   enterSelectionMode: () => void;
   importBookmarks: () => void;
   exportBookmarks: () => void;
+  selectSortMode: (mode: BookmarkSortMode) => void;
 }
 
 export class BookmarkManagerHeaderActionViewModel {
@@ -43,6 +51,12 @@ export class BookmarkManagerHeaderActionViewModel {
         action: handlers.createFolder
       });
     }
+    actions.push({
+      label: $r('app.string.bookmark_sort_order'),
+      labelInfo: resolveBookmarkSortLabel(context.sortMode),
+      options: buildBookmarkSortOptions(context.sortMode, handlers.selectSortMode),
+      action: (): void => {}
+    });
     if (context.canEnterSelectionMode) {
       actions.push({
         label: $r('app.string.ui_multi_select'),

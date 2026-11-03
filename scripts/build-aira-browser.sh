@@ -50,6 +50,8 @@ HUAWEI_LOGIN_DIAGNOSTICS_TEST="${REPO_ROOT}/scripts/check-aira-huawei-login-diag
 WEBDAV_LOCK_NULL_PLACEHOLDER_TEST="${REPO_ROOT}/scripts/check-aira-webdav-lock-null-placeholder.cjs"
 DIALOG_ACTION_LAYOUT_TEST="${REPO_ROOT}/scripts/check-aira-dialog-action-layout.cjs"
 BOOKMARK_DESKTOP_MENU_TEST="${REPO_ROOT}/scripts/check-aira-bookmark-desktop-menu.cjs"
+BOOKMARK_SORT_TEST="${REPO_ROOT}/scripts/check-aira-bookmark-sort.cjs"
+BOOKMARK_ROOT_SCROLL_TEST="${REPO_ROOT}/scripts/check-aira-bookmark-root-scroll.cjs"
 BOOKMARK_ADD_TEST="${REPO_ROOT}/scripts/check-aira-bookmark-add.cjs"
 BOOKMARK_ADD_FEEDBACK_TEST="${REPO_ROOT}/scripts/check-aira-bookmark-add-feedback.cjs"
 DOWNLOAD_EXPORT_GHOST_GUARD_TEST="${REPO_ROOT}/scripts/check-aira-download-export-ghost-guard.cjs"
@@ -82,6 +84,7 @@ DOWNLOAD_REWIND_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-download-rewind-do
 NATIVE_NAV_REQUEST_TOKEN_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-native-navigation-request-token.cjs"
 GEOLOCATION_PERMISSION_TEST="${REPO_ROOT}/scripts/check-aira-geolocation-permission.cjs"
 QUICK_SEARCH_CONTINUATION_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-quick-search-continuation.cjs"
+SELECTION_SEARCH_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-selection-search.cjs"
 SETTINGS_CATALOG_LOCALIZATION_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-settings-catalog-localization.cjs"
 CHANGELOG_LOCALIZATION_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-changelog-localization.cjs"
 APP_LANGUAGE_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-app-language.cjs"
@@ -363,6 +366,8 @@ node "${HUAWEI_LOGIN_DIAGNOSTICS_TEST}"
 node "${WEBDAV_LOCK_NULL_PLACEHOLDER_TEST}"
 node "${DIALOG_ACTION_LAYOUT_TEST}"
 node "${BOOKMARK_DESKTOP_MENU_TEST}"
+node "${BOOKMARK_SORT_TEST}"
+node "${BOOKMARK_ROOT_SCROLL_TEST}"
 node "${BOOKMARK_ADD_TEST}"
 node "${BOOKMARK_ADD_FEEDBACK_TEST}"
 node "${DOWNLOAD_EXPORT_GHOST_GUARD_TEST}"
@@ -477,6 +482,8 @@ if [ ! -f "${QUICK_SEARCH_CONTINUATION_GUARD_SCRIPT}" ]; then
 fi
 node "${QUICK_SEARCH_CONTINUATION_GUARD_SCRIPT}" || \
   fail "Quick Search continuation guard failed: ${QUICK_SEARCH_CONTINUATION_GUARD_SCRIPT}"
+node "${SELECTION_SEARCH_GUARD_SCRIPT}" || \
+  fail "Web selection search guard failed: ${SELECTION_SEARCH_GUARD_SCRIPT}"
 
 if [ ! -f "${SETTINGS_CATALOG_LOCALIZATION_GUARD_SCRIPT}" ]; then
   fail "Settings catalog localization guard not found: ${SETTINGS_CATALOG_LOCALIZATION_GUARD_SCRIPT}"

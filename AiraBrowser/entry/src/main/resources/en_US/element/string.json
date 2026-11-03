@@ -1,6 +1,34 @@
 {
   "string": [
     {
+      "name": "bookmark_sort_order",
+      "value": "Sort by"
+    },
+    {
+      "name": "bookmark_sort_manual",
+      "value": "Manual order"
+    },
+    {
+      "name": "bookmark_sort_newest",
+      "value": "Newest first"
+    },
+    {
+      "name": "bookmark_sort_oldest",
+      "value": "Oldest first"
+    },
+    {
+      "name": "bookmark_sort_name_asc",
+      "value": "Name: A to Z"
+    },
+    {
+      "name": "bookmark_sort_name_desc",
+      "value": "Name: Z to A"
+    },
+    {
+      "name": "bookmark_sort_manual_drag_hint",
+      "value": "Switch to manual order to drag and rearrange items."
+    },
+    {
       "name": "qq_web_login_expired",
       "value": "This sign-in request has expired. Return to the webpage and sign in again."
     },

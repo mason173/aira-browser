@@ -4,6 +4,7 @@ import {
   BookmarkStorageScope
 } from '../../common/models/BrowserModels';
 import { isBookmarkRootNodeId } from '../../data/repositories/BookmarkRepositoryCore';
+import { sharedBookmarkSortPreferencesRepository } from '../../data/bookmarks/BookmarkSortPreferencesRepository';
 import {
   BookmarkManagementBoundary,
   BookmarkManagementFeature
@@ -170,6 +171,14 @@ export class BookmarkWorkspaceSessionCoordinator {
     return this.getSnapshot();
   }
 
+  refreshSort(): BookmarkWorkspaceSnapshot {
+    if (!this.snapshotState.loading) {
+      this.rebuildPresentation();
+      this.publish();
+    }
+    return this.getSnapshot();
+  }
+
   selectFolder(folderId: string): BookmarkWorkspaceSnapshot {
     const node = this.bookmarkManagementFeature.findNodeById(folderId);
     if (node === undefined || node.type !== 'folder') {
@@ -309,8 +318,15 @@ export class BookmarkWorkspaceSessionCoordinator {
   }
 
   async moveSelectionToFolder(targetFolderId: string, targetIndex: number = 2147483647): Promise<BookmarkWorkspaceSnapshot> {
+    const canReorder = this.snapshotState.query.trim().length === 0 &&
+      sharedBookmarkSortPreferencesRepository.getMode(this.snapshotState.scope) === 'manual';
+    if (targetIndex !== 2147483647 && !canReorder) {
+      return this.getSnapshot();
+    }
     const target = this.bookmarkManagementFeature.findNodeById(targetFolderId);
-    const movingIds = this.normalizeMovableNodeIds(this.snapshotState.selectedNodeIds);
+    const movingIds = this.normalizeMovableNodeIds(this.snapshotState.selectedNodeIds)
+      .filter((id: string): boolean => canReorder ||
+        this.bookmarkManagementFeature.findNodeById(id)?.parentId !== targetFolderId);
     if (target === undefined || target.type !== 'folder' || movingIds.length <= 0 ||
       !this.canMoveNodesToFolder(movingIds, target.id) || this.snapshotState.busy) {
       return this.getSnapshot();

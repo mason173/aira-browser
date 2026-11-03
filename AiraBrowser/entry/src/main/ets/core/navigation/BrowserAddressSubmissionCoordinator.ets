@@ -17,6 +17,7 @@ import {
   SearchEngineRoutingService
 } from '../../services/search/SearchEngineRoutingService';
 import { SearchEngineFallbackRetryAction } from '../../services/search/SearchEngineFallbackRetryService';
+import { SearchEngineTemplateService } from '../../services/search/SearchEngineTemplateService';
 import {
   ExternalAppSearchAction,
   ExternalAppSearchPrivateConfirmation,
@@ -92,6 +93,7 @@ export interface BrowserAddressSubmissionPresentation {
 }
 
 export interface BrowserAddressSubmissionSessionFacts {
+  activeTabId: string;
   availableSearchEngines: SearchEngineRecord[];
   searchEngineSettings: SearchEngineSettings;
   experiments: BrowserExperimentSettings;
@@ -109,6 +111,7 @@ export interface BrowserAddressSubmissionShell {
 }
 
 export class BrowserAddressSubmissionCoordinator {
+  private readonly templateService: SearchEngineTemplateService = new SearchEngineTemplateService();
   private readonly routingService: SearchEngineRoutingService;
   private readonly historyRecorder?: BrowserAddressSubmissionHistoryRecorder;
   private readonly addressDisplayCoordinator: BrowserAddressDisplayCoordinator;
@@ -242,6 +245,56 @@ export class BrowserAddressSubmissionCoordinator {
       Date.now() - diagnosticStartedAt,
       submission.intent
     );
+  }
+
+  submitSelectedText(tabId: string, selectionText: string, searchEngineId: SearchEngineId): void {
+    const query = selectionText.trim();
+    if (query.length === 0) {
+      return;
+    }
+    const facts = this.shell.resolveSessionFacts();
+    if (tabId !== facts.activeTabId) {
+      return;
+    }
+    const engine = facts.availableSearchEngines.find((candidate: SearchEngineRecord): boolean =>
+      candidate.id === searchEngineId);
+    if (engine === undefined) {
+      return;
+    }
+    // This is explicitly a search, including when the selected text is a URL.
+    const resolvedUrl = this.templateService.buildSearchUrl(query, engine);
+    if (resolvedUrl.length === 0) {
+      return;
+    }
+    const submission = this.buildResult({
+      rawInput: selectionText,
+      searchEngine: engine.id,
+      availableSearchEngines: facts.availableSearchEngines,
+      searchEngineSettings: facts.searchEngineSettings
+    }, query, resolvedUrl, 'search', query);
+    this.beginSubmission();
+    this.recordSubmittedSearchQuery(submission, facts.boundary, facts.searchSuggestionPreferences);
+    this.shell.completeSearchSession();
+    this.shell.prepareForNavigation();
+    this.presentMessage(this.shell, '准备打开页面');
+    this.appUrlOpenCoordinator?.open({
+      url: resolvedUrl,
+      title: resolvedUrl,
+      intent: 'new_tab',
+      source: 'web_context_menu',
+      helperMessage: '准备打开页面',
+      createOptions: facts.boundary,
+      openerTabId: tabId,
+      prepareCreatedTab: (createdTabId: string): void => {
+        this.recordAddressDisplaySubmission(submission);
+        this.quickSearchSubmissionRecorder?.recordAddressSubmission({
+          intent: submission.intent,
+          query: submission.searchQuery,
+          searchEngineId: submission.searchEngineId,
+          resolvedUrl: submission.resolvedUrl
+        }, createdTabId);
+      }
+    });
   }
 
   async submitExternalAppSearch(

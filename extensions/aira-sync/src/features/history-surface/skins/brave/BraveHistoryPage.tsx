@@ -3,6 +3,8 @@ import { useTranslation } from 'react-i18next';
 import type { HistorySyncVisit } from '@/features/sync/history/HistorySyncModels';
 import {
   historyFaviconUrl,
+  historyRemoveLabel,
+  historyRemoveSelectionLabel,
   historyHostname,
   useHistorySurfaceData,
 } from '../../useHistorySurfaceData';
@@ -12,6 +14,7 @@ import {
   formatChromeHistoryTime,
 } from './braveHistorySpec';
 import { useChromeOtherDeviceTabs } from '../chrome/useChromeOtherDeviceTabs';
+import { HistoryLoadMore } from '../../HistoryLoadMore';
 import './brave-history.css';
 
 type BraveHistorySection = 'history' | 'other-devices';
@@ -148,7 +151,7 @@ export function BraveHistoryPage() {
           </div>
           <div className="brave-history-selection-actions">
             <button type="button" className="brave-history-selection-button" onClick={openSelected}>{copy.open}</button>
-            <button type="button" className="brave-history-selection-button" onClick={deleteSelected}>{copy.deleteSelected}</button>
+            <button type="button" className="brave-history-selection-button" onClick={deleteSelected}>{historyRemoveSelectionLabel(selectedIds, i18n.language, copy.deleteSelected)}</button>
           </div>
         </div>
       ) : (
@@ -253,7 +256,7 @@ export function BraveHistoryPage() {
                   <button
                     type="button"
                     className="brave-history-more"
-                    aria-label={copy.remove}
+                    aria-label={historyRemoveLabel(visit.visitId, i18n.language, copy.remove)}
                     aria-expanded={menuVisitId === visit.visitId}
                     onClick={(event) => {
                       event.stopPropagation();
@@ -270,13 +273,14 @@ export function BraveHistoryPage() {
                         setMenuVisitId('');
                         void data.deleteVisit(visit.visitId);
                       }}
-                      >{copy.remove}</button>
+                      >{historyRemoveLabel(visit.visitId, i18n.language, copy.remove)}</button>
                     </div>
                   ) : null}
                 </article>
               ))}
             </section>
           ))}
+          {section === 'history' ? <HistoryLoadMore {...data} language={i18n.language} /> : null}
         </main>
         </div>
       </div>

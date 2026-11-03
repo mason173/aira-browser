@@ -108,7 +108,7 @@ export class BookmarkManagerSearchViewModel {
     if (isActive) {
       nodes = this.bookmarkManagementFeature.searchBookmarks(normalizedQuery, BOOKMARK_MANAGER_SEARCH_RESULT_LIMIT);
     } else if (!this.isSearchMode) {
-      nodes = this.currentFolderNodes.slice();
+      nodes = this.bookmarkManagementFeature.sortDisplayNodes(this.currentFolderNodes);
     }
     if (this.excludedNodeIds.length > 0) {
       const excludedIds = new Set<string>(this.excludedNodeIds);
