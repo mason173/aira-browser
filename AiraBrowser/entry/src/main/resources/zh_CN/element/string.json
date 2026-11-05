@@ -21737,6 +21737,22 @@
       "value": "隐私标签页打开"
     },
     {
+      "name": "context_menu_copy_link_text",
+      "value": "复制链接文本"
+    },
+    {
+      "name": "context_menu_select_link_text",
+      "value": "选择链接文本"
+    },
+    {
+      "name": "context_menu_no_link_text",
+      "value": "没有可复制的链接文本"
+    },
+    {
+      "name": "context_menu_link_text_copied",
+      "value": "链接文本已复制"
+    },
+    {
       "name": "context_menu_share_link",
       "value": "分享链接"
     },

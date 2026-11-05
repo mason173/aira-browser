@@ -1,4 +1,6 @@
 import { common } from '@kit.AbilityKit';
+import { SearchEngineId } from '../../common/models/BrowserModels';
+import { BrowserAddressSubmissionCoordinator } from '../navigation/BrowserAddressSubmissionCoordinator';
 import { resolveAppResourceText } from '../resources/AppResourceText';
 import {
   BrowserClipboardCopyResult,
@@ -20,6 +22,7 @@ export interface WebLinkContextMenuActionShellFacts {
   context: common.UIAbilityContext;
   activeTabId: string;
   homeShortcutScenarioId: string;
+  selectedSearchEngineId: SearchEngineId;
 }
 
 export interface WebLinkContextMenuActionShell {
@@ -31,6 +34,7 @@ export interface WebLinkContextMenuActionShell {
 }
 
 interface WebLinkContextMenuFixedActionDependencies {
+  addressSubmissionCoordinator: BrowserAddressSubmissionCoordinator;
   appUrlOpenCoordinator: BrowserAppUrlOpenCoordinator;
   bookmarkActionCoordinator: BrowserBookmarkActionCoordinator;
   clipboardService: BrowserClipboardService;
@@ -85,6 +89,15 @@ export class WebLinkContextMenuFixedActionApplication implements WebLinkContextM
         return;
       case 'copy_link':
         this.copyLink(url);
+        return;
+      case 'copy_link_text':
+        this.copyLinkText(String(effect.text ?? ''));
+        return;
+      case 'share_text':
+        this.shareText(tabId, title, String(effect.text ?? ''));
+        return;
+      case 'search_text':
+        this.searchText(tabId, String(effect.text ?? ''));
         return;
       case 'share_link':
         this.shareLink(title, url);
@@ -170,6 +183,19 @@ export class WebLinkContextMenuFixedActionApplication implements WebLinkContextM
     });
   }
 
+  private copyLinkText(text: string): void {
+    this.dependencies.clipboardService.copyText({
+      value: text,
+      emptyMessage: resolveAppResourceText($r('app.string.context_menu_no_link_text')),
+      successMessage: resolveAppResourceText($r('app.string.context_menu_link_text_copied'))
+    }).then((result: BrowserClipboardCopyResult): void => {
+      this.shell.publishHelper(result.message);
+      this.shell.showToast(result.message);
+    }).catch((_error: Object): void => {
+      this.shell.showToast(resolveAppResourceText($r('app.string.ui_copy_failed')));
+    });
+  }
+
   private shareLink(title: string, url: string): void {
     const facts = this.shell.readFacts();
     this.dependencies.webPageShareService.shareWebPage(facts.context, {
@@ -178,5 +204,21 @@ export class WebLinkContextMenuFixedActionApplication implements WebLinkContextM
     }).catch((_error: Error): void => {
       this.shell.showToast(resolveAppResourceText($r('app.string.reader_share_failed')));
     });
+  }
+
+  private shareText(tabId: string, title: string, text: string): void {
+    const facts = this.shell.readFacts();
+    if (tabId !== facts.activeTabId || text.trim().length === 0) return;
+    void this.dependencies.webPageShareService.sharePlainText(facts.context,
+      title.trim().length > 0 ? title : resolveAppResourceText($r('app.string.ui_share')), text)
+      .catch((_error: Error): void => {
+        this.shell.showToast(resolveAppResourceText($r('app.string.reader_share_failed')));
+      });
+  }
+
+  private searchText(tabId: string, text: string): void {
+    const facts = this.shell.readFacts();
+    if (tabId !== facts.activeTabId || text.trim().length === 0) return;
+    this.dependencies.addressSubmissionCoordinator.submitSelectedText(tabId, text, facts.selectedSearchEngineId);
   }
 }

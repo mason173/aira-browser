@@ -52,6 +52,7 @@ export interface BrowserWebEventHostHandlers {
   onAdBlockManualHidden: (tabId: string, payloadJson: string) => void;
   onContextMenuShow: (tabId: string, event: OnContextMenuShowEvent, controller: webview.WebviewController) => boolean;
   onContextMenuHide: (tabId: string) => void;
+  onLinkTextSelectionChanged?: (tabId: string, payloadJson: string) => void;
   onFullScreenEnter: (tabId: string, event: FullScreenEnterEvent) => void;
   onFullScreenExit: (tabId: string) => void;
 }
@@ -163,6 +164,8 @@ export class BrowserWebEventHostCoordinator {
       },
       onContextMenuHide: (tabId: string) =>
         this.runVoid('context_menu_hide', tabId, () => handlers.onContextMenuHide(tabId)),
+      onLinkTextSelectionChanged: (tabId: string, payloadJson: string) =>
+        this.runVoid('link_text_selection_changed', tabId, () => handlers.onLinkTextSelectionChanged?.(tabId, payloadJson)),
       onFullScreenEnter: (tabId: string, event: FullScreenEnterEvent) =>
         this.runVoid('fullscreen_enter', tabId, () => handlers.onFullScreenEnter(tabId, event)),
       onFullScreenExit: (tabId: string) =>

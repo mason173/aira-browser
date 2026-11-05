@@ -1,14 +1,14 @@
 {
   "enabled": true,
-  "noticeId": "aira-3.9.4-1000571",
-  "title": "Aira 3.9.4 update",
-  "updatedAt": "2026-11-03",
-  "summary": "This release improves bookmark management, webpage search, and browsing responsiveness.",
+  "noticeId": "aira-3.9.5-1000575",
+  "title": "Aira 3.9.5 update",
+  "updatedAt": "2026-11-05",
+  "summary": "This release improves webpage actions, Chinese domain navigation, and private browsing.",
   "items": [
-    "Added more bookmark sorting options and fixed a possible crash when switching bookmark folders.",
-    "Search selected text in a new tab and continue switching search engines.",
-    "Use Forward to return to the previous tab after going Home from a webpage.",
-    "Improved user script loading and saving to reduce browsing delays."
+    "Select, copy, share, or search link text directly on the webpage. Long-press menus now scroll and close when switching tabs.",
+    "Enter Chinese domain names directly to visit the website instead of starting a search.",
+    "Bookmarks remember your last browsing location so you can continue where you left off.",
+    "Added automatic muting for private webpages and improved how Home links stay within private browsing."
   ],
   "actionLabel": "View changelog"
 }

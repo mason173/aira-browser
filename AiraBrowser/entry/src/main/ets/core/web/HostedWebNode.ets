@@ -92,6 +92,7 @@ export interface HostedWebNodeCallbacks {
   onAdBlockManualHidden: (tabId: string, payloadJson: string) => void;
   onContextMenuShow: (tabId: string, event: OnContextMenuShowEvent, controller: webview.WebviewController) => boolean;
   onContextMenuHide: (tabId: string) => void;
+  onLinkTextSelectionChanged?: (tabId: string, payloadJson: string) => void;
   onFullScreenEnter: (tabId: string, event: FullScreenEnterEvent) => void;
   onFullScreenExit: (tabId: string) => void;
 }
@@ -150,6 +151,7 @@ const HOSTED_WEB_NATIVE_BRIDGE_METHODS: string[] = [
   'adBlockCosmeticQuery',
   'adBlockCosmeticHidden',
   'adBlockManualHidden',
+  'linkTextSelectionChanged',
   'webVideoEnterFullscreen',
   'webVideoExitFullscreen',
   'webVideoCast',
@@ -2204,6 +2206,10 @@ class HostedWebNodeNativeBridge {
     this.callbacks?.onAdBlockManualHidden(this.tabId, payloadJson);
   }
 
+  linkTextSelectionChanged(payloadJson: string): void {
+    this.callbacks?.onLinkTextSelectionChanged?.(this.tabId, payloadJson);
+  }
+
   webVideoEnterFullscreen(payloadJson: string = '{}'): void {
     hilog.info(
       HOSTED_WEB_NODE_LOG_DOMAIN,
@@ -2881,6 +2887,7 @@ function buildTrackedHostedWebNodeConfig(
       onAdBlockManualHidden: config.callbacks.onAdBlockManualHidden,
       onContextMenuShow: config.callbacks.onContextMenuShow,
       onContextMenuHide: config.callbacks.onContextMenuHide,
+      onLinkTextSelectionChanged: config.callbacks.onLinkTextSelectionChanged,
       onFullScreenEnter: config.callbacks.onFullScreenEnter,
       onFullScreenExit: config.callbacks.onFullScreenExit
     }

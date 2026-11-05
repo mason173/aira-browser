@@ -6542,6 +6542,7 @@ struct BrowserShellPage {
   private webContextMenuActionApplication: WebLinkContextMenuFixedActionApplication =
     new WebLinkContextMenuFixedActionApplication(
       {
+        addressSubmissionCoordinator: this.addressSubmissionCoordinator,
         appUrlOpenCoordinator: this.browserAppUrlOpenCoordinator,
         bookmarkActionCoordinator: this.browserBookmarkActionCoordinator,
         clipboardService: this.browserClipboardService,
@@ -6555,7 +6556,8 @@ struct BrowserShellPage {
         readFacts: () => ({
           context: this.getAbilityContext(),
           activeTabId: this.activeTabId,
-          homeShortcutScenarioId: this.homeShortcutApplicationSnapshot.scenarioId
+          homeShortcutScenarioId: this.homeShortcutApplicationSnapshot.scenarioId,
+          selectedSearchEngineId: this.selectedSearchEngine
         }),
         showToast: (message: string): void => this.showNativeToast(message),
         publishError: (message: string): void => {
@@ -7439,6 +7441,7 @@ struct BrowserShellPage {
   }
 
   private reconcileShellTabPresentation(): void {
+    this.webContextMenuCoordinator?.handleActiveTabChanged(this.activeTabId);
     this.browserAddressBarTabSwipeCoordinator.reconcile();
     this.browserWebBottomSafeAreaCoordinator.retainTabs(this.tabs.map((tab: BrowserTabState): string => tab.id));
     this.browserWebToolbarClearanceCoordinator.retainTabs(this.tabs.map((tab: BrowserTabState): string => tab.id));
@@ -11791,7 +11794,9 @@ struct BrowserShellPage {
         hostedWebLayerWidthVp: this.hostedWebLayerWidth,
         hostedWebLayerHeightVp: this.hostedWebLayerHeight,
         reusableGeometry: this.resolveReusableWebLayerGeometry(),
-        webViewportTopInsetVp: this.getWebViewportTopInsetPx()
+        webViewportTopInsetVp: this.getWebViewportTopInsetPx(),
+        webViewportBottomInsetVp: Math.max(this.resolveWebViewportVisualBottomInsetVp(),
+          this.isSplitToolbarChromeActiveHere() ? 0 : this.getWebErrorSurfaceBottomInsetVp())
       }
     };
   }
@@ -12837,6 +12842,7 @@ struct BrowserShellPage {
         this.browserWebToolbarClearanceCoordinator.apply(tabId, true);
       },
       onPageBegin: (tabId: string, event: OnPageBeginEvent) => {
+        this.webContextMenuCoordinator.handleDocumentBegin(tabId);
         this.browserTabSwitchCoordinator.applyTabAudioPolicy(tabId,
           sharedPreferencesRepository.getPreferences().general.privateModeAutoMuteEnabled === true, true);
         this.browserWebSwipeNavigationCoordinator.reset(tabId);
@@ -12975,6 +12981,9 @@ struct BrowserShellPage {
       onContextMenuHide: (tabId: string): void => {
         this.webContextMenuCoordinator.hide(tabId);
       },
+      onLinkTextSelectionChanged: (tabId: string, payloadJson: string): void =>
+        this.webContextMenuCoordinator.handleTextSelectionSignal(tabId, payloadJson,
+          this.buildWebContextMenuSessionFacts(tabId)),
       onFullScreenEnter: (tabId: string, event: FullScreenEnterEvent) => {
         void this.browserFullscreenSessionCoordinator.enterWebContentFullscreen(tabId, event);
       },

@@ -21,7 +21,10 @@ function load(relative, imports = {}) {
   });
   return scope.exports;
 }
-const utils = load('common/utils/UrlUtils.ets');
+const utils = load('common/utils/UrlUtils.ets', {
+  '@kit.NetworkKit': { connection: { getDnsAscii: require('node:url').domainToASCII,
+    ConversionProcess: { USE_STD3_ASCII_RULES: 2 } } }
+});
 const drafts = load('core/bookmarks/BookmarkAddDraft.ets', {
   '@ohos.url': { default: { URL: { parseURL: input => new URL(input) } } },
   '../../common/utils/UrlUtils': utils

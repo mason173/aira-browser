@@ -21737,6 +21737,22 @@
       "value": "Open in private tab"
     },
     {
+      "name": "context_menu_copy_link_text",
+      "value": "Copy Link Text"
+    },
+    {
+      "name": "context_menu_select_link_text",
+      "value": "Select Link Text"
+    },
+    {
+      "name": "context_menu_no_link_text",
+      "value": "No link text to copy"
+    },
+    {
+      "name": "context_menu_link_text_copied",
+      "value": "Link text copied"
+    },
+    {
       "name": "context_menu_share_link",
       "value": "Share link"
     },

@@ -1,5 +1,16 @@
 # Changelog
 
+## 3.9.5 (1000575)
+
+2026-11-05
+
+This release improves webpage actions, Chinese domain navigation, and private browsing.
+
+- Select, copy, share, or search link text directly on the webpage. Long-press menus now scroll and close when switching tabs.
+- Enter Chinese domain names directly to visit the website instead of starting a search.
+- Bookmarks remember your last browsing location so you can continue where you left off.
+- Added automatic muting for private webpages and improved how Home links stay within private browsing.
+
 ## 3.9.4 (1000571)
 
 2026-11-03

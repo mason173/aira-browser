@@ -1,3 +1,5 @@
+import { connection } from '@kit.NetworkKit';
+
 const SCHEME_PREFIX_RE: RegExp = /^[a-z][a-z0-9+.-]*:/i;
 const PASTED_URL_START_RE: RegExp = /[a-z][a-z0-9+.-]*:\/\/|www\./ig;
 const IPV4_HOST_RE: RegExp = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
@@ -6,8 +8,7 @@ const DOMAIN_HOST_RE: RegExp = /^(www\.)?[a-z0-9-]+(?:\.[a-z0-9-]+)+(?:[/?#].*)?
 
 export function looksLikeUrl(input: string): boolean {
   const trimmed: string = input.trim();
-  const lower: string = trimmed.toLowerCase();
-  if (trimmed.length === 0 || trimmed.includes(' ')) {
+  if (trimmed.length === 0 || /\s/.test(trimmed)) {
     return false;
   }
 
@@ -15,10 +16,13 @@ export function looksLikeUrl(input: string): boolean {
     return true;
   }
 
-  const hostname = readHostnameFromUserInput(trimmed);
+  const asciiInput = normalizeInternationalUrlHost(trimmed);
+  if (asciiInput.length === 0) return false;
+  const hostname = readHostnameFromUserInput(asciiInput);
   return isLikelyLocalUrlHost(hostname) ||
-    lower.startsWith('www.') ||
-    DOMAIN_HOST_RE.test(trimmed);
+    HOST_PORT_WITHOUT_SCHEME_RE.test(asciiInput) ||
+    asciiInput.toLowerCase().startsWith('www.') ||
+    DOMAIN_HOST_RE.test(asciiInput);
 }
 
 export function normalizeUrl(input: string): string {
@@ -27,14 +31,13 @@ export function normalizeUrl(input: string): string {
     return '';
   }
 
-  if (hasExplicitUrlScheme(trimmed)) {
-    return trimmed;
-  }
+  const asciiInput = normalizeInternationalUrlHost(trimmed);
+  if (hasExplicitUrlScheme(trimmed)) return asciiInput || trimmed;
 
-  if (looksLikeUrl(trimmed)) {
-    const hostname = readHostnameFromUserInput(trimmed);
+  if (asciiInput.length > 0 && looksLikeUrl(asciiInput)) {
+    const hostname = readHostnameFromUserInput(asciiInput);
     const scheme = isLikelyLocalUrlHost(hostname) ? 'http://' : 'https://';
-    return `${scheme}${trimmed}`;
+    return `${scheme}${asciiInput}`;
   }
 
   return `https://www.baidu.com/s?wd=${encodeURIComponent(trimmed)}`;
@@ -42,20 +45,38 @@ export function normalizeUrl(input: string): string {
 
 export function resolveSchemelessHttpFallbackUrl(input: string): string {
   const trimmed: string = input.trim();
-  if (trimmed.length === 0 || hasExplicitUrlScheme(trimmed) || !looksLikeUrl(trimmed)) {
+  if (trimmed.length === 0 || hasExplicitUrlScheme(trimmed)) {
     return '';
   }
-  const hostname = readHostnameFromUserInput(trimmed);
+  const asciiInput = normalizeInternationalUrlHost(trimmed);
+  if (asciiInput.length === 0 || !looksLikeUrl(asciiInput)) return '';
+  const hostname = readHostnameFromUserInput(asciiInput);
   if (isLikelyLocalUrlHost(hostname)) {
     return '';
   }
-  return `http://${trimmed}`;
+  return `http://${asciiInput}`;
 }
 
 export function extractFirstUrlFromText(input: string): string {
   const trimmed = input.trim();
   if (trimmed.length === 0) {
     return '';
+  }
+  const unwrapped = trimPastedUrlCandidate(trimmed);
+  const explicitPrefix = /[a-z][a-z0-9+.-]*:\/\//i.exec(unwrapped);
+  const firstBoundary = findFirstUrlBoundary(unwrapped);
+  // A complete international hostname must reach classification intact. The prose extractor
+  // treats CJK characters as boundaries and would otherwise keep only an ASCII suffix.
+  if (!/\s/.test(trimmed) &&
+    (explicitPrefix === null || explicitPrefix.index === 0 ||
+      (firstBoundary >= 0 && explicitPrefix.index > firstBoundary)) &&
+    isInternationalHostnameCandidate(readHostnameFromUserInput(unwrapped))) {
+    const prefix = /^[a-z][a-z0-9+.-]*:\/\//i.exec(unwrapped);
+    const authorityStart = prefix === null ? 0 : prefix[0].length;
+    const boundary = findFirstUrlBoundary(unwrapped.substring(authorityStart));
+    const authorityEnd = boundary < 0 ? unwrapped.length : authorityStart + boundary;
+    const candidate = trimInternationalPastedUrlCandidate(unwrapped, authorityEnd);
+    return looksLikeUrl(candidate) ? candidate : '';
   }
 
   const explicitCandidate = extractExplicitPastedUrlCandidate(trimmed);
@@ -71,6 +92,50 @@ export function normalizeAddressInputText(input: string): string {
     return extractedUrl;
   }
   return input.trim();
+}
+
+function isInternationalHostnameCandidate(hostname: string): boolean {
+  if (!/[^\x00-\x7F]/.test(hostname) || !/[.\u3002\uFF0E\uFF61]/.test(hostname)) return false;
+  for (let index = 0; index < hostname.length; index += 1) {
+    const character = hostname.charAt(index);
+    const codePoint = hostname.charCodeAt(index);
+    const domainSeparator = codePoint === 0x3002 || codePoint === 0xFF0E || codePoint === 0xFF61;
+    if ((codePoint <= 0x7F && !/[a-z0-9.-]/i.test(character)) ||
+      (!domainSeparator && isCjkPunctuationCodePoint(codePoint)) ||
+      isUrlWrappingBoundaryCharacter(character)) return false;
+  }
+  return true;
+}
+
+function normalizeInternationalUrlHost(value: string): string {
+  const prefix = /^https?:\/\//i.exec(value);
+  if (hasExplicitUrlScheme(value) && prefix === null) return value;
+  const start = prefix === null ? 0 : prefix[0].length;
+  const body = value.substring(start);
+  const boundary = findFirstUrlBoundary(body);
+  const authority = boundary < 0 ? body : body.substring(0, boundary);
+  const hostStart = authority.lastIndexOf('@') + 1;
+  if (authority.substring(hostStart).startsWith('[')) return value;
+  const colon = authority.indexOf(':', hostStart);
+  const hostEnd = colon < 0 ? authority.length : colon;
+  const hostname = authority.substring(hostStart, hostEnd);
+  if (!/[^\x00-\x7F]/.test(hostname)) return value;
+  if (prefix === null) {
+    // Keep email-like input and malformed ports in the search path.
+    if (hostStart > 0 || (colon >= 0 && !/^:\d+$/.test(authority.substring(colon)))) return '';
+    if (!/[.\u3002\uFF0E\uFF61]/.test(hostname)) return value;
+  }
+  try {
+    // API 23 is the client's minimum API. This converts the hostname only; paths,
+    // queries, fragments and credentials keep their existing representation.
+    const ascii = connection.getDnsAscii(hostname, connection.ConversionProcess.USE_STD3_ASCII_RULES);
+    const labels = ascii.endsWith('.') ? ascii.substring(0, ascii.length - 1).split('.') : ascii.split('.');
+    if (ascii.length === 0 || ascii.length > 254 || labels.some((label: string): boolean =>
+      label.length === 0 || label.length > 63 || !/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/i.test(label))) return '';
+    return value.substring(0, start + hostStart) + ascii + value.substring(start + hostEnd);
+  } catch (_error) {
+    return '';
+  }
 }
 
 export function hasExplicitUrlScheme(rawValue: string): boolean {
@@ -216,6 +281,17 @@ function readExplicitPastedUrlCandidate(value: string, start: number): string {
     end += 1;
   }
   return trimPastedUrlCandidate(value.substring(start, end));
+}
+
+function trimInternationalPastedUrlCandidate(value: string, authorityEnd: number): string {
+  // A complete address has no surrounding prose. Preserve mixed-language paths;
+  // apply punctuation cleanup only at the tail, outside its international authority.
+  let candidate = trimPastedUrlCandidate(value);
+  while (candidate.length > authorityEnd &&
+    isCjkPunctuationCodePoint(candidate.charCodeAt(candidate.length - 1))) {
+    candidate = trimPastedUrlCandidate(candidate.substring(0, candidate.length - 1));
+  }
+  return candidate;
 }
 
 function trimPastedUrlCandidate(value: string): string {

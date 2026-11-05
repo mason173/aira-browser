@@ -21737,6 +21737,22 @@
       "value": "隱私標籤頁開啟"
     },
     {
+      "name": "context_menu_copy_link_text",
+      "value": "複製連結文字"
+    },
+    {
+      "name": "context_menu_select_link_text",
+      "value": "選擇連結文字"
+    },
+    {
+      "name": "context_menu_no_link_text",
+      "value": "沒有可複製的連結文字"
+    },
+    {
+      "name": "context_menu_link_text_copied",
+      "value": "已複製連結文字"
+    },
+    {
       "name": "context_menu_share_link",
       "value": "分享連結"
     },

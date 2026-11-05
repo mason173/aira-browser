@@ -92,6 +92,7 @@ async function main() {
     menu.sink = { publishPresentation() {} };
     menu.resolveActionApplication = () => application;
     menu.pendingResultClosed = true;
+    menu.textSelection = { stop() {} };
     menu.presentation = menu.buildHiddenPresentation();
     const facts = { activeTabId: 'source', showPageErrorSurface: false, tabTitle: 'Page', currentTitle: '',
       pageUrl: 'https://page.example.test/source', privacyMode: 'normal', dataScope: 'persistent',
@@ -105,6 +106,11 @@ async function main() {
     assert.equal(menu.show('source', event, controller, facts), true);
     menu.handleOverlayAction({ type: 'select', item: { action: 'download_link' } }, {
       ...facts, activeTabId: 'another', pageUrl: 'https://another.example.test/'
+    });
+    assert.equal(requests.length, 0, 'a dismissed source-tab menu cannot act on another tab');
+    assert.equal(menu.show('source', event, controller, facts), true);
+    menu.handleOverlayAction({ type: 'select', item: { action: 'download_link' } }, {
+      ...facts, pageUrl: 'https://another.example.test/'
     });
     assert.equal(requests.length, 1);
     assert.equal(requests[0].referer, facts.pageUrl);

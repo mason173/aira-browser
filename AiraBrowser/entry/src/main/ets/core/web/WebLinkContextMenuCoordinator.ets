@@ -24,6 +24,8 @@ import {
   BrowserPrivateWindowPolicyService
 } from '../../services/browser/BrowserPrivateWindowPolicyService';
 import { BrowserWindowRuntime } from '../../app/runtime/BrowserWindowRuntime';
+import { WebLinkTextScriptService } from '../../services/web/WebLinkTextScriptService';
+import { WebLinkTextSelectionCoordinator, WebLinkTextSelectionPresentation } from './WebLinkTextSelectionCoordinator';
 
 export type WebLinkContextMenuAction =
   'open' |
@@ -31,6 +33,8 @@ export type WebLinkContextMenuAction =
   'open_background_tab' |
   'open_private_tab' |
   'copy_link' |
+  'copy_link_text' |
+  'select_link_text' |
   'share_link' |
   'add_bookmark' |
   'save_offline' |
@@ -40,7 +44,7 @@ export type WebLinkContextMenuAction =
   'copy_image' |
   'share_image';
 
-export type WebLinkContextMenuGroup = 'open' | 'transfer' | 'save' | 'script' | 'image';
+export type WebLinkContextMenuGroup = 'open' | 'transfer' | 'save' | 'privacy' | 'script' | 'image';
 
 export interface WebLinkContextMenuItem {
   action: WebLinkContextMenuAction;
@@ -56,6 +60,10 @@ export interface WebLinkContextMenuState {
   tabId: string;
   url: string;
   title: string;
+  linkText?: string;
+  selectingText?: boolean;
+  textTargetId?: string;
+  selection?: WebLinkTextSelectionPresentation;
   referer?: string;
   userAgent?: string;
   x: number;
@@ -69,10 +77,15 @@ export interface WebContextMenuPresentation {
 }
 
 export interface WebContextMenuOverlayAction {
-  type: 'measured' | 'dismiss' | 'select';
+  type: 'measured' | 'viewport_changed' | 'dismiss' | 'select' | 'copy_selection' | 'share_selection' |
+    'search_selection' | 'select_all_text' |
+    'selection_drag_start' | 'selection_drag_update' | 'selection_drag_end';
   widthVp?: number;
   heightVp?: number;
   item?: WebLinkContextMenuItem;
+  handle?: 'start' | 'end';
+  offsetXVp?: number;
+  offsetYVp?: number;
 }
 
 export interface WebContextMenuViewportFacts {
@@ -85,6 +98,7 @@ export interface WebContextMenuViewportFacts {
   hostedWebLayerHeightVp: number;
   reusableGeometry?: BrowserWebLayerGeometrySnapshot;
   webViewportTopInsetVp: number;
+  webViewportBottomInsetVp?: number;
 }
 
 export interface WebContextMenuSessionFacts {
@@ -106,6 +120,9 @@ export type WebContextMenuEffectType =
   'open_private_tab' |
   'open_private_window' |
   'copy_link' |
+  'copy_link_text' |
+  'share_text' |
+  'search_text' |
   'share_link' |
   'add_bookmark' |
   'save_offline' |
@@ -120,6 +137,7 @@ export interface WebContextMenuEffect {
   title?: string;
   referer?: string;
   userAgent?: string;
+  text?: string;
 }
 
 interface WebContextMenuApplicationResult {
@@ -171,15 +189,17 @@ interface WebContextMenuMediaParam {
 const WEB_CONTEXT_MENU_MEDIA_TYPE_IMAGE: number = 1;
 
 const WEB_LINK_CONTEXT_MENU_ACTIONS: WebLinkContextMenuItem[] = [
-  { action: 'open', label: '', group: 'open' },
   { action: 'open_new_tab', label: '', group: 'open' },
   { action: 'open_background_tab', label: '', group: 'open' },
-  { action: 'open_private_tab', label: '', group: 'open' },
+  { action: 'open', label: '', group: 'open' },
   { action: 'copy_link', label: '', group: 'transfer' },
+  { action: 'copy_link_text', label: '', group: 'transfer' },
+  { action: 'select_link_text', label: '', group: 'transfer' },
   { action: 'share_link', label: '', group: 'transfer' },
   { action: 'add_bookmark', label: '', group: 'save' },
+  { action: 'download_link', label: '', group: 'save' },
   { action: 'save_offline', label: '', group: 'save' },
-  { action: 'download_link', label: '', group: 'save' }
+  { action: 'open_private_tab', label: '', group: 'privacy' }
 ];
 
 export class WebLinkContextMenuCoordinator {
@@ -190,9 +210,15 @@ export class WebLinkContextMenuCoordinator {
   private readonly resolveActionApplication: WebLinkContextMenuActionApplicationResolver;
   private readonly imageActionService: WebImageContextActionService = new WebImageContextActionService();
   private readonly overlayCoordinator: WebContextMenuOverlayCoordinator = new WebContextMenuOverlayCoordinator();
+  private readonly linkTextScriptService: WebLinkTextScriptService = new WebLinkTextScriptService();
   private readonly privateWindowPolicyService: BrowserPrivateWindowPolicyService =
     new BrowserPrivateWindowPolicyService();
   private presentation: WebContextMenuPresentation;
+  private presentationFacts?: WebContextMenuSessionFacts;
+  private menuController?: webview.WebviewController;
+  private textTargetSerial: number = 0;
+  private readonly textSelection: WebLinkTextSelectionCoordinator = new WebLinkTextSelectionCoordinator(
+    (selection: WebLinkTextSelectionPresentation | undefined): void => this.publishTextSelection(selection));
   private pendingResult?: PendingWebContextMenuResult;
   private pendingResultClosed: boolean = true;
 
@@ -217,12 +243,21 @@ export class WebLinkContextMenuCoordinator {
     return this.presentation.state.visible && this.presentation.state.tabId === tabId;
   }
 
+  handleActiveTabChanged(activeTabId: string): void {
+    if (this.presentation.state.visible && this.presentation.state.tabId !== activeTabId) this.dismiss();
+  }
+
+  handleDocumentBegin(tabId: string): void {
+    if (this.presentation.state.visible && this.presentation.state.tabId === tabId) this.dismiss();
+  }
+
   show(
     tabId: string,
     event: OnContextMenuShowEvent,
     controller: webview.WebviewController,
     facts: WebContextMenuSessionFacts
   ): boolean {
+    if (tabId !== facts.activeTabId) return false;
     if (tabId === facts.activeTabId && facts.showPageErrorSurface) {
       this.closeResult(event.result as object as PendingWebContextMenuResult);
       return this.applyShowResult(this.buildShowResult(true, []));
@@ -245,12 +280,19 @@ export class WebLinkContextMenuCoordinator {
       return this.applyShowResult(this.buildShowResult(false, []));
     }
     this.closePendingResultOnce();
+    this.textSelection.stop();
+    this.menuController = controller;
+    state.textTargetId = `${Date.now()}-${++this.textTargetSerial}`;
     this.pendingResult = event.result as object as PendingWebContextMenuResult;
     this.pendingResultClosed = false;
+    this.presentationFacts = facts;
     this.presentation = {
       state: state,
       layout: this.overlayCoordinator.buildInitialLayout(this.buildLayoutRequest(state, facts))
     };
+    if (state.kind === 'link') {
+      this.readLinkText(state, controller, facts);
+    }
     return this.applyShowResult(this.buildShowResult(true, []));
   }
 
@@ -262,14 +304,64 @@ export class WebLinkContextMenuCoordinator {
   }
 
   dismiss(): void {
+    this.textSelection.stop();
+    this.menuController = undefined;
     this.closePendingResultOnce();
+    this.presentationFacts = undefined;
     this.presentation = this.buildHiddenPresentation();
     this.applyResult(this.buildResult([]));
   }
 
   handleOverlayAction(action: WebContextMenuOverlayAction, facts: WebContextMenuSessionFacts): void {
+    this.handleActiveTabChanged(facts.activeTabId);
+    if (!this.presentation.state.visible) return;
+    if (this.presentation.state.visible) {
+      this.presentationFacts = facts;
+    }
+    if (action.type === 'viewport_changed') {
+      const state = this.presentation.state;
+      if (!state.visible) {
+        return;
+      }
+      if (state.selectingText === true) {
+        this.textSelection.updateViewport(this.resolveViewportGeometry(facts.viewport));
+        return;
+      }
+      const layout = this.overlayCoordinator.buildInitialLayout(this.buildLayoutRequest(state, facts));
+      if (!this.isLayoutEquivalent(this.presentation.layout, layout)) {
+        this.presentation = { state: state, layout: layout };
+        this.applyResult(this.buildResult([]));
+      }
+      return;
+    }
     if (action.type === 'dismiss') {
       this.dismiss();
+      return;
+    }
+    if (action.type === 'copy_selection' || action.type === 'share_selection' || action.type === 'search_selection') {
+      const state = this.presentation.state;
+      if (state.selectingText !== true) return;
+      const effectType: WebContextMenuEffectType = action.type === 'copy_selection' ? 'copy_link_text' :
+        action.type === 'share_selection' ? 'share_text' : 'search_text';
+      void this.textSelection.readText().then((text: string | undefined): void => {
+        if (text === undefined || this.presentation.state.selectingText !== true ||
+          this.presentation.state.textTargetId !== state.textTargetId) return;
+        this.dismiss();
+        this.resolveActionApplication().applyEffects([{
+          type: effectType, text: text, tabId: state.tabId, title: state.title
+        }]);
+      });
+      return;
+    }
+    if (action.type === 'select_all_text') {
+      this.textSelection.selectAll();
+      return;
+    }
+    if (action.type === 'selection_drag_start' || action.type === 'selection_drag_update' ||
+      action.type === 'selection_drag_end') {
+      this.textSelection.drag(action.handle ?? 'start',
+        action.type === 'selection_drag_start' ? 'start' : action.type === 'selection_drag_end' ? 'end' : 'update',
+        action.offsetXVp, action.offsetYVp);
       return;
     }
     if (action.type === 'measured') {
@@ -279,6 +371,28 @@ export class WebLinkContextMenuCoordinator {
     if (action.item !== undefined) {
       this.select(action.item, facts);
     }
+  }
+
+  handleTextSelectionSignal(tabId: string, payloadJson: string, facts?: WebContextMenuSessionFacts): void {
+    if (facts !== undefined) this.handleActiveTabChanged(facts.activeTabId);
+    if (this.presentation.state.selectingText === true && this.presentation.state.tabId === tabId) {
+      if (facts !== undefined) this.presentationFacts = facts;
+      this.textSelection.handleSignal(tabId, payloadJson,
+        facts === undefined ? undefined : this.resolveViewportGeometry(facts.viewport));
+    }
+  }
+
+  private publishTextSelection(selection: WebLinkTextSelectionPresentation | undefined): void {
+    const state = this.presentation.state;
+    if (!state.visible || state.selectingText !== true) return;
+    if (selection === undefined) { this.dismiss(); return; }
+    const next: WebLinkContextMenuState = {
+      visible: true, kind: state.kind, tabId: state.tabId, url: state.url, title: state.title,
+      x: state.x, y: state.y, items: state.items, selectingText: true, selection: selection,
+      textTargetId: state.textTargetId
+    };
+    this.presentation = { state: next, layout: this.presentation.layout };
+    this.applyResult(this.buildResult([]));
   }
 
   private measure(
@@ -313,7 +427,28 @@ export class WebLinkContextMenuCoordinator {
     facts: WebContextMenuSessionFacts
   ): void {
     const state = this.presentation.state;
+    if (!state.visible || !state.items.some((candidate: WebLinkContextMenuItem): boolean =>
+      candidate.action === item.action && candidate.scriptId === item.scriptId && candidate.commandId === item.commandId)) {
+      return;
+    }
     this.closePendingResultOnce();
+    if (item.action === 'select_link_text' && (state.linkText ?? '').length > 0) {
+      const selectionState: WebLinkContextMenuState = {
+        visible: state.visible, kind: state.kind, tabId: state.tabId, url: state.url,
+        title: state.title, referer: state.referer, userAgent: state.userAgent,
+        x: state.x, y: state.y, selectingText: true, items: state.items, textTargetId: state.textTargetId
+      };
+      this.presentation = {
+        state: selectionState,
+        layout: this.overlayCoordinator.buildInitialLayout(this.buildLayoutRequest(selectionState, facts))
+      };
+      this.applyResult(this.buildResult([]));
+      if (this.menuController !== undefined) {
+        this.textSelection.start(state.tabId, this.menuController, state.textTargetId ?? '',
+          this.resolveViewportGeometry(facts.viewport));
+      } else this.dismiss();
+      return;
+    }
     this.presentation = this.buildHiddenPresentation();
     if (state.url.length === 0) {
       this.applyResult(this.buildResult([{
@@ -351,6 +486,9 @@ export class WebLinkContextMenuCoordinator {
         return;
       case 'copy_link':
         this.applyResult(this.buildResult([{ type: 'copy_link', url: state.url }]));
+        return;
+      case 'copy_link_text':
+        this.applyResult(this.buildResult([{ type: 'copy_link_text', text: state.linkText }]));
         return;
       case 'share_link':
         this.applyResult(this.buildResult([{ type: 'share_link', title: state.title, url: state.url }]));
@@ -437,9 +575,48 @@ export class WebLinkContextMenuCoordinator {
       userAgent: request.userAgent,
       x: this.safeNumber(() => request.event.param.x()),
       y: this.safeNumber(() => request.event.param.y()),
-      items: this.cloneItems()
+      items: this.cloneItems(false)
         .concat(this.cloneExtraItems(request.extraItems ?? []))
     };
+  }
+
+  private readLinkText(
+    state: WebLinkContextMenuState,
+    controller: webview.WebviewController,
+    facts: WebContextMenuSessionFacts
+  ): void {
+    if (state.x < 0 || state.y < 0) {
+      return;
+    }
+    try {
+      const geometry = this.resolveViewportGeometry(facts.viewport);
+      const script = this.linkTextScriptService.buildReadScript(state.url, state.x, state.y, vp2px(geometry.webWidthVp),
+        state.textTargetId ?? '');
+      void controller.runJavaScript(script).then((result: string): void => {
+        // A slow response must never resurrect a dismissed menu or change a newer press.
+        if (this.presentation.state !== state || !state.visible || state.selectingText === true) {
+          return;
+        }
+        const text = this.linkTextScriptService.parseText(result);
+        if (text.length === 0) {
+          return;
+        }
+        const nextState: WebLinkContextMenuState = {
+          visible: state.visible, kind: state.kind, tabId: state.tabId, url: state.url,
+          title: state.title, referer: state.referer, userAgent: state.userAgent,
+          x: state.x, y: state.y, linkText: text, textTargetId: state.textTargetId,
+          items: this.cloneItems(true).concat(state.items.filter((item: WebLinkContextMenuItem): boolean =>
+            item.action === 'run_userscript'))
+        };
+        this.presentation = {
+          state: nextState,
+          layout: this.overlayCoordinator.buildInitialLayout(this.buildLayoutRequest(nextState,
+            this.presentationFacts ?? facts))
+        };
+        this.applyResult(this.buildResult([]));
+      }).catch((_error: Error): void => {});
+    } catch (_error) {
+    }
   }
 
   private buildHiddenPresentation(): WebContextMenuPresentation {
@@ -606,7 +783,7 @@ export class WebLinkContextMenuCoordinator {
       },
       geometry: this.resolveViewportGeometry(facts.viewport),
       itemCount: state.items.length,
-      dividerCount: this.resolveDividerCount(state.items, presentation),
+      dividerCount: this.resolveDividerCount(state.items),
       presentation: presentation
     };
   }
@@ -616,14 +793,10 @@ export class WebLinkContextMenuCoordinator {
   }
 
   private resolveDividerCount(
-    items: WebLinkContextMenuItem[],
-    presentation: WebContextMenuOverlayPresentation
+    items: WebLinkContextMenuItem[]
   ): number {
     if (items.length <= 1) {
       return 0;
-    }
-    if (presentation === 'touch') {
-      return items.length - 1;
     }
     let dividerCount = 0;
     for (let index = 1; index < items.length; index += 1) {
@@ -638,18 +811,25 @@ export class WebLinkContextMenuCoordinator {
     const reusableGeometry = facts.reusableGeometry;
     const measuredWidth = facts.hostedWebLayerMeasured && facts.hostedWebLayerWidthVp > 1;
     const measuredHeight = facts.hostedWebLayerMeasured && facts.hostedWebLayerHeightVp > 1;
+    const webTopVp = measuredHeight ? Math.max(0, facts.hostedWebLayerTopVp) :
+      (reusableGeometry === undefined ? facts.webViewportTopInsetVp : Math.max(0, reusableGeometry.webTop));
+    const webHeightVp = measuredHeight ? Math.max(1, facts.hostedWebLayerHeightVp) :
+      (reusableGeometry === undefined ? Math.max(1, facts.rootHeightVp - webTopVp) :
+        Math.max(1, reusableGeometry.webHeight));
+    const availableTopVp = Math.max(webTopVp, facts.webViewportTopInsetVp);
+    const availableBottomVp = Math.min(webTopVp + webHeightVp,
+      facts.rootHeightVp - Math.max(0, facts.webViewportBottomInsetVp ?? 0));
     return {
       rootWidthVp: facts.rootWidthVp,
       rootHeightVp: facts.rootHeightVp,
       webLeftVp: measuredWidth ? Math.max(0, facts.hostedWebLayerLeftVp) :
         (reusableGeometry === undefined ? 0 : Math.max(0, reusableGeometry.webLeft)),
-      webTopVp: measuredHeight ? Math.max(0, facts.hostedWebLayerTopVp) :
-        (reusableGeometry === undefined ? facts.webViewportTopInsetVp : Math.max(0, reusableGeometry.webTop)),
+      webTopVp: webTopVp,
       webWidthVp: measuredWidth ? Math.max(1, facts.hostedWebLayerWidthVp) :
         (reusableGeometry === undefined ? Math.max(1, facts.rootWidthVp) : Math.max(1, reusableGeometry.webWidth)),
-      webHeightVp: measuredHeight ? Math.max(1, facts.hostedWebLayerHeightVp) :
-        (reusableGeometry === undefined ? Math.max(1, facts.rootHeightVp - facts.webViewportTopInsetVp) :
-          Math.max(1, reusableGeometry.webHeight))
+      webHeightVp: webHeightVp,
+      availableTopVp: availableTopVp,
+      availableBottomVp: availableBottomVp
     };
   }
 
@@ -788,9 +968,11 @@ export class WebLinkContextMenuCoordinator {
     return url.trim().toLowerCase().indexOf('data:image/') === 0;
   }
 
-  private cloneItems(): WebLinkContextMenuItem[] {
+  private cloneItems(hasLinkText: boolean): WebLinkContextMenuItem[] {
     const privateOpenTarget = this.privateWindowPolicyService.resolveTarget();
     return WEB_LINK_CONTEXT_MENU_ACTIONS
+      .filter((item: WebLinkContextMenuItem): boolean => hasLinkText ||
+        (item.action !== 'copy_link_text' && item.action !== 'select_link_text'))
       .map((item: WebLinkContextMenuItem): WebLinkContextMenuItem => {
         return {
           action: item.action,
@@ -814,6 +996,10 @@ export class WebLinkContextMenuCoordinator {
         return resolveAppResourceText($r('app.string.history_open_background'));
       case 'copy_link':
         return resolveAppResourceText($r('app.string.offline_action_copy_link'));
+      case 'copy_link_text':
+        return resolveAppResourceText($r('app.string.context_menu_copy_link_text'));
+      case 'select_link_text':
+        return resolveAppResourceText($r('app.string.context_menu_select_link_text'));
       case 'share_link':
         return resolveAppResourceText($r('app.string.context_menu_share_link'));
       case 'add_bookmark':

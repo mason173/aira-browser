@@ -1,3 +1,4 @@
+import { WebLinkTextSelectionOverlay } from './WebLinkTextSelectionOverlay';
 import {
   WebContextMenuOverlayAction,
   WebLinkContextMenuItem,
@@ -70,16 +71,26 @@ export struct WebContextMenuOverlay {
 
   build() {
     Stack({ alignContent: Alignment.TopStart }) {
-      this.buildBackdrop()
-
-      if (this.resolveVisible()) {
-        this.buildMenuSurface()
+      if (this.state.selectingText === true) {
+        if (this.state.selection !== undefined) {
+          WebLinkTextSelectionOverlay({ selection: this.state.selection, onAction: this.onAction })
+        }
+      } else {
+        this.buildBackdrop()
+        if (this.resolveVisible()) {
+          this.buildMenuSurface()
+        }
       }
     }
     .width('100%')
     .height('100%')
     .zIndex(WEB_CONTEXT_MENU_Z_INDEX)
-    .hitTestBehavior(HitTestMode.Default)
+    .hitTestBehavior(this.state.selectingText === true ? HitTestMode.Transparent : HitTestMode.Default)
+    .onAreaChange((oldArea: Area, newArea: Area) => {
+      if (oldArea.width !== newArea.width || oldArea.height !== newArea.height) {
+        this.onAction({ type: 'viewport_changed' });
+      }
+    })
   }
 
   @Builder
@@ -111,12 +122,18 @@ export struct WebContextMenuOverlay {
           }, (item: WebLinkContextMenuItem) => this.buildMenuItemKey(item))
         }
         .width('100%')
+        .justifyContent(FlexAlign.Start)
       }
       .width('100%')
-      .constraintSize({ maxHeight: this.resolveMaxHeight() })
+      .height(this.resolveScrollHeight())
+      .align(Alignment.TopStart)
       .scrollBar(BarState.Auto)
+      .edgeEffect(EdgeEffect.None)
     }
     .width(this.resolveMenuWidth())
+    .height(this.resolveMenuHeight())
+    .constraintSize({ maxHeight: this.resolveMaxHeight() })
+    .justifyContent(FlexAlign.Start)
     .padding({
       left: this.resolveMenuHorizontalInset(),
       right: this.resolveMenuHorizontalInset(),
@@ -213,6 +230,14 @@ export struct WebContextMenuOverlay {
     return Math.max(1, this.layout.maxHeightVp);
   }
 
+  private resolveMenuHeight(): number {
+    return Math.max(1, Math.min(this.layout.menuHeightVp, this.resolveMaxHeight()));
+  }
+
+  private resolveScrollHeight(): number {
+    return Math.max(1, this.resolveMenuHeight() - BROWSER_DESKTOP_MENU_VERTICAL_INSET_VP * 2);
+  }
+
   private resolveBackdropBlurRadius(): number {
     return this.isLargeScreenMenu() ? 0 : WEB_CONTEXT_MENU_PHONE_BACKDROP_BLUR_RADIUS;
   }
@@ -282,9 +307,6 @@ export struct WebContextMenuOverlay {
     const items = this.resolveItems();
     if (index < 0 || index >= items.length - 1) {
       return false;
-    }
-    if (!this.isLargeScreenMenu()) {
-      return true;
     }
     return items[index].group !== items[index + 1].group;
   }

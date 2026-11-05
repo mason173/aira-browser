@@ -54,7 +54,7 @@ export struct BrowserTabsOverviewCloseAllHint {
     .height(CLOSE_ALL_HINT_HEIGHT)
     .position({
       x: this.resolveChromeLeft(),
-      y: this.resolveChromeTop() - CLOSE_ALL_HINT_HEIGHT - 8
+      y: this.resolveChromeTop() - CLOSE_ALL_HINT_HEIGHT
     })
     .opacity(0.56 * this.surfaceOpacity)
     .hitTestBehavior(HitTestMode.None)

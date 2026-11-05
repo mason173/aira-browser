@@ -5,6 +5,7 @@
   "description": "Tooling dependencies for the Aira static contract checks under scripts/. Not a build entry point: the HarmonyOS client is built with hvigor and ohpm.",
   "license": "UNLICENSED",
   "devDependencies": {
+    "jsdom": "26.1.0",
     "typescript": "^4.9.5"
   }
 }

@@ -87,6 +87,8 @@ NATIVE_NAV_REQUEST_TOKEN_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-native-na
 GEOLOCATION_PERMISSION_TEST="${REPO_ROOT}/scripts/check-aira-geolocation-permission.cjs"
 QUICK_SEARCH_CONTINUATION_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-quick-search-continuation.cjs"
 SELECTION_SEARCH_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-selection-search.cjs"
+INTERNATIONAL_DOMAIN_NAVIGATION_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-international-domain-navigation.cjs"
+WEB_CONTEXT_MENU_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-web-context-menu.cjs"
 SETTINGS_CATALOG_LOCALIZATION_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-settings-catalog-localization.cjs"
 CHANGELOG_LOCALIZATION_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-changelog-localization.cjs"
 APP_LANGUAGE_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-app-language.cjs"
@@ -488,6 +490,10 @@ node "${QUICK_SEARCH_CONTINUATION_GUARD_SCRIPT}" || \
   fail "Quick Search continuation guard failed: ${QUICK_SEARCH_CONTINUATION_GUARD_SCRIPT}"
 node "${SELECTION_SEARCH_GUARD_SCRIPT}" || \
   fail "Web selection search guard failed: ${SELECTION_SEARCH_GUARD_SCRIPT}"
+node "${INTERNATIONAL_DOMAIN_NAVIGATION_GUARD_SCRIPT}" || \
+  fail "International domain navigation guard failed: ${INTERNATIONAL_DOMAIN_NAVIGATION_GUARD_SCRIPT}"
+node "${WEB_CONTEXT_MENU_GUARD_SCRIPT}" || \
+  fail "Web context menu guard failed: ${WEB_CONTEXT_MENU_GUARD_SCRIPT}"
 
 if [ ! -f "${SETTINGS_CATALOG_LOCALIZATION_GUARD_SCRIPT}" ]; then
   fail "Settings catalog localization guard not found: ${SETTINGS_CATALOG_LOCALIZATION_GUARD_SCRIPT}"

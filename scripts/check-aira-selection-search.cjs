@@ -86,7 +86,7 @@ function fixture() {
   }
   return { coordinator, routing, menu: menuFor('tab-a'), menuFor, facts, opened, history, displayed, load,
     quickSearch, effects, setEngine: value => { selectedEngine = value; },
-    setGeneration: value => { generation = value; } };
+    setGeneration: value => { generation = value; }, getEngine: () => selectedEngine };
 }
 
 test('Search uses the engine selected at click time, including custom templates and encoded Unicode', () => {
@@ -114,6 +114,28 @@ test('URL-shaped selections remain search terms', () => {
   assert.equal(f.opened[0].url, `https://www.bing.com/search?q=${encodeURIComponent(query)}`);
   assert.equal(f.history[0].submission.intent, 'search');
   assert.equal(f.history[0].submission.searchQuery, query);
+});
+
+test('custom link selection searches through the same browser submission owner as the native menu', () => {
+  const f = fixture();
+  const { WebLinkContextMenuFixedActionApplication } = f.load('core/web/WebLinkContextMenuActionApplication.ets');
+  const application = new WebLinkContextMenuFixedActionApplication({ addressSubmissionCoordinator: f.coordinator }, {
+    readFacts: () => ({ activeTabId: f.facts.activeTabId, selectedSearchEngineId: f.getEngine() })
+  });
+  const query = 'https://example.test/鸿蒙?x=1&y=2';
+  for (const engine of engines) {
+    f.setEngine(engine.id);
+    application.applyEffects([{ type: 'search_text', tabId: 'tab-a', text: query }]);
+    assert.equal(f.opened.at(-1).url, engine.searchUrlTemplate.replace('%s', '{searchTerms}')
+      .replace('{searchTerms}', encodeURIComponent(query)));
+    assert.equal(f.opened.at(-1).intent, 'new_tab');
+    assert.equal(f.opened.at(-1).source, 'web_context_menu');
+    assert.equal(f.opened.at(-1).openerTabId, 'tab-a');
+    assert.equal(f.opened.at(-1).createOptions, f.facts.boundary);
+  }
+  f.facts.activeTabId = 'another';
+  application.applyEffects([{ type: 'search_text', tabId: 'tab-a', text: 'stale selection' }]);
+  assert.equal(f.opened.length, engines.length);
 });
 
 test('foreground results preserve the source tab, opener and profile/privacy boundary', () => {

@@ -27,6 +27,8 @@ export interface WebContextMenuViewportGeometry {
   webTopVp: number;
   webWidthVp: number;
   webHeightVp: number;
+  availableTopVp?: number;
+  availableBottomVp?: number;
 }
 
 export interface WebContextMenuMeasuredSize {
@@ -136,8 +138,12 @@ export class WebContextMenuOverlayCoordinator {
     const policy = this.createDefaultPolicy(request.presentation);
     const geometry = this.normalizeGeometry(request.geometry);
     const edgeInsetVp = this.clamp(policy.edgeInsetVp, 0, Math.max(0, Math.min(geometry.rootWidthVp, geometry.rootHeightVp) / 2));
+    const availableTopVp = Math.max(geometry.webTopVp, geometry.availableTopVp ?? 0) + edgeInsetVp;
+    const availableBottomVp = Math.max(availableTopVp + 1,
+      Math.min(geometry.rootHeightVp, geometry.webTopVp + geometry.webHeightVp,
+        geometry.availableBottomVp ?? geometry.rootHeightVp) - edgeInsetVp);
     const menuWidthVp = this.resolveMenuWidth(geometry.rootWidthVp, policy, measuredSize);
-    const maxHeightVp = Math.max(1, geometry.rootHeightVp - edgeInsetVp * 2);
+    const maxHeightVp = Math.max(1, availableBottomVp - availableTopVp);
     const menuHeightVp = Math.min(
       this.resolveMenuHeight(request.itemCount, request.dividerCount, policy, measuredSize),
       maxHeightVp
@@ -145,7 +151,8 @@ export class WebContextMenuOverlayCoordinator {
     const pressXVp = this.resolvePressX(request.point, geometry, edgeInsetVp);
     const pressYVp = this.resolvePressY(request.point, geometry, edgeInsetVp);
     const horizontal = this.resolveHorizontalPlacement(pressXVp, menuWidthVp, geometry.rootWidthVp, policy.pressGapVp, edgeInsetVp);
-    const vertical = this.resolveVerticalPlacement(pressYVp, menuHeightVp, geometry.rootHeightVp, policy.pressGapVp, edgeInsetVp);
+    const vertical = this.resolveVerticalPlacement(pressYVp, menuHeightVp, availableBottomVp,
+      policy.pressGapVp, availableTopVp);
     return {
       visible: true,
       pressXVp: pressXVp,
@@ -171,7 +178,9 @@ export class WebContextMenuOverlayCoordinator {
       webLeftVp: webLeftVp,
       webTopVp: webTopVp,
       webWidthVp: this.clamp(this.positive(geometry.webWidthVp), 1, Math.max(1, rootWidthVp - webLeftVp)),
-      webHeightVp: this.clamp(this.positive(geometry.webHeightVp), 1, Math.max(1, rootHeightVp - webTopVp))
+      webHeightVp: this.clamp(this.positive(geometry.webHeightVp), 1, Math.max(1, rootHeightVp - webTopVp)),
+      availableTopVp: this.clamp(this.nonNegative(geometry.availableTopVp ?? 0), 0, rootHeightVp),
+      availableBottomVp: this.clamp(this.positive(geometry.availableBottomVp ?? rootHeightVp), 1, rootHeightVp)
     };
   }
 
@@ -242,19 +251,20 @@ export class WebContextMenuOverlayCoordinator {
   private resolveVerticalPlacement(
     pressYVp: number,
     menuHeightVp: number,
-    rootHeightVp: number,
+    availableBottomVp: number,
     pressGapVp: number,
-    edgeInsetVp: number
+    availableTopVp: number
   ): WebContextMenuVerticalPlacement {
-    if (pressYVp + pressGapVp + menuHeightVp <= rootHeightVp - edgeInsetVp) {
+    const maxTopVp = Math.max(availableTopVp, availableBottomVp - menuHeightVp);
+    if (pressYVp + pressGapVp + menuHeightVp <= availableBottomVp) {
       return {
         side: 'bottom',
-        positionVp: this.clamp(pressYVp + pressGapVp, edgeInsetVp, Math.max(edgeInsetVp, rootHeightVp - edgeInsetVp - menuHeightVp))
+        positionVp: this.clamp(pressYVp + pressGapVp, availableTopVp, maxTopVp)
       };
     }
     return {
       side: 'top',
-      positionVp: this.clamp(pressYVp - pressGapVp - menuHeightVp, edgeInsetVp, Math.max(edgeInsetVp, rootHeightVp - edgeInsetVp - menuHeightVp))
+      positionVp: this.clamp(pressYVp - pressGapVp - menuHeightVp, availableTopVp, maxTopVp)
     };
   }
 
