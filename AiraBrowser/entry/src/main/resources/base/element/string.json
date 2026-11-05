@@ -1,6 +1,22 @@
 {
   "string": [
     {
+      "name": "settings_privacy_web_audio",
+      "value": "网页声音"
+    },
+    {
+      "name": "settings_privacy_auto_mute",
+      "value": "自动静音"
+    },
+    {
+      "name": "settings_privacy_auto_mute_note",
+      "value": "开启后，在隐私模式下打开的网页默认静音；按音量键可恢复当前网页声音。"
+    },
+    {
+      "name": "settings_privacy_auto_mute_failed",
+      "value": "自动静音设置更新失败。"
+    },
+    {
       "name": "bookmark_sort_order",
       "value": "排序方式"
     },

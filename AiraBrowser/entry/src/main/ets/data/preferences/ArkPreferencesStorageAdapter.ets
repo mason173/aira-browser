@@ -538,6 +538,9 @@ export class ArkPreferencesStorageAdapter implements PreferencesStorageAdapter {
         alwaysUsePrivateMode: typeof parsed.alwaysUsePrivateMode === 'boolean'
           ? parsed.alwaysUsePrivateMode
           : defaultValue.alwaysUsePrivateMode,
+        privateModeAutoMuteEnabled: typeof parsed.privateModeAutoMuteEnabled === 'boolean'
+          ? parsed.privateModeAutoMuteEnabled
+          : defaultValue.privateModeAutoMuteEnabled,
         privateModePreserveCookiesOnClose: typeof parsed.privateModePreserveCookiesOnClose === 'boolean'
           ? parsed.privateModePreserveCookiesOnClose
           : defaultValue.privateModePreserveCookiesOnClose,

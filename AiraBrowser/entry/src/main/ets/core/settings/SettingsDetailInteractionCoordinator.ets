@@ -35,6 +35,7 @@ export interface SettingsDetailInteractionHandlers {
   applyAppServiceMode(mode: BrowserAppServiceMode): void;
   applyPrivateModeAuthenticationEnabled(enabled: boolean): void;
   applyAlwaysUsePrivateModeEnabled(enabled: boolean): void;
+  applyPrivateModeAutoMuteEnabled(enabled: boolean): void;
   applyPrivateModePreserveCookiesOnClose(enabled: boolean): void;
   applyAllowUserScriptsInPrivateMode(enabled: boolean): void;
   applyAppearanceSettings(settings: BrowserAppearanceSettings): void;
@@ -60,6 +61,7 @@ export class SettingsDetailInteractionCallbackHandlers implements SettingsDetail
   private applyAppServiceModeHandler: (mode: BrowserAppServiceMode) => void;
   private applyPrivateModeAuthenticationEnabledHandler: (enabled: boolean) => void;
   private applyAlwaysUsePrivateModeEnabledHandler: (enabled: boolean) => void;
+  private applyPrivateModeAutoMuteEnabledHandler: (enabled: boolean) => void;
   private applyPrivateModePreserveCookiesOnCloseHandler: (enabled: boolean) => void;
   private applyAllowUserScriptsInPrivateModeHandler: (enabled: boolean) => void;
   private applyAppearanceSettingsHandler: (settings: BrowserAppearanceSettings) => void;
@@ -87,6 +89,7 @@ export class SettingsDetailInteractionCallbackHandlers implements SettingsDetail
     applyAppServiceModeHandler: (mode: BrowserAppServiceMode) => void,
     applyPrivateModeAuthenticationEnabledHandler: (enabled: boolean) => void,
     applyAlwaysUsePrivateModeEnabledHandler: (enabled: boolean) => void,
+    applyPrivateModeAutoMuteEnabledHandler: (enabled: boolean) => void,
     applyPrivateModePreserveCookiesOnCloseHandler: (enabled: boolean) => void,
     applyAllowUserScriptsInPrivateModeHandler: (enabled: boolean) => void,
     applyAppearanceSettingsHandler: (settings: BrowserAppearanceSettings) => void,
@@ -113,6 +116,7 @@ export class SettingsDetailInteractionCallbackHandlers implements SettingsDetail
     this.applyAppServiceModeHandler = applyAppServiceModeHandler;
     this.applyPrivateModeAuthenticationEnabledHandler = applyPrivateModeAuthenticationEnabledHandler;
     this.applyAlwaysUsePrivateModeEnabledHandler = applyAlwaysUsePrivateModeEnabledHandler;
+    this.applyPrivateModeAutoMuteEnabledHandler = applyPrivateModeAutoMuteEnabledHandler;
     this.applyPrivateModePreserveCookiesOnCloseHandler = applyPrivateModePreserveCookiesOnCloseHandler;
     this.applyAllowUserScriptsInPrivateModeHandler = applyAllowUserScriptsInPrivateModeHandler;
     this.applyAppearanceSettingsHandler = applyAppearanceSettingsHandler;
@@ -158,6 +162,10 @@ export class SettingsDetailInteractionCallbackHandlers implements SettingsDetail
 
   applyAlwaysUsePrivateModeEnabled(enabled: boolean): void {
     this.applyAlwaysUsePrivateModeEnabledHandler(enabled);
+  }
+
+  applyPrivateModeAutoMuteEnabled(enabled: boolean): void {
+    this.applyPrivateModeAutoMuteEnabledHandler(enabled);
   }
 
   applyPrivateModePreserveCookiesOnClose(enabled: boolean): void {
@@ -259,6 +267,25 @@ export class SettingsDetailInteractionCoordinator {
     }
   }
 
+  async commitPrivateModeAutoMuteEnabled(
+    boundaryInput: BrowserDataBoundaryInput,
+    enabled: boolean
+  ): Promise<BrowserGeneralSettings> {
+    const current = this.preferencesRepository.getPreferences().general;
+    return this.commitGeneralSettings(boundaryInput, {
+      startupRestorePolicy: current.startupRestorePolicy,
+      tabAutoClosePolicy: current.tabAutoClosePolicy,
+      privateTabRestorePolicy: current.privateTabRestorePolicy,
+      privateModeAuthenticationEnabled: current.privateModeAuthenticationEnabled,
+      alwaysUsePrivateMode: current.alwaysUsePrivateMode,
+      privateModeAutoMuteEnabled: enabled,
+      privateModePreserveCookiesOnClose: current.privateModePreserveCookiesOnClose,
+      privateModeThemeEnabled: current.privateModeThemeEnabled,
+      enhancedTrackingProtectionEnabled: current.enhancedTrackingProtectionEnabled,
+      allowUserScriptsInPrivateMode: current.allowUserScriptsInPrivateMode
+    });
+  }
+
   handleRowAction(
     row: SettingsDetailRowState,
     nextChecked: boolean | undefined,
@@ -292,6 +319,10 @@ export class SettingsDetailInteractionCoordinator {
     }
     if (row.action === 'toggle_always_use_private_mode') {
       handlers.applyAlwaysUsePrivateModeEnabled(targetChecked);
+      return;
+    }
+    if (row.action === 'toggle_private_mode_auto_mute') {
+      handlers.applyPrivateModeAutoMuteEnabled(targetChecked);
       return;
     }
     if (row.action === 'toggle_private_mode_preserve_cookies_on_close') {

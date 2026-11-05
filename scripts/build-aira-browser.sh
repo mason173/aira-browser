@@ -73,6 +73,7 @@ TAB_SWIPE_COVER_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-tab-swipe-cover.cj
 TAB_PREVIEW_IMAGE_LEASE_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-tab-preview-image-lease.cjs"
 TAB_PREVIEW_LIFECYCLE_SNAPSHOT_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-tab-preview-lifecycle-snapshot.cjs"
 PRIVATE_TAB_SESSION_RESTORE_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-private-tab-session-restore.cjs"
+PRIVATE_MODE_AUDIO_TEST="${REPO_ROOT}/scripts/check-aira-private-mode-audio.cjs"
 CLOSED_TAB_SESSION_RESTORE_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-closed-tab-session-restore.cjs"
 HOME_FORWARD_RETURN_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-home-forward-return.cjs"
 REGULAR_SESSION_COOKIE_RESTORE_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-regular-session-cookie-restore.cjs"
@@ -430,6 +431,7 @@ for swipe_guard in \
   "${TAB_PREVIEW_IMAGE_LEASE_GUARD_SCRIPT}" \
   "${TAB_PREVIEW_LIFECYCLE_SNAPSHOT_GUARD_SCRIPT}" \
   "${PRIVATE_TAB_SESSION_RESTORE_GUARD_SCRIPT}" \
+  "${PRIVATE_MODE_AUDIO_TEST}" \
   "${CLOSED_TAB_SESSION_RESTORE_GUARD_SCRIPT}" \
   "${HOME_FORWARD_RETURN_GUARD_SCRIPT}" \
   "${TABS_STACK_GUARD_SCRIPT}" \

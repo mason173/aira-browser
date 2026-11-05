@@ -1,6 +1,22 @@
 {
   "string": [
     {
+      "name": "settings_privacy_web_audio",
+      "value": "Webpage audio"
+    },
+    {
+      "name": "settings_privacy_auto_mute",
+      "value": "Automatically mute audio"
+    },
+    {
+      "name": "settings_privacy_auto_mute_note",
+      "value": "When enabled, private webpages start muted. Use the volume keys to turn sound back on for the current page."
+    },
+    {
+      "name": "settings_privacy_auto_mute_failed",
+      "value": "Could not update automatic muting."
+    },
+    {
       "name": "bookmark_sort_order",
       "value": "Sort by"
     },

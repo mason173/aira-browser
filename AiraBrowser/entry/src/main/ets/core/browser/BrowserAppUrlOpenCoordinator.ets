@@ -463,18 +463,19 @@ export class BrowserAppUrlOpenCoordinator {
   }
 
   private isActiveTabSameBoundary(plan: BrowserAppUrlOpenPlan, activeTab: BrowserTabState): boolean {
-    if (plan.profileId === undefined && plan.privacyMode === undefined && plan.dataScope === undefined) {
-      return true;
-    }
     const sourceBoundary = this.profileBoundaryService.buildBoundaryInput(
       activeTab.profileId,
       activeTab.privacyMode,
       activeTab.dataScope
     );
+    // Home links inherit the visible home's boundary even when their request
+    // carries no explicit profile fields. The retained active tab can still be
+    // an ordinary home tab from before the user entered private mode.
+    const targetOptions = this.resolveCreateOptions(plan);
     const target = this.profileBoundaryService.buildBoundary({
-      profileId: plan.profileId,
-      privacyMode: plan.privacyMode,
-      dataScope: plan.dataScope
+      profileId: targetOptions.profileId,
+      privacyMode: targetOptions.privacyMode,
+      dataScope: targetOptions.dataScope
     });
     const targetBoundary = this.profileBoundaryService.buildBoundaryInput(
       target.profileId,

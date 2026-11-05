@@ -7,6 +7,10 @@ export function localizePrivacyModeSettingsCopy(value: ResourceStr): ResourceStr
       return $r('app.string.settings_privacy_authenticate');
     case '始终保持隐私模式':
       return $r('app.string.settings_always_private_title');
+    case '自动静音':
+      return $r('app.string.settings_privacy_auto_mute');
+    case '开启后，在隐私模式下打开的网页默认静音；按音量键可恢复当前网页声音。':
+      return $r('app.string.settings_privacy_auto_mute_note');
     case '隐私模式保留 Cookie':
       return $r('app.string.settings_privacy_keep_cookies');
     case '模糊私密标签页预览':

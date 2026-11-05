@@ -24,6 +24,7 @@ export interface SettingsGeneralState {
   privateBrowsingLabel: string;
   privateModeAuthenticationEnabled: boolean;
   alwaysUsePrivateMode: boolean;
+  privateModeAutoMuteEnabled: boolean;
   privateModePreserveCookiesOnClose: boolean;
   enhancedTrackingProtectionEnabled: boolean;
   allowUserScriptsInPrivateMode: boolean;
@@ -53,6 +54,7 @@ export class SettingsGeneralCoordinator {
       privateBrowsingLabel: this.resolvePrivateBrowsingLabel(preferences),
       privateModeAuthenticationEnabled: preferences.general.privateModeAuthenticationEnabled,
       alwaysUsePrivateMode: preferences.general.alwaysUsePrivateMode === true,
+      privateModeAutoMuteEnabled: preferences.general.privateModeAutoMuteEnabled === true,
       privateModePreserveCookiesOnClose: preferences.general.privateModePreserveCookiesOnClose,
       enhancedTrackingProtectionEnabled: preferences.general.enhancedTrackingProtectionEnabled === true,
       allowUserScriptsInPrivateMode: preferences.general.allowUserScriptsInPrivateMode !== false

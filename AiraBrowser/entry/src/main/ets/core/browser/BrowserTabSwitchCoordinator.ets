@@ -37,6 +37,7 @@ import { BrowserRuntimeMutationPort } from '../../services/web/BrowserRuntimeLif
 import { ElementInspectionSessionCoordinator } from './ElementInspectionSessionCoordinator';
 import { browserNativeTabSceneService } from './BrowserNativeTabSceneService';
 import { sharedBrowserContinuationCoordinator } from './BrowserContinuationCoordinator';
+import { BrowserProfileBoundaryService } from './BrowserProfileBoundaryService';
 
 interface BrowserTabPageMediaSignal {
   isMediaPlaying?: boolean;
@@ -132,6 +133,8 @@ export class BrowserTabSwitchCoordinator {
   private readonly transitionCoordinator: BrowserTabTransitionCoordinator = new BrowserTabTransitionCoordinator();
   private webAudioPlayingByTabId: Record<string, boolean> = {};
   private pageMediaPlayingByTabId: Record<string, boolean> = {};
+  private automaticAudioMuteByTabId: Record<string, boolean | undefined> = {};
+  private readonly audioProfileBoundaryService: BrowserProfileBoundaryService = new BrowserProfileBoundaryService();
 
   constructor(tabManager: BrowserTabManagerPort, dependencies: BrowserTabSwitchDependencies) {
     this.tabManager = tabManager;
@@ -300,15 +303,53 @@ export class BrowserTabSwitchCoordinator {
    * runtime. Mute is session-only state, so tab records are not re-persisted.
    */
   setTabMuted(tabId: string, muted: boolean): void {
+    this.automaticAudioMuteByTabId[tabId] = false;
+    this.applyTabAudioMuted(tabId, muted);
+  }
+
+  unmuteActiveAutomaticallyMutedTab(): void {
+    const facts = this.dependencies.sink.resolveFacts();
+    const tab = this.tabManager.getTab(facts.tabs, facts.activeTabId);
+    if (tab === undefined || !tab.muted || this.automaticAudioMuteByTabId[tab.id] !== true) {
+      return;
+    }
+    this.setTabMuted(tab.id, false);
+  }
+
+  /** Apply the private-page default before playback, and restore it on runtime reattachment. */
+  applyTabAudioPolicy(tabId: string, privateModeAutoMuteEnabled: boolean, newDocument: boolean = false): void {
+    const tab = this.resolveTabSnapshot(tabId);
+    if (tab === undefined) {
+      return;
+    }
+    if (newDocument || this.automaticAudioMuteByTabId[tabId] === undefined) {
+      const manuallyMuted = tab.muted && this.automaticAudioMuteByTabId[tabId] !== true;
+      const privateTab = this.audioProfileBoundaryService.isSessionEphemeral({
+        profileId: tab.profileId,
+        privacyMode: tab.privacyMode,
+        dataScope: tab.dataScope,
+        sessionId: tab.id
+      });
+      const automaticallyMuted = !manuallyMuted && privateTab && privateModeAutoMuteEnabled;
+      this.automaticAudioMuteByTabId[tabId] = automaticallyMuted;
+      this.applyTabAudioMuted(tabId, manuallyMuted || automaticallyMuted);
+      return;
+    }
+    this.dependencies.resolveWebTabsController().setTabAudioMuted(tabId, tab.muted);
+  }
+
+  private applyTabAudioMuted(tabId: string, muted: boolean): void {
     const facts = this.dependencies.sink.resolveFacts();
     const currentTab = this.tabManager.getTab(facts.tabs, tabId);
     if (currentTab === undefined) {
       return;
     }
-    this.applyTabPatch(tabId, { muted: muted, lastActiveAt: currentTab.lastActiveAt }, {
-      persistTabs: false,
-      refreshRuntimeTabIds: []
-    });
+    if (currentTab.muted !== muted) {
+      this.applyTabPatch(tabId, { muted: muted, lastActiveAt: currentTab.lastActiveAt }, {
+        persistTabs: false,
+        refreshRuntimeTabIds: []
+      });
+    }
     this.dependencies.resolveWebTabsController().setTabAudioMuted(tabId, muted);
   }
 

@@ -45,6 +45,28 @@ function methods(relative, className, names, globals = {}) {
   }).join('\n')} }`, globals)[className];
 }
 const { BrowserHomeForwardReturnState } = evaluate(source('core/browser/BrowserHomeForwardReturnState.ets'));
+const { BrowserProfileBoundaryService } = evaluate(source('core/browser/BrowserProfileBoundaryService.ets'));
+const AppOpen = methods('core/browser/BrowserAppUrlOpenCoordinator.ets', 'BrowserAppUrlOpenCoordinator', [
+  'profileBoundaryService', 'shouldCreateForegroundTabForCurrentRequest', 'shouldPromoteHomeSurfaceRequest',
+  'isActiveTabSameBoundary', 'resolveActiveTab', 'resolveCreateOptions', 'resolveFallbackCreateOptions',
+  'resolveSourceLinkedCreateOptions', 'copyCreateOptions'
+], { BrowserProfileBoundaryService });
+
+function homeLinkNavigation(homeOptions, activeTab, visible = true) {
+  const appOpen = new AppOpen();
+  appOpen.host = {
+    isHomeSurfaceVisible: () => visible,
+    resolveForegroundTabCreationState: () => ({ tabs: [activeTab], activeTabId: activeTab.id })
+  };
+  appOpen.dependencies = {
+    tabScopedEventContextCoordinator: {
+      buildCreateOptions: id => id === '' ? homeOptions : {
+        profileId: activeTab.profileId, privacyMode: activeTab.privacyMode, dataScope: activeTab.dataScope
+      }
+    }
+  };
+  return appOpen;
+}
 function tab(id, extra = {}) {
   return {
     id, url: `https://${id}.example.test`, title: id, isHome: false,
@@ -126,7 +148,7 @@ function harness() {
     dependencies: { tabHomeCoordinator: home, webHistoryCommandRuntimeCoordinator: history }
   });
   const Close = methods('core/browser/BrowserTabCloseCoordinator.ets', 'BrowserTabCloseCoordinator', [
-    'recordRecentlyClosedTabForAction', 'closeCurrentTabForUserReturnHome', 'findTabById'
+    'recordRecentlyClosedTabForAction', 'closeCurrentTabForUserReturnHome', 'findTabById', 'buildHomeOptionsFromClosedTab'
   ]);
   const closeHost = {
     readState: () => state, restoreHomeBottomPanelForDirectHomeNavigation() {}, setHelperMessage() {}
@@ -159,7 +181,8 @@ function harness() {
     async closeToHome() {
       await close.closeCurrentTabForUserReturnHome({
         activeTab: state.tabs.find(tab => tab.id === state.activeTabId), helperMessage: '',
-        homeOptions: {}, shouldPlayDirectHomeReveal: false
+        homeOptions: close.buildHomeOptionsFromClosedTab(state.tabs.find(tab => tab.id === state.activeTabId)),
+        shouldPlayDirectHomeReveal: false
       });
     },
     openHome() {
@@ -251,6 +274,44 @@ test('ordinary Web Forward still uses Web history', () => {
   const h = harness();
   h.forward();
   assert.equal(h.webForwards, 1);
+});
+
+test('private home -> shortcut -> page -> return keeps the private browsing boundary', async () => {
+  const h = harness();
+  const privateHome = { profileId: 'profile-main', privacyMode: 'private', dataScope: 'session_ephemeral' };
+  h.state.tabs = [tab('bootstrap-home', { isHome: true })];
+  h.state.activeTabId = 'bootstrap-home';
+  h.home.showHomeSurface('', privateHome, false, false);
+  const navigation = homeLinkNavigation(privateHome, h.state.tabs[0]);
+  const plan = { source: 'home_shortcut', openerTabId: 'bootstrap-home' };
+  assert.equal(navigation.shouldCreateForegroundTabForCurrentRequest(plan), true,
+    'a private homepage must not navigate its retained ordinary home tab');
+  const pageOptions = navigation.resolveCreateOptions(plan);
+  assert.equal(pageOptions.privacyMode, 'private');
+  assert.equal(pageOptions.dataScope, 'session_ephemeral');
+  h.state.tabs.push(tab('private-page', pageOptions));
+  h.state.activeTabId = 'private-page';
+  h.state.showHomePage = false;
+  await h.closeToHome();
+  assert.equal(h.state.showHomePage, true);
+  assert.equal(h.state.currentPrivacyMode, 'private');
+  assert.equal(h.state.currentDataScope, 'session_ephemeral');
+});
+
+test('regular home never reuses a retained private home tab for a shortcut', () => {
+  const regularHome = { profileId: 'profile-main', privacyMode: 'regular', dataScope: 'profile_persistent' };
+  const retained = tab('private-home', { isHome: true, privacyMode: 'private', dataScope: 'session_ephemeral' });
+  const navigation = homeLinkNavigation(regularHome, retained);
+  assert.equal(navigation.shouldCreateForegroundTabForCurrentRequest({ source: 'home_shortcut', openerTabId: '' }), true);
+});
+
+test('ordinary home and in-page links keep reusing a tab in the same browsing boundary', () => {
+  const regularHome = { profileId: 'profile-main', privacyMode: 'regular', dataScope: 'profile_persistent' };
+  const retained = tab('regular-home', { isHome: true });
+  for (const homeVisible of [true, false]) {
+    const navigation = homeLinkNavigation(regularHome, retained, homeVisible);
+    assert.equal(navigation.shouldCreateForegroundTabForCurrentRequest({ source: 'home_shortcut', openerTabId: '' }), false);
+  }
 });
 
 

@@ -14,6 +14,10 @@ export function localizeSettingsCopy(value: ResourceStr): ResourceStr {
     return value;
   }
   switch (value) {
+    case '自动静音':
+      return $r('app.string.settings_privacy_auto_mute');
+    case '网页声音':
+      return $r('app.string.settings_privacy_web_audio');
     case '关闭设置':
       return $r('app.string.settings_close');
     case '图标管理服务暂不可用。':

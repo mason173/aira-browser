@@ -154,6 +154,10 @@ export function localizeSettingsCatalogCopy(value: ResourceStr): ResourceStr {
       return $r('app.string.settings_about_rate');
     case '始终保持隐私模式':
       return $r('app.string.settings_always_private_title');
+    case '自动静音':
+      return $r('app.string.settings_privacy_auto_mute');
+    case '网页声音':
+      return $r('app.string.settings_privacy_web_audio');
     case '始终显示':
       return $r('app.string.toolbar_settings_scroll_fixed');
     case '始终顶部沉浸':

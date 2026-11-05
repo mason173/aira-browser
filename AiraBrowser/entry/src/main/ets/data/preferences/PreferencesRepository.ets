@@ -248,6 +248,7 @@ export const DEFAULT_BROWSER_GENERAL_SETTINGS: BrowserGeneralSettings = {
   privateTabRestorePolicy: 'never_restore',
   privateModeAuthenticationEnabled: false,
   alwaysUsePrivateMode: false,
+  privateModeAutoMuteEnabled: false,
   privateModePreserveCookiesOnClose: false,
   privateModeThemeEnabled: true,
   enhancedTrackingProtectionEnabled: false,
@@ -1012,6 +1013,7 @@ export class PreferencesRepository {
       privateTabRestorePolicy: settings.privateTabRestorePolicy,
       privateModeAuthenticationEnabled: settings.privateModeAuthenticationEnabled,
       alwaysUsePrivateMode: settings.alwaysUsePrivateMode ?? current.alwaysUsePrivateMode,
+      privateModeAutoMuteEnabled: settings.privateModeAutoMuteEnabled ?? current.privateModeAutoMuteEnabled,
       privateModePreserveCookiesOnClose: settings.privateModePreserveCookiesOnClose,
       privateModeThemeEnabled: settings.privateModeThemeEnabled,
       enhancedTrackingProtectionEnabled: settings.enhancedTrackingProtectionEnabled ??
@@ -1020,8 +1022,8 @@ export class PreferencesRepository {
         current.allowUserScriptsInPrivateMode
     };
     const normalizedGeneralSettings = this.normalizeGeneralSettings(next);
-    this.mergeCachedPreferences({ general: normalizedGeneralSettings });
     await this.storageAdapter.writeGeneralSettings(normalizedGeneralSettings);
+    this.mergeCachedPreferences({ general: normalizedGeneralSettings });
     this.notifyChanged('general', origin);
     return this.cachedPreferences;
   }
@@ -1327,6 +1329,9 @@ export class PreferencesRepository {
       alwaysUsePrivateMode: typeof settings?.alwaysUsePrivateMode === 'boolean'
         ? settings.alwaysUsePrivateMode
         : DEFAULT_BROWSER_GENERAL_SETTINGS.alwaysUsePrivateMode,
+      privateModeAutoMuteEnabled: typeof settings?.privateModeAutoMuteEnabled === 'boolean'
+        ? settings.privateModeAutoMuteEnabled
+        : DEFAULT_BROWSER_GENERAL_SETTINGS.privateModeAutoMuteEnabled,
       privateModePreserveCookiesOnClose: typeof settings?.privateModePreserveCookiesOnClose === 'boolean'
         ? settings.privateModePreserveCookiesOnClose
         : DEFAULT_BROWSER_GENERAL_SETTINGS.privateModePreserveCookiesOnClose,

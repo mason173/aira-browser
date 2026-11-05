@@ -111,6 +111,7 @@ export type SettingsDetailRowAction =
   'toggle_force_dark_web_content' |
   'toggle_private_mode_authentication' |
   'toggle_always_use_private_mode' |
+  'toggle_private_mode_auto_mute' |
   'toggle_private_mode_preserve_cookies_on_close' |
   'toggle_allow_user_scripts_in_private_mode' |
   'toggle_blur_private_tab_previews' |
@@ -193,6 +194,7 @@ export interface SettingsGeneralDisplayState {
   privateBrowsingLabel: string;
   privateModeAuthenticationEnabled: boolean;
   alwaysUsePrivateMode: boolean;
+  privateModeAutoMuteEnabled: boolean;
   privateModePreserveCookiesOnClose: boolean;
   enhancedTrackingProtectionEnabled: boolean;
   allowUserScriptsInPrivateMode: boolean;
@@ -304,6 +306,7 @@ export class SettingsDetailViewModel {
       privateBrowsingLabel: '关闭后不恢复',
       privateModeAuthenticationEnabled: false,
       alwaysUsePrivateMode: false,
+      privateModeAutoMuteEnabled: false,
       privateModePreserveCookiesOnClose: false,
       enhancedTrackingProtectionEnabled: false,
       allowUserScriptsInPrivateMode: true
@@ -835,6 +838,21 @@ export class SettingsDetailViewModel {
             )
           ],
           footerText: '控制如何进入隐私模式，不改变普通模式的防跟踪设置。'
+        },
+        {
+          id: 'private_audio',
+          title: $r('app.string.settings_privacy_web_audio'),
+          rows: [
+            this.switchRow(
+              'private_auto_mute',
+              '自动静音',
+              '',
+              'toggle_private_mode_auto_mute',
+              general.privateModeAutoMuteEnabled,
+              canEditDevicePreferences
+            )
+          ],
+          footerText: '开启后，在隐私模式下打开的网页默认静音；按音量键可恢复当前网页声音。'
         },
         {
           id: 'private_data',

@@ -318,6 +318,8 @@ const PRIVACY_TARGETS: SettingsDestinationCatalogTarget[] = [
     '隐私模式 / 进入方式', 'row', 'private_authentication', '', ['隐私身份验证']),
   target('always_use_private_mode', 'private_mode', 'private_mode', '始终保持隐私模式',
     '隐私模式 / 进入方式', 'row', 'always_use_private_mode', '', ['始终隐私模式']),
+  target('private_auto_mute', 'private_mode', 'private_mode', '自动静音',
+    '隐私模式 / 网页声音', 'row', 'private_auto_mute'),
   target('private_preserve_cookies', 'private_mode', 'private_mode', '隐私模式保留 Cookie',
     '隐私模式 / 数据与预览', 'row', 'private_preserve_cookies', '', ['私密 Cookie']),
   target('blur_private_tab_previews', 'private_mode', 'private_mode', '模糊私密标签页预览',

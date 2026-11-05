@@ -37,6 +37,7 @@ export interface SettingsDetailStateBuildInput {
   tabletInterfaceModeLabel?: string;
   secureDnsSummaryLabel: string;
   adBlockEnabled: boolean;
+  privateModeAutoMuteEnabledOverride?: boolean;
 }
 
 export interface SettingsDetailStateBuildResult {
@@ -94,6 +95,7 @@ export class SettingsDetailStateBuilder {
         privateBrowsingLabel: generalState.privateBrowsingLabel,
         privateModeAuthenticationEnabled: generalState.privateModeAuthenticationEnabled,
         alwaysUsePrivateMode: generalState.alwaysUsePrivateMode,
+        privateModeAutoMuteEnabled: input.privateModeAutoMuteEnabledOverride ?? generalState.privateModeAutoMuteEnabled,
         privateModePreserveCookiesOnClose: generalState.privateModePreserveCookiesOnClose,
         enhancedTrackingProtectionEnabled: generalState.enhancedTrackingProtectionEnabled,
         allowUserScriptsInPrivateMode: generalState.allowUserScriptsInPrivateMode

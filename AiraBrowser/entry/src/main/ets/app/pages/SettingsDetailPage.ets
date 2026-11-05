@@ -486,7 +486,8 @@ struct SettingsDetailPage {
       tabletInterfaceModeVisible: tabletInterfaceModeState.visible,
       tabletInterfaceModeLabel: tabletInterfaceModeState.selectedLabel,
       secureDnsSummaryLabel: sharedSecureDnsSettingsCoordinator.getSummaryLabel(),
-      adBlockEnabled: sharedAdBlockRepository.getSettings().preferences.enabled
+      adBlockEnabled: sharedAdBlockRepository.getSettings().preferences.enabled,
+      privateModeAutoMuteEnabledOverride: this.privateModeAutoMuteEnabledOverride
     });
     this.aboutOverviewState = result.aboutOverviewState;
     this.state = result.detailState;
@@ -494,6 +495,24 @@ struct SettingsDetailPage {
 
   private handleRowAction(row: SettingsDetailRowState, nextChecked?: boolean): void {
     this.interactionCoordinator.handleRowAction(row, nextChecked, this.buildInteractionHandlers());
+  }
+
+  private privateModeAutoMuteEnabledOverride?: boolean;
+
+  private async applyPrivateModeAutoMuteEnabled(enabled: boolean): Promise<void> {
+    this.privateModeAutoMuteEnabledOverride = enabled;
+    this.refreshState();
+    try {
+      await this.interactionCoordinator.commitPrivateModeAutoMuteEnabled({
+        dataScope: this.dataScope,
+        privacyMode: this.privacyMode
+      }, enabled);
+    } catch (_error) {
+      this.showToast($r('app.string.settings_privacy_auto_mute_failed'));
+    } finally {
+      this.privateModeAutoMuteEnabledOverride = undefined;
+      this.refreshState();
+    }
   }
 
   private getAbilityContext(): common.UIAbilityContext {
@@ -536,6 +555,9 @@ struct SettingsDetailPage {
       },
       (enabled: boolean): void => {
         void this.applyAlwaysUsePrivateModeEnabled(enabled);
+      },
+      (enabled: boolean): void => {
+        void this.applyPrivateModeAutoMuteEnabled(enabled);
       },
       (enabled: boolean): void => {
         void this.applyPrivateModePreserveCookiesOnClose(enabled);

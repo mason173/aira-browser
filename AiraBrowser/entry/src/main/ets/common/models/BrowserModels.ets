@@ -1252,6 +1252,7 @@ export interface BrowserGeneralSettings {
   privateTabRestorePolicy: BrowserPrivateTabRestorePolicy;
   privateModeAuthenticationEnabled: boolean;
   alwaysUsePrivateMode?: boolean;
+  privateModeAutoMuteEnabled?: boolean;
   privateModePreserveCookiesOnClose: boolean;
   privateModeThemeEnabled: boolean;
   enhancedTrackingProtectionEnabled?: boolean;

@@ -139,6 +139,8 @@ const SETTINGS_CATALOG_ENGLISH_INDEX: Map<string, string> = new Map<string, stri
   ['外部应用跳转', 'Opening external apps'],
   ['好评鼓励', 'Rate Aira'],
   ['始终保持隐私模式', 'Always use private mode'],
+  ['自动静音', 'Automatically mute audio'],
+  ['网页声音', 'Webpage audio'],
   ['始终允许', 'Always allow'],
   ['始终显示', 'Always show'],
   ['始终沉浸', 'Always immersive'],

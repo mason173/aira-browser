@@ -1,6 +1,22 @@
 {
   "string": [
     {
+      "name": "settings_privacy_web_audio",
+      "value": "網頁聲音"
+    },
+    {
+      "name": "settings_privacy_auto_mute",
+      "value": "自動靜音"
+    },
+    {
+      "name": "settings_privacy_auto_mute_note",
+      "value": "開啟後，在隱私模式下開啟的網頁預設靜音；按音量鍵可恢復目前網頁的聲音。"
+    },
+    {
+      "name": "settings_privacy_auto_mute_failed",
+      "value": "自動靜音設定更新失敗。"
+    },
+    {
       "name": "bookmark_sort_order",
       "value": "排序方式"
     },

@@ -725,6 +725,7 @@ import {
   BrowserWebTabsControllerHost,
   BrowserWebTabsControllerTabSnapshot
 } from '../../core/browser/BrowserWebTabsController';
+import { BrowserVolumeKeyAudioService } from '../../services/web/BrowserVolumeKeyAudioService';
 import {
   BrowserUnifiedLinkApplicationCoordinator,
   BrowserUnifiedLinkApplicationShell
@@ -2295,6 +2296,15 @@ struct BrowserShellPage {
       resolveRuntimeDegradedReason: (tabId: string): string => this.webRecoveryManager.getDegradedReason(tabId),
       sink: this.browserTabSwitchApplicationSink
     });
+  private browserVolumeKeyAudioService: BrowserVolumeKeyAudioService = new BrowserVolumeKeyAudioService({
+    isWebPageForeground: (): boolean => this.browserPageForeground && this.isBrowserShellVisible &&
+      this.currentWindowId === BrowserWindowRuntime.getActiveWindowId() &&
+      this.isWebPageVisible() && !this.showTabsSheet && !this.browserPrivateModeLockCoordinator.shouldShowOverlay(
+        this.privateModeLockSessionSnapshot,
+        this.tabScopedEventContextCoordinator.isCurrentBoundaryPrivate()
+      ),
+    unmuteActiveAutomaticallyMutedTab: (): void => this.browserTabSwitchCoordinator.unmuteActiveAutomaticallyMutedTab()
+  });
   private consumedBrowserNavigationRouteToken: string = '';
   private browserNativeNavigationConsumeHost: BrowserNativeNavigationConsumeHost = {
     getRouteParams: (): BrowserNavigationRouteParams | undefined =>
@@ -6904,6 +6914,7 @@ struct BrowserShellPage {
   }
 
   aboutToDisappear(): void {
+    this.browserVolumeKeyAudioService.stop();
     AppStorage.setOrCreate(CENTERED_HOME_SEARCH_GEOMETRY_OPEN_KEY, false);
     this.setHuaweiPaymentLaunchVisible(false);
     this.homeWallpaperPlaybackGate.dispose();
@@ -6940,6 +6951,7 @@ struct BrowserShellPage {
       this.homeWallpaperResumeEpoch = epoch;
     });
     this.browserPageForeground = true;
+    this.browserVolumeKeyAudioService.start();
     this.browserWebTopImmersionSessionCoordinator.holdCoveredStatusBarForPageReturn();
     this.browserShellLifecycleCoordinator.handlePageShow();
     this.syncBottomPanelStatusBarStyle(true);
@@ -6961,6 +6973,7 @@ struct BrowserShellPage {
   }
 
   onPageHide(): void {
+    this.browserVolumeKeyAudioService.stop();
     this.homeWallpaperPageForeground = false;
     this.browserWebTopImmersionSessionCoordinator.cancelCoveredStatusBarHold();
     this.browserPageForeground = false;
@@ -12824,6 +12837,8 @@ struct BrowserShellPage {
         this.browserWebToolbarClearanceCoordinator.apply(tabId, true);
       },
       onPageBegin: (tabId: string, event: OnPageBeginEvent) => {
+        this.browserTabSwitchCoordinator.applyTabAudioPolicy(tabId,
+          sharedPreferencesRepository.getPreferences().general.privateModeAutoMuteEnabled === true, true);
         this.browserWebSwipeNavigationCoordinator.reset(tabId);
         this.browserLargeScreenWebZoomCoordinator.handleDocumentBegin(tabId);
         this.browserAddressBarTabSwipeCoordinator.noteDocumentBegin(tabId);
@@ -13062,6 +13077,8 @@ struct BrowserShellPage {
   }
 
   private handleTabWebControllerAttached(tabId: string): void {
+    this.browserTabSwitchCoordinator.applyTabAudioPolicy(tabId,
+      sharedPreferencesRepository.getPreferences().general.privateModeAutoMuteEnabled === true);
     this.browserWebSwipeNavigationCoordinator.handleControllerAttached(tabId);
     this.browserWebScrollInteractionCoordinator.handleControllerAttached(tabId);
     if (this.browserBackgroundTabPreviewRuntimeCoordinator.tryHandleControllerAttached(tabId)) {
