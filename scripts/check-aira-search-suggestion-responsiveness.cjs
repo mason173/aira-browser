@@ -520,7 +520,8 @@ test('phone bookmark search initializes from the routed keyword once and survive
   model.setQuery('docs1.test');
   assert.equal(model.initializeRouteQuery('技术 文档').state.query, 'docs1.test', 'route reappearance must preserve user edits');
   const page = fs.readFileSync(path.join(root, 'app/pages/BookmarkManagerPage.ets'), 'utf8');
-  assert.match(page, /initializeRouteQuery\(params\?\.query\)/, 'phone shell must forward the route query');
+  assert.match(page, /const location = this\.browseSession\.initialize\(params\)/, 'phone shell must forward route parameters to the browse coordinator');
+  assert.match(page, /initializeRouteQuery\(location\.query\)/, 'phone search must use the resolved route or resumed query');
 });
 
 function coldBookmarkFixture(nodes) {

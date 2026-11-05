@@ -140,6 +140,7 @@ export struct BookmarkLargeScreenWorkspace {
   @State private draggingTitle: string = '';
   @State private transferBusy: boolean = false;
   private routePublishTimer: number = -1;
+  private readonly recordScroller: Scroller = new Scroller();
   private folderHoverExpandTimer: number = -1;
   private folderHoverExpandTargetId: string = '';
   private sessionBindingRevision: number = 0;
@@ -183,6 +184,10 @@ export struct BookmarkLargeScreenWorkspace {
   }
 
   aboutToDisappear(): void {
+    const offset = this.recordScroller.offset()?.yOffset;
+    if (!this.snapshot.loading && offset !== undefined) {
+      this.coordinator.retainBrowseScrollOffset(offset);
+    }
     this.cancelRoutePublish();
     this.cancelFolderHoverExpand();
   }
@@ -478,7 +483,7 @@ export struct BookmarkLargeScreenWorkspace {
         .justifyContent(FlexAlign.Center)
         .alignItems(HorizontalAlign.Center)
       } else {
-        List({ space: MANAGEMENT_LARGE_SCREEN_ROW_GAP }) {
+        List({ space: MANAGEMENT_LARGE_SCREEN_ROW_GAP, scroller: this.recordScroller }) {
           ForEach(this.snapshot.rows, (node: BookmarkNode, index: number) => {
             ListItem() {
               this.buildRecordRow(node, index)
@@ -492,6 +497,12 @@ export struct BookmarkLargeScreenWorkspace {
           left: MANAGEMENT_LARGE_SCREEN_ROW_INSET,
           right: MANAGEMENT_LARGE_SCREEN_ROW_INSET,
           bottom: MANAGEMENT_LARGE_SCREEN_ROW_INSET
+        })
+        .onScrollIndex((_start: number, _end: number): void => {
+          const offset = this.coordinator.takeBrowseScrollOffset();
+          if (offset !== undefined) {
+            this.recordScroller.scrollTo({ xOffset: 0, yOffset: offset, animation: false });
+          }
         })
         .scrollBar(BarState.Auto)
         .edgeEffect(EdgeEffect.None)
@@ -798,6 +809,7 @@ export struct BookmarkLargeScreenWorkspace {
     if (url.length > 0) {
       try {
         this.coordinator.authorizeNavigation();
+        this.coordinator.rememberBrowseLocation(this.recordScroller.offset()?.yOffset ?? 0);
         this.onOpenBookmark(url, node.title, openInNewTab);
       } catch (error) {
         this.showMessageDialog($r('app.string.history_cannot_open'), this.stringifyError(error as Error));

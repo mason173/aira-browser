@@ -63,7 +63,6 @@ import {
   SiteIconListResolvedIcon,
   SiteIconListTarget
 } from '../../core/siteicons/SiteIconListPresenter';
-import { requestOpenBrowserUrlWithRouteParams } from '../../core/navigation/BrowserNativeNavigationRequestCenter';
 import { DeferredEnterWork } from '../../common/utils/DeferredEnterWork';
 import {
   BrowserPrivateBoundaryNavigationService,
@@ -84,6 +83,8 @@ import {
 } from '../../core/browser/BrowserBookmarkScopeService';
 import { BookmarkManagerPages, BookmarkSelectionToolbarOverlay } from '../components/bookmarks/BookmarkManagerPages';
 import { BookmarkRootPageStore } from '../../features/bookmarks/BookmarkRootPageStore';
+import { BookmarkBrowseLocation } from '../../core/bookmarks/BookmarkBrowseSessionStore';
+import { BookmarkManagerBrowseSessionCoordinator, BookmarkManagerRouteParams } from '../../core/bookmarks/BookmarkManagerBrowseSessionCoordinator';
 import {
   BookmarkManagerCreateFolderDialog,
   BookmarkManagerEditNodeDialog
@@ -109,7 +110,6 @@ import {
   BookmarkMoveFolderSelectionSheet
 } from '../components/bookmarks/BookmarkMoveFolderSelectionSheet';
 import { BookmarkManagerImmersiveHost, BookmarkManagerImmersiveLayoutContext } from '../components/bookmarks/BookmarkManagerImmersiveHost';
-import { BOOKMARK_MANAGER_ROUTE, BROWSER_SHELL_ROUTE } from '../router/AppRoutes';
 import { BROWSER_WINDOW_SAFE_TOP_INSET_STORAGE_KEY } from '../../core/browser/BrowserWindowAvoidAreaCoordinator';
 import { applyDesktopDialogSheetChrome } from '../components/common/DesktopDialogSheetChrome';
 import { BOOKMARK_SORT_PREFERENCES_REVISION_KEY, BookmarkSortMode } from '../../common/models/BookmarkSortModels';
@@ -122,15 +122,6 @@ const BOOKMARK_VISIBLE_AUX_REFRESH_DELAY_MS: number = 96;
 const BOOKMARK_MOVE_TO_FOLDER_END_INDEX: number = 2147483647;
 const BOOKMARK_MOVE_FOLDER_TARGET_PREPARE_DELAY_MS: number = 16;
 
-interface BookmarkManagerRouteParams {
-  folderId?: string;
-  folderTitle?: string;
-  query?: string;
-  dataScope?: string;
-  privacyMode?: string;
-  boundarySource?: string;
-  bookmarkScope?: string;
-}
 @Entry({ useSharedStorage: true })
 @Component
 struct BookmarkManagerPage {
@@ -166,6 +157,18 @@ struct BookmarkManagerPage {
   private bookmarkRecordActionViewModel: BookmarkRecordActionViewModel = new BookmarkRecordActionViewModel();
   private bookmarkListScroller: Scroller = new Scroller();
   private rootPages: BookmarkRootPageStore = new BookmarkRootPageStore();
+  private browseSession: BookmarkManagerBrowseSessionCoordinator = new BookmarkManagerBrowseSessionCoordinator({
+    feature: this.bookmarkManagementFeature,
+    scope: (): BookmarkStorageScope => this.bookmarkScope,
+    folderId: (): string => this.resolveActiveFolderId(),
+    rootId: (): string => this.selectedRootId,
+    query: (): string => this.bookmarkSearchState.isSearchMode ? this.bookmarkSearchState.query : '',
+    scroller: (): Scroller => this.resolveBookmarkHeaderScrollers()[0],
+    applyLocation: (location: BookmarkBrowseLocation): void => this.applyBrowseLocation(location),
+    exitSearch: (): void => this.exitBookmarkSearchMode(),
+    reload: (): void => { this.prefillBookmarkNodesFromCache(); this.reloadNodes(); },
+    setElevated: (elevated: boolean): void => { this.titleActionsElevated = elevated; }
+  });
   private bookmarkNodes: BookmarkNode[] = [];
   @State bookmarkNodeCount: number = 0;
   @State private toolbarRootNodeCount: number = 0;
@@ -321,6 +324,7 @@ struct BookmarkManagerPage {
 
   aboutToDisappear(): void {
     this.deferredEnterWork.cancel();
+    this.browseSession.dispose();
     this.cancelScheduledFolderBookmarkCountsRefresh();
     this.cancelScheduledVisibleAuxRefresh();
     this.siteIconListPresenter.dispose();
@@ -335,6 +339,9 @@ struct BookmarkManagerPage {
     }
     if (this.isSelectionMode) {
       this.exitSelectionMode();
+      return true;
+    }
+    if (this.browseSession.navigateParent()) {
       return true;
     }
     return false;
@@ -626,8 +633,9 @@ struct BookmarkManagerPage {
     };
     this.bookmarkScope = this.bookmarkScopeService.resolveScopeFromRoute(bookmarkScopeParams);
     this.bookmarkManagementFeature.configure(this.buildBookmarkManagementBoundary(), this.bookmarkScope);
-    this.applyRouteFolder(params);
-    this.applyBookmarkSearchResult(this.bookmarkManagerSearchViewModel.initializeRouteQuery(params?.query));
+    const location = this.browseSession.initialize(params);
+    this.applyBrowseLocation(location, params?.folderTitle);
+    this.applyBookmarkSearchResult(this.bookmarkManagerSearchViewModel.initializeRouteQuery(location.query));
     this.isSelectionMode = false;
     this.selectedNodeIds = [];
     this.message = '';
@@ -636,6 +644,7 @@ struct BookmarkManagerPage {
   private reloadNodes(): void {
     this.bookmarkManagementFeature.refresh()
       .then(() => {
+        this.browseSession.validateLocation();
         this.setCurrentFolderNodes(this.resolveCurrentChildren());
         this.refreshRootPageSnapshots();
         this.pruneSelectedNodes();
@@ -645,6 +654,7 @@ struct BookmarkManagerPage {
           this.refreshHomeShortcutCacheAndMarkers();
         }
         this.isInitialBookmarkLoadPending = false;
+        this.browseSession.scheduleScrollRestore();
       })
       .catch((error: Error) => {
         this.message = $r('app.string.bookmark_load_failed_detail', JSON.stringify(error));
@@ -755,6 +765,7 @@ struct BookmarkManagerPage {
   ): void {
     if (pageRootId.length === 0 || pageRootId === this.selectedRootId) {
       this.updateBookmarkVisibleRange(start, end);
+      this.browseSession.scheduleScrollRestore();
       return;
     }
     this.resolveIconsForDataSource(dataSource, start, end);
@@ -782,16 +793,11 @@ struct BookmarkManagerPage {
       return;
     }
     try {
-      this.bookmarkManagementFeature.authorizeNavigation();
+      this.browseSession.openBookmark(node, intent, this.routePrivacyMode, this.routeDataScope);
     } catch (error) {
       this.showDialog($r('app.string.history_cannot_open'), this.stringifyError(error as Error));
       return;
     }
-    router.back({
-      url: BROWSER_SHELL_ROUTE,
-      params: requestOpenBrowserUrlWithRouteParams(node.url, intent, node.title, 'bookmark',
-        { privacyMode: this.routePrivacyMode, dataScope: this.routeDataScope })
-    });
   }
 
   private handleLeadingClick(): void {
@@ -799,7 +805,9 @@ struct BookmarkManagerPage {
       this.exitSelectionMode();
       return;
     }
-    router.back();
+    if (!this.browseSession.navigateParent()) {
+      router.back();
+    }
   }
 
   private createFolder(): void {
@@ -938,30 +946,20 @@ struct BookmarkManagerPage {
     this.applyBookmarkSearchResult(this.bookmarkManagerSearchViewModel.exitSearchMode());
   }
 
-  private applyRouteFolder(params: BookmarkManagerRouteParams | undefined): void {
-    this.currentFolderId = params?.folderId ?? '';
-    this.selectedRootId = this.bookmarkScope === 'private'
-      ? PRIVATE_BOOKMARK_TOOLBAR_ROOT_ID
-      : BOOKMARK_TOOLBAR_ROOT_ID;
-    const defaultTitle: ResourceStr = this.bookmarkScope === 'private'
-      ? $r('app.string.bookmark_private_manager')
-      : $r('app.string.bookmark_manager');
-    this.currentFolderTitle = params?.folderTitle ?? (
-      this.currentFolderId.length > 0 ? $r('app.string.bookmark_folder_fallback') : defaultTitle
-    );
+  private applyBrowseLocation(location: BookmarkBrowseLocation, title?: string): void {
+    this.selectedRootId = location.rootId;
+    this.currentFolderId = isBookmarkRootNodeId(location.folderId) ? '' : location.folderId;
+    const folder = this.bookmarkManagementFeature.findNodeById(location.folderId);
+    this.currentFolderTitle = this.currentFolderId.length > 0
+      ? (title ?? folder?.title ?? $r('app.string.bookmark_folder_fallback'))
+      : (this.bookmarkScope === 'private' ? $r('app.string.bookmark_private_manager') : $r('app.string.bookmark_manager'));
   }
 
   private openFolderPage(folder: BookmarkNode): void {
-    router.pushUrl({
-      url: BOOKMARK_MANAGER_ROUTE,
-      params: {
-        folderId: folder.id,
-        folderTitle: folder.title,
-        dataScope: this.routeDataScope,
-        privacyMode: this.routePrivacyMode,
-        boundarySource: this.routeBoundarySource,
-        bookmarkScope: this.bookmarkScope
-      }
+    this.browseSession.openFolder(folder, {
+      dataScope: this.routeDataScope,
+      privacyMode: this.routePrivacyMode,
+      boundarySource: this.routeBoundarySource
     }).catch((_error: Error) => {
       this.showNativeToast($r('app.string.bookmark_open_folder_failed'));
     });

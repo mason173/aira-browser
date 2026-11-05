@@ -1,12 +1,14 @@
 {
   "enabled": true,
-  "noticeId": "aira-3.9.2-1000565",
-  "title": "Aira 3.9.2 update",
-  "updatedAt": "2026-10-28",
-  "summary": "This release fixes tab restoration and improves the display at the top of webpages.",
+  "noticeId": "aira-3.9.4-1000571",
+  "title": "Aira 3.9.4 update",
+  "updatedAt": "2026-11-03",
+  "summary": "This release improves bookmark management, webpage search, and browsing responsiveness.",
   "items": [
-    "Fixed closed tabs reappearing after restarting the app.",
-    "Removed the progressive blur at the top of webpages for clearer content."
+    "Added more bookmark sorting options and fixed a possible crash when switching bookmark folders.",
+    "Search selected text in a new tab and continue switching search engines.",
+    "Use Forward to return to the previous tab after going Home from a webpage.",
+    "Improved user script loading and saving to reduce browsing delays."
   ],
   "actionLabel": "View changelog"
 }

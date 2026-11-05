@@ -1,5 +1,16 @@
 # Changelog
 
+## 3.9.4 (1000571)
+
+2026-11-03
+
+This release improves bookmark management, webpage search, and browsing responsiveness.
+
+- Added more bookmark sorting options and fixed a possible crash when switching bookmark folders.
+- Search selected text in a new tab and continue switching search engines.
+- Use Forward to return to the previous tab after going Home from a webpage.
+- Improved user script loading and saving to reduce browsing delays.
+
 ## 3.9.2 (1000565)
 
 2026-10-28

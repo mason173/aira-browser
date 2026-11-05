@@ -1,4 +1,5 @@
 import { resolveAppResourceText } from '../resources/AppResourceText';
+import { sharedBookmarkBrowseSessionStore } from './BookmarkBrowseSessionStore';
 import {
   BookmarkNode,
   BookmarkStorageScope
@@ -71,6 +72,7 @@ export class BookmarkWorkspaceSessionCoordinator {
   private snapshotState: BookmarkWorkspaceSnapshot = createEmptyBookmarkWorkspaceSnapshot();
   private expandedFolderIds: Set<string> = new Set<string>();
   private initialized: boolean = false;
+  private pendingBrowseScrollOffset?: number;
 
   constructor(
     bookmarkManagementFeature: BookmarkManagementFeature,
@@ -110,7 +112,7 @@ export class BookmarkWorkspaceSessionCoordinator {
     try {
       await this.bookmarkManagementFeature.refresh();
       this.initializeExpandedRoots();
-      this.applyRouteState(this.parseAuthorizedRoute(routeUrl, scope));
+      this.applyEntryRoute(routeUrl, scope);
       this.snapshotState.message = '';
       this.rebuildPresentation();
     } catch (error) {
@@ -128,9 +130,42 @@ export class BookmarkWorkspaceSessionCoordinator {
     }
     const normalizedRoute = routeUrl.trim();
     if (normalizedRoute.length > 0 && normalizedRoute !== this.snapshotState.routeUrl) {
-      this.applyRoute(normalizedRoute);
+      this.applyEntryRoute(normalizedRoute, scope);
+      this.rebuildPresentation();
     }
     return this.refresh();
+  }
+
+  rememberBrowseLocation(offset: number): void {
+    this.retainBrowseScrollOffset(offset);
+    sharedBookmarkBrowseSessionStore.remember(this.snapshotState.scope, this.snapshotState.currentFolderId,
+      this.snapshotState.query, offset,
+      (id: string): BookmarkNode | undefined => this.bookmarkManagementFeature.findNodeById(id));
+  }
+
+  retainBrowseScrollOffset(offset: number): void {
+    this.pendingBrowseScrollOffset = Number.isFinite(offset) ? Math.max(0, offset) : 0;
+  }
+
+  takeBrowseScrollOffset(): number | undefined {
+    const offset = this.pendingBrowseScrollOffset;
+    this.pendingBrowseScrollOffset = undefined;
+    return offset;
+  }
+
+  private applyEntryRoute(routeUrl: string, scope: BookmarkStorageScope): void {
+    this.pendingBrowseScrollOffset = undefined;
+    const route = this.parseAuthorizedRoute(routeUrl, scope);
+    if (route.folderId.length === 0 && route.query.length === 0) {
+      const location = sharedBookmarkBrowseSessionStore.resolve(scope,
+        (id: string): BookmarkNode | undefined => this.bookmarkManagementFeature.findNodeById(id));
+      if (location !== undefined) {
+        route.folderId = location.folderId;
+        route.query = location.query;
+        this.pendingBrowseScrollOffset = location.offset;
+      }
+    }
+    this.applyRouteState(route);
   }
 
   async refresh(): Promise<BookmarkWorkspaceSnapshot> {
@@ -156,6 +191,7 @@ export class BookmarkWorkspaceSessionCoordinator {
       routeUrl === this.snapshotState.routeUrl) {
       return this.getSnapshot();
     }
+    this.pendingBrowseScrollOffset = undefined;
     this.applyRouteState(this.parseAuthorizedRoute(routeUrl, this.snapshotState.scope));
     this.rebuildPresentation();
     this.publish();
@@ -163,6 +199,7 @@ export class BookmarkWorkspaceSessionCoordinator {
   }
 
   setQuery(query: string): BookmarkWorkspaceSnapshot {
+    this.pendingBrowseScrollOffset = undefined;
     this.snapshotState.query = query;
     this.clearSelection();
     this.rebuildRows();
@@ -184,6 +221,7 @@ export class BookmarkWorkspaceSessionCoordinator {
     if (node === undefined || node.type !== 'folder') {
       return this.getSnapshot();
     }
+    this.pendingBrowseScrollOffset = undefined;
     this.snapshotState.currentFolderId = node.id;
     this.snapshotState.currentFolderTitle = node.title;
     this.snapshotState.query = '';

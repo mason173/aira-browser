@@ -1,14 +1,23 @@
 {
   "latestAppGalleryRelease": {
-    "versionName": "3.9.2",
-    "versionCode": 1000565,
-    "releasedAt": "2026-10-28",
+    "versionName": "3.9.4",
+    "versionCode": 1000571,
+    "releasedAt": "2026-11-03",
     "source": "formal-package-generated",
-    "notes": "Generated the Official 3.9.2 (1000565) AppGallery candidate from committed HEAD 88651ba4e8c535541522f048f20ff2964eef50b7. Includes the closed-tab restart fix, protection for unread sessions after failed startup restoration, and removal of progressive blur from the top of webpages. Built as Official/release/APP for com.aira.browser using the release signing configuration. Build contract checks, the release APP build, hap-sign-tool verify-app and verify-profile passed. The APP certificate and embedded AppGallery release Profile match the configured release signing inputs. Package metadata confirms version 3.9.2 (1000565), debug=false, matching Official Huawei app/client identity, bundled private AGConnect configuration, and paired Chinese/English release notes. Exact-build ArkTS and native crash symbols were archived and all three symbol artifact hashes verified. Source distribution and packaging identity were restored to Community after building. This records a locally generated formal package and does not claim AppGallery review approval or publication.",
-    "artifact": "dist/packages/Aira-official-v3.9.2-1000565.app",
-    "sha256": "fd83d7413d2e4f83b18b4c01f4f6d3ed2095b00649c072defd68d72c77b72613"
+    "notes": "Generated the Official 3.9.4 (1000571) AppGallery candidate from committed HEAD 87154406728e3da9c16451197f8cb3e3dbb4c34a, with the version and paired Chinese/English release-note changes in the same working tree. Includes bookmark sorting and folder-switch crash fixes, selected-text search in a foreground tab, Forward return from Home, and user script runtime and persistence improvements. Built as Official/release/APP for com.aira.browser using the release signing configuration. Build contract checks, the release APP build, hap-sign-tool verify-app, and verify-profile for the embedded AppGallery release Profile passed. The APP certificate and embedded Profile match the configured release signing inputs. Package metadata confirms version 3.9.4 (1000571), debug=false, bundled private AGConnect configuration, paired Chinese/English release notes, and no packaged source maps. Exact-build ArkTS and native crash symbols were archived and all three symbol artifact hashes verified. Source distribution and packaging identity were restored to Community after building. This records a locally generated formal package and does not claim AppGallery review approval or publication.",
+    "artifact": "dist/packages/Aira-official-v3.9.4-1000571.app",
+    "sha256": "9a6fe07306ac4aa9fc33fa2a57aeb52b479cfefd138e3b98b8e936af36fbd6a2"
   },
   "history": [
+    {
+      "versionName": "3.9.4",
+      "versionCode": 1000571,
+      "releasedAt": "2026-11-03",
+      "source": "formal-package-generated",
+      "notes": "Generated the Official 3.9.4 (1000571) AppGallery candidate from committed HEAD 87154406728e3da9c16451197f8cb3e3dbb4c34a, with the version and paired Chinese/English release-note changes in the same working tree. Includes bookmark sorting and folder-switch crash fixes, selected-text search in a foreground tab, Forward return from Home, and user script runtime and persistence improvements. Built as Official/release/APP for com.aira.browser using the release signing configuration. Build contract checks, the release APP build, hap-sign-tool verify-app, and verify-profile for the embedded AppGallery release Profile passed. The APP certificate and embedded Profile match the configured release signing inputs. Package metadata confirms version 3.9.4 (1000571), debug=false, bundled private AGConnect configuration, paired Chinese/English release notes, and no packaged source maps. Exact-build ArkTS and native crash symbols were archived and all three symbol artifact hashes verified. Source distribution and packaging identity were restored to Community after building. This records a locally generated formal package and does not claim AppGallery review approval or publication.",
+      "artifact": "dist/packages/Aira-official-v3.9.4-1000571.app",
+      "sha256": "9a6fe07306ac4aa9fc33fa2a57aeb52b479cfefd138e3b98b8e936af36fbd6a2"
+    },
     {
       "versionName": "3.9.2",
       "versionCode": 1000565,
