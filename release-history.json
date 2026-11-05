@@ -10,6 +10,15 @@
   },
   "history": [
     {
+      "versionName": "3.9.5",
+      "versionCode": 1000575,
+      "releasedAt": "2026-11-05",
+      "source": "formal-package-generated",
+      "notes": "Locally generated Official 3.9.5 (1000575) AppGallery candidate from committed HEAD d07420e0f4abd6d15c85d683a5b69c111fd2f58d. Includes scrollable link context menus that close on tab changes, in-page link text selection with copy/share/browser search, international domain navigation in address entry and paste flows, remembered bookmark browse location, and private-page automatic muting and Home navigation fixes. Built as Official/release/APP for com.aira.browser with the release signing configuration. All build contract checks, release APP compilation, hap-sign-tool verify-app, and verify-profile for the embedded AppGallery release Profile passed. The APP signing certificate matches the configured release certificate. Package metadata confirms debug=false, version 3.9.5 (1000575), matching Official Huawei app/client identity, bundled AGConnect configuration, and paired Chinese/English release notes. Exact-build ArkTS and native crash symbols were archived and all symbol hashes verified. The canonical APP copy was hash-verified. This records a generated candidate and does not claim AppGallery approval or publication; latestAppGalleryRelease remains unchanged.",
+      "artifact": "dist/packages/Aira-official-v3.9.5-1000575.app",
+      "sha256": "b63fdb2bc1d2bf495f3c686157600d43e1871a658f9cd093f20aeb9e7b3ea3dd"
+    },
+    {
       "versionName": "3.9.4",
       "versionCode": 1000571,
       "releasedAt": "2026-11-03",
