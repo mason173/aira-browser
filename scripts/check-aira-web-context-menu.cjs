@@ -48,6 +48,8 @@ const coordinator = new WebContextMenuOverlayCoordinator();
 const { WebLinkContextMenuCoordinator } = load('core/web/WebLinkContextMenuCoordinator.ets');
 const { WebLinkContextMenuFixedActionApplication } = load('core/web/WebLinkContextMenuActionApplication.ets');
 const { WebLinkTextScriptService } = load('services/web/WebLinkTextScriptService.ets');
+const { BrowserWebEventHostCoordinator } = load('core/browser/BrowserWebEventHostCoordinator.ets');
+const { buildGenerationBoundHostedWebNodeCallbacks } = load('core/browser/BrowserHostedWebNodeGenerationCallbacks.ets');
 const textService = new WebLinkTextScriptService();
 const linkUrl = 'https://example.test/article';
 const facts = { activeTabId: 'source', showPageErrorSurface: false, tabTitle: 'Entire page title', currentTitle: '',
@@ -179,9 +181,15 @@ function pageFixture(text = 'Pressed link text', shadow = false, inFrame = false
   Object.defineProperty(window, 'innerWidth', { value: 390 });
   const f = fixture(script => Promise.resolve(JSON.stringify(window.eval(script))));
   let latestFacts = facts;
-  window.__airaUserScriptNativeBridge = { linkTextSelectionChanged: json => f.menu.handleTextSelectionSignal('source', json, latestFacts) };
+  let generation = 1;
+  const callbacks = buildGenerationBoundHostedWebNodeCallbacks('source', 1,
+    new BrowserWebEventHostCoordinator().buildCallbacks({
+      onLinkTextSelectionChanged: (tabId, json) => f.menu.handleTextSelectionSignal(tabId, json, latestFacts)
+    }), (tabId, value) => tabId === 'source' && value === generation);
+  window.__airaUserScriptNativeBridge = { linkTextSelectionChanged: json => callbacks.onLinkTextSelectionChanged?.('source', json) };
   return { ...f, dom, window, ownerView, anchor, menuFixture: f, setScrollY: value => { scrollY = value; },
-    setFrameHeight: value => { frameHeight = value; }, setFacts: value => { latestFacts = value; } };
+    setFrameHeight: value => { frameHeight = value; }, setFacts: value => { latestFacts = value; },
+    callbacks, replaceGeneration: () => { generation += 1; } };
 }
 
 let failures = 0;
@@ -306,6 +314,49 @@ async function main() {
     page.window.dispatchEvent(new page.window.Event('scroll'));
     await new Promise(resolve => setTimeout(resolve, 25));
     assert.equal(f.presentation.state.selection.start.yVp, before + 24, 'handles remain at the old Web origin');
+    f.menu.dismiss(); page.window.close();
+  });
+
+  await check('page scroll moves both selection handles and toolbar through the real tab callback chain', async () => {
+    const page = pageFixture(), f = page.menuFixture;
+    f.show(); await flush(); f.select('select_link_text'); await flush();
+    const before = f.presentation.state.selection;
+    for (const scrollY of [10, 20, 0]) {
+      page.setScrollY(scrollY);
+      page.window.dispatchEvent(new page.window.Event('scroll'));
+      await new Promise(resolve => setTimeout(resolve, 25));
+      const after = f.presentation.state.selection;
+      assert.equal(after.start.yVp, before.start.yVp - scrollY, 'start handle stays at its old screen location');
+      assert.equal(after.end.yVp, before.end.yVp - scrollY, 'end handle stays at its old screen location');
+      assert.equal(after.toolbarTopVp, before.toolbarTopVp - scrollY, 'selection toolbar stays at its old screen location');
+    }
+    f.menu.dismiss(); page.window.close();
+  });
+
+  await check('tapping page whitespace dismisses native selection controls through the real tab callback chain', async () => {
+    const page = pageFixture(), f = page.menuFixture;
+    f.show(); await flush(); f.select('select_link_text'); await flush();
+    page.window.document.body.dispatchEvent(new page.window.MouseEvent('pointerdown',
+      { bubbles: true, clientX: 350, clientY: 500 }));
+    page.window.document.body.dispatchEvent(new page.window.MouseEvent('pointerup',
+      { bubbles: true, clientX: 350, clientY: 500 }));
+    await flush();
+    assert.equal(f.presentation.state.visible, false, 'native handles and menu remain visible after the DOM selection closes');
+    assert.equal(page.window.getSelection().rangeCount, 0);
+    assert.equal(page.window.__airaLinkTextSelection, undefined);
+    page.window.close();
+  });
+
+  await check('selection notifications from another tab or an obsolete Web generation cannot dismiss the active controls', async () => {
+    const page = pageFixture(), f = page.menuFixture;
+    f.show(); await flush(); f.select('select_link_text'); await flush();
+    const inactive = JSON.stringify({ sessionId: page.window.__airaLinkTextSelection.id, active: false, revision: 1000 });
+    page.callbacks.onLinkTextSelectionChanged('another', inactive);
+    assert.equal(f.presentation.state.visible, true);
+    page.replaceGeneration();
+    page.callbacks.onLinkTextSelectionChanged('source', inactive);
+    assert.equal(f.presentation.state.visible, true, 'a replaced Web generation dismissed the native controls');
+    assert.equal(page.window.getSelection().toString(), 'Pressed link text');
     f.menu.dismiss(); page.window.close();
   });
 

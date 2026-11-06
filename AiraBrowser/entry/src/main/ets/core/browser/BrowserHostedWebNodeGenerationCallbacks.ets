@@ -66,6 +66,12 @@ export function buildGenerationBoundHostedWebNodeCallbacks(
           callbacks.onSearchSelectedText?.(eventTabId, selectionText);
         }
       },
+    onLinkTextSelectionChanged: callbacks.onLinkTextSelectionChanged === undefined ? undefined :
+      (eventTabId: string, payloadJson: string): void => {
+        if (eventTabId === tabId && isCurrent(tabId, generation)) {
+          callbacks.onLinkTextSelectionChanged?.(eventTabId, payloadJson);
+        }
+      },
     onErrorReceive: callbacks.onErrorReceive,
     onPermissionRequest: callbacks.onPermissionRequest,
     onGeolocationShow: callbacks.onGeolocationShow,

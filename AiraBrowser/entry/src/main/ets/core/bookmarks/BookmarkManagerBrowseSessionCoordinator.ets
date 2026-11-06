@@ -24,6 +24,7 @@ export interface BookmarkManagerBrowseHost {
   rootId: () => string;
   query: () => string;
   scroller: () => Scroller;
+  contentStartOffset: () => number;
   applyLocation: (location: BookmarkBrowseLocation) => void;
   exitSearch: () => void;
   reload: () => void;
@@ -75,8 +76,13 @@ export class BookmarkManagerBrowseSessionCoordinator {
   }
 
   remember(): void {
+    const offset = this.host.scroller().offset()?.yOffset;
+    // List's native origin is -contentStartOffset. Store distance from its resting
+    // top so valid negative positions survive the shared store's rebound clamp.
+    const distanceFromTop = offset === undefined
+      ? this.pending?.offset ?? 0 : offset + this.host.contentStartOffset();
     sharedBookmarkBrowseSessionStore.remember(this.host.scope(), this.host.folderId(), this.host.query(),
-      this.host.scroller().offset()?.yOffset ?? this.pending?.offset ?? 0,
+      distanceFromTop,
       (id: string): BookmarkNode | undefined => this.host.feature.findNodeById(id));
   }
 
@@ -90,12 +96,20 @@ export class BookmarkManagerBrowseSessionCoordinator {
       this.cancelOutdatedRestore();
       const location = this.pending;
       const scroller = this.host.scroller();
-      if (location === undefined || scroller.offset() === undefined) {
+      const position = scroller.offset();
+      if (location === undefined || position === undefined) {
         return;
       }
       this.pending = undefined;
-      scroller.scrollTo({ xOffset: 0, yOffset: location.offset, animation: false });
-      this.host.setElevated(location.offset > 8);
+      const offset = location.offset - this.host.contentStartOffset();
+      if (offset < 0) {
+        // Non-animated scrollTo clamps negative targets to zero, even though List
+        // uses them for contentStartOffset. scrollBy preserves this inset range.
+        scroller.scrollBy(0, offset - position.yOffset);
+      } else {
+        scroller.scrollTo({ xOffset: 0, yOffset: offset, animation: false });
+      }
+      this.host.setElevated(offset > 8);
     }, 0);
   }
 
@@ -110,7 +124,7 @@ export class BookmarkManagerBrowseSessionCoordinator {
     // Reset the still-bound folder list before applying the parent presentation.
     const scroller = this.host.scroller();
     if (scroller.offset() !== undefined) {
-      scroller.scrollTo({ xOffset: 0, yOffset: 0, animation: false });
+      scroller.scrollEdge(Edge.Top);
     }
     this.host.applyLocation(location);
     this.host.setElevated(false);

@@ -6953,6 +6953,8 @@ struct BrowserShellPage {
       this.homeWallpaperResumeEpoch = epoch;
     });
     this.browserPageForeground = true;
+    this.refreshRootBottomPanelLayoutState();
+    this.refreshWebViewportPresentation();
     this.browserVolumeKeyAudioService.start();
     this.browserWebTopImmersionSessionCoordinator.holdCoveredStatusBarForPageReturn();
     this.browserShellLifecycleCoordinator.handlePageShow();
@@ -7326,21 +7328,26 @@ struct BrowserShellPage {
       return this.tabsOverviewSessionCoordinator.handleShellKeyEvent(this.showTabsSheet, event);
     })
     .onAreaChange((_oldArea: Area, newArea: Area) => {
-      if (!this.browserPageForeground) {
+      const nextViewportWidth = Math.round(this.parseAreaDimension(newArea.width));
+      const nextViewportHeight = Math.round(this.parseAreaDimension(newArea.height));
+      if (nextViewportWidth <= 0 || nextViewportHeight <= 0) {
         return;
       }
+      // A system split-screen resize can arrive before onPageShow. Retain the
+      // measured frame even while hidden: ArkUI need not repeat it on resume.
       this.rootViewportLeft = Math.round(this.parseAreaPosition(newArea.globalPosition.x));
       this.rootViewportTop = Math.round(this.parseAreaPosition(newArea.globalPosition.y));
-      const nextViewportWidth = Math.max(1, Math.round(this.parseAreaDimension(newArea.width)));
-      const nextViewportHeight = Math.max(1, Math.round(this.parseAreaDimension(newArea.height)));
       const viewportChanged = nextViewportWidth !== this.rootViewportWidth ||
         nextViewportHeight !== this.rootViewportHeight;
       this.rootViewportWidth = nextViewportWidth;
       this.rootViewportHeight = nextViewportHeight;
       this.refreshRootBottomPanelLayoutState();
+      this.refreshWebViewportPresentation();
+      if (!this.browserPageForeground) {
+        return;
+      }
       this.syncWindowSafeInsetsForShell();
       this.scheduleWebSafeInsetSettleSync('root-area-change');
-      this.refreshWebViewportPresentation();
       if (viewportChanged && this.showHomePage) {
         this.browserTabHomeCoordinator.refreshWallpaperPresentation();
       }
@@ -10470,7 +10477,7 @@ struct BrowserShellPage {
   }
 
   private refreshRootBottomPanelLayoutState(): void {
-    this.adoptDisplayViewportAfterDensityChange();
+    this.syncMeasuredRootViewport();
     this.rootBottomPanelLayoutState = this.browserRootBottomPanelSessionCoordinator.buildLayoutState({
       viewportWidth: this.rootViewportWidth,
       viewportHeight: this.rootViewportHeight,
@@ -10481,41 +10488,30 @@ struct BrowserShellPage {
     });
   }
 
-  /**
-   * Display-size scaling changes density while the app is in Settings. The page's onAreaChange is
-   * dropped because the page is not foreground, so the tab sheet keeps sizing cards for the old,
-   * larger vp count and they overlap. A phone window tracks the display, and a density change
-   * moves both axes by the same factor; a split window or the keyboard does not.
-   */
-  private adoptDisplayViewportAfterDensityChange(): void {
-    if (BrowserWindowRuntime.resolveActiveShellPresentationSurface() === 'large_screen') {
-      return;
+  private syncMeasuredRootViewport(): void {
+    // Re-read the actual layout on resume/display-density changes. Proportional
+    // window shrinking is not evidence that the root should fill the display.
+    // Window-local layout coordinates also stay independent of system scaling.
+    try {
+      const uiContext = this.getUIContext();
+      const root = uiContext.getFrameNodeById(buildBrowserTabPreviewVisibleSurfaceSnapshotId(this.activeTabId));
+      if (root === null) {
+        return;
+      }
+      const size = root.getMeasuredSize();
+      const width = Math.round(uiContext.px2vp(size.width));
+      const height = Math.round(uiContext.px2vp(size.height));
+      if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+        return;
+      }
+      const position = root.getPositionToWindow();
+      this.rootViewportLeft = Math.round(position.x);
+      this.rootViewportTop = Math.round(position.y);
+      this.rootViewportWidth = width;
+      this.rootViewportHeight = height;
+    } catch (_error) {
+      // Before mounting or during teardown, keep the last valid area/launch frame.
     }
-    const displayWidth = this.browserWindowDisplayViewportWidth;
-    const displayHeight = this.browserWindowDisplayViewportHeight;
-    const rootWidth = this.rootViewportWidth;
-    const rootHeight = this.rootViewportHeight;
-    if (displayWidth <= 1 || displayHeight <= 1 || rootWidth <= 1 || rootHeight <= 1) {
-      return;
-    }
-    if ((rootWidth > rootHeight) !== (displayWidth > displayHeight)) {
-      return;
-    }
-    const widthRatio = rootWidth / displayWidth;
-    const heightRatio = rootHeight / displayHeight;
-    const widthDelta = widthRatio - 1;
-    const heightDelta = heightRatio - 1;
-    if (Math.abs(widthDelta) < 0.04 || Math.abs(heightDelta) < 0.04 || widthDelta * heightDelta <= 0) {
-      return;
-    }
-    if (widthRatio < 0.55 || widthRatio > 1.8 || heightRatio < 0.55 || heightRatio > 1.8) {
-      return;
-    }
-    if (Math.abs(widthRatio - heightRatio) > 0.12) {
-      return;
-    }
-    this.rootViewportWidth = Math.round(displayWidth);
-    this.rootViewportHeight = Math.round(displayHeight);
   }
 
   private async exitPrivateModeAsync(clearPrivateData: boolean): Promise<void> {

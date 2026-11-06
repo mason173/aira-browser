@@ -10,6 +10,7 @@ export interface BookmarkBrowseLocation {
   folderId: string;
   rootId: string;
   query: string;
+  /** Distance from the list's resting top, excluding any contentStartOffset inset. */
   offset: number;
 }
 

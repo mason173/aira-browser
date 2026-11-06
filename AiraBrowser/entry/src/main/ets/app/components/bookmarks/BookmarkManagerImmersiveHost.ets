@@ -9,30 +9,41 @@ const BOOKMARK_IMMERSIVE_SEARCH_TOP_INSET: number = 8;
 const BOOKMARK_IMMERSIVE_SEARCH_HEADER_HEIGHT: number = 64;
 const BOOKMARK_IMMERSIVE_SEARCH_TO_CONTENT_GAP: number = 8;
 
-export class BookmarkManagerImmersiveLayoutContext {
-  tabsTopInset: number = 0;
-  contentTopInset: number = 0;
+function resolveBookmarkSearchHeaderTopInset(topSafeInsetVp: number): number {
+  return Math.max(0, Math.ceil(topSafeInsetVp)) + BOOKMARK_IMMERSIVE_SEARCH_TOP_INSET;
+}
 
-  constructor(tabsTopInset: number, contentTopInset: number) {
-    this.tabsTopInset = tabsTopInset;
-    this.contentTopInset = contentTopInset;
+export function resolveBookmarkManagerTabsTopInset(topSafeInsetVp: number): number {
+  return resolveManagementImmersiveTitleBottomInset(topSafeInsetVp) + BOOKMARK_IMMERSIVE_TITLE_TO_TABS_GAP;
+}
+
+/** Keep list layout and browse-position restoration in the same coordinate system. */
+export function resolveBookmarkManagerContentTopInset(topSafeInsetVp: number, isSearchMode: boolean,
+  showRootTabs: boolean): number {
+  if (isSearchMode) {
+    return resolveBookmarkSearchHeaderTopInset(topSafeInsetVp) + BOOKMARK_IMMERSIVE_SEARCH_HEADER_HEIGHT +
+      BOOKMARK_IMMERSIVE_SEARCH_TO_CONTENT_GAP;
   }
+  return resolveManagementImmersiveTitleBottomInset(topSafeInsetVp) + (showRootTabs
+    ? BOOKMARK_IMMERSIVE_TITLE_TO_TABS_GAP + BOOKMARK_IMMERSIVE_TABS_HEIGHT + BOOKMARK_IMMERSIVE_TABS_TO_CONTENT_GAP
+    : BOOKMARK_IMMERSIVE_TITLE_TO_CONTENT_GAP);
 }
 
 @Component
 export struct BookmarkManagerImmersiveHost {
   @Prop isSearchMode: boolean = false;
-  @Prop showRootTabs: boolean = false;
   @Prop query: string = '';
   @Prop pageBackground: ResourceColor = Color.Transparent;
   @Prop topSafeInsetVp: number = 0;
   onQueryChange: (query: string) => void = (_query: string): void => {};
   onCloseSearch: () => void = (): void => {};
-  @BuilderParam content: (context: BookmarkManagerImmersiveLayoutContext) => void = this.emptyContent;
+  // Let the caller read its reactive page state; a by-value layout argument keeps
+  // the old folder inset when the same page switches back to root tabs or search.
+  @BuilderParam content: () => void = this.emptyContent;
 
   build() {
     Stack({ alignContent: Alignment.TopStart }) {
-      this.content(this.buildLayoutContext())
+      this.content()
 
       if (this.isSearchMode) {
         Column() {
@@ -56,33 +67,11 @@ export struct BookmarkManagerImmersiveHost {
     .backgroundColor(this.pageBackground)
   }
 
-  private resolveTabsTopInset(): number {
-    return resolveManagementImmersiveTitleBottomInset(this.topSafeInsetVp) +
-      BOOKMARK_IMMERSIVE_TITLE_TO_TABS_GAP;
-  }
-
   private resolveSearchHeaderTopInset(): number {
-    return Math.max(0, Math.ceil(this.topSafeInsetVp)) + BOOKMARK_IMMERSIVE_SEARCH_TOP_INSET;
-  }
-
-  private resolveContentTopInset(): number {
-    if (this.isSearchMode) {
-      return this.resolveSearchHeaderTopInset() + BOOKMARK_IMMERSIVE_SEARCH_HEADER_HEIGHT +
-        BOOKMARK_IMMERSIVE_SEARCH_TO_CONTENT_GAP;
-    }
-    if (this.showRootTabs) {
-      return this.resolveTabsTopInset() + BOOKMARK_IMMERSIVE_TABS_HEIGHT +
-        BOOKMARK_IMMERSIVE_TABS_TO_CONTENT_GAP;
-    }
-    return resolveManagementImmersiveTitleBottomInset(this.topSafeInsetVp) +
-      BOOKMARK_IMMERSIVE_TITLE_TO_CONTENT_GAP;
-  }
-
-  private buildLayoutContext(): BookmarkManagerImmersiveLayoutContext {
-    return new BookmarkManagerImmersiveLayoutContext(this.resolveTabsTopInset(), this.resolveContentTopInset());
+    return resolveBookmarkSearchHeaderTopInset(this.topSafeInsetVp);
   }
 
   @Builder
-  private emptyContent(_context: BookmarkManagerImmersiveLayoutContext) {
+  private emptyContent() {
   }
 }

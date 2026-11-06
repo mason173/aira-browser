@@ -29,7 +29,7 @@ function runtime() {
     vm.runInNewContext(ts.transpileModule(fs.readFileSync(filename, 'utf8'), {
       compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS }
     }).outputText, {
-      module, exports: module.exports, $r: value => value,
+      module, exports: module.exports, $r: value => value, Edge: { Top: 'top' },
       setTimeout: callback => { timers.set(++nextTimer, callback); return nextTimer; },
       clearTimeout: timer => timers.delete(timer),
       require(id) {
@@ -154,12 +154,23 @@ test('invalid scroll offsets are sanitized and cyclic folder data cannot hang re
   }
 });
 
-function phone(r, scope = 'regular') {
+function phone(r, scope = 'regular', contentStartOffset = 0) {
   r.feature.configure({}, scope);
-  const state = { scope, folderId: '', rootId: '', query: '', offset: undefined, scrolls: [], reloads: 0 };
+  const state = { scope, folderId: '', rootId: '', query: '', offset: undefined, contentStartOffset, scrolls: [], reloads: 0 };
   const scroller = {
     offset: () => state.offset === undefined ? undefined : ({ yOffset: state.offset }),
-    scrollTo: ({ yOffset }) => { state.offset = yOffset; state.scrolls.push(yOffset); }
+    // ArkUI scrollTo with animation:false clamps negative targets to zero.
+    // https://developer.huawei.com/consumer/cn/doc/harmonyos-references/ts-container-scroll#scrolloptions18对象说明
+    scrollTo: ({ yOffset }) => { state.offset = Math.max(0, yOffset); state.scrolls.push(state.offset); },
+    scrollBy: (_dx, dy) => {
+      state.offset = Math.max(-state.contentStartOffset, state.offset + dy);
+      state.scrolls.push(state.offset);
+    },
+    scrollEdge: edge => {
+      assert.equal(edge, 'top');
+      state.offset = -state.contentStartOffset;
+      state.scrolls.push(state.offset);
+    }
   };
   const coordinator = new r.PhoneCoordinator({
     feature: r.feature,
@@ -168,6 +179,7 @@ function phone(r, scope = 'regular') {
     rootId: () => state.rootId,
     query: () => state.query,
     scroller: () => scroller,
+    contentStartOffset: () => state.contentStartOffset,
     applyLocation: location => Object.assign(state, { folderId: location.folderId, rootId: location.rootId }),
     exitSearch: () => { state.query = ''; },
     reload: () => { state.reloads++; },
@@ -180,6 +192,131 @@ function phone(r, scope = 'regular') {
   }
   return { coordinator, state, enter };
 }
+
+test('opening a root bookmark and reentering preserves the space below the floating tabs', () => {
+  const r = runtime();
+  // ArkUI List starts at -contentStartOffset, not zero (ContentOffset001 in
+  // OpenHarmony's test/unittest/core/pattern/list/list_layout_test_ng.cpp).
+  const inset = 152;
+  const original = phone(r, 'regular', inset);
+  original.enter();
+  r.nodes.get('regular-link').parentId = original.state.folderId;
+  original.state.offset = -inset;
+  r.feature.authorizeNavigation = () => {};
+  original.coordinator.openBookmark(r.find('regular-link'), 'current_tab', 'regular', 'profile_persistent');
+  original.coordinator.dispose();
+
+  const reopened = phone(r, 'regular', inset);
+  reopened.enter();
+  reopened.state.offset = -inset;
+  reopened.coordinator.validateLocation();
+  reopened.coordinator.scheduleScrollRestore();
+  r.flushTimers();
+  assert.equal(-reopened.state.offset, inset, 'first row must retain its original top inset below the tabs');
+});
+
+test('phone restores the inset range from any bound position despite native scrollTo clamping', () => {
+  const r = runtime();
+  const inset = 152;
+  for (const savedDistance of [0, 24.5, inset - 1]) {
+    r.store.remember('regular', r.constants.BOOKMARK_TOOLBAR_ROOT_ID, '', savedDistance, r.find);
+    for (const mountedOffset of [-inset, -40, 0, 300]) {
+      const p = phone(r, 'regular', inset);
+      p.enter();
+      p.state.offset = mountedOffset;
+      p.coordinator.validateLocation();
+      p.coordinator.scheduleScrollRestore();
+      r.flushTimers();
+      assert.equal(p.state.offset, savedDistance - inset);
+      assert.equal(p.state.elevated, false);
+      p.coordinator.scheduleScrollRestore();
+      r.flushTimers();
+      assert.equal(p.state.scrolls.length, 1, 'restoration must not apply a relative movement twice');
+    }
+  }
+});
+
+for (const scope of ['regular', 'private']) {
+  for (const view of ['toolbar', 'other', 'folder', 'search']) {
+    test(`${scope} ${view}: negative and positive native positions survive repeated bookmark reentry`, () => {
+      const r = runtime();
+      const rootId = view === 'toolbar'
+        ? (scope === 'private' ? r.constants.PRIVATE_BOOKMARK_TOOLBAR_ROOT_ID : r.constants.BOOKMARK_TOOLBAR_ROOT_ID)
+        : (scope === 'private' ? r.constants.PRIVATE_BOOKMARK_OTHER_ROOT_ID : r.constants.BOOKMARK_OTHER_ROOT_ID);
+      const folderId = view === 'folder' || view === 'search' ? scope + '-deep' : rootId;
+      const query = view === 'search' ? 'Link' : '';
+      const inset = view === 'search' ? 116 : view === 'folder' ? 112 : 152;
+      r.nodes.get(scope + '-link').parentId = folderId;
+      r.feature.authorizeNavigation = () => {};
+      for (const offset of [-inset, -inset + 24.5, 0, 583.5]) {
+        let p = phone(r, scope, inset);
+        p.enter({ folderId, query });
+        p.state.offset = offset;
+        for (let reentry = 0; reentry < 3; reentry++) {
+          p.coordinator.openBookmark(r.find(scope + '-link'), 'current_tab', scope, 'profile_persistent');
+          p.coordinator.dispose();
+          assert.equal(r.store.peek(scope).offset, offset + inset);
+          p = phone(r, scope, inset);
+          p.enter();
+          p.state.offset = -inset;
+          p.coordinator.validateLocation();
+          p.coordinator.scheduleScrollRestore();
+          r.flushTimers();
+          assert.equal(p.state.folderId, folderId);
+          assert.equal(p.state.query, query);
+          assert.equal(p.state.offset, offset, 'reentry must not move content relative to the header');
+          assert.equal(p.state.elevated, offset > 8);
+        }
+      }
+    });
+  }
+}
+
+test('phone clamps only actual rebound and restores against the current header inset', () => {
+  const r = runtime();
+  const p = phone(r, 'regular', 152);
+  p.enter();
+  for (const offset of [-180, NaN, Infinity]) {
+    p.state.offset = offset;
+    p.coordinator.remember();
+    assert.equal(r.store.peek('regular').offset, 0);
+    const reopened = phone(r, 'regular', 164);
+    reopened.enter();
+    reopened.state.offset = -164;
+    reopened.coordinator.validateLocation();
+    reopened.coordinator.scheduleScrollRestore();
+    r.flushTimers();
+    assert.equal(reopened.state.offset, -164);
+  }
+  p.state.offset = -127.5;
+  p.coordinator.remember();
+  const reopened = phone(r, 'regular', 164);
+  reopened.enter();
+  reopened.coordinator.remember();
+  assert.equal(r.store.peek('regular').offset, 24.5, 'unbound lists keep the pending logical distance');
+  reopened.state.offset = -164;
+  reopened.coordinator.validateLocation();
+  reopened.coordinator.scheduleScrollRestore();
+  r.flushTimers();
+  assert.equal(reopened.state.offset, -139.5);
+});
+
+test('phone deleted-folder fallback and parent navigation retain the header inset at the top', () => {
+  const r = runtime();
+  r.store.remember('regular', 'regular-deep', '', 300, r.find);
+  r.nodes.delete('regular-deep');
+  const p = phone(r, 'regular', 112);
+  p.enter();
+  p.state.offset = -112;
+  p.coordinator.validateLocation();
+  p.coordinator.scheduleScrollRestore();
+  r.flushTimers();
+  assert.equal(p.state.folderId, 'regular-parent');
+  assert.equal(p.state.offset, -112, 'deleted folder falls back to the parent resting top');
+  p.state.offset = 300;
+  assert.equal(p.coordinator.navigateParent(), true);
+  assert.equal(p.state.offset, -112, 'reset the bound list to its real edge before changing parents');
+});
 
 test('phone reentry waits for refreshed data and a bound list, then restores the offset once', () => {
   const r = runtime();

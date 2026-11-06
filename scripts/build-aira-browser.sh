@@ -578,6 +578,7 @@ fi
 "${NODE_BIN}" --test "${REPO_ROOT}/scripts/check-aira-window-title-drag.cjs"
 "${NODE_BIN}" "${REPO_ROOT}/scripts/check-aira-search-style-isolation.cjs"
 "${NODE_BIN}" "${REPO_ROOT}/scripts/check-aira-search-list-viewport.cjs"
+"${NODE_BIN}" "${REPO_ROOT}/scripts/check-aira-system-window-layout.cjs"
 "${NODE_BIN}" --test "${REPO_ROOT}/scripts/check-aira-user-agent-policy.cjs"
 AIRA_NODE_BIN="${NODE_BIN}" "${REPO_ROOT}/scripts/check-aira-downloads.sh"
 "${NODE_BIN}" --test "${REPO_ROOT}/scripts/check-aira-adblock-document-start.cjs"
@@ -2105,6 +2106,12 @@ if ! "${NODE_BIN}" "${HVIGOR_BIN}" "${HVIGOR_ARGS[@]}"; then
   echo "DevEco/Hvigor encrypted signing passwords are machine-local, so a copied build-profile JSON can point to the right files but still have stale encrypted passwords."
   exit 1
 fi
+
+BOOKMARK_LAYOUT_BUILD_MODE="debug"
+if [ "${BUILD_VARIANT}" = "release" ]; then
+  BOOKMARK_LAYOUT_BUILD_MODE="release"
+fi
+"${NODE_BIN}" "${REPO_ROOT}/scripts/check-aira-bookmark-layout-reactivity.cjs" "${BOOKMARK_LAYOUT_BUILD_MODE}"
 
 archive_crash_symbols
 

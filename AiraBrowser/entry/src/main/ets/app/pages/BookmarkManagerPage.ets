@@ -109,7 +109,7 @@ import {
   BookmarkMoveFolderSelectionResult,
   BookmarkMoveFolderSelectionSheet
 } from '../components/bookmarks/BookmarkMoveFolderSelectionSheet';
-import { BookmarkManagerImmersiveHost, BookmarkManagerImmersiveLayoutContext } from '../components/bookmarks/BookmarkManagerImmersiveHost';
+import { BookmarkManagerImmersiveHost, resolveBookmarkManagerContentTopInset, resolveBookmarkManagerTabsTopInset } from '../components/bookmarks/BookmarkManagerImmersiveHost';
 import { BROWSER_WINDOW_SAFE_TOP_INSET_STORAGE_KEY } from '../../core/browser/BrowserWindowAvoidAreaCoordinator';
 import { applyDesktopDialogSheetChrome } from '../components/common/DesktopDialogSheetChrome';
 import { BOOKMARK_SORT_PREFERENCES_REVISION_KEY, BookmarkSortMode } from '../../common/models/BookmarkSortModels';
@@ -164,6 +164,8 @@ struct BookmarkManagerPage {
     rootId: (): string => this.selectedRootId,
     query: (): string => this.bookmarkSearchState.isSearchMode ? this.bookmarkSearchState.query : '',
     scroller: (): Scroller => this.resolveBookmarkHeaderScrollers()[0],
+    contentStartOffset: (): number => resolveBookmarkManagerContentTopInset(
+      this.topSafeInsetVp, this.bookmarkSearchState.isSearchMode, this.shouldShowRootTabs()),
     applyLocation: (location: BookmarkBrowseLocation): void => this.applyBrowseLocation(location),
     exitSearch: (): void => this.exitBookmarkSearchMode(),
     reload: (): void => { this.prefillBookmarkNodesFromCache(); this.reloadNodes(); },
@@ -370,7 +372,6 @@ struct BookmarkManagerPage {
       }) {
         BookmarkManagerImmersiveHost({
           isSearchMode: this.bookmarkSearchState.isSearchMode,
-          showRootTabs: this.shouldShowRootTabs(),
           query: this.bookmarkSearchState.query,
           pageBackground: this.storedPageBackgroundColor,
           topSafeInsetVp: this.topSafeInsetVp,
@@ -380,8 +381,8 @@ struct BookmarkManagerPage {
           onCloseSearch: (): void => {
             this.exitBookmarkSearchMode();
           },
-          content: (context: BookmarkManagerImmersiveLayoutContext): void => {
-            this.buildList(context)
+          content: (): void => {
+            this.buildList()
           }
         })
       }
@@ -414,13 +415,14 @@ struct BookmarkManagerPage {
     }, 'm'))
   }
   @Builder
-  private buildList(layout: BookmarkManagerImmersiveLayoutContext) {
+  private buildList() {
     BookmarkManagerPages({
       showRootTabs: this.shouldShowRootTabs(),
       scope: this.bookmarkScope,
       selectedRootId: this.selectedRootId,
-      contentTopInset: layout.contentTopInset,
-      tabsTopInset: layout.tabsTopInset,
+      contentTopInset: resolveBookmarkManagerContentTopInset(
+        this.topSafeInsetVp, this.bookmarkSearchState.isSearchMode, this.shouldShowRootTabs()),
+      tabsTopInset: resolveBookmarkManagerTabsTopInset(this.topSafeInsetVp),
       isSelectionMode: this.isSelectionMode,
       canReorder: this.bookmarkSortMode === 'manual' && !this.bookmarkSearchState.isSearchMode,
       isInitialLoadPending: this.isInitialBookmarkLoadPending,
