@@ -5,6 +5,7 @@ import { iap } from '@kit.IAPKit';
 import {
   AIRA_PRO_IAP_PLANS,
   AIRA_PRO_ONE_TIME_PRODUCT_ID,
+  AIRA_SUITE_LIFETIME_PLAN_ID, AIRA_SUITE_LIFETIME_PRODUCT_ID,
   HuaweiIapPlanId,
   HuaweiIapProductPlan,
   resolveAiraProProductId,
@@ -19,6 +20,7 @@ const IAP_SUBSCRIPTION_PRODUCT_IDS: string[] = AIRA_PRO_IAP_PLANS.map((plan: Hua
 const IAP_PURCHASE_ALREADY_FINISHED_ERROR_CODE: number = 1001860053;
 
 interface HuaweiIapPurchaseOrderPayload {
+  productId?: string;
   productType?: number;
   purchaseToken?: string;
   purchaseOrderId?: string;
@@ -31,6 +33,8 @@ interface HuaweiIapSubscriptionStatusPayload {
 }
 
 interface HuaweiIapRawPurchaseData extends HuaweiIapSubscriptionStatusPayload {
+  productId?: string;
+  jwsPurchaseOrder?: string;
   jwsSubscriptionStatus?: string;
   lastSubscriptionStatus?: HuaweiIapSubscriptionStatusPayload;
   purchaseToken?: string;
@@ -38,7 +42,7 @@ interface HuaweiIapRawPurchaseData extends HuaweiIapSubscriptionStatusPayload {
   productType?: number;
 }
 
-interface HuaweiIapJwsSubscriptionPayload {
+interface HuaweiIapJwsSubscriptionPayload extends HuaweiIapPurchaseOrderPayload {
   lastSubscriptionStatus?: HuaweiIapSubscriptionStatusPayload;
   historySubscriptionStatusList?: HuaweiIapSubscriptionStatusPayload[];
 }
@@ -47,6 +51,7 @@ export type HuaweiIapAction =
   'query_products' |
   'purchase_pro_monthly' |
   'purchase_pro_one_time' |
+  'purchase_suite_lifetime' |
   'restore_purchase' |
   'manage_subscription';
 
@@ -116,12 +121,14 @@ export class HuaweiIapPurchaseService {
   async startProPurchase(
     context: common.UIAbilityContext,
     period: string = 'monthly',
-    uid: string = ''
+    uid: string = '',
+    mayLaunch: () => boolean = (): boolean => true
   ): Promise<HuaweiIapOperationResult> {
     const normalizedPlanId = period.trim().toLowerCase();
-    const oneTimeSelected = normalizedPlanId === 'one_time';
+    const suiteSelected = normalizedPlanId === AIRA_SUITE_LIFETIME_PLAN_ID;
+    const oneTimeSelected = normalizedPlanId === 'one_time' || suiteSelected;
     const productId = resolveAiraProProductId(normalizedPlanId);
-    const action: HuaweiIapAction = oneTimeSelected ? 'purchase_pro_one_time' : 'purchase_pro_monthly';
+    const action: HuaweiIapAction = suiteSelected ? 'purchase_suite_lifetime' : oneTimeSelected ? 'purchase_pro_one_time' : 'purchase_pro_monthly';
     if (!this.isIapAvailable()) {
       return this.buildIapUnavailableResult(action, oneTimeSelected
         ? $r('app.string.membership_iap_lifetime_unavailable')
@@ -134,6 +141,19 @@ export class HuaweiIapPurchaseService {
       applicationUserName: this.accountBindingService.buildApplicationUserName(uid)
     };
     try {
+      if (suiteSelected) {
+        await iap.queryEnvironmentStatus(context);
+        if (!mayLaunch()) { return { ok: false, title: '', message: '', action, silent: true }; }
+        const products = await iap.queryProducts(context, {
+          productType: iap.ProductType.NONCONSUMABLE, productIds: [AIRA_SUITE_LIFETIME_PRODUCT_ID]
+        });
+        if (!mayLaunch()) { return { ok: false, title: '', message: '', action, silent: true }; }
+        if (!products.some((product: iap.Product): boolean => product.id === AIRA_SUITE_LIFETIME_PRODUCT_ID)) {
+          return { ok: false, title: $r('app.string.settings_pro_purchase_unavailable'),
+            message: $r('app.string.membership_suite_product_unavailable'), action };
+        }
+      }
+      if (!mayLaunch()) { return { ok: false, title: '', message: '', action, silent: true }; }
       const result = await iap.createPurchase(context, purchaseParameter);
       return {
         ok: true,
@@ -156,7 +176,7 @@ export class HuaweiIapPurchaseService {
     }
   }
 
-  async restorePurchases(context: common.UIAbilityContext): Promise<HuaweiIapOperationResult> {
+  async restorePurchases(context: common.UIAbilityContext, suiteOnly: boolean = false): Promise<HuaweiIapOperationResult> {
     if (!this.isIapAvailable()) {
       return this.buildIapUnavailableResult('restore_purchase', $r('app.string.membership_iap_restore_unavailable'));
     }
@@ -199,7 +219,14 @@ export class HuaweiIapPurchaseService {
       return this.buildFailureResult('restore_purchase', $r('app.string.membership_iap_restore_failed_title'),
         subscriptionError);
     }
-    const purchaseDataList = oneTimeDataList.concat(subscriptionDataList);
+    const unique = Array.from(new Set<string>(oneTimeDataList.concat(suiteOnly ? [] : subscriptionDataList)));
+    const purchaseDataList = suiteOnly ? unique.filter((data: string): boolean => {
+      try {
+        const purchase = this.parsePurchaseData(data);
+        const order = this.decodeJwsSubscriptionStatus(purchase.jwsPurchaseOrder);
+        return (order.productId ?? purchase.productId ?? '') === AIRA_SUITE_LIFETIME_PRODUCT_ID;
+      } catch (_) { return false; }
+    }) : unique;
     return {
       ok: true,
       title: purchaseDataList.length > 0
@@ -308,12 +335,13 @@ export class HuaweiIapPurchaseService {
     const purchase = this.parsePurchaseData(purchaseData);
     const decoded = this.decodeJwsSubscriptionStatus(purchase.jwsSubscriptionStatus);
     const decodedStatus = decoded.lastSubscriptionStatus ?? decoded.historySubscriptionStatusList?.[0];
+    const signedOrder = this.decodeJwsSubscriptionStatus(purchase.jwsPurchaseOrder);
     const purchaseStatus = purchase.lastSubscriptionStatus ?? purchase;
     const order = decodedStatus?.lastPurchaseOrder ??
       decodedStatus?.recentPurchaseOrderList?.[0] ??
       purchaseStatus.lastPurchaseOrder ??
       purchaseStatus.recentPurchaseOrderList?.[0] ??
-      purchase;
+      (signedOrder.purchaseToken ? signedOrder : purchase);
     const purchaseToken = this.normalizeString(order.purchaseToken ?? decodedStatus?.purchaseToken ?? purchase.purchaseToken);
     const purchaseOrderId = this.normalizeString(order.purchaseOrderId ?? purchase.purchaseOrderId);
     if (purchaseToken.length <= 0 || purchaseOrderId.length <= 0) {

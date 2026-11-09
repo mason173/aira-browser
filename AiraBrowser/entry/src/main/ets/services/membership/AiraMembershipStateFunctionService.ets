@@ -48,6 +48,10 @@ export interface AiraAccountProfileRequestBody {
   authToken?: string;
 }
 
+export interface AiraAppSuiteResponseRecord {
+  owned?: boolean;
+}
+
 export interface AiraMembershipStateResponseBody {
   ok?: boolean;
   code?: string;
@@ -59,6 +63,7 @@ export interface AiraMembershipStateResponseBody {
   entitlementProof?: string | null;
   newUserGift?: AiraNewUserGiftStateRecord | null;
   lapsedPro?: AiraLapsedProStateRecord | null;
+  appSuite?: AiraAppSuiteResponseRecord | null;
 }
 
 export interface AiraMembershipStateHttpAdapter {

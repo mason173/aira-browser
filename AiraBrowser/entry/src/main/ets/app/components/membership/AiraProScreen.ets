@@ -1,7 +1,13 @@
+import { ComponentActive, ComponentInactive } from '@kit.ArkUI';
+import { JuMembershipOffer, JuSettingItem } from 'design';
+import { KitappMembershipPage, KITAPP_CONTACT_EMAIL } from 'kitapp-membership';
+import { createAiraProMembershipOffer, createAiraProMembershipActions } from '../../../core/membership/AiraProMembershipCatalog';
+import { AIRA_SUITE_LIFETIME_PLAN_ID } from '../../../services/membership/HuaweiIapProductCatalog';
 import { common } from '@kit.AbilityKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { loginComponentManager } from '@kit.AccountKit';
 import {
+  AiraProOverviewPlanState,
   AiraProOverviewViewModel,
   AiraProOverviewViewState
 } from '../../../core/membership/AiraProOverviewViewModel';
@@ -97,17 +103,19 @@ export struct AiraProScreen {
   private syncSettingsRefreshSignal: SyncSettingsRefreshSignal = new SyncSettingsRefreshSignal();
   private purchaseFlowHost: AiraProPurchaseFlowHostAdapter = new AiraProPurchaseFlowHostAdapter(
     () => {
-      this.applyAiraProState();
-      this.syncSettingsRefreshSignal.bump();
+      if (this.membershipMounted) {
+        this.applyAiraProState();
+        this.syncSettingsRefreshSignal.bump();
+      }
     },
     () => {
-      this.ensureHuaweiAccountSignedIn();
+      if (this.membershipMounted && this.membershipActive) { this.ensureHuaweiAccountSignedIn(); }
     },
     (message: ResourceStr) => {
-      this.showToast(message);
+      if (this.membershipMounted && this.membershipActive) { this.showToast(message); }
     },
     (visible: boolean): void => {
-      this.setHuaweiPaymentLaunchVisible(visible);
+      if (this.membershipMounted) { this.setHuaweiPaymentLaunchVisible(visible); }
     }
   );
   private huaweiLoginButtonController: loginComponentManager.LoginWithHuaweiIDButtonController =
@@ -119,6 +127,11 @@ export struct AiraProScreen {
         this.handleHuaweiLoginPanelResult(error, response);
       });
   private contentScroller: Scroller = new Scroller();
+  private membershipMounted: boolean = false;
+  @State private membershipActive: boolean = true;
+  @State private membershipPaymentBusy: boolean = false;
+  @State private suiteOwned: boolean = false;
+  @State private membershipActions: JuSettingItem[] = [];
   /** Set when this visit dismisses the intro, so a late membership refresh cannot reopen it. */
   private donateIntroDismissedThisEntry: boolean = false;
   private themePreferencesListenerKey: string = '';
@@ -133,6 +146,7 @@ export struct AiraProScreen {
     this.privacyMode,
     this.lifetimeStorePriceText
   );
+  @State private membershipOffer: JuMembershipOffer = createAiraProMembershipOffer(this.state);
   private complimentaryClaimInFlight: boolean = false;
   private membershipRedeemInFlight: boolean = false;
   private complimentaryClaimDialogController: CustomDialogController = new CustomDialogController({
@@ -203,16 +217,18 @@ export struct AiraProScreen {
   private storedResolvedThemeMode: string = 'light';
 
   aboutToAppear(): void {
+    this.membershipMounted = true;
     this.bindThemePreferencesUpdates();
     this.donateIntroDismissedThisEntry = false;
     this.refreshState();
     this.presentDonateIntro();
-    if (this.isDesktopPresentation()) {
-      this.purchaseCoordinator.handlePageShow(this.purchaseFlowHost, this.buildAiraProDataBoundaryInput());
-    }
+    this.purchaseCoordinator.handlePageShow(this.purchaseFlowHost, this.buildAiraProDataBoundaryInput());
   }
 
   aboutToDisappear(): void {
+    this.membershipMounted = false;
+    this.purchaseCoordinator.cancelPurchaseConsent();
+    this.lifetimeStorePriceRequest += 1;
     this.unbindThemePreferencesUpdates();
     try {
       this.complimentaryClaimDialogController.close();
@@ -229,11 +245,20 @@ export struct AiraProScreen {
     this.setHuaweiPaymentLaunchVisible(false);
   }
 
-  onPageShow(): void {
+  @ComponentActive
+  private handleMembershipActive(): void {
+    this.membershipActive = true;
     this.donateIntroDismissedThisEntry = false;
     this.refreshState();
     this.presentDonateIntro();
     this.purchaseCoordinator.handlePageShow(this.purchaseFlowHost, this.buildAiraProDataBoundaryInput());
+  }
+
+  @ComponentInactive
+  private handleMembershipInactive(): void {
+    this.purchaseCoordinator.cancelPurchaseConsent();
+    this.membershipActive = false;
+    this.lifetimeStorePriceRequest += 1;
   }
 
   build() {
@@ -247,24 +272,35 @@ export struct AiraProScreen {
   @Builder
   private buildPageSurface() {
     Column() {
-      SettingsHdsScaffold({
-        title: this.state.title,
-        backIconKind: 'close',
-        pageBackground: this.theme.pageBackground,
-        headerButtonBackground: this.theme.controlBackground,
-        primaryTextColor: this.theme.textPrimary,
-        dividerColor: this.theme.divider,
-        menuActionText: this.resolveRestorePurchaseActionLabel(),
-        scrollers: [this.contentScroller],
-        contentKind: 'standard',
-        onBack: () => {
-          this.navigationCoordinator.back();
-        },
-        onMenuAction: () => {
-          this.restorePurchase();
+      if (AIRA_DISTRIBUTION_CAPABILITY_OWNER.isOfficial()) {
+        SettingsHdsScaffold({
+          showTitleBar: false,
+          useTopSafeInset: true,
+          contentKind: 'unframed',
+          pageBackground: this.theme.pageBackground
+        }) {
+          this.buildSharedMembership()
         }
-      }) {
-        this.buildAiraProContent()
+      } else {
+        SettingsHdsScaffold({
+          title: this.state.title,
+          backIconKind: 'close',
+          pageBackground: this.theme.pageBackground,
+          headerButtonBackground: this.theme.controlBackground,
+          primaryTextColor: this.theme.textPrimary,
+          dividerColor: this.theme.divider,
+          menuActionText: this.resolveRestorePurchaseActionLabel(),
+          scrollers: [this.contentScroller],
+          contentKind: 'standard',
+          onBack: () => {
+            this.navigationCoordinator.back();
+          },
+          onMenuAction: () => {
+            this.restorePurchase();
+          }
+        }) {
+          this.buildAiraProContent()
+        }
       }
     }
     .width('100%')
@@ -291,7 +327,11 @@ export struct AiraProScreen {
     Stack({ alignContent: Alignment.Center }) {
       Row() {
         Column() {
-          this.buildAiraProContent()
+          if (AIRA_DISTRIBUTION_CAPABILITY_OWNER.isOfficial()) {
+            this.buildSharedMembership()
+          } else {
+            this.buildAiraProContent()
+          }
         }
         .width('100%')
         .height('100%')
@@ -320,6 +360,53 @@ export struct AiraProScreen {
     .height('100%')
     .backgroundColor(this.theme.pageBackground)
   }
+
+  @Builder
+  private buildSharedMembership() {
+    KitappMembershipPage({
+      app: this.membershipOffer,
+      asDestination: true,
+      appActions: this.membershipActions,
+      contactEmail: KITAPP_CONTACT_EMAIL,
+      active: this.membershipActive && !this.activeSheetVisible,
+      paymentBusy: this.membershipPaymentBusy,
+      suitePurchaseEnabled: true,
+      suiteOwned: this.suiteOwned,
+      onBack: (): void => {
+        if (this.isDesktopPresentation()) { this.onRequestClose(); }
+        else { this.navigationCoordinator.back(); }
+      },
+      onPurchase: (): void => { this.openProPurchase('one_time'); },
+      onOpenSuite: (): void => { this.openProPurchase(AIRA_SUITE_LIFETIME_PLAN_ID); },
+      onRestore: (suite: boolean): void => {
+        if (suite) { this.restorePurchaseForPlan(AIRA_SUITE_LIFETIME_PLAN_ID); }
+        else { this.restorePurchase(); }
+      },
+      onAppAction: (key: string): void => { this.handleSharedMembershipAction(key); },
+      onUserAgreement: (): void => { this.openSharedLegalDocument('user_service_agreement'); },
+      onPrivacy: (): void => { this.openSharedLegalDocument('privacy_statement'); }
+    })
+  }
+
+  private handleSharedMembershipAction(key: string): void {
+    if (!this.membershipMounted || !this.membershipActive || this.membershipPaymentBusy || !this.state.proActionsEnabled) { return; }
+    if (key.startsWith('plan:')) {
+      const plan = this.state.plans.find((item: AiraProOverviewPlanState): boolean => 'plan:' + item.id === key);
+      if (plan !== undefined && plan.action !== 'unavailable') { this.openProPurchase(plan.id); }
+    } else if (key === 'manage_subscription' && this.state.showManageSubscription) {
+      this.openSubscriptionManagement();
+    } else if (key === 'redeem') { this.openMembershipRedeem(); }
+    else if (key === 'claim') { this.openComplimentaryClaim(); }
+    else if (key === 'self_hosting') { this.openSelfHostingGuide(); }
+    else if (key === 'membership_terms') { this.openMembershipTerms(); }
+    else if (key === 'auto_renewal_terms') { this.openAutoRenewalNotice(); }
+  }
+
+  private openSharedLegalDocument(documentId: AiraLegalDocumentId): void {
+    if (this.isDesktopPresentation()) { this.openDesktopLegalDocument(documentId); }
+    else { this.navigationCoordinator.openLegalWebDocument(documentId, this.buildAiraProBoundaryState()); }
+  }
+
 
   @Builder
   private buildAiraProContent() {
@@ -579,6 +666,7 @@ export struct AiraProScreen {
   }
 
   private applyAiraProState(): void {
+    if (!this.membershipMounted) { return; }
     const livePrice = this.lifetimeStorePriceText.length > 0
       ? this.lifetimeStorePriceText
       : readCachedAiraProLifetimeStorePrice();
@@ -588,6 +676,9 @@ export struct AiraProScreen {
       this.privacyMode,
       livePrice
     );
+    this.suiteOwned = sharedMembershipFeature.getAppSuiteState().owned;
+    this.membershipOffer = createAiraProMembershipOffer(this.state);
+    this.membershipActions = createAiraProMembershipActions(this.state);
   }
 
   /**
@@ -606,11 +697,13 @@ export struct AiraProScreen {
     } catch (_error) {
       return;
     }
+    const accountUid = this.getHuaweiUid();
     const request = this.lifetimeStorePriceRequest + 1;
     this.lifetimeStorePriceRequest = request;
     this.purchaseCoordinator.queryProProducts(context)
       .then((products: HuaweiIapProductView[]) => {
-        if (request !== this.lifetimeStorePriceRequest) {
+        if (!this.membershipMounted || !this.membershipActive || accountUid !== this.getHuaweiUid() ||
+          request !== this.lifetimeStorePriceRequest) {
           return;
         }
         const priceText = this.findLifetimeStorePriceText(products);
@@ -650,13 +743,14 @@ export struct AiraProScreen {
   }
 
   private openProPurchase(planId: string = 'monthly'): void {
+    if (!this.membershipMounted || !this.membershipActive || this.membershipPaymentBusy) { return; }
+    this.membershipPaymentBusy = true;
     this.purchaseCoordinator.startPurchaseFlow(
-      getContext(this) as common.UIAbilityContext,
-      planId,
-      this.getHuaweiUid(),
-      this.purchaseFlowHost,
-      this.buildAiraProDataBoundaryInput()
-    );
+      getContext(this) as common.UIAbilityContext, planId, this.getHuaweiUid(),
+      this.purchaseFlowHost, this.buildAiraProDataBoundaryInput()
+    ).finally((): void => {
+      if (this.membershipMounted) { this.membershipPaymentBusy = false; }
+    });
   }
 
   /**
@@ -689,13 +783,17 @@ export struct AiraProScreen {
   }
 
   private restorePurchaseForPlan(planId: string): void {
+    if (!this.membershipMounted || !this.membershipActive || this.membershipPaymentBusy) { return; }
+    this.membershipPaymentBusy = true;
     this.purchaseCoordinator.restorePurchaseFlow(
       getContext(this) as common.UIAbilityContext,
       this.getHuaweiUid(),
       planId,
       this.purchaseFlowHost,
       this.buildAiraProDataBoundaryInput()
-    );
+    ).finally((): void => {
+      if (this.membershipMounted) { this.membershipPaymentBusy = false; }
+    });
   }
 
   private openMembershipTerms(): void {

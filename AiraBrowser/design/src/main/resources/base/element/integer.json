@@ -1,0 +1,48 @@
+{
+  "integer": [
+    {
+      "name": "motion_content_forward_duration",
+      "value": 270
+    },
+    {
+      "name": "reorder_long_press_vibration_duration",
+      "value": 20
+    },
+    {
+      "name": "font_weight_regular",
+      "value": 400
+    },
+    {
+      "name": "font_weight_medium",
+      "value": 500
+    },
+    {
+      "name": "font_weight_semibold",
+      "value": 600
+    },
+    {
+      "name": "font_weight_bold",
+      "value": 700
+    },
+    {
+      "name": "input_title_max_length",
+      "value": 100
+    },
+    {
+      "name": "reorder_visible_cache_rows",
+      "value": 3
+    },
+    {
+      "name": "review_speed_vp_per_second",
+      "value": 24
+    },
+    {
+      "name": "motion_membership_page_duration",
+      "value": 300
+    },
+    {
+      "name": "immersive_page_cached_pages",
+      "value": 1
+    }
+  ]
+}

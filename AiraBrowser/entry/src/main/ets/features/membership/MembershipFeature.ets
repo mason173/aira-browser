@@ -104,6 +104,12 @@ export interface AiraMembershipRedeemResult {
   state?: AiraMembershipState;
 }
 
+export interface AiraAppSuiteState {
+  owned: boolean;
+  checked: boolean;
+  revision: number;
+}
+
 export class MembershipFeature {
   private repository: MembershipRepository;
   private entitlementService: EntitlementService;
@@ -124,6 +130,9 @@ export class MembershipFeature {
   private remoteStateRefreshUid: string = '';
   private remoteStateRefreshAttemptedAt: number = 0;
   private remoteStateRefreshAttemptUid: string = '';
+  private suiteUid: string = '';
+  private suiteOwned: boolean = false;
+  private suiteRevision: number = 0;
   private accountScopeUid: string = '';
   private accountScopeGeneration: number = 0;
   private entitlementRequestGeneration: number = 0;
@@ -166,6 +175,9 @@ export class MembershipFeature {
     if (normalizedUid === this.accountScopeUid) {
       return;
     }
+    this.suiteUid = '';
+    this.suiteOwned = false;
+    this.suiteRevision += 1;
     this.accountScopeUid = normalizedUid;
     this.accountScopeGeneration += 1;
     this.invalidateEntitlementRequests();
@@ -176,6 +188,18 @@ export class MembershipFeature {
     if (this.lapsedPro.uid !== normalizedUid) {
       this.lapsedPro = buildEmptyLapsedProView();
     }
+  }
+
+  getAppSuiteState(): AiraAppSuiteState {
+    const checked = this.suiteUid.length > 0 && this.suiteUid === this.getHuaweiUid();
+    return { owned: checked && this.suiteOwned, checked, revision: this.suiteRevision };
+  }
+
+  /** A payment confirmation remains bound to this exact account session, including A→B→A changes. */
+  capturePurchaseSessionGuard(uid: string): () => boolean {
+    if (uid.trim().length === 0 || uid.trim() !== this.getHuaweiUid()) { return (): boolean => false; }
+    const accountScope = this.captureAccountScope(uid.trim());
+    return (): boolean => this.isCurrentAccountScope(accountScope);
   }
 
   getState(): AiraMembershipState {
@@ -690,6 +714,11 @@ export class MembershipFeature {
       if (committedSnapshot === undefined ||
         !this.isCurrentEntitlementRequest(accountScope, entitlementRequestGeneration)) {
         return this.getState();
+      }
+      if (typeof remoteState.appSuite?.owned === 'boolean') {
+        this.suiteUid = uid;
+        this.suiteOwned = remoteState.appSuite.owned === true;
+        this.suiteRevision += 1;
       }
       this.captureNewUserGiftState(uid, remoteState.newUserGift ?? undefined, Date.now());
       this.captureLapsedProState(uid, remoteState.lapsedPro ?? undefined, Date.now());

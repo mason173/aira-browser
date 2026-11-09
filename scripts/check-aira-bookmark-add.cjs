@@ -85,6 +85,23 @@ test('opening, typing, and choosing a folder do not write; cancel discards the d
   assert.equal(h.writes.length, 0);
   h.coordinator.startAdd(h.target); assert.equal(h.snapshot().draft.title, 'Original');
 });
+test('unchanged input callbacks do not refresh the anchored bookmark form', async () => {
+  const h = harness();
+  h.coordinator.openAnchored(h.target);
+  await tick();
+  const snapshotsBeforeInput = h.snapshots.length;
+  for (let repeat = 0; repeat < 10; repeat++) {
+    h.action({ type: 'edit_title', value: h.target.title });
+    h.action({ type: 'edit_url', value: h.target.url });
+  }
+  assert.equal(h.snapshots.length, snapshotsBeforeInput);
+
+  h.action({ type: 'edit_title', value: 'Edited name' });
+  h.action({ type: 'edit_url', value: 'https://edited.example/' });
+  assert.equal(h.snapshot().draft.title, 'Edited name');
+  assert.equal(h.snapshot().draft.url, 'https://edited.example/');
+  assert.equal(h.snapshots.length, snapshotsBeforeInput + 2);
+});
 test('save commits edited title, normalized URL and folder, and home uses the edited values', async () => {
   const h = harness(); h.coordinator.openAnchored(h.target);
   h.action({ type: 'edit_title', value: ' Custom name ' }); h.action({ type: 'edit_url', value: 'changed.example/new' });

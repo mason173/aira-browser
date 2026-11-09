@@ -129,7 +129,7 @@ export interface BrowserStartupTabRestoreHost {
   resolveFacts: () => BrowserStartupTabRestoreFacts;
   applyState: (application: BrowserStartupTabRestoreStateApplication) => void;
   setStartupHomeSurfacePending: (pending: boolean) => void;
-  resetHomeTransientUiState: () => void;
+  resetHomeTransientUiPresentation: () => void;
   applyShellVisualState: (state: BrowserShellVisualState) => void;
   connectSearchInvocationSurfaceIfReady: () => void;
 }
@@ -477,7 +477,8 @@ export class BrowserStartupTabRestoreCoordinator {
   }
 
   private applyOpenHomeSurface(materializationPolicy: BrowserMaterializationPolicy): void {
-    this.host.resetHomeTransientUiState();
+    // A launcher Search request can already be waiting for the surface to connect.
+    this.host.resetHomeTransientUiPresentation();
     this.host.applyShellVisualState(
       this.dependencies.shellStateCoordinator.buildHomeState(this.host.resolveFacts().runtimeDegradedMessage)
     );

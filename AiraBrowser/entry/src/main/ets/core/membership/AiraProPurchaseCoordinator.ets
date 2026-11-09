@@ -1,3 +1,9 @@
+import { KitappPurchaseConsentRequest } from 'kitapp-membership';
+import { AiraAccountUnionLinkFunctionService } from '../../services/account/AiraAccountUnionLinkFunctionService';
+import { AIRA_SUITE_LIFETIME_PLAN_ID, AIRA_SUITE_LIFETIME_PRODUCT_ID } from '../../services/membership/HuaweiIapProductCatalog';
+import { resolveAiraLegalDocumentLink } from '../../services/legal/AiraLegalDocuments';
+import { AIRA_PRO_ONE_TIME_PLAN, resolveAiraProIapPlan } from '../../services/membership/HuaweiIapProductCatalog';
+import { readCachedAiraProLifetimeStorePrice, resolveAiraProLifetimePricePresentation } from '../../services/membership/AiraProStorePricePolicy';
 import { common } from '@kit.AbilityKit';
 import { window } from '@kit.ArkUI';
 import { AIRA_ENABLE_DEVELOPMENT_DIAGNOSTICS } from '../../common/config/BuildVariantFlags';
@@ -98,9 +104,9 @@ export class AiraProPurchaseFlowHostAdapter implements AiraProPurchaseFlowHost {
 }
 
 export interface AiraProPurchaseIapAdapter {
-  startProPurchase(context: common.UIAbilityContext, period?: string, uid?: string): Promise<HuaweiIapOperationResult>;
+  startProPurchase(context: common.UIAbilityContext, period?: string, uid?: string, mayLaunch?: () => boolean): Promise<HuaweiIapOperationResult>;
   queryProProducts(context: common.UIAbilityContext): Promise<HuaweiIapProductView[]>;
-  restorePurchases(context: common.UIAbilityContext): Promise<HuaweiIapOperationResult>;
+  restorePurchases(context: common.UIAbilityContext, suiteOnly?: boolean): Promise<HuaweiIapOperationResult>;
   finishPurchase(
     context: common.UIAbilityContext,
     purchaseData: string,
@@ -125,6 +131,9 @@ export class AiraProPurchaseCoordinator {
   private awaitingSubscriptionManagementReturn: boolean = false;
   private subscriptionManagementRefreshPromise?: Promise<void>;
   private purchaseLaunchInFlight: boolean = false;
+  private accountUnionLinkService: AiraAccountUnionLinkFunctionService = new AiraAccountUnionLinkFunctionService();
+  private purchaseConsent: KitappPurchaseConsentRequest | undefined = undefined;
+  private purchaseConsentGeneration: number = 0;
   private launchGate: HuaweiPaymentLaunchGate = new HuaweiPaymentLaunchGate();
   private launchWindow?: window.Window;
   private launchWindowEventHandler?: (event: window.WindowEventType) => void;
@@ -163,16 +172,34 @@ export class AiraProPurchaseCoordinator {
       return;
     }
     this.purchaseLaunchInFlight = true;
-    this.beginHuaweiPaymentLaunch(context, host);
+    const consentGeneration = this.purchaseConsentGeneration;
+    const accountUid = this.resolveAccountUid(uid);
+    const accountCurrent = this.membershipFeature?.capturePurchaseSessionGuard(accountUid) ?? ((): boolean => false);
+    let launchStarted: boolean = false;
     try {
-      if (!await this.canStartPlanPurchase(period, host)) {
-        return;
+      if (period === AIRA_SUITE_LIFETIME_PLAN_ID) {
+        if (!this.isBoundAccountUid(accountUid)) { host.onLoginRequired(); return; }
+        // Link before reading ownership: a newly linked Huawei account may
+        // already own the suite through another app.
+        if (!await this.accountUnionLinkService.linkUnionId(accountUid)) {
+          if (accountCurrent() && consentGeneration === this.purchaseConsentGeneration) {
+            host.showMessage($r('app.string.membership_suite_link_required'));
+          }
+          return;
+        }
       }
-      if (this.launchGate.hasTimedOut()) {
-        return;
-      }
-      const result = await this.startProPurchase(context, period, this.resolveAccountUid(uid));
+      if (period === AIRA_SUITE_LIFETIME_PLAN_ID &&
+        (!accountCurrent() || consentGeneration !== this.purchaseConsentGeneration)) { return; }
+      if (!await this.canStartPlanPurchase(period, host)) { return; }
+      if (!await this.confirmPurchase(context, period, accountUid, host, boundaryInput, consentGeneration)) { return; }
+      if (!accountCurrent() || consentGeneration !== this.purchaseConsentGeneration) { return; }
+      this.beginHuaweiPaymentLaunch(context, host);
+      launchStarted = true;
+      if (this.launchGate.hasTimedOut()) { return; }
+      const result = await this.startProPurchase(context, period, accountUid,
+        (): boolean => accountCurrent() && consentGeneration === this.purchaseConsentGeneration);
       this.endHuaweiPaymentLaunch();
+      if (!accountCurrent()) { return; }
       if (result.verificationCode === 'login_required') {
         host.onLoginRequired();
         return;
@@ -188,7 +215,7 @@ export class AiraProPurchaseCoordinator {
         );
       }
     } catch (_error) {
-      if (!this.launchGate.hasTimedOut()) {
+      if (!launchStarted || !this.launchGate.hasTimedOut()) {
         host.showMessage($r('app.string.settings_pro_purchase_unavailable'));
       }
     } finally {
@@ -209,13 +236,23 @@ export class AiraProPurchaseCoordinator {
         host.showMessage($r('app.string.settings_pro_restore_private'));
         return;
       }
-      const result = await this.restorePurchase(context, this.resolveAccountUid(uid), period);
+      const accountUid = this.resolveAccountUid(uid);
+      const current = this.membershipFeature?.capturePurchaseSessionGuard(accountUid) ?? ((): boolean => false);
+      if (!accountUid) { host.onLoginRequired(); return; }
+      if (period === AIRA_SUITE_LIFETIME_PLAN_ID) {
+        // Recovery does not charge. A failed best-effort re-link must not block
+        // an existing immutable link or server-owned cross-app entitlement.
+        await this.accountUnionLinkService.linkUnionId(accountUid);
+      }
+      if (!current()) { if (!accountUid) { host.onLoginRequired(); } return; }
+      const result = await this.restorePurchase(context, accountUid, period);
+      if (!current()) { return; }
       if (result.verificationCode === 'login_required') {
         host.onLoginRequired();
         return;
       }
       this.showOperationResult(host, result);
-      if (result.ok) {
+      if (result.ok || period === AIRA_SUITE_LIFETIME_PLAN_ID) {
         await this.refreshMembershipAfterPurchaseResult(
           result.verifiedProductId,
           result.verifiedExpiresAt,
@@ -274,11 +311,12 @@ export class AiraProPurchaseCoordinator {
   private async startProPurchase(
     context: common.UIAbilityContext,
     period: string = 'monthly',
-    uid: string = ''
+    uid: string = '',
+    mayLaunch: () => boolean = (): boolean => true
   ): Promise<HuaweiIapOperationResult> {
     // Monthly, yearly, and the long-term plan are all sold from the renewal
     // sheet. Permanent membership is the non-consumable aira_pro_lifetime purchase.
-    if (!isAiraProSellablePlanId(period) && period.trim().toLowerCase() !== 'one_time') {
+    if (!isAiraProSellablePlanId(period) && period.trim().toLowerCase() !== 'one_time' && period !== AIRA_SUITE_LIFETIME_PLAN_ID) {
       return this.buildUnsupportedPlanResult(period, 'purchase_pro_monthly');
     }
     if (!this.isBoundAccountUid(uid)) {
@@ -286,20 +324,23 @@ export class AiraProPurchaseCoordinator {
         period.trim().toLowerCase() === 'one_time' ? 'purchase_pro_one_time' : 'purchase_pro_monthly'
       );
     }
+    const current = this.membershipFeature?.capturePurchaseSessionGuard(uid) ?? ((): boolean => false);
+    if (!current()) { return this.buildLoginRequiredResult('purchase_pro_one_time'); }
     this.launchGate.armCashierDetection();
-    const result = await this.iapService.startProPurchase(context, period, uid);
+    const result = await this.iapService.startProPurchase(context, period, uid, mayLaunch);
     // The cashier has returned. Drop the launch sheet before receipt verification,
     // which can take a moment and is no longer "opening Huawei payment".
     this.launchGate.finish();
+    if (!current()) { return this.buildStalePurchaseResult(result); }
     if (!result.ok && result.errorCode === HUAWEI_IAP_ALREADY_OWNS_PRODUCT_ERROR_CODE) {
-      const restoreResult = await this.iapService.restorePurchases(context);
-      const restoredResult = await this.submitPurchaseDataIfNeeded(context, restoreResult, uid, 'restore');
+      const restoreResult = await this.iapService.restorePurchases(context, period === AIRA_SUITE_LIFETIME_PLAN_ID);
+      const restoredResult = await this.submitPurchaseDataIfNeeded(context, restoreResult, uid, 'restore', current);
       if (!restoredResult.ok && restoredResult.verificationCode === AIRA_IAP_SUBSCRIPTION_EXPIRED_CODE) {
         return this.buildAlreadyOwnsExpiredRestoreResult(result, restoredResult);
       }
       return restoredResult;
     }
-    return this.submitPurchaseDataIfNeeded(context, result, uid, 'purchase');
+    return this.submitPurchaseDataIfNeeded(context, result, uid, 'purchase', current);
   }
 
   private beginHuaweiPaymentLaunch(context: common.UIAbilityContext, host: AiraProPurchaseFlowHost): void {
@@ -371,8 +412,10 @@ export class AiraProPurchaseCoordinator {
     if (!this.isBoundAccountUid(uid)) {
       return this.buildLoginRequiredResult('restore_purchase');
     }
-    const result = await this.iapService.restorePurchases(context);
-    return this.submitPurchaseDataIfNeeded(context, result, uid, 'restore');
+    const current = this.membershipFeature?.capturePurchaseSessionGuard(uid) ?? ((): boolean => false);
+    if (!current()) { return this.buildLoginRequiredResult('restore_purchase'); }
+    const result = await this.iapService.restorePurchases(context, period === AIRA_SUITE_LIFETIME_PLAN_ID);
+    return this.submitPurchaseDataIfNeeded(context, result, uid, 'restore', current);
   }
 
   private manageSubscription(context: common.UIAbilityContext): Promise<HuaweiIapOperationResult> {
@@ -392,13 +435,63 @@ export class AiraProPurchaseCoordinator {
     }).outcome === 'allow';
   }
 
+  cancelPurchaseConsent(): void {
+    this.purchaseConsentGeneration += 1;
+    this.purchaseConsent?.cancel();
+  }
+
+  private async confirmPurchase(context: common.UIAbilityContext, period: string, uid: string,
+    host: AiraProPurchaseFlowHost, boundary: BrowserDataBoundaryInput, generation: number): Promise<boolean> {
+    if (uid.length === 0) { host.onLoginRequired(); return false; }
+    if (this.membershipFeature === undefined || !isAiraProIapPlanId(period)) { return false; }
+    const accountCurrent = this.membershipFeature.capturePurchaseSessionGuard(uid);
+    const valid = (): boolean => generation === this.purchaseConsentGeneration && accountCurrent() &&
+      this.isEffectAllowed('membership_purchase', boundary);
+    const lastWindow = await window.getLastWindow(context);
+    if (!valid()) { return false; }
+    const suite = period === AIRA_SUITE_LIFETIME_PLAN_ID;
+    const recurring = period !== AIRA_PRO_ONE_TIME_PLAN_ID && !suite;
+    const plan = resolveAiraProIapPlan(period);
+    const lifetimePrice = resolveAiraProLifetimePricePresentation(readCachedAiraProLifetimeStorePrice(),
+      AIRA_PRO_ONE_TIME_PLAN.amountText, AIRA_PRO_ONE_TIME_PLAN.periodText,
+      AIRA_PRO_ONE_TIME_PLAN.displayPrice, AIRA_PRO_ONE_TIME_PLAN.originalPriceText, Date.now());
+    this.purchaseConsent = new KitappPurchaseConsentRequest(lastWindow.getUIContext(), {
+      appName: 'Aira Pro · ' + (recurring ? plan.title : AIRA_PRO_ONE_TIME_PLAN.title),
+      appPrice: recurring ? plan.amountText + ' ' + plan.periodText : lifetimePrice.amountText,
+      appIcon: $r('app.media.foreground'),
+      description: recurring ? plan.description : AIRA_PRO_ONE_TIME_PLAN.description,
+      membershipTitle: suite ? '《Kitapp One 会员服务协议》' : undefined,
+      suite, recurring, isCurrent: valid
+    });
+    const decision = await this.purchaseConsent.result;
+    this.purchaseConsent = undefined;
+    if (!valid()) { return false; }
+    if (decision.link) {
+      const id = decision.link === 'privacy' ? 'privacy_statement' : decision.link === 'renewal' ?
+        'pro_auto_renewal_service_agreement' : suite ? 'suite_membership_service_agreement' : 'pro_membership_service_agreement';
+      await context.openLink(resolveAiraLegalDocumentLink(id).url);
+      return false;
+    }
+    return decision.accepted;
+  }
+
   private async canStartPlanPurchase(period: string, host: AiraProPurchaseFlowHost): Promise<boolean> {
     if (this.membershipFeature === undefined) {
       host.showMessage($r('app.string.settings_pro_status_check_failed'));
       return false;
     }
+    const previousSuiteRevision = period === AIRA_SUITE_LIFETIME_PLAN_ID ? this.membershipFeature.getAppSuiteState().revision : 0;
     const state = await this.membershipFeature.refreshState({ force: true });
     host.onMembershipStateChanged();
+    if (period === AIRA_SUITE_LIFETIME_PLAN_ID) {
+      if (!this.isBoundAccountUid(state.userId)) { host.onLoginRequired(); return false; }
+      const suite = this.membershipFeature.getAppSuiteState();
+      if (!suite.checked || suite.revision === previousSuiteRevision) {
+        host.showMessage($r('app.string.settings_pro_status_check_failed')); return false;
+      }
+      if (suite.owned) { host.showMessage($r('app.string.membership_suite_already_owned')); return false; }
+      return true;
+    }
     const oneTimeSelected = period.trim().toLowerCase() === AIRA_PRO_ONE_TIME_PLAN_ID;
     const action = oneTimeSelected
       ? this.purchasePolicyService.resolveOneTimePlanAction(state)
@@ -480,7 +573,7 @@ export class AiraProPurchaseCoordinator {
     if (this.membershipFeature === undefined) {
       return;
     }
-    if (productId !== undefined && productId.trim().length > 0 && expiresAt !== undefined && expiresAt >= 0) {
+    if (productId !== AIRA_SUITE_LIFETIME_PRODUCT_ID && productId !== undefined && productId.trim().length > 0 && expiresAt !== undefined && expiresAt >= 0) {
       await this.membershipFeature.applyVerifiedIapGrant(productId, expiresAt);
     }
     await this.membershipFeature.refreshState({ force: true });
@@ -491,13 +584,16 @@ export class AiraProPurchaseCoordinator {
     context: common.UIAbilityContext,
     result: HuaweiIapOperationResult,
     uid: string,
-    source: string
+    source: string,
+    current: () => boolean = (): boolean => true
   ): Promise<HuaweiIapOperationResult> {
+    if (!current()) { return this.buildStalePurchaseResult(result); }
     const purchaseDataList = this.resolvePurchaseDataList(result);
     if (!result.ok || purchaseDataList.length <= 0) {
       return result;
     }
     const submission = await this.submitFirstVerifiablePurchaseData(uid, purchaseDataList, source);
+    if (!current()) { return this.buildStalePurchaseResult(result); }
     const verification = submission.verification;
     const finishPurchaseMessage = verification.ok === true
       ? await this.finishVerifiedPurchaseData(context, result, submission.purchaseData, verification)
@@ -602,6 +698,9 @@ export class AiraProPurchaseCoordinator {
     verification: HuaweiIapVerificationResponseBody
   ): ResourceStr {
     const restored = result.action === 'restore_purchase';
+    if (verification.productId === AIRA_SUITE_LIFETIME_PRODUCT_ID) {
+      return restored ? $r('app.string.membership_suite_restored') : $r('app.string.membership_suite_purchased');
+    }
     const until = this.formatExpiresDate(verification.expiresAt);
     if (this.isLongTermPurchase(verification)) {
       return restored
@@ -625,7 +724,7 @@ export class AiraProPurchaseCoordinator {
   }
 
   private isLongTermPurchase(verification: HuaweiIapVerificationResponseBody): boolean {
-    return isAiraProLifetimeProductId(verification.productId ?? '');
+    return verification.productId === AIRA_SUITE_LIFETIME_PRODUCT_ID || isAiraProLifetimeProductId(verification.productId ?? '');
   }
 
   private formatExpiresDate(expiresAt?: number): string {
@@ -706,6 +805,10 @@ export class AiraProPurchaseCoordinator {
   private isBoundAccountUid(uid: string): boolean {
     const normalized = uid.trim();
     return normalized.length > 0 && normalized !== 'local';
+  }
+
+  private buildStalePurchaseResult(result: HuaweiIapOperationResult): HuaweiIapOperationResult {
+    return { ok: false, title: result.title, message: '', action: result.action, silent: true };
   }
 
   private buildLoginRequiredResult(

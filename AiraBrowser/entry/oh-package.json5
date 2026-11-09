@@ -7,7 +7,9 @@
   "license": "",
   "dependencies": {
     "libaira_adblock.so": "file:./src/main/cpp/types/libaira_adblock",
-    "libaira_download.so": "file:./src/main/cpp/types/libaira_download"
+    "libaira_download.so": "file:./src/main/cpp/types/libaira_download",
+    "design": "file:../design",
+    "kitapp-membership": "file:../membership"
   },
   "devDependencies": {
     "@ohos/hypium": "1.0.18"

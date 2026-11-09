@@ -1,0 +1,9 @@
+{
+  "name": "design",
+  "version": "1.35.13",
+  "description": "JuDesign 原生鸿蒙通用组件库：页面、面板、表单、列表、主题与资源。",
+  "main": "Index.ets",
+  "author": "",
+  "license": "Apache-2.0",
+  "dependencies": {}
+}

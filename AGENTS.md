@@ -59,3 +59,7 @@ operator's machine:
 
 Read those instead of writing new host details here. Anything that must not be published belongs there, not in this
 tree.
+
+## Shared membership surface
+
+Official membership UI uses the fixed `kitapp-membership` `KitappMembershipPage`; Community keeps its local-only introduction. Read `docs/aira-shared-membership.md` before changing this surface. Keep the suite catalog upstream-owned, preserve existing purchase/privacy policy and subscription-management access, and run `node scripts/check-aira-shared-components.cjs` plus the membership regression. Never modify fixed HAR copies or recalculate hashes to bypass their locks.

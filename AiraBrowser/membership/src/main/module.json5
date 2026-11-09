@@ -1,0 +1,9 @@
+{
+  "module": {
+    "name": "membership",
+    "type": "har",
+    "deviceTypes": [
+      "phone"
+    ]
+  }
+}

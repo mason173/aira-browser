@@ -441,6 +441,84 @@ for (const toolbarChromeStyle of ['floating', 'split', 'dock']) {
     `${toolbarChromeStyle} floating home entry`);
 }
 
+async function replayStartupSearchShortcut() {
+  const session = load('core/search/BrowserSearchInvocationSessionCoordinator.ets');
+  const surfaceConnections = [];
+  const { BrowserSearchInvocationRuntime, BrowserSearchInvocationSurfaceConnection } = evaluate(
+    read('app/runtime/BrowserSearchInvocationRuntime.ets'), {
+      require: id => id.endsWith('SettingsSearchInvocationAdapter')
+        ? { SettingsSearchInvocationAdapter: class {
+          requestExit() { return Promise.resolve(true); }
+          notifyBrowserSurfaceReady() {}
+        } } : session,
+      setTimeout: callback => { surfaceConnections.push(callback); }
+    });
+  const abilitySource = read('app/abilities/EntryAbility.ets');
+  const restoreSource = read('core/browser/BrowserStartupTabRestoreCoordinator.ets');
+  const hostField = shellSource.match(/  private browserStartupTabRestoreHost:[^]*?\n  };/);
+  assert.ok(hostField, 'Missing production startup restore host');
+  const { StartupShortcutReplay } = evaluate(`export class StartupShortcutReplay {
+    ${hostField[0]}
+    ${method(abilitySource, 'triggerSearchInvocationIfNeeded')}
+    ${method(shellSource, 'resetHomeTransientUiState')}
+    ${shellSource.includes('private resetHomeTransientUiPresentation(')
+      ? method(shellSource, 'resetHomeTransientUiPresentation') : ''}
+    ${method(shellSource, 'endVisibleSearchInvocation')}
+    ${method(shellSource, 'connectBrowserSearchInvocationSurfaceIfReady')}
+    ${method(restoreSource, 'applyOpenHomeSurface')}
+    ${method(restoreSource, 'completePendingLaunch')}
+  }`, { BrowserSearchInvocationRuntime, BROWSER_SEARCH_DESKTOP_CARD_SOURCE: 'desktop_card' });
+
+  for (const [launchSource, invocationSource] of [
+    ['desktop_app_shortcut', 'app_shortcut'], ['desktop_card', 'desktop_card']
+  ]) {
+    const windowId = 'cold-' + invocationSource;
+    const presented = [];
+    const adapter = {
+      resolveScene: () => new session.BrowserSearchSceneSnapshot('home', true, '', 'caret_end'),
+      present: async request => {
+        presented.push(request.scene);
+        return new session.BrowserSearchPresentationCommitResult('committed');
+      },
+      suspend() {}, end() {}
+    };
+    const shell = Object.assign(new StartupShortcutReplay(), {
+      currentWindowId: windowId, isBrowserShellVisible: true, isRestoringTabs: true,
+      getWindowScopeId: () => windowId,
+      browserSearchSuggestionCoordinator: { reset() {} },
+      endRootAddressInputSession() {},
+      browserRootBottomPanelSessionCoordinator: { clearTransientMessage() {} },
+      applyShellVisualState() {},
+      syncSearchInvocationPresentationHost() {},
+      browserSearchInvocationHostRouter: adapter,
+      browserSearchInvocationSurfaceConnection: new BrowserSearchInvocationSurfaceConnection(adapter),
+      dependencies: {
+        shellStateCoordinator: { buildHomeState() {} },
+        backgroundSessionSyncCoordinator: { sync() {} },
+        nativeNavigationConsumeCoordinator: { consume() {} },
+        resolveWindowContextCoordinator: () => ({ consumePendingLaunch() {}, schedulePendingLaunchPolling() {} })
+      }
+    });
+    shell.host = shell.browserStartupTabRestoreHost;
+    shell.triggerSearchInvocationIfNeeded({ appShortcut: 'search', source: launchSource }, windowId);
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(BrowserSearchInvocationRuntime.snapshot(windowId).phase, 'pending_window');
+
+    shell.host.applyState({ restoreCompleted: true });
+    shell.applyOpenHomeSurface('active_only');
+    shell.completePendingLaunch('restore-tabs-home');
+    for (const connect of surfaceConnections.splice(0)) connect();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.deepEqual(presented, ['home'], 'the launch request must expand search after Home restore');
+    assert.equal(BrowserSearchInvocationRuntime.snapshot(windowId).source, invocationSource);
+    assert.equal(BrowserSearchInvocationRuntime.snapshot(windowId).phase, 'committed');
+
+    shell.resetHomeTransientUiState();
+    assert.equal(BrowserSearchInvocationRuntime.snapshot(windowId).phase, 'ended',
+      'a subsequent user-driven Home transition still ends Search');
+  }
+}
+
 async function replaySessions() {
   const session = load('core/search/BrowserSearchInvocationSessionCoordinator.ets');
   const { BrowserSearchInvocationHostRouter } = load('core/search/BrowserSearchInvocationHostRouter.ets');
@@ -525,4 +603,4 @@ async function replaySessions() {
     `${count} home/web sessions, ${dockLayoutFrames} dock input layout frames)`);
 }
 
-replaySessions().catch(error => { console.error(error.message); process.exitCode = 1; });
+replayStartupSearchShortcut().then(replaySessions).catch(error => { console.error(error.message); process.exitCode = 1; });

@@ -99,3 +99,43 @@ test('compiled page updates both tab and list positions when the top safe area c
   assert.equal(view.read().tabsTopInset, 115);
   assert.equal(view.read().contentTopInset, 163);
 });
+
+test('compiled desktop bookmark popup does not bind again when the draft changes', () => {
+  const popupPath = path.join(path.dirname(compiledPage), '../components/browser/BrowserLargeScreenBookmarkPopover.ts');
+  const popupSource = fs.readFileSync(popupPath, 'utf8');
+  const renderButton = popupSource.match(/    initialRender\(\) \{\n        this\.observeComponentCreation2\([\s\S]*?\}, Button\);/);
+  assert.ok(renderButton, 'The compiled desktop bookmark button must expose its popup binding');
+  const code = ts.transpileModule(`export class Probe {\n${renderButton[0]}\n    }\n}`, {
+    compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS }
+  }).outputText;
+  let popup;
+  const ignore = () => {};
+  const module = { exports: {} };
+  const button = new Proxy({ bindPopup: (_visible, options) => { popup = options; } }, {
+    get: (methods, key) => methods[key] ?? ignore
+  });
+  vm.runInNewContext(code, {
+    module, exports: module.exports, Button: button, ButtonType: { Circle: 0 }, Placement: { BottomRight: 0 },
+    LARGE_SCREEN_BOOKMARK_BUTTON_SIZE_VP: 28, LARGE_SCREEN_BOOKMARK_TARGET_SPACE_VP: 6,
+    LARGE_SCREEN_BOOKMARK_POPUP_RADIUS_VP: 16
+  }, { filename: popupPath });
+  const view = new module.exports.Probe();
+  view.popupVisible = true;
+  view.observeComponentCreation2 = callback => callback(1, true);
+  view.buildBookmarkPopup = ignore;
+  view.resolvePopupWidth = () => 360;
+  let sessionReads = 0;
+  const session = { active: true, draft: { saving: false } };
+  Object.defineProperty(view, 'session', { get: () => { sessionReads++; return session; } });
+  view.initialRender();
+  assert.equal(sessionReads, 0, 'the popup anchor must not depend on the form snapshot');
+
+  let dismissed = 0;
+  const dismissal = { dismiss: () => { dismissed++; } };
+  session.draft.saving = true;
+  popup.onWillDismiss(dismissal);
+  assert.equal(dismissed, 0);
+  session.draft.saving = false;
+  popup.onWillDismiss(dismissal);
+  assert.equal(dismissed, 1);
+});

@@ -1869,7 +1869,7 @@ struct BrowserShellPage {
       }
       if (application.previewRenderRevisionIncrement === true) this.tabPreviewRenderVersion += 1;
     },
-    resetHomeTransientUiState: (): void => this.resetHomeTransientUiState(),
+    resetHomeTransientUiPresentation: (): void => this.resetHomeTransientUiPresentation(),
     applyShellVisualState: (state: BrowserShellVisualState): void => this.applyShellVisualState(state),
     connectSearchInvocationSurfaceIfReady: (): void => this.connectBrowserSearchInvocationSurfaceIfReady()
   };
@@ -6916,6 +6916,7 @@ struct BrowserShellPage {
   }
 
   aboutToDisappear(): void {
+    this.featureGatePurchaseCoordinator.cancelPurchaseConsent();
     this.browserVolumeKeyAudioService.stop();
     AppStorage.setOrCreate(CENTERED_HOME_SEARCH_GEOMETRY_OPEN_KEY, false);
     this.setHuaweiPaymentLaunchVisible(false);
@@ -6977,6 +6978,7 @@ struct BrowserShellPage {
   }
 
   onPageHide(): void {
+    this.featureGatePurchaseCoordinator.cancelPurchaseConsent();
     this.browserVolumeKeyAudioService.stop();
     this.homeWallpaperPageForeground = false;
     this.browserWebTopImmersionSessionCoordinator.cancelCoveredStatusBarHold();
@@ -10878,6 +10880,10 @@ struct BrowserShellPage {
 
   private resetHomeTransientUiState(): void {
     this.endVisibleSearchInvocation('other_surface_selected');
+    this.resetHomeTransientUiPresentation();
+  }
+
+  private resetHomeTransientUiPresentation(): void {
     this.browserSearchSuggestionCoordinator.reset();
     this.contextMenuHomeShortcutId = '';
     this.endRootAddressInputSession();

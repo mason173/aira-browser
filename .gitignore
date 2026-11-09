@@ -95,3 +95,9 @@ AiraBrowser/icon-preview-original/
 .env.*
 !.env.example
 !**/.env.example
+
+# Generated files inside fixed JuDesign / membership HAR modules
+AiraBrowser/design/BuildProfile.ets
+AiraBrowser/design/oh-package-lock.json5
+AiraBrowser/membership/BuildProfile.ets
+AiraBrowser/membership/oh-package-lock.json5

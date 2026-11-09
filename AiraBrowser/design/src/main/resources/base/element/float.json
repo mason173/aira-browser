@@ -1,0 +1,844 @@
+{
+  "float": [
+    {
+      "name": "motion_content_curve_x1",
+      "value": "0.26"
+    },
+    {
+      "name": "motion_content_curve_y1",
+      "value": "0.08"
+    },
+    {
+      "name": "motion_content_curve_x2",
+      "value": "0.25"
+    },
+    {
+      "name": "motion_content_curve_y2",
+      "value": "1"
+    },
+    {
+      "name": "navigation_title_blur_extent",
+      "value": "8vp"
+    },
+    {
+      "name": "immersive_header_fade_height",
+      "value": "48vp"
+    },
+    {
+      "name": "immersive_sheet_header_fade_height",
+      "value": "38vp"
+    },
+    {
+      "name": "immersive_sheet_content_top_margin",
+      "value": "-10vp"
+    },
+    {
+      "name": "immersive_header_blur_radius",
+      "value": "12"
+    },
+    {
+      "name": "dialog_radius",
+      "value": "34vp"
+    },
+    {
+      "name": "dialog_padding",
+      "value": "14vp"
+    },
+    {
+      "name": "dialog_screen_inset",
+      "value": "16vp"
+    },
+    {
+      "name": "dialog_content_gap",
+      "value": "10vp"
+    },
+    {
+      "name": "dialog_icon_inset",
+      "value": "4vp"
+    },
+    {
+      "name": "dialog_icon_plate_size",
+      "value": "64vp"
+    },
+    {
+      "name": "dialog_icon_plate_radius",
+      "value": "18vp"
+    },
+    {
+      "name": "dialog_icon_size",
+      "value": "42vp"
+    },
+    {
+      "name": "dialog_copy_inset",
+      "value": "8vp"
+    },
+    {
+      "name": "dialog_copy_bottom",
+      "value": "24vp"
+    },
+    {
+      "name": "dialog_action_gap",
+      "value": "8vp"
+    },
+    {
+      "name": "dialog_action_padding",
+      "value": "16vp"
+    },
+    {
+      "name": "dialog_font_size",
+      "value": "17fp"
+    },
+    {
+      "name": "dialog_line_height",
+      "value": "22fp"
+    },
+    {
+      "name": "font_size_display",
+      "value": "24fp"
+    },
+    {
+      "name": "font_size_title",
+      "value": "23fp"
+    },
+    {
+      "name": "font_size_subtitle",
+      "value": "16fp"
+    },
+    {
+      "name": "font_size_body",
+      "value": "16fp"
+    },
+    {
+      "name": "font_size_button",
+      "value": "17fp"
+    },
+    {
+      "name": "font_size_caption",
+      "value": "14fp"
+    },
+    {
+      "name": "font_size_micro",
+      "value": "12fp"
+    },
+    {
+      "name": "line_height_display",
+      "value": "32fp"
+    },
+    {
+      "name": "line_height_title",
+      "value": "30fp"
+    },
+    {
+      "name": "line_height_subtitle",
+      "value": "24fp"
+    },
+    {
+      "name": "line_height_body",
+      "value": "22fp"
+    },
+    {
+      "name": "line_height_caption",
+      "value": "19fp"
+    },
+    {
+      "name": "line_height_micro",
+      "value": "17fp"
+    },
+    {
+      "name": "padding_page",
+      "value": "50vp"
+    },
+    {
+      "name": "padding_page_compact",
+      "value": "25vp"
+    },
+    {
+      "name": "padding_page_edge",
+      "value": "16vp"
+    },
+    {
+      "name": "padding_header_actions",
+      "value": "15vp"
+    },
+    {
+      "name": "padding_nav",
+      "value": "34vp"
+    },
+    {
+      "name": "padding_button",
+      "value": "24vp"
+    },
+    {
+      "name": "gap_button",
+      "value": "16vp"
+    },
+    {
+      "name": "gap_button_text",
+      "value": "8vp"
+    },
+    {
+      "name": "gap_title",
+      "value": "20vp"
+    },
+    {
+      "name": "padding_sheet",
+      "value": "17vp"
+    },
+    {
+      "name": "padding_dialog",
+      "value": "20vp"
+    },
+    {
+      "name": "padding_sheet_top",
+      "value": "37vp"
+    },
+    {
+      "name": "padding_sheet_title",
+      "value": "33vp"
+    },
+    {
+      "name": "padding_row",
+      "value": "24vp"
+    },
+    {
+      "name": "padding_row_icon",
+      "value": "16vp"
+    },
+    {
+      "name": "gap_icon",
+      "value": "16vp"
+    },
+    {
+      "name": "gap_row",
+      "value": "14vp"
+    },
+    {
+      "name": "button_height",
+      "value": "48vp"
+    },
+    {
+      "name": "button_radius",
+      "value": "24vp"
+    },
+    {
+      "name": "filter_chip_height",
+      "value": "40vp"
+    },
+    {
+      "name": "filter_chips_height",
+      "value": "72vp"
+    },
+    {
+      "name": "filter_chips_top_inset",
+      "value": "8vp"
+    },
+    {
+      "name": "filter_chips_shadow_space",
+      "value": "24vp"
+    },
+    {
+      "name": "sheet_card_inset",
+      "value": "16vp"
+    },
+    {
+      "name": "icon_overscan",
+      "value": "1.03"
+    },
+    {
+      "name": "radius_tooltip",
+      "value": "12vp"
+    },
+    {
+      "name": "row_height",
+      "value": "46vp"
+    },
+    {
+      "name": "row_height_settings",
+      "value": "53vp"
+    },
+    {
+      "name": "mine_row_icon",
+      "value": "34vp"
+    },
+    {
+      "name": "mine_row_icon_radius",
+      "value": "11vp"
+    },
+    {
+      "name": "mine_row_padding",
+      "value": "14vp"
+    },
+    {
+      "name": "mine_appearance_tab_width",
+      "value": "168vp"
+    },
+    {
+      "name": "setting_note_gap",
+      "value": "6vp"
+    },
+    {
+      "name": "setting_heading_gap",
+      "value": "24vp"
+    },
+    {
+      "name": "setting_heading_gap_bottom",
+      "value": "6vp"
+    },
+    {
+      "name": "reorder_minus_size",
+      "value": "22vp"
+    },
+    {
+      "name": "reorder_minus_radius",
+      "value": "11vp"
+    },
+    {
+      "name": "reorder_delete_radius",
+      "value": "22vp"
+    },
+    {
+      "name": "padding_list",
+      "value": "27vp"
+    },
+    {
+      "name": "gap_list",
+      "value": "18vp"
+    },
+    {
+      "name": "padding_list_text",
+      "value": "69vp"
+    },
+    {
+      "name": "switch_width",
+      "value": "54vp"
+    },
+    {
+      "name": "switch_height",
+      "value": "30vp"
+    },
+    {
+      "name": "switch_point_radius",
+      "value": "12vp"
+    },
+    {
+      "name": "switch_track_radius",
+      "value": "15vp"
+    },
+    {
+      "name": "padding_switch",
+      "value": "25vp"
+    },
+    {
+      "name": "input_height",
+      "value": "48vp"
+    },
+    {
+      "name": "input_radius",
+      "value": "24vp"
+    },
+    {
+      "name": "padding_input",
+      "value": "16vp"
+    },
+    {
+      "name": "icon_size",
+      "value": "24vp"
+    },
+    {
+      "name": "icon_size_secondary",
+      "value": "20vp"
+    },
+    {
+      "name": "tab_icon_size",
+      "value": "28vp"
+    },
+    {
+      "name": "icon_size_feature",
+      "value": "28vp"
+    },
+    {
+      "name": "account_brand_size",
+      "value": "88vp"
+    },
+    {
+      "name": "account_brand_radius",
+      "value": "20vp"
+    },
+    {
+      "name": "profile_avatar_size",
+      "value": "88vp"
+    },
+    {
+      "name": "profile_avatar_radius",
+      "value": "44vp"
+    },
+    {
+      "name": "profile_avatar_icon",
+      "value": "44vp"
+    },
+    {
+      "name": "provider_tile_size",
+      "value": "56vp"
+    },
+    {
+      "name": "provider_icon_size",
+      "value": "22vp"
+    },
+    {
+      "name": "icon_size_intro",
+      "value": "36vp"
+    },
+    {
+      "name": "avatar_size",
+      "value": "72vp"
+    },
+    {
+      "name": "qr_size",
+      "value": "240vp"
+    },
+    {
+      "name": "avatar_radius",
+      "value": "36vp"
+    },
+    {
+      "name": "picker_cell_radius",
+      "value": "16vp"
+    },
+    {
+      "name": "pill_height",
+      "value": "24vp"
+    },
+    {
+      "name": "pill_padding_h",
+      "value": "10vp"
+    },
+    {
+      "name": "pill_radius",
+      "value": "12vp"
+    },
+    {
+      "name": "picker_ring_width",
+      "value": "2vp"
+    },
+    {
+      "name": "picker_ring_gap",
+      "value": "3vp"
+    },
+    {
+      "name": "avatar_overlap",
+      "value": "-16vp"
+    },
+    {
+      "name": "divider_height",
+      "value": "1vp"
+    },
+    {
+      "name": "border_width",
+      "value": "1vp"
+    },
+    {
+      "name": "padding_screen_top",
+      "value": "14vp"
+    },
+    {
+      "name": "padding_screen_bottom",
+      "value": "16vp"
+    },
+    {
+      "name": "gap_slogan",
+      "value": "28vp"
+    },
+    {
+      "name": "gap_intro",
+      "value": "36vp"
+    },
+    {
+      "name": "gap_intro_row",
+      "value": "28vp"
+    },
+    {
+      "name": "gap_title_body",
+      "value": "4vp"
+    },
+    {
+      "name": "gap_section",
+      "value": "32vp"
+    },
+    {
+      "name": "tab_bar_height",
+      "value": "64vp"
+    },
+    {
+      "name": "tab_bar_radius",
+      "value": "32vp"
+    },
+    {
+      "name": "tab_bar_reserved_height",
+      "value": "80vp"
+    },
+    {
+      "name": "tab_bar_plate_size",
+      "value": "48vp"
+    },
+    {
+      "name": "tab_bar_break_5",
+      "value": "300vp"
+    },
+    {
+      "name": "tab_bar_break_4",
+      "value": "240vp"
+    },
+    {
+      "name": "tab_bar_break_3",
+      "value": "180vp"
+    },
+    {
+      "name": "tab_bar_break_2",
+      "value": "120vp"
+    },
+    {
+      "name": "avatar_sm",
+      "value": "36vp"
+    },
+    {
+      "name": "avatar_sm_radius",
+      "value": "18vp"
+    },
+    {
+      "name": "icon_button_size",
+      "value": "48vp"
+    },
+    {
+      "name": "ring_progress_side",
+      "value": "52vp"
+    },
+    {
+      "name": "ring_progress_stroke",
+      "value": "5vp"
+    },
+    {
+      "name": "icon_button_radius",
+      "value": "24vp"
+    },
+    {
+      "name": "reorder_card_gap",
+      "value": "16vp"
+    },
+    {
+      "name": "navigation_header_action_gap",
+      "value": "8vp"
+    },
+    {
+      "name": "capsule_tab_compact_width",
+      "value": "104vp"
+    },
+    {
+      "name": "list_detail_card_radius",
+      "value": "24vp"
+    },
+    {
+      "name": "stepper_circle_size",
+      "value": "34vp"
+    },
+    {
+      "name": "stepper_circle_radius",
+      "value": "17vp"
+    },
+    {
+      "name": "stepper_icon_size",
+      "value": "18vp"
+    },
+    {
+      "name": "tooltip_max_width",
+      "value": "240vp"
+    },
+    {
+      "name": "icon_button_gap",
+      "value": "0vp"
+    },
+    {
+      "name": "icon_button_pair_overlap",
+      "value": "-8vp"
+    },
+    {
+      "name": "circle_action_size",
+      "value": "44vp"
+    },
+    {
+      "name": "circle_action_radius",
+      "value": "22vp"
+    },
+    {
+      "name": "select_bar_reserved_height",
+      "value": "96vp"
+    },
+    {
+      "name": "edge_none",
+      "value": "0vp"
+    },
+    {
+      "name": "input_area_height",
+      "value": "70vp"
+    },
+    {
+      "name": "input_area_height_tall",
+      "value": "160vp"
+    },
+    {
+      "name": "input_area_radius",
+      "value": "16vp"
+    },
+    {
+      "name": "sheet_footer_fade",
+      "value": "32vp"
+    },
+    {
+      "name": "sheet_footer_fade_height",
+      "value": "140vp"
+    },
+    {
+      "name": "empty_badge_size",
+      "value": "72vp"
+    },
+    {
+      "name": "empty_badge_icon_size",
+      "value": "28vp"
+    },
+    {
+      "name": "empty_badge_gap",
+      "value": "20vp"
+    },
+    {
+      "name": "empty_note_gap",
+      "value": "6vp"
+    },
+    {
+      "name": "text_tab_height",
+      "value": "44vp"
+    },
+    {
+      "name": "gap_header",
+      "value": "12vp"
+    },
+    {
+      "name": "swipe_action_width",
+      "value": "72vp"
+    },
+    {
+      "name": "menu_width",
+      "value": "232vp"
+    },
+    {
+      "name": "menu_radius",
+      "value": "28vp"
+    },
+    {
+      "name": "menu_shadow_diffuse_radius",
+      "value": "48vp"
+    },
+    {
+      "name": "menu_shadow_radius",
+      "value": "16vp"
+    },
+    {
+      "name": "menu_shadow_diffuse_offset",
+      "value": "12vp"
+    },
+    {
+      "name": "menu_shadow_offset",
+      "value": "8vp"
+    },
+    {
+      "name": "segment_shadow_radius",
+      "value": "8vp"
+    },
+    {
+      "name": "segment_shadow_offset",
+      "value": "2vp"
+    },
+    {
+      "name": "gap_text_tab",
+      "value": "20vp"
+    },
+    {
+      "name": "gap_text_tab_item",
+      "value": "20vp"
+    },
+    {
+      "name": "privacy_copy_inset",
+      "value": "24vp"
+    },
+    {
+      "name": "privacy_copy_gap",
+      "value": "24vp"
+    },
+    {
+      "name": "privacy_copy_line_height",
+      "value": "26fp"
+    },
+    {
+      "name": "sidebar_avatar_size",
+      "value": "32vp"
+    },
+    {
+      "name": "sidebar_avatar_radius",
+      "value": "16vp"
+    },
+    {
+      "name": "dialog_max_width",
+      "value": "480vp"
+    },
+    {
+      "name": "immersive_sheet_radius",
+      "value": "32vp"
+    },
+    {
+      "name": "tabs_bar_auto_size",
+      "value": "-1vp"
+    },
+    {
+      "name": "tabs_bottom_margin",
+      "value": "8vp"
+    },
+    {
+      "name": "membership_tabs_height",
+      "value": "64vp"
+    },
+    {
+      "name": "membership_price_size",
+      "value": "32fp"
+    },
+    {
+      "name": "membership_price_line_height",
+      "value": "36fp"
+    },
+    {
+      "name": "membership_card_padding",
+      "value": "20vp"
+    },
+    {
+      "name": "membership_app_icon_size",
+      "value": "48vp"
+    },
+    {
+      "name": "membership_app_icon_radius",
+      "value": "12vp"
+    },
+    {
+      "name": "membership_hero_icon_size",
+      "value": "80vp"
+    },
+    {
+      "name": "membership_hero_icon_radius",
+      "value": "20vp"
+    },
+    {
+      "name": "membership_hero_title_size",
+      "value": "32fp"
+    },
+    {
+      "name": "membership_hero_title_line_height",
+      "value": "40fp"
+    },
+    {
+      "name": "membership_hero_title_gap",
+      "value": "20vp"
+    },
+    {
+      "name": "membership_copy_gap",
+      "value": "8vp"
+    },
+    {
+      "name": "membership_hero_top",
+      "value": "24vp"
+    },
+    {
+      "name": "membership_feature_gap",
+      "value": "24vp"
+    },
+    {
+      "name": "membership_feature_icon_plate",
+      "value": "40vp"
+    },
+    {
+      "name": "membership_grid_gap",
+      "value": "6vp"
+    },
+    {
+      "name": "review_card_width",
+      "value": "272vp"
+    },
+    {
+      "name": "review_card_height",
+      "value": "208vp"
+    },
+    {
+      "name": "review_card_gap",
+      "value": "12vp"
+    },
+    {
+      "name": "review_card_padding",
+      "value": "20vp"
+    },
+    {
+      "name": "review_copy_gap",
+      "value": "8vp"
+    },
+    {
+      "name": "review_star_gap",
+      "value": "2vp"
+    },
+    {
+      "name": "review_star_size",
+      "value": "14vp"
+    },
+    {
+      "name": "review_edge_fade_width",
+      "value": "32vp"
+    },
+    {
+      "name": "laurel_height",
+      "value": "36vp"
+    },
+    {
+      "name": "laurel_width",
+      "value": "17vp"
+    },
+    {
+      "name": "laurel_copy_gap",
+      "value": "4vp"
+    },
+    {
+      "name": "laurel_item_inset",
+      "value": "6vp"
+    },
+    {
+      "name": "laurel_item_bottom",
+      "value": "8vp"
+    },
+    {
+      "name": "membership_app_price_size",
+      "value": "20fp"
+    },
+    {
+      "name": "membership_app_price_line_height",
+      "value": "28fp"
+    },
+    {
+      "name": "membership_compact_copy_gap",
+      "value": "2vp"
+    },
+    {
+      "name": "membership_suite_card_gap",
+      "value": "24vp"
+    },
+    {
+      "name": "slider_track_thickness",
+      "value": "4vp"
+    },
+    {
+      "name": "slider_block_size",
+      "value": "20vp"
+    }
+  ]
+}

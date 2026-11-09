@@ -23887,6 +23887,102 @@
     {
       "name": "bookmark_add_saved_sync_pending",
       "value": "書籤已儲存，同步準備暫未完成。"
+    },
+    {
+      "name": "settings_pro_shared_lifetime_period",
+      "value": "一次購買 · 長期有效"
+    },
+    {
+      "name": "settings_pro_shared_purchase_note",
+      "value": "一次購買，長期有效，不自動續費。目前購買 Aira 永久會員仍包含全家桶權益。已購買請使用原華為帳號恢復購買。"
+    },
+    {
+      "name": "settings_pro_review_title",
+      "value": "瀏覽器體驗 · 範例評價"
+    },
+    {
+      "name": "settings_pro_review_bookmarks_author",
+      "value": "松針"
+    },
+    {
+      "name": "settings_pro_review_bookmarks_title",
+      "value": "常用資料更好找了"
+    },
+    {
+      "name": "settings_pro_review_bookmarks_message",
+      "value": "我把常用的資料連結按專案放進書籤資料夾，開會要用時能馬上找到。"
+    },
+    {
+      "name": "settings_pro_review_tabs_author",
+      "value": "柚子汽水"
+    },
+    {
+      "name": "settings_pro_review_tabs_title",
+      "value": "換裝置還能接著看"
+    },
+    {
+      "name": "settings_pro_review_tabs_message",
+      "value": "在手機上查到一半的資料，換台裝置打開同步分頁，就能接著往下看。"
+    },
+    {
+      "name": "settings_pro_review_reader_author",
+      "value": "晚點讀"
+    },
+    {
+      "name": "settings_pro_review_reader_title",
+      "value": "長文讀起來輕鬆多了"
+    },
+    {
+      "name": "settings_pro_review_reader_message",
+      "value": "遇到排版很擠的長文章，我就開閱讀模式，把字調大一點，通勤路上看得更舒服。"
+    },
+    {
+      "name": "settings_pro_review_filtering_author",
+      "value": "海鹽麵包"
+    },
+    {
+      "name": "settings_pro_review_filtering_title",
+      "value": "查資料時清爽不少"
+    },
+    {
+      "name": "settings_pro_review_filtering_message",
+      "value": "開啟廣告過濾後，網頁上少了不少橫幅廣告，查資料時比較不會分心。"
+    },
+    {
+      "name": "settings_pro_review_offline_author",
+      "value": "十點的車"
+    },
+    {
+      "name": "settings_pro_review_offline_title",
+      "value": "沒訊號也能查路線"
+    },
+    {
+      "name": "settings_pro_review_offline_message",
+      "value": "出門前先把路線攻略存成離線網頁，捷運上沒訊號也能隨時打開來看。"
+    },
+    {
+      "name": "settings_pro_shared_store_unavailable",
+      "value": "暫時無法開啟 Kitapp，請稍後重試。"
+    },
+    {
+      "name": "membership_suite_product_unavailable",
+      "value": "全家桶商品暫不可購買，請稍後重試。"
+    },
+    {
+      "name": "membership_suite_link_required",
+      "value": "帳號關聯暫未完成，請稍後重試或重新登入。"
+    },
+    {
+      "name": "membership_suite_already_owned",
+      "value": "全家桶已解鎖，無需重複購買。"
+    },
+    {
+      "name": "membership_suite_purchased",
+      "value": "全家桶已解鎖。"
+    },
+    {
+      "name": "membership_suite_restored",
+      "value": "已恢復全家桶。"
     }
   ]
 }

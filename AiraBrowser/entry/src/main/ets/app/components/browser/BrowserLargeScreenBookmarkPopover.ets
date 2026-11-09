@@ -84,7 +84,7 @@ export struct BrowserLargeScreenBookmarkPopover {
       placement: Placement.BottomRight,
       popupColor: this.storedFloatingSurfaceColor,
       enableArrow: false,
-      autoCancel: !this.session.draft.saving,
+      autoCancel: true,
       mask: false,
       targetSpace: LARGE_SCREEN_BOOKMARK_TARGET_SPACE_VP,
       width: this.resolvePopupWidth(),
@@ -96,6 +96,12 @@ export struct BrowserLargeScreenBookmarkPopover {
         color: $r('app.color.elevation_shadow'),
         offsetX: 0,
         offsetY: 8
+      },
+      onWillDismiss: (action: DismissPopupAction): void => {
+        // Read the draft at dismissal time so typing does not rebind the popup.
+        if (!this.session.draft.saving) {
+          action.dismiss();
+        }
       },
       onStateChange: (event: PopupStateChangeParam) => {
         const wasVisible = this.popupVisible;

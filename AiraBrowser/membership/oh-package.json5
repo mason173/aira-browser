@@ -1,0 +1,10 @@
+{
+  "name": "kitapp-membership",
+  "version": "1.3.17",
+  "description": "Kitapp 统一会员成品：固定全家桶资料、标准单应用体验与 Kitapp 自售全家桶页",
+  "main": "Index.ets",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "design": "file:../design"
+  }
+}

@@ -26,6 +26,8 @@
     ]
   },
   "modules": [
+    { "name": "design", "srcPath": "./design", "targets": [{ "name": "default", "applyToProducts": ["default"] }] },
+    { "name": "membership", "srcPath": "./membership", "targets": [{ "name": "default", "applyToProducts": ["default"] }] },
     {
       "name": "entry",
       "srcPath": "./entry",

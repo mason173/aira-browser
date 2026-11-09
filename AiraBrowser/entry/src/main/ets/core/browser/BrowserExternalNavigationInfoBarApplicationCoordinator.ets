@@ -49,6 +49,8 @@ export interface BrowserExternalNavigationInfoBarPromptRequest {
 
 export type BrowserExternalNavigationPromptUserAction = 'open' | 'dismiss';
 
+const EXTERNAL_NAVIGATION_PROMPT_DURATION_MS: number = 3000;
+
 export class BrowserExternalNavigationInfoBarApplicationCoordinator {
   private readonly externalNavigationPolicyService: ExternalNavigationPolicyService;
   private readonly siteIconService: SiteIconService;
@@ -63,6 +65,7 @@ export class BrowserExternalNavigationInfoBarApplicationCoordinator {
     new ExternalNavigationPromptViewModel();
   private promptState: ExternalNavigationPromptState = this.infoBarQueue.createHiddenExternalNavigationState();
   private activeExternalNavigationPromptId: string = '';
+  private autoDismissTimer?: number;
 
   constructor(
     dependencies: BrowserExternalNavigationInfoBarApplicationCoordinatorDependencies,
@@ -107,8 +110,7 @@ export class BrowserExternalNavigationInfoBarApplicationCoordinator {
     const plan = action === 'open'
       ? this.infoBarQueue.consumeExternalNavigationConfirm()
       : this.infoBarQueue.consumeExternalNavigationDismiss();
-    this.activeExternalNavigationPromptId = '';
-    this.publishPromptState(plan.promptState);
+    this.clearPrompt(plan.promptState);
     void this.applySideEffects(plan, now);
   }
 
@@ -128,9 +130,7 @@ export class BrowserExternalNavigationInfoBarApplicationCoordinator {
     if (nextState.visible) {
       return;
     }
-    this.activeExternalNavigationPromptId = '';
-    this.infoBarQueue.clearExternalNavigation();
-    this.publishPromptState(nextState);
+    this.clearPrompt(nextState);
   }
 
   private showPrompt(
@@ -157,11 +157,32 @@ export class BrowserExternalNavigationInfoBarApplicationCoordinator {
       favicon: presentation.favicon,
       trigger: 'user_gesture'
     });
-    this.activeExternalNavigationPromptId = plan.record.id;
+    const promptId = plan.record.id;
+    this.activeExternalNavigationPromptId = promptId;
     this.externalNavigationRuntimeStateCoordinator.recordPromptShown(plan.record.url, plan.record.createdAt);
+    this.cancelAutoDismiss();
+    this.autoDismissTimer = setTimeout((): void => {
+      if (this.activeExternalNavigationPromptId === promptId) {
+        this.clearPrompt(this.infoBarQueue.createHiddenExternalNavigationState());
+      }
+    }, EXTERNAL_NAVIGATION_PROMPT_DURATION_MS);
     this.publishPromptState(plan.promptState);
-    this.hydratePromptPresentation(origin, request, plan.record.id, iconUri);
+    this.hydratePromptPresentation(origin, request, promptId, iconUri);
     return plan.promptState;
+  }
+
+  private clearPrompt(state: ExternalNavigationPromptState): void {
+    this.cancelAutoDismiss();
+    this.activeExternalNavigationPromptId = '';
+    this.infoBarQueue.clearExternalNavigation();
+    this.publishPromptState(state);
+  }
+
+  private cancelAutoDismiss(): void {
+    if (this.autoDismissTimer !== undefined) {
+      clearTimeout(this.autoDismissTimer);
+      this.autoDismissTimer = undefined;
+    }
   }
 
   private publishPromptState(state: ExternalNavigationPromptState): void {

@@ -2,6 +2,7 @@ export type AiraLegalDocumentId =
   'user_service_agreement' |
   'privacy_statement' |
   'pro_membership_service_agreement' |
+  'suite_membership_service_agreement' |
   'pro_auto_renewal_service_agreement' |
   'third_party_sdk_and_services' |
   'personal_info_and_permissions';
@@ -21,6 +22,8 @@ export const AIRA_USER_SERVICE_AGREEMENT_URL: string =
   `${AIRA_LEGAL_HOST}/aira-user-service-agreement.html`;
 export const AIRA_PRO_MEMBERSHIP_SERVICE_AGREEMENT_URL: string =
   `${AIRA_LEGAL_HOST}/aira-pro-membership-service-agreement.html`;
+export const AIRA_SUITE_MEMBERSHIP_SERVICE_AGREEMENT_URL: string =
+  'https://agreements.aira.cool/kitapp/membership-agreement.html';
 export const AIRA_PRO_AUTO_RENEWAL_SERVICE_AGREEMENT_URL: string =
   `${AIRA_LEGAL_HOST}/aira-pro-auto-renewal-service-agreement.html`;
 export const AIRA_THIRD_PARTY_SDK_AND_SERVICES_URL: string =
@@ -43,6 +46,11 @@ export const AIRA_LEGAL_DOCUMENT_LINKS: AiraLegalDocumentLink[] = [
     id: 'pro_membership_service_agreement',
     title: 'Aira Pro会员服务协议',
     url: AIRA_PRO_MEMBERSHIP_SERVICE_AGREEMENT_URL
+  },
+  {
+    id: 'suite_membership_service_agreement',
+    title: 'Kitapp One会员服务协议',
+    url: AIRA_SUITE_MEMBERSHIP_SERVICE_AGREEMENT_URL
   },
   {
     id: 'pro_auto_renewal_service_agreement',

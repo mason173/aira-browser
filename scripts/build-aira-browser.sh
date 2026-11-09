@@ -1751,6 +1751,20 @@ prepare_build_profile() {
 
   if [ "${source_profile}" != "${BUILD_PROFILE_TEMPLATE}" ]; then
     cp "${source_profile}" "${BUILD_PROFILE_TEMPLATE}"
+    # Private signing profiles can predate newly registered source modules.
+    # Keep their signing/products, and add every module declared by the repository.
+    "${NODE_BIN}" - "${BUILD_PROFILE_BACKUP}" "${BUILD_PROFILE_TEMPLATE}" <<'NODE'
+const fs = require('fs');
+const [sourcePath, effectivePath] = process.argv.slice(2);
+const parse = file => new Function(`return (${fs.readFileSync(file, 'utf8')});`)();
+const source = parse(sourcePath), effective = parse(effectivePath);
+const modules = effective.modules || [];
+for (const module of source.modules || []) {
+  if (!modules.some(existing => existing.name === module.name)) modules.push(module);
+}
+effective.modules = modules;
+fs.writeFileSync(effectivePath, JSON.stringify(effective, null, 2) + '\n');
+NODE
   fi
 
   if [ "${should_patch_signing}" = "1" ]; then

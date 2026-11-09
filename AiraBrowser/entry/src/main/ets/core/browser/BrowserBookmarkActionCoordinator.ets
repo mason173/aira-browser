@@ -197,17 +197,20 @@ export class BrowserBookmarkActionCoordinator {
       return;
     }
     if (action.type === 'edit_title' || action.type === 'edit_url') {
-      if (action.value !== undefined) {
-        if (action.type === 'edit_title') {
-          this.snapshot.draft.title = action.value;
-          this.snapshot.draft.titleError = '';
-        } else {
-          this.snapshot.draft.url = action.value;
-          this.snapshot.draft.urlError = '';
-        }
-        this.snapshot.draft.saveError = '';
-        this.emitSnapshot();
+      const draft = this.snapshot.draft;
+      const currentValue = action.type === 'edit_title' ? draft.title : draft.url;
+      if (action.value === undefined || action.value === currentValue) {
+        return;
       }
+      if (action.type === 'edit_title') {
+        draft.title = action.value;
+        draft.titleError = '';
+      } else {
+        draft.url = action.value;
+        draft.urlError = '';
+      }
+      draft.saveError = '';
+      this.emitSnapshot();
       return;
     }
     if (action.type === 'select_folder') {

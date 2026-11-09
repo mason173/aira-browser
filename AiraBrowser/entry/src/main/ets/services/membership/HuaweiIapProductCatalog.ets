@@ -6,7 +6,9 @@ const AIRA_PRO_ONE_TIME_DISPLAY_PRICE: string = '¥68.8';
 const AIRA_PRO_ONE_TIME_ORIGINAL_PRICE_TEXT: string = '原价¥98.8';
 
 export type HuaweiIapProductPeriod = 'monthly' | 'yearly';
-export type HuaweiIapPlanId = HuaweiIapProductPeriod | 'one_time';
+export const AIRA_SUITE_LIFETIME_PLAN_ID: string = 'suite_lifetime';
+export const AIRA_SUITE_LIFETIME_PRODUCT_ID: string = 'aira_suite_lifetime';
+export type HuaweiIapPlanId = HuaweiIapProductPeriod | 'one_time' | 'suite_lifetime';
 
 export interface HuaweiIapProductPlan {
   productId: string;
@@ -119,7 +121,7 @@ export function resolveAiraProPlanPeriodText(period: HuaweiIapProductPeriod): st
 
 export function isAiraProIapPlanId(planId: string): boolean {
   const normalizedPlanId = planId.trim().toLowerCase();
-  return normalizedPlanId === AIRA_PRO_ONE_TIME_PLAN.planId || findAiraProIapPlan(normalizedPlanId) !== undefined;
+  return normalizedPlanId === AIRA_SUITE_LIFETIME_PLAN_ID || normalizedPlanId === AIRA_PRO_ONE_TIME_PLAN.planId || findAiraProIapPlan(normalizedPlanId) !== undefined;
 }
 
 export function isAiraProSellablePlanId(planId: string): boolean {
@@ -129,6 +131,7 @@ export function isAiraProSellablePlanId(planId: string): boolean {
 
 export function resolveAiraProProductId(planId: string): string {
   const normalizedPlanId = planId.trim().toLowerCase();
+  if (normalizedPlanId === AIRA_SUITE_LIFETIME_PLAN_ID) { return AIRA_SUITE_LIFETIME_PRODUCT_ID; }
   if (normalizedPlanId === AIRA_PRO_ONE_TIME_PLAN.planId) {
     return AIRA_PRO_ONE_TIME_PRODUCT_ID;
   }

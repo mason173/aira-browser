@@ -23887,6 +23887,102 @@
     {
       "name": "bookmark_add_saved_sync_pending",
       "value": "Bookmark saved. Sync preparation could not finish."
+    },
+    {
+      "name": "settings_pro_shared_lifetime_period",
+      "value": "One purchase · Lifetime access"
+    },
+    {
+      "name": "settings_pro_shared_purchase_note",
+      "value": "One purchase, lifetime access, no automatic renewal. A purchased Aira lifetime membership currently also includes the app suite. Restore using the original HUAWEI ID."
+    },
+    {
+      "name": "settings_pro_review_title",
+      "value": "Browser experience · Sample reviews"
+    },
+    {
+      "name": "settings_pro_review_bookmarks_author",
+      "value": "PineNeedle"
+    },
+    {
+      "name": "settings_pro_review_bookmarks_title",
+      "value": "My work links are easy to find"
+    },
+    {
+      "name": "settings_pro_review_bookmarks_message",
+      "value": "I keep links in bookmark folders by project, so I can pull them up right away in meetings."
+    },
+    {
+      "name": "settings_pro_review_tabs_author",
+      "value": "YuzuFizz"
+    },
+    {
+      "name": "settings_pro_review_tabs_title",
+      "value": "I can pick up on another device"
+    },
+    {
+      "name": "settings_pro_review_tabs_message",
+      "value": "When I switch devices mid-search, I open my synced tabs and pick up where I left off."
+    },
+    {
+      "name": "settings_pro_review_reader_author",
+      "value": "ReadItLater"
+    },
+    {
+      "name": "settings_pro_review_reader_title",
+      "value": "Long articles are easier to read"
+    },
+    {
+      "name": "settings_pro_review_reader_message",
+      "value": "For crowded pages, I switch to Reader Mode and bump up the text size. It’s much easier to read on my commute."
+    },
+    {
+      "name": "settings_pro_review_filtering_author",
+      "value": "SeaSaltToast"
+    },
+    {
+      "name": "settings_pro_review_filtering_title",
+      "value": "Less clutter when I look things up"
+    },
+    {
+      "name": "settings_pro_review_filtering_message",
+      "value": "With ad filtering on, I see fewer banners and can focus on what I came to read."
+    },
+    {
+      "name": "settings_pro_review_offline_author",
+      "value": "TenOClockTrain"
+    },
+    {
+      "name": "settings_pro_review_offline_title",
+      "value": "My travel guide works offline"
+    },
+    {
+      "name": "settings_pro_review_offline_message",
+      "value": "I save directions before leaving, so I can look them up on the subway even with no signal."
+    },
+    {
+      "name": "settings_pro_shared_store_unavailable",
+      "value": "Unable to open Kitapp. Please try again later."
+    },
+    {
+      "name": "membership_suite_product_unavailable",
+      "value": "The app suite is temporarily unavailable. Please try again later."
+    },
+    {
+      "name": "membership_suite_link_required",
+      "value": "Account linking could not be completed. Try again later or sign in again."
+    },
+    {
+      "name": "membership_suite_already_owned",
+      "value": "The app suite is already unlocked. No additional purchase is needed."
+    },
+    {
+      "name": "membership_suite_purchased",
+      "value": "App suite unlocked."
+    },
+    {
+      "name": "membership_suite_restored",
+      "value": "App suite purchases restored."
     }
   ]
 }
