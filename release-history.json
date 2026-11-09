@@ -10,6 +10,15 @@
   },
   "history": [
     {
+      "versionName": "3.9.6",
+      "versionCode": 1000578,
+      "releasedAt": "2026-11-09",
+      "source": "formal-package-generated",
+      "notes": "Locally generated Official 3.9.6 (1000578) AppGallery candidate from base commit 22562611acfea005c805c649bcf236cd4b2fcaef with release source tree 186c931c6bbfa4e29167536e21f8e79374e64e1b. Includes shared membership, launcher search on cold start, automatic external-app prompt dismissal, the floating video toolbar, and bookmark and recently closed fixes. The Official release APP build, configured release certificate, embedded AppGallery release Profile, package version and debug=false, and all six packaged changelog and notice files were verified. Exact-build ArkTS and native crash symbols were archived and their hashes verified.",
+      "artifact": "dist/packages/Aira-official-v3.9.6-1000578.app",
+      "sha256": "443fcda5b6b39f1a38c24dd96efb4b3d98d4445c5bbe9cf933af2390f5c51bbf"
+    },
+    {
       "versionName": "3.9.5",
       "versionCode": 1000575,
       "releasedAt": "2026-11-05",

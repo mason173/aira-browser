@@ -51,11 +51,18 @@
 本地回归：`node scripts/check-aira-video-live-timeline.cjs` 和
 `node scripts/check-aira-video-presentation-stability.cjs`；设备实际效果仍需新包复现确认。
 
-网页悬浮工具栏的小窗、投屏、全屏图标保持原 SVG 路径。SVG 的 presentation attributes
-可能被站点的 `svg` / `path` CSS 覆盖，导致线条变粗、填实或尺寸失真，因此 SVG 根节点和
-每条 path 都需要显式保护 fill、stroke、线宽及变换，尺寸另行固定；颜色仍通过 currentColor
-跟随按钮的明暗主题与忙碌状态。回归：`node scripts/check-aira-video-toolbar-icons.cjs`
-使用本地 headless Chrome 检查真实计算样式，不访问用户页面或截图；可用 `CHROME_BIN` 指定浏览器。
+视频页的投屏、小窗、全屏三个按钮现在由 ArkUI 原生悬浮层绘制，使用共享的
+`HdsImmersiveMaterialSurface` 沉浸光感圆形底板；不支持材质的设备使用玻璃模糊回退。
+网页不再安装 DOM 工具栏。显隐与操作目标仍来自 Session Resolution 和 Web-Live reachability，
+原生化不会让模糊或失效的视频绕过目标校验。主文档视频坐标换算到 Web 宿主区域，跨域 iframe
+没有可信父级坐标变换时使用视口内的可拖动锚点；位置限制在原生地址栏和 Web 宿主边界内。
+
+全屏按钮直接执行 Aira 展示与窗口接管，不先请求网站的 Fullscreen API。投屏复用现有
+AVSession 投屏服务，小窗复用 ArkWeb Picture-in-Picture 命令；这两个操作不需要先全屏。
+普通页面投屏的暂停/恢复不改变网页控件样式。切换文档、SPA 路由、目标或重复点击均重新校验
+身份，过期操作不能作用于新视频。回归：`node scripts/check-aira-video-toolbar-takeover.cjs`、
+`node scripts/check-aira-video-toolbar-lifecycle.cjs` 和 `node scripts/check-aira-video-cast-session.cjs`。
+这些检查不访问站点、不截图；材质呈现、ArkWeb 手势约束和真实接收设备仍需要设备验证。
 
 ## 目标
 

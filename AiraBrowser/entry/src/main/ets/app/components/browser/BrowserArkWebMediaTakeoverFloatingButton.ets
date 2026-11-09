@@ -1,96 +1,120 @@
-import { BROWSER_GLOBAL_SYMBOL_WEIGHT } from './BrowserIconStyle';
-import { BrowserArkWebMediaButtonState } from '../../../core/browser/media/BrowserArkWebMediaTakeoverCoordinator';
+import { AiraRenderableIconId } from '../../../core/resources/GeneratedAiraIconCatalog';
+import {
+  BrowserArkWebMediaButtonState,
+  BrowserVideoActionToolbarAction,
+  BrowserVideoActionToolbarPosition,
+  BrowserVideoActionToolbarPositionModel,
+  VIDEO_ACTION_BUTTON_GAP,
+  VIDEO_ACTION_BUTTON_SIZE,
+  VIDEO_ACTION_TOOLBAR_WIDTH
+} from '../../../core/browser/media/BrowserVideoActionToolbarLayout';
 import { BROWSER_THEME_STORAGE_RESOLVED_MODE_KEY } from '../../../core/theme/BrowserThemeStorageKeys';
 import { HdsImmersiveMaterialSurface } from '../common/HdsImmersiveMaterialSurface';
 import { isHdsMaterialAvailable } from '../common/HdsImmersiveMaterialTokens';
+import { AiraIcon } from '../common/AiraIcon';
 import { BrowserFloatingGlassMaterialSurface } from './BrowserFloatingGlassMaterialSurface';
 import { resolveBrowserFloatingGlassMaterialTintForMode } from './BrowserFloatingGlassMaterialTokens';
 
-const ARKWEB_MEDIA_BUTTON_SIZE: number = 48;
-const ARKWEB_MEDIA_ICON_SIZE: number = 22;
-const ARKWEB_MEDIA_BUSY_OPACITY: number = 0.7;
-
 @Component
-export struct BrowserArkWebMediaTakeoverFloatingButton {
-  @StorageProp(BROWSER_THEME_STORAGE_RESOLVED_MODE_KEY) private storedResolvedThemeMode: string = 'light';
-  @Prop sourceCount: number = 0;
-  @Prop controllable: boolean = false;
+struct BrowserVideoActionGlassButton {
+  @StorageProp(BROWSER_THEME_STORAGE_RESOLVED_MODE_KEY) private themeMode: string = 'light';
+  @Prop icon: AiraRenderableIconId = 'videoAssistant.cast';
+  @Prop label: Resource = $r('app.string.video_player_cast');
   @Prop busy: boolean = false;
-  @Prop buttonColor: ResourceColor = '';
-  @Prop iconColor: ResourceColor = '';
-  onButtonTap: () => void = (): void => {};
+  onPress: () => void = (): void => {};
 
   build() {
     Stack({ alignContent: Alignment.Center }) {
-      if (this.shouldUseHdsMaterialPlate()) {
+      if (isHdsMaterialAvailable()) {
         HdsImmersiveMaterialSurface({
-          plateWidth: ARKWEB_MEDIA_BUTTON_SIZE,
-          plateHeight: ARKWEB_MEDIA_BUTTON_SIZE,
-          plateRadius: ARKWEB_MEDIA_BUTTON_SIZE / 2
+          plateWidth: VIDEO_ACTION_BUTTON_SIZE,
+          plateHeight: VIDEO_ACTION_BUTTON_SIZE,
+          plateRadius: VIDEO_ACTION_BUTTON_SIZE / 2
         })
       }
       BrowserFloatingGlassMaterialSurface({
-        surfaceWidth: ARKWEB_MEDIA_BUTTON_SIZE,
-        surfaceHeight: ARKWEB_MEDIA_BUTTON_SIZE,
-        surfaceRadius: ARKWEB_MEDIA_BUTTON_SIZE / 2,
-        tintColor: resolveBrowserFloatingGlassMaterialTintForMode(this.storedResolvedThemeMode),
-        hostMaterialActive: this.shouldUseHdsMaterialPlate()
+        surfaceWidth: VIDEO_ACTION_BUTTON_SIZE,
+        surfaceHeight: VIDEO_ACTION_BUTTON_SIZE,
+        surfaceRadius: VIDEO_ACTION_BUTTON_SIZE / 2,
+        tintColor: resolveBrowserFloatingGlassMaterialTintForMode(this.themeMode),
+        hostMaterialActive: isHdsMaterialAvailable(),
+        backgroundBlurEnabled: true
       }) {
         Button({ type: ButtonType.Circle }) {
-          SymbolGlyph($r('sys.symbol.play_fill'))
-            .fontSize(ARKWEB_MEDIA_ICON_SIZE)
-            .fontWeight(BROWSER_GLOBAL_SYMBOL_WEIGHT)
-            .fontColor([this.iconColor])
+          AiraIcon({
+            airaIconId: this.icon,
+            iconSize: 24,
+            iconColor: this.themeMode === 'dark' ? Color.White : '#16181D'
+          })
+            .hitTestBehavior(HitTestMode.None)
         }
         .width('100%')
         .height('100%')
-        .backgroundColor($r('sys.color.ohos_id_color_background_transparent'))
+        .backgroundColor(Color.Transparent)
         .enabled(!this.busy)
         .stateEffect(true)
-        .accessibilityText(this.buildAccessibilityText())
-        .onClick(() => {
-          this.onButtonTap();
-        })
+        .accessibilityText(this.label)
+        .onClick(this.onPress)
       }
     }
-    .width(ARKWEB_MEDIA_BUTTON_SIZE)
-    .height(ARKWEB_MEDIA_BUTTON_SIZE)
-    .opacity(this.busy ? ARKWEB_MEDIA_BUSY_OPACITY : 1)
-  }
-
-  private shouldUseHdsMaterialPlate(): boolean {
-    return isHdsMaterialAvailable();
-  }
-
-  private buildAccessibilityText(): ResourceStr {
-    if (!this.controllable) {
-      return $r('app.string.media_resource_takeover_a11y_uncontrollable');
-    }
-    if (this.sourceCount > 1) {
-      return $r('app.string.media_resource_takeover_a11y_sources', this.sourceCount);
-    }
-    return $r('app.string.media_resource_takeover_a11y_default');
+    .width(VIDEO_ACTION_BUTTON_SIZE)
+    .height(VIDEO_ACTION_BUTTON_SIZE)
+    .opacity(this.busy ? 0.6 : 1)
   }
 }
 
 @Component
 export struct BrowserArkWebMediaTakeoverFloatingButtonHost {
   @Prop state: BrowserArkWebMediaButtonState;
-  @Prop buttonColor: ResourceColor = '';
-  @Prop iconColor: ResourceColor = '';
   @Prop layerIndex: number = 0;
-  onButtonTap: () => void = (): void => {};
+  onAction: (identity: string, action: BrowserVideoActionToolbarAction) => void = (): void => {};
+  private positionModel: BrowserVideoActionToolbarPositionModel = new BrowserVideoActionToolbarPositionModel();
+  @State private dragRevision: number = 0;
 
   build() {
-    BrowserArkWebMediaTakeoverFloatingButton({
-      sourceCount: this.state.sourceCount,
-      controllable: this.state.controllable,
-      busy: this.state.busy,
-      buttonColor: this.buttonColor,
-      iconColor: this.iconColor,
-      onButtonTap: this.onButtonTap
-    })
-      .position({ x: this.state.x, y: this.state.y })
+    if (this.state.visible) {
+      Row({ space: VIDEO_ACTION_BUTTON_GAP }) {
+        BrowserVideoActionGlassButton({
+          icon: 'videoAssistant.cast', label: $r('app.string.video_player_cast'), busy: this.state.busy,
+          onPress: (): void => this.onAction(this.state.identity, 'cast')
+        })
+        BrowserVideoActionGlassButton({
+          icon: 'videoAssistant.popup', label: $r('app.string.video_player_pip'), busy: this.state.busy,
+          onPress: (): void => this.onAction(this.state.identity, 'picture_in_picture')
+        })
+        BrowserVideoActionGlassButton({
+          icon: 'browser.elementInspection.fullscreen', label: $r('app.string.video_player_fullscreen'),
+          busy: this.state.busy,
+          onPress: (): void => this.onAction(this.state.identity, 'fullscreen')
+        })
+      }
+      .width(VIDEO_ACTION_TOOLBAR_WIDTH)
+      .height(VIDEO_ACTION_BUTTON_SIZE)
+      .position(this.resolvePosition(this.dragRevision))
+      // Block excludes child buttons too: only the row's pan gesture would respond.
+      // Keep the buttons in the hit chain while isolating this cluster from the Web layer.
+      .hitTestBehavior(HitTestMode.BLOCK_HIERARCHY)
+      .priorityGesture(
+        PanGesture({ direction: PanDirection.All, distance: 6 })
+          .onActionStart(() => {
+            this.positionModel.begin(this.state);
+          })
+          .onActionUpdate((event: GestureEvent) => {
+            this.positionModel.move(this.state, event.offsetX, event.offsetY);
+            this.dragRevision += 1;
+          })
+          .onActionEnd(() => {
+            this.positionModel.end();
+          })
+          .onActionCancel(() => {
+            this.positionModel.end();
+          })
+      )
       .zIndex(this.layerIndex)
+    }
+  }
+
+  private resolvePosition(_revision: number): BrowserVideoActionToolbarPosition {
+    return this.positionModel.resolve(this.state);
   }
 }

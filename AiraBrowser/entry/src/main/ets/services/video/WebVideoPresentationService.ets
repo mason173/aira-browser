@@ -1,7 +1,6 @@
 import { webview } from '@kit.ArkWeb';
 import { resolveAppResourceText } from '../../core/resources/AppResourceText';
 import {
-  WEB_VIDEO_ACTION_TOOLBAR_PROTOCOL,
   WEB_VIDEO_CONTROLS_HIDDEN_MARKER_ATTRIBUTE,
   WEB_VIDEO_CONTROLS_OBSERVER_PROPERTY,
   WEB_VIDEO_CONTROLS_STYLE_ELEMENT_ID,
@@ -10,8 +9,7 @@ import {
   WEB_VIDEO_ORIGINAL_CONTROLS_HIDDEN_MARKER_PROPERTY,
   WEB_VIDEO_ORIGINAL_OBJECT_FIT_PRIORITY_PROPERTY,
   WEB_VIDEO_ORIGINAL_OBJECT_FIT_PROPERTY,
-  WEB_VIDEO_RUNTIME_ID_PROPERTY,
-  WEB_VIDEO_FULLSCREEN_REQUEST_RESULT_EVENT
+  WEB_VIDEO_RUNTIME_ID_PROPERTY
 } from './WebVideoRuntimeProtocol';
 import {
   WEB_VIDEO_FRAME_HOST_BRIDGE_PROPERTY,
@@ -37,11 +35,12 @@ export interface WebVideoLiveSessionTarget {
 export type WebVideoLiveCommandAction =
   | 'read_state'
   | 'toggle'
+  | 'play'
+  | 'pause'
   | 'seek'
   | 'rate'
   | 'scale'
   | 'picture_in_picture'
-  | 'install_action_toolbar'
   | 'picture_in_picture_status'
   | 'enter_live_presentation'
   | 'suppress_native_controls'
@@ -123,15 +122,6 @@ export class WebVideoPresentationService {
       return initialResult;
     }
     return this.confirmWebPictureInPicture(controller, target, initialResult);
-  }
-
-  async installActionToolbar(
-    controller: webview.WebviewController | undefined,
-    target: WebVideoLiveSessionTarget
-  ): Promise<WebVideoLiveCommandResult> {
-    return this.executeLiveCommand(controller, target, {
-      action: 'install_action_toolbar'
-    });
   }
 
   private async runFrameProxyLiveCommand(
@@ -371,6 +361,12 @@ export class WebVideoPresentationService {
     if (action === 'toggle') {
       return reason === 'pause_applied' || reason === 'play_requested';
     }
+    if (action === 'play') {
+      return reason === 'play_requested';
+    }
+    if (action === 'pause') {
+      return reason === 'pause_applied';
+    }
     if (action === 'seek') {
       return reason === 'seek_applied';
     }
@@ -384,9 +380,6 @@ export class WebVideoPresentationService {
       return reason === 'picture_in_picture_already_active' ||
         reason === 'picture_in_picture_pending' || reason === 'picture_in_picture_started' ||
         reason === 'webkit_picture_in_picture_requested';
-    }
-    if (action === 'install_action_toolbar') {
-      return reason === 'action_toolbar_installed';
     }
     if (action === 'picture_in_picture_status') {
       return reason === 'picture_in_picture_pending' || reason === 'picture_in_picture_started';
@@ -519,11 +512,7 @@ export class WebVideoPresentationService {
     const controlsStyleElementId = JSON.stringify(WEB_VIDEO_CONTROLS_STYLE_ELEMENT_ID);
     const livePresentationProperty = JSON.stringify(WEB_VIDEO_LIVE_PRESENTATION_PROPERTY);
     const pipRequestStateProperty = JSON.stringify(WEB_VIDEO_PIP_REQUEST_STATE_PROPERTY);
-    const actionToolbarProtocol = JSON.stringify(WEB_VIDEO_ACTION_TOOLBAR_PROTOCOL);
-    const fullscreenRequestResultEvent = JSON.stringify(WEB_VIDEO_FULLSCREEN_REQUEST_RESULT_EVENT);
-    const frameRuntimeId = JSON.stringify(target.frameRuntimeId?.trim() ?? '');
     const presentationMode = JSON.stringify(target.presentationMode ?? 'viewport_promoted');
-    const themeMode = JSON.stringify(target.themeMode === 'dark' ? 'dark' : 'light');
     const action = JSON.stringify(command.action);
     const value = Number.isFinite(command.value ?? 0) ? command.value ?? 0 : 0;
     const videoCopy = this.buildInjectedVideoCopy();
@@ -636,7 +625,6 @@ export class WebVideoPresentationService {
   var commandValue = ${value};
   var airaVideoCopy = ${videoCopy};
   var requestedPresentationMode = ${presentationMode};
-  var expectedThemeMode = ${themeMode};
   var liveWatchdogIntervalMs = 180;
   var liveWatchdogRecoveryLimit = 40;
   var livePresentationRegistryProperty = '__airaVideoAssistantLivePresentationRegistry';
@@ -688,14 +676,6 @@ export class WebVideoPresentationService {
   var controlsStyleElementId = ${controlsStyleElementId};
   var livePresentationProperty = ${livePresentationProperty};
   var pipRequestStateProperty = ${pipRequestStateProperty};
-  var actionToolbarProtocol = ${actionToolbarProtocol};
-  var fullscreenRequestResultEvent = ${fullscreenRequestResultEvent};
-  var expectedFrameRuntimeId = ${frameRuntimeId};
-  // Distance kept between the action toolbar and the video's bottom edge, so the buttons sit
-  // clear of the picture, plus the margin kept from the viewport edge when clamping.
-  var actionToolbarVideoGap = 28;
-  var actionToolbarViewportEdgeGap = 8;
-  var actionToolbarDragStartDistance = 4;
   var lastPresentationFailureReason = '';
   var lastPresentationVerificationDetail = '';
   function rememberObjectFit(targetVideo) {
@@ -1796,32 +1776,6 @@ export class WebVideoPresentationService {
       }
     }
   }
-  function resolveActionToolbar(videoElement) {
-    try {
-      var ownerDocument = videoElement && videoElement.ownerDocument ? videoElement.ownerDocument : document;
-      var toolbar = ownerDocument.getElementById('__aira_video_action_toolbar');
-      return toolbar && String(toolbar.getAttribute('data-aira-video-runtime-id') || '') === expectedRuntimeId ?
-        toolbar : null;
-    } catch (_toolbarLookupError) {
-      return null;
-    }
-  }
-  function refreshActionToolbarAfterPresentation(videoElement) {
-    var toolbar = resolveActionToolbar(videoElement);
-    if (!toolbar) {
-      return;
-    }
-    toolbar.__airaFullscreenRequestPending = false;
-    try {
-      if (typeof toolbar.__airaResetInteractionState === 'function') {
-        toolbar.__airaResetInteractionState();
-      }
-      if (typeof toolbar.__airaRefresh === 'function') {
-        toolbar.__airaRefresh();
-      }
-    } catch (_toolbarRefreshError) {
-    }
-  }
   function enterLivePresentation() {
     var currentState = video[livePresentationProperty] || livePresentationRegistry[expectedRuntimeId];
     var presentationAlreadyActive = !!(currentState && currentState.active === true && currentState.snapshots);
@@ -1870,11 +1824,6 @@ export class WebVideoPresentationService {
       presentationState.ancestorProperties = ancestorProperties;
       presentationState.documentProperties = documentProperties;
       presentationState.presentationMode = requestedPresentationMode;
-      var actionToolbar = resolveActionToolbar(video);
-      if (actionToolbar) {
-        actionToolbar.__airaFullscreenRequestPending = false;
-        actionToolbar.style.visibility = 'hidden';
-      }
       if (typeof presentationState.scaleMode !== 'string') {
         presentationState.scaleMode = 'contain';
       }
@@ -1931,7 +1880,6 @@ export class WebVideoPresentationService {
         } catch (_deletePresentationError) {
           video[livePresentationProperty] = undefined;
         }
-        refreshActionToolbarAfterPresentation(video);
       }
       return false;
     }
@@ -1939,7 +1887,6 @@ export class WebVideoPresentationService {
   function restoreLivePresentation() {
     var state = video[livePresentationProperty] || livePresentationRegistry[expectedRuntimeId];
     if (!state || state.active !== true || !state.snapshots) {
-      refreshActionToolbarAfterPresentation(video);
       return;
     }
     state.active = false;
@@ -1959,7 +1906,6 @@ export class WebVideoPresentationService {
     } catch (_deletePresentationError) {
       video[livePresentationProperty] = undefined;
     }
-    refreshActionToolbarAfterPresentation(state.targetVideo || video);
   }
   function ensurePictureInPictureState() {
     var state = video[pipRequestStateProperty];
@@ -2053,762 +1999,6 @@ export class WebVideoPresentationService {
     } catch (_lifecycleError) {
     }
   }
-  function installActionToolbar() {
-    var ownerDocument = video.ownerDocument || document;
-    var ownerWindow = ownerDocument.defaultView || window;
-    var toolbarId = '__aira_video_action_toolbar';
-    var existingToolbar = ownerDocument.getElementById(toolbarId);
-    if (existingToolbar &&
-        String(existingToolbar.getAttribute('data-aira-video-runtime-id') || '') !== expectedRuntimeId) {
-      try {
-        if (typeof existingToolbar.__airaCleanup === 'function') {
-          existingToolbar.__airaCleanup();
-        }
-        if (existingToolbar.parentNode) {
-          existingToolbar.parentNode.removeChild(existingToolbar);
-        }
-      } catch (_removeStaleToolbarError) {
-      }
-      existingToolbar = null;
-    }
-    if (existingToolbar) {
-      try {
-        existingToolbar.__airaFullscreenRequestPending = false;
-        if (typeof existingToolbar.__airaApplyTheme === 'function') {
-          existingToolbar.__airaApplyTheme(expectedThemeMode);
-        }
-        if (typeof existingToolbar.__airaResetInteractionState === 'function') {
-          existingToolbar.__airaResetInteractionState();
-        }
-        if (typeof existingToolbar.__airaRefresh === 'function') {
-          existingToolbar.__airaRefresh();
-        }
-      } catch (_refreshToolbarError) {
-      }
-      return true;
-    }
-    var toolbarHost = ownerDocument.body || ownerDocument.documentElement;
-    if (!toolbarHost) {
-      return false;
-    }
-    // The buttons float over page content rather than the app's own chrome, so they cannot read
-    // the native theme tokens. The palette mirrors the app's immersive light-sense material: a
-    // thin translucent surface, a bright rim that reads as the material's light effect, and an
-    // inner highlight along the top edge. The drop shadow stays wide and soft so the group does
-    // not read as a dark blob, and the heavy backdrop blur is what keeps the chip legible over
-    // arbitrary page content without going opaque.
-    var actionToolbarThemePalettes = {
-      light: {
-        iconColor: '#16181D',
-        background: 'rgba(255,255,255,.46)',
-        borderColor: 'rgba(255,255,255,.78)',
-        highlight: 'inset 0 1px 0 rgba(255,255,255,.92)',
-        shadow: '0 6px 18px rgba(22,24,29,.14)'
-      },
-      dark: {
-        iconColor: '#FFFFFF',
-        background: 'rgba(255,255,255,.13)',
-        borderColor: 'rgba(255,255,255,.24)',
-        highlight: 'inset 0 1px 0 rgba(255,255,255,.22)',
-        shadow: '0 6px 20px rgba(0,0,0,.30)'
-      }
-    };
-    var resolveActionToolbarTheme = function (mode) {
-      return mode === 'dark' ? actionToolbarThemePalettes.dark : actionToolbarThemePalettes.light;
-    };
-    var appliedActionToolbarTheme = resolveActionToolbarTheme(expectedThemeMode);
-    var toolbar = ownerDocument.createElement('div');
-    toolbar.id = toolbarId;
-    toolbar.setAttribute('data-aira-video-runtime-id', expectedRuntimeId);
-    toolbar.setAttribute('data-aira-theme', expectedThemeMode === 'dark' ? 'dark' : 'light');
-    toolbar.setAttribute('role', 'toolbar');
-    toolbar.setAttribute('aria-label', airaVideoCopy.toolbarAria);
-    toolbar.style.cssText = [
-      'position:fixed', 'left:8px', 'top:8px', 'z-index:2147483647',
-      'display:flex', 'align-items:center', 'gap:8px', 'box-sizing:border-box',
-      'color:' + appliedActionToolbarTheme.iconColor,
-      'pointer-events:auto', 'touch-action:none', 'user-select:none',
-      'visibility:hidden'
-    ].join(';');
-    var svgNamespace = 'http://www.w3.org/2000/svg';
-    var castIconPaths = [
-      'M3.75 23.75H3.7625',
-      'M8.75 23.75C8.75 22.4239 8.22322 21.1521 7.28553 20.2145C6.34785 19.2768 5.07608 18.75 3.75 18.75',
-      'M13.75 23.75C13.75 21.0978 12.6964 18.5543 10.8211 16.6789C8.9457 14.8036 6.40216 13.75 3.75 13.75',
-      'M18.75 23.75H22.5C23.4946 23.75 24.4484 23.3549 25.1516 22.6517C25.8549 21.9484 26.25 20.9946 26.25 20V10C26.25 9.00544 25.8549 8.05161 25.1516 7.34835C24.4484 6.64509 23.4946 6.25 22.5 6.25H7.5C6.7306 6.2573 5.98207 6.5011 5.35595 6.94833C4.72983 7.39556 4.25644 8.02456 4 8.75'
-    ];
-    var pictureInPictureIconPaths = [
-      'M13.75 23.75H6.25C5.58696 23.75 4.95107 23.4866 4.48223 23.0178C4.01339 22.5489 3.75 21.913 3.75 21.25V8.75C3.75 8.08696 4.01339 7.45107 4.48223 6.98223C4.95107 6.51339 5.58696 6.25 6.25 6.25H23.75C24.413 6.25 25.0489 6.51339 25.5178 6.98223C25.9866 7.45107 26.25 8.08696 26.25 8.75V13.75',
-      'M17.5 18.75C17.5 18.4185 17.6317 18.1005 17.8661 17.8661C18.1005 17.6317 18.4185 17.5 18.75 17.5H25C25.3315 17.5 25.6495 17.6317 25.8839 17.8661C26.1183 18.1005 26.25 18.4185 26.25 18.75V22.5C26.25 22.8315 26.1183 23.1495 25.8839 23.3839C25.6495 23.6183 25.3315 23.75 25 23.75H18.75C18.4185 23.75 18.1005 23.6183 17.8661 23.3839C17.6317 23.1495 17.5 22.8315 17.5 22.5V18.75Z'
-    ];
-    var fullscreenIconPaths = [
-      'M5 10V7.5C5 6.83696 5.26339 6.20107 5.73223 5.73223C6.20107 5.26339 6.83696 5 7.5 5H10',
-      'M5 20V22.5C5 23.163 5.26339 23.7989 5.73223 24.2678C6.20107 24.7366 6.83696 25 7.5 25H10',
-      'M20 5H22.5C23.163 5 23.7989 5.26339 24.2678 5.73223C24.7366 6.20107 25 6.83696 25 7.5V10',
-      'M20 25H22.5C23.163 25 23.7989 24.7366 24.2678 24.2678C24.7366 23.7989 25 23.163 25 22.5V20'
-    ];
-    var createIcon = function (iconPaths) {
-      var icon = ownerDocument.createElementNS(svgNamespace, 'svg');
-      icon.setAttribute('viewBox', '0 0 30 30');
-      icon.setAttribute('fill', 'none');
-      icon.setAttribute('stroke', 'currentColor');
-      icon.setAttribute('stroke-width', '2.3');
-      icon.setAttribute('stroke-linecap', 'round');
-      icon.setAttribute('stroke-linejoin', 'round');
-      icon.setAttribute('aria-hidden', 'true');
-      icon.setAttribute('focusable', 'false');
-      // Presentation attributes lose to a site's svg/path CSS. Protect both
-      // levels: a path's own rule also beats an inherited root stroke/fill.
-      // Keep currentColor tied to the button so light/dark/busy colors still work.
-      var lineStyles = {
-        fill: 'none', stroke: 'currentColor', 'stroke-width': '2.3',
-        'stroke-linecap': 'round', 'stroke-linejoin': 'round',
-        'stroke-dasharray': 'none', 'stroke-dashoffset': '0', color: 'inherit',
-        opacity: '1', visibility: 'inherit', transform: 'none', filter: 'none',
-        'clip-path': 'none', animation: 'none', transition: 'none', 'pointer-events': 'none'
-      };
-      applyImportantStyles(icon, lineStyles);
-      applyImportantStyles(icon, {
-        width: '24px', height: '24px', 'min-width': '24px', 'max-width': '24px',
-        'min-height': '24px', 'max-height': '24px', flex: '0 0 24px',
-        display: 'block', position: 'static', margin: '0', padding: '0', border: '0'
-      });
-      for (var pathIndex = 0; pathIndex < iconPaths.length; pathIndex += 1) {
-        var path = ownerDocument.createElementNS(svgNamespace, 'path');
-        path.setAttribute('d', iconPaths[pathIndex]);
-        applyImportantStyles(path, lineStyles);
-        applyImportantStyles(path, { display: 'inline' });
-        icon.appendChild(path);
-      }
-      return icon;
-    };
-    var actionToolbarButtons = [];
-    var applyActionToolbarTheme = function (mode) {
-      appliedActionToolbarTheme = resolveActionToolbarTheme(mode);
-      var resolvedMode = appliedActionToolbarTheme === actionToolbarThemePalettes.dark ? 'dark' : 'light';
-      toolbar.setAttribute('data-aira-theme', resolvedMode);
-      toolbar.style.color = appliedActionToolbarTheme.iconColor;
-      for (var buttonIndex = 0; buttonIndex < actionToolbarButtons.length; buttonIndex += 1) {
-        var themedButton = actionToolbarButtons[buttonIndex];
-        themedButton.style.border = '1px solid ' + appliedActionToolbarTheme.borderColor;
-        themedButton.style.color = appliedActionToolbarTheme.iconColor;
-        themedButton.style.boxShadow = appliedActionToolbarTheme.highlight + ',' +
-          appliedActionToolbarTheme.shadow;
-        // Re-derive the surface so a theme flip cannot strand a stale background on the button.
-        setButtonState(themedButton, themedButton.getAttribute('data-state') || 'idle', themedButton.title);
-      }
-    };
-    var createButton = function (iconPaths, accessibilityLabel) {
-      var button = ownerDocument.createElement('button');
-      button.type = 'button';
-      button.setAttribute('aria-label', accessibilityLabel);
-      button.setAttribute('data-state', 'idle');
-      button.style.cssText = [
-        'width:40px', 'height:40px', 'box-sizing:border-box', 'padding:0', 'margin:0',
-        'display:inline-flex', 'align-items:center', 'justify-content:center',
-        'border:1px solid ' + appliedActionToolbarTheme.borderColor, 'border-radius:50%',
-        'background:' + appliedActionToolbarTheme.background, 'color:' + appliedActionToolbarTheme.iconColor,
-        'cursor:pointer',
-        'touch-action:none', '-webkit-tap-highlight-color:transparent',
-        '-webkit-backdrop-filter:blur(30px) saturate(1.8)', 'backdrop-filter:blur(30px) saturate(1.8)',
-        'box-shadow:' + appliedActionToolbarTheme.highlight + ',' + appliedActionToolbarTheme.shadow
-      ].join(';');
-      button.appendChild(createIcon(iconPaths));
-      button.addEventListener('pointerdown', function (event) {
-        event.stopPropagation();
-      }, true);
-      toolbar.appendChild(button);
-      actionToolbarButtons.push(button);
-      return button;
-    };
-    var setButtonState = function (button, state, title) {
-      button.setAttribute('data-state', state);
-      button.title = title;
-      button.style.opacity = state === 'unavailable' ? '0.48' : '1';
-      var busy = state === 'busy';
-      button.style.background = busy ? 'rgba(10,89,247,.92)' : appliedActionToolbarTheme.background;
-      // The busy chip is a filled blue, so its glyph stays white in both modes for contrast.
-      button.style.color = busy ? '#FFFFFF' : appliedActionToolbarTheme.iconColor;
-    };
-    var castButton = createButton(castIconPaths, airaVideoCopy.cast);
-    var pipButton = createButton(pictureInPictureIconPaths, airaVideoCopy.pip);
-    var fullscreenButton = createButton(fullscreenIconPaths, airaVideoCopy.fullscreen);
-    var resetToolbarInteractionState = function () {
-      setButtonState(castButton, 'idle', airaVideoCopy.cast);
-      setButtonState(pipButton, 'idle', airaVideoCopy.pip);
-      setButtonState(fullscreenButton, 'idle', airaVideoCopy.fullscreen);
-    };
-    castButton.addEventListener('click', function (event) {
-      event.preventDefault();
-      event.stopPropagation();
-      try {
-        var remoteController = video.remote;
-        if (remoteController && typeof remoteController.prompt === 'function') {
-          if (String(remoteController.state || '').toLowerCase() === 'unavailable') {
-            setButtonState(castButton, 'unavailable', airaVideoCopy.castUnsupported);
-            return;
-          }
-          setButtonState(castButton, 'busy', airaVideoCopy.castChooseDevice);
-          var remotePrompt = remoteController.prompt();
-          if (remotePrompt && typeof remotePrompt.then === 'function') {
-            remotePrompt.then(function () {
-              setButtonState(castButton, 'idle', airaVideoCopy.cast);
-            }).catch(function () {
-              setButtonState(castButton, 'idle', airaVideoCopy.cast);
-            });
-          } else {
-            setButtonState(castButton, 'idle', airaVideoCopy.cast);
-          }
-          return;
-        }
-        if (typeof video.webkitShowPlaybackTargetPicker === 'function') {
-          video.webkitShowPlaybackTargetPicker();
-          return;
-        }
-        setButtonState(castButton, 'unavailable', airaVideoCopy.castUnsupported);
-      } catch (_castToolbarError) {
-        setButtonState(castButton, 'unavailable', airaVideoCopy.castUnsupported);
-      }
-    });
-    pipButton.addEventListener('click', function (event) {
-      event.preventDefault();
-      event.stopPropagation();
-      try {
-        if (video.disablePictureInPicture === true || video.hasAttribute('disablepictureinpicture')) {
-          setButtonState(pipButton, 'unavailable', airaVideoCopy.pipPageUnsupported);
-          return;
-        }
-        if (typeof video.requestPictureInPicture === 'function') {
-          setButtonState(pipButton, 'busy', airaVideoCopy.pipOpening);
-          var pipRequest = video.requestPictureInPicture();
-          if (pipRequest && typeof pipRequest.then === 'function') {
-            pipRequest.then(function () {
-              setButtonState(pipButton, 'idle', airaVideoCopy.pip);
-            }).catch(function () {
-              setButtonState(pipButton, 'unavailable', airaVideoCopy.pipPageUnsupported);
-            });
-          } else {
-            setButtonState(pipButton, 'idle', airaVideoCopy.pip);
-          }
-          return;
-        }
-        if (typeof video.webkitSetPresentationMode === 'function') {
-          video.webkitSetPresentationMode('picture-in-picture');
-          return;
-        }
-        setButtonState(pipButton, 'unavailable', airaVideoCopy.pipPageUnsupported);
-      } catch (_pipToolbarError) {
-        setButtonState(pipButton, 'unavailable', airaVideoCopy.pipPageUnsupported);
-      }
-    });
-    var emitFullscreenRequestResult = function (attemptId, status, reason) {
-      try {
-        var event;
-        var ownerWindow = video.ownerDocument && video.ownerDocument.defaultView ?
-          video.ownerDocument.defaultView : window;
-        var detail = {
-          attemptId: Number(attemptId || 0),
-          status: String(status || ''),
-          reason: String(reason || '')
-        };
-        if (ownerWindow && typeof ownerWindow.CustomEvent === 'function') {
-          event = new ownerWindow.CustomEvent(fullscreenRequestResultEvent, { detail: detail });
-        } else {
-          event = (video.ownerDocument || document).createEvent('CustomEvent');
-          event.initCustomEvent(fullscreenRequestResultEvent, false, false, detail);
-        }
-        video.dispatchEvent(event);
-      } catch (_fullscreenEventError) {
-      }
-    };
-    // Inner shells such as plyr__video-wrapper contain the player name but are not the
-    // fullscreen root. Sites often lift a hard max-width/max-height only when the outer
-    // shell (class token "plyr", not "plyr__*") is the Fullscreen API element.
-    var isPlayerFullscreenRoot = function (className) {
-      var tokens = String(className || '').toLowerCase().split(/\\s+/);
-      for (var tokenIndex = 0; tokenIndex < tokens.length; tokenIndex += 1) {
-        var token = tokens[tokenIndex];
-        if (token === 'plyr' || token.indexOf('plyr--') === 0 ||
-            token === 'dplayer' || token === 'artplayer' || token === 'art-video-player' ||
-            token === 'video-js' || token === 'jwplayer' || token === 'xgplayer') {
-          return true;
-        }
-      }
-      return false;
-    };
-    var isPlayerFullscreenCandidate = function (className, dataPlayer) {
-      return /art-video-player|artplayer|dplayer|video-js|jwplayer|plyr|xgplayer|video-container/.test(className) ||
-        dataPlayer.length > 0;
-    };
-    var resolveWebFullscreenTarget = function (videoElement) {
-      var current = videoElement;
-      var fallback = null;
-      var playerRoot = null;
-      for (var depth = 0; current && depth < 8; depth += 1) {
-        try {
-          var tagName = String(current.tagName || '').toLowerCase();
-          var className = String(current.className || '').toLowerCase();
-          var dataPlayer = String(current.getAttribute && current.getAttribute('data-player') || '').toLowerCase();
-          if (tagName !== 'video' && isPlayerFullscreenRoot(className)) {
-            playerRoot = current;
-          } else if (!fallback && tagName !== 'video' && isPlayerFullscreenCandidate(className, dataPlayer)) {
-            fallback = current;
-          }
-          current = current.parentElement;
-        } catch (_fullscreenTargetError) {
-          break;
-        }
-      }
-      return playerRoot || fallback || videoElement;
-    };
-    var fullscreenSizeCapSnapshots = [];
-    var fullscreenSizeCapProperties = ['max-width', 'max-height'];
-    var rememberAndLiftFullscreenSizeCap = function (element) {
-      if (!element || !element.style) {
-        return;
-      }
-      for (var existingIndex = 0; existingIndex < fullscreenSizeCapSnapshots.length; existingIndex += 1) {
-        if (fullscreenSizeCapSnapshots[existingIndex].element === element) {
-          return;
-        }
-      }
-      var properties = [];
-      for (var propertyIndex = 0; propertyIndex < fullscreenSizeCapProperties.length; propertyIndex += 1) {
-        var propertyName = fullscreenSizeCapProperties[propertyIndex];
-        properties.push({
-          name: propertyName,
-          value: String(element.style.getPropertyValue(propertyName) || ''),
-          priority: String(element.style.getPropertyPriority(propertyName) || '')
-        });
-      }
-      fullscreenSizeCapSnapshots.push({ element: element, properties: properties });
-      element.style.setProperty('max-width', 'none', 'important');
-      element.style.setProperty('max-height', 'none', 'important');
-    };
-    var restoreFullscreenSizeCaps = function () {
-      for (var snapshotIndex = fullscreenSizeCapSnapshots.length - 1; snapshotIndex >= 0; snapshotIndex -= 1) {
-        var snapshot = fullscreenSizeCapSnapshots[snapshotIndex];
-        if (!snapshot || !snapshot.element || !snapshot.element.style) {
-          continue;
-        }
-        for (var propertyIndex = 0; propertyIndex < snapshot.properties.length; propertyIndex += 1) {
-          var property = snapshot.properties[propertyIndex];
-          if (property.value.length > 0) {
-            snapshot.element.style.setProperty(property.name, property.value, property.priority);
-          } else {
-            snapshot.element.style.removeProperty(property.name);
-          }
-        }
-      }
-      fullscreenSizeCapSnapshots = [];
-    };
-    var fullscreenElementContainsVideo = function (videoElement) {
-      try {
-        var ownerDocument = videoElement && videoElement.ownerDocument ? videoElement.ownerDocument : document;
-        var fullscreenElement = ownerDocument.fullscreenElement || ownerDocument.webkitFullscreenElement || null;
-        if (!fullscreenElement || !videoElement) {
-          return false;
-        }
-        return fullscreenElement === videoElement ||
-          (typeof fullscreenElement.contains === 'function' && fullscreenElement.contains(videoElement));
-      } catch (_fullscreenContainsError) {
-        return false;
-      }
-    };
-    var restoreFullscreenSizeCapsIfInactive = function (videoElement) {
-      if (fullscreenElementContainsVideo(videoElement) || videoElement.webkitDisplayingFullscreen === true) {
-        return;
-      }
-      restoreFullscreenSizeCaps();
-    };
-    var liftFullscreenSizeCaps = function (videoElement, targetElement) {
-      var current = videoElement;
-      for (var depth = 0; current && depth < 8; depth += 1) {
-        rememberAndLiftFullscreenSizeCap(current);
-        if (current === targetElement) {
-          break;
-        }
-        current = current.parentElement;
-      }
-      rememberAndLiftFullscreenSizeCap(targetElement);
-      try {
-        var ownerDocument = videoElement && videoElement.ownerDocument ? videoElement.ownerDocument : document;
-        if (ownerDocument && videoElement.__airaFullscreenSizeCapListener !== true) {
-          videoElement.__airaFullscreenSizeCapListener = true;
-          var onFullscreenChange = function () {
-            restoreFullscreenSizeCapsIfInactive(videoElement);
-          };
-          ownerDocument.addEventListener('fullscreenchange', onFullscreenChange);
-          ownerDocument.addEventListener('webkitfullscreenchange', onFullscreenChange);
-        }
-      } catch (_fullscreenListenerError) {
-      }
-    };
-    var requestWebFullscreen = function (videoElement, attemptId) {
-      var targetElement = resolveWebFullscreenTarget(videoElement);
-      var requestMethod = null;
-      try {
-        // Lift stylesheet max-width/max-height caps before requesting fullscreen. A site can
-        // keep the picture at a few hundred pixels unless its own :fullscreen selector matches,
-        // and that selector does not match an inner player shell.
-        liftFullscreenSizeCaps(videoElement, targetElement);
-        if (targetElement && typeof targetElement.requestFullscreen === 'function') {
-          requestMethod = targetElement.requestFullscreen;
-        } else if (targetElement && typeof targetElement.webkitRequestFullscreen === 'function') {
-          requestMethod = targetElement.webkitRequestFullscreen;
-        } else if (targetElement && typeof targetElement.webkitRequestFullScreen === 'function') {
-          requestMethod = targetElement.webkitRequestFullScreen;
-        }
-        if (requestMethod) {
-          var requestResult = requestMethod.call(targetElement);
-          emitFullscreenRequestResult(attemptId, 'requested', 'standard');
-          if (requestResult && typeof requestResult.then === 'function') {
-            requestResult.then(function () {
-              emitFullscreenRequestResult(attemptId, 'resolved', 'standard');
-            }).catch(function (error) {
-              restoreFullscreenSizeCapsIfInactive(videoElement);
-              emitFullscreenRequestResult(attemptId, 'rejected', String(error && (error.name || error.message) || error || 'rejected'));
-            });
-          }
-          return true;
-        }
-        if (videoElement && typeof videoElement.webkitEnterFullscreen === 'function') {
-          videoElement.webkitEnterFullscreen();
-          emitFullscreenRequestResult(attemptId, 'requested', 'webkit');
-          return true;
-        }
-        if (videoElement && typeof videoElement.webkitEnterFullScreen === 'function') {
-          videoElement.webkitEnterFullScreen();
-          emitFullscreenRequestResult(attemptId, 'requested', 'webkit');
-          return true;
-        }
-        restoreFullscreenSizeCaps();
-      } catch (error) {
-        restoreFullscreenSizeCapsIfInactive(videoElement);
-        emitFullscreenRequestResult(attemptId, 'rejected', String(error && (error.name || error.message) || error || 'rejected'));
-      }
-      return false;
-    };
-    var requestNativeFullscreen = function (bridgeWindow, payload) {
-      try {
-        var nativeBridge = bridgeWindow.__airaWebVideoControllerBridge;
-        if (nativeBridge && typeof nativeBridge.enterFullscreen === 'function') {
-          nativeBridge.enterFullscreen(payload);
-          return true;
-        }
-        var registeredBridge = bridgeWindow.__airaUserScriptNativeBridge;
-        if (registeredBridge && typeof registeredBridge.webVideoEnterFullscreen === 'function') {
-          registeredBridge.webVideoEnterFullscreen(payload);
-          return true;
-        }
-      } catch (_nativeFullscreenBridgeError) {
-      }
-      return false;
-    };
-    fullscreenButton.addEventListener('click', function (event) {
-      event.preventDefault();
-      event.stopPropagation();
-      try {
-        toolbar.__airaFullscreenRequestPending = true;
-        toolbar.style.visibility = 'hidden';
-        setButtonState(fullscreenButton, 'busy', airaVideoCopy.fullscreenEntering);
-        var fullscreenAttemptId = Date.now();
-        var fullscreenPayload = JSON.stringify({
-          protocol: actionToolbarProtocol,
-          action: 'fullscreen',
-          runtimeId: expectedRuntimeId,
-          frameRuntimeId: expectedFrameRuntimeId,
-          fullscreenAttemptId: fullscreenAttemptId
-        });
-        // Establish the native pending marker before ArkWeb can deliver onFullScreenEnter.
-        var requested = requestNativeFullscreen(ownerWindow, fullscreenPayload);
-        if (!requested) {
-          try {
-            if (ownerWindow.top && ownerWindow.top !== ownerWindow) {
-              requested = requestNativeFullscreen(ownerWindow.top, fullscreenPayload);
-            }
-          } catch (_topWindowBridgeError) {
-          }
-        }
-        if (!requested) {
-          toolbar.__airaFullscreenRequestPending = false;
-          setButtonState(fullscreenButton, 'unavailable', airaVideoCopy.fullscreenBlocked);
-          scheduleToolbarRefresh();
-          return;
-        }
-        requestWebFullscreen(video, fullscreenAttemptId);
-        if (ownerWindow && typeof ownerWindow.setTimeout === 'function') {
-          ownerWindow.setTimeout(function () {
-            var presentationState = video[livePresentationProperty] || livePresentationRegistry[expectedRuntimeId];
-            if (toolbar.__airaFullscreenRequestPending === true &&
-                (!presentationState || presentationState.active !== true)) {
-              toolbar.__airaFullscreenRequestPending = false;
-              setButtonState(fullscreenButton, 'idle', airaVideoCopy.fullscreen);
-              scheduleToolbarRefresh();
-            }
-          }, 5000);
-        }
-      } catch (_fullscreenToolbarError) {
-        toolbar.__airaFullscreenRequestPending = false;
-        setButtonState(fullscreenButton, 'unavailable', airaVideoCopy.fullscreenBlocked);
-        scheduleToolbarRefresh();
-      }
-    });
-    // The user may drag the whole button group to any spot. The offset is kept relative to the
-    // computed anchor below, so the group keeps following the video while remembering the drag.
-    // A fresh page or a new video installs a new toolbar, which starts back at the default anchor.
-    var actionToolbarDragOffsetX = 0;
-    var actionToolbarDragOffsetY = 0;
-    var actionToolbarDragActive = false;
-    var actionToolbarTouchActive = false;
-    var actionToolbarDragMoved = false;
-    var actionToolbarDragStartX = 0;
-    var actionToolbarDragStartY = 0;
-    var actionToolbarDragStartOffsetX = 0;
-    var actionToolbarDragStartOffsetY = 0;
-    var actionToolbarSuppressClick = false;
-    var actionToolbarSuppressClickTimer = -1;
-    // Prefer touch events for touch input: many video players cancel pointer events from their own
-    // vertical swipe gestures, which would otherwise leave only horizontal drags working.
-    var actionToolbarSupportsTouchEvents = ('ontouchstart' in ownerWindow) ||
-      Number((ownerWindow.navigator && ownerWindow.navigator.maxTouchPoints) || 0) > 0;
-    var armActionToolbarClickSuppression = function () {
-      actionToolbarSuppressClick = true;
-      if (actionToolbarSuppressClickTimer >= 0) {
-        clearTimeout(actionToolbarSuppressClickTimer);
-      }
-      // The click that follows a drag lands on the same task turn; drop the flag afterwards so a
-      // drag that produced no click cannot swallow the next genuine tap.
-      actionToolbarSuppressClickTimer = setTimeout(function () {
-        actionToolbarSuppressClickTimer = -1;
-        actionToolbarSuppressClick = false;
-      }, 0);
-    };
-    var applyActionToolbarPosition = function () {
-      var rect = video.getBoundingClientRect();
-      var viewportWidth = Math.max(1, Number(ownerWindow.innerWidth || ownerDocument.documentElement.clientWidth || 1));
-      var viewportHeight = Math.max(1, Number(ownerWindow.innerHeight || ownerDocument.documentElement.clientHeight || 1));
-      var toolbarWidth = Math.max(136, Number(toolbar.offsetWidth || 136));
-      var toolbarHeight = Math.max(40, Number(toolbar.offsetHeight || 40));
-      var maxLeft = Math.max(actionToolbarViewportEdgeGap, viewportWidth - toolbarWidth - actionToolbarViewportEdgeGap);
-      var maxTop = Math.max(actionToolbarViewportEdgeGap, viewportHeight - toolbarHeight - actionToolbarViewportEdgeGap);
-      // Default anchor: below the video's bottom-right corner, offset by a clear gap, so the buttons
-      // never cover the picture; clamped into the viewport for full-bleed players.
-      var anchorLeft = Math.max(actionToolbarViewportEdgeGap, Math.min(maxLeft, rect.right - toolbarWidth));
-      var anchorTop = Math.max(actionToolbarViewportEdgeGap, Math.min(maxTop, rect.bottom + actionToolbarVideoGap));
-      var left = Math.max(actionToolbarViewportEdgeGap, Math.min(maxLeft, anchorLeft + actionToolbarDragOffsetX));
-      var top = Math.max(actionToolbarViewportEdgeGap, Math.min(maxTop, anchorTop + actionToolbarDragOffsetY));
-      toolbar.style.left = String(Math.round(left)) + 'px';
-      toolbar.style.top = String(Math.round(top)) + 'px';
-    };
-    var actionToolbarFinite = function (value) {
-      var numeric = Number(value);
-      return Number.isFinite(numeric) ? numeric : 0;
-    };
-    var beginActionToolbarDrag = function (clientX, clientY) {
-      actionToolbarDragActive = true;
-      actionToolbarDragMoved = false;
-      actionToolbarDragStartX = actionToolbarFinite(clientX);
-      actionToolbarDragStartY = actionToolbarFinite(clientY);
-      actionToolbarDragStartOffsetX = actionToolbarDragOffsetX;
-      actionToolbarDragStartOffsetY = actionToolbarDragOffsetY;
-    };
-    var moveActionToolbarDrag = function (clientX, clientY) {
-      if (!actionToolbarDragActive) {
-        return;
-      }
-      var deltaX = actionToolbarFinite(clientX) - actionToolbarDragStartX;
-      var deltaY = actionToolbarFinite(clientY) - actionToolbarDragStartY;
-      if (!actionToolbarDragMoved) {
-        if (Math.abs(deltaX) < actionToolbarDragStartDistance &&
-            Math.abs(deltaY) < actionToolbarDragStartDistance) {
-          return;
-        }
-        actionToolbarDragMoved = true;
-      }
-      actionToolbarDragOffsetX = actionToolbarDragStartOffsetX + deltaX;
-      actionToolbarDragOffsetY = actionToolbarDragStartOffsetY + deltaY;
-      applyActionToolbarPosition();
-    };
-    var endActionToolbarDrag = function () {
-      if (!actionToolbarDragActive) {
-        return;
-      }
-      actionToolbarDragActive = false;
-      if (actionToolbarDragMoved) {
-        armActionToolbarClickSuppression();
-      }
-      actionToolbarDragMoved = false;
-    };
-    var isActionToolbarDragging = function () {
-      return actionToolbarDragActive || actionToolbarTouchActive;
-    };
-    var handleActionToolbarPointerDown = function (event) {
-      if (!event || event.isPrimary === false) {
-        return;
-      }
-      if (actionToolbarSupportsTouchEvents && event.pointerType === 'touch') {
-        return;
-      }
-      if (typeof event.button === 'number' && event.button !== 0) {
-        return;
-      }
-      beginActionToolbarDrag(event.clientX, event.clientY);
-    };
-    var handleActionToolbarPointerMove = function (event) {
-      if (!actionToolbarDragActive || !event) {
-        return;
-      }
-      if (actionToolbarSupportsTouchEvents && event.pointerType === 'touch') {
-        return;
-      }
-      if (event.cancelable === true && typeof event.preventDefault === 'function') {
-        event.preventDefault();
-      }
-      moveActionToolbarDrag(event.clientX, event.clientY);
-    };
-    var handleActionToolbarPointerEnd = function (event) {
-      if (!actionToolbarDragActive) {
-        return;
-      }
-      if (actionToolbarSupportsTouchEvents && event && event.pointerType === 'touch') {
-        return;
-      }
-      endActionToolbarDrag();
-    };
-    // Touch drives its own path so a page-level swipe gesture cannot cancel a vertical drag.
-    var handleActionToolbarTouchStart = function (event) {
-      if (!event || !event.touches || event.touches.length !== 1) {
-        return;
-      }
-      var touch = event.touches[0];
-      actionToolbarTouchActive = true;
-      beginActionToolbarDrag(touch.clientX, touch.clientY);
-      if (typeof event.stopPropagation === 'function') {
-        event.stopPropagation();
-      }
-    };
-    var handleActionToolbarTouchMove = function (event) {
-      if (!actionToolbarTouchActive || !event || !event.touches || event.touches.length <= 0) {
-        return;
-      }
-      if (event.cancelable === true && typeof event.preventDefault === 'function') {
-        event.preventDefault();
-      }
-      if (typeof event.stopPropagation === 'function') {
-        event.stopPropagation();
-      }
-      var touch = event.touches[0];
-      moveActionToolbarDrag(touch.clientX, touch.clientY);
-    };
-    var handleActionToolbarTouchEnd = function () {
-      if (!actionToolbarTouchActive) {
-        return;
-      }
-      actionToolbarTouchActive = false;
-      endActionToolbarDrag();
-    };
-    var refreshToolbar = function () {
-      try {
-        var presentationState = video[livePresentationProperty] || livePresentationRegistry[expectedRuntimeId];
-        if (toolbar.__airaFullscreenRequestPending === true ||
-            (presentationState && presentationState.active === true)) {
-          toolbar.style.visibility = 'hidden';
-          return;
-        }
-        if (!video.isConnected || video.ended === true) {
-          toolbar.style.visibility = 'hidden';
-          return;
-        }
-        // While the user is dragging, keep the finger-driven position. A page scroll or video
-        // geometry refresh must not yank the group back to its anchor mid-gesture.
-        if (isActionToolbarDragging()) {
-          toolbar.style.visibility = 'visible';
-          return;
-        }
-        var rect = video.getBoundingClientRect();
-        var viewportWidth = Math.max(1, Number(ownerWindow.innerWidth || ownerDocument.documentElement.clientWidth || 1));
-        var viewportHeight = Math.max(1, Number(ownerWindow.innerHeight || ownerDocument.documentElement.clientHeight || 1));
-        var visible = rect.width >= 80 && rect.height >= 45 && rect.right > 0 && rect.bottom > 0 &&
-          rect.left < viewportWidth && rect.top < viewportHeight;
-        if (!visible) {
-          toolbar.style.visibility = 'hidden';
-          return;
-        }
-        applyActionToolbarPosition();
-        toolbar.style.visibility = 'visible';
-      } catch (_toolbarPositionError) {
-        toolbar.style.visibility = 'hidden';
-      }
-    };
-    var scheduleToolbarRefresh = function () {
-      if (ownerWindow && typeof ownerWindow.requestAnimationFrame === 'function') {
-        ownerWindow.requestAnimationFrame(refreshToolbar);
-      } else {
-        refreshToolbar();
-      }
-    };
-    var toolbarResizeObserver = null;
-    try {
-      if (ownerWindow && typeof ownerWindow.ResizeObserver === 'function') {
-        toolbarResizeObserver = new ownerWindow.ResizeObserver(scheduleToolbarRefresh);
-        toolbarResizeObserver.observe(video);
-      }
-    } catch (_toolbarResizeObserverError) {
-    }
-    ownerWindow.addEventListener('resize', scheduleToolbarRefresh, false);
-    ownerWindow.addEventListener('scroll', scheduleToolbarRefresh, true);
-    video.addEventListener('resize', scheduleToolbarRefresh, false);
-    video.addEventListener('playing', scheduleToolbarRefresh, false);
-    video.addEventListener('ended', scheduleToolbarRefresh, false);
-    toolbar.addEventListener('pointerdown', handleActionToolbarPointerDown, { capture: true, passive: false });
-    ownerWindow.addEventListener('pointermove', handleActionToolbarPointerMove, { capture: true, passive: false });
-    ownerWindow.addEventListener('pointerup', handleActionToolbarPointerEnd, true);
-    ownerWindow.addEventListener('pointercancel', handleActionToolbarPointerEnd, true);
-    toolbar.addEventListener('touchstart', handleActionToolbarTouchStart, { capture: true, passive: false });
-    ownerWindow.addEventListener('touchmove', handleActionToolbarTouchMove, { capture: true, passive: false });
-    ownerWindow.addEventListener('touchend', handleActionToolbarTouchEnd, true);
-    ownerWindow.addEventListener('touchcancel', handleActionToolbarTouchEnd, true);
-    // A drag that started on a button must not also trigger that button's action.
-    toolbar.addEventListener('click', function (event) {
-      if (actionToolbarSuppressClick) {
-        actionToolbarSuppressClick = false;
-        event.preventDefault();
-        event.stopPropagation();
-      }
-    }, true);
-    toolbar.__airaRefresh = scheduleToolbarRefresh;
-    toolbar.__airaApplyTheme = applyActionToolbarTheme;
-    toolbar.__airaResetInteractionState = resetToolbarInteractionState;
-    toolbar.__airaCleanup = function () {
-      try {
-        ownerWindow.removeEventListener('resize', scheduleToolbarRefresh, false);
-        ownerWindow.removeEventListener('scroll', scheduleToolbarRefresh, true);
-        video.removeEventListener('resize', scheduleToolbarRefresh, false);
-        video.removeEventListener('playing', scheduleToolbarRefresh, false);
-        video.removeEventListener('ended', scheduleToolbarRefresh, false);
-        toolbar.removeEventListener('pointerdown', handleActionToolbarPointerDown, { capture: true });
-        ownerWindow.removeEventListener('pointermove', handleActionToolbarPointerMove, { capture: true });
-        ownerWindow.removeEventListener('pointerup', handleActionToolbarPointerEnd, true);
-        ownerWindow.removeEventListener('pointercancel', handleActionToolbarPointerEnd, true);
-        toolbar.removeEventListener('touchstart', handleActionToolbarTouchStart, { capture: true });
-        ownerWindow.removeEventListener('touchmove', handleActionToolbarTouchMove, { capture: true });
-        ownerWindow.removeEventListener('touchend', handleActionToolbarTouchEnd, true);
-        ownerWindow.removeEventListener('touchcancel', handleActionToolbarTouchEnd, true);
-        if (actionToolbarSuppressClickTimer >= 0) {
-          clearTimeout(actionToolbarSuppressClickTimer);
-          actionToolbarSuppressClickTimer = -1;
-        }
-        if (toolbarResizeObserver && typeof toolbarResizeObserver.disconnect === 'function') {
-          toolbarResizeObserver.disconnect();
-        }
-      } catch (_toolbarCleanupError) {
-      }
-    };
-    toolbarHost.appendChild(toolbar);
-    scheduleToolbarRefresh();
-    return true;
-  }
   try {
     if (registeredPresentationState && registeredPresentationState.active === true &&
         commandAction !== 'restore_presentation') {
@@ -2832,13 +2022,12 @@ export class WebVideoPresentationService {
       return result(suppressNativeControls(), 'native_controls_suppressed',
         airaVideoCopy.controlsHideRejected, video);
     }
-    if (commandAction === 'install_action_toolbar') {
-      return result(installActionToolbar(), 'action_toolbar_installed',
-        airaVideoCopy.toolbarUnavailable, video);
-    }
-    if (commandAction === 'toggle') {
-      suppressNativeControls();
-      if (video.paused === false && video.ended !== true) {
+    if (commandAction === 'toggle' || commandAction === 'play' || commandAction === 'pause') {
+      if (commandAction === 'toggle' || (registeredPresentationState && registeredPresentationState.active)) {
+        suppressNativeControls();
+      }
+      if (commandAction === 'pause' ||
+          (commandAction === 'toggle' && video.paused === false && video.ended !== true)) {
         if (registeredPresentationState) {
           registeredPresentationState.playbackIntent = 'paused';
           registeredPresentationState.resumeTime = Number(video.currentTime || 0);

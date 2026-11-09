@@ -110,14 +110,16 @@ export struct RecentlyClosedRecordList {
 
   build() {
     Column({ space: 0 }) {
-      this.buildRecordContent(this.resolveDisplayRecords())
+      this.buildRecordContent()
     }
     .width('100%')
   }
 
   @Builder
-  private buildRecordContent(records: BrowserRecentlyClosedTabRecord[]) {
-    if (records.length <= 0) {
+  private buildRecordContent() {
+    // Read reactive props inside the builder: a value parameter would retain
+    // consumed record IDs when restore and Back happen before Home remounts.
+    if (this.resolveDisplayRecords().length <= 0) {
       if (this.showEmptyState) {
         AppEmptyState({
           airaIconId: 'browser.toolbar.tabs',
@@ -133,12 +135,12 @@ export struct RecentlyClosedRecordList {
         })
       }
     } else if (this.resolveColumnCount() <= 1) {
-      ForEach(records, (record: BrowserRecentlyClosedTabRecord, index: number) => {
-        this.buildRecordRow(record, index < records.length - 1)
+      ForEach(this.resolveDisplayRecords(), (record: BrowserRecentlyClosedTabRecord, index: number) => {
+        this.buildRecordRow(record, index < this.resolveDisplayRecords().length - 1)
       }, (record: BrowserRecentlyClosedTabRecord) => this.buildDisplayRecordKey(record))
     } else {
       Column({ space: this.rowGap }) {
-        ForEach(this.resolveRecordRowsFor(records), (row: RecentlyClosedRecordRow) => {
+        ForEach(this.resolveRecordRowsFor(this.resolveDisplayRecords()), (row: RecentlyClosedRecordRow) => {
           Row({ space: this.columnGap }) {
             ForEach(row.records, (record: BrowserRecentlyClosedTabRecord) => {
               Column() {

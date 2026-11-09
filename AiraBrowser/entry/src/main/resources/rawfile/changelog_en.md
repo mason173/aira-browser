@@ -1,5 +1,18 @@
 # Changelog
 
+## 3.9.6 (1000578)
+
+2026-11-09
+
+This update improves the membership page, video controls, and everyday browsing.
+
+- Buy or restore Kitapp One directly from the updated Aira membership page.
+- Long-press the Aira icon and choose Search to open search automatically, even on a cold start.
+- Prompts to open another app now dismiss automatically after 3 seconds.
+- Drag the floating video toolbar to reposition its cast, picture-in-picture, and fullscreen controls.
+- Reduced input flicker when adding bookmarks on 2-in-1 devices and fixed list alignment when returning from a bookmark folder.
+- Fixed update issues when resizing windows, selecting link text, and restoring recently closed tabs.
+
 ## 3.9.5 (1000575)
 
 2026-11-05

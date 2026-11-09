@@ -602,28 +602,17 @@ export class BrowserMediaRuntimeObservationApplicationCoordinator {
         if (this.mediaTakeoverCoordinator.handleSessionResolutionChanged(tabId)) {
           this.host.invalidateTakeoverPresentation();
         }
-        this.scheduleWebActionToolbar(tabId, snapshot);
+        if (this.host.resolveWebActionToolbarEnabled(tabId)) {
+          this.host.invalidateTakeoverPresentation();
+        }
         return snapshot;
       }
     } catch (_error) {
     }
     this.sessionResolutionRuntimeService.clearTab(tabId);
-    if (this.mediaTakeoverCoordinator.handleSessionResolutionChanged(tabId)) {
-      this.host.invalidateTakeoverPresentation();
-    }
+    this.mediaTakeoverCoordinator.handleSessionResolutionChanged(tabId);
+    this.host.invalidateTakeoverPresentation();
     return undefined;
-  }
-
-  private scheduleWebActionToolbar(
-    tabId: string,
-    snapshot: MediaSessionResolutionSnapshot | undefined
-  ): void {
-    const session = this.resolveActiveSession(snapshot);
-    if (session === undefined || session.playbackState !== 'playing' ||
-      !this.host.resolveWebActionToolbarEnabled(tabId)) {
-      return;
-    }
-    void this.mediaTakeoverCoordinator.ensureWebActionToolbar(tabId, true).catch((_error: Error): void => {});
   }
 
   private resolveActiveSession(

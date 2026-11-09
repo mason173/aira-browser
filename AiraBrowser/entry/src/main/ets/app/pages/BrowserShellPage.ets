@@ -108,6 +108,8 @@ import { BrowserUserAgentRuntimeService } from '../../services/web/BrowserUserAg
 import { WebScrollSmoothModeService } from '../../services/web/WebScrollSmoothModeService';
 import { BrowserWebBottomSafeAreaCoordinator } from '../../core/browser/BrowserWebBottomSafeAreaCoordinator';
 import { BrowserWebToolbarClearanceCoordinator } from '../../core/browser/BrowserWebToolbarClearanceCoordinator';
+import { resolveWebToolbarClearanceVp } from '../../core/browser/BrowserWebToolbarClearancePolicy';
+import { resolveVideoActionToolbarBottomInset } from '../../core/browser/media/BrowserVideoActionToolbarLayout';
 import {
   DocumentViewerChromeContext,
   DocumentViewerFileInfo,
@@ -432,6 +434,7 @@ import {
   isBrowserToolbarSystemSheetType
 } from '../components/browser/BrowserToolbarSystemSheetContent';
 import { BrowserHlsTakeoverOverlay } from '../components/browser/BrowserHlsTakeoverSheet';
+import { BrowserArkWebMediaTakeoverFloatingButtonHost } from '../components/browser/BrowserArkWebMediaTakeoverFloatingButton';
 import {
   BrowserVideoAssistantPlayerOverlay
 } from '../components/browser/BrowserVideoAssistantPlayerOverlay';
@@ -696,8 +699,7 @@ import {
 } from '../../core/browser/BrowserHostedWebOwnershipCoordinator';
 import { BROWSER_CONTENT_FONT_SIZE_SCALE_STORAGE_KEY } from '../../core/browser/BrowserSystemFontScaleCoordinator';
 import {
-  BROWSER_APPEARANCE_STORAGE_TABS_OVERVIEW_LAYOUT_STYLE_KEY,
-  BROWSER_THEME_STORAGE_RESOLVED_MODE_KEY
+  BROWSER_APPEARANCE_STORAGE_TABS_OVERVIEW_LAYOUT_STYLE_KEY
 } from '../../core/theme/BrowserThemeStorageKeys';
 import {
   BrowserWebTextZoomAction,
@@ -5884,10 +5886,6 @@ struct BrowserShellPage {
   // with the system accessibility setting. A user's own zoom still applies.
   @StorageProp(BROWSER_CONTENT_FONT_SIZE_SCALE_STORAGE_KEY) @Watch('handleSystemFontSizeScaleChange')
   private systemFontSizeScale: number = 1;
-  // The injected video action toolbar paints its own floating chips, so a resolved-mode change
-  // must refresh it explicitly; the toolbar is not part of the native theme invalidation path.
-  @StorageProp(BROWSER_THEME_STORAGE_RESOLVED_MODE_KEY) @Watch('handleResolvedThemeModeChange')
-  private storedResolvedThemeMode: string = 'light';
   @State webTextZoomActionVersion: number = 0;
   @State webTextZoomSheetState: BrowserWebTextZoomState =
     this.webTextZoomViewModel.buildState(this.webTextZoomRatio);
@@ -7098,6 +7096,33 @@ struct BrowserShellPage {
           onAction: (action) => this.browserDownloadConfirmOverlayCoordinator.handleAction(action)
         })
       }
+
+      BrowserArkWebMediaTakeoverFloatingButtonHost({
+        state: this.arkWebMediaTakeoverCoordinator.buildNativeActionToolbarState(
+          this.activeTabId,
+          this.isWebPageVisible() && this.browserPageForeground && this.isWebVideoTakeoverExperimentEnabled() &&
+            !this.showTabsSheet && !this.isVideoTakeoverBlockingSurfaceVisible() &&
+            !this.browserFullscreenSessionPresentation.fullScreenModeEnabled &&
+            !this.manualElementHideSelectionPresentation.active && !this.sitePermissionPromptVisible &&
+            !this.clientUpdatePolicyState.required &&
+            !this.browserPrivateModeLockCoordinator.shouldShowOverlay(
+              this.privateModeLockSessionSnapshot, this.tabScopedEventContextCoordinator.isCurrentBoundaryPrivate()),
+          this.resolveEffectiveWebLayerRect(),
+          resolveVideoActionToolbarBottomInset(this.resolveEffectiveWebLayerRect(), this.rootViewportHeight,
+            this.resolveErrorDocumentBottomInsetVp(this.activeTabId), resolveWebToolbarClearanceVp({
+              overlayActive: this.isFloatingWebToolbarOverlayActive(),
+              viewportReserved: false,
+              bottomLiftVp: this.resolveCockpitFloatingChromeBottomLiftVp()
+            })),
+          this.arkWebMediaTakeoverRevision
+        ),
+        layerIndex: 5,
+        onAction: (identity, action): void => {
+          void this.arkWebMediaTakeoverCoordinator.handleNativeActionToolbarAction(
+            this.activeTabId, identity, action, this.isWebVideoTakeoverExperimentEnabled(),
+            this.arkWebMediaLaunchHost, this.arkWebMediaAssistantPlayerHost);
+        }
+      })
 
       if (this.clientUpdatePolicyState.required) {
         ClientUpdateRequiredOverlay({
@@ -12704,16 +12729,6 @@ struct BrowserShellPage {
 
   private handleSystemFontSizeScaleChange(): void {
     this.browserHostedRuntimeSurfacePort.updateCurrentActiveConfigFromHost();
-  }
-
-  private handleResolvedThemeModeChange(): void {
-    const tabId = this.activeTabId.trim();
-    if (tabId.length <= 0 || !this.isWebPageVisible() || !this.isWebVideoTakeoverExperimentEnabled()) {
-      return;
-    }
-    void this.arkWebMediaTakeoverCoordinator
-      .ensureWebActionToolbar(tabId, true)
-      .catch((_error: Error): void => {});
   }
 
   private resolveEffectiveWebTextZoomRatio(): number {

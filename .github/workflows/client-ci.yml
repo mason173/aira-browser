@@ -66,6 +66,8 @@ jobs:
         run: node --test scripts/check-aira-qq-web-login.cjs
       - name: Check video toolbar takeover
         run: node scripts/check-aira-video-toolbar-takeover.cjs
+      - name: Check native video toolbar lifecycle
+        run: node scripts/check-aira-video-toolbar-lifecycle.cjs
       - name: Check video cast session
         run: node scripts/check-aira-video-cast-session.cjs
       - name: Check search style isolation

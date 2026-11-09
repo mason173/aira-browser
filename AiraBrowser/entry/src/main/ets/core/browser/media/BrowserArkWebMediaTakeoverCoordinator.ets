@@ -39,6 +39,12 @@ import {
 } from '../../../services/media/VideoCompatibilityProfileCatalog';
 import { WEB_VIDEO_ACTION_TOOLBAR_PROTOCOL } from '../../../services/video/WebVideoRuntimeProtocol';
 import { resolveAppResourceText } from '../../resources/AppResourceText';
+import { BrowserWebLayerRect } from '../BrowserWebLayerGeometryCache';
+import {
+  BrowserArkWebMediaButtonState,
+  BrowserVideoActionToolbarAction,
+  buildVideoActionToolbarState
+} from './BrowserVideoActionToolbarLayout';
 
 const ARKWEB_MEDIA_LOG_DOMAIN: number = 0x0000;
 const ARKWEB_MEDIA_LOG_TAG: string = 'ArkWebMediaAssistant';
@@ -186,18 +192,6 @@ export interface BrowserArkWebMediaCastMediaResolution {
   requestHeaderCount: number;
 }
 
-// Retained for the architecture-guarded legacy host component. The browser
-// shell no longer mounts that ArkUI button; webpage actions use the DOM toolbar.
-export interface BrowserArkWebMediaButtonState {
-  visible: boolean;
-  sourceCount: number;
-  controllable: boolean;
-  webLiveAvailable: boolean;
-  busy: boolean;
-  x: number;
-  y: number;
-}
-
 export interface BrowserArkWebMediaLaunchPlan {
   accepted: boolean;
   route?: BrowserArkWebMediaLaunchRoute;
@@ -270,6 +264,13 @@ interface BrowserArkWebMediaDownloadInteraction {
   readonly evidenceCapture: BrowserArkWebMediaRuntimeEvidenceCapture;
 }
 
+interface BrowserArkWebMediaCastOwner {
+  readonly tabId: string;
+  readonly sessionId: string;
+  readonly identity: string;
+  requestInFlight: boolean;
+}
+
 interface BrowserArkWebMediaPageMetadata {
   pageUrl: string;
   pageTitle: string;
@@ -312,8 +313,8 @@ export class BrowserArkWebMediaTakeoverCoordinator {
   private directReachabilityInFlightByTab: Map<string, string> = new Map();
   private launchInFlightByTab: Map<string, boolean> = new Map();
   private launchLeaseByTab: Map<string, BrowserArkWebMediaLaunchLease> = new Map();
-  private actionToolbarTargetByTab: Map<string, string> = new Map();
-  private actionToolbarInstallInFlightByTab: Map<string, string> = new Map();
+  private nativeToolbarActionByTab: Map<string, string> = new Map();
+  private castOwner?: BrowserArkWebMediaCastOwner = undefined;
   private nextLaunchLeaseSequence: number = 1;
   private activeWebLiveTabId: string = '';
   private activeWebLiveSessionId: string = '';
@@ -367,8 +368,10 @@ export class BrowserArkWebMediaTakeoverCoordinator {
     this.directReachabilityInFlightByTab.delete(normalizedTabId);
     this.launchInFlightByTab.delete(normalizedTabId);
     this.launchLeaseByTab.delete(normalizedTabId);
-    this.actionToolbarTargetByTab.delete(normalizedTabId);
-    this.actionToolbarInstallInFlightByTab.delete(normalizedTabId);
+    this.nativeToolbarActionByTab.delete(normalizedTabId);
+    if (this.castOwner?.tabId === normalizedTabId) {
+      this.releaseCastOwner(this.castOwner);
+    }
     this.clearVisibilityForTab(normalizedTabId);
     this.clearWebLiveAssistantForTab(normalizedTabId);
     return webLiveWasActive;
@@ -383,6 +386,13 @@ export class BrowserArkWebMediaTakeoverCoordinator {
   }
 
   handleSessionResolutionChanged(tabId: string): boolean {
+    const owner = this.castOwner;
+    if (owner?.tabId === tabId &&
+      !this.runtimeEvidencePublisher?.resolveSnapshot(tabId)?.getSessions()
+        .some((session: MediaResolvedVideoAssistantSession) =>
+          this.resolveNativeToolbarIdentity(tabId, session) === owner.identity)) {
+      this.releaseCastOwner(owner);
+    }
     if (!this.hasWebLiveAssistantRegistration() || this.activeWebLiveTabId !== tabId.trim() ||
       this.resolveActiveWebLiveSession() !== undefined) {
       return false;
@@ -714,46 +724,78 @@ export class BrowserArkWebMediaTakeoverCoordinator {
     return this.invalidateActiveFrameWebLiveTarget(tabId, frameRuntimeId);
   }
 
-  async ensureWebActionToolbar(tabId: string, webLiveRouteEnabled: boolean): Promise<boolean> {
-    const normalizedTabId = tabId.trim();
-    const session = this.resolveActiveSession(normalizedTabId);
-    if (session === undefined || session.playbackState !== 'playing' || this.isWebLiveAssistantActive() ||
-      !this.isSessionEffectivelyVisible(session, Date.now()) ||
-      !this.isWebLiveRouteEligible(normalizedTabId, session, webLiveRouteEnabled)) {
+  buildNativeActionToolbarState(
+    tabId: string,
+    enabled: boolean,
+    bounds: BrowserWebLayerRect,
+    bottomChromeInset: number,
+    _renderRevision: number = 0
+  ): BrowserArkWebMediaButtonState {
+    const session = this.resolveActiveSession(tabId);
+    const eligible = enabled && session !== undefined && session.playbackState === 'playing' &&
+      !this.isWebLiveAssistantActive() && this.runtimeLifecyclePort.isActiveWebTab(tabId) &&
+      this.isSessionEffectivelyVisible(session, Date.now()) && this.isWebLiveRouteEligible(tabId, session, true);
+    return buildVideoActionToolbarState(session, this.resolveNativeToolbarIdentity(tabId, session), eligible,
+      this.nativeToolbarActionByTab.has(tabId) || this.launchInFlightByTab.get(tabId) === true, bounds, bottomChromeInset);
+  }
+
+  private resolveNativeToolbarIdentity(tabId: string, session: MediaResolvedVideoAssistantSession | undefined): string {
+    const scope = this.runtimeEvidencePublisher?.resolveSnapshot(tabId)?.getScope();
+    return scope === undefined || session === undefined ? '' :
+      scope.generationId + ':' + scope.routeEpochId + ':' + session.sessionId;
+  }
+
+  async handleNativeActionToolbarAction(
+    tabId: string,
+    identity: string,
+    action: BrowserVideoActionToolbarAction,
+    webLiveRouteEnabled: boolean,
+    host: BrowserArkWebMediaLaunchHost,
+    playerHost: BrowserArkWebMediaAssistantPlayerHost
+  ): Promise<boolean> {
+    const session = this.resolveActiveSession(tabId);
+    if (session === undefined || this.resolveNativeToolbarIdentity(tabId, session) !== identity ||
+      session.playbackState !== 'playing' ||
+      !this.runtimeLifecyclePort.isActiveWebTab(tabId) || this.isWebLiveAssistantActive() ||
+      this.nativeToolbarActionByTab.has(tabId) || !this.isWebLiveRouteEligible(tabId, session, webLiveRouteEnabled)) {
       return false;
     }
-    const target = this.buildWebLiveTarget(normalizedTabId, session);
-    if (target === undefined) {
+    const target = this.buildWebLiveTarget(tabId, session);
+    const capture = this.runtimeEvidencePublisher?.capture(tabId);
+    if (target === undefined || capture === undefined || !capture.isCurrent()) {
       return false;
     }
-    const targetKey = session.targetKey;
-    // The installed toolbar carries theme-dependent colors, so a theme flip must re-run the
-    // install path (which re-applies the palette on the existing toolbar) instead of reusing it.
-    const installKey = targetKey + '|' + this.resolveWebLiveThemeMode();
-    if (this.actionToolbarTargetByTab.get(normalizedTabId) === installKey) {
-      return true;
-    }
-    if (this.actionToolbarInstallInFlightByTab.has(normalizedTabId)) {
-      return false;
-    }
-    this.actionToolbarInstallInFlightByTab.set(normalizedTabId, installKey);
+    this.nativeToolbarActionByTab.set(tabId, identity);
+    host.invalidatePresentation();
     try {
-      const result = await this.webVideoPresentationService.installActionToolbar(
-        this.runtimeLifecyclePort.resolveController(normalizedTabId),
-        target
-      );
-      const current = this.resolveActiveSession(normalizedTabId);
-      const stillCurrent = current !== undefined && current.targetKey === targetKey &&
-        current.playbackState === 'playing' && this.sessionMatchesLiveTarget(current, target);
-      if (!result.ok || !stillCurrent) {
+      if (action === 'fullscreen') {
+        // The native button owns this action. Do not request website fullscreen
+        // or depend on a DOM click reaching the bridge before onFullScreenEnter.
+        const result = await this.launch({ activeTabId: tabId, webLiveRouteEnabled: webLiveRouteEnabled }, host);
+        return result.started;
+      }
+      if (action === 'cast') {
+        return await this.requestSessionCast(tabId, session, playerHost);
+      }
+      const result = await this.webVideoPresentationService.executeLiveCommand(
+        this.runtimeLifecyclePort.resolveController(tabId), target, { action: 'picture_in_picture' });
+      if (!capture.isCurrent() || !this.isSessionTargetCurrent(tabId, session, target)) {
         return false;
       }
-      this.actionToolbarTargetByTab.set(normalizedTabId, installKey);
-      return true;
-    } finally {
-      if (this.actionToolbarInstallInFlightByTab.get(normalizedTabId) === installKey) {
-        this.actionToolbarInstallInFlightByTab.delete(normalizedTabId);
+      if (!result.ok && result.userVisibleMessage.length > 0) {
+        host.showToast(result.userVisibleMessage);
       }
+      return result.ok;
+    } catch (_error) {
+      if (capture.isCurrent() && this.runtimeLifecyclePort.isActiveWebTab(tabId)) {
+        host.showToast(resolveAppResourceText($r('app.string.video_player_takeover_failed')));
+      }
+      return false;
+    } finally {
+      if (this.nativeToolbarActionByTab.get(tabId) === identity) {
+        this.nativeToolbarActionByTab.delete(tabId);
+      }
+      host.invalidatePresentation();
     }
   }
 
@@ -854,6 +896,8 @@ export class BrowserArkWebMediaTakeoverCoordinator {
     }
     const liveTarget = plan.liveTarget;
     const evidenceCapture = this.runtimeEvidencePublisher?.capture(input.activeTabId);
+    let started = false;
+    let fullscreenStarted = false;
     try {
       if (evidenceCapture === undefined || !evidenceCapture.isCurrent() ||
         !this.isLaunchPlanCurrent(input.activeTabId, plan)) {
@@ -896,10 +940,6 @@ export class BrowserArkWebMediaTakeoverCoordinator {
         if (evidenceCapture.isCurrent() && this.isLaunchPlanCurrent(input.activeTabId, plan)) {
           this.publishLaunchReachability(plan, evidenceCapture, 'unreachable');
         }
-        await this.restoreWebLivePresentation(input.activeTabId, plan.liveTarget);
-        if (useWebFullscreen) {
-          host.exitWebLiveFullscreen(input.activeTabId);
-        }
         if (presentationResult.userVisibleMessage.length > 0) {
           host.showToast(presentationResult.userVisibleMessage);
         }
@@ -909,14 +949,9 @@ export class BrowserArkWebMediaTakeoverCoordinator {
       if (!evidenceCapture.isCurrent() || session === undefined || session.sessionId !== plan.sessionId ||
         !this.sessionMatchesLiveTarget(session, plan.liveTarget) || session.playbackState === 'ended' ||
         !this.runtimeLifecyclePort.isActiveWebTab(input.activeTabId)) {
-        await this.restoreWebLivePresentation(input.activeTabId, plan.liveTarget);
-        if (useWebFullscreen) {
-          host.exitWebLiveFullscreen(input.activeTabId);
-        }
         host.showToast(resolveAppResourceText($r('app.string.media_resource_takeover_tab_changed')));
         return { plan: plan, started: false, webResult: presentationResult };
       }
-      let fullscreenStarted = false;
       try {
         fullscreenStarted = useWebFullscreen ?
           await host.enterWebVideoFullscreen(
@@ -938,10 +973,6 @@ export class BrowserArkWebMediaTakeoverCoordinator {
         this.sessionMatchesLiveTarget(confirmed, plan.liveTarget) && confirmed.playbackState !== 'ended' &&
         this.runtimeLifecyclePort.isActiveWebTab(input.activeTabId);
       if (!fullscreenStarted || !sessionStillValid) {
-        await this.restoreWebLivePresentation(input.activeTabId, plan.liveTarget);
-        if (fullscreenStarted || useWebFullscreen) {
-          host.exitWebLiveFullscreen(input.activeTabId);
-        }
         host.showToast(fullscreenStarted ?
           resolveAppResourceText($r('app.string.media_resource_takeover_tab_switched'))
           : resolveAppResourceText($r('app.string.media_resource_takeover_fullscreen_blocked')));
@@ -954,11 +985,32 @@ export class BrowserArkWebMediaTakeoverCoordinator {
         host.exitWebLiveFullscreen,
         presentationResult
       );
+      started = true;
       host.onStarted('web_live');
       return { plan: plan, started: true, webResult: presentationResult };
     } finally {
-      this.finishLaunch(input.activeTabId, plan.launchLease.leaseId);
-      host.invalidatePresentation();
+      // A toolbar click may already have entered Web fullscreen before even the
+      // first reachability probe completes. Every failed lease must unwind it,
+      // including failures before enter_live_presentation, not just later ones.
+      try {
+        const currentLease = this.launchLeaseByTab.get(input.activeTabId);
+        if (!started && currentLease?.leaseId === plan.launchLease.leaseId) {
+          try {
+            await this.restoreWebLivePresentation(input.activeTabId, liveTarget);
+          } finally {
+            // A late failure from a previous document/tab must not undo a new
+            // document's presentation or another tab's fullscreen window.
+            if (this.runtimeLifecyclePort.isActiveWebTab(input.activeTabId) &&
+              this.launchLeaseByTab.get(input.activeTabId)?.leaseId === plan.launchLease.leaseId &&
+              (input.preferWebFullscreen === true || fullscreenStarted)) {
+              host.exitWebLiveFullscreen(input.activeTabId);
+            }
+          }
+        }
+      } finally {
+        this.finishLaunch(input.activeTabId, plan.launchLease.leaseId);
+        host.invalidatePresentation();
+      }
     }
   }
 
@@ -1325,23 +1377,35 @@ export class BrowserArkWebMediaTakeoverCoordinator {
 
   private async requestAssistantCast(host: BrowserArkWebMediaAssistantPlayerHost): Promise<void> {
     const session = this.resolveActiveWebLiveSession();
-    const metadata = this.metadataByTabId.get(this.activeWebLiveTabId);
-    if (session === undefined || metadata === undefined) {
-      host.showToast(resolveAppResourceText($r('app.string.media_resource_toast_session_expired')));
-      return;
+    if (session !== undefined) {
+      await this.requestSessionCast(this.activeWebLiveTabId, session, host);
     }
-    const sessionKey = this.activeWebLiveSessionId;
+  }
+
+  private async requestSessionCast(
+    tabId: string,
+    session: MediaResolvedVideoAssistantSession,
+    host: BrowserArkWebMediaAssistantPlayerHost
+  ): Promise<boolean> {
+    const capture = this.runtimeEvidencePublisher?.capture(tabId);
+    const target = this.buildWebLiveTarget(tabId, session);
+    const metadata = this.metadataByTabId.get(tabId);
+    if (capture === undefined || !capture.isCurrent() || target === undefined || metadata === undefined) {
+      host.showToast(resolveAppResourceText($r('app.string.media_resource_toast_session_expired')));
+      return false;
+    }
+    const sessionKey = session.sessionId;
     const resolvedCastMedia = this.runtimeEvidencePublisher?.resolveCastMedia(
-      this.activeWebLiveTabId,
+      tabId,
       session.playbackTargetId
     );
     if (resolvedCastMedia?.reason === 'missing_target') {
       host.showToast(resolveAppResourceText($r('app.string.media_resource_toast_session_expired')));
-      return;
+      return false;
     }
     if (resolvedCastMedia?.reason === 'ambiguous_resource') {
       host.showToast(resolveAppResourceText($r('app.string.media_resource_cast_multiple_targets')));
-      return;
+      return false;
     }
     if (resolvedCastMedia?.reason === 'web_context_required') {
       hilog.info(
@@ -1351,15 +1415,15 @@ export class BrowserArkWebMediaTakeoverCoordinator {
         'web_context_required'
       );
       host.showToast(resolveAppResourceText($r('app.string.media_resource_cast_auth_required')));
-      return;
+      return false;
     }
     if (resolvedCastMedia?.reason === 'unsupported_resource') {
       host.showToast(resolveAppResourceText($r('app.string.media_resource_cast_unsupported')));
-      return;
+      return false;
     }
     if (resolvedCastMedia?.reason === 'ready' && resolvedCastMedia.mediaUri === undefined) {
       host.showToast(resolveAppResourceText($r('app.string.media_resource_cast_no_address')));
-      return;
+      return false;
     }
     const resolvedMediaReady = resolvedCastMedia?.reason === 'ready' &&
       resolvedCastMedia.mediaUri !== undefined;
@@ -1371,7 +1435,7 @@ export class BrowserArkWebMediaTakeoverCoordinator {
         metadata.requestContextReason
       );
       host.showToast(resolveAppResourceText($r('app.string.media_resource_cast_auth_required')));
-      return;
+      return false;
     }
     const item: VideoAssistantCastMediaItem = {
       sessionKey: sessionKey,
@@ -1386,47 +1450,88 @@ export class BrowserArkWebMediaTakeoverCoordinator {
       requestHeaderCount: resolvedMediaReady ?
         resolvedCastMedia?.requestHeaderCount ?? 0 : metadata.requestHeaderCount
     };
-    const result = await this.castSessionService.requestCast(item, {
-      isCurrent: (): boolean => this.isCastRequestCurrent(sessionKey),
-      isPlaying: (): boolean => this.isAssistantLocalPlaybackPlaying(sessionKey),
-      pause: (): Promise<boolean> => this.setAssistantLocalPlayback(false, host),
-      resume: (): Promise<boolean> => this.setAssistantLocalPlayback(true, host),
-      showMessage: (message: string): void => {
-        if (this.isCastRequestCurrent(sessionKey)) {
-          host.showToast(message);
+    const previousOwner = this.castOwner;
+    if (previousOwner?.requestInFlight) {
+      host.showToast(resolveAppResourceText($r('app.string.video_cast_picker_opening')));
+      return false;
+    }
+    const owner: BrowserArkWebMediaCastOwner = {
+      tabId: tabId, sessionId: sessionKey,
+      identity: this.resolveNativeToolbarIdentity(tabId, session), requestInFlight: true
+    };
+    this.castOwner = owner;
+    const isCurrent = (): boolean => this.castOwner === owner && capture.isCurrent() &&
+      this.runtimeLifecyclePort.isActiveWebTab(tabId) &&
+      this.resolveSessionByTargetKey(tabId, session.targetKey)?.sessionId === sessionKey;
+    try {
+      const result = await this.castSessionService.requestCast(item, {
+        isCurrent: (): boolean => isCurrent(),
+        isPlaying: (): boolean => this.resolveSessionByTargetKey(tabId, session.targetKey)?.playbackState === 'playing',
+        pause: (): Promise<boolean> => isCurrent() ?
+          this.setSessionLocalPlayback(tabId, session, target, capture, false, host) : Promise.resolve(false),
+        resume: (): Promise<boolean> => isCurrent() ?
+          this.setSessionLocalPlayback(tabId, session, target, capture, true, host) : Promise.resolve(false),
+        showMessage: (message: string): void => {
+          if (isCurrent()) {
+            host.showToast(message);
+          }
+        }
+      });
+      if (!result.opened && result.message.length > 0 && isCurrent()) {
+        host.showToast(result.message);
+      }
+      if (!result.opened && this.castOwner === owner) {
+        // A busy service has not accepted the new handler. Keep its existing owner.
+        if (result.reason === 'request_in_flight') {
+          this.castOwner = previousOwner;
+        } else {
+          this.releaseCastOwner(owner);
         }
       }
-    });
-    if (!result.opened && result.message.length > 0 && this.isCastRequestCurrent(sessionKey)) {
-      host.showToast(result.message);
+      return result.opened && isCurrent();
+    } catch (_error) {
+      this.releaseCastOwner(owner);
+      return false;
+    } finally {
+      owner.requestInFlight = false;
     }
   }
 
-  private isCastRequestCurrent(sessionKey: string): boolean {
-    const current = this.resolveActiveWebLiveSession();
-    return current !== undefined && this.activeWebLiveSessionId === sessionKey &&
-      current.sessionId === sessionKey;
+  private releaseCastOwner(owner: BrowserArkWebMediaCastOwner | undefined): void {
+    if (owner === undefined || this.castOwner !== owner) {
+      return;
+    }
+    this.castOwner = undefined;
+    void this.castSessionService.release();
   }
 
-  private isAssistantLocalPlaybackPlaying(sessionKey: string): boolean {
-    const current = this.resolveActiveWebLiveSession();
-    return current !== undefined && this.activeWebLiveSessionId === sessionKey &&
-      current.sessionId === sessionKey && current.playbackState === 'playing';
-  }
-
-  private async setAssistantLocalPlayback(
+  private async setSessionLocalPlayback(
+    tabId: string,
+    session: MediaResolvedVideoAssistantSession,
+    target: WebVideoLiveSessionTarget,
+    capture: BrowserArkWebMediaRuntimeEvidenceCapture,
     playing: boolean,
     host: BrowserArkWebMediaAssistantPlayerHost
   ): Promise<boolean> {
-    const session = this.resolveActiveWebLiveSession();
-    if (session === undefined) {
+    const current = this.resolveSessionByTargetKey(tabId, session.targetKey);
+    if (!capture.isCurrent() || current === undefined || current.sessionId !== session.sessionId ||
+      !this.runtimeLifecyclePort.isActiveWebTab(tabId)) {
       return false;
     }
-    const currentlyPlaying = session.playbackState === 'playing';
-    if (currentlyPlaying === playing) {
+    if ((current.playbackState === 'playing') === playing) {
       return true;
     }
-    return this.executeWebLiveCommand({ action: 'toggle' }, host);
+    const result = await this.webVideoPresentationService.executeLiveCommand(
+      this.runtimeLifecyclePort.resolveController(tabId), target, { action: playing ? 'play' : 'pause' });
+    if (!result.ok || !capture.isCurrent()) {
+      return false;
+    }
+    capture.commit({
+      kind: 'playback', targetKey: session.targetKey, event: result.paused ? 'paused' : 'playing',
+      observedAt: Date.now(), currentTimeSeconds: result.currentTime, durationSeconds: result.duration
+    });
+    host.invalidatePresentation();
+    return true;
   }
 
   private async requestAssistantDownload(
@@ -1599,7 +1704,12 @@ export class BrowserArkWebMediaTakeoverCoordinator {
   }
 
   private clearWebLiveAssistant(): void {
-    void this.castSessionService.release();
+    const owner = this.castOwner;
+    if (owner?.tabId === this.activeWebLiveTabId && owner.sessionId === this.activeWebLiveSessionId &&
+      owner.identity === this.activeWebLiveGenerationId + ':' + this.activeWebLiveRouteEpochId + ':' +
+        this.activeWebLiveSessionId) {
+      this.releaseCastOwner(owner);
+    }
     this.activeWebLiveTabId = '';
     this.activeWebLiveSessionId = '';
     this.activeWebLiveGenerationId = '';
