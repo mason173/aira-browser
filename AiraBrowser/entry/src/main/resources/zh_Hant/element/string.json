@@ -12633,6 +12633,14 @@
       "value": "卡片平鋪"
     },
     {
+      "name": "settings_appearance_double_click_close_tabs",
+      "value": "雙擊關閉分頁"
+    },
+    {
+      "name": "settings_appearance_double_click_close_tabs_detail",
+      "value": "在垂直分頁列中雙擊滑鼠或連續輕點兩次，即可關閉分頁。"
+    },
+    {
       "name": "settings_appearance_vertical_tabs",
       "value": "垂直標籤頁"
     },

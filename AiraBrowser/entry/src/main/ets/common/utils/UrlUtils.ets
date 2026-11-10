@@ -126,7 +126,7 @@ function normalizeInternationalUrlHost(value: string): string {
     if (!/[.\u3002\uFF0E\uFF61]/.test(hostname)) return value;
   }
   try {
-    // API 23 is the client's minimum API. This converts the hostname only; paths,
+    // This API is available from API 23. This converts the hostname only; paths,
     // queries, fragments and credentials keep their existing representation.
     const ascii = connection.getDnsAscii(hostname, connection.ConversionProcess.USE_STD3_ASCII_RULES);
     const labels = ascii.endsWith('.') ? ascii.substring(0, ascii.length - 1).split('.') : ascii.split('.');

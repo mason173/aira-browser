@@ -252,6 +252,7 @@ const SETTINGS_CATALOG_ENGLISH_INDEX: Map<string, string> = new Map<string, stri
   ['标签管理', 'Tab manager'],
   ['标签页', 'Tabs'],
   ['标签页建议', 'Tab suggestions'],
+  ['双击关闭标签页', 'Double-click to close tabs'],
   ['标签页样式', 'Tab style'],
   ['标签页自动关闭', 'Automatic tab closing'],
   ['标签页运行策略', 'Tab runtime policy'],

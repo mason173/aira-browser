@@ -55,7 +55,8 @@ export class FeatureIntroAppearanceCoordinator {
       verticalTabsEnabled: usesDesktopTabs ?
         resolveFeatureIntroDesktopTabPlacement(desktopTabPlacement) === 'vertical' :
         current.verticalTabsEnabled,
-      verticalTabsCollapsed: current.verticalTabsCollapsed
+      verticalTabsCollapsed: current.verticalTabsCollapsed,
+      verticalTabsDoubleClickCloseEnabled: current.verticalTabsDoubleClickCloseEnabled
     };
     this.appearance.commitAppearanceSettings({
       dataScope: '',

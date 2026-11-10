@@ -12633,6 +12633,14 @@
       "value": "Grid"
     },
     {
+      "name": "settings_appearance_double_click_close_tabs",
+      "value": "Double-click to close tabs"
+    },
+    {
+      "name": "settings_appearance_double_click_close_tabs_detail",
+      "value": "Double-click or double-tap a tab in the vertical tab bar to close it."
+    },
+    {
       "name": "settings_appearance_vertical_tabs",
       "value": "Vertical tabs"
     },

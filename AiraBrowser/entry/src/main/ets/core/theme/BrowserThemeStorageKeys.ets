@@ -32,3 +32,5 @@ export const BROWSER_APPEARANCE_STORAGE_VERTICAL_TABS_ENABLED_KEY: string =
   'browserAppearanceVerticalTabsEnabled';
 export const BROWSER_APPEARANCE_STORAGE_VERTICAL_TABS_COLLAPSED_KEY: string =
   'browserAppearanceVerticalTabsCollapsed';
+export const BROWSER_APPEARANCE_STORAGE_VERTICAL_TABS_DOUBLE_CLICK_CLOSE_ENABLED_KEY: string =
+  'browserAppearanceVerticalTabsDoubleClickCloseEnabled';

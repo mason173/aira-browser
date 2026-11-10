@@ -238,7 +238,8 @@ struct ThemePaletteSettingsPage {
       showDesktopBookmarkBar: currentSettings.showDesktopBookmarkBar,
       desktopBookmarkBarVisibility: currentSettings.desktopBookmarkBarVisibility,
       verticalTabsEnabled: currentSettings.verticalTabsEnabled,
-      verticalTabsCollapsed: currentSettings.verticalTabsCollapsed
+      verticalTabsCollapsed: currentSettings.verticalTabsCollapsed,
+      verticalTabsDoubleClickCloseEnabled: currentSettings.verticalTabsDoubleClickCloseEnabled
     };
     this.isSelectingOption = true;
     this.interactionCoordinator.commitAppearanceSettings({

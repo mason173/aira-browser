@@ -116,7 +116,7 @@ Personal Server 提供发现、固定配对码、书签、历史、个性化、�
 | 仓库脚本 | `.node-version` / `.nvmrc` 中的 Node.js `18.20.8` |
 | Aira-sync | Node.js 24.x 和 npm（见 `extensions/aira-sync/.node-version`） |
 | Personal Server | Node.js 20 或更新，或带 Compose 的 Docker |
-| 鸿蒙客户端 | DevEco Studio、HarmonyOS NEXT SDK/API 23 或更新，以及 `ohpm` |
+| 鸿蒙客户端 | DevEco Studio、HarmonyOS NEXT SDK/API 26 或更新，以及 `ohpm` |
 
 克隆后默认在仓库根目录执行命令，除非某节另有说明：
 

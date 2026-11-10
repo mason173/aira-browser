@@ -42,6 +42,8 @@ jobs:
         run: bash scripts/check-open-source-source-tree.sh
       - name: Check architecture guards
         run: bash scripts/check-architecture-guardrails.sh
+      - name: Check HarmonyOS API baseline
+        run: node scripts/check-aira-api-baseline.cjs
       - name: Check shortcut store hand-over
         run: bash scripts/check-aira-shortcut-store-handoff-contract.sh
       - name: Check app recommendation page
@@ -60,6 +62,8 @@ jobs:
         run: node scripts/check-aira-home-forward-return.cjs
       - name: Check closed tabs stay closed after restart
         run: node scripts/check-aira-closed-tab-session-restore.cjs
+      - name: Check vertical-tab close gestures and preferences
+        run: node scripts/check-aira-vertical-tabs-close.cjs
       - name: Check shared HTML viewer response flow
         run: node scripts/check-aira-shared-html-viewer.cjs
       - name: Check QQ webpage login round trip

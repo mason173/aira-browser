@@ -483,6 +483,9 @@ export class ArkPreferencesStorageAdapter implements PreferencesStorageAdapter {
         verticalTabsCollapsed: typeof parsed.verticalTabsCollapsed === 'boolean'
           ? parsed.verticalTabsCollapsed
           : defaultValue.verticalTabsCollapsed,
+        verticalTabsDoubleClickCloseEnabled: typeof parsed.verticalTabsDoubleClickCloseEnabled === 'boolean'
+          ? parsed.verticalTabsDoubleClickCloseEnabled
+          : defaultValue.verticalTabsDoubleClickCloseEnabled,
         toolbarChromeStyle: this.normalizeToolbarChromeStyle(
           parsed.toolbarChromeStyle,
           defaultValue.toolbarChromeStyle

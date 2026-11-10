@@ -116,7 +116,7 @@ Read these before changing the protocol:
 | Repository scripts | Node.js `18.20.8`, as pinned in `.node-version` / `.nvmrc` |
 | Aira-sync | Node.js 24.x and npm (see `extensions/aira-sync/.node-version`) |
 | Personal Server | Node.js 20 or newer, or Docker with Compose |
-| HarmonyOS client | DevEco Studio, HarmonyOS NEXT SDK/API 23 or newer, and `ohpm` |
+| HarmonyOS client | DevEco Studio, HarmonyOS NEXT SDK/API 26 or newer, and `ohpm` |
 
 After cloning, run commands from the repository root unless a section says otherwise:
 

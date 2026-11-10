@@ -69,7 +69,8 @@ export class HomeRecentlyClosedSettingsViewModel {
       showDesktopBookmarkBar: current.showDesktopBookmarkBar,
       desktopBookmarkBarVisibility: current.desktopBookmarkBarVisibility,
       verticalTabsEnabled: current.verticalTabsEnabled,
-      verticalTabsCollapsed: current.verticalTabsCollapsed
+      verticalTabsCollapsed: current.verticalTabsCollapsed,
+      verticalTabsDoubleClickCloseEnabled: current.verticalTabsDoubleClickCloseEnabled
     };
   }
 

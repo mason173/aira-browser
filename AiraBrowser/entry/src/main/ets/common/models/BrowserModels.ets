@@ -1232,6 +1232,8 @@ export interface BrowserAppearanceSettings {
    * Sync. Absent means collapsed (icon rail), matching the approved frame.
    */
   verticalTabsCollapsed?: boolean;
+  /** Device-local vertical-tab double-click / double-tap close. Absent means enabled. */
+  verticalTabsDoubleClickCloseEnabled?: boolean;
 }
 
 export type DesktopBookmarkBarVisibility = 'always' | 'never' | 'new_tab_only';

@@ -81,6 +81,7 @@ SHARED_HTML_VIEWER_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-shared-html-vie
 QQ_WEB_LOGIN_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-qq-web-login.cjs"
 WEB_SWIPE_NAVIGATION_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-web-swipe-navigation.cjs"
 TABS_STACK_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-tabs-stack.cjs"
+VERTICAL_TABS_CLOSE_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-vertical-tabs-close.cjs"
 SAME_DOCUMENT_RESTORABLE_STATE_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-same-document-restorable-state.cjs"
 DOWNLOAD_REWIND_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-download-rewind-does-not-move-page.cjs"
 NATIVE_NAV_REQUEST_TOKEN_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-native-navigation-request-token.cjs"
@@ -98,7 +99,8 @@ PRODUCTION_BUNDLE_NAME="com.aira.browser"
 PRODUCTION_APP_NAME="Aira"
 COMMUNITY_BUNDLE_NAME="org.aira.browser"
 COMMUNITY_APP_NAME="Aira"
-MIN_SUPPORTED_API_VERSION=23
+MIN_SUPPORTED_API_VERSION=26
+API_BASELINE_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-api-baseline.cjs"
 MAX_HARMONY_VERSION_CODE=2147483647
 APP_OUTPUT_DIR="${PROJECT_DIR}/build/outputs/default"
 ENTRY_OUTPUT_DIR="${PROJECT_DIR}/entry/build/default/outputs/default"
@@ -120,9 +122,6 @@ DISTRIBUTION_CONFIGURED=0
 MAIN_PAGES_BACKUP=""
 RELEASE_PRUNE_BACKUP_DIR=""
 DISCOVERED_BUILD_PROFILE=""
-ARK_UI_MATERIAL_ACCESS="${PROJECT_DIR}/entry/src/main/ets/app/components/common/ArkUiMaterialAccess.ets"
-ARK_UI_MATERIAL_ACCESS_STUB="${REPO_ROOT}/scripts/harmony-api24-stubs/ArkUiMaterialAccess.ets"
-ARK_UI_MATERIAL_ACCESS_BACKUP=""
 
 # DevEco's native build invokes Cargo through the Rust toolchain. On machines
 # where the global registry was initialized by root, keep dependency downloads
@@ -213,10 +212,6 @@ cleanup() {
   fi
   if [ -n "${DISCOVERED_BUILD_PROFILE}" ] && [ -f "${DISCOVERED_BUILD_PROFILE}" ]; then
     rm -f "${DISCOVERED_BUILD_PROFILE}"
-  fi
-  if [ -n "${ARK_UI_MATERIAL_ACCESS_BACKUP}" ] && [ -f "${ARK_UI_MATERIAL_ACCESS_BACKUP}" ]; then
-    cp "${ARK_UI_MATERIAL_ACCESS_BACKUP}" "${ARK_UI_MATERIAL_ACCESS}"
-    rm -f "${ARK_UI_MATERIAL_ACCESS_BACKUP}"
   fi
 }
 trap cleanup EXIT
@@ -437,6 +432,7 @@ for swipe_guard in \
   "${CLOSED_TAB_SESSION_RESTORE_GUARD_SCRIPT}" \
   "${HOME_FORWARD_RETURN_GUARD_SCRIPT}" \
   "${TABS_STACK_GUARD_SCRIPT}" \
+  "${VERTICAL_TABS_CLOSE_GUARD_SCRIPT}" \
   "${WEB_SWIPE_NAVIGATION_GUARD_SCRIPT}"; do
   if [ ! -f "${swipe_guard}" ]; then
     fail "Bottom address bar tab swipe guard not found: ${swipe_guard}"
@@ -616,6 +612,8 @@ fi
 if [ ! -f "${SIGN_TOOL_JAR}" ]; then
   fail "Signing tool not found at ${SIGN_TOOL_JAR}"
 fi
+
+"${NODE_BIN}" "${API_BASELINE_GUARD_SCRIPT}" "${BUILD_PROFILE_TEMPLATE}" "${SDK_HOME}/default/sdk-pkg.json"
 
 export DEVECO_SDK_HOME="${SDK_HOME}"
 export JAVA_HOME="${JAVA_HOME_DIR}"
@@ -1537,56 +1535,8 @@ const material = config.material || {};
 NODE
 }
 
-read_profile_api_versions() {
-  "${NODE_BIN}" - "$1" <<'NODE'
-const fs = require('fs');
-
-const profilePath = process.argv[2];
-const source = fs.readFileSync(profilePath, 'utf8');
-const data = new Function(`return (${source});`)();
-const products = data.app?.products || [];
-const product = products.find((item) => item.name === 'default') || products[0];
-
-function parseApiVersion(value) {
-  if (typeof value === 'number' && Number.isSafeInteger(value)) {
-    return value;
-  }
-  const text = String(value ?? '').trim();
-  const parenthesized = text.match(/\((\d+)\)\s*$/);
-  if (parenthesized !== null) {
-    return Number(parenthesized[1]);
-  }
-  const semantic = text.match(/^(\d+)(?:\.\d+){0,2}$/);
-  if (semantic !== null) {
-    return Number(semantic[1]);
-  }
-  return NaN;
-}
-
-if (!product) {
-  process.exit(1);
-}
-
-const compatible = parseApiVersion(product.compatibleSdkVersion);
-const target = parseApiVersion(product.targetSdkVersion);
-if (!Number.isSafeInteger(compatible) || !Number.isSafeInteger(target)) {
-  process.exit(1);
-}
-process.stdout.write(`${compatible}\n${target}`);
-NODE
-}
-
 validate_minimum_api_version() {
-  local profile_path="$1"
-  local api_versions
-  local compatible_api_version
-  local target_api_version
-
-  api_versions="$(read_profile_api_versions "${profile_path}")" || return 1
-  compatible_api_version="$(printf '%s\n' "${api_versions}" | sed -n '1p')"
-  target_api_version="$(printf '%s\n' "${api_versions}" | sed -n '2p')"
-  [ "${compatible_api_version}" -ge "${MIN_SUPPORTED_API_VERSION}" ] || return 1
-  [ "${target_api_version}" -ge "${MIN_SUPPORTED_API_VERSION}" ] || return 1
+  "${NODE_BIN}" "${API_BASELINE_GUARD_SCRIPT}" "$1" >/dev/null 2>&1
 }
 
 apply_product_signing_config() {
@@ -2065,33 +2015,7 @@ rm -f \
   "${PROJECT_DIR}/entry/build/default/outputs/default/entry-default-unsigned.hap"
 
 
-apply_arkui_material_access_for_sdk() {
-  local sdk_pkg="${SDK_HOME}/default/openharmony/ets/oh-uni-package.json"
-  local sdk_api=""
-  if [ ! -f "${sdk_pkg}" ] || [ ! -f "${ARK_UI_MATERIAL_ACCESS}" ] || [ ! -f "${ARK_UI_MATERIAL_ACCESS_STUB}" ]; then
-    return 0
-  fi
-  sdk_api="$("${NODE_BIN}" - "${sdk_pkg}" <<'NODE'
-const fs = require('fs');
-const source = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
-process.stdout.write(String(source.apiVersion || ''));
-NODE
-)"
-  if [ -z "${sdk_api}" ]; then
-    return 0
-  fi
-  if [ "${sdk_api}" -lt 26 ]; then
-    ARK_UI_MATERIAL_ACCESS_BACKUP="$(mktemp "${TMPDIR:-/tmp}/aira-arkui-material-access-backup.XXXXXX")"
-    cp "${ARK_UI_MATERIAL_ACCESS}" "${ARK_UI_MATERIAL_ACCESS_BACKUP}"
-    cp "${ARK_UI_MATERIAL_ACCESS_STUB}" "${ARK_UI_MATERIAL_ACCESS}"
-    echo "SDK API ${sdk_api}: compiling with ArkUI material fallback stub. API 26 uiMaterial implementation remains in git."
-  else
-    echo "SDK API ${sdk_api}: compiling with ArkUI uiMaterial."
-  fi
-}
-
 cd "${PROJECT_DIR}"
-apply_arkui_material_access_for_sdk
 "${NODE_BIN}" "${HVIGOR_BIN}" --stop-daemon >/dev/null 2>&1 || true
 if [ "${BUILD_PACKAGE_FORMAT}" = "app" ]; then
   HVIGOR_TASK="assembleApp"
@@ -2126,6 +2050,7 @@ if [ "${BUILD_VARIANT}" = "release" ]; then
   BOOKMARK_LAYOUT_BUILD_MODE="release"
 fi
 "${NODE_BIN}" "${REPO_ROOT}/scripts/check-aira-bookmark-layout-reactivity.cjs" "${BOOKMARK_LAYOUT_BUILD_MODE}"
+"${NODE_BIN}" "${REPO_ROOT}/scripts/check-aira-vertical-tabs-input-route.cjs" "${BOOKMARK_LAYOUT_BUILD_MODE}"
 
 archive_crash_symbols
 

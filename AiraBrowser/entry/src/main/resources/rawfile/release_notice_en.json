@@ -1,10 +1,11 @@
 {
   "enabled": true,
-  "noticeId": "aira-3.9.6-1000578",
+  "noticeId": "aira-3.9.6-1000579",
   "title": "Aira 3.9.6 update",
-  "updatedAt": "2026-11-09",
+  "updatedAt": "2026-11-10",
   "summary": "This update improves the membership page, video controls, and everyday browsing.",
   "items": [
+    "This version requires HarmonyOS 7 (API 26) or later.",
     "Buy or restore Kitapp One directly from the updated Aira membership page.",
     "Long-press the Aira icon and choose Search to open search automatically, even on a cold start.",
     "Prompts to open another app now dismiss automatically after 3 seconds.",

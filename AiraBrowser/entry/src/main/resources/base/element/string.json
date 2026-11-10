@@ -12633,6 +12633,14 @@
       "value": "卡片平铺"
     },
     {
+      "name": "settings_appearance_double_click_close_tabs",
+      "value": "双击关闭标签页"
+    },
+    {
+      "name": "settings_appearance_double_click_close_tabs_detail",
+      "value": "在垂直标签栏中双击鼠标或连续轻点两次，即可关闭标签页。"
+    },
+    {
       "name": "settings_appearance_vertical_tabs",
       "value": "垂直标签页"
     },

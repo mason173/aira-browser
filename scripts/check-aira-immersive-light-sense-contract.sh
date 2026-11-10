@@ -6,7 +6,6 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 COMPONENT_DIR="${REPO_ROOT}/AiraBrowser/entry/src/main/ets/app/components"
 TOKEN_FILE="${COMPONENT_DIR}/common/FloatingGlassMaterialTokens.ets"
 ACCESS_FILE="${COMPONENT_DIR}/common/ArkUiMaterialAccess.ets"
-ACCESS_STUB_FILE="${REPO_ROOT}/scripts/harmony-api24-stubs/ArkUiMaterialAccess.ets"
 SURFACE_FILE="${COMPONENT_DIR}/common/FloatingGlassMaterialSurface.ets"
 BROWSER_SURFACE_FILE="${COMPONENT_DIR}/browser/BrowserFloatingGlassMaterialSurface.ets"
 BOTTOM_SURFACE_FILE="${COMPONENT_DIR}/browser/BrowserBottomChromeImmersiveMaterialSurface.ets"
@@ -41,7 +40,7 @@ require_text() {
   rg -q --fixed-strings "$pattern" "$file" || fail "$message"
 }
 
-for file in "$TOKEN_FILE" "$ACCESS_FILE" "$ACCESS_STUB_FILE" "$SURFACE_FILE" "$BROWSER_SURFACE_FILE" "$BOTTOM_SURFACE_FILE" \
+for file in "$TOKEN_FILE" "$ACCESS_FILE" "$SURFACE_FILE" "$BROWSER_SURFACE_FILE" "$BOTTOM_SURFACE_FILE" \
   "$TABS_OVERLAY_FILE" "$VIDEO_OVERLAY_FILE" "$ADDRESS_PANEL_FILE" "$SETTINGS_HDS_FILE" \
   "$MANAGEMENT_HDS_FILE" "$SEGMENTED_TABS_FILE" "$CENTERED_DIALOG_FILE" \
   "$SYNC_PROGRESS_DIALOG_FILE"; do
@@ -56,15 +55,11 @@ require_text "$ACCESS_FILE" "import { uiMaterial } from '@kit.ArkUI';" \
   'API 26 ArkUI material access must keep the uiMaterial kit import.'
 require_text "$ACCESS_FILE" 'uiMaterial.getMaterialInfo().state' \
   'material availability must honor the application MaterialState.'
-require_text "$ACCESS_STUB_FILE" 'export function isKitMaterialEnabled(): boolean {' \
-  'API 24 material stub must keep the kit-enabled gate.'
-require_text "$ACCESS_STUB_FILE" 'return false;' \
-  'API 24 material stub must not claim immersive material is available.'
 if rg -q --fixed-strings 'uiMaterial.ImmersiveStyle.' \
   "$TOKEN_FILE" "$COMPONENT_DIR/browser/BrowserFloatingGlassMaterialTokens.ets" \
   "$COMPONENT_DIR/browser/BrowserFloatingGlassMaterialSurface.ets" \
   "$BOTTOM_SURFACE_FILE" "$CENTERED_DIALOG_FILE"; then
-  fail 'API 26 ImmersiveStyle enum members must not be read during API 23 module initialization.'
+  fail 'ImmersiveStyle enum access must remain encapsulated in ArkUiMaterialAccess.'
 fi
 if rg -q --fixed-strings 'isImmersiveMaterialSupported' "$TOKEN_FILE"; then
   fail 'the client SDK used by this repository does not expose isImmersiveMaterialSupported; keep the API-version and MaterialState gate.'

@@ -109,6 +109,7 @@ export type SettingsDetailRowAction =
   'toggle_global_immersion' |
   'toggle_always_top_immersion' |
   'toggle_force_dark_web_content' |
+  'toggle_vertical_tabs_double_click_close' |
   'toggle_private_mode_authentication' |
   'toggle_always_use_private_mode' |
   'toggle_private_mode_auto_mute' |
@@ -338,7 +339,8 @@ export class SettingsDetailViewModel {
       showDesktopBookmarkBar: true,
       desktopBookmarkBarVisibility: 'always',
       verticalTabsEnabled: false,
-      verticalTabsCollapsed: true
+      verticalTabsCollapsed: true,
+      verticalTabsDoubleClickCloseEnabled: true
     },
     experiments: BrowserExperimentSettings = {
       pauseWebAnimationsDuringScroll: false,
@@ -1360,6 +1362,15 @@ export class SettingsDetailViewModel {
       });
     }
     if (isLargeScreen) {
+      const tabsGroup = groups.find((group: SettingsDetailGroupState): boolean => group.id === 'tabs_overview');
+      tabsGroup?.rows.push(this.switchRow(
+        'vertical_tabs_double_click_close',
+        '双击关闭标签页',
+        canEditDevicePreferences ? '在垂直标签栏中双击鼠标或连续轻点两次，即可关闭标签页。' : '当前会话不可修改全局设置',
+        'toggle_vertical_tabs_double_click_close',
+        appearance.verticalTabsDoubleClickCloseEnabled !== false,
+        canEditDevicePreferences
+      ));
       groups.push({
         id: 'desktop_bookmark_bar',
         title: $r('app.string.settings_appearance_browser_bar'),

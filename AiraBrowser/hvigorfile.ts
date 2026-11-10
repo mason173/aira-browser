@@ -6,6 +6,8 @@ import { resolve } from 'node:path';
 const sharedComponentGuard: HvigorPlugin = {
   pluginId: 'aira-shared-components',
   apply(node: HvigorNode): void {
+    execFileSync(process.execPath, [resolve(node.getNodePath(), '../scripts/check-aira-api-baseline.cjs'),
+      resolve(node.getNodePath(), 'build-profile.json5')], { stdio: 'inherit' });
     execFileSync(process.execPath, [resolve(node.getNodePath(), '../scripts/check-aira-shared-components.cjs')],
       { stdio: 'inherit' });
   }

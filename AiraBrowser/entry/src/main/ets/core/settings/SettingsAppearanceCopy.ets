@@ -37,6 +37,10 @@ export function localizeAppearanceSettingsCopy(value: ResourceStr): ResourceStr 
       return $r('app.string.settings_appearance_list');
     case '卡片平铺':
       return $r('app.string.settings_appearance_grid');
+    case '双击关闭标签页':
+      return $r('app.string.settings_appearance_double_click_close_tabs');
+    case '在垂直标签栏中双击鼠标或连续轻点两次，即可关闭标签页。':
+      return $r('app.string.settings_appearance_double_click_close_tabs_detail');
     case '垂直标签页':
       return $r('app.string.settings_appearance_vertical_tabs');
     case '水平标签页':

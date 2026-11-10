@@ -264,6 +264,8 @@ export function localizeSettingsCatalogCopy(value: ResourceStr): ResourceStr {
       return $r('app.string.settings_privacy_protection_permission_management');
     case '标签页':
       return $r('app.string.settings_catalog_tabs');
+    case '双击关闭标签页':
+      return $r('app.string.settings_appearance_double_click_close_tabs');
     case '标签页样式':
       return $r('app.string.settings_appearance_tab_style');
     case '标签页运行策略':

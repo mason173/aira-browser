@@ -108,6 +108,9 @@ export class SettingsDetailActionResolver {
     if (action === 'toggle_force_dark_web_content') {
       return this.copyAppearanceSettings(current, { forceDarkWebContentEnabled: nextChecked });
     }
+    if (action === 'toggle_vertical_tabs_double_click_close') {
+      return this.copyAppearanceSettings(current, { verticalTabsDoubleClickCloseEnabled: nextChecked });
+    }
     if (action === 'toggle_blur_private_tab_previews') {
       return this.copyAppearanceSettings(current, { blurPrivateTabPreviews: nextChecked });
     }
@@ -180,7 +183,9 @@ export class SettingsDetailActionResolver {
       showDesktopBookmarkBar: patch.showDesktopBookmarkBar ?? current.showDesktopBookmarkBar,
       desktopBookmarkBarVisibility: patch.desktopBookmarkBarVisibility ?? current.desktopBookmarkBarVisibility,
       verticalTabsEnabled: patch.verticalTabsEnabled ?? current.verticalTabsEnabled,
-      verticalTabsCollapsed: patch.verticalTabsCollapsed ?? current.verticalTabsCollapsed
+      verticalTabsCollapsed: patch.verticalTabsCollapsed ?? current.verticalTabsCollapsed,
+      verticalTabsDoubleClickCloseEnabled: patch.verticalTabsDoubleClickCloseEnabled ??
+        current.verticalTabsDoubleClickCloseEnabled
     };
   }
 

@@ -239,7 +239,8 @@ export const DEFAULT_BROWSER_APPEARANCE_SETTINGS: BrowserAppearanceSettings = {
   showDesktopBookmarkBar: true,
   desktopBookmarkBarVisibility: 'always',
   verticalTabsEnabled: false,
-  verticalTabsCollapsed: true
+  verticalTabsCollapsed: true,
+  verticalTabsDoubleClickCloseEnabled: true
 };
 
 export const DEFAULT_BROWSER_GENERAL_SETTINGS: BrowserGeneralSettings = {
@@ -887,7 +888,8 @@ export class PreferencesRepository {
       showDesktopBookmarkBar: current.showDesktopBookmarkBar,
       desktopBookmarkBarVisibility: current.desktopBookmarkBarVisibility,
       verticalTabsEnabled: current.verticalTabsEnabled,
-      verticalTabsCollapsed: current.verticalTabsCollapsed
+      verticalTabsCollapsed: current.verticalTabsCollapsed,
+      verticalTabsDoubleClickCloseEnabled: current.verticalTabsDoubleClickCloseEnabled
     });
   }
 
@@ -914,7 +916,8 @@ export class PreferencesRepository {
       showDesktopBookmarkBar: current.showDesktopBookmarkBar,
       desktopBookmarkBarVisibility: current.desktopBookmarkBarVisibility,
       verticalTabsEnabled: current.verticalTabsEnabled,
-      verticalTabsCollapsed: current.verticalTabsCollapsed
+      verticalTabsCollapsed: current.verticalTabsCollapsed,
+      verticalTabsDoubleClickCloseEnabled: current.verticalTabsDoubleClickCloseEnabled
     });
   }
 
@@ -942,7 +945,8 @@ export class PreferencesRepository {
       showDesktopBookmarkBar: current.showDesktopBookmarkBar,
       desktopBookmarkBarVisibility: current.desktopBookmarkBarVisibility,
       verticalTabsEnabled: current.verticalTabsEnabled,
-      verticalTabsCollapsed: current.verticalTabsCollapsed
+      verticalTabsCollapsed: current.verticalTabsCollapsed,
+      verticalTabsDoubleClickCloseEnabled: current.verticalTabsDoubleClickCloseEnabled
     });
   }
 
@@ -970,7 +974,8 @@ export class PreferencesRepository {
       showDesktopBookmarkBar: current.showDesktopBookmarkBar,
       desktopBookmarkBarVisibility: current.desktopBookmarkBarVisibility,
       verticalTabsEnabled: enabled,
-      verticalTabsCollapsed: collapsed
+      verticalTabsCollapsed: collapsed,
+      verticalTabsDoubleClickCloseEnabled: current.verticalTabsDoubleClickCloseEnabled
     });
   }
 
@@ -998,7 +1003,8 @@ export class PreferencesRepository {
       showDesktopBookmarkBar: current.showDesktopBookmarkBar,
       desktopBookmarkBarVisibility: current.desktopBookmarkBarVisibility,
       verticalTabsEnabled: current.verticalTabsEnabled,
-      verticalTabsCollapsed: current.verticalTabsCollapsed
+      verticalTabsCollapsed: current.verticalTabsCollapsed,
+      verticalTabsDoubleClickCloseEnabled: current.verticalTabsDoubleClickCloseEnabled
     });
   }
 
@@ -1265,7 +1271,10 @@ export class PreferencesRepository {
         : DEFAULT_BROWSER_APPEARANCE_SETTINGS.verticalTabsEnabled,
       verticalTabsCollapsed: typeof settings?.verticalTabsCollapsed === 'boolean'
         ? settings.verticalTabsCollapsed
-        : DEFAULT_BROWSER_APPEARANCE_SETTINGS.verticalTabsCollapsed
+        : DEFAULT_BROWSER_APPEARANCE_SETTINGS.verticalTabsCollapsed,
+      verticalTabsDoubleClickCloseEnabled: typeof settings?.verticalTabsDoubleClickCloseEnabled === 'boolean'
+        ? settings.verticalTabsDoubleClickCloseEnabled
+        : DEFAULT_BROWSER_APPEARANCE_SETTINGS.verticalTabsDoubleClickCloseEnabled
     };
   }
 

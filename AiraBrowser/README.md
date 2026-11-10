@@ -65,9 +65,11 @@ also connect Aira-sync for Page Push and Cross-device Tabs without Aira Account 
 build may provide the builder's own Huawei project only through separate configuration and approval; it never inherits
 Aira's production identity.
 
-The minimum supported HarmonyOS API is 23. The tracked and local build profiles must set both
-`compatibleSdkVersion` and `targetSdkVersion` to `6.1.0(23)` or newer; the build script rejects lower or unparseable
-profiles before invoking Hvigor. API 22 devices are therefore excluded by the package's `minAPIVersion` metadata.
+The minimum supported HarmonyOS API is 26. The tracked and local build profiles must set both
+`compatibleSdkVersion` and `targetSdkVersion` to `26.0.0` or newer. Command-line builds, DevEco/Hvigor and CI reject
+lower or unparseable profiles. Builds require SDK API 26 or newer; the old API 24 material stub is no longer used.
+Devices below API 26 are excluded by the package's `minAPIVersion` metadata. This baseline is required by the
+membership component's `ComponentActive` and `ComponentInactive` decorators.
 
 The build script has two variants:
 

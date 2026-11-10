@@ -1,12 +1,12 @@
 # Aira shared membership page
 
-Official uses `KitappMembershipPage` from `kitapp-membership` for the Aira and app-suite tabs. Community keeps its existing local-only introduction and never exposes Huawei purchasing. The source default remains Community.
+Official uses `KitappMembershipPage` from `kitapp-membership` for the Aira and app-suite tabs. Community keeps its existing local-only introduction and never exposes Huawei purchasing. The source default remains Community. Both distributions require HarmonyOS API 26 or newer (`compatibleSdkVersion` and `targetSdkVersion` are `26.0.0`); API 23/24 devices are outside the supported range.
 
 The fixed modules are JuDesign 1.35.13 and KitappMembership 1.3.17, published in `mason173/JuDesign` (`832fb23`; page support in `0d91831` and `85c4560`). They were imported with the upstream vendor scripts. `AiraBrowser/judesign.lock.json` and `kitapp-membership.lock.json` protect every source and asset. Do not modify these copies; update upstream, publish a new version, then vendor it.
 
 `AiraProMembershipCatalog` adapts the existing overview view model into the single-app offer. It retains the Huawei lifetime price, existing benefit owner, permanent/timed membership policy, monthly and annual plans, subscription management, code redemption and complimentary claim. These auxiliary actions use the product component's `appActions` interface and appear only on the Aira tab. The suite catalog and layout remain owned by the fixed module.
 
-The existing purchase coordinator still owns login, privacy boundaries, Huawei purchase, server verification and delivery confirmation. It now requests explicit purchase consent before starting payment for every entry point, including feature-unlock, renewal and campaign actions. Each dialog starts unchecked and links to Aira's actual membership and privacy documents; monthly and yearly plans additionally require the auto-renewal agreement. Opening a document first dismisses the confirmation and never initiates payment. Cancellation, page disposal, privacy-boundary changes and account-session changes (including A→B→A) reject the pending purchase. Restore does not request new-purchase consent. The page shares one busy flag between purchase and restore, refreshes observable offer state after completion, and pauses the component when inactive or covered by a sheet. Component activation is reported through the API 23 lifecycle decorators; a nested component does not rely on router page-only callbacks.
+The existing purchase coordinator still owns login, privacy boundaries, Huawei purchase, server verification and delivery confirmation. It now requests explicit purchase consent before starting payment for every entry point, including feature-unlock, renewal and campaign actions. Each dialog starts unchecked and links to Aira's actual membership and privacy documents; monthly and yearly plans additionally require the auto-renewal agreement. Opening a document first dismisses the confirmation and never initiates payment. Cancellation, page disposal, privacy-boundary changes and account-session changes (including A→B→A) reject the pending purchase. Restore does not request new-purchase consent. The page shares one busy flag between purchase and restore, refreshes observable offer state after completion, and pauses the component when inactive or covered by a sheet. Component activation is reported through the API 26 `ComponentActive` and `ComponentInactive` lifecycle decorators; a nested component does not rely on router page-only callbacks.
 
 The suite tab now sells the separate nonconsumable `aira_suite_lifetime` SKU in Aira, using `suitePurchaseEnabled: true` and server-owned `suiteOwned`. Its buy and restore callbacks use `suite_lifetime` through the existing purchase coordinator; it no longer opens the Kitapp store. The earlier Aira lifetime-purchase entitlement rule is unchanged.
 
@@ -22,6 +22,7 @@ Both DevEco and command-line builds run `scripts/check-aira-shared-components.cj
 
 Validation:
 
+- `node scripts/check-aira-api-baseline.cjs`
 - `node scripts/check-aira-shared-components.cjs`
 - `node scripts/check-aira-shared-membership.cjs`
 - `node scripts/check-aira-purchase-consent.cjs`

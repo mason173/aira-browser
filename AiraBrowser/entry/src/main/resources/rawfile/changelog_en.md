@@ -1,11 +1,12 @@
 # Changelog
 
-## 3.9.6 (1000578)
+## 3.9.6 (1000579)
 
-2026-11-09
+2026-11-10
 
 This update improves the membership page, video controls, and everyday browsing.
 
+- This version requires HarmonyOS 7 (API 26) or later.
 - Buy or restore Kitapp One directly from the updated Aira membership page.
 - Long-press the Aira icon and choose Search to open search automatically, even on a cold start.
 - Prompts to open another app now dismiss automatically after 3 seconds.

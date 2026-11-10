@@ -5,7 +5,11 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const ts = require('./lib/deveco-typescript.cjs');
+require('./check-aira-api-baseline.cjs').checkAiraApiBaseline();
 const project = path.resolve(__dirname, '../AiraBrowser');
+const packed = JSON.parse(fs.readFileSync(path.join(project, 'entry/build/default/outputs/default/pack.info'), 'utf8'));
+assert(packed.summary.modules.every(module => module.apiVersion.compatible >= 26 && module.apiVersion.target >= 26),
+  'Rebuild the Aira package with minimum and target API 26 before replaying the membership host');
 const relative = 'entry/src/main/ets/app/components/membership/AiraProScreen';
 const source = path.join(project, relative + '.ets');
 const emitted = path.join(project, 'entry/build/default/cache/default/default@CompileArkTS/esmodule/debug', relative + '.ts');
@@ -30,6 +34,7 @@ vm.runInNewContext(ts.transpileModule(fs.readFileSync(emitted, 'utf8'), { compil
     if (name.includes('HuaweiIapProductCatalog')) return { AIRA_SUITE_LIFETIME_PLAN_ID: 'suite_lifetime' };
     if (name.includes('AiraDistributionCapabilityOwner')) return { AIRA_DISTRIBUTION_CAPABILITY_OWNER: { isOfficial: () => official, isCommunity: () => !official } };
     if (name.includes('DesktopDialogSheetChrome')) return { applyDesktopDialogSheetChrome: options => options };
+    // The baseline guard above must pass before replaying API 26 decorators.
     if (name.includes('kit.ArkUI') || name.includes('arkui.StateManagement')) return { ComponentActive() {}, ComponentInactive() {} };
     return new Proxy({}, { get: (_target, key) => stub(key) });
   },

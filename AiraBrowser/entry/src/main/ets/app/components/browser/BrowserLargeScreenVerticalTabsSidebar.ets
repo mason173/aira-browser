@@ -14,7 +14,8 @@ import {
 } from '../../../core/browser/BrowserLargeScreenShellIntentApplication';
 import {
   BROWSER_LARGE_SCREEN_VERTICAL_TABS_EXPANDED_WIDTH_VP,
-  BROWSER_LARGE_SCREEN_VERTICAL_TABS_RAIL_WIDTH_VP
+  BROWSER_LARGE_SCREEN_VERTICAL_TABS_RAIL_WIDTH_VP,
+  resolveBrowserLargeScreenVerticalTabsDoubleClickCloseTarget
 } from '../../../core/browser/BrowserLargeScreenVerticalTabsPolicy';
 import {
   BROWSER_THEME_STORAGE_ACCENT_KEY,
@@ -24,7 +25,8 @@ import {
   BROWSER_THEME_STORAGE_SURFACE_BACKGROUND_KEY,
   BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY,
   BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY,
-  BROWSER_APPEARANCE_STORAGE_VERTICAL_TABS_ENABLED_KEY
+  BROWSER_APPEARANCE_STORAGE_VERTICAL_TABS_ENABLED_KEY,
+  BROWSER_APPEARANCE_STORAGE_VERTICAL_TABS_DOUBLE_CLICK_CLOSE_ENABLED_KEY
 } from '../../../core/theme/BrowserThemeStorageKeys';
 import { resolveSiteIconFallbackLabel } from '../../../common/utils/SiteIconFallbackUtils';
 import {
@@ -63,7 +65,7 @@ const TAB_ICON_SLOT_SIZE_VP: number = 36;
 const TAB_ROW_HEIGHT_VP: number = 40;
 const TAB_ROW_INSET_VP: number = 8;
 const HEADER_BUTTON_SIZE_VP: number = 32;
-const CLOSE_BUTTON_SIZE_VP: number = 22;
+const CLOSE_BUTTON_SIZE_VP: number = 36;
 const CLOSE_ICON_SIZE_VP: number = 12;
 const AUDIO_ICON_SIZE_VP: number = 14;
 const PEEK_COLLAPSE_DELAY_MS: number = 80;
@@ -124,6 +126,8 @@ export struct BrowserLargeScreenVerticalTabsSidebar {
   private storedSecondaryTextColor: string = '#5F6875';
   @StorageProp(BROWSER_APPEARANCE_STORAGE_VERTICAL_TABS_ENABLED_KEY)
   private storedVerticalTabsEnabled: boolean = true;
+  @StorageProp(BROWSER_APPEARANCE_STORAGE_VERTICAL_TABS_DOUBLE_CLICK_CLOSE_ENABLED_KEY)
+  private storedDoubleClickCloseEnabled: boolean = true;
 
   @State private hoveredTabId: string = '';
   private pointerMenuTabId: string = '';
@@ -164,10 +168,12 @@ export struct BrowserLargeScreenVerticalTabsSidebar {
         .margin({ left: 12, right: 12 })
       Scroll() {
         Column({ space: 0 }) {
+          // Selection must not replace the native recognizer between the two taps.
+          // Active styling observes selectedTabId directly instead of entering the row key.
           ForEach(this.tabStrip.allTabs, (tab: BrowserLargeScreenTabProjection): void => {
             this.buildTabHoverPlate(tab)
           }, (tab: BrowserLargeScreenTabProjection): string =>
-            `${tab.id}:${tab.active ? 'a' : ''}:${tab.pinned ? 'p' : ''}${tab.muted ? 'm' : ''}:${tab.title}`)
+            `${tab.id}:${tab.pinned ? 'p' : ''}${tab.muted ? 'm' : ''}:${tab.closable}:${tab.title}`)
           this.buildNewTabHoverPlate()
         }
         .width('100%')
@@ -200,6 +206,12 @@ export struct BrowserLargeScreenVerticalTabsSidebar {
     .backgroundColor(this.storedPageBackgroundColor)
     .clip(false)
     .hitTestBehavior(HitTestMode.BLOCK_HIERARCHY)
+    .onTouchIntercept((event: TouchEvent): HitTestMode => {
+      if (event.type === TouchType.Down) {
+        this.pointerMenuTabId = '';
+      }
+      return HitTestMode.BLOCK_HIERARCHY;
+    })
     .border({
       width: { right: this.sidebarBorderWidthVp() },
       color: this.storedDividerColor
@@ -218,10 +230,8 @@ export struct BrowserLargeScreenVerticalTabsSidebar {
         this.notePointerInside();
       }
     })
-    .bindContextMenuWithResponse(
-      this.buildBlankContextMenuResponse,
-      buildBrowserDesktopMenuOptions({ preview: MenuPreviewMode.NONE })
-    )
+    // One menu recognizer owns the sidebar; the hit row supplies its target.
+    .bindContextMenuWithResponse(this.buildSidebarContextMenuResponse, buildBrowserDesktopMenuOptions())
   }
 
   @Builder
@@ -345,8 +355,8 @@ export struct BrowserLargeScreenVerticalTabsSidebar {
           .layoutWeight(1)
           .constraintSize({ minWidth: 0 })
           .fontSize(BROWSER_LARGE_SCREEN_TAB_TITLE_FONT_SIZE_VP)
-          .fontWeight(tab.active ? FontWeight.Medium : FontWeight.Regular)
-          .fontColor(tab.active ? this.storedPrimaryTextColor : this.storedSecondaryTextColor)
+          .fontWeight(this.tabStrip.selectedTabId === tab.id ? FontWeight.Medium : FontWeight.Regular)
+          .fontColor(this.tabStrip.selectedTabId === tab.id ? this.storedPrimaryTextColor : this.storedSecondaryTextColor)
           .maxLines(1)
           .textAlign(TextAlign.Start)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
@@ -357,7 +367,9 @@ export struct BrowserLargeScreenVerticalTabsSidebar {
       .width('100%')
       .height('100%')
       .padding({
-        right: this.detailActionsVisible() ? TAB_ROW_INSET_VP + CLOSE_BUTTON_SIZE_VP + 8 : 0
+        right: this.detailActionsVisible()
+          ? TAB_ROW_INSET_VP + CLOSE_BUTTON_SIZE_VP + (tab.audible || tab.muted ? CLOSE_BUTTON_SIZE_VP + 2 : 0) + 8
+          : 0
       })
       .alignItems(VerticalAlign.Center)
       .hitTestBehavior(HitTestMode.None)
@@ -369,6 +381,12 @@ export struct BrowserLargeScreenVerticalTabsSidebar {
     .height(TAB_ROW_HEIGHT_VP)
     .backgroundColor(this.storedPageBackgroundColor)
     .hitTestBehavior(HitTestMode.Default)
+    .onTouchIntercept((event: TouchEvent): HitTestMode => {
+      if (event.type === TouchType.Down) {
+        this.pointerMenuTabId = tab.id;
+      }
+      return HitTestMode.Default;
+    })
     .responseRegion({
       x: 0,
       y: -8,
@@ -394,7 +412,16 @@ export struct BrowserLargeScreenVerticalTabsSidebar {
       }
       this.activateTabFromTouch(tab.id, 'select_tab', event);
     })
-    .bindContextMenuWithResponse(this.buildTabContextMenuResponse, buildBrowserDesktopMenuOptions())
+    // The icon/highlight children can win hit testing over the backing Button.
+    // Bind double-click on their common ancestor so every part of the row reaches it.
+    .parallelGesture(
+      TapGesture({ count: 2, distanceThreshold: 8 })
+        .onAction((event: GestureEvent): void => {
+          if (event.source === SourceType.TouchScreen || event.source === SourceType.Mouse) {
+            this.closeTabFromDoubleClick(tab.id);
+          }
+        })
+    )
   }
 
   @Builder
@@ -680,9 +707,13 @@ export struct BrowserLargeScreenVerticalTabsSidebar {
   }
 
   @Builder
-  private buildBlankContextMenuResponse(responseType: ResponseType) {
+  private buildSidebarContextMenuResponse(responseType: ResponseType) {
     if (responseType === ResponseType.LongPress || responseType === ResponseType.RightClick) {
-      this.buildBlankContextMenu()
+      if (this.resolvePointerMenuTab() !== undefined) {
+        this.buildTabContextMenu(this.resolvePointerMenuTab() as BrowserLargeScreenTabProjection)
+      } else {
+        this.buildBlankContextMenu()
+      }
     }
   }
 
@@ -715,51 +746,35 @@ export struct BrowserLargeScreenVerticalTabsSidebar {
     })
   }
 
-  @Builder
-  private buildTabContextMenuResponse(responseType: ResponseType) {
-    if (responseType === ResponseType.LongPress || responseType === ResponseType.RightClick) {
-      if (this.resolvePointerMenuTab() !== undefined) {
-        this.buildTabContextMenu(this.resolvePointerMenuTab() as BrowserLargeScreenTabProjection)
-      }
-    }
-  }
-
+  // Keep actions flat: grouped custom rows lost their leading groups on the API 26 tablet runtime.
   @Builder
   private buildTabContextMenu(tab: BrowserLargeScreenTabProjection) {
     BrowserDesktopContextMenu({ menuWidthVp: BROWSER_DESKTOP_MENU_TAB_CONTEXT_WIDTH_VP }) {
-      MenuItemGroup() {
-        this.buildTabContextMenuItem(tab, 'new_tab_to_right', resolveAppResourceText($r('app.string.browser_ui_browser_large_screen_vertical_tabs_sidebar_005')), '', true)
-        this.buildTabContextMenuItem(tab, 'move_to_new_window', resolveAppResourceText($r('app.string.browser_ui_browser_large_screen_vertical_tabs_sidebar_006')), '', true)
-      }
-      MenuItemGroup() {
-        this.buildTabContextMenuItem(tab, 'reload', resolveAppResourceText($r('app.string.browser_ui_browser_large_screen_vertical_tabs_sidebar_010')), 'Ctrl + R', tab.contextMenu.reloadEnabled)
-        this.buildTabContextMenuItem(tab, 'duplicate', resolveAppResourceText($r('app.string.tab_menu_duplicate')), '', tab.contextMenu.duplicateEnabled)
-      }
-      MenuItemGroup() {
-        this.buildTabContextMenuItem(
-          tab,
-          'toggle_pin',
-          tab.pinned
-            ? resolveAppResourceText($r('app.string.browser_ui_browser_large_screen_vertical_tabs_sidebar_003'))
-            : resolveAppResourceText($r('app.string.tab_menu_pin')),
-          '',
-          tab.contextMenu.pinEnabled
-        )
-        this.buildTabContextMenuItem(
-          tab,
-          'toggle_mute',
-          tab.muted
-            ? resolveAppResourceText($r('app.string.browser_ui_browser_large_screen_vertical_tabs_sidebar_009'))
-            : resolveAppResourceText($r('app.string.browser_ui_browser_large_screen_vertical_tabs_sidebar_007')),
-          '',
-          tab.contextMenu.muteEnabled
-        )
-      }
-      MenuItemGroup() {
-        this.buildTabContextMenuItem(tab, 'close', resolveAppResourceText($r('app.string.ui_close')), 'Ctrl + W', tab.contextMenu.closeEnabled)
-        this.buildTabContextMenuItem(tab, 'close_others', resolveAppResourceText($r('app.string.browser_ui_browser_large_screen_vertical_tabs_sidebar_001')), '', tab.contextMenu.closeOthersEnabled)
-        this.buildTabContextMenuItem(tab, 'close_to_right', resolveAppResourceText($r('app.string.browser_ui_browser_large_screen_vertical_tabs_sidebar_002')), '', tab.contextMenu.closeRightEnabled)
-      }
+      this.buildTabContextMenuItem(tab, 'close', resolveAppResourceText($r('app.string.ui_close')), 'Ctrl + W', tab.contextMenu.closeEnabled)
+      this.buildTabContextMenuItem(tab, 'new_tab_to_right', resolveAppResourceText($r('app.string.browser_ui_browser_large_screen_vertical_tabs_sidebar_005')), '', true)
+      this.buildTabContextMenuItem(tab, 'move_to_new_window', resolveAppResourceText($r('app.string.browser_ui_browser_large_screen_vertical_tabs_sidebar_006')), '', true)
+      this.buildTabContextMenuItem(tab, 'reload', resolveAppResourceText($r('app.string.browser_ui_browser_large_screen_vertical_tabs_sidebar_010')), 'Ctrl + R', tab.contextMenu.reloadEnabled)
+      this.buildTabContextMenuItem(tab, 'duplicate', resolveAppResourceText($r('app.string.tab_menu_duplicate')), '', tab.contextMenu.duplicateEnabled)
+      this.buildTabContextMenuItem(
+        tab,
+        'toggle_pin',
+        tab.pinned
+          ? resolveAppResourceText($r('app.string.browser_ui_browser_large_screen_vertical_tabs_sidebar_003'))
+          : resolveAppResourceText($r('app.string.tab_menu_pin')),
+        '',
+        tab.contextMenu.pinEnabled
+      )
+      this.buildTabContextMenuItem(
+        tab,
+        'toggle_mute',
+        tab.muted
+          ? resolveAppResourceText($r('app.string.browser_ui_browser_large_screen_vertical_tabs_sidebar_009'))
+          : resolveAppResourceText($r('app.string.browser_ui_browser_large_screen_vertical_tabs_sidebar_007')),
+        '',
+        tab.contextMenu.muteEnabled
+      )
+      this.buildTabContextMenuItem(tab, 'close_others', resolveAppResourceText($r('app.string.browser_ui_browser_large_screen_vertical_tabs_sidebar_001')), '', tab.contextMenu.closeOthersEnabled)
+      this.buildTabContextMenuItem(tab, 'close_to_right', resolveAppResourceText($r('app.string.browser_ui_browser_large_screen_vertical_tabs_sidebar_002')), '', tab.contextMenu.closeRightEnabled)
     }
   }
 
@@ -784,8 +799,8 @@ export struct BrowserLargeScreenVerticalTabsSidebar {
   }
 
   private resolvePointerMenuTab(): BrowserLargeScreenTabProjection | undefined {
-    const tabId = this.pointerMenuTabId.length > 0 ? this.pointerMenuTabId : this.hoveredTabId;
-    return this.tabStrip.allTabs.find((tab: BrowserLargeScreenTabProjection): boolean => tab.id === tabId);
+    return this.tabStrip.allTabs.find((tab: BrowserLargeScreenTabProjection): boolean =>
+      tab.id === this.pointerMenuTabId);
   }
 
   private isPrimaryPointerDown(event: MouseEvent): boolean {
@@ -812,12 +827,32 @@ export struct BrowserLargeScreenVerticalTabsSidebar {
 
   private dispatchRowKind(kind: string, tabId: string): void {
     if (kind === 'select_tab') {
-      this.onIntent({ kind: 'select_tab', tabId: tabId });
+      // A double-click may close the row before its parallel single-click callback.
+      if (this.tabStrip.allTabs.some((tab: BrowserLargeScreenTabProjection): boolean => tab.id === tabId)) {
+        this.onIntent({ kind: 'select_tab', tabId: tabId });
+      }
       return;
     }
     if (kind === 'new_tab') {
       this.onIntent({ kind: 'new_tab', tabId: '' });
     }
+  }
+
+  private closeTabFromDoubleClick(tabId: string): void {
+    // Child close/mute buttons stop the row's press event. Their double taps
+    // must not also close the tab through the ancestor's parallel recognizer.
+    if (this.lastRowActionKey !== `select_tab:${tabId}`) {
+      return;
+    }
+    const target = resolveBrowserLargeScreenVerticalTabsDoubleClickCloseTarget(
+      this.storedDoubleClickCloseEnabled, tabId, this.tabStrip.allTabs
+    );
+    if (target.length === 0) {
+      return;
+    }
+    this.dispatchRowAction(`close:${target}`, (): void => {
+      this.onIntent({ kind: 'close_tab', tabId: target });
+    });
   }
 
   private dispatchRowAction(actionKey: string, action: () => void): void {
@@ -975,10 +1010,7 @@ export struct BrowserLargeScreenVerticalTabsSidebar {
   }
 
   private shouldShowClose(tab: BrowserLargeScreenTabProjection): boolean {
-    if (!tab.closable) {
-      return false;
-    }
-    return tab.active || this.hoveredTabId === tab.id;
+    return tab.closable;
   }
 
   private resolveTabTitle(tab: BrowserLargeScreenTabProjection): string {
@@ -986,7 +1018,7 @@ export struct BrowserLargeScreenVerticalTabsSidebar {
   }
 
   private resolveTabBackground(tab: BrowserLargeScreenTabProjection): ResourceColor {
-    if (tab.active) {
+    if (this.tabStrip.selectedTabId === tab.id) {
       return this.storedSurfaceBackgroundColor;
     }
     if (this.hoveredTabId === tab.id) {
