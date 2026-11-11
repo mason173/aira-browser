@@ -10,6 +10,15 @@
   },
   "history": [
     {
+      "versionName": "3.9.7",
+      "versionCode": 1000585,
+      "releasedAt": "2026-11-11",
+      "source": "formal-package-generated",
+      "notes": "Locally generated Official 3.9.7 (1000585) AppGallery candidate from committed source 0af6ec52ef225b1dea1b966d1bf8491079c39e05. Includes unified search input handling, recently closed bulk deletion, and expanded app recommendations with paired Chinese/English release notes. The Official release APP build and compiled regression checks passed. Verified the configured release certificate, the embedded AppGallery release Profile, com.aira.browser, package version, API 26, debug=false, all six packaged changelog and notice files, and absence of packaged source maps. Archived and hash-verified the three exact-build crash symbol artifacts. The Community unsigned HAP was built from the same source commit. This records a generated package and does not claim AppGallery approval or publication; latestAppGalleryRelease remains unchanged.",
+      "artifact": "dist/packages/Aira-official-v3.9.7-1000585.app",
+      "sha256": "b5307655408d949fdd5dd853247e58856a90aee21f2b6eef01bb73b7de10c1dd"
+    },
+    {
       "versionName": "3.9.6",
       "versionCode": 1000580,
       "releasedAt": "2026-11-10",
