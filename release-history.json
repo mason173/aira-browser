@@ -11,6 +11,15 @@
   "history": [
     {
       "versionName": "3.9.6",
+      "versionCode": 1000580,
+      "releasedAt": "2026-11-10",
+      "source": "formal-package-generated",
+      "notes": "Locally generated Official 3.9.6 (1000580) AppGallery candidate from base commit 032f1ad55f31b9157a946bc095882067d7bd2b4e with renderer recovery, the version bump, and paired release notes in the working tree. The release build and compiled vertical-tab and renderer recovery checks passed. Verified the release certificate, embedded AppGallery release Profile, package version, API 26, and all six packaged changelog and notice files. Archived and hash-verified the exact-build crash symbols.",
+      "artifact": "dist/packages/Aira-official-v3.9.6-1000580.app",
+      "sha256": "bb7335cb88c97b61c789bdd64deaac4282f42a1ac12e786fce855dd2ad1d67ef"
+    },
+    {
+      "versionName": "3.9.6",
       "versionCode": 1000579,
       "releasedAt": "2026-11-10",
       "source": "formal-package-generated",

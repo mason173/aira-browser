@@ -6,6 +6,7 @@ export type BrowserHostedWebNodeDisposeReason =
   'runtime_cooling_snapshot_release' |
   'page_disappear' |
   'context_switch' |
+  'render_process_exited' |
   'user_agent_changed';
 
 export type BrowserHostedWebNodeDisposeAllReason =

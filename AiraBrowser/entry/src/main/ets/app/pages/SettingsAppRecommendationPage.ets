@@ -55,14 +55,16 @@ struct SettingsAppRecommendationPage {
   @StorageProp(BROWSER_THEME_STORAGE_SURFACE_BACKGROUND_KEY) private storedSurfaceBackgroundColor: string = '#FFFFFF';
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY) private storedPrimaryTextColor: string = '#111318';
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY) private storedSecondaryTextColor: string = '#5F6875';
-  /** The app whose sheet is open, or the last one that was; empty until one is opened. */
+  /** The open app id also controls whether the sheet is mounted. */
   @State private sheetAppId: string = '';
-  /**
-   * The sheet is mounted only once an app has been opened, and stays mounted afterwards so
-   * closing it can animate. Mounting it up front would build the card against no app.
-   */
-  @State private sheetMounted: boolean = false;
-  @State private sheetVisible: boolean = false;
+
+  onBackPress(): boolean {
+    if (this.sheetAppId.length === 0) {
+      return false;
+    }
+    this.handleSheetAction('dismiss');
+    return true;
+  }
 
   build() {
     Stack() {
@@ -107,9 +109,8 @@ struct SettingsAppRecommendationPage {
       .width('100%')
       .height('100%')
 
-      if (this.sheetMounted) {
+      if (this.sheetAppId.length > 0) {
         AppRecommendationOverlay({
-          visible: this.sheetVisible,
           recommendationId: this.sheetAppId,
           onAction: (action: AppRecommendationAction) => {
             this.handleSheetAction(action);
@@ -135,18 +136,13 @@ struct SettingsAppRecommendationPage {
 
   private openAppDetail(entry: AppRecommendationEntry): void {
     this.sheetAppId = entry.id;
-    this.sheetMounted = true;
-    this.sheetVisible = true;
   }
 
-  /**
-   * Both actions close the card. The app id is kept so the closing animation still draws the
-   * card it is dismissing; opening the next app overwrites it.
-   */
   private handleSheetAction(action: AppRecommendationAction): void {
-    this.sheetVisible = false;
-    if (action === 'open_market') {
-      this.openAppStorePage(this.sheetAppId);
+    const appId = this.sheetAppId;
+    this.sheetAppId = '';
+    if (action === 'open_market' && appId.length > 0) {
+      this.openAppStorePage(appId);
     }
   }
 

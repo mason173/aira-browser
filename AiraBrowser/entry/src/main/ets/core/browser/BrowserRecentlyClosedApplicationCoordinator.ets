@@ -105,13 +105,19 @@ export interface BrowserRecentlyClosedToggleHomeSectionAction {
   type: 'toggle_home_section';
 }
 
+export interface BrowserRecentlyClosedDeleteAllAction {
+  type: 'request_delete_all_records';
+}
+
 export interface BrowserRecentlyClosedRecordUserAction {
   type: BrowserRecentlyClosedRecordUserActionType;
   recordId: string;
 }
 
 export type BrowserRecentlyClosedUserAction =
-  BrowserRecentlyClosedToggleHomeSectionAction | BrowserRecentlyClosedRecordUserAction;
+  BrowserRecentlyClosedToggleHomeSectionAction |
+  BrowserRecentlyClosedRecordUserAction |
+  BrowserRecentlyClosedDeleteAllAction;
 
 export interface BrowserRecentlyClosedRecordOutcome {
   recorded: boolean;
@@ -273,6 +279,9 @@ export class BrowserRecentlyClosedApplicationCoordinator {
         return;
       case 'request_delete_record':
         this.requestDeleteRecord(action.recordId);
+        return;
+      case 'request_delete_all_records':
+        this.requestDeleteAllRecords();
         return;
       case 'confirm_delete_record':
         this.deleteRecord(action.recordId);
@@ -545,6 +554,36 @@ export class BrowserRecentlyClosedApplicationCoordinator {
       confirmTone: 'alert',
       onConfirm: (): void => {
         this.handleUserAction({ type: 'confirm_delete_record', recordId: recordId });
+      }
+    });
+  }
+
+  private requestDeleteAllRecords(): void {
+    if (!this.allowManagementAccess('delete_recently_closed_tab') || this.records.length === 0) {
+      return;
+    }
+    const facts = this.shell.resolveFacts();
+    const windowId = facts.currentWindowId;
+    const profileId = facts.currentProfileId;
+    const primeGeneration = this.primeGeneration;
+    this.shell.confirmDelete({
+      title: resolveAppResourceText($r('app.string.recent_delete_all')),
+      message: resolveAppResourceText($r('app.string.recent_delete_all_message')),
+      cancelLabel: resolveAppResourceText($r('app.string.settings_custom_home_cancel')),
+      confirmLabel: resolveAppResourceText($r('app.string.recent_delete_all')),
+      confirmTone: 'alert',
+      onConfirm: (): void => {
+        const currentFacts = this.shell.resolveFacts();
+        // A pending confirmation belongs to the window and profile that opened it.
+        if (currentFacts.currentWindowId !== windowId || currentFacts.currentProfileId !== profileId ||
+          this.primeGeneration !== primeGeneration) {
+          return;
+        }
+        if (!this.allowManagementAccess('delete_recently_closed_tab') || this.records.length === 0) {
+          return;
+        }
+        this.applyMutation([]);
+        this.shell.showToast(resolveAppResourceText($r('app.string.recent_delete_all_done')));
       }
     });
   }

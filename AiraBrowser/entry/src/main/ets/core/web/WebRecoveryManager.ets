@@ -41,8 +41,13 @@ export class WebRecoveryManager {
 
   buildRestorePlan(tab: BrowserTabState, reason: TabRestoreReason): WebRestoreRecoveryPlan {
     const snapshotFailureCount = this.snapshotFailureCounts[tab.id] ?? 0;
-    const targetUrl = this.resolveTargetUrl(tab);
-    const attemptSnapshotRestore = this.shouldAttemptSnapshotRestore(tab, reason, snapshotFailureCount);
+    const rendererExited = tab.lastCrashReason === 'render_process_terminated';
+    // A renderer loss needs a fresh load. A saved document can predate the user's latest search.
+    const targetUrl = rendererExited
+      ? this.normalizeTargetUrl(this.downloadNavigationStateCoordinator.resolveTabSwitchNavigation(tab).url)
+      : this.resolveTargetUrl(tab);
+    const attemptSnapshotRestore = !rendererExited &&
+      this.shouldAttemptSnapshotRestore(tab, reason, snapshotFailureCount);
     return {
       tabId: tab.id,
       reason: reason,

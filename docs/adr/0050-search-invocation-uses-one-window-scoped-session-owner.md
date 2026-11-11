@@ -30,6 +30,31 @@ the BrowserShell Search surface registers again. That surface registration is th
 commands are not commit signals. A superseded or interrupted exit is retryable and must not leave a shared unresolved
 Promise that blocks later Settings Back actions.
 
+## Search input interpretation
+
+Updated 2026-11-11: `resolveAddressInput` in `common/utils/UrlUtils.ets` is the shared interpretation interface for
+Search Submission and synchronous navigation/restore. It returns one `AddressInputResolution`: empty, search text,
+or a navigation URL with its optional HTTP fallback. URL extraction carries that same result forward; consumers do
+not independently repeat classification, IDNA conversion, or scheme selection. A failed conversion cannot silently
+switch a navigation result to a different engine later in the same submission. `normalizeUrl` is URL-only and returns
+an empty string for search text; it never constructs a search-engine URL.
+
+The input module owns pasted-link extraction, domain evidence, international-host conversion, and local HTTP versus
+public HTTPS defaults. `SearchEngineRoutingService` still owns configured/exact engine selection, availability probes,
+eligibility and automatic fallback. `SearchEngineTemplateService` owns query encoding and template expansion.
+Paste-and-go submits the raw clipboard text through the same interpreter; editor paste previews may use the shared
+extraction helper without choosing an engine or executing navigation.
+
+This seam does not absorb the other search-box features. Search Invocation Session still owns opening, draft and
+focus authority; suggestion composition owns history/bookmark/tab/remote rows; Search Submission owns cancellation,
+privacy, history recording and navigation effects; Quick Search owns result-document continuation and engine switching.
+Explicit selected-text search remains a search even for URL-shaped selections. External-app search retains its native
+handoff, private-mode confirmation and web fallback. The floating/split/dock appearances retain ADR-0083's owners.
+
+`scripts/check-aira-international-domain-navigation.cjs` exercises the interpreter through actual routing and synchronous
+navigation, including conversion failure, custom engines, exact selection, automatic fallback and external-app actions.
+The suggestion, selection-search, quick-search-continuation and search-style-isolation checks protect the separate features.
+
 ## Considered Options
 
 - Expose a generic `dispatch/snapshot/observe` Search event interface. Rejected because ordinary callers would learn lifecycle phases, authority references, draft state, and extension policy, making the external seam wider than the common `open Search` use case.

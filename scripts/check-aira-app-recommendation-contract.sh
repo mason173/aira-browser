@@ -127,8 +127,10 @@ require_pattern "${PAGE_REL}" "AppRecommendationOverlay\(" \
 # front, or opens a second app through the same sheet, must still draw the app it opened.
 require_pattern "${SHEET_REL}" "@Prop @Watch\('syncEntry'\) recommendationId" \
   "the card must resolve its app again whenever the opened id changes."
-require_pattern "${PAGE_REL}" "if \(this\.sheetMounted\)[\s\S]{0,200}AppRecommendationOverlay\(" \
-  "the sheet must be mounted only once an app has been opened."
+require_pattern "${PAGE_REL}" "if \(this\.sheetAppId\.length > 0\)[\s\S]{0,80}AppRecommendationOverlay\(" \
+  "the sheet must only be mounted while an app is open, so its hidden descendants cannot intercept touches."
+require_pattern "${PAGE_REL}" "handleSheetAction\(action: AppRecommendationAction\): void \{\s*const appId = this\.sheetAppId;\s*this\.sheetAppId = '';" \
+  "both dismissal and store handoff must remove the sheet from the settings page."
 require_pattern "${OVERLAY_REL}" "export type AppRecommendationAction = 'dismiss' \| 'open_market';" \
   "the sheet's actions must be owned by the surface that hosts it."
 require_pattern "${PAGE_REL}" "openAppGalleryDetailPageForApp" \

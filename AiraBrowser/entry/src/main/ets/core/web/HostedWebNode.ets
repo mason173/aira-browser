@@ -51,6 +51,7 @@ const HOSTED_WEB_PICTURE_IN_PICTURE_PAGEHIDE_SOURCE_LITERAL: string =
 
 export interface HostedWebNodeCallbacks {
   onControllerAttached: (tabId: string) => void;
+  onRenderExited?: (tabId: string, event: OnRenderExitedEvent, controller: webview.WebviewController) => void;
   onBeforeWebBuild?: (tabId: string) => void;
   onPageVisible: (tabId: string, event: OnPageVisibleEvent) => void;
   onPageBegin: (tabId: string, event: OnPageBeginEvent) => void;
@@ -2474,6 +2475,9 @@ function HostedWebNodeBuilder(config: HostedWebNodeConfig) {
         config.callbacks.onControllerAttached(config.tabId);
         AiraLoadScrollJankProbe.endUiTask('web_controller_attached', probeStartedAt);
       })
+      .onRenderExited((event: OnRenderExitedEvent) => {
+        config.callbacks.onRenderExited?.(config.tabId, event, config.controller);
+      })
       .onPageVisible((event: OnPageVisibleEvent) => {
         const probeStartedAt = AiraLoadScrollJankProbe.beginUiTask('web_page_visible');
         configureHostedWebBackForwardCache(config.tabId, config.controller, 'hosted_web_page_visible');
@@ -2849,6 +2853,7 @@ function buildTrackedHostedWebNodeConfig(
         config.callbacks.onControllerAttached(tabId);
       },
       onPageVisible: config.callbacks.onPageVisible,
+      onRenderExited: config.callbacks.onRenderExited,
       onPageBegin: config.callbacks.onPageBegin,
       onPageEnd: config.callbacks.onPageEnd,
       onNativeMediaPlayerObserved: config.callbacks.onNativeMediaPlayerObserved,

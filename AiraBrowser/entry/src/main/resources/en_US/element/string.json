@@ -23273,6 +23273,18 @@
       "value": "Delete “%1$s”? This cannot be undone."
     },
     {
+      "name": "recent_delete_all",
+      "value": "Delete all"
+    },
+    {
+      "name": "recent_delete_all_message",
+      "value": "Delete all recently closed records? This cannot be undone."
+    },
+    {
+      "name": "recent_delete_all_done",
+      "value": "All recently closed records deleted."
+    },
+    {
       "name": "recent_shortcut_update_failed",
       "value": "Couldn't update the home shortcut: %1$s"
     },
@@ -23863,6 +23875,222 @@
     {
       "name": "app_recommendation_pinecone_faq_devices_text",
       "value": "Use it on your phone, tablet and computer. Sign in to sync through the cloud and continue planning on another device."
+    },
+    {
+      "name": "app_recommendation_glimmerclock_name",
+      "value": "Glimmer Clock"
+    },
+    {
+      "name": "app_recommendation_glimmerclock_tagline",
+      "value": "Desktop clock and timer"
+    },
+    {
+      "name": "app_recommendation_subdock_tagline",
+      "value": "Subscription management"
+    },
+    {
+      "name": "app_recommendation_key_features_title",
+      "value": "Key features"
+    },
+    {
+      "name": "app_recommendation_glimmerclock_feature_styles",
+      "value": "Full-screen clock styles"
+    },
+    {
+      "name": "app_recommendation_glimmerclock_feature_timers",
+      "value": "Stopwatch, timer & Pomodoro"
+    },
+    {
+      "name": "app_recommendation_glimmerclock_feature_alarms",
+      "value": "Set alarms"
+    },
+    {
+      "name": "app_recommendation_glimmerclock_feature_widgets",
+      "value": "Home screen clock widgets"
+    },
+    {
+      "name": "app_recommendation_glimmerclock_faq_orientation_title",
+      "value": "Can I use it in landscape?"
+    },
+    {
+      "name": "app_recommendation_glimmerclock_faq_orientation_text",
+      "value": "Yes. The clock adapts to portrait and landscape, so you can prop up your phone or tablet as a desk clock."
+    },
+    {
+      "name": "app_recommendation_glimmerclock_faq_widgets_title",
+      "value": "How do I add a clock widget?"
+    },
+    {
+      "name": "app_recommendation_glimmerclock_faq_widgets_text",
+      "value": "Choose a clock widget in the app, then tap the option to add it to your home screen."
+    },
+    {
+      "name": "app_recommendation_subdock_feature_subscriptions",
+      "value": "Track prices and billing cycles"
+    },
+    {
+      "name": "app_recommendation_subdock_feature_calendar",
+      "value": "See billing dates in a calendar"
+    },
+    {
+      "name": "app_recommendation_subdock_feature_reminders",
+      "value": "Set renewal reminders"
+    },
+    {
+      "name": "app_recommendation_subdock_feature_spending",
+      "value": "View subscription spending"
+    },
+    {
+      "name": "app_recommendation_subdock_faq_reminders_title",
+      "value": "How do I get a reminder before renewal?"
+    },
+    {
+      "name": "app_recommendation_subdock_faq_reminders_text",
+      "value": "Enable notifications in the app and grant permission, then choose how many days ahead to be reminded for each subscription."
+    },
+    {
+      "name": "app_recommendation_subdock_faq_currencies_title",
+      "value": "Can I track subscriptions in other currencies?"
+    },
+    {
+      "name": "app_recommendation_subdock_faq_currencies_text",
+      "value": "Yes. Record each subscription in its original currency and use reference exchange rates to view your spending."
+    },
+    {
+      "name": "app_recommendation_fictional_reviews_title",
+      "value": "User reviews · Fictional examples"
+    },
+    {
+      "name": "app_recommendation_glimmerclock_review_desk_author",
+      "value": "Mina"
+    },
+    {
+      "name": "app_recommendation_glimmerclock_review_desk_title",
+      "value": "A desk clock while I work"
+    },
+    {
+      "name": "app_recommendation_glimmerclock_review_desk_message",
+      "value": "I prop it up sideways while I work and check the time at a glance."
+    },
+    {
+      "name": "app_recommendation_glimmerclock_review_focus_author",
+      "value": "Sam"
+    },
+    {
+      "name": "app_recommendation_glimmerclock_review_focus_title",
+      "value": "A timer for focused work"
+    },
+    {
+      "name": "app_recommendation_glimmerclock_review_focus_message",
+      "value": "I start a Pomodoro when I write and get up to stretch when it's time for a break."
+    },
+    {
+      "name": "app_recommendation_glimmerclock_review_widget_author",
+      "value": "Jess"
+    },
+    {
+      "name": "app_recommendation_glimmerclock_review_widget_title",
+      "value": "Time on my home screen"
+    },
+    {
+      "name": "app_recommendation_glimmerclock_review_widget_message",
+      "value": "I added the flip clock widget and can see the time without opening the app."
+    },
+    {
+      "name": "app_recommendation_subdock_review_calendar_author",
+      "value": "Casey"
+    },
+    {
+      "name": "app_recommendation_subdock_review_calendar_title",
+      "value": "I can see what's due next"
+    },
+    {
+      "name": "app_recommendation_subdock_review_calendar_message",
+      "value": "I added my video and music plans and check the calendar for renewal dates."
+    },
+    {
+      "name": "app_recommendation_subdock_review_reminder_author",
+      "value": "Riley"
+    },
+    {
+      "name": "app_recommendation_subdock_review_reminder_title",
+      "value": "Time to decide before renewal"
+    },
+    {
+      "name": "app_recommendation_subdock_review_reminder_message",
+      "value": "An early reminder gives me a few days to decide whether to keep a plan."
+    },
+    {
+      "name": "app_recommendation_subdock_review_spending_author",
+      "value": "Morgan"
+    },
+    {
+      "name": "app_recommendation_subdock_review_spending_title",
+      "value": "Monthly spending at a glance"
+    },
+    {
+      "name": "app_recommendation_subdock_review_spending_message",
+      "value": "I track monthly and annual plans together and check what I spent at the end of the month."
+    },
+    {
+      "name": "app_recommendation_aira_tagline",
+      "value": "A fast, clean browser"
+    },
+    {
+      "name": "app_recommendation_aira_feature_tabs",
+      "value": "Manage open tabs"
+    },
+    {
+      "name": "app_recommendation_aira_feature_bookmarks",
+      "value": "Save and organize bookmarks"
+    },
+    {
+      "name": "app_recommendation_aira_feature_relay",
+      "value": "Hand off pages across devices"
+    },
+    {
+      "name": "app_recommendation_aira_review_relay_author",
+      "value": "Alex"
+    },
+    {
+      "name": "app_recommendation_aira_review_relay_title",
+      "value": "Pick up on another device"
+    },
+    {
+      "name": "app_recommendation_aira_review_relay_message",
+      "value": "I can continue reading on my tablet where I left off on my phone."
+    },
+    {
+      "name": "app_recommendation_aira_review_tabs_author",
+      "value": "Jamie"
+    },
+    {
+      "name": "app_recommendation_aira_review_tabs_title",
+      "value": "Easy to switch tabs"
+    },
+    {
+      "name": "app_recommendation_aira_review_tabs_message",
+      "value": "The tab list makes it easy to get back to the pages I use often."
+    },
+    {
+      "name": "app_recommendation_aira_review_clean_author",
+      "value": "Robin"
+    },
+    {
+      "name": "app_recommendation_aira_review_clean_title",
+      "value": "A clean browsing experience"
+    },
+    {
+      "name": "app_recommendation_aira_review_clean_message",
+      "value": "I can focus on the page and still get to my favorite sites quickly."
+    },
+    {
+      "name": "app_recommendation_aira_faq_sync_title",
+      "value": "What can I sync?"
+    },
+    {
+      "name": "app_recommendation_aira_faq_sync_text",
+      "value": "Supported sync providers keep bookmarks in step across devices. Aira Cloud offers page handoff and cross-device tabs."
     },
     {
       "name": "settings_experiments_swipe_navigation",

@@ -18,35 +18,45 @@ export type AppRecommendationAction = 'dismiss' | 'open_market';
  */
 @Component
 export struct AppRecommendationOverlay {
-  @Prop visible: boolean = false;
   /** The app whose detail sheet is open. The sheet resolves its own content. */
   @Prop recommendationId: string = '';
   onAction: (action: AppRecommendationAction) => void = (_action: AppRecommendationAction): void => {};
 
   build() {
-    BrowserAdaptiveModalOverlay({
-      visible: this.visible,
-      layoutMode: 'phone',
-      title: $r('app.string.app_recommendation_title'),
-      dismissOnOutsideTap: false,
-      phoneSheetHeight: FEATURE_GATE_OVERLAY_SHEET_HEIGHT,
-      phoneEnterOffsetY: FEATURE_GATE_OVERLAY_ENTER_OFFSET_Y,
-      animationDurationMs: FEATURE_GATE_OVERLAY_ANIMATION_DURATION_MS,
-      zIndexValue: BROWSER_MODAL_BOTTOM_OVERLAY_Z_INDEX,
-      tier: 'l',
-      onDismiss: (): void => {
-        this.onAction('dismiss');
-      }
-    }) {
-      AppRecommendationSheet({
-        recommendationId: this.recommendationId,
-        onClose: (): void => {
+    Stack() {
+      BrowserAdaptiveModalOverlay({
+        visible: true,
+        layoutMode: 'phone',
+        title: $r('app.string.app_recommendation_title'),
+        dismissOnOutsideTap: false,
+        phoneSheetHeight: FEATURE_GATE_OVERLAY_SHEET_HEIGHT,
+        phoneEnterOffsetY: FEATURE_GATE_OVERLAY_ENTER_OFFSET_Y,
+        animationDurationMs: FEATURE_GATE_OVERLAY_ANIMATION_DURATION_MS,
+        zIndexValue: BROWSER_MODAL_BOTTOM_OVERLAY_Z_INDEX,
+        tier: 'l',
+        onDismiss: (): void => {
           this.onAction('dismiss');
-        },
-        onOpenMarket: (): void => {
-          this.onAction('open_market');
         }
-      })
+      }) {
+        AppRecommendationSheet({
+          recommendationId: this.recommendationId,
+          onClose: (): void => {
+            this.onAction('dismiss');
+          },
+          onOpenMarket: (): void => {
+            this.onAction('open_market');
+          }
+        })
+      }
     }
+    .width('100%')
+    .height('100%')
+    .transition(TransitionEffect.asymmetric(
+      TransitionEffect.IDENTITY,
+      TransitionEffect.OPACITY.animation({
+        duration: FEATURE_GATE_OVERLAY_ANIMATION_DURATION_MS,
+        curve: Curve.EaseIn
+      })
+    ))
   }
 }

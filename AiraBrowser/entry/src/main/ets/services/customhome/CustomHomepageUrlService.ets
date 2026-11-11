@@ -1,5 +1,5 @@
 import { resolveAppResourceText } from '../../core/resources/AppResourceText';
-import { looksLikeUrl, normalizeUrl } from '../../common/utils/UrlUtils';
+import { normalizeUrl } from '../../common/utils/UrlUtils';
 
 export interface CustomHomepageUrlValidationResult {
   valid: boolean;
@@ -27,10 +27,10 @@ export class CustomHomepageUrlService {
     if (this.hasWhitespace(normalizedInput)) {
       return this.buildInvalidResult(resolveAppResourceText($r('app.string.settings_custom_home_url_space')));
     }
-    if (!looksLikeUrl(normalizedInput)) {
+    const normalizedUrl = normalizeUrl(normalizedInput).trim();
+    if (normalizedUrl.length === 0) {
       return this.buildInvalidResult(resolveAppResourceText($r('app.string.settings_custom_home_url_invalid')));
     }
-    const normalizedUrl = normalizeUrl(normalizedInput).trim();
     const lowerUrl = normalizedUrl.toLowerCase();
     if (!lowerUrl.startsWith('http://') && !lowerUrl.startsWith('https://')) {
       return this.buildInvalidResult(resolveAppResourceText($r('app.string.settings_custom_home_url_scheme')));

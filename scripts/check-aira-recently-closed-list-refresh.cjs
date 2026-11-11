@@ -14,7 +14,7 @@ const compiledPath = process.argv[2] || path.resolve(__dirname,
   'entry/src/main/ets/app/components/browser/RecentlyClosedRecordList.ts');
 assert.ok(fs.existsSync(compiledPath), 'Build the client first to generate the CompileArkTS cache.');
 
-function evaluate(source, globals = {}) {
+function evaluate(source, globals = {}, imports = {}) {
   const compiled = ts.transpileModule(source, {
     compilerOptions: { target: ts.ScriptTarget.ES2021, module: ts.ModuleKind.CommonJS },
     reportDiagnostics: true
@@ -24,6 +24,8 @@ function evaluate(source, globals = {}) {
   vm.runInNewContext(compiled.outputText, {
     module, exports: module.exports, ...globals,
     require: id => {
+      const provided = imports[path.basename(id)];
+      if (provided) return provided;
       const modules = [
         'common/models/BrowserModels',
         'core/browser/BrowserProfileBoundaryService',
@@ -68,6 +70,62 @@ function tab(id) {
     runtimeState: 'loading', lastGoodUrl: url, lastGoodTitle: id,
     lastRestorableUrl: url, lastRestorableTitle: id, webStatePath: '',
     launchContext: { sourceType: '', sourceId: '', sourceUrl: '', key: '' }
+  };
+}
+
+function application() {
+  const facts = {
+    currentWindowId: 'window-main', currentProfileId: 'profile-main',
+    dataScope: 'profile_persistent', privacyMode: 'regular', showHomePage: true
+  };
+  const confirmations = [];
+  const blocks = [];
+  const snapshots = [];
+  const writes = [];
+  const stored = new Map();
+  const cached = new Map();
+  let resolveRefresh;
+  const { BrowserRecentlyClosedApplicationCoordinator } = evaluate(
+    read('core/browser/BrowserRecentlyClosedApplicationCoordinator.ets'),
+    { $r: name => name, setTimeout, clearTimeout },
+    {
+      AppResourceText: { resolveAppResourceText: text => text },
+      BrowserAppRuntime: { getBrowserAppRuntimeInitializationPromise: () => undefined },
+      HomeRecentlyClosedIconHydrationCoordinator: {
+        HomeRecentlyClosedIconHydrationCoordinator: class {
+          resolveFor(records, callbacks) { callbacks.applySnapshot({ icons: [] }); }
+          clear(callbacks) { callbacks.applySnapshot({ icons: [] }); }
+        }
+      }
+    }
+  );
+  const owner = new BrowserRecentlyClosedApplicationCoordinator({
+    repository: {
+      replaceCachedRecords(records, window, profile) { cached.set(`${window}/${profile}`, [...records]); },
+      replaceRecords(records, window, profile) {
+        writes.push({ window, profile, count: records.length });
+        stored.set(`${window}/${profile}`, [...records]);
+        return Promise.resolve();
+      },
+      refresh: () => new Promise(resolve => { resolveRefresh = resolve; }),
+      clearAllRecords: () => assert.fail('Menu deletion must not clear other windows or profiles')
+    },
+    preferencesRepository: {
+      getPreferences: () => ({ appearance: { showHomeRecentlyClosed: true, homeRecentlyClosedLimit: 8 } })
+    },
+    homeShortcutToggleService: { isUrlAddedToScenario: () => false },
+    tabsService: service(),
+    homePresentationViewModel: { shouldRemountRecentlyClosedSection: () => false }
+  }, {
+    resolveFacts: () => facts,
+    publishSnapshot: snapshot => snapshots.push(snapshot),
+    confirmDelete: request => confirmations.push(request),
+    presentBoundaryBlock: event => blocks.push(event),
+    showToast() {}
+  });
+  return {
+    owner, facts, confirmations, blocks, snapshots, writes, stored, cached,
+    resolveRefresh: records => resolveRefresh(records)
   };
 }
 
@@ -147,4 +205,88 @@ for (const columns of [1, 3]) {
     list.update(next);
     assert.equal(list.rows[0].id, next[0].id);
   });
+
+  test(`delete all clears every record and refreshes the compiled ${columns}-column list`, () => {
+    const app = application();
+    for (let i = 0; i < 10; i++) app.owner.recordClosedTab(tab(`closed-${i}`));
+    const initial = app.owner.getSnapshot();
+    assert.equal(initial.recordCount, 10);
+    assert.equal(initial.displayRecords.length, 8);
+    const list = compiledList(initial.displayRecords, columns);
+    const otherScopes = ['window-other/profile-main', 'window-main/profile-other'];
+    for (const scope of otherScopes) app.stored.set(scope, ['preserved']);
+
+    app.owner.handleUserAction({ type: 'request_delete_all_records' });
+    assert.equal(app.confirmations.length, 1);
+    // Opening or dismissing the dialog must not change persisted or visible records.
+    assert.equal(app.owner.getSnapshot().recordCount, 10);
+    assert.equal(app.stored.get('window-main/profile-main').length, 10);
+    app.confirmations[0].onCancel?.();
+    assert.equal(app.owner.getSnapshot().recordCount, 10);
+
+    app.owner.handleUserAction({ type: 'request_delete_all_records' });
+    app.confirmations[1].onConfirm();
+    const cleared = app.snapshots.at(-1);
+    assert.equal(cleared.recordCount, 0);
+    assert.ok(cleared.renderVersion > initial.renderVersion);
+    list.update(cleared.displayRecords);
+    assert.equal(list.rows.length, 0);
+    assert.equal(app.stored.get('window-main/profile-main').length, 0);
+    assert.equal(app.cached.get('window-main/profile-main').length, 0);
+    for (const scope of otherScopes) assert.deepEqual(app.stored.get(scope), ['preserved']);
+
+    app.owner.recordClosedTab(tab('later'));
+    list.update(app.snapshots.at(-1).displayRecords);
+    assert.equal(list.rows.length, 1);
+    assert.equal(app.stored.get('window-main/profile-main').length, 1);
+  });
 }
+
+test('empty recently closed list does not request deletion or write data', () => {
+  const app = application();
+  app.owner.handleUserAction({ type: 'request_delete_all_records' });
+  assert.equal(app.confirmations.length, 0);
+  assert.equal(app.writes.length, 0);
+});
+
+for (const changed of ['currentWindowId', 'currentProfileId', 'window-reset', 'privacyMode']) {
+  test(`pending delete-all confirmation cannot delete after ${changed} changes`, () => {
+    const app = application();
+    app.owner.recordClosedTab(tab('existing'));
+    app.owner.handleUserAction({ type: 'request_delete_all_records' });
+    if (changed === 'window-reset') {
+      // Even switching away and back to the same IDs invalidates an old dialog.
+      app.owner.resetForWindowSwitch();
+      app.owner.recordClosedTab(tab('new-session'));
+    } else {
+      app.facts[changed] = changed === 'privacyMode' ? 'private' : 'different';
+    }
+    const writesBefore = app.writes.length;
+    app.confirmations[0].onConfirm();
+    assert.equal(app.writes.length, writesBefore);
+    app.facts.privacyMode = 'regular';
+    assert.equal(app.owner.getSnapshot().recordCount, 1);
+  });
+}
+
+test('private session cannot request deletion of regular recently closed records', () => {
+  const app = application();
+  app.owner.recordClosedTab(tab('existing'));
+  app.facts.privacyMode = 'private';
+  app.owner.handleUserAction({ type: 'request_delete_all_records' });
+  assert.equal(app.confirmations.length, 0);
+  assert.equal(app.blocks.length, 1);
+});
+
+test('a pending repository refresh cannot resurrect deleted records', async () => {
+  const app = application();
+  app.owner.recordClosedTab(tab('existing'));
+  const oldRecords = app.owner.getSnapshot().records;
+  const loading = app.owner.loadForStartup('profile-main');
+  app.owner.handleUserAction({ type: 'request_delete_all_records' });
+  app.confirmations[0].onConfirm();
+  app.resolveRefresh(oldRecords);
+  await loading;
+  assert.equal(app.owner.getSnapshot().recordCount, 0);
+  assert.equal(app.stored.get('window-main/profile-main').length, 0);
+});

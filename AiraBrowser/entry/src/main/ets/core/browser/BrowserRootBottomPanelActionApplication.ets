@@ -79,7 +79,6 @@ import {
   BrowserClipboardReadTextResult,
   BrowserClipboardService
 } from '../../services/share/BrowserClipboardService';
-import { extractFirstUrlFromText } from '../../common/utils/UrlUtils';
 import { BrowserBottomAddressContextAction } from './BrowserBottomChromePresentationViewModel';
 
 export interface BrowserRootBottomPanelFixedActionFacts {
@@ -539,9 +538,7 @@ export class BrowserRootBottomPanelFixedActionApplication implements BrowserRoot
       this.shell.showToast(result.message);
       return;
     }
-    const trimmedValue = result.value.trim();
-    const extractedUrl = extractFirstUrlFromText(trimmedValue);
-    this.shell.submitAddress(extractedUrl.length > 0 ? extractedUrl : trimmedValue);
+    this.shell.submitAddress(result.value);
   }
 
   private buildActionPresentationFacts(

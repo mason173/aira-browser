@@ -1,5 +1,5 @@
 import urlUtils from '@ohos.url';
-import { looksLikeUrl, normalizeUrl } from '../../common/utils/UrlUtils';
+import { normalizeUrl } from '../../common/utils/UrlUtils';
 
 export interface BookmarkAddDraft {
   title: string;
@@ -34,10 +34,11 @@ export function validateBookmarkAddDraft(draft: BookmarkAddDraft): BookmarkAddDr
     urlError = $r('app.string.bookmark_url_required');
   } else {
     try {
-      if (!looksLikeUrl(rawUrl) || /\s/.test(rawUrl)) {
+      const candidate = normalizeUrl(rawUrl);
+      if (candidate.length === 0 || /\s/.test(rawUrl)) {
         throw new Error('Invalid bookmark URL');
       }
-      normalizedUrl = normalizeUrl(rawUrl);
+      normalizedUrl = candidate;
       const parsed = urlUtils.URL.parseURL(normalizedUrl);
       if ((parsed.protocol === 'http:' || parsed.protocol === 'https:') && parsed.hostname.length <= 0) {
         throw new Error('Missing bookmark host');

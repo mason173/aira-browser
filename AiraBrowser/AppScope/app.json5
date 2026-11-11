@@ -2,7 +2,7 @@
   "app": {
     "bundleName": "org.aira.browser",
     "vendor": "airabrowser",
-    "versionCode": 1000579,
+    "versionCode": 1000580,
     "versionName": "3.9.6",
     "icon": "$media:layered_image",
     "label": "$string:app_name",

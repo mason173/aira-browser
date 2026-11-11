@@ -281,6 +281,14 @@ export struct RecentlyClosedRecordList {
             this.onAction({ type: 'request_delete_record', recordId: record.id });
           }
         })
+
+        BrowserDesktopContextMenuItem({
+          menuWidthVp: BROWSER_DESKTOP_MENU_COMPACT_WIDTH_VP,
+          label: $r('app.string.recent_delete_all'),
+          onAction: (): void => {
+            this.onAction({ type: 'request_delete_all_records' });
+          }
+        })
       }
 
       MenuItemGroup() {
@@ -330,6 +338,11 @@ export struct RecentlyClosedRecordList {
     MenuItem({ content: $r('app.string.browser_ui_recently_closed_record_list_002') })
       .onClick(() => {
         this.onAction({ type: 'request_delete_record', recordId: record.id });
+      })
+
+    MenuItem({ content: $r('app.string.recent_delete_all') })
+      .onClick(() => {
+        this.onAction({ type: 'request_delete_all_records' });
       })
 
     MenuItem({ content: $r('app.string.settings_custom_home_title') })

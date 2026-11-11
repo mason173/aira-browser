@@ -1,18 +1,18 @@
 # Changelog
 
-## 3.9.6 (1000579)
+## 3.9.6 (1000580)
 
 2026-11-10
 
-This update improves the membership page, video controls, and everyday browsing.
+This update improves webpage recovery, desktop tabs, and video controls.
 
 - This version requires HarmonyOS 7 (API 26) or later.
 - Buy or restore Kitapp One directly from the updated Aira membership page.
-- Long-press the Aira icon and choose Search to open search automatically, even on a cold start.
-- Prompts to open another app now dismiss automatically after 3 seconds.
+- Double-click a desktop vertical tab to close it, or use the close button when the sidebar is expanded. The long-press menu also includes more actions.
+- If the current webpage crashes, Aira tries to reopen the page or search you were just loading.
 - Drag the floating video toolbar to reposition its cast, picture-in-picture, and fullscreen controls.
-- Reduced input flicker when adding bookmarks on 2-in-1 devices and fixed list alignment when returning from a bookmark folder.
-- Fixed update issues when resizing windows, selecting link text, and restoring recently closed tabs.
+- Long-press the Aira icon and choose Search to open search on a cold start. Prompts to open another app dismiss after 3 seconds.
+- Reduced flicker when adding bookmarks on 2-in-1 devices and fixed updates to bookmark lists, window layout, link text selection, and recently closed tabs.
 
 ## 3.9.5 (1000575)
 

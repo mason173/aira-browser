@@ -6,7 +6,7 @@ import {
   SearchEngineRecord,
   SearchEngineResultPageShape
 } from '../../common/models/BrowserModels';
-import { looksLikeUrl, normalizeUrl } from '../../common/utils/UrlUtils';
+import { normalizeUrl } from '../../common/utils/UrlUtils';
 import { resolveAppResourceText } from '../../core/resources/AppResourceText';
 
 export interface SearchEngineTemplateValidationResult {
@@ -107,7 +107,7 @@ export class SearchEngineTemplateService {
   }
 
   private isHttpUrl(value: string): boolean {
-    if (!looksLikeUrl(value)) {
+    if (/\s/.test(value.trim())) {
       return false;
     }
     const normalized = normalizeUrl(value);

@@ -11,6 +11,7 @@ const WEB_EVENT_HOST_LOG_TAG: string = 'BrowserWebEventHost';
 
 export interface BrowserWebEventHostHandlers {
   onControllerAttached: (tabId: string) => void;
+  onRenderExited: (tabId: string, event: OnRenderExitedEvent, controller: webview.WebviewController) => void;
   onBeforeWebBuild: (tabId: string) => void;
   onPageVisible: (tabId: string, event: OnPageVisibleEvent) => void;
   onPageBegin: (tabId: string, event: OnPageBeginEvent) => void;
@@ -68,6 +69,8 @@ export class BrowserWebEventHostCoordinator {
     return {
       onControllerAttached: (tabId: string) =>
         this.runVoid('controller_attached', tabId, () => handlers.onControllerAttached(tabId)),
+      onRenderExited: (tabId: string, event: OnRenderExitedEvent, controller: webview.WebviewController) =>
+        this.runVoid('render_exited', tabId, () => handlers.onRenderExited(tabId, event, controller)),
       onBeforeWebBuild: (tabId: string) =>
         this.runVoid('before_web_build', tabId, () => handlers.onBeforeWebBuild(tabId)),
       onPageVisible: (tabId: string, event: OnPageVisibleEvent) =>

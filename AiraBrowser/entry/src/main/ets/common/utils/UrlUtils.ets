@@ -7,23 +7,66 @@ const IPV4_HOST_RE: RegExp = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
 const HOST_PORT_WITHOUT_SCHEME_RE: RegExp = /^(localhost|[a-z0-9.-]+):\d+(?:[/?#].*)?$/i;
 const DOMAIN_HOST_RE: RegExp = /^(www\.)?[a-z0-9-]+(?:\.[a-z0-9-]+)+(?:[/?#].*)?$/i;
 
+/** Engine-independent interpretation shared by submission and synchronous navigation.
+ * Only navigation results carry URLs; callers choose an engine for search results.
+ */
+export interface AddressInputResolution {
+  intent: 'empty' | 'navigate' | 'search';
+  submittedText: string;
+  navigationUrl: string;
+  httpFallbackUrl: string;
+}
+
+export function resolveAddressInput(input: string): AddressInputResolution {
+  const extracted = resolveFirstUrlFromText(input);
+  if (extracted !== undefined) return extracted;
+  const trimmed = input.trim();
+  if (/\s/.test(trimmed) && !/^(https?:\/\/|file:\/\/|aira:\/\/)/i.test(trimmed)) {
+    return buildAddressInputResolution(trimmed);
+  }
+  return resolveUrlCandidate(trimmed);
+}
+
+/** Classify a complete value without extracting a URL from surrounding prose. */
 export function looksLikeUrl(input: string): boolean {
-  const trimmed: string = input.trim();
-  if (trimmed.length === 0 || /\s/.test(trimmed)) {
-    return false;
-  }
+  return !/\s/.test(input.trim()) && resolveUrlCandidate(input).intent === 'navigate';
+}
 
-  if (hasExplicitUrlScheme(trimmed) || HOST_PORT_WITHOUT_SCHEME_RE.test(trimmed)) {
-    return true;
-  }
+/** Normalize an already selected URL. Search text is rejected, never sent to an engine. */
+export function normalizeUrl(input: string): string {
+  return resolveUrlCandidate(input).navigationUrl;
+}
 
+function resolveUrlCandidate(input: string): AddressInputResolution {
+  const trimmed = input.trim();
+  if (trimmed.length === 0) return buildAddressInputResolution(trimmed);
+  const explicitScheme = hasExplicitUrlScheme(trimmed);
+  if (!explicitScheme && /\s/.test(trimmed)) return buildAddressInputResolution(trimmed);
   const asciiInput = normalizeInternationalUrlHost(trimmed);
-  if (asciiInput.length === 0) return false;
+  if (explicitScheme) return buildAddressInputResolution(trimmed, asciiInput || trimmed);
+  if (asciiInput.length === 0) return buildAddressInputResolution(trimmed);
   const hostname = readHostnameFromUserInput(asciiInput);
-  return isLikelyLocalUrlHost(hostname) ||
-    HOST_PORT_WITHOUT_SCHEME_RE.test(asciiInput) ||
-    asciiInput.toLowerCase().startsWith('www.') ||
-    (DOMAIN_HOST_RE.test(asciiInput) && (isIpv4UrlHost(hostname) || hasNavigableDomainSuffix(hostname)));
+  const localHost = isLikelyLocalUrlHost(hostname);
+  if (!localHost && !HOST_PORT_WITHOUT_SCHEME_RE.test(asciiInput) &&
+    !asciiInput.toLowerCase().startsWith('www.') &&
+    !(DOMAIN_HOST_RE.test(asciiInput) && (isIpv4UrlHost(hostname) || hasNavigableDomainSuffix(hostname)))) {
+    return buildAddressInputResolution(trimmed);
+  }
+  const scheme = localHost ? 'http://' : 'https://';
+  return buildAddressInputResolution(trimmed, `${scheme}${asciiInput}`, localHost ? '' : `http://${asciiInput}`);
+}
+
+function buildAddressInputResolution(
+  submittedText: string,
+  navigationUrl: string = '',
+  httpFallbackUrl: string = ''
+): AddressInputResolution {
+  return {
+    intent: submittedText.length === 0 ? 'empty' : navigationUrl.length > 0 ? 'navigate' : 'search',
+    submittedText: submittedText,
+    navigationUrl: navigationUrl,
+    httpFallbackUrl: httpFallbackUrl
+  };
 }
 
 function hasNavigableDomainSuffix(hostname: string): boolean {
@@ -39,48 +82,19 @@ function isIpv4UrlHost(hostname: string): boolean {
   return match !== null && match.slice(1).every((octet: string): boolean => parseIpv4Octet(octet) >= 0);
 }
 
-export function normalizeUrl(input: string): string {
-  const trimmed: string = input.trim();
-  if (trimmed.length === 0) {
-    return '';
-  }
-
-  const asciiInput = normalizeInternationalUrlHost(trimmed);
-  if (hasExplicitUrlScheme(trimmed)) return asciiInput || trimmed;
-
-  if (asciiInput.length > 0 && looksLikeUrl(asciiInput)) {
-    const hostname = readHostnameFromUserInput(asciiInput);
-    const scheme = isLikelyLocalUrlHost(hostname) ? 'http://' : 'https://';
-    return `${scheme}${asciiInput}`;
-  }
-
-  return `https://www.baidu.com/s?wd=${encodeURIComponent(trimmed)}`;
-}
-
-export function resolveSchemelessHttpFallbackUrl(input: string): string {
-  const trimmed: string = input.trim();
-  if (trimmed.length === 0 || hasExplicitUrlScheme(trimmed)) {
-    return '';
-  }
-  const asciiInput = normalizeInternationalUrlHost(trimmed);
-  if (asciiInput.length === 0 || !looksLikeUrl(asciiInput)) return '';
-  const hostname = readHostnameFromUserInput(asciiInput);
-  if (isLikelyLocalUrlHost(hostname)) {
-    return '';
-  }
-  return `http://${asciiInput}`;
-}
-
 export function extractFirstUrlFromText(input: string): string {
+  const result = resolveFirstUrlFromText(input);
+  return result?.intent === 'navigate' ? result.submittedText : '';
+}
+
+function resolveFirstUrlFromText(input: string): AddressInputResolution | undefined {
   const trimmed = input.trim();
-  if (trimmed.length === 0) {
-    return '';
-  }
+  if (trimmed.length === 0) return undefined;
   const unwrapped = trimPastedUrlCandidate(trimmed);
   const explicitPrefix = /[a-z][a-z0-9+.-]*:\/\//i.exec(unwrapped);
   const firstBoundary = findFirstUrlBoundary(unwrapped);
-  // A complete international hostname must reach classification intact. The prose extractor
-  // treats CJK characters as boundaries and would otherwise keep only an ASCII suffix.
+  // Preserve complete international hosts before the prose extractor sees CJK
+  // boundaries. Return the decision too, so submission never converts them again.
   if (!/\s/.test(trimmed) &&
     (explicitPrefix === null || explicitPrefix.index === 0 ||
       (firstBoundary >= 0 && explicitPrefix.index > firstBoundary)) &&
@@ -90,22 +104,10 @@ export function extractFirstUrlFromText(input: string): string {
     const boundary = findFirstUrlBoundary(unwrapped.substring(authorityStart));
     const authorityEnd = boundary < 0 ? unwrapped.length : authorityStart + boundary;
     const candidate = trimInternationalPastedUrlCandidate(unwrapped, authorityEnd);
-    return looksLikeUrl(candidate) ? candidate : '';
+    const result = resolveUrlCandidate(candidate);
+    return result.intent === 'navigate' ? result : buildAddressInputResolution(trimmed);
   }
-
-  const explicitCandidate = extractExplicitPastedUrlCandidate(trimmed);
-  if (explicitCandidate.length > 0) {
-    return explicitCandidate;
-  }
-  return extractBarePastedUrlCandidate(trimmed);
-}
-
-export function normalizeAddressInputText(input: string): string {
-  const extractedUrl = extractFirstUrlFromText(input);
-  if (extractedUrl.length > 0) {
-    return extractedUrl;
-  }
-  return input.trim();
+  return extractExplicitPastedUrlCandidate(trimmed) ?? extractBarePastedUrlCandidate(trimmed);
 }
 
 function isInternationalHostnameCandidate(hostname: string): boolean {
@@ -152,7 +154,7 @@ function normalizeInternationalUrlHost(value: string): string {
   }
 }
 
-export function hasExplicitUrlScheme(rawValue: string): boolean {
+function hasExplicitUrlScheme(rawValue: string): boolean {
   const trimmed = rawValue.trim();
   if (!SCHEME_PREFIX_RE.test(trimmed)) {
     return false;
@@ -236,22 +238,23 @@ function isLocalIpv6Host(hostname: string): boolean {
   return normalized.startsWith('fe80:') || normalized.startsWith('fc') || normalized.startsWith('fd');
 }
 
-function extractExplicitPastedUrlCandidate(value: string): string {
+function extractExplicitPastedUrlCandidate(value: string): AddressInputResolution | undefined {
   PASTED_URL_START_RE.lastIndex = 0;
   let match = PASTED_URL_START_RE.exec(value);
   while (match !== null) {
     const candidate = readPastedUrlCandidate(value, match.index);
-    if (isPastedUrlCandidate(candidate, value)) {
+    const result = resolvePastedUrlCandidate(candidate, value);
+    if (result !== undefined) {
       PASTED_URL_START_RE.lastIndex = 0;
-      return candidate;
+      return result;
     }
     match = PASTED_URL_START_RE.exec(value);
   }
   PASTED_URL_START_RE.lastIndex = 0;
-  return '';
+  return undefined;
 }
 
-function extractBarePastedUrlCandidate(value: string): string {
+function extractBarePastedUrlCandidate(value: string): AddressInputResolution | undefined {
   let index = 0;
   while (index < value.length) {
     while (index < value.length && isPastedUrlSegmentStartDelimiter(value.charAt(index), value.charCodeAt(index))) {
@@ -262,11 +265,10 @@ function extractBarePastedUrlCandidate(value: string): string {
       index += 1;
     }
     const candidate = trimPastedUrlCandidate(value.substring(start, index));
-    if (isPastedUrlCandidate(candidate, value)) {
-      return candidate;
-    }
+    const result = resolvePastedUrlCandidate(candidate, value);
+    if (result !== undefined) return result;
   }
-  return '';
+  return undefined;
 }
 
 function readPastedUrlCandidate(value: string, start: number): string {
@@ -316,23 +318,18 @@ function trimPastedUrlCandidate(value: string): string {
   return candidate;
 }
 
-function isPastedUrlCandidate(candidate: string, fullText: string): boolean {
-  if (candidate.length === 0 || !hasUsablePastedUrlCandidateBody(candidate) || !looksLikeUrl(candidate)) {
-    return false;
-  }
-  if (candidate === fullText.trim()) {
-    return true;
-  }
-  if (hasExplicitUrlScheme(candidate) || candidate.toLowerCase().startsWith('www.') ||
-    HOST_PORT_WITHOUT_SCHEME_RE.test(candidate)) {
-    return true;
+function resolvePastedUrlCandidate(candidate: string, fullText: string): AddressInputResolution | undefined {
+  if (candidate.length === 0 || !hasUsablePastedUrlCandidateBody(candidate) || /\s/.test(candidate)) {
+    return undefined;
   }
   const hostname = readHostnameFromUserInput(candidate);
-  if (isLikelyLocalUrlHost(hostname)) {
-    return true;
-  }
-  return hasAsciiLetter(hostname) &&
-    (candidate.indexOf('/') >= 0 || candidate.indexOf('?') >= 0 || candidate.indexOf('#') >= 0);
+  const hasAddressEvidence = candidate === fullText.trim() || hasExplicitUrlScheme(candidate) ||
+    candidate.toLowerCase().startsWith('www.') || HOST_PORT_WITHOUT_SCHEME_RE.test(candidate) ||
+    isLikelyLocalUrlHost(hostname) || (hasAsciiLetter(hostname) &&
+      (candidate.indexOf('/') >= 0 || candidate.indexOf('?') >= 0 || candidate.indexOf('#') >= 0));
+  if (!hasAddressEvidence) return undefined;
+  const result = resolveUrlCandidate(candidate);
+  return result.intent === 'navigate' ? result : undefined;
 }
 
 function hasUsablePastedUrlCandidateBody(candidate: string): boolean {

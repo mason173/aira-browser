@@ -1,5 +1,6 @@
 import { webview } from '@kit.ArkWeb';
 import { TabCrashReason, TabRestoreReason } from '../../common/models/BrowserModels';
+import { resolveAppResourceText } from '../../core/resources/AppResourceText';
 import { BrowserFaultClassifier } from '../../core/browser/BrowserFaultClassifier';
 import {
   BrowserControllerAttachmentHost,
@@ -28,6 +29,8 @@ import {
 
 export interface BrowserControllerAttachmentRuntimeCoordinatorHost {
   getActiveTabId: () => string;
+  canRecoverActiveRenderProcess: () => boolean;
+  recoverActiveRenderProcess: () => void;
   buildBootstrapConfig: () => WebControllerBootstrapConfig;
   applyBootstrapConfig: (config: WebControllerBootstrapConfig) => void;
   applyActiveController: (controller: webview.WebviewController) => void;
@@ -43,6 +46,7 @@ export interface BrowserControllerAttachmentRuntimeCoordinatorHost {
 }
 
 export class BrowserControllerAttachmentRuntimeCoordinator {
+  private lastAutomaticRenderRecoveryAtMs: number = 0;
   private readonly bootstrapper: WebControllerBootstrapper;
   private readonly runtimeLifecyclePort: BrowserRuntimeLifecyclePort;
   private readonly hostedRuntimeSurfacePort: BrowserHostedRuntimeSurfacePort;
@@ -102,6 +106,53 @@ export class BrowserControllerAttachmentRuntimeCoordinator {
     this.handleAttached(tabId, {
       windowOpenEventConsumedByPageController: eventConsumption
     });
+  }
+
+  handleRenderExitedSignal(
+    tabId: string,
+    sourceController: webview.WebviewController,
+    reason: RenderExitReason
+  ): void {
+    const runtime = this.runtimeLifecyclePort.resolveRuntime(tabId);
+    // Disposal and replacement can deliver late events from an old Web instance.
+    if (runtime === undefined || runtime.controller !== sourceController || !runtime.hasLiveController) {
+      return;
+    }
+    const message = resolveAppResourceText($r('app.string.web_error_tab_crashed'));
+    this.host.recordRuntimeEvent('render_process_exited', `reason=${reason}`, tabId);
+    this.hostedRuntimeSurfacePort.release(tabId, 'render_process_exited');
+    const replacement = this.runtimeLifecyclePort.replaceControllerForRuntimeRefresh(tabId);
+    this.runtimeLifecyclePort.markTabCrashed(tabId, message, 'render_process_terminated');
+    this.host.releaseEventContext(tabId);
+    this.host.applyTabRuntimePatch(tabId, {
+      runtimeState: 'crashed',
+      lastError: message,
+      lastCrashReason: 'render_process_terminated'
+    });
+    // Hidden tabs are restored by the existing foreground/tab-activation path.
+    if (replacement === undefined || tabId !== this.host.getActiveTabId() ||
+      !this.host.canRecoverActiveRenderProcess()) {
+      return;
+    }
+    const now = Date.now();
+    if (now - this.lastAutomaticRenderRecoveryAtMs < 10000) {
+      this.activeSurfaceCoordinator.applyLoadFailurePresentationWithHost(
+        { plan: this.buildLoadFailurePlan() }, message, message,
+        this.activeSurfaceExecutor, this.activeSurfaceHost,
+        { tabId: tabId, scrollSource: WEB_ACTIVE_SURFACE_SCROLL_SOURCE_CONTROLLER_ATTACH }
+      );
+      return;
+    }
+    this.lastAutomaticRenderRecoveryAtMs = now;
+    // Rebuild outside ArkWeb's callback. A newer navigation, close, or tab switch wins.
+    setTimeout((): void => {
+      const current = this.runtimeLifecyclePort.resolveRuntime(tabId);
+      if (current === undefined || current.controller !== replacement.controller || current.hasLiveController ||
+        tabId !== this.host.getActiveTabId() || !this.host.canRecoverActiveRenderProcess()) {
+        return;
+      }
+      this.host.recoverActiveRenderProcess();
+    }, 0);
   }
 
   hasAttachedController(tabId: string, runtime?: WebTabRuntimeRecord): boolean {

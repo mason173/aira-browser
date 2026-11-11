@@ -23273,6 +23273,18 @@
       "value": "确定删除“%1$s”吗？此操作无法撤销。"
     },
     {
+      "name": "recent_delete_all",
+      "value": "删除全部"
+    },
+    {
+      "name": "recent_delete_all_message",
+      "value": "确定删除全部最近关闭记录吗？此操作无法撤销。"
+    },
+    {
+      "name": "recent_delete_all_done",
+      "value": "已删除全部最近关闭记录。"
+    },
+    {
       "name": "recent_shortcut_update_failed",
       "value": "更新主页快捷方式失败：%1$s"
     },
@@ -23863,6 +23875,222 @@
     {
       "name": "app_recommendation_pinecone_faq_devices_text",
       "value": "手机、平板、电脑都能用，登录账号后云端同步，换台设备接着安排。"
+    },
+    {
+      "name": "app_recommendation_glimmerclock_name",
+      "value": "微光时钟"
+    },
+    {
+      "name": "app_recommendation_glimmerclock_tagline",
+      "value": "桌面时钟与计时"
+    },
+    {
+      "name": "app_recommendation_subdock_tagline",
+      "value": "订阅管理"
+    },
+    {
+      "name": "app_recommendation_key_features_title",
+      "value": "主要功能"
+    },
+    {
+      "name": "app_recommendation_glimmerclock_feature_styles",
+      "value": "多种全屏时钟样式"
+    },
+    {
+      "name": "app_recommendation_glimmerclock_feature_timers",
+      "value": "正计时、倒计时和番茄钟"
+    },
+    {
+      "name": "app_recommendation_glimmerclock_feature_alarms",
+      "value": "设置闹钟"
+    },
+    {
+      "name": "app_recommendation_glimmerclock_feature_widgets",
+      "value": "桌面时钟小组件"
+    },
+    {
+      "name": "app_recommendation_glimmerclock_faq_orientation_title",
+      "value": "可以横屏使用吗？"
+    },
+    {
+      "name": "app_recommendation_glimmerclock_faq_orientation_text",
+      "value": "可以。时钟会随横屏或竖屏调整布局，手机或平板都可以摆在桌上看时间。"
+    },
+    {
+      "name": "app_recommendation_glimmerclock_faq_widgets_title",
+      "value": "怎么把时钟放到桌面？"
+    },
+    {
+      "name": "app_recommendation_glimmerclock_faq_widgets_text",
+      "value": "在应用里选好时钟小组件，再点「添加小组件到桌面」。"
+    },
+    {
+      "name": "app_recommendation_subdock_feature_subscriptions",
+      "value": "记录订阅金额和扣款周期"
+    },
+    {
+      "name": "app_recommendation_subdock_feature_calendar",
+      "value": "在日历里查看扣款日期"
+    },
+    {
+      "name": "app_recommendation_subdock_feature_reminders",
+      "value": "设置续费提醒"
+    },
+    {
+      "name": "app_recommendation_subdock_feature_spending",
+      "value": "查看订阅支出统计"
+    },
+    {
+      "name": "app_recommendation_subdock_faq_reminders_title",
+      "value": "怎么提前收到续费提醒？"
+    },
+    {
+      "name": "app_recommendation_subdock_faq_reminders_text",
+      "value": "在「我的」里开启通知并授权，然后为订阅设置提前提醒的天数。"
+    },
+    {
+      "name": "app_recommendation_subdock_faq_currencies_title",
+      "value": "可以记录外币订阅吗？"
+    },
+    {
+      "name": "app_recommendation_subdock_faq_currencies_text",
+      "value": "可以。每笔订阅可以选用原币种，查看支出时可按参考汇率折算。"
+    },
+    {
+      "name": "app_recommendation_fictional_reviews_title",
+      "value": "用户评价 · 虚构示例"
+    },
+    {
+      "name": "app_recommendation_glimmerclock_review_desk_author",
+      "value": "小满"
+    },
+    {
+      "name": "app_recommendation_glimmerclock_review_desk_title",
+      "value": "手机变成了桌面钟"
+    },
+    {
+      "name": "app_recommendation_glimmerclock_review_desk_message",
+      "value": "办公时把手机横着放在支架上，抬眼就能看时间。"
+    },
+    {
+      "name": "app_recommendation_glimmerclock_review_focus_author",
+      "value": "阿禾"
+    },
+    {
+      "name": "app_recommendation_glimmerclock_review_focus_title",
+      "value": "专注时只留一个倒计时"
+    },
+    {
+      "name": "app_recommendation_glimmerclock_review_focus_message",
+      "value": "写东西时开一轮番茄钟，休息时间到了就起来走走。"
+    },
+    {
+      "name": "app_recommendation_glimmerclock_review_widget_author",
+      "value": "柚子"
+    },
+    {
+      "name": "app_recommendation_glimmerclock_review_widget_title",
+      "value": "桌面上就能看时间"
+    },
+    {
+      "name": "app_recommendation_glimmerclock_review_widget_message",
+      "value": "加了一个翻页时钟小组件，点亮屏幕就能看到。"
+    },
+    {
+      "name": "app_recommendation_subdock_review_calendar_author",
+      "value": "小栗"
+    },
+    {
+      "name": "app_recommendation_subdock_review_calendar_title",
+      "value": "下次扣款在哪天"
+    },
+    {
+      "name": "app_recommendation_subdock_review_calendar_message",
+      "value": "把视频和音乐会员记下来，打开日历就知道哪天续费。"
+    },
+    {
+      "name": "app_recommendation_subdock_review_reminder_author",
+      "value": "阿遥"
+    },
+    {
+      "name": "app_recommendation_subdock_review_reminder_title",
+      "value": "续费前有时间考虑"
+    },
+    {
+      "name": "app_recommendation_subdock_review_reminder_message",
+      "value": "给常忘的订阅设了提前提醒，收到后还有时间决定要不要续。"
+    },
+    {
+      "name": "app_recommendation_subdock_review_spending_author",
+      "value": "林间"
+    },
+    {
+      "name": "app_recommendation_subdock_review_spending_title",
+      "value": "看清每月订阅花费"
+    },
+    {
+      "name": "app_recommendation_subdock_review_spending_message",
+      "value": "月付和年付都记在一起，月底看统计就知道钱花在哪。"
+    },
+    {
+      "name": "app_recommendation_aira_tagline",
+      "value": "轻快干净的浏览器"
+    },
+    {
+      "name": "app_recommendation_aira_feature_tabs",
+      "value": "标签页管理"
+    },
+    {
+      "name": "app_recommendation_aira_feature_bookmarks",
+      "value": "书签收藏和整理"
+    },
+    {
+      "name": "app_recommendation_aira_feature_relay",
+      "value": "跨设备网页接力"
+    },
+    {
+      "name": "app_recommendation_aira_review_relay_author",
+      "value": "小鹿"
+    },
+    {
+      "name": "app_recommendation_aira_review_relay_title",
+      "value": "换设备接着看"
+    },
+    {
+      "name": "app_recommendation_aira_review_relay_message",
+      "value": "手机上没看完的网页，回到平板可以继续读。"
+    },
+    {
+      "name": "app_recommendation_aira_review_tabs_author",
+      "value": "余舟"
+    },
+    {
+      "name": "app_recommendation_aira_review_tabs_title",
+      "value": "切换标签很顺手"
+    },
+    {
+      "name": "app_recommendation_aira_review_tabs_message",
+      "value": "经常开的网页在标签列表里很好找，来回切换很方便。"
+    },
+    {
+      "name": "app_recommendation_aira_review_clean_author",
+      "value": "南一"
+    },
+    {
+      "name": "app_recommendation_aira_review_clean_title",
+      "value": "界面很清爽"
+    },
+    {
+      "name": "app_recommendation_aira_review_clean_message",
+      "value": "打开就能专心看网页，常用网站也好找。"
+    },
+    {
+      "name": "app_recommendation_aira_faq_sync_title",
+      "value": "可以同步哪些内容？"
+    },
+    {
+      "name": "app_recommendation_aira_faq_sync_text",
+      "value": "使用支持的同步方式可在设备间同步书签。网页接力和跨设备标签页可通过 Aira Cloud 使用。"
     },
     {
       "name": "settings_experiments_swipe_navigation",

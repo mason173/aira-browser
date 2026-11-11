@@ -82,6 +82,7 @@ QQ_WEB_LOGIN_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-qq-web-login.cjs"
 WEB_SWIPE_NAVIGATION_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-web-swipe-navigation.cjs"
 TABS_STACK_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-tabs-stack.cjs"
 VERTICAL_TABS_CLOSE_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-vertical-tabs-close.cjs"
+RENDERER_RECOVERY_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-renderer-recovery.cjs"
 SAME_DOCUMENT_RESTORABLE_STATE_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-same-document-restorable-state.cjs"
 DOWNLOAD_REWIND_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-download-rewind-does-not-move-page.cjs"
 NATIVE_NAV_REQUEST_TOKEN_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-native-navigation-request-token.cjs"
@@ -433,6 +434,7 @@ for swipe_guard in \
   "${HOME_FORWARD_RETURN_GUARD_SCRIPT}" \
   "${TABS_STACK_GUARD_SCRIPT}" \
   "${VERTICAL_TABS_CLOSE_GUARD_SCRIPT}" \
+  "${RENDERER_RECOVERY_GUARD_SCRIPT}" \
   "${WEB_SWIPE_NAVIGATION_GUARD_SCRIPT}"; do
   if [ ! -f "${swipe_guard}" ]; then
     fail "Bottom address bar tab swipe guard not found: ${swipe_guard}"
@@ -2051,6 +2053,7 @@ if [ "${BUILD_VARIANT}" = "release" ]; then
 fi
 "${NODE_BIN}" "${REPO_ROOT}/scripts/check-aira-bookmark-layout-reactivity.cjs" "${BOOKMARK_LAYOUT_BUILD_MODE}"
 "${NODE_BIN}" "${REPO_ROOT}/scripts/check-aira-vertical-tabs-input-route.cjs" "${BOOKMARK_LAYOUT_BUILD_MODE}"
+"${NODE_BIN}" "${RENDERER_RECOVERY_GUARD_SCRIPT}" "${BOOKMARK_LAYOUT_BUILD_MODE}"
 
 archive_crash_symbols
 

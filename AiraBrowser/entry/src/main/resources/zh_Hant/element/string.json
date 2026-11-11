@@ -23273,6 +23273,18 @@
       "value": "確定刪除“%1$s”嗎？此操作無法撤銷。"
     },
     {
+      "name": "recent_delete_all",
+      "value": "刪除全部"
+    },
+    {
+      "name": "recent_delete_all_message",
+      "value": "確定刪除全部最近關閉記錄嗎？此操作無法撤銷。"
+    },
+    {
+      "name": "recent_delete_all_done",
+      "value": "已刪除全部最近關閉記錄。"
+    },
+    {
       "name": "recent_shortcut_update_failed",
       "value": "更新主頁快捷方式失敗：%1$s"
     },
@@ -23863,6 +23875,222 @@
     {
       "name": "app_recommendation_pinecone_faq_devices_text",
       "value": "手機、平板、電腦都能用，登入帳號後雲端同步，換台裝置接著安排。"
+    },
+    {
+      "name": "app_recommendation_glimmerclock_name",
+      "value": "微光時鐘"
+    },
+    {
+      "name": "app_recommendation_glimmerclock_tagline",
+      "value": "桌面時鐘與計時"
+    },
+    {
+      "name": "app_recommendation_subdock_tagline",
+      "value": "訂閱管理"
+    },
+    {
+      "name": "app_recommendation_key_features_title",
+      "value": "主要功能"
+    },
+    {
+      "name": "app_recommendation_glimmerclock_feature_styles",
+      "value": "多種全螢幕時鐘樣式"
+    },
+    {
+      "name": "app_recommendation_glimmerclock_feature_timers",
+      "value": "正計時、倒數計時和番茄鐘"
+    },
+    {
+      "name": "app_recommendation_glimmerclock_feature_alarms",
+      "value": "設定鬧鐘"
+    },
+    {
+      "name": "app_recommendation_glimmerclock_feature_widgets",
+      "value": "桌面時鐘小工具"
+    },
+    {
+      "name": "app_recommendation_glimmerclock_faq_orientation_title",
+      "value": "可以橫向使用嗎？"
+    },
+    {
+      "name": "app_recommendation_glimmerclock_faq_orientation_text",
+      "value": "可以。時鐘會隨橫向或直向調整版面，手機或平板都可以放在桌上看時間。"
+    },
+    {
+      "name": "app_recommendation_glimmerclock_faq_widgets_title",
+      "value": "怎麼把時鐘放到桌面？"
+    },
+    {
+      "name": "app_recommendation_glimmerclock_faq_widgets_text",
+      "value": "在應用程式裡選好時鐘小工具，再使用新增到桌面的選項。"
+    },
+    {
+      "name": "app_recommendation_subdock_feature_subscriptions",
+      "value": "記錄訂閱金額和扣款週期"
+    },
+    {
+      "name": "app_recommendation_subdock_feature_calendar",
+      "value": "在行事曆裡查看扣款日期"
+    },
+    {
+      "name": "app_recommendation_subdock_feature_reminders",
+      "value": "設定續訂提醒"
+    },
+    {
+      "name": "app_recommendation_subdock_feature_spending",
+      "value": "查看訂閱支出統計"
+    },
+    {
+      "name": "app_recommendation_subdock_faq_reminders_title",
+      "value": "怎麼提前收到續訂提醒？"
+    },
+    {
+      "name": "app_recommendation_subdock_faq_reminders_text",
+      "value": "在「我的」裡開啟通知並授權，接著為訂閱設定提前提醒的天數。"
+    },
+    {
+      "name": "app_recommendation_subdock_faq_currencies_title",
+      "value": "可以記錄外幣訂閱嗎？"
+    },
+    {
+      "name": "app_recommendation_subdock_faq_currencies_text",
+      "value": "可以。每筆訂閱可以選用原幣別，查看支出時可按參考匯率換算。"
+    },
+    {
+      "name": "app_recommendation_fictional_reviews_title",
+      "value": "使用者評價 · 虛構範例"
+    },
+    {
+      "name": "app_recommendation_glimmerclock_review_desk_author",
+      "value": "小滿"
+    },
+    {
+      "name": "app_recommendation_glimmerclock_review_desk_title",
+      "value": "手機變成了桌上時鐘"
+    },
+    {
+      "name": "app_recommendation_glimmerclock_review_desk_message",
+      "value": "工作時把手機橫放在支架上，抬頭就能看時間。"
+    },
+    {
+      "name": "app_recommendation_glimmerclock_review_focus_author",
+      "value": "阿禾"
+    },
+    {
+      "name": "app_recommendation_glimmerclock_review_focus_title",
+      "value": "專注時只留一個倒數計時"
+    },
+    {
+      "name": "app_recommendation_glimmerclock_review_focus_message",
+      "value": "寫東西時開一輪番茄鐘，休息時間到了就起來走走。"
+    },
+    {
+      "name": "app_recommendation_glimmerclock_review_widget_author",
+      "value": "柚子"
+    },
+    {
+      "name": "app_recommendation_glimmerclock_review_widget_title",
+      "value": "桌面上就能看時間"
+    },
+    {
+      "name": "app_recommendation_glimmerclock_review_widget_message",
+      "value": "新增了翻頁時鐘小工具，點亮螢幕就能看到。"
+    },
+    {
+      "name": "app_recommendation_subdock_review_calendar_author",
+      "value": "小栗"
+    },
+    {
+      "name": "app_recommendation_subdock_review_calendar_title",
+      "value": "下次扣款是哪天"
+    },
+    {
+      "name": "app_recommendation_subdock_review_calendar_message",
+      "value": "把影音和音樂會員記下來，打開行事曆就知道哪天續訂。"
+    },
+    {
+      "name": "app_recommendation_subdock_review_reminder_author",
+      "value": "阿遙"
+    },
+    {
+      "name": "app_recommendation_subdock_review_reminder_title",
+      "value": "續訂前有時間考慮"
+    },
+    {
+      "name": "app_recommendation_subdock_review_reminder_message",
+      "value": "為常忘記的訂閱設定提前提醒，收到後還有時間決定要不要續訂。"
+    },
+    {
+      "name": "app_recommendation_subdock_review_spending_author",
+      "value": "林間"
+    },
+    {
+      "name": "app_recommendation_subdock_review_spending_title",
+      "value": "看清每月訂閱花費"
+    },
+    {
+      "name": "app_recommendation_subdock_review_spending_message",
+      "value": "月繳和年繳都記在一起，月底看統計就知道錢花在哪。"
+    },
+    {
+      "name": "app_recommendation_aira_tagline",
+      "value": "輕快乾淨的瀏覽器"
+    },
+    {
+      "name": "app_recommendation_aira_feature_tabs",
+      "value": "分頁管理"
+    },
+    {
+      "name": "app_recommendation_aira_feature_bookmarks",
+      "value": "書籤收藏和整理"
+    },
+    {
+      "name": "app_recommendation_aira_feature_relay",
+      "value": "跨裝置網頁接力"
+    },
+    {
+      "name": "app_recommendation_aira_review_relay_author",
+      "value": "小鹿"
+    },
+    {
+      "name": "app_recommendation_aira_review_relay_title",
+      "value": "換裝置接著看"
+    },
+    {
+      "name": "app_recommendation_aira_review_relay_message",
+      "value": "手機上沒看完的網頁，回到平板可以繼續讀。"
+    },
+    {
+      "name": "app_recommendation_aira_review_tabs_author",
+      "value": "余舟"
+    },
+    {
+      "name": "app_recommendation_aira_review_tabs_title",
+      "value": "切換分頁很順手"
+    },
+    {
+      "name": "app_recommendation_aira_review_tabs_message",
+      "value": "經常開的網頁在分頁清單裡很好找，來回切換很方便。"
+    },
+    {
+      "name": "app_recommendation_aira_review_clean_author",
+      "value": "南一"
+    },
+    {
+      "name": "app_recommendation_aira_review_clean_title",
+      "value": "介面很清爽"
+    },
+    {
+      "name": "app_recommendation_aira_review_clean_message",
+      "value": "打開就能專心看網頁，常用網站也好找。"
+    },
+    {
+      "name": "app_recommendation_aira_faq_sync_title",
+      "value": "可以同步哪些內容？"
+    },
+    {
+      "name": "app_recommendation_aira_faq_sync_text",
+      "value": "使用支援的同步方式可在裝置間同步書籤。網頁接力和跨裝置分頁可透過 Aira Cloud 使用。"
     },
     {
       "name": "settings_experiments_swipe_navigation",

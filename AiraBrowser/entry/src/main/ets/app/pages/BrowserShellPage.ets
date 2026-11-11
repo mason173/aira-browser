@@ -2878,6 +2878,9 @@ struct BrowserShellPage {
     getActiveTabId: (): string => {
       return this.activeTabId;
     },
+    canRecoverActiveRenderProcess: (): boolean => this.isBrowserShellVisible && this.browserPageForeground &&
+      this.isWebPageVisible() && !this.shouldSuspendHostedWebSurface() && !this.showTabsSheet,
+    recoverActiveRenderProcess: (): void => this.browserActiveRuntimeSyncCoordinator.syncActiveRuntimeAfterSwitch(),
     buildBootstrapConfig: (): WebControllerBootstrapConfig => {
       return this.buildWebRuntimeBootstrapConfig();
     },
@@ -12841,6 +12844,9 @@ struct BrowserShellPage {
   private buildHostedWebNodeCallbacks(): HostedWebNodeCallbacks {
     return this.browserWebEventHostCoordinator.buildCallbacks({
       onControllerAttached: (tabId: string) => this.handleTabWebControllerAttached(tabId),
+      onRenderExited: (tabId: string, event: OnRenderExitedEvent, controller: webview.WebviewController) =>
+        this.browserControllerAttachmentRuntimeCoordinator.handleRenderExitedSignal(tabId, controller,
+          event.renderExitReason),
       onBeforeWebBuild: (tabId: string) => {
         this.browserWebSwipeNavigationCoordinator.reset(tabId);
         this.browserAddressBarTabSwipeCoordinator.noteDocumentBegin(tabId);

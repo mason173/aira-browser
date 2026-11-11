@@ -86,6 +86,9 @@ export class HomeShortcutOpenPolicyService {
       }
     }
     const targetUrl = normalizeUrl(shortcut.url);
+    if (targetUrl.length === 0) {
+      throw new Error(resolveAppResourceText($r('app.string.home_shortcut_open_unavailable')));
+    }
     const launchContext = this.tabReusePolicyService.buildHomeShortcutLaunchContext(shortcut.id, targetUrl);
     const webPlan: HomeShortcutWebOpenPlan = {
       kind: 'web',

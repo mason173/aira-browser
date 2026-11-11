@@ -234,6 +234,160 @@ function pineconeEntry(): AppRecommendationEntry {
   };
 }
 
+function glimmerClockEntry(): AppRecommendationEntry {
+  return {
+    id: 'glimmerclock',
+    storeId: 'com.glimmerclock.app',
+    icon: $r('app.media.app_recommendation_glimmerclock'),
+    name: $r('app.string.app_recommendation_glimmerclock_name'),
+    tagline: $r('app.string.app_recommendation_glimmerclock_tagline'),
+    badges: [],
+    featuresTitle: $r('app.string.app_recommendation_key_features_title'),
+    features: [
+      {
+        key: 'styles',
+        title: $r('app.string.app_recommendation_glimmerclock_feature_styles'),
+        icon: $r('app.media.app_recommendation_ic_laptop'),
+        plate: $r('app.color.app_recommendation_feature_blue')
+      },
+      {
+        key: 'timers',
+        title: $r('app.string.app_recommendation_glimmerclock_feature_timers'),
+        icon: $r('app.media.app_recommendation_timer_01'),
+        plate: $r('app.color.app_recommendation_feature_orange')
+      },
+      {
+        key: 'alarms',
+        title: $r('app.string.app_recommendation_glimmerclock_feature_alarms'),
+        icon: $r('app.media.app_recommendation_ic_bell'),
+        plate: $r('app.color.app_recommendation_feature_purple')
+      },
+      {
+        key: 'widgets',
+        title: $r('app.string.app_recommendation_glimmerclock_feature_widgets'),
+        icon: $r('app.media.grid_view'),
+        plate: $r('app.color.app_recommendation_feature_green')
+      }
+    ],
+    reviewsTitle: $r('app.string.app_recommendation_fictional_reviews_title'),
+    reviews: [
+      {
+        key: 'desk',
+        author: $r('app.string.app_recommendation_glimmerclock_review_desk_author'),
+        avatar: $r('app.media.app_recommendation_review_avatar_clear'),
+        title: $r('app.string.app_recommendation_glimmerclock_review_desk_title'),
+        message: $r('app.string.app_recommendation_glimmerclock_review_desk_message')
+      },
+      {
+        key: 'focus',
+        author: $r('app.string.app_recommendation_glimmerclock_review_focus_author'),
+        avatar: $r('app.media.app_recommendation_review_avatar_simple'),
+        title: $r('app.string.app_recommendation_glimmerclock_review_focus_title'),
+        message: $r('app.string.app_recommendation_glimmerclock_review_focus_message')
+      },
+      {
+        key: 'widget',
+        author: $r('app.string.app_recommendation_glimmerclock_review_widget_author'),
+        avatar: $r('app.media.app_recommendation_review_avatar_tidy'),
+        title: $r('app.string.app_recommendation_glimmerclock_review_widget_title'),
+        message: $r('app.string.app_recommendation_glimmerclock_review_widget_message')
+      }
+    ],
+    faqsTitle: $r('app.string.app_recommendation_faq_title'),
+    faqs: [
+      {
+        key: 'orientation',
+        icon: $r('app.media.app_recommendation_ic_laptop'),
+        title: $r('app.string.app_recommendation_glimmerclock_faq_orientation_title'),
+        text: $r('app.string.app_recommendation_glimmerclock_faq_orientation_text')
+      },
+      {
+        key: 'widgets',
+        icon: $r('app.media.grid_view'),
+        title: $r('app.string.app_recommendation_glimmerclock_faq_widgets_title'),
+        text: $r('app.string.app_recommendation_glimmerclock_faq_widgets_text')
+      }
+    ]
+  };
+}
+
+function subdockEntry(): AppRecommendationEntry {
+  return {
+    id: 'subdock',
+    storeId: 'app.sub.dock',
+    icon: $r('app.media.app_recommendation_subdock'),
+    name: 'SubDock',
+    tagline: $r('app.string.app_recommendation_subdock_tagline'),
+    badges: [],
+    featuresTitle: $r('app.string.app_recommendation_key_features_title'),
+    features: [
+      {
+        key: 'subscriptions',
+        title: $r('app.string.app_recommendation_subdock_feature_subscriptions'),
+        icon: $r('app.media.ic_wallet'),
+        plate: $r('app.color.app_recommendation_feature_blue')
+      },
+      {
+        key: 'calendar',
+        title: $r('app.string.app_recommendation_subdock_feature_calendar'),
+        icon: $r('app.media.ic_calendar'),
+        plate: $r('app.color.app_recommendation_feature_orange')
+      },
+      {
+        key: 'reminders',
+        title: $r('app.string.app_recommendation_subdock_feature_reminders'),
+        icon: $r('app.media.app_recommendation_ic_bell'),
+        plate: $r('app.color.app_recommendation_feature_purple')
+      },
+      {
+        key: 'spending',
+        title: $r('app.string.app_recommendation_subdock_feature_spending'),
+        icon: $r('app.media.ic_chart_fill'),
+        plate: $r('app.color.app_recommendation_feature_green')
+      }
+    ],
+    reviewsTitle: $r('app.string.app_recommendation_fictional_reviews_title'),
+    reviews: [
+      {
+        key: 'calendar',
+        author: $r('app.string.app_recommendation_subdock_review_calendar_author'),
+        avatar: $r('app.media.app_recommendation_review_avatar_cycles'),
+        title: $r('app.string.app_recommendation_subdock_review_calendar_title'),
+        message: $r('app.string.app_recommendation_subdock_review_calendar_message')
+      },
+      {
+        key: 'reminder',
+        author: $r('app.string.app_recommendation_subdock_review_reminder_author'),
+        avatar: $r('app.media.app_recommendation_review_avatar_clear'),
+        title: $r('app.string.app_recommendation_subdock_review_reminder_title'),
+        message: $r('app.string.app_recommendation_subdock_review_reminder_message')
+      },
+      {
+        key: 'spending',
+        author: $r('app.string.app_recommendation_subdock_review_spending_author'),
+        avatar: $r('app.media.app_recommendation_review_avatar_spending'),
+        title: $r('app.string.app_recommendation_subdock_review_spending_title'),
+        message: $r('app.string.app_recommendation_subdock_review_spending_message')
+      }
+    ],
+    faqsTitle: $r('app.string.app_recommendation_faq_title'),
+    faqs: [
+      {
+        key: 'reminders',
+        icon: $r('app.media.app_recommendation_ic_bell'),
+        title: $r('app.string.app_recommendation_subdock_faq_reminders_title'),
+        text: $r('app.string.app_recommendation_subdock_faq_reminders_text')
+      },
+      {
+        key: 'currencies',
+        icon: $r('app.media.ic_wallet'),
+        title: $r('app.string.app_recommendation_subdock_faq_currencies_title'),
+        text: $r('app.string.app_recommendation_subdock_faq_currencies_text')
+      }
+    ]
+  };
+}
+
 export function buildEmptyAppRecommendationEntry(): AppRecommendationEntry {
   return {
     id: '',
@@ -251,16 +405,86 @@ export function buildEmptyAppRecommendationEntry(): AppRecommendationEntry {
   };
 }
 
-/** Every app Aira offers in 设置 → 应用推荐, in the order the page lists them. */
-export function appRecommendationCatalog(): AppRecommendationEntry[] {
-  return [
-    shengxiEntry(),
-    pineconeEntry()
-  ];
+/** Aira's introduction for the other apps in the recommendation catalog. */
+function airaEntry(): AppRecommendationEntry {
+  return {
+    id: 'aira',
+    storeId: 'com.aira.browser',
+    icon: $r('app.media.aira_default_app_icon'),
+    name: 'Aira',
+    tagline: $r('app.string.app_recommendation_aira_tagline'),
+    badges: [],
+    featuresTitle: $r('app.string.app_recommendation_key_features_title'),
+    features: [
+      {
+        key: 'tabs',
+        title: $r('app.string.app_recommendation_aira_feature_tabs'),
+        icon: $r('app.media.grid_view'),
+        plate: $r('app.color.app_recommendation_feature_blue')
+      },
+      {
+        key: 'bookmarks',
+        title: $r('app.string.app_recommendation_aira_feature_bookmarks'),
+        icon: $r('app.media.app_recommendation_star_fill'),
+        plate: $r('app.color.app_recommendation_feature_orange')
+      },
+      {
+        key: 'relay',
+        title: $r('app.string.app_recommendation_aira_feature_relay'),
+        icon: $r('app.media.app_recommendation_ic_laptop'),
+        plate: $r('app.color.app_recommendation_feature_purple')
+      }
+    ],
+    reviewsTitle: $r('app.string.app_recommendation_fictional_reviews_title'),
+    reviews: [
+      {
+        key: 'relay',
+        author: $r('app.string.app_recommendation_aira_review_relay_author'),
+        avatar: $r('app.media.app_recommendation_review_avatar_clear'),
+        title: $r('app.string.app_recommendation_aira_review_relay_title'),
+        message: $r('app.string.app_recommendation_aira_review_relay_message')
+      },
+      {
+        key: 'tabs',
+        author: $r('app.string.app_recommendation_aira_review_tabs_author'),
+        avatar: $r('app.media.app_recommendation_review_avatar_simple'),
+        title: $r('app.string.app_recommendation_aira_review_tabs_title'),
+        message: $r('app.string.app_recommendation_aira_review_tabs_message')
+      },
+      {
+        key: 'clean',
+        author: $r('app.string.app_recommendation_aira_review_clean_author'),
+        avatar: $r('app.media.app_recommendation_review_avatar_tidy'),
+        title: $r('app.string.app_recommendation_aira_review_clean_title'),
+        message: $r('app.string.app_recommendation_aira_review_clean_message')
+      }
+    ],
+    faqsTitle: $r('app.string.app_recommendation_faq_title'),
+    faqs: [
+      {
+        key: 'sync',
+        icon: $r('app.media.app_recommendation_ic_laptop'),
+        title: $r('app.string.app_recommendation_aira_faq_sync_title'),
+        text: $r('app.string.app_recommendation_aira_faq_sync_text')
+      }
+    ]
+  };
 }
 
-export function appRecommendationEntryFor(id: string): AppRecommendationEntry | undefined {
-  const entries = appRecommendationCatalog();
+/** Each host lists the other apps in the catalog. */
+export function appRecommendationCatalog(hostId: string = 'aira'): AppRecommendationEntry[] {
+  const entries: AppRecommendationEntry[] = [
+    airaEntry(),
+    shengxiEntry(),
+    pineconeEntry(),
+    glimmerClockEntry(),
+    subdockEntry()
+  ];
+  return entries.filter((entry: AppRecommendationEntry): boolean => entry.id !== hostId);
+}
+
+export function appRecommendationEntryFor(id: string, hostId: string = 'aira'): AppRecommendationEntry | undefined {
+  const entries = appRecommendationCatalog(hostId);
   for (let index = 0; index < entries.length; index++) {
     if (entries[index].id === id) {
       return entries[index];

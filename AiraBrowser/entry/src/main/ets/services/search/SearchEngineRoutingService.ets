@@ -6,12 +6,7 @@ import {
   SearchEngineRecord,
   SearchEngineSettings
 } from '../../common/models/BrowserModels';
-import {
-  looksLikeUrl,
-  normalizeAddressInputText,
-  normalizeUrl,
-  resolveSchemelessHttpFallbackUrl
-} from '../../common/utils/UrlUtils';
+import { resolveAddressInput } from '../../common/utils/UrlUtils';
 import { SearchEngineTemplateService } from './SearchEngineTemplateService';
 import {
   SearchEngineAvailabilityProbeService,
@@ -93,16 +88,15 @@ export class SearchEngineRoutingService {
   }
 
   async resolve(input: SearchEngineRoutingInput): Promise<SearchEngineRoutingResult> {
-    const submittedText = normalizeAddressInputText(input.rawInput);
-    if (submittedText.length === 0) {
+    const address = resolveAddressInput(input.rawInput);
+    const submittedText = address.submittedText;
+    if (address.intent === 'empty') {
       return this.buildResult(input.rawInput, submittedText, '', 'empty', '', input.selectedSearchEngineId,
         input.selectedSearchEngineId, false, '', '');
     }
-    if (this.looksLikeNavigation(submittedText)) {
-      const resolvedUrl = normalizeUrl(submittedText);
-      const httpFallbackUrl = resolveSchemelessHttpFallbackUrl(submittedText);
-      return this.buildResult(input.rawInput, submittedText, resolvedUrl, 'navigate', '', input.selectedSearchEngineId,
-        input.selectedSearchEngineId, false, '', httpFallbackUrl);
+    if (address.intent === 'navigate') {
+      return this.buildResult(input.rawInput, submittedText, address.navigationUrl, 'navigate', '', input.selectedSearchEngineId,
+        input.selectedSearchEngineId, false, '', address.httpFallbackUrl);
     }
 
     const exactRouting = input.routingMode === 'exact';
@@ -353,15 +347,6 @@ export class SearchEngineRoutingService {
     return availableSearchEngines.find((engine: SearchEngineRecord): boolean => {
       return engine.id === preferredEngineId;
     });
-  }
-
-  private looksLikeNavigation(value: string): boolean {
-    const lower = value.trim().toLowerCase();
-    return lower.startsWith('http://') ||
-      lower.startsWith('https://') ||
-      lower.startsWith('file://') ||
-      lower.startsWith('aira://') ||
-      looksLikeUrl(value);
   }
 
   private buildDefaultEngineRecord(): SearchEngineRecord {
