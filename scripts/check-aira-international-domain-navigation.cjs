@@ -6,11 +6,14 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const { test } = require('node:test');
-const { domainToASCII } = require('node:url');
+const { domainToASCII, domainToUnicode } = require('node:url');
 const ts = require('./lib/deveco-typescript.cjs');
 const root = path.resolve(__dirname, '../AiraBrowser/entry/src/main/ets');
 const modules = new Map();
-const engines = [{ id: 'bing', searchUrlTemplate: 'https://www.bing.com/search?q={searchTerms}' }];
+const engines = [
+  { id: 'bing', searchUrlTemplate: 'https://www.bing.com/search?q={searchTerms}' },
+  { id: 'baidu', searchUrlTemplate: 'https://www.baidu.com/s?wd={searchTerms}' }
+];
 let convertHostname = domainToASCII;
 
 function load(relative) {
@@ -38,11 +41,61 @@ const utils = load('common/utils/UrlUtils.ets');
 const { SearchEngineRoutingService } = load('services/search/SearchEngineRoutingService.ets');
 const { NavigationController } = load('core/navigation/NavigationController.ets');
 const routing = new SearchEngineRoutingService({});
-function resolve(rawInput) {
-  return routing.resolve({ rawInput, selectedSearchEngineId: 'bing',
-    availableSearchEngines: engines, settings: { defaultSearchEngineId: 'bing', fallbackSearch: { enabled: false } },
+function resolve(rawInput, selectedSearchEngineId = 'bing') {
+  return routing.resolve({ rawInput, selectedSearchEngineId,
+    availableSearchEngines: engines, settings: { defaultSearchEngineId: selectedSearchEngineId, fallbackSearch: { enabled: false } },
     boundary: {} });
 }
+
+test('Chinese version-number queries use the selected search engine instead of navigating to a Punycode host', async () => {
+  // Synthetic input reproduces the reported shape without retaining a user's search text.
+  for (const query of ['示例应用11.5.5.1下载', '示例应用5.5下载', '示例应用11.5.5.1',
+    '2026.11.11新闻', '价格3.5元', '示例应用.安装教程', 'App11.5.5.1', '1.2.3',
+    domainToASCII('示例应用11.5.5.1下载')]) {
+    assert.equal(utils.normalizeAddressInputText(query), query);
+    assert.equal(utils.extractFirstUrlFromText(query), '', query);
+    assert.equal(utils.looksLikeUrl(query), false, query);
+    assert.equal(utils.resolveSchemelessHttpFallbackUrl(query), '', query);
+    for (const engine of engines) {
+      const result = await resolve(query, engine.id);
+      assert.equal(result.intent, 'search', `${engine.id}: ${result.resolvedUrl}`);
+      assert.equal(result.submittedText, query);
+      assert.equal(result.searchQuery, query);
+      assert.equal(result.resolvedUrl, engine.searchUrlTemplate.replace('{searchTerms}', encodeURIComponent(query)));
+      assert.equal(result.httpFallbackUrl, '');
+      assert.equal(new NavigationController().resolveAddressInput(query, engine), result.resolvedUrl);
+    }
+  }
+});
+
+test('explicit URLs still navigate even when their host suffix is not recognized', async () => {
+  for (const query of ['示例应用11.5.5.1下载', '示例应用.安装教程']) {
+    for (const scheme of ['http://', 'https://']) {
+      const input = scheme + query + '/路径?q=中文#片段';
+      const result = await resolve(input);
+      assert.equal(result.intent, 'navigate');
+      assert.equal(result.resolvedUrl, scheme + domainToASCII(query) + '/路径?q=中文#片段');
+      assert.equal(result.httpFallbackUrl, '');
+    }
+  }
+});
+
+test('a numeric DNS suffix remains a query even when the platform successfully encodes it', async () => {
+  try {
+    // NetworkKit converts DNS names; Node's WHATWG helper additionally rejects
+    // numeric final labels as invalid IPv4. Suppress that unrelated URL heuristic.
+    convertHostname = hostname => domainToASCII(hostname + '.invalid').replace(/\.invalid$/, '');
+    const query = '示例应用11.5.5.1';
+    assert.ok(convertHostname(query).endsWith('.5.5.1'));
+    for (const engine of engines) {
+      assert.equal((await resolve(query, engine.id)).resolvedUrl,
+        engine.searchUrlTemplate.replace('{searchTerms}', encodeURIComponent(query)));
+      assert.equal(utils.resolveSchemelessHttpFallbackUrl(query), '');
+    }
+  } finally {
+    convertHostname = domainToASCII;
+  }
+});
 
 test('a schemeless Chinese domain navigates to its ASCII hostname instead of searching', async () => {
   const result = await resolve('教父.com');
@@ -51,6 +104,21 @@ test('a schemeless Chinese domain navigates to its ASCII hostname instead of sea
   assert.equal(result.httpFallbackUrl, 'http://xn--wcv59z.com');
   assert.equal(result.searchQuery, '');
   assert.equal(new NavigationController().resolveAddressInput('教父.com', engines[0]), result.resolvedUrl);
+});
+
+test('delegated international suffixes navigate in both Unicode and Punycode form', async () => {
+  const { INTERNATIONAL_DOMAIN_SUFFIXES } = load('common/utils/InternationalDomainSuffixes.ets');
+  assert.ok(INTERNATIONAL_DOMAIN_SUFFIXES.has(domainToASCII('中国')));
+  assert.ok(INTERNATIONAL_DOMAIN_SUFFIXES.has(domainToASCII('公司')));
+  assert.ok(INTERNATIONAL_DOMAIN_SUFFIXES.has(domainToASCII('рф')));
+  assert.ok(!INTERNATIONAL_DOMAIN_SUFFIXES.has(domainToASCII('1下载')));
+  for (const suffix of INTERNATIONAL_DOMAIN_SUFFIXES) {
+    for (const hostname of ['example.' + suffix, '示例.' + domainToUnicode(suffix)]) {
+      const result = await resolve(hostname + '/path?q=1#section');
+      assert.equal(result.intent, 'navigate', hostname);
+      assert.equal(result.resolvedUrl, 'https://' + domainToASCII(hostname) + '/path?q=1#section');
+    }
+  }
 });
 
 test('international host conversion preserves subdomains, ports and the untouched path/query/fragment', async () => {
@@ -85,7 +153,9 @@ test('explicit HTTP(S) hosts are converted while local hosts and other URL schem
   }
   for (const [input, expected] of [['本地.local:8080/path', 'http://' + domainToASCII('本地.local') + ':8080/path'],
     ['localhost:8080/path', 'http://localhost:8080/path'], ['192.168.1.2/a', 'http://192.168.1.2/a'],
-    ['[::1]:8080/a', 'http://[::1]:8080/a'], ['example.com/a?x=1#b', 'https://example.com/a?x=1#b'],
+    ['[::1]:8080/a', 'http://[::1]:8080/a'], ['8.8.8.8/a', 'https://8.8.8.8/a'],
+    ['www.bing.com', 'https://www.bing.com'], ['www.baidu.com', 'https://www.baidu.com'],
+    ['example.com/a?x=1#b', 'https://example.com/a?x=1#b'],
     ['aira://settings', 'aira://settings'], ['file:///data/中文.html', 'file:///data/中文.html']]) {
     assert.equal((await resolve(input)).resolvedUrl, expected, input);
   }

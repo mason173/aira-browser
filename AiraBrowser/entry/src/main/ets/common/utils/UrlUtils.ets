@@ -1,4 +1,5 @@
 import { connection } from '@kit.NetworkKit';
+import { INTERNATIONAL_DOMAIN_SUFFIXES } from './InternationalDomainSuffixes';
 
 const SCHEME_PREFIX_RE: RegExp = /^[a-z][a-z0-9+.-]*:/i;
 const PASTED_URL_START_RE: RegExp = /[a-z][a-z0-9+.-]*:\/\/|www\./ig;
@@ -22,7 +23,20 @@ export function looksLikeUrl(input: string): boolean {
   return isLikelyLocalUrlHost(hostname) ||
     HOST_PORT_WITHOUT_SCHEME_RE.test(asciiInput) ||
     asciiInput.toLowerCase().startsWith('www.') ||
-    DOMAIN_HOST_RE.test(asciiInput);
+    (DOMAIN_HOST_RE.test(asciiInput) && (isIpv4UrlHost(hostname) || hasNavigableDomainSuffix(hostname)));
+}
+
+function hasNavigableDomainSuffix(hostname: string): boolean {
+  const normalized = normalizeHostname(hostname);
+  const suffix = normalized.substring(normalized.lastIndexOf('.') + 1);
+  // Successful IDNA encoding proves syntax, not navigation intent. Version-number
+  // queries can also encode as hosts, so inferred IDN suffixes must be delegated.
+  return /^[a-z]{2,63}$/.test(suffix) || INTERNATIONAL_DOMAIN_SUFFIXES.has(suffix);
+}
+
+function isIpv4UrlHost(hostname: string): boolean {
+  const match = normalizeHostname(hostname).match(IPV4_HOST_RE);
+  return match !== null && match.slice(1).every((octet: string): boolean => parseIpv4Octet(octet) >= 0);
 }
 
 export function normalizeUrl(input: string): string {

@@ -24,7 +24,7 @@ function load(relative) {
   if (filename.endsWith('/BrowserPrivacyEffectPolicyService')) return { BrowserPrivacyEffectPolicyService: class { decide() { return { outcome: 'allow' }; } } };
   if (filename.endsWith('/BrowserBookmarkScopeService')) return { BrowserBookmarkScopeService: class { resolveScopeForBoundary() { return 'regular'; } } };
   if (filename.endsWith('/BrowserProfileBoundaryService')) return { BrowserProfileBoundaryService: class { buildBoundary() { return {}; } } };
-  const realModules = ['BrowserRepositories', 'BookmarkRepositoryCore', 'NavigationSearchText', 'BookmarkMutationService', 'BookmarkAddDraft', 'UrlUtils', 'BrowserBookmarkActionCoordinator', 'HistoryBookmarkAddCoordinator'];
+  const realModules = ['BrowserRepositories', 'BookmarkRepositoryCore', 'NavigationSearchText', 'BookmarkMutationService', 'BookmarkAddDraft', 'UrlUtils', 'InternationalDomainSuffixes', 'BrowserBookmarkActionCoordinator', 'HistoryBookmarkAddCoordinator'];
   if (!realModules.includes(path.basename(filename))) return {};
   const result = evaluate(path.relative(root, filename), id => {
     if (id === '@ohos.url') return { default: { URL: { parseURL: value => new URL(value) } } };

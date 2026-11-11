@@ -22,6 +22,7 @@ function load(relative, imports = {}) {
   return scope.exports;
 }
 const utils = load('common/utils/UrlUtils.ets', {
+  './InternationalDomainSuffixes': load('common/utils/InternationalDomainSuffixes.ets'),
   '@kit.NetworkKit': { connection: { getDnsAscii: require('node:url').domainToASCII,
     ConversionProcess: { USE_STD3_ASCII_RULES: 2 } } }
 });
