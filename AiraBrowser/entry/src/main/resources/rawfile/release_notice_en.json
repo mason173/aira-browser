@@ -1,17 +1,13 @@
 {
   "enabled": true,
-  "noticeId": "aira-3.9.6-1000580",
-  "title": "Aira 3.9.6 update",
-  "updatedAt": "2026-11-10",
-  "summary": "This update improves webpage recovery, desktop tabs, and video controls.",
+  "noticeId": "aira-3.9.7-1000585",
+  "title": "Aira 3.9.7 update",
+  "updatedAt": "2026-11-11",
+  "summary": "This update fixes search issues and improves recently closed tabs and app recommendations.",
   "items": [
-    "This version requires HarmonyOS 7 (API 26) or later.",
-    "Buy or restore Kitapp One directly from the updated Aira membership page.",
-    "Double-click a desktop vertical tab to close it, or use the close button when the sidebar is expanded. The long-press menu also includes more actions.",
-    "If the current webpage crashes, Aira tries to reopen the page or search you were just loading.",
-    "Drag the floating video toolbar to reposition its cast, picture-in-picture, and fullscreen controls.",
-    "Long-press the Aira icon and choose Search to open search on a cold start. Prompts to open another app dismiss after 3 seconds.",
-    "Reduced flicker when adding bookmarks on 2-in-1 devices and fixed updates to bookmark lists, window layout, link text selection, and recently closed tabs."
+    "Fixed searches containing version numbers or periods sometimes being treated as web addresses and failing to open.",
+    "Added Delete all to the home screen’s Recently closed menu to clear the list at once.",
+    "Added more recommended apps with feature descriptions and frequently asked questions."
   ],
   "actionLabel": "View changelog"
 }

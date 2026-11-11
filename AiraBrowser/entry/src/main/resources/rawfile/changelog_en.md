@@ -1,5 +1,16 @@
 # Changelog
 
+## 3.9.7 (1000585)
+
+2026-11-11
+
+This update fixes search issues and improves recently closed tabs and app recommendations.
+
+- Fixed searches containing version numbers or periods sometimes being treated as web addresses and failing to open.
+- Added Delete all to the home screen’s Recently closed menu to clear the list at once.
+- Added more recommended apps with feature descriptions and frequently asked questions.
+
+
 ## 3.9.6 (1000580)
 
 2026-11-10
