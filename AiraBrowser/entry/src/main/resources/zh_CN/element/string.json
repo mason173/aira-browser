@@ -11977,6 +11977,66 @@
       "value": "完成"
     },
     {
+      "name": "settings_sync_self_host_error_credential_missing",
+      "value": "私有化部署设备凭据为空，请重新配对。"
+    },
+    {
+      "name": "settings_sync_self_host_error_url_invalid",
+      "value": "请输入完整的 HTTP 或 HTTPS 私有化部署地址。"
+    },
+    {
+      "name": "settings_sync_self_host_error_url_credentials",
+      "value": "私有化部署地址不能包含用户名或密码。"
+    },
+    {
+      "name": "settings_sync_self_host_error_incompatible",
+      "value": "该地址不是兼容的 Aira 私有化部署，或协议版本暂不受支持。"
+    },
+    {
+      "name": "settings_sync_self_host_error_pairing_input",
+      "value": "请输入配对码，并确认当前设备标识可用。"
+    },
+    {
+      "name": "settings_sync_self_host_error_pairing_incomplete",
+      "value": "私有化部署没有返回完整的设备凭据。"
+    },
+    {
+      "name": "settings_sync_self_host_error_not_connected",
+      "value": "请先连接私有化部署。"
+    },
+    {
+      "name": "settings_sync_self_host_error_not_paired",
+      "value": "请先完成私有化部署发现与设备配对。"
+    },
+    {
+      "name": "settings_sync_self_host_error_response_unreadable",
+      "value": "私有化部署返回了无法解析的响应（HTTP %1$d）。"
+    },
+    {
+      "name": "settings_sync_self_host_error_http_not_found",
+      "value": "这个地址上没有同步服务（HTTP 404）。请检查地址是否填错，以及反向代理是否转发 /.well-known/aira。"
+    },
+    {
+      "name": "settings_sync_self_host_error_http_forbidden",
+      "value": "访问被拒绝（HTTP 403）。请检查反向代理、CDN 或防火墙的访问控制。"
+    },
+    {
+      "name": "settings_sync_self_host_error_http_too_large",
+      "value": "请求体积超过上限（HTTP 413）。请把反向代理或 CDN 的请求体上限调到 12 MiB 或更高。"
+    },
+    {
+      "name": "settings_sync_self_host_error_http_redirect",
+      "value": "这个地址发生了跳转（HTTP %1$d）。请直接填写最终的 https:// 地址。"
+    },
+    {
+      "name": "settings_sync_self_host_error_http_server",
+      "value": "服务器暂时无法完成请求（HTTP %1$d）。请确认同步服务已启动、反向代理配置正确。"
+    },
+    {
+      "name": "settings_sync_self_host_error_http_failed",
+      "value": "私有化部署请求失败（HTTP %1$d）。"
+    },
+    {
       "name": "novel_content_comic",
       "value": "漫画"
     },

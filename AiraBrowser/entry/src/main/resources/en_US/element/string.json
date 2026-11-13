@@ -11977,6 +11977,66 @@
       "value": "Done"
     },
     {
+      "name": "settings_sync_self_host_error_credential_missing",
+      "value": "The self-hosted device credential is empty. Pair again."
+    },
+    {
+      "name": "settings_sync_self_host_error_url_invalid",
+      "value": "Enter the complete HTTP or HTTPS address of the self-hosted server."
+    },
+    {
+      "name": "settings_sync_self_host_error_url_credentials",
+      "value": "The self-hosted server address cannot include a username or password."
+    },
+    {
+      "name": "settings_sync_self_host_error_incompatible",
+      "value": "This address is not a compatible Aira self-hosted server, or its protocol version is not supported yet."
+    },
+    {
+      "name": "settings_sync_self_host_error_pairing_input",
+      "value": "Enter the pairing code and make sure this device has a usable identifier."
+    },
+    {
+      "name": "settings_sync_self_host_error_pairing_incomplete",
+      "value": "The self-hosted server did not return a complete device credential."
+    },
+    {
+      "name": "settings_sync_self_host_error_not_connected",
+      "value": "Connect to the self-hosted server first."
+    },
+    {
+      "name": "settings_sync_self_host_error_not_paired",
+      "value": "Finish discovering and pairing with the self-hosted server first."
+    },
+    {
+      "name": "settings_sync_self_host_error_response_unreadable",
+      "value": "The self-hosted server returned an unreadable response (HTTP %1$d)."
+    },
+    {
+      "name": "settings_sync_self_host_error_http_not_found",
+      "value": "There is no sync service at this address (HTTP 404). Check the address and whether the reverse proxy forwards /.well-known/aira."
+    },
+    {
+      "name": "settings_sync_self_host_error_http_forbidden",
+      "value": "Access denied (HTTP 403). Check the access rules on the reverse proxy, CDN, or firewall."
+    },
+    {
+      "name": "settings_sync_self_host_error_http_too_large",
+      "value": "The request is too large (HTTP 413). Raise the reverse proxy or CDN request-body limit to at least 12 MiB."
+    },
+    {
+      "name": "settings_sync_self_host_error_http_redirect",
+      "value": "This address redirects (HTTP %1$d). Enter the final https:// address."
+    },
+    {
+      "name": "settings_sync_self_host_error_http_server",
+      "value": "The server could not complete the request (HTTP %1$d). Check that the sync service is running and the reverse proxy is configured correctly."
+    },
+    {
+      "name": "settings_sync_self_host_error_http_failed",
+      "value": "Request to the self-hosted server failed (HTTP %1$d)."
+    },
+    {
       "name": "novel_content_comic",
       "value": "Comic"
     },

@@ -7,7 +7,8 @@ curl --fail --silent https://sync.example.com/health
 curl --fail --silent https://sync.example.com/.well-known/aira
 ```
 
-The health endpoint intentionally exposes no device or sync content.
+The health endpoint intentionally exposes no device or sync content. A passing `/health` only proves that the general
+proxy route reaches the service; pairing also requires the discovery document above to return JSON, so check both.
 
 ## Backup
 
@@ -64,5 +65,32 @@ If the application fails after an upgrade, stop it, restore the prior code or im
 - Only the reverse proxy can reach port `8787`.
 - The request-body limit is at least 12 MiB.
 - The `Authorization` header reaches the upstream unchanged.
+- `/.well-known/aira` reaches the service unchanged. A static `/.well-known` location, which control panels generate for
+  certificate validation, wins over a general proxy in Nginx and breaks pairing while `/health` still works.
 - Proxy and application logs do not record request bodies or bearer tokens.
 - Backups, `/data/setup-code`, and the SQLite files are never served as static files.
+
+### Nginx And Control Panels
+
+Nginx selects the longest matching prefix location, and `^~` only skips regular-expression checks; it does not let a
+shorter prefix win. A panel-generated `location /.well-known { allow all; }` is longer than `location /`, so it serves
+`/.well-known/aira` from the site root as a 404. Add an exact match, which wins over every prefix and regular expression
+and leaves `/.well-known/acme-challenge/` static:
+
+```nginx
+location = /.well-known/aira {
+  proxy_pass http://127.0.0.1:8787;
+  proxy_http_version 1.1;
+  proxy_set_header Host $http_host;
+  proxy_set_header X-Real-IP $remote_addr;
+  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+  proxy_set_header X-Forwarded-Proto $scheme;
+}
+```
+
+Reload and verify that the discovery document returns JSON rather than an HTML error page:
+
+```bash
+nginx -t && nginx -s reload
+curl --fail --silent https://sync.example.com/.well-known/aira
+```

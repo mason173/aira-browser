@@ -64,6 +64,14 @@ sync.example.com {
 }
 ```
 
+With Nginx, a general `location /` proxy is not enough. Control panels such as 宝塔 (BT Panel) and aaPanel generate a static `/.well-known` location for certificate validation; Nginx prefers the longest prefix, so `/.well-known/aira` is served from the site root as a 404 and the phone reports a connection failure. Add an exact match, which leaves `/.well-known/acme-challenge/` certificate renewal untouched:
+
+```nginx
+location = /.well-known/aira {
+  proxy_pass http://127.0.0.1:8787;
+}
+```
+
 The reverse proxy must keep the `Authorization` request header and allow a request body of at least 12 MiB. Do not use a self-signed certificate that neither your phone nor your computer trusts.
 
 After the change, you can confirm on the computer that the service is still up:
@@ -72,7 +80,7 @@ After the change, you can confirm on the computer that the service is still up:
 curl --fail --silent http://127.0.0.1:8787/health
 ```
 
-Your phone browser should also be able to open `/health` at the address you are going to enter.
+Your phone browser should also be able to open `/health` and `/.well-known/aira` at the address you are going to enter: the first returns `{"ok":true,...}`, the second must return JSON, not a 404 page.
 
 ## 3. Pair on your phone
 
@@ -120,6 +128,6 @@ Only devices that are online, or were online just now, are shown. Settings pages
 
 - Your phone cannot open the address: `127.0.0.1` means the phone itself, not the server. Use the computer's local network address, or its public HTTPS address.
 - The pairing code is rejected: it was copied incorrectly, or the server pairing code has been replaced. Read `/data/setup-code` again and remove any spaces or line breaks added while copying.
-- "Not a compatible self-hosted server": the address does not point at this server, or the reverse proxy does not pass `/.well-known/aira` through unchanged.
+- "Not a compatible self-hosted server", an unreadable response, or no sync service at this address (HTTP 404): the address does not point at this server, or the reverse proxy does not pass `/.well-known/aira` through. On Nginx with a control panel, the panel's static `/.well-known` location usually captures it; add the `location = /.well-known/aira` route above.
 - The computer connected but the phone did not: both must enter the same server, and each must be able to reach the address it was given. You cannot use a local address on one side and an unreachable address on the other.
 - Sync is not a backup. The database on the server is your data, so keep a separate backup.
