@@ -1,5 +1,16 @@
 # Changelog
 
+## 3.9.8 (1000589)
+
+2026-11-16
+
+This update adds a webpage sharing panel and improves browsing prompts.
+
+- Use Share page in the bottom toolbar to scan or save the QR code, copy the link, or open the system share sheet.
+- The notification for a tab opened in the background now dismisses itself.
+- After a website’s Open App prompt times out, tapping the link again shows the prompt again.
+
+
 ## 3.9.7 (1000585)
 
 2026-11-11

@@ -980,7 +980,7 @@ export class BrowserBottomChromePresentationViewModel {
   ): BrowserBottomChromeTapTarget {
     if (mode === 'center-active-editing' && facts.scene === 'web') {
       return new BrowserBottomChromeTapTarget(
-        new BrowserBottomChromeTapIntent('dispatch-header-action', 'copyLink'),
+        new BrowserBottomChromeTapIntent('dispatch-header-action', 'copyAddress'),
         true,
         $r('app.string.bottom_panel_copy_address')
       );

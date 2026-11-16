@@ -8,6 +8,7 @@ import { BrowserTabState } from '../tabs/TabManager';
 
 const MAX_BACKGROUND_OPEN_PROMPT_ITEM_COUNT: number = 3;
 const BACKGROUND_OPEN_PROMPT_DEFAULT_PROGRESS: number = 1;
+const BACKGROUND_OPEN_PROMPT_DURATION_MS: number = 3000;
 
 export interface BrowserBackgroundOpenPromptItemState {
   tabId: string;
@@ -43,6 +44,7 @@ export class BrowserBackgroundOpenPromptCoordinator {
   private snapshot: BrowserBackgroundOpenPromptState = {
     items: []
   };
+  private readonly autoDismissTimers: Map<string, number> = new Map<string, number>();
   private iconResolveTokens: Record<string, number> = {};
   private iconResolveGeneration: number = 0;
 
@@ -66,6 +68,7 @@ export class BrowserBackgroundOpenPromptCoordinator {
       this.shell.showQueuedToast();
       return;
     }
+    this.scheduleAutoDismiss(tab.id);
     this.publishSnapshot(nextState, true);
     if (!tab.isHome) {
       this.resolveIcon(tab);
@@ -100,6 +103,8 @@ export class BrowserBackgroundOpenPromptCoordinator {
   }
 
   dismissAll(): void {
+    this.autoDismissTimers.forEach((timer: number): void => clearTimeout(timer));
+    this.autoDismissTimers.clear();
     this.iconResolveTokens = {};
     if (this.snapshot.items.length === 0) {
       return;
@@ -108,6 +113,8 @@ export class BrowserBackgroundOpenPromptCoordinator {
   }
 
   dismissTab(tabId: string): void {
+    clearTimeout(this.autoDismissTimers.get(tabId));
+    this.autoDismissTimers.delete(tabId);
     this.removeIconResolveToken(tabId);
     if (this.snapshot.items.length === 0) {
       return;
@@ -125,6 +132,16 @@ export class BrowserBackgroundOpenPromptCoordinator {
     }
     this.dismissTab(tabId);
     return true;
+  }
+
+  private scheduleAutoDismiss(tabId: string): void {
+    clearTimeout(this.autoDismissTimers.get(tabId));
+    const timer: number = setTimeout((): void => {
+      if (this.autoDismissTimers.get(tabId) === timer) {
+        this.dismissTab(tabId);
+      }
+    }, BACKGROUND_OPEN_PROMPT_DURATION_MS);
+    this.autoDismissTimers.set(tabId, timer);
   }
 
   private buildStateForTab(

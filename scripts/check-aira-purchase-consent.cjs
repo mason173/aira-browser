@@ -5,6 +5,8 @@ const root=path.resolve(__dirname,'../AiraBrowser/entry/src/main/ets');
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
 function fixture(){
  let current=true,decision,dialogs=0,purchases=0,launched=0,restores=0,lastOptions,revision=0,suiteOwned=false,linked=true,links=0;const documents=[];const cache=new Map();
+ let checkouts=0;
+ const checkoutReference='as1.'+'A'.repeat(22)+'.'+'B'.repeat(43);
  const noTypes=new Proxy({},{get:()=>class{}});
  function load(file){if(cache.has(file))return cache.get(file);const exports={};cache.set(file,exports);
   vm.runInNewContext(ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2021,module:ts.ModuleKind.CommonJS}}).outputText,{
@@ -23,14 +25,17 @@ function fixture(){
  const member={refreshState:async()=>{revision++;return{plan:'guest',userId:'u'};},capturePurchaseSessionGuard:()=>()=>current,getAppSuiteState:()=>({owned:suiteOwned,checked:true,revision})};
  Object.assign(owner,{membershipFeature:member,purchaseLaunchInFlight:false,purchaseConsentGeneration:0,
   accountUnionLinkService:{async linkUnionId(){links++;return linked;}},
+  verificationService:{async prepareSuiteCheckout(uid){assert.equal(uid,'u');checkouts++;return{ok:true,developerPayload:checkoutReference};}},
   purchasePolicyService:{resolveOneTimePlanAction:()=> 'purchase',resolveSubscriptionPlanAction:()=> 'purchase'},
   launchGate:{hasTimedOut:()=>false},isEffectAllowed:()=>current,
   beginHuaweiPaymentLaunch(){launched++;},endHuaweiPaymentLaunch(){},resolveAccountUid:uid=>uid,
-  async startProPurchase(){purchases++;return{ok:false,silent:true};},async restorePurchase(){restores++;return{ok:false,silent:true};},showOperationResult(){}});
+  async startProPurchase(_context,plan,_uid,_mayLaunch,reference){
+   assert.equal(reference,plan==='suite_lifetime'?checkoutReference:'');purchases++;return{ok:false,silent:true};
+  },async restorePurchase(){restores++;return{ok:false,silent:true};},showOperationResult(){}});
  const host={onMembershipStateChanged(){},onLoginRequired(){},showMessage(){}};
  const context={async openLink(url){documents.push(url)}};
  const boundary={dataScope:'profile_persistent',privacyMode:'regular'};
- return{owner,member,host,context,boundary,get dialogs(){return dialogs},get purchases(){return purchases},get launched(){return launched},get restores(){return restores},get links(){return links},setOwned(){suiteOwned=true;},linkFails(){linked=false;},get options(){return lastOptions},documents,
+ return{owner,member,host,context,boundary,get dialogs(){return dialogs},get purchases(){return purchases},get launched(){return launched},get restores(){return restores},get links(){return links},get checkouts(){return checkouts},setOwned(){suiteOwned=true;},linkFails(){linked=false;},get options(){return lastOptions},documents,
   run(plan='one_time',uid='u'){return owner.startPurchaseFlow(context,plan,uid,host,boundary)},answer(result){decision(result)},stale(){current=false}};
 }
 test('every Aira plan waits for confirmation before native payment or launch UI',async()=>{
@@ -65,8 +70,18 @@ test('real membership session guards reject anonymous subjects and A→B→A reu
 
 test('Aira suite requires fixed-suite consent and trusted account linking before native payment',async()=>{
  const f=fixture(),pending=f.run('suite_lifetime');await tick();assert.equal(f.dialogs,1);assert.equal(f.options.suite,true);assert.equal(f.options.recurring,false);assert.equal(f.links,1);
- f.answer({accepted:true});await pending;assert.equal(f.links,1);assert.equal(f.purchases,1);
+ assert.equal(f.checkouts,0);f.answer({accepted:true});await pending;assert.equal(f.links,1);assert.equal(f.checkouts,1);assert.equal(f.purchases,1);
  const blocked=fixture();blocked.linkFails();await blocked.run('suite_lifetime');assert.equal(blocked.dialogs,0);assert.equal(blocked.purchases,0);
+});
+test('suite cannot open the cashier if preparation fails or the account changes before it completes',async()=>{
+ const blocked=fixture();blocked.owner.verificationService.prepareSuiteCheckout=async()=>({ok:false,code:'aira_suite_checkout_unavailable'});
+ const rejected=blocked.run('suite_lifetime');await tick();blocked.answer({accepted:true});await rejected;
+ assert.equal(blocked.launched,0);assert.equal(blocked.purchases,0);
+ const stale=fixture();let complete;
+ stale.owner.verificationService.prepareSuiteCheckout=()=>new Promise(resolve=>complete=resolve);
+ const pending=stale.run('suite_lifetime');await tick();stale.answer({accepted:true});await tick();assert(complete);
+ stale.stale();complete({ok:true,developerPayload:'as1.'+'A'.repeat(22)+'.'+'B'.repeat(43)});await pending;
+ assert.equal(stale.launched,0);assert.equal(stale.purchases,0);
 });
 test('suite checkout rejects owned or unconfirmed server rights and canceled confirmation',async()=>{
  const owned=fixture();owned.setOwned();await owned.run('suite_lifetime');assert.equal(owned.dialogs,0);assert.equal(owned.purchases,0);

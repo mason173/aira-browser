@@ -53,6 +53,7 @@ export interface AiraAppSuiteResponseRecord {
 }
 
 export interface AiraMembershipStateResponseBody {
+  memberId?: string;
   ok?: boolean;
   code?: string;
   message?: string;

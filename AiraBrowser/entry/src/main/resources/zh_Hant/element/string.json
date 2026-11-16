@@ -1065,6 +1065,14 @@
       "value": "已加入 Aira"
     },
     {
+      "name": "settings_account_member_id",
+      "value": "會員 ID"
+    },
+    {
+      "name": "settings_account_member_id_copied",
+      "value": "已複製會員 ID"
+    },
+    {
       "name": "settings_account_id",
       "value": "賬號 ID"
     },
@@ -8951,6 +8959,34 @@
     {
       "name": "bottom_panel_action_share",
       "value": "分享網頁"
+    },
+    {
+      "name": "web_page_share_system",
+      "value": "系統分享"
+    },
+    {
+      "name": "web_page_share_options",
+      "value": "QR 碼、複製連結和系統分享"
+    },
+    {
+      "name": "web_page_share_scan_qr",
+      "value": "掃碼開啟網頁"
+    },
+    {
+      "name": "web_page_share_save_qr",
+      "value": "儲存 QR 碼"
+    },
+    {
+      "name": "web_page_share_qr_unavailable",
+      "value": "無法產生 QR 碼。你仍可複製連結或使用系統分享。"
+    },
+    {
+      "name": "web_page_share_no_url",
+      "value": "目前沒有可分享的網址。"
+    },
+    {
+      "name": "web_page_share_failed",
+      "value": "分享失敗，請稍後再試。"
     },
     {
       "name": "bottom_panel_action_share_subtitle",

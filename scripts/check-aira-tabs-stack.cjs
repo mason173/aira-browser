@@ -26,6 +26,47 @@ const policy = new exportsUnderTest.BrowserTabsOverviewStackLayoutPolicy();
 const close = (actual, expected, tolerance = 1e-9) =>
   assert.ok(Math.abs(actual - expected) <= tolerance, `${actual} != ${expected}`);
 
+test('background tab prompts expire independently of tab loading and other prompts', () => {
+  let nextTimer = 0;
+  const timers = new Map();
+  const { BrowserBackgroundOpenPromptCoordinator } = load(
+    'AiraBrowser/entry/src/main/ets/core/browser/BrowserBackgroundOpenPromptCoordinator.ets',
+    () => ({}), {
+      setTimeout(callback, delay) {
+        assert.equal(delay, 3000);
+        timers.set(nextTimer, callback);
+        return nextTimer++;
+      },
+      clearTimeout: id => timers.delete(id)
+    });
+  const prompt = new BrowserBackgroundOpenPromptCoordinator(
+    { getCachedShortcutIcon: () => ({ path: 'cached' }) },
+    { publishSnapshot() {}, showQueuedToast() {} }
+  );
+  const show = id => prompt.showForTab({ id, url: 'https://example.test', pendingUrl: '', title: id, isHome: false });
+  const visibleTabs = () => Array.from(prompt.getSnapshot().items, item => item.tabId);
+
+  show('first');
+  show('second');
+  prompt.updateTab('first', { progress: 50 });
+  assert.equal(timers.size, 2);
+  timers.get(0)();
+  assert.deepEqual(visibleTabs(), ['second']);
+
+  const oldTimeout = timers.get(1);
+  show('second');
+  oldTimeout();
+  assert.deepEqual(visibleTabs(), ['second']);
+  assert.equal(prompt.consumeOpenRequest('second'), true);
+  assert.equal(timers.size, 0);
+
+  show('third');
+  prompt.dismissAll();
+  prompt.updateTab('third', { progress: 100 });
+  assert.deepEqual(visibleTabs(), []);
+  assert.equal(timers.size, 0);
+});
+
 // Run the actual overview session without native capture/auth/geometry services. The fake host
 // replays a stack dismiss callback at the publication boundary where @Watch observes the exit.
 function selectionExitHarness(lateAction, selectOtherTab = false) {

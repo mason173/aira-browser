@@ -21,6 +21,7 @@ export interface CustomHomepagePresentationState {
   isRemoteUrlHomepage: boolean;
   shouldForceDarkWebContent: boolean;
   showSystemEntryButton: boolean;
+  systemHomepageShowSystemSearchBar: boolean;
   showSystemSearchBar: boolean;
   hideToolbarOnScroll: boolean;
   unavailableTitle: string;
@@ -69,6 +70,7 @@ export class CustomHomepagePresentationViewModel {
       isRemoteUrlHomepage: isRemoteUrlHomepage,
       shouldForceDarkWebContent: shouldRenderCustomHtml && this.shouldForceDarkWebContent(settings, selectedItem),
       showSystemEntryButton: shouldRenderCustomHtml && resolveCustomHomepageSystemEntryButtonVisibility(settings),
+      systemHomepageShowSystemSearchBar: settings.systemHomepageShowSystemSearchBar,
       showSystemSearchBar: showSystemSearchBar,
       hideToolbarOnScroll: showSystemSearchBar && resolveCustomHomepageHideToolbarOnScroll(settings),
       unavailableTitle: kind === 'custom_unavailable' ? '自定义主页不可用' : '',

@@ -2,7 +2,7 @@
 
 Official uses `KitappMembershipPage` from `kitapp-membership` for the Aira and app-suite tabs. Community keeps its existing local-only introduction and never exposes Huawei purchasing. The source default remains Community. Both distributions require HarmonyOS API 26 or newer (`compatibleSdkVersion` and `targetSdkVersion` are `26.0.0`); API 23/24 devices are outside the supported range.
 
-The fixed modules are JuDesign 1.35.13 and KitappMembership 1.3.17, published in `mason173/JuDesign` (`832fb23`; page support in `0d91831` and `85c4560`). They were imported with the upstream vendor scripts. `AiraBrowser/judesign.lock.json` and `kitapp-membership.lock.json` protect every source and asset. Do not modify these copies; update upstream, publish a new version, then vendor it.
+The fixed modules are JuDesign 1.35.13 and KitappMembership 1.3.18. The suite catalog includes Weiguang Music at ¥28.80. The module was imported with the upstream vendor script. `AiraBrowser/judesign.lock.json` and `kitapp-membership.lock.json` protect every source and asset. Do not modify these copies; update upstream, publish a new version, then vendor it.
 
 `AiraProMembershipCatalog` adapts the existing overview view model into the single-app offer. It retains the Huawei lifetime price, existing benefit owner, permanent/timed membership policy, monthly and annual plans, subscription management, code redemption and complimentary claim. These auxiliary actions use the product component's `appActions` interface and appear only on the Aira tab. The suite catalog and layout remain owned by the fixed module.
 

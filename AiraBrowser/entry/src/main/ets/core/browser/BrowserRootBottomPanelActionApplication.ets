@@ -7,7 +7,6 @@ import {
 } from '../../common/models/BrowserModels';
 import { BrowserTabState, isBrowserTabTerminalBackAvailable } from '../tabs/TabManager';
 import { BrowserWebPrintService } from '../../services/web/BrowserWebPrintService';
-import { WebPageShareService } from '../../services/share/WebPageShareService';
 import { BrowserActiveTabRuntimeRestoreCoordinator } from '../../services/web/BrowserActiveTabRuntimeRestoreCoordinator';
 import { ManualElementHideRuntimeCoordinator } from '../adblock/ManualElementHideRuntimeCoordinator';
 import { OfflinePageSaveCoordinator } from '../offline/OfflinePageSaveCoordinator';
@@ -72,6 +71,7 @@ import { BrowserBottomPanelActionEnablement } from './BrowserBottomPanelActionEn
 import { BrowserBottomPanelResponsiveState } from './BrowserBottomPanelResponsiveViewModel';
 import { BrowserThemeModeCoordinator } from './BrowserThemeModeCoordinator';
 import { BrowserWindowContextPort } from './BrowserWindowContextCoordinator';
+import { BrowserPageShareCoordinator } from './BrowserPageShareCoordinator';
 import { ElementInspectionSessionCoordinator } from './ElementInspectionSessionCoordinator';
 import { BrowserToolbarSlotActionState } from './BrowserToolbarCustomizationViewModel';
 import {
@@ -130,6 +130,7 @@ interface BrowserRootBottomPanelFixedActionDependencies {
   mediaResourceSessionCoordinator: BrowserMediaResourceSessionCoordinator;
   offlinePageSaveCoordinator: OfflinePageSaveCoordinator;
   pageFindCoordinator: BrowserPageFindCoordinator;
+  pageShareCoordinator: BrowserPageShareCoordinator;
   phonePagePushCoordinator: BrowserPhonePagePushCoordinator;
   readerModeCoordinator: ArticleReadingSessionOperations;
   novelReaderSession: NovelReaderSessionOperations;
@@ -143,7 +144,6 @@ interface BrowserRootBottomPanelFixedActionDependencies {
   userScriptApplicationCoordinator: BrowserUserScriptApplicationCoordinator;
   webAppInstallCoordinator: WebAppInstallCoordinator;
   webHistoryCommandRuntimeCoordinator: BrowserWebHistoryCommandRuntimeCoordinator;
-  webPageShareService: WebPageShareService;
   webPrintService: BrowserWebPrintService;
   webpageTranslationCoordinator: WebpageTranslationCoordinator;
   windowContextCoordinator: BrowserWindowContextPort;
@@ -388,7 +388,7 @@ export class BrowserRootBottomPanelFixedActionApplication implements BrowserRoot
       case 'siteInfo':
         this.dependencies.siteControlsRuntimeCoordinator.open();
         return undefined;
-      case 'copyLink':
+      case 'copyAddress':
         void this.copyCurrentPageLink();
         return undefined;
       case 'openTabs':
@@ -448,16 +448,14 @@ export class BrowserRootBottomPanelFixedActionApplication implements BrowserRoot
         void this.returnHomeFromWeb();
         return undefined;
       case 'share':
-        this.shareCurrentPage();
+      case 'copyLink':
+        this.openPageShareDialog();
         return undefined;
       case 'sendToDesktop':
         void this.dependencies.phonePagePushCoordinator.sendCurrentPageFromHost(this.shell);
         return undefined;
       case 'print':
         void this.printCurrentPage();
-        return undefined;
-      case 'copyLink':
-        void this.copyCurrentPageLink();
         return undefined;
       case 'addToDesktop':
         void this.dependencies.webAppInstallCoordinator.begin();
@@ -631,20 +629,10 @@ export class BrowserRootBottomPanelFixedActionApplication implements BrowserRoot
     }, this.shell);
   }
 
-  private shareCurrentPage(): void {
+  private openPageShareDialog(): void {
     const facts = this.shell.readFacts();
-    const url = this.resolveCurrentActionTarget(facts).url;
-    if (url.length <= 0) {
-      this.shell.showToast('当前没有可分享的网址。');
-      return;
-    }
-    const title = facts.currentTitle.length > 0 ? facts.currentTitle : url;
-    this.dependencies.webPageShareService.shareWebPage(facts.context, {
-      title: title,
-      url: url
-    }).catch((_error: Error): void => {
-      this.shell.showToast('分享失败，请稍后重试。');
-    });
+    this.dependencies.pageShareCoordinator.open(facts.context, facts.currentTitle,
+      this.resolveCurrentActionTarget(facts).url);
   }
 
   private async printCurrentPage(): Promise<void> {

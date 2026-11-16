@@ -3547,7 +3547,7 @@ export struct BrowserBottomAddressPanel {
   }
 
   private shouldDispatchHeaderActionWithoutEditingStateChange(actionId: string): boolean {
-    return actionId === 'openTabs' || actionId === 'copyLink';
+    return actionId === 'openTabs' || actionId === 'copyAddress';
   }
 
   private dispatchReliableHeaderAction(item: BrowserBottomAddressPanelHeaderAction): void {

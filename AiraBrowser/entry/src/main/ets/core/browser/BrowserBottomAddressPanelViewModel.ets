@@ -309,15 +309,6 @@ export class BrowserBottomAddressPanelViewModel {
         renderVersion: privateModeActive ? 1 : 0
       },
       {
-        id: 'copyLink',
-        title: resolveBrowserBottomAddressPanelActionTitle('copyLink'),
-        trailingText: resolveBrowserBottomAddressPanelActionTrailingText('copyLink'),
-        icon: $r('sys.symbol.link'),
-        airaIconId: resolveBrowserBottomAddressPanelActionAiraIconId('copyLink'),
-        enabled: true,
-        disabledMessage: ''
-      },
-      {
         id: 'share',
         title: resolveBrowserBottomAddressPanelActionTitle('share'),
         trailingText: resolveBrowserBottomAddressPanelActionTrailingText('share'),

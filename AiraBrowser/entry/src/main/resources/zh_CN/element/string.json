@@ -1065,6 +1065,14 @@
       "value": "已加入 Aira"
     },
     {
+      "name": "settings_account_member_id",
+      "value": "会员 ID"
+    },
+    {
+      "name": "settings_account_member_id_copied",
+      "value": "已复制会员 ID"
+    },
+    {
       "name": "settings_account_id",
       "value": "账号 ID"
     },
@@ -8951,6 +8959,34 @@
     {
       "name": "bottom_panel_action_share",
       "value": "分享网页"
+    },
+    {
+      "name": "web_page_share_system",
+      "value": "系统分享"
+    },
+    {
+      "name": "web_page_share_options",
+      "value": "二维码、复制链接和系统分享"
+    },
+    {
+      "name": "web_page_share_scan_qr",
+      "value": "扫码打开网页"
+    },
+    {
+      "name": "web_page_share_save_qr",
+      "value": "保存二维码"
+    },
+    {
+      "name": "web_page_share_qr_unavailable",
+      "value": "无法生成二维码。你仍可以复制链接或使用系统分享。"
+    },
+    {
+      "name": "web_page_share_no_url",
+      "value": "当前没有可分享的网址。"
+    },
+    {
+      "name": "web_page_share_failed",
+      "value": "分享失败，请稍后重试。"
     },
     {
       "name": "bottom_panel_action_share_subtitle",

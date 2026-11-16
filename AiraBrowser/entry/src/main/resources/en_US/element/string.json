@@ -1065,6 +1065,14 @@
       "value": "Time with Aira"
     },
     {
+      "name": "settings_account_member_id",
+      "value": "Member ID"
+    },
+    {
+      "name": "settings_account_member_id_copied",
+      "value": "Member ID copied"
+    },
+    {
       "name": "settings_account_id",
       "value": "Account ID"
     },
@@ -8951,6 +8959,34 @@
     {
       "name": "bottom_panel_action_share",
       "value": "Share page"
+    },
+    {
+      "name": "web_page_share_system",
+      "value": "System share"
+    },
+    {
+      "name": "web_page_share_options",
+      "value": "QR code, copy link, and system share"
+    },
+    {
+      "name": "web_page_share_scan_qr",
+      "value": "Scan to open webpage"
+    },
+    {
+      "name": "web_page_share_save_qr",
+      "value": "Save QR code"
+    },
+    {
+      "name": "web_page_share_qr_unavailable",
+      "value": "Couldn’t generate a QR code. You can still copy the link or use system share."
+    },
+    {
+      "name": "web_page_share_no_url",
+      "value": "There’s no webpage address to share."
+    },
+    {
+      "name": "web_page_share_failed",
+      "value": "Couldn’t share the page. Try again later."
     },
     {
       "name": "bottom_panel_action_share_subtitle",

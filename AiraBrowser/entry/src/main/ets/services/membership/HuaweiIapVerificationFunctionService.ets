@@ -7,12 +7,14 @@ import {
 } from '../../common/config/AiraDistributionCapabilityOwner';
 
 const AIRA_IAP_VERIFY_ENDPOINT: string = AIRA_HOSTED_API_BASE_URL + '/verify';
+const AIRA_SUITE_CHECKOUT_ENDPOINT: string = AIRA_HOSTED_API_BASE_URL + '/membership/purchase/aira/suite/checkout';
 const AIRA_IAP_VERIFY_TIMEOUT_MS: number = 45000;
+const AIRA_SUITE_CHECKOUT_TIMEOUT_MS: number = 12000;
 
 export interface HuaweiIapVerificationRequestBody {
   uid: string;
-  purchaseData: string;
-  source: string;
+  purchaseData?: string;
+  source?: string;
   authToken?: string;
 }
 
@@ -30,6 +32,7 @@ export interface HuaweiIapVerificationResponseBody {
   productType?: string;
   signatureVerified?: boolean;
   signatureVerificationConfigured?: boolean;
+  developerPayload?: string;
 }
 
 export interface HuaweiIapVerificationHttpAdapter {
@@ -118,16 +121,27 @@ export class HuaweiIapVerificationFunctionService {
       purchaseData: normalizedPurchaseData,
       source: source
     };
-    try {
-      const authToken = await this.authService.getCurrentAccessTokenForUid(normalizedUid, false);
-      if (authToken.length > 0) {
-        body.authToken = authToken;
-      }
-    } catch (_error) {
-      body.authToken = undefined;
-    }
+    const authToken = await this.resolveAuthToken(normalizedUid);
+    if (authToken.length > 0) { body.authToken = authToken; }
     const value = await this.adapter.post(AIRA_IAP_VERIFY_ENDPOINT, body, AIRA_IAP_VERIFY_TIMEOUT_MS);
     return this.parseFunctionValue(value);
+  }
+
+  async prepareSuiteCheckout(uid: string): Promise<HuaweiIapVerificationResponseBody> {
+    if (!AIRA_DISTRIBUTION_CAPABILITY_OWNER.isAvailable('huawei_iap')) {
+      return { ok: false, code: 'distribution_unavailable' };
+    }
+    const normalizedUid = uid.trim();
+    const authToken = normalizedUid ? await this.resolveAuthToken(normalizedUid) : '';
+    if (!authToken) { return { ok: false, code: 'auth_token_required' }; }
+    const body: HuaweiIapVerificationRequestBody = { uid: normalizedUid, authToken: authToken };
+    const value = await this.adapter.post(AIRA_SUITE_CHECKOUT_ENDPOINT, body, AIRA_SUITE_CHECKOUT_TIMEOUT_MS);
+    return this.parseFunctionValue(value);
+  }
+
+  private async resolveAuthToken(uid: string): Promise<string> {
+    try { return await this.authService.getCurrentAccessTokenForUid(uid, false); }
+    catch (_error) { return ''; }
   }
 
   private parseFunctionValue(value: Object | string | null | undefined): HuaweiIapVerificationResponseBody {

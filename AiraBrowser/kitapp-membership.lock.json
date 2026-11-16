@@ -1,6 +1,6 @@
 {
   "library": "KitappMembership",
-  "version": "1.3.17",
+  "version": "1.3.18",
   "designModule": "design",
   "resourcePrefix": "",
   "files": {
@@ -11,8 +11,8 @@
     "consumer-rules.txt": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
     "hvigorfile.ts": "7ec951258192e7cc9eed2296da8ac7b927a0b90b2f6edef70358d515bfe71a1e",
     "obfuscation-rules.txt": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
-    "oh-package.json5": "45c82481cced768d7360247838f1c2e810b5790cf6dea26da444590350a38ccb",
-    "src/main/ets/KitappMembershipData.ets": "46b4ee4520677793dddd8c48b136a1d12067ada81953762cd629cd701c77a45e",
+    "oh-package.json5": "46503ad88d7ce3ae5bdf5a834230ad235773a6d88486a08ec3d698a4f5d5d545",
+    "src/main/ets/KitappMembershipData.ets": "4cbcb04c93cde4f7144422e91f7c5b5b43cdaf350e4fc95dad20c428cd381fe3",
     "src/main/ets/KitappMembershipPage.ets": "e127d4a41cd863c0fe39307feb3ba34c834edefa03abbc57f097d57d16440678",
     "src/main/ets/KitappPurchaseConsentDialog.ets": "d88d279216f3b6f5110af4bbc34e84c3f2159b07361e4f29d53da90c1474efad",
     "src/main/ets/KitappPurchaseConsentModel.ets": "c919a460a6ada43b503b7ab1cfbfb519dda5c96a7d0a29151a383655ade829d2",
@@ -25,6 +25,7 @@
     "src/main/resources/base/media/km_membership_pinecone.png": "96ca727a5e3d9af7eae3bd08102a16800f59b97877812a616742ed81a26295a3",
     "src/main/resources/base/media/km_membership_shengxi.png": "f7e159db7a7a66892788989b986d6a9ef3a4793b67dd77e12d4cba77b95c8203",
     "src/main/resources/base/media/km_membership_subdock.png": "54c1b71e8f1100fdbc310fd1dcf43017cd4f2bcc177c6ad051f84c89347d41ab",
+    "src/main/resources/base/media/km_membership_weiguangmusic.png": "49a6ae2e9514c142b1ee0bffe90708880d4f0af75e031f4af18f5bf8f6b2cffe",
     "src/main/resources/base/media/km_review_avatar_clear.png": "bc1bdd7717f8ecb4e7d726ee42e57b0a92ef95f60163927c46506d0bc2240d3f",
     "src/main/resources/base/media/km_review_avatar_cycles.png": "29d5dcfa6f6bea43e7bc7c248aeef406a9d7120b465763b991179cfce467cd66",
     "src/main/resources/base/media/km_review_avatar_simple.png": "8a49ae57070cb9705a2ac3f13305a0556f6cbd8dcbdb1701710c1e0a71085f0c",

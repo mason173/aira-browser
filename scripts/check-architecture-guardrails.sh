@@ -3288,8 +3288,11 @@ check_file_contains_rule "${TOP_FLOATING_PROMPT_HOST}" "${TOP_FLOATING_PROMPT_HO
   'visible: this\.isPromptPresentationReady\(\)' \
   "must keep shared prompts hidden until their first-frame geometry is ready."
 check_file_contains_rule "${TOP_FLOATING_PROMPT_HOST}" "${TOP_FLOATING_PROMPT_HOST_REL}" \
-  'return this\.containerWidthVp > 0 && this\.resolveActivePromptVisible\(\);' \
-  "must require a positive measured width before shared prompt presentation."
+  'return this\.surfaceWidthVp > 0 && this\.resolveActivePromptVisible\(\);' \
+  "must require a positive frame width before shared prompt presentation."
+check_file_contains_rule "${SHELL_PAGE}" "${SHELL_PAGE_REL}" \
+  'surfaceWidthVp: this\.resolveTopFloatingPromptFrame\(\)\.widthVp,' \
+  "must pass the shared prompt frame width to the prompt host on every mount."
 check_file_contains_rule "${TOP_FLOATING_SURFACE}" "${TOP_FLOATING_SURFACE_REL}" \
   'this\.buildPresentationLayer\(\)' \
   "must keep width and position outside the animated prompt presentation layer."

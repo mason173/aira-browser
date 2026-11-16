@@ -1,13 +1,13 @@
 {
   "enabled": true,
-  "noticeId": "aira-3.9.7-1000585",
-  "title": "Aira 3.9.7 update",
-  "updatedAt": "2026-11-11",
-  "summary": "This update fixes search issues and improves recently closed tabs and app recommendations.",
+  "noticeId": "aira-3.9.8-1000589",
+  "title": "Aira 3.9.8 update",
+  "updatedAt": "2026-11-16",
+  "summary": "This update adds a webpage sharing panel and improves browsing prompts.",
   "items": [
-    "Fixed searches containing version numbers or periods sometimes being treated as web addresses and failing to open.",
-    "Added Delete all to the home screen’s Recently closed menu to clear the list at once.",
-    "Added more recommended apps with feature descriptions and frequently asked questions."
+    "Use Share page in the bottom toolbar to scan or save the QR code, copy the link, or open the system share sheet.",
+    "The notification for a tab opened in the background now dismisses itself.",
+    "After a website’s Open App prompt times out, tapping the link again shows the prompt again."
   ],
   "actionLabel": "View changelog"
 }

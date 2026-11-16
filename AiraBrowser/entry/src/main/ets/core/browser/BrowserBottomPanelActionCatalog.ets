@@ -231,7 +231,6 @@ export class BrowserBottomPanelActionCatalog {
     return [
       { id: 'bookmark', customizable: true, surfaces: ['web', 'reader'] },
       { id: 'scanQr', customizable: true, surfaces: ['web', 'home'] },
-      { id: 'copyLink', customizable: true, surfaces: ['web', 'offline', 'reader'] },
       { id: 'share', customizable: true, surfaces: ['web', 'offline', 'reader'] },
       { id: 'sendToDesktop', customizable: true, surfaces: ['web'] },
       { id: 'print', customizable: true, surfaces: ['web'] },

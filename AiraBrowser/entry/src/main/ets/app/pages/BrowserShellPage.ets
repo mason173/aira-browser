@@ -102,7 +102,14 @@ import {
 } from '../../services/web/BrowserTabBackgroundSessionSyncCoordinator';
 import { BrowserClipboardCopyResult, BrowserClipboardCopyTextRequest, BrowserClipboardService } from '../../services/share/BrowserClipboardService';
 import { BrowserDesktopBookmarkBarAction } from '../../core/browser/BrowserDesktopBookmarkBarViewModel';
+import { WebPageQrCodeService } from '../../services/share/WebPageQrCodeService';
 import { WebPageShareService } from '../../services/share/WebPageShareService';
+import {
+  BrowserPageShareAction,
+  BrowserPageShareCoordinator,
+  BrowserPageShareSnapshot,
+  EMPTY_BROWSER_PAGE_SHARE_SNAPSHOT
+} from '../../core/browser/BrowserPageShareCoordinator';
 import { BrowserUserAgentClientHintsService } from '../../services/web/BrowserUserAgentClientHintsService';
 import { BrowserUserAgentRuntimeService } from '../../services/web/BrowserUserAgentRuntimeService';
 import { WebScrollSmoothModeService } from '../../services/web/WebScrollSmoothModeService';
@@ -1090,6 +1097,7 @@ import { BookmarkAddOverlay } from '../components/bookmarks/BookmarkAddOverlay';
 import { BrowserWebTextZoomSheet } from '../components/browser/BrowserWebTextZoomSheet';
 import { sharedBrowserWebTextZoomSiteMemory } from '../../core/browser/BrowserWebTextZoomSiteMemory';
 import { BrowserLargeScreenWebZoomDialog } from '../components/browser/BrowserLargeScreenWebZoomDialog';
+import { BrowserPageShareDialog } from '../components/browser/BrowserPageShareDialog';
 import { BrowserTabOverviewCardSelectRect } from '../components/browser/BrowserTabOverviewCard';
 import { BrowserTabsFloatingOverlay } from '../components/browser/BrowserTabsFloatingOverlay';
 import { BrowserCrossDeviceTabsSheet } from '../components/browser/BrowserCrossDeviceTabsOverlay';
@@ -6640,6 +6648,34 @@ struct BrowserShellPage {
       this.browserTabHomeCoordinator.prepareDirectHomeReveal();
     }
   };
+  @State private pageShareSnapshot: BrowserPageShareSnapshot = EMPTY_BROWSER_PAGE_SHARE_SNAPSHOT;
+  private pageShareDialogController: CustomDialogController = new CustomDialogController({
+    builder: BrowserPageShareDialog({
+      snapshot: $pageShareSnapshot,
+      onAction: (action: BrowserPageShareAction): void => this.browserPageShareCoordinator.handleAction(action)
+    }),
+    alignment: DialogAlignment.Center,
+    backgroundColor: resolveCenteredDialogSurfaceColor(),
+    backgroundBlurStyle: BlurStyle.NONE,
+    cornerRadius: CENTERED_DIALOG_CORNER_RADIUS_VP,
+    width: resolveCenteredDialogControllerWidth('xs'),
+    autoCancel: true,
+    onWillDisappear: (): void => this.browserPageShareCoordinator.handleWillDisappear(),
+    onDidDisappear: (): void => this.browserPageShareCoordinator.handleDidDisappear()
+  });
+  private browserPageShareCoordinator: BrowserPageShareCoordinator = new BrowserPageShareCoordinator(
+    this.browserClipboardService,
+    this.webPageShareService,
+    new WebPageQrCodeService(),
+    {
+      publishSnapshot: (snapshot: BrowserPageShareSnapshot): void => {
+        this.pageShareSnapshot = snapshot;
+      },
+      openDialog: (): void => this.pageShareDialogController.open(),
+      closeDialog: (): void => this.pageShareDialogController.close(),
+      showToast: (message: ResourceStr): void => this.showNativeToast(message)
+    }
+  );
   private browserRootBottomPanelActionApplication: BrowserRootBottomPanelFixedActionApplication =
     new BrowserRootBottomPanelFixedActionApplication({
       activeTabRuntimeRestoreCoordinator: this.browserActiveTabRuntimeRestoreCoordinator,
@@ -6653,6 +6689,7 @@ struct BrowserShellPage {
       mediaResourceSessionCoordinator: this.browserMediaResourceSessionCoordinator,
       offlinePageSaveCoordinator: this.offlinePageSaveCoordinator,
       pageFindCoordinator: this.browserPageFindCoordinator,
+      pageShareCoordinator: this.browserPageShareCoordinator,
       phonePagePushCoordinator: this.phonePagePushCoordinator,
       readerModeCoordinator: this.articleReadingSession,
       novelReaderSession: this.novelReaderSession,
@@ -6666,7 +6703,6 @@ struct BrowserShellPage {
       userScriptApplicationCoordinator: this.browserUserScriptApplicationCoordinator,
       webAppInstallCoordinator: this.webAppInstallCoordinator,
       webHistoryCommandRuntimeCoordinator: this.browserWebHistoryCommandRuntimeCoordinator,
-      webPageShareService: this.webPageShareService,
       webPrintService: this.browserWebPrintService,
       webpageTranslationCoordinator: this.webpageTranslationCoordinator,
       windowContextCoordinator: this.browserWindowContextCoordinator,
@@ -6980,6 +7016,8 @@ struct BrowserShellPage {
 
   onPageHide(): void {
     this.featureGatePurchaseCoordinator.cancelPurchaseConsent();
+    this.browserPageShareCoordinator.close();
+    this.browserBackgroundOpenPromptCoordinator.dismissAll();
     this.browserVolumeKeyAudioService.stop();
     this.homeWallpaperPageForeground = false;
     this.browserWebTopImmersionSessionCoordinator.cancelCoveredStatusBarHold();
@@ -7650,6 +7688,7 @@ struct BrowserShellPage {
     Column() {
       BrowserTopFloatingPromptHost({
         state: this.buildTopFloatingPromptHostState(),
+        surfaceWidthVp: this.resolveTopFloatingPromptFrame().widthVp,
         onAction: (action) => this.browserTopFloatingPromptCoordinator.handleAction(action)
       })
         .width('100%')

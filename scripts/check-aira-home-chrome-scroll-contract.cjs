@@ -140,6 +140,7 @@ function buildCustomHomepageState(kind, hideToolbarOnScroll, showSystemSearchBar
     isRemoteUrlHomepage: kind === 'custom_web',
     shouldForceDarkWebContent: false,
     showSystemEntryButton: false,
+    systemHomepageShowSystemSearchBar: showSystemSearchBar,
     showSystemSearchBar,
     hideToolbarOnScroll,
     unavailableTitle: '',
@@ -582,7 +583,7 @@ function checkFixedSearchAnchorAndStableGeometry() {
   const chromePlanExecutionSource = shellPageSource.slice(chromePlanExecutionStart, chromePlanExecutionEnd);
   assert(editingStateDispatchStart >= 0 && editingStateDispatchEnd > editingStateDispatchStart &&
     addressPanelSource.slice(editingStateDispatchStart, editingStateDispatchEnd)
-      .includes("actionId === 'copyLink'") &&
+      .includes("actionId === 'copyAddress'") &&
     headerActionStart >= 0 && headerActionEnd > headerActionStart &&
     !shellPageSource.slice(headerActionStart, headerActionEnd)
       .includes('BrowserSearchInvocationRuntime.endCurrent') &&

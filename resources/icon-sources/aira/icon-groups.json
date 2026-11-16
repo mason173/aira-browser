@@ -104,11 +104,6 @@
           "resourceFamily": "app_toolbar_add_bookmark"
         },
         {
-          "actionId": "copyLink",
-          "title": "复制链接",
-          "resourceFamily": "app_toolbar_action_copy_link"
-        },
-        {
           "actionId": "share",
           "title": "分享网页",
           "resourceFamily": "app_toolbar_share_page"

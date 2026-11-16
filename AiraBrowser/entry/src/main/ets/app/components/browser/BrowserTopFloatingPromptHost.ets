@@ -174,8 +174,8 @@ export function resolveBrowserTopFloatingPromptFrame(
 export struct BrowserTopFloatingPromptHost {
   @Prop @Watch('reconcileMountedState') state: BrowserTopFloatingPromptHostState =
     HIDDEN_TOP_FLOATING_PROMPT_STATE;
+  @Prop surfaceWidthVp: number = 0;
   @State private promptEntered: boolean = false;
-  @State private containerWidthVp: number = 0;
   private promptEnterTimer: number = 0;
   private mountedObserved: boolean = false;
   onAction: (action: BrowserTopFloatingPromptAction) => void =
@@ -220,12 +220,6 @@ export struct BrowserTopFloatingPromptHost {
     .width('100%')
     .height('100%')
     .hitTestBehavior(HitTestMode.Default)
-    .onAreaChange((_oldArea: Area, newArea: Area): void => {
-      const nextWidthVp = this.parseAreaDimension(newArea.width);
-      if (nextWidthVp > 0 && nextWidthVp !== this.containerWidthVp) {
-        this.containerWidthVp = nextWidthVp;
-      }
-    })
   }
 
   private reconcileMountedState(): void {
@@ -252,12 +246,7 @@ export struct BrowserTopFloatingPromptHost {
   }
 
   private isPromptPresentationReady(): boolean {
-    return this.containerWidthVp > 0 && this.resolveActivePromptVisible();
-  }
-
-  private parseAreaDimension(value: Length): number {
-    const parsed = Number.parseFloat(`${value}`);
-    return Number.isFinite(parsed) ? parsed : 0;
+    return this.surfaceWidthVp > 0 && this.resolveActivePromptVisible();
   }
 
   @Builder
@@ -363,7 +352,7 @@ export struct BrowserTopFloatingPromptHost {
   }
 
   private resolveActivePromptVisible(): boolean {
-    if (!this.promptEntered || this.containerWidthVp <= 0) {
+    if (!this.promptEntered) {
       return false;
     }
     if (this.state.activeKind === 'url_threat') {

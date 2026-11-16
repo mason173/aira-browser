@@ -73,7 +73,6 @@ export const DEFAULT_BROWSER_TOOLBAR_LAYOUT_SETTINGS: BrowserToolbarLayoutSettin
     'video',
     'downloads',
     'bookmark',
-    'copyLink',
     'share',
     'print',
     'userAgent',
@@ -127,7 +126,6 @@ export const DEFAULT_BROWSER_TOOLBAR_LAYOUT_SETTINGS: BrowserToolbarLayoutSettin
 const BROWSER_TOOLBAR_CONFIGURABLE_ACTION_IDS: string[] = [
   'bookmark',
   'scanQr',
-  'copyLink',
   'share',
   'sendToDesktop',
   'print',
@@ -1728,7 +1726,7 @@ export class PreferencesRepository {
   }
 
   private normalizeToolbarSlotActionId(actionId: string | undefined): string {
-    const normalizedActionId = String(actionId ?? '').trim();
+    const normalizedActionId = this.normalizeLegacyToolbarActionId(actionId);
     if (normalizedActionId === 'none') {
       return normalizedActionId;
     }
@@ -1747,7 +1745,7 @@ export class PreferencesRepository {
     fallbackActionId: string,
     allowNone: boolean
   ): string {
-    const normalizedActionId = String(actionId ?? '').trim();
+    const normalizedActionId = this.normalizeLegacyToolbarActionId(actionId);
     if (allowNone && normalizedActionId === 'none') {
       return normalizedActionId;
     }
@@ -1760,6 +1758,11 @@ export class PreferencesRepository {
       actionId === 'settings';
   }
 
+  private normalizeLegacyToolbarActionId(actionId: string | undefined): string {
+    const normalized = String(actionId ?? '').trim();
+    // Keep existing positions and gestures when merging the two webpage sharing actions.
+    return normalized === 'copyLink' ? 'share' : normalized;
+  }
 
   private normalizeToolbarActionIdList(
     actionIds: string[] | undefined,
@@ -1769,7 +1772,7 @@ export class PreferencesRepository {
     const source = Array.isArray(actionIds) ? actionIds : fallback;
     const normalized: string[] = [];
     source.forEach((rawActionId: string) => {
-      const actionId = String(rawActionId ?? '').trim();
+      const actionId = this.normalizeLegacyToolbarActionId(rawActionId);
       if (!BROWSER_TOOLBAR_CONFIGURABLE_ACTION_IDS.includes(actionId)) {
         return;
       }

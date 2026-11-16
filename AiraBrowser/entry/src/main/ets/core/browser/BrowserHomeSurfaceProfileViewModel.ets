@@ -113,7 +113,7 @@ export class BrowserHomeSurfaceProfileViewModel {
     customHomepageState: CustomHomepagePresentationState
   ): boolean {
     if (scene === 'system_home') {
-      return customHomepageState.showSystemSearchBar;
+      return customHomepageState.systemHomepageShowSystemSearchBar;
     }
     if (scene === 'third_party_home') {
       return customHomepageState.showSystemSearchBar;

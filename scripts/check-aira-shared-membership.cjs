@@ -51,8 +51,9 @@ test('free users keep the live lifetime price, both subscriptions, redemption an
   assert.equal(result.offer.features.length, 4);
   for (const key of ['plan:monthly', 'plan:yearly', 'redeem', 'claim', 'membership_terms', 'auto_renewal_terms', 'self_hosting']) assert(result.actions.some(row => row.key === key));
   const suite = f.product.fixedKitappSuite();
-  assert.equal(suite.apps.length, 5); assert.equal(suite.offer.price, '¥68.8');
+  assert.equal(suite.apps.length, 6); assert.equal(suite.offer.price, '¥68.8');
   assert.equal(suite.apps.find(row => row.key === 'glimmerclock').price, '¥18.00');
+  assert.equal(suite.apps.find(row => row.key === 'weiguangmusic').price, '¥28.80');
 });
 test('timed gifts can upgrade; permanent rights disable purchase and code redemption', () => {
   const f = fixture();

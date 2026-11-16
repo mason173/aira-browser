@@ -144,7 +144,7 @@ export function bottomPanelActionSubtitle(actionId: BrowserBottomPanelActionId):
     case 'home':
       return $r('app.string.bottom_panel_action_home_subtitle');
     case 'share':
-      return $r('app.string.bottom_panel_action_share_subtitle');
+      return $r('app.string.web_page_share_options');
     case 'sendToDesktop':
       return $r('app.string.bottom_panel_action_send_to_desktop_subtitle');
     case 'print':

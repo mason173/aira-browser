@@ -70,7 +70,7 @@ function price(cents: number): string {
 
 /** 固定全家桶唯一来源。仅内部使用；不从公共入口导出，不接受宿主覆盖。 */
 export function fixedKitappSuite(): JuMembershipSuite {
-  const prices: number[] = [6880, 3880, 0, 2880, 1800]
+  const prices: number[] = [6880, 3880, 0, 2880, 1800, 2880]
   const suite = new JuMembershipSuite()
   suite.offer.name = 'Kitapp One'
   suite.offer.icon = $r('app.media.km_membership_kitapp')
@@ -86,7 +86,8 @@ export function fixedKitappSuite(): JuMembershipSuite {
     { key: 'pinecone', name: '松果清单', description: '待办与习惯', price: price(prices[1]), icon: $r('app.media.km_membership_pinecone') },
     { key: 'shengxi', name: '声栖', description: '助眠与专注', price: '限时免费', icon: $r('app.media.km_membership_shengxi') },
     { key: 'subdock', name: 'SubDock', description: '订阅管理', price: price(prices[3]), icon: $r('app.media.km_membership_subdock') },
-    { key: 'glimmerclock', name: '微光时钟', description: '桌面时钟与计时', price: '¥18.00', icon: $r('app.media.km_membership_glimmerclock') }
+    { key: 'glimmerclock', name: '微光时钟', description: '桌面时钟与计时', price: '¥18.00', icon: $r('app.media.km_membership_glimmerclock') },
+    { key: 'weiguangmusic', name: '微光音乐', description: '本地音乐播放器', price: '¥28.80', icon: $r('app.media.km_membership_weiguangmusic') }
   ]
   suite.futureAppsTitle = '更多应用'
   suite.futureAppsDescription = '持续开发，敬请期待'

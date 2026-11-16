@@ -21,6 +21,7 @@ export interface HuaweiAccountInfoRowState {
 }
 
 export interface HuaweiAccountInfoViewState {
+  uid?: string;
   title: ResourceStr;
   subtitle: ResourceStr;
   recognitionInfoText: ResourceStr;
@@ -83,6 +84,7 @@ export class HuaweiAccountInfoViewModel {
       }
     );
     return {
+      uid: uid,
       title: uid.length > 0 ? title : $r('app.string.settings_account_signed_out'),
       subtitle: uid.length > 0
         ? (showRecognitionInfo

@@ -39,6 +39,9 @@ const READING_SURFACE_HORIZONTAL_PADDING: number = 22;
 const READING_SURFACE_PAGE_HEADER_HEIGHT: number = 72;
 const READING_SURFACE_PAGE_FOOTER_HEIGHT: number = 56;
 const READING_SURFACE_PAGE_VERTICAL_PADDING: number = 12;
+// Text measurement and rendering share scaled vp metrics. Reserve rounding
+// tolerance here, not an additional full line on every page.
+const READING_SURFACE_PAGINATION_ROUNDING_INSET: number = 2;
 const READING_SURFACE_PAGE_META_FONT_SIZE: number = 12;
 const READING_SURFACE_BLOCK_SPACING: number = 10;
 const READING_SURFACE_DEFAULT_IMAGE_HEIGHT: number = 180;
@@ -732,7 +735,7 @@ export struct ReadingSurface {
     const metrics: ReadingPageMetrics = {
       contentWidth: this.resolveAvailableContentWidth(),
       contentHeight: Math.max(1, this.contentHeightVp - this.resolvePageChromeHeight() -
-        READING_SURFACE_PAGE_VERTICAL_PADDING * 2 - this.resolvePaginationSafetyHeight()),
+        READING_SURFACE_PAGE_VERTICAL_PADDING * 2 - READING_SURFACE_PAGINATION_ROUNDING_INSET),
       blockSpacing: READING_SURFACE_BLOCK_SPACING
     };
     try {
@@ -1158,10 +1161,6 @@ export struct ReadingSurface {
 
   private resolveBlockFontFamily(block: ReadingDocumentBlock): string {
     return block.type === 'code' ? 'monospace' : '';
-  }
-
-  private resolvePaginationSafetyHeight(): number {
-    return this.resolveScaledTextMetricVp(this.appearance.fontSize * this.resolveLineHeightRatio());
   }
 
   private resolveScaledTextMetricVp(value: number): number {

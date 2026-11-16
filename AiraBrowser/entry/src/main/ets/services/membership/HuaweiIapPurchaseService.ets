@@ -122,7 +122,8 @@ export class HuaweiIapPurchaseService {
     context: common.UIAbilityContext,
     period: string = 'monthly',
     uid: string = '',
-    mayLaunch: () => boolean = (): boolean => true
+    mayLaunch: () => boolean = (): boolean => true,
+    checkoutReference: string = ''
   ): Promise<HuaweiIapOperationResult> {
     const normalizedPlanId = period.trim().toLowerCase();
     const suiteSelected = normalizedPlanId === AIRA_SUITE_LIFETIME_PLAN_ID;
@@ -134,10 +135,14 @@ export class HuaweiIapPurchaseService {
         ? $r('app.string.membership_iap_lifetime_unavailable')
         : $r('app.string.membership_iap_subscription_unavailable'));
     }
+    if (suiteSelected && !/^as1\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}$/.test(checkoutReference)) {
+      return { ok: false, title: $r('app.string.settings_pro_purchase_unavailable'),
+        message: $r('app.string.membership_suite_product_unavailable'), action: action };
+    }
     const purchaseParameter: iap.PurchaseParameter = {
       productType: oneTimeSelected ? iap.ProductType.NONCONSUMABLE : iap.ProductType.AUTORENEWABLE,
       productId: productId,
-      developerPayload: `${productId}_${Date.now()}`,
+      developerPayload: suiteSelected ? checkoutReference : `${productId}_${Date.now()}`,
       applicationUserName: this.accountBindingService.buildApplicationUserName(uid)
     };
     try {

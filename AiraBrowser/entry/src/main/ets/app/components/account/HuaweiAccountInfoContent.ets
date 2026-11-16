@@ -1,3 +1,6 @@
+import { pasteboard } from '@kit.BasicServicesKit';
+import { sharedMembershipFeature } from '../../bootstrap/BrowserAppRuntime';
+import { AIRA_MEMBER_ID_STORAGE_KEY, AiraMemberIdState } from '../../../features/membership/MembershipFeature';
 import {
   HuaweiAccountInfoRowState,
   HuaweiAccountInfoViewState
@@ -22,16 +25,40 @@ export type HuaweiAccountInfoContentMode = 'page' | 'embedded_popup';
 
 @Component
 export struct HuaweiAccountInfoContent {
-  @Prop state: HuaweiAccountInfoViewState;
+  @Prop @Watch('refreshMemberId') state: HuaweiAccountInfoViewState;
   @Prop theme: BrowserThemeViewState;
   @Prop iconForegroundColor: ResourceColor = '';
   @Prop isBusy: boolean = false;
   @Prop contentMode: HuaweiAccountInfoContentMode = 'page';
   @Prop showAiraProEntry: boolean = false;
+  @StorageProp(AIRA_MEMBER_ID_STORAGE_KEY) private memberIdentity: AiraMemberIdState = new AiraMemberIdState();
   @State private recognitionInfoVisible: boolean = false;
   onCopyAccountId: () => void = () => {};
   onRequestSignOut: () => void = () => {};
   onOpenAiraPro: () => void = () => {};
+
+  aboutToAppear(): void {
+    this.refreshMemberId();
+  }
+
+  private refreshMemberId(): void {
+    sharedMembershipFeature.ensureMemberId(this.state.uid ?? '').catch((): void => {});
+  }
+
+  private memberId(): string {
+    return this.state.uid === this.memberIdentity.uid ? this.memberIdentity.id : '';
+  }
+
+  private copyMemberId(): void {
+    const id = this.memberId();
+    if (!id) { return; }
+    try {
+      pasteboard.getSystemPasteboard().setDataSync(pasteboard.createData(pasteboard.MIMETYPE_TEXT_PLAIN, id));
+      this.getUIContext().getPromptAction().showToast({ message: $r('app.string.settings_account_member_id_copied') });
+    } catch (_) {
+      this.getUIContext().getPromptAction().showToast({ message: $r('app.string.settings_account_copy_failed') });
+    }
+  }
 
   build() {
     Column({ space: 14 }) {
@@ -170,6 +197,19 @@ export struct HuaweiAccountInfoContent {
   private buildInfoSection() {
     SettingsSection({ title: $r('app.string.settings_account_profile'), secondaryTextColor: this.theme.textSecondary }) {
       SettingsGroupCard({ surfaceColor: this.theme.surfaceBackground }) {
+        if (this.memberId().length > 0) {
+          SettingsStaticValueRow({
+            title: $r('app.string.settings_account_member_id'),
+            value: this.memberId(),
+            valueClickable: true,
+            pressedBackgroundColor: this.theme.pressedBackground,
+            rowPosition: this.resolveRowPosition(0, this.state.rows.length + 1),
+            primaryTextColor: this.theme.textPrimary,
+            secondaryTextColor: this.theme.textSecondary,
+            onValueAction: () => { this.copyMemberId(); }
+          })
+          SettingsGroupDivider({ dividerColor: this.theme.divider })
+        }
         ForEach(this.state.rows, (row: HuaweiAccountInfoRowState, index: number) => {
           SettingsStaticValueRow({
             title: row.title,
@@ -177,7 +217,9 @@ export struct HuaweiAccountInfoContent {
             valueMaxLines: row.id === 'uid' ? 4 : 1,
             valueClickable: row.id === 'uid' && this.state.canSignOut,
             pressedBackgroundColor: this.theme.pressedBackground,
-            rowPosition: this.resolveRowPosition(index, this.state.rows.length),
+            rowPosition: this.memberId().length > 0
+              ? this.resolveRowPosition(index + 1, this.state.rows.length + 1)
+              : this.resolveRowPosition(index, this.state.rows.length),
             primaryTextColor: this.theme.textPrimary,
             secondaryTextColor: this.theme.textSecondary,
             onValueAction: () => {

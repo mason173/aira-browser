@@ -70,7 +70,6 @@ const DESTINATION_ACTION_IDS: BrowserBottomAddressPanelActionId[] = [
   'novel'
 ];
 const PAGE_ACTION_IDS: BrowserBottomAddressPanelActionId[] = [
-  'copyLink',
   'share',
   'print'
 ];

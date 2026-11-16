@@ -9,7 +9,9 @@ import {
 const READING_PAGINATION_CACHE_LIMIT: number = 6;
 const READING_PAGINATION_CACHE_FRAGMENT_LIMIT: number = 12000;
 const READING_PAGINATION_MIN_PARAGRAPH_LINES: number = 2;
-const READING_PAGINATION_KEEP_TOGETHER_MAX_LINES: number = 4;
+// Four lines can split into two readable pairs. Keeping them together wastes
+// usable page space; only shorter paragraphs need to move as a whole.
+const READING_PAGINATION_KEEP_TOGETHER_MAX_LINES: number = 3;
 const READING_PAGINATION_HEADING_FOLLOWING_LINES: number = 2;
 const READING_PAGINATION_MIN_TAIL_CHARACTER_COUNT: number = 6;
 const READING_PAGINATION_MAX_BOUNDARY_RETREAT: number = 12;

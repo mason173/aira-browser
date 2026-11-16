@@ -1796,11 +1796,6 @@
           "iconId": "browser.toolbar.addBookmark"
         },
         {
-          "actionId": "copyLink",
-          "title": "复制链接",
-          "iconId": "browser.toolbar.actionCopyLink"
-        },
-        {
           "actionId": "share",
           "title": "分享网页",
           "iconId": "browser.toolbar.sharePage"

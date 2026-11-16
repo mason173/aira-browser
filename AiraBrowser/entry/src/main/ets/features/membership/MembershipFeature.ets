@@ -1,3 +1,5 @@
+import { AIRA_DISTRIBUTION_CAPABILITY_OWNER } from '../../common/config/AiraDistributionCapabilityOwner';
+import { AiraAccountUnionLinkFunctionService } from '../../services/account/AiraAccountUnionLinkFunctionService';
 import { AiraFeatureKey } from '../../common/constants/MembershipFeatureKeys';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { resolveAppResourceText } from '../../core/resources/AppResourceText';
@@ -77,6 +79,18 @@ interface NormalizedMembershipStateRefreshOptions {
   loadSyncConfig: boolean;
 }
 
+export const AIRA_MEMBER_ID_STORAGE_KEY: string = 'aira.membership.publicId';
+
+export class AiraMemberIdState {
+  uid: string;
+  id: string;
+
+  constructor(uid: string = '', id: string = '') {
+    this.uid = uid;
+    this.id = id;
+  }
+}
+
 interface MembershipAccountScope {
   uid: string;
   generation: number;
@@ -130,6 +144,8 @@ export class MembershipFeature {
   private remoteStateRefreshUid: string = '';
   private remoteStateRefreshAttemptedAt: number = 0;
   private remoteStateRefreshAttemptUid: string = '';
+  private memberId: AiraMemberIdState = new AiraMemberIdState();
+  private memberIdRequestGeneration: number = -1;
   private suiteUid: string = '';
   private suiteOwned: boolean = false;
   private suiteRevision: number = 0;
@@ -175,6 +191,7 @@ export class MembershipFeature {
     if (normalizedUid === this.accountScopeUid) {
       return;
     }
+    this.publishMemberId('', '');
     this.suiteUid = '';
     this.suiteOwned = false;
     this.suiteRevision += 1;
@@ -187,6 +204,29 @@ export class MembershipFeature {
     }
     if (this.lapsedPro.uid !== normalizedUid) {
       this.lapsedPro = buildEmptyLapsedProView();
+    }
+  }
+
+  private publishMemberId(uid: string, id: string): void {
+    this.memberId = new AiraMemberIdState(uid, id);
+    AppStorage.setOrCreate<AiraMemberIdState>(AIRA_MEMBER_ID_STORAGE_KEY, this.memberId);
+  }
+
+  async ensureMemberId(uid: string): Promise<void> {
+    if (!AIRA_DISTRIBUTION_CAPABILITY_OWNER.isAvailable('aira_cloud') || !uid ||
+      uid !== this.getHuaweiUid() || this.memberId.uid === uid) {
+      return;
+    }
+    const scope = this.captureAccountScope(uid);
+    if (this.memberIdRequestGeneration === scope.generation) { return; }
+    this.memberIdRequestGeneration = scope.generation;
+    try {
+      await this.refreshState({ force: true });
+      if (!this.isCurrentAccountScope(scope) || this.memberId.uid === uid) { return; }
+      const linked = await new AiraAccountUnionLinkFunctionService().linkUnionId(uid);
+      if (linked && this.isCurrentAccountScope(scope)) { await this.refreshState({ force: true }); }
+    } finally {
+      if (this.memberIdRequestGeneration === scope.generation) { this.memberIdRequestGeneration = -1; }
     }
   }
 
@@ -714,6 +754,9 @@ export class MembershipFeature {
       if (committedSnapshot === undefined ||
         !this.isCurrentEntitlementRequest(accountScope, entitlementRequestGeneration)) {
         return this.getState();
+      }
+      if (typeof remoteState.memberId === 'string' && remoteState.memberId.length > 0) {
+        this.publishMemberId(uid, remoteState.memberId);
       }
       if (typeof remoteState.appSuite?.owned === 'boolean') {
         this.suiteUid = uid;
