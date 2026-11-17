@@ -25,6 +25,7 @@ import {
   NovelBookshelfSyncRemoteStore,
   NovelBookshelfSyncSnapshot
 } from '../../common/models/NovelBookshelfSyncModels';
+import { resolveAppResourceText } from '../../core/resources/AppResourceText';
 
 const PERSONAL_SERVER_TIMEOUT_MS: number = 45000;
 const PERSONAL_SERVER_MIN_PROTOCOL_VERSION: number = 1;
@@ -94,7 +95,9 @@ export class AiraPersonalServerDeviceAuthProvider implements AiraCloudBookmarkAp
 
   getAuthorizationHeader(_expectedUid: string): Promise<string> {
     if (this.token.length <= 0) {
-      return Promise.reject(new Error('私有化部署设备凭据为空，请重新配对。'));
+      return Promise.reject(new Error(
+        resolveAppResourceText($r('app.string.settings_sync_self_host_error_credential_missing'))
+      ));
     }
     return Promise.resolve(`Bearer ${this.token}`);
   }
@@ -104,10 +107,10 @@ export class AiraPersonalServerInstanceService {
   normalizeBaseUrl(value: string): string {
     const normalized = value.trim().replace(/\/+$/, '');
     if (!/^https?:\/\/[^\s/?#]+(?::\d+)?(?:\/[^\s?#]*)?$/i.test(normalized)) {
-      throw new Error('请输入完整的 HTTP 或 HTTPS 私有化部署地址。');
+      throw new Error(resolveAppResourceText($r('app.string.settings_sync_self_host_error_url_invalid')));
     }
     if (normalized.indexOf('@') >= 0) {
-      throw new Error('私有化部署地址不能包含用户名或密码。');
+      throw new Error(resolveAppResourceText($r('app.string.settings_sync_self_host_error_url_credentials')));
     }
     return normalized;
   }
@@ -131,7 +134,7 @@ export class AiraPersonalServerInstanceService {
       capabilities.history?.version !== 1 ||
       capabilities.personalization?.version !== 2 || capabilities.novelBookshelf?.version !== 2 ||
       capabilities.pagePush?.version !== 1 || capabilities.crossDeviceTabs?.version !== 1) {
-      throw new Error('该地址不是兼容的 Aira 私有化部署，或协议版本暂不受支持。');
+      throw new Error(resolveAppResourceText($r('app.string.settings_sync_self_host_error_incompatible')));
     }
     return {
       baseUrl: normalizedBaseUrl,
@@ -154,7 +157,7 @@ export class AiraPersonalServerInstanceService {
       deviceKind: 'phone'
     };
     if (request.code.length <= 0 || request.deviceId.length <= 0) {
-      throw new Error('请输入配对码，并确认当前设备标识可用。');
+      throw new Error(resolveAppResourceText($r('app.string.settings_sync_self_host_error_pairing_input')));
     }
     const response = await this.request<PersonalServerPairingResponse>(
       http.RequestMethod.POST,
@@ -165,7 +168,8 @@ export class AiraPersonalServerInstanceService {
     const credentialId = `${response.credentialId ?? ''}`.trim();
     if (response.ok !== true || response.instanceId !== discovery.instanceId || token.length <= 0 ||
       credentialId.length <= 0 || response.deviceId !== request.deviceId) {
-      throw new Error(response.message ?? '私有化部署没有返回完整的设备凭据。');
+      throw new Error(response.message ?? resolveAppResourceText(
+        $r('app.string.settings_sync_self_host_error_pairing_incomplete')));
     }
     return {
       config: {
@@ -198,6 +202,8 @@ export class AiraPersonalServerInstanceService {
     );
   }
 
+  // The shared conditional-snapshot store still formats its own messages in Chinese, so the
+  // serviceLabel below stays Chinese; localizing only the label would mix languages mid-sentence.
   createPersonalizationStore(settings: AiraSyncSettings): PersonalizationSyncRemoteStore {
     const config = this.requireConfigured(settings);
     return new AiraCloudConditionalSnapshotRemoteStore<PersonalizationSyncSnapshot>(
@@ -207,7 +213,7 @@ export class AiraPersonalServerInstanceService {
         serviceLabel: '私有化部署个性化同步',
         conflictResponseCode: 'personalization_sync_write_conflict',
         conflictErrorMessage: PERSONALIZATION_SYNC_WRITE_CONFLICT,
-        missingUidMessage: '请先连接私有化部署。'
+        missingUidMessage: resolveAppResourceText($r('app.string.settings_sync_self_host_error_not_connected'))
       },
       new AiraPersonalServerDeviceAuthProvider(config.deviceToken)
     );
@@ -219,10 +225,11 @@ export class AiraPersonalServerInstanceService {
       `${config.baseUrl}/v1/sync/novel-bookshelf`,
       config.instanceId,
       {
+        // Same Chinese serviceLabel reason as createPersonalizationStore.
         serviceLabel: '私有化部署小说书架同步',
         conflictResponseCode: 'novel_bookshelf_sync_write_conflict',
         conflictErrorMessage: NOVEL_BOOKSHELF_SYNC_WRITE_CONFLICT,
-        missingUidMessage: '请先连接私有化部署。'
+        missingUidMessage: resolveAppResourceText($r('app.string.settings_sync_self_host_error_not_connected'))
       },
       new AiraPersonalServerDeviceAuthProvider(config.deviceToken)
     );
@@ -233,7 +240,7 @@ export class AiraPersonalServerInstanceService {
     if (config.baseUrl.trim().length <= 0 || config.instanceId.trim().length <= 0 ||
       config.protocolVersion !== 1 || config.credentialId.trim().length <= 0 ||
       config.deviceToken.trim().length <= 0) {
-      throw new Error('请先完成私有化部署发现与设备配对。');
+      throw new Error(resolveAppResourceText($r('app.string.settings_sync_self_host_error_not_paired')));
     }
     return config;
   }
@@ -263,20 +270,58 @@ export class AiraPersonalServerInstanceService {
         extraData: body === undefined ? undefined : JSON.stringify(body)
       });
       const raw = `${response.result ?? ''}`;
+      if (response.responseCode < 200 || response.responseCode >= 300) {
+        throw new Error(this.readFailureMessage(raw, response.responseCode));
+      }
       let value: T;
       try {
         value = JSON.parse(raw) as T;
       } catch (_error) {
-        throw new Error('私有化部署返回了无法解析的响应。');
-      }
-      if (response.responseCode < 200 || response.responseCode >= 300) {
-        const failure = value as PersonalServerPairingResponse;
-        throw new Error(failure.message ?? `私有化部署请求失败（${response.responseCode}）。`);
+        throw new Error(resolveAppResourceText(
+          $r('app.string.settings_sync_self_host_error_response_unreadable', response.responseCode)));
       }
       return value;
     } finally {
       request.destroy();
     }
+  }
+
+  /**
+   * A reverse proxy can answer before the server does, so a failure body is not guaranteed to be
+   * JSON. Prefer the server's own message; otherwise name the likely cause, because "unreadable
+   * response" blamed the protocol for what was usually a routing or proxy problem.
+   */
+  private readFailureMessage(raw: string, responseCode: number): string {
+    let message: string = '';
+    try {
+      const body = JSON.parse(raw) as PersonalServerPairingResponse;
+      message = `${body.message ?? ''}`.trim();
+    } catch (_error) {
+      message = '';
+    }
+    if (message.length > 0) {
+      return message;
+    }
+    if (responseCode === 404) {
+      return resolveAppResourceText($r('app.string.settings_sync_self_host_error_http_not_found'));
+    }
+    if (responseCode === 403) {
+      return resolveAppResourceText($r('app.string.settings_sync_self_host_error_http_forbidden'));
+    }
+    if (responseCode === 413) {
+      return resolveAppResourceText($r('app.string.settings_sync_self_host_error_http_too_large'));
+    }
+    if (responseCode === 301 || responseCode === 302 || responseCode === 303 ||
+      responseCode === 307 || responseCode === 308) {
+      return resolveAppResourceText(
+        $r('app.string.settings_sync_self_host_error_http_redirect', responseCode));
+    }
+    if (responseCode >= 500 && responseCode <= 599) {
+      return resolveAppResourceText(
+        $r('app.string.settings_sync_self_host_error_http_server', responseCode));
+    }
+    return resolveAppResourceText(
+      $r('app.string.settings_sync_self_host_error_http_failed', responseCode));
   }
 }
 
