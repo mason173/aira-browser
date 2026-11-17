@@ -15,6 +15,7 @@ import {
   DownloadSavePolicy
 } from './DownloadPolicyService';
 import { resolveCustomDownloadDirectory } from './DownloadLocationDirectoryService';
+import { DownloadV2DestinationSnapshot } from '../../domain/downloadv2/DownloadV2Types';
 
 export type DownloadTargetStorageMode =
   'app_temp_then_export' |
@@ -31,6 +32,7 @@ export type DownloadTargetPlanReason =
   'private_session_temp_only';
 
 export interface DownloadTargetPlan {
+  destination: DownloadV2DestinationSnapshot;
   fileName: string;
   tempFilePath: string;
   partialFilePath: string;
@@ -79,15 +81,30 @@ export class DownloadTargetResolutionService {
     return this.buildTargetPlan(sanitizedFileName, temporaryTarget, savePolicy);
   }
 
+  resolveDestinationSnapshot(boundary: DownloadTaskBoundary): DownloadV2DestinationSnapshot {
+    return this.buildDestinationSnapshot(this.downloadPolicyService.resolveSavePolicy(boundary));
+  }
+
+  validateDestination(destination: DownloadV2DestinationSnapshot): Promise<boolean> {
+    return this.fileResolutionService.validateDestination(destination);
+  }
+
+  selectDestination(fileName: string): Promise<DownloadV2DestinationSnapshot | undefined> {
+    return this.fileResolutionService.selectDestination(fileName);
+  }
+
   resolveCompletionTargetPolicy(
     boundary: DownloadTaskBoundary,
-    suggestedFileName: string
+    suggestedFileName: string,
+    destination?: DownloadV2DestinationSnapshot
   ): DownloadCompletionTargetPolicy {
     const savePolicy = this.downloadPolicyService.resolveSavePolicy(boundary);
     const fileName = this.fileResolutionService.sanitizeFileName(suggestedFileName);
-    const reason = this.resolvePlanReason(savePolicy);
     const tempDisplayPath = this.buildTempDisplayPath(fileName, savePolicy.isPrivateSession);
-    if (savePolicy.reason === 'private_session_temp_only') {
+    const selectedDestination = destination ?? this.buildDestinationSnapshot(savePolicy);
+    const reason = selectedDestination.kind === 'session_temp' ? 'private_session_temp_only'
+      : selectedDestination.kind === 'prompt' ? 'private_prompt_for_location' : this.resolvePlanReason(savePolicy);
+    if (selectedDestination.kind === 'session_temp') {
       return {
         shouldPromptForExport: false,
         tempDisplayPath: tempDisplayPath,
@@ -108,6 +125,7 @@ export class DownloadTargetResolutionService {
     temporaryTarget: DownloadTemporaryTargetPlan,
     savePolicy: DownloadSavePolicy
   ): DownloadTargetPlan {
+    const destination = this.buildDestinationSnapshot(savePolicy);
     const reason = this.resolvePlanReason(savePolicy);
     const tempDisplayPath = this.buildTempDisplayPath(fileName, savePolicy.isPrivateSession);
     const storageMode: DownloadTargetStorageMode =
@@ -115,6 +133,7 @@ export class DownloadTargetResolutionService {
     const completionExportPolicy: DownloadCompletionExportPolicy =
       storageMode === 'session_temp_only' ? 'keep_temp_only' : 'prompt_after_completion';
     return {
+      destination: destination,
       fileName: fileName,
       tempFilePath: temporaryTarget.targetPath,
       partialFilePath: temporaryTarget.targetPath,
@@ -125,6 +144,16 @@ export class DownloadTargetResolutionService {
       conflictAction: this.filenameConflictService.buildOriginalPlan(fileName).conflictAction,
       reason: reason,
       isPrivateSession: savePolicy.isPrivateSession
+    };
+  }
+
+  private buildDestinationSnapshot(savePolicy: DownloadSavePolicy): DownloadV2DestinationSnapshot {
+    if (savePolicy.isPrivateSession) {
+      return { kind: savePolicy.reason === 'private_session_temp_only' ? 'session_temp' : 'prompt' };
+    }
+    const customDirectory = resolveCustomDownloadDirectory(savePolicy.settings);
+    return customDirectory === undefined ? { kind: 'system_downloads' } : {
+      kind: 'directory', uri: customDirectory.uri, label: customDirectory.label
     };
   }
 

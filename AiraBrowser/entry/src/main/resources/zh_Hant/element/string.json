@@ -13414,7 +13414,7 @@
     },
     {
       "name": "settings_web_download_folder_selected_fallback",
-      "value": "已選擇該資料夾。若下載時無法寫入，將回退到系統下載目錄。"
+      "value": "已選擇該資料夾。若無法寫入，請重新授權或選擇其他儲存位置。"
     },
     {
       "name": "settings_web_download_folder_selected_reauth",
@@ -24255,6 +24255,70 @@
     {
       "name": "membership_suite_restored",
       "value": "已恢復全家桶。"
+    },
+    {
+      "name": "download_failure_network",
+      "value": "網路連線中斷，請檢查網路後繼續下載。"
+    },
+    {
+      "name": "download_failure_permission",
+      "value": "無法寫入儲存位置，請檢查目錄權限後重試。"
+    },
+    {
+      "name": "download_failure_storage",
+      "value": "儲存空間不足，請清理空間後重試。"
+    },
+    {
+      "name": "download_failure_file_system",
+      "value": "無法儲存檔案，請檢查剩餘空間和儲存位置後重試。"
+    },
+    {
+      "name": "download_failure_server",
+      "value": "網站暫時無法提供此檔案，請重試或返回網頁重新下載。"
+    },
+    {
+      "name": "download_failure_certificate",
+      "value": "安全連線驗證失敗，請檢查網路和網站後重試。"
+    },
+    {
+      "name": "download_failure_unsupported",
+      "value": "無法下載此連結，請返回網頁重新取得下載位址。"
+    },
+    {
+      "name": "download_status_finalizing",
+      "value": "儲存中…"
+    },
+    {
+      "name": "download_save_failed_retry",
+      "value": "儲存失敗，已接收的檔案已保留。請檢查儲存位置後重試。"
+    },
+    {
+      "name": "download_file_verification_failed",
+      "value": "下載檔案遺失、無法讀取或不完整，請檢查檔案或從原網頁重新下載。"
+    },
+    {
+      "name": "download_action_choose_location",
+      "value": "重新選擇儲存位置"
+    },
+    {
+      "name": "download_rename_failed",
+      "value": "重新命名失敗，原檔案已保留。"
+    },
+    {
+      "name": "download_rename_unsupported",
+      "value": "此位置不支援在應用程式內重新命名，請在檔案管理中操作。"
+    },
+    {
+      "name": "download_rename_succeeded",
+      "value": "檔案已重新命名。"
+    },
+    {
+      "name": "download_rename_cleanup_failed",
+      "value": "重新命名未完成，檔案已保留，請在檔案管理中確認。"
+    },
+    {
+      "name": "download_share_failed",
+      "value": "分享檔案失敗。"
     }
   ]
 }

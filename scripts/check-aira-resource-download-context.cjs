@@ -50,6 +50,7 @@ async function main() {
   await check('sniffed extensionless HLS keeps its format and captured request context', () => {
     const request = media.buildResourceDownloadPromptRequest({
       url: 'https://cdn.example.test/play?id=7', kind: 'hls', pageUrl: 'https://page.example.test/watch',
+      tabId: 'source-tab',
       sourceHost: 'cdn.example.test', displayName: 'movie.ts', mimeType: 'text/plain',
       estimatedTotalBytes: 5000, userAgent: 'fallback-UA', referer: 'https://fallback.example.test/',
       originUrl: 'https://fallback.example.test', requestHeaders: {
@@ -58,6 +59,8 @@ async function main() {
       }
     });
     assert.equal(request.mimeType, 'application/vnd.apple.mpegurl');
+    assert.equal(request.sourceTabId, 'source-tab');
+    assert.equal(request.headersSource, 'page');
     assert.equal(request.url, 'https://cdn.example.test/play?id=7');
     assert.equal(request.totalBytes, 5000);
     assert.equal(request.headers['user-agent'], 'captured-UA');
@@ -66,6 +69,25 @@ async function main() {
     assert.equal(request.headers.Cookie, 'session=captured');
     assert.equal(request.headers.Authorization, 'Bearer fixture');
     assert.equal(Object.keys(request.headers).length, 5);
+  });
+
+  await check('GM_download preserves its originating tab, explicit headers and stable GUID callback tracking', () => {
+    const { UserScriptNativeBridgeCoordinator } = load('core/userscripts/UserScriptNativeBridgeCoordinator.ets');
+    const { UserScriptNativeDownloadService } = load('services/userscripts/UserScriptNativeDownloadService.ets');
+    const owner = Object.create(UserScriptNativeBridgeCoordinator.prototype), requests = [];
+    const controller = { runJavaScript() { assert.fail('accepted request must not dispatch an immediate error'); } };
+    owner.downloadRequestIdsByGuid = {}; owner.downloadControllersByGuid = {};
+    owner.downloadService = new UserScriptNativeDownloadService();
+    owner.permissionCoordinator = { validate: () => ({ ok: true, scriptId: 'script' }) };
+    owner.host = { requestDownload: request => { requests.push(request); return 'stable-app-guid'; } };
+    owner.handleDownload({ id: 'gm-request', url: 'https://files.example.test/file', headers: { 'X-Token': 'synthetic' } },
+      controller, 'private-source-tab', 'https://source.example.test/page', {});
+    assert.equal(requests[0].sourceTabId, 'private-source-tab');
+    assert.equal(requests[0].headersSource, 'explicit');
+    assert.equal(requests[0].headers['X-Token'], 'synthetic');
+    assert.equal(requests[0].referer, 'https://source.example.test/page');
+    assert.equal(owner.downloadRequestIdsByGuid['stable-app-guid'], 'gm-request');
+    assert.equal(owner.downloadControllersByGuid['stable-app-guid'], controller);
   });
 
   await check('resource actions reject protected and separate streams while keeping AES-128 HLS', () => {
@@ -83,7 +105,9 @@ async function main() {
   await check('long press carries the originating page and UA through menu selection into download', () => {
     const requests = [];
     const application = new WebLinkContextMenuFixedActionApplication({
-      downloadConfirmOverlayCoordinator: { requestAndPresent: input => requests.push(input) }
+      downloadConfirmOverlayCoordinator: {
+        requestPageAndPresent: (tabId, input) => requests.push({ ...input, sourceTabId: tabId })
+      }
     }, {});
     const menu = Object.create(WebLinkContextMenuCoordinator.prototype);
     menu.overlayCoordinator = { createHiddenLayout: () => ({}), buildInitialLayout: () => ({}) };
@@ -113,6 +137,7 @@ async function main() {
       ...facts, pageUrl: 'https://another.example.test/'
     });
     assert.equal(requests.length, 1);
+    assert.equal(requests[0].sourceTabId, 'source');
     assert.equal(requests[0].referer, facts.pageUrl);
     assert.equal(requests[0].userAgent, 'Page-specific-UA');
     assert.equal(menu.show('source', event, { ...controller, getCustomUserAgent: () => '' }, facts), true);

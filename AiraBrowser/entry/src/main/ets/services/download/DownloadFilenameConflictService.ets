@@ -1,3 +1,5 @@
+import { DownloadFileNameService } from './DownloadFileNameService';
+
 export type DownloadFilenameConflictAction =
   'use_original' |
   'uniquify' |
@@ -11,9 +13,11 @@ export interface DownloadFilenameConflictPlan {
 }
 
 export class DownloadFilenameConflictService {
+  private readonly fileNameService: DownloadFileNameService = new DownloadFileNameService();
+
   buildOriginalPlan(fileName: string): DownloadFilenameConflictPlan {
     return {
-      fileName: fileName,
+      fileName: this.fileNameService.sanitizeFileName(fileName),
       conflictAction: 'use_original',
       conflictIndex: 0
     };
@@ -29,15 +33,8 @@ export class DownloadFilenameConflictService {
   }
 
   buildUniquifiedFileName(fileName: string, conflictIndex: number = 1): string {
-    const normalizedName = fileName.trim().length > 0 ? fileName.trim() : 'download.bin';
     const index = this.normalizeConflictIndex(conflictIndex);
-    const extensionStart = this.resolveExtensionStart(normalizedName);
-    if (extensionStart <= 0) {
-      return `${normalizedName} (${index})`;
-    }
-    const baseName = normalizedName.substring(0, extensionStart);
-    const extension = normalizedName.substring(extensionStart);
-    return `${baseName} (${index})${extension}`;
+    return this.fileNameService.buildConflictFileName(fileName, index);
   }
 
   private normalizeConflictIndex(conflictIndex: number): number {
@@ -45,21 +42,5 @@ export class DownloadFilenameConflictService {
       return 1;
     }
     return Math.floor(conflictIndex);
-  }
-
-  private resolveExtensionStart(fileName: string): number {
-    const lowerName = fileName.toLowerCase();
-    const compoundExtensions: string[] = ['.tar.gz', '.tar.bz2', '.tar.xz'];
-    for (let index = 0; index < compoundExtensions.length; index += 1) {
-      const extension = compoundExtensions[index];
-      if (lowerName.endsWith(extension) && fileName.length > extension.length) {
-        return fileName.length - extension.length;
-      }
-    }
-    const dotIndex = fileName.lastIndexOf('.');
-    if (dotIndex <= 0 || dotIndex >= fileName.length - 1) {
-      return -1;
-    }
-    return dotIndex;
   }
 }

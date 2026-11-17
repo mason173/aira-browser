@@ -1,4 +1,6 @@
 import { hilog } from '@kit.PerformanceAnalysisKit';
+import { webview } from '@kit.ArkWeb';
+import { util } from '@kit.ArkTS';
 import { resolveAppResourceText } from '../../core/resources/AppResourceText';
 import {
   BrowserDataScope,
@@ -29,6 +31,7 @@ import {
   DownloadFileResolutionService
 } from './DownloadFileResolutionService';
 import { DownloadFollowupExecutionResult, DownloadFollowupService, DownloadFollowupTask } from './DownloadFollowupService';
+import { DownloadFileActionService, DownloadFileAvailability } from './DownloadFileActionService';
 import { DownloadPolicyService, DownloadSavePolicy, DownloadSessionCleanupPolicy } from './DownloadPolicyService';
 import { resolveCustomDownloadDirectory } from './DownloadLocationDirectoryService';
 import {
@@ -37,6 +40,7 @@ import {
   DownloadV2TaskChangeKind
 } from '../downloadv2/DownloadV2Service';
 import { DownloadV2Prompt } from '../../features/downloadv2/DownloadV2CaptureTypes';
+import { DownloadV2ManualRequestContext } from '../../features/downloadv2/DownloadV2RequestCapture';
 import {
   canContinueDownloadV2TaskFromPersistedData,
   DownloadV2TaskEntity
@@ -93,10 +97,14 @@ export interface PendingDownloadPromptState {
    * a document to render inline and the download would be silently dropped.
    */
   isPlatformDownload: boolean;
+  /** An explicit URL/link/resource download has no ArkWeb item until after confirmation. */
+  isUserInitiatedDownload?: boolean;
 }
 
 export interface ManualDownloadRequestInput {
   url: string;
+  sourceTabId?: string;
+  headersSource?: 'page' | 'explicit';
   sourceHost?: string;
   suggestedFileName?: string;
   totalBytes?: number;
@@ -133,6 +141,7 @@ interface DownloadRuntimeServiceCallbackListener {
 }
 
 interface WebDownloadStartContext {
+  sourceId: string;
   url: string;
   userAgent: string;
   contentDisposition: string;
@@ -141,9 +150,25 @@ interface WebDownloadStartContext {
   observedAt: number;
 }
 
+interface PageDownloadSource {
+  sourceId: string;
+  boundary: DownloadTaskBoundary;
+  controller?: webview.WebviewController;
+}
+
+interface ResolvedManualDownloadRequest {
+  boundary: DownloadTaskBoundary;
+  context: DownloadV2ManualRequestContext;
+}
+
+interface DownloadFileAvailabilitySnapshot {
+  location: string;
+  availability: DownloadFileAvailability;
+}
+
 const WEB_DOWNLOAD_START_MATCH_WINDOW_MS: number = 10000;
 const WEB_DOWNLOAD_START_CONTEXT_LIMIT: number = 8;
-export type DownloadTaskFollowupAction = 'open_file' | 'open_location';
+export type DownloadTaskFollowupAction = 'open_file' | 'open_location' | 'share_file';
 
 export class DownloadRuntimeService {
   private downloadBridge: PlatformDownloadAdapter;
@@ -152,10 +177,20 @@ export class DownloadRuntimeService {
   private queryService: DownloadQueryService = new DownloadQueryService();
   private fileResolutionService: DownloadFileResolutionAdapter;
   private downloadFollowupService: DownloadFollowupService;
+  private fileActionService: DownloadFileActionService;
+  private fileActionGuids: Set<string> = new Set<string>();
+  private fileAvailabilityByGuid: Map<string, DownloadFileAvailabilitySnapshot> =
+    new Map<string, DownloadFileAvailabilitySnapshot>();
   private downloadPolicyService: DownloadPolicyService;
   private recentWebDownloadStarts: WebDownloadStartContext[] = [];
+  private pageDownloadSources: Map<string, PageDownloadSource> = new Map<string, PageDownloadSource>();
+  private downloadSourceBoundaries: Map<string, DownloadTaskBoundary> = new Map<string, DownloadTaskBoundary>();
+  private downloadGuidBoundaries: Map<string, DownloadTaskBoundary> = new Map<string, DownloadTaskBoundary>();
+  private nextDownloadSourceId: number = 1;
+  private readonly downloadSourceSessionId: string = util.generateRandomUUID();
   private initialized: boolean = false;
   private repositoryInitializationPromise?: Promise<void>;
+  private repositoryHydrated: boolean = false;
   private callbacks: DownloadRuntimeServiceCallbacks = {};
   private callbackListeners: DownloadRuntimeServiceCallbackListener[] = [];
   private nextCallbackListenerId: number = 0;
@@ -176,6 +211,7 @@ export class DownloadRuntimeService {
   ) {
     this.downloadBridge = downloadBridge;
     this.fileResolutionService = fileResolutionService;
+    this.fileActionService = new DownloadFileActionService(this.fileResolutionService);
     this.downloadFollowupService = new DownloadFollowupService(this.fileResolutionService);
     this.downloadPolicyService = downloadPolicyService;
     this.downloadV2Service = downloadV2Service ?? new DownloadV2Service(
@@ -197,7 +233,9 @@ export class DownloadRuntimeService {
       onTaskChanged: (_task: DownloadV2TaskEntity, changeKind?: DownloadV2TaskChangeKind) => {
         this.emitTaskListChange(changeKind === 'progress' ? 'progress' : 'important');
       },
-      onTaskRemoved: () => {
+      onTaskRemoved: (guid: string) => {
+        this.downloadGuidBoundaries.delete(guid);
+        this.fileAvailabilityByGuid.delete(guid);
         this.emitTaskListChange('important');
       },
       onPromptChanged: () => {
@@ -221,6 +259,7 @@ export class DownloadRuntimeService {
     this.initialize();
     const initializationPromise = this.downloadV2Service.initialize()
       .then(() => {
+        this.repositoryHydrated = true;
         this.emitTaskListChange('important');
         this.emitPendingDownloadPromptChange(this.getPendingDownloadPrompt());
       })
@@ -259,6 +298,58 @@ export class DownloadRuntimeService {
   getDelegate(): PlatformDownloadDelegate {
     this.initialize();
     return this.downloadBridge.getDelegate();
+  }
+
+  registerPageDownloadSource(
+    tabId: string,
+    controller: webview.WebviewController | undefined,
+    boundary: DownloadTaskBoundary
+  ): void {
+    if (tabId.trim().length === 0) {
+      return;
+    }
+    this.initialize();
+    const normalizedBoundary = this.normalizeBoundary(boundary);
+    const previous = this.pageDownloadSources.get(tabId);
+    if (previous !== undefined && previous.controller === controller &&
+      previous.boundary.windowId === normalizedBoundary.windowId &&
+      previous.boundary.profileId === normalizedBoundary.profileId &&
+      previous.boundary.privacyMode === normalizedBoundary.privacyMode &&
+      previous.boundary.dataScope === normalizedBoundary.dataScope &&
+      previous.boundary.sourcePageUrl === normalizedBoundary.sourcePageUrl) {
+      return;
+    }
+    if (previous !== undefined) this.downloadBridge.unregisterDownloadSource?.(previous.sourceId);
+    // A replaced controller keeps its old source identity for late callbacks.
+    const sourceId = `${this.downloadSourceSessionId}:${tabId}:download:${this.nextDownloadSourceId}`;
+    this.nextDownloadSourceId += 1;
+    const source: PageDownloadSource = { sourceId: sourceId, boundary: normalizedBoundary };
+    this.pageDownloadSources.set(tabId, source);
+    this.downloadSourceBoundaries.set(sourceId, normalizedBoundary);
+    if (controller === undefined || this.downloadBridge.getDelegateForSource === undefined) {
+      return;
+    }
+    try {
+      controller.setDownloadDelegate(this.downloadBridge.getDelegateForSource(sourceId));
+      this.downloadBridge.registerDownloadSource?.(sourceId, (url: string): void => controller.startDownload(url));
+      source.controller = controller;
+    } catch (_error) {
+      this.downloadBridge.unregisterDownloadSource?.(sourceId);
+    }
+  }
+
+  retainPageDownloadSources(windowId: string, tabIds: string[]): void {
+    this.pageDownloadSources.forEach((source: PageDownloadSource, tabId: string) => {
+      if (source.boundary.windowId === windowId && tabIds.indexOf(tabId) < 0) {
+        this.downloadBridge.unregisterDownloadSource?.(source.sourceId);
+        this.pageDownloadSources.delete(tabId);
+      }
+    });
+  }
+
+  requestPageDownload(tabId: string, input: ManualDownloadRequestInput): ManualDownloadRequestResult | undefined {
+    // The manual confirmation creates the stable task GUID; only admitted tasks start ArkWeb.
+    return this.requestManualDownload(input, tabId);
   }
 
   listAllowedActionsForTask(task: DownloadV2TaskEntity): DownloadV2ManagementAction[] {
@@ -352,22 +443,28 @@ export class DownloadRuntimeService {
     return this.syncActiveDownloads(notifyChange);
   }
 
-  openFileForBoundary(guid: string, boundary: DownloadTaskBoundary): Promise<boolean> {
+  async openFileForBoundary(
+    guid: string, boundary: DownloadTaskBoundary, onFailure?: (message: string) => void
+  ): Promise<boolean> {
     if (!this.canExecuteTaskAction(guid, boundary, 'open_file')) {
       return Promise.resolve(false);
     }
     const v2Task = this.resolveV2FollowupTask(guid, boundary, 'open_file');
     if (v2Task !== undefined) {
+      const entity = this.getTaskByGuid(guid);
+      if (entity !== undefined) await this.fileActionService.inspectTask(entity);
       return this.downloadFollowupService.openFile(v2Task)
         .then((result: DownloadFollowupExecutionResult) => {
-          this.emitFollowupResult(result.success, result.userMessage);
+          this.emitScopedFileActionResult(result.success, result.userMessage, onFailure);
           return result.success;
         });
     }
     return Promise.resolve(false);
   }
 
-  openLocationForBoundary(guid: string, boundary: DownloadTaskBoundary): Promise<boolean> {
+  openLocationForBoundary(
+    guid: string, boundary: DownloadTaskBoundary, onFailure?: (message: string) => void
+  ): Promise<boolean> {
     if (!this.canExecuteTaskAction(guid, boundary, 'open_location')) {
       return Promise.resolve(false);
     }
@@ -375,11 +472,151 @@ export class DownloadRuntimeService {
     if (v2Task !== undefined) {
       return this.downloadFollowupService.openLocation(v2Task)
         .then((result: DownloadFollowupExecutionResult) => {
-          this.emitFollowupResult(result.success, result.userMessage);
+          this.emitScopedFileActionResult(result.success, result.userMessage, onFailure);
           return result.success;
         });
     }
     return Promise.resolve(false);
+  }
+
+  async shareFileForBoundary(
+    guid: string, boundary: DownloadTaskBoundary, onFailure?: (message: string) => void
+  ): Promise<boolean> {
+    if (!this.canExecuteTaskAction(guid, boundary, 'share_file')) return Promise.resolve(false);
+    const task = this.resolveV2FollowupTask(guid, boundary, 'share_file');
+    if (task === undefined) return Promise.resolve(false);
+    const entity = this.getTaskByGuid(guid);
+    if (entity !== undefined) await this.fileActionService.inspectTask(entity);
+    return this.downloadFollowupService.shareFile(task).then((result: DownloadFollowupExecutionResult): boolean => {
+      this.emitScopedFileActionResult(result.success, result.userMessage, onFailure);
+      return result.success;
+    });
+  }
+
+  async inspectTaskFileForBoundary(guid: string, boundary: DownloadTaskBoundary): Promise<DownloadFileAvailability> {
+    const task = this.getTaskByGuid(guid);
+    if (task === undefined || task.status !== 'completed' ||
+      !this.downloadPolicyService.canReadSessionTasks(boundary) ||
+      !this.isTaskInsideBoundary(task, this.normalizeBoundary(boundary))) return 'unavailable';
+    const location = task.persistence.finalFileUri?.trim() || task.persistence.tempFilePath?.trim() || '';
+    const availability = await this.fileActionService.inspectTask(task);
+    const latest = this.getTaskByGuid(guid);
+    const latestLocation = latest?.persistence.finalFileUri?.trim() || latest?.persistence.tempFilePath?.trim() || '';
+    if (latest !== undefined && latestLocation === location) {
+      const previous = this.fileAvailabilityByGuid.get(guid);
+      this.fileAvailabilityByGuid.set(guid, { location: location, availability: availability });
+      if (previous?.location !== location || previous?.availability !== availability) this.emitTaskListChange('important');
+    }
+    return availability;
+  }
+
+  async renameTaskForBoundary(
+    guid: string, newBaseName: string, boundary: DownloadTaskBoundary, onFailure?: (message: string) => void
+  ): Promise<boolean> {
+    if (!this.canExecuteTaskAction(guid, boundary, 'rename')) return false;
+    const task = this.getTaskByGuid(guid);
+    if (task === undefined) return false;
+    this.fileActionGuids.add(guid);
+    this.emitTaskListChange('important');
+    try {
+      const prepared = await this.fileActionService.prepareRename(task, newBaseName);
+      const plan = prepared.plan;
+      if (plan === undefined) {
+        this.emitScopedFileActionResult(false, resolveAppResourceText(prepared.failure === 'unsupported'
+          ? $r('app.string.download_rename_unsupported') : $r('app.string.download_rename_failed')), onFailure);
+        return false;
+      }
+      try {
+        const committed = await this.downloadV2Service.updateCompletedFileAfterRename(guid, plan.sourceLocation, {
+          fileName: plan.fileName, tempFilePath: plan.tempFilePath,
+          finalFileUri: plan.finalFileUri, finalDisplayPath: plan.finalDisplayPath
+        });
+        if (committed !== 'committed') {
+          // A failed durable rollback can leave the on-disk record at either location.
+          // Keep both possible targets until persistence is trustworthy again.
+          const rolledBack = committed === 'restored' && await this.fileActionService.rollbackRename(plan);
+          this.emitScopedFileActionResult(false, resolveAppResourceText(rolledBack
+            ? $r('app.string.download_rename_failed') : $r('app.string.download_rename_cleanup_failed')), onFailure);
+          return false;
+        }
+        if (!await this.fileActionService.finishRename(plan)) {
+          // The directory copy is durable, but the old file could not be removed. Restore
+          // metadata first; never delete the new file while the task still points to it.
+          // A provider may recycle the source before reporting an error. In that case the
+          // verified new file is the only known copy and must keep its task metadata.
+          const restored = await this.fileActionService.canRestoreOriginal(plan)
+            ? await this.downloadV2Service.updateCompletedFileAfterRename(guid, plan.targetLocation, {
+            fileName: task.resolvedFileName?.trim() || task.suggestedFileName,
+            tempFilePath: task.persistence.tempFilePath, finalFileUri: task.persistence.finalFileUri,
+            finalDisplayPath: task.persistence.finalDisplayPath
+            }) : 'uncertain';
+          const rolledBack = restored === 'committed' && await this.fileActionService.rollbackRename(plan);
+          this.emitScopedFileActionResult(false, resolveAppResourceText(rolledBack
+            ? $r('app.string.download_rename_failed') : $r('app.string.download_rename_cleanup_failed')), onFailure);
+          return false;
+        }
+        this.emitInfo(resolveAppResourceText($r('app.string.download_rename_succeeded')));
+        return true;
+      } finally {
+        this.fileActionService.releaseRename(plan);
+      }
+    } catch (_error) {
+      this.emitScopedFileActionResult(false, resolveAppResourceText($r('app.string.download_rename_cleanup_failed')), onFailure);
+      return false;
+    } finally {
+      this.fileActionGuids.delete(guid);
+      this.emitTaskListChange('important');
+    }
+  }
+
+  canRedownloadMissingTaskForBoundary(guid: string, boundary: DownloadTaskBoundary): boolean {
+    const task = this.getTaskByGuid(guid);
+    return task !== undefined && !this.fileActionGuids.has(guid) &&
+      this.downloadPolicyService.canReadSessionTasks(boundary) &&
+      this.downloadPolicyService.canWriteSessionTasks(boundary) &&
+      this.isTaskInsideBoundary(task, this.normalizeBoundary(boundary)) && this.fileActionService.canRedownload(task);
+  }
+
+  /** Called only after the missing-file confirmation, never from an open failure or timer. */
+  async redownloadMissingTaskForBoundary(guid: string, boundary: DownloadTaskBoundary): Promise<boolean> {
+    if (!this.canRedownloadMissingTaskForBoundary(guid, boundary)) return false;
+    this.fileActionGuids.add(guid);
+    this.emitTaskListChange('important');
+    try {
+      if (await this.inspectTaskFileForBoundary(guid, boundary) !== 'missing') return false;
+      const task = this.getTaskByGuid(guid);
+      if (task === undefined || !this.downloadPolicyService.canReadSessionTasks(boundary) ||
+        !this.downloadPolicyService.canWriteSessionTasks(boundary) ||
+        !this.isTaskInsideBoundary(task, this.normalizeBoundary(boundary)) ||
+        !this.fileActionService.canRedownload(task)) return false;
+      const url = task.request.originalUrl?.trim() || task.request.url;
+      let sourceTabId = '';
+      this.pageDownloadSources.forEach((source: PageDownloadSource, tabId: string): void => {
+        if (source.controller !== undefined && source.boundary.profileId === task.profileId &&
+          source.boundary.privacyMode === task.privacyMode && source.boundary.dataScope === task.dataScope &&
+          source.boundary.windowId === boundary.windowId &&
+          source.boundary.sourcePageUrl === task.request.sourcePageUrl) sourceTabId = tabId;
+      });
+      const resolved = this.resolveManualDownloadRequest({
+        url: url, sourceTabId: sourceTabId.length > 0 ? sourceTabId : undefined,
+        suggestedFileName: task.resolvedFileName || task.suggestedFileName,
+        userAgent: task.request.userAgent, referer: task.request.referer, mimeType: task.request.mimeType,
+        headers: task.request.headers, headersSource: task.request.nativeReason === 'custom_headers' ? 'explicit' : 'page'
+      }, { windowId: boundary.windowId, profileId: task.profileId, privacyMode: task.privacyMode,
+        dataScope: task.dataScope, sourcePageUrl: task.request.sourcePageUrl });
+      if (resolved === undefined) return false;
+      // A new, user-confirmed request gets a new identity. Never reuse the completed GUID/token.
+      const created = await this.downloadV2Service.createConfirmedManualRequest(url, {
+        windowId: boundary.windowId ?? '', profileId: task.profileId, privacyMode: task.privacyMode,
+        dataScope: task.dataScope, sourcePageUrl: task.request.sourcePageUrl
+      }, task.resolvedFileName || task.suggestedFileName, task.request.sourceHost, resolved.context);
+      return created !== undefined && created.status !== 'failed' && created.status !== 'canceled';
+    } catch (_error) {
+      return false;
+    } finally {
+      this.fileActionGuids.delete(guid);
+      this.emitTaskListChange('important');
+    }
   }
 
   saveTaskToSystemDownloadsForBoundary(guid: string, boundary: DownloadTaskBoundary): Promise<boolean> {
@@ -419,6 +656,20 @@ export class DownloadRuntimeService {
       return Promise.resolve(false);
     }
     return this.downloadV2Service.retryTask(guid);
+  }
+
+  chooseTaskLocationForBoundary(guid: string, boundary: DownloadTaskBoundary): Promise<boolean> {
+    if (!this.canExecuteTaskAction(guid, boundary, 'choose_location')) {
+      return Promise.resolve(false);
+    }
+    return this.downloadV2Service.chooseTaskLocation(guid);
+  }
+
+  hasDownloadDestinationReference(uri: string): boolean {
+    const normalizedUri = uri.trim();
+    if (normalizedUri.length > 0 && !this.repositoryHydrated) return true;
+    return normalizedUri.length > 0 && this.downloadV2Service.listTasks().some((task: DownloadV2TaskEntity): boolean =>
+      task.status !== 'canceled' && task.status !== 'removed' && task.persistence.destination?.uri === normalizedUri);
   }
 
   cancelTaskForBoundary(guid: string, boundary: DownloadTaskBoundary): Promise<boolean> {
@@ -471,6 +722,24 @@ export class DownloadRuntimeService {
     if (!cleanupPolicy.isPrivateSession) {
       return 0;
     }
+    this.pageDownloadSources.forEach((source: PageDownloadSource, tabId: string) => {
+      if (this.matchesSourceBoundary(source.boundary, boundary)) {
+        this.downloadBridge.unregisterDownloadSource?.(source.sourceId);
+        this.pageDownloadSources.delete(tabId);
+      }
+    });
+    this.downloadSourceBoundaries.forEach((sourceBoundary: DownloadTaskBoundary, sourceId: string) => {
+      if (this.matchesSourceBoundary(sourceBoundary, boundary)) {
+        this.downloadSourceBoundaries.delete(sourceId);
+      }
+    });
+    this.downloadGuidBoundaries.forEach((taskBoundary: DownloadTaskBoundary, guid: string) => {
+      if (this.matchesSourceBoundary(taskBoundary, boundary)) {
+        this.downloadGuidBoundaries.delete(guid);
+      }
+    });
+    this.recentWebDownloadStarts = this.recentWebDownloadStarts.filter((context: WebDownloadStartContext) =>
+      this.downloadSourceBoundaries.has(context.sourceId));
     if (cleanupPolicy.shouldDeleteSessionTempFilesOnWindowClose) {
       this.cleanupSessionEphemeralTempFilesForWindow(windowId);
     }
@@ -563,7 +832,8 @@ export class DownloadRuntimeService {
         cancelLabel: v2Prompt.cancelLabel,
         locationPath: location.path,
         canChangeLocation: location.canChange,
-        isPlatformDownload: this.isPlatformDownloadPrompt(v2Prompt.guid)
+        isPlatformDownload: this.isPlatformDownloadPrompt(v2Prompt.guid),
+        isUserInitiatedDownload: this.isUserInitiatedDownloadPrompt(v2Prompt.guid)
       };
     }
     return undefined;
@@ -571,6 +841,11 @@ export class DownloadRuntimeService {
 
   private isPlatformDownloadPrompt(guid: string): boolean {
     return this.downloadV2Service.getCapturedRequest(guid)?.platformSnapshot !== undefined;
+  }
+
+  private isUserInitiatedDownloadPrompt(guid: string): boolean {
+    const request = this.downloadV2Service.getCapturedRequest(guid);
+    return request !== undefined && request.platformSnapshot === undefined;
   }
 
   confirmPendingDownload(guid: string, fileName?: string): Promise<boolean> {
@@ -612,7 +887,7 @@ export class DownloadRuntimeService {
    * transfer would otherwise identify itself as the download core and be rejected with HTTP 403.
    */
   recordWebDownloadStart(
-    _tabId: string,
+    tabId: string,
     url: string,
     userAgent: string,
     contentDisposition: string,
@@ -621,15 +896,17 @@ export class DownloadRuntimeService {
   ): void {
     const normalizedUrl = this.normalizeDownloadMatchUrl(url);
     const normalizedUserAgent = userAgent.trim();
-    if (normalizedUrl.length <= 0 || normalizedUserAgent.length <= 0) {
+    const sourceId = this.pageDownloadSources.get(tabId)?.sourceId ?? '';
+    if (normalizedUrl.length <= 0 || sourceId.length <= 0) {
       return;
     }
     const now = Date.now();
     this.recentWebDownloadStarts = this.recentWebDownloadStarts.filter((context: WebDownloadStartContext) =>
       now - context.observedAt <= WEB_DOWNLOAD_START_MATCH_WINDOW_MS &&
-      context.url !== normalizedUrl
+      (context.url !== normalizedUrl || context.sourceId !== sourceId)
     );
     this.recentWebDownloadStarts.push({
+      sourceId: sourceId,
       url: normalizedUrl,
       userAgent: normalizedUserAgent,
       contentDisposition: contentDisposition.trim(),
@@ -642,17 +919,12 @@ export class DownloadRuntimeService {
         this.recentWebDownloadStarts.length - WEB_DOWNLOAD_START_CONTEXT_LIMIT
       );
     }
-    this.downloadV2Service.rememberPageDownloadIdentity(
-      normalizedUrl,
-      normalizedUserAgent,
-      contentDisposition,
-      mimeType
-    );
   }
 
   cancelPendingDownload(guid: string): boolean {
     const canceledV2Request = this.downloadV2Service.cancelPendingPrompt(guid);
     if (canceledV2Request !== undefined) {
+      this.downloadGuidBoundaries.delete(guid);
       const fileName = canceledV2Request.suggestedFileName?.trim() ?? '';
       const displayName = fileName.length > 0
         ? fileName
@@ -669,70 +941,44 @@ export class DownloadRuntimeService {
       return false;
     }
     this.downloadV2Service.clearPendingPrompt(guid);
+    this.downloadGuidBoundaries.delete(guid);
     return true;
   }
 
-  requestManualDownloadPrompt(input: ManualDownloadRequestInput): PendingDownloadPromptState | undefined {
-    if (!this.downloadPolicyService.canWriteSessionTasks(this.activeBoundary)) {
-      return undefined;
-    }
-    const prompt = this.downloadV2Service.createManualPrompt(
-      input.url,
-      {
-        windowId: this.activeBoundary.windowId ?? '',
-        profileId: this.activeBoundary.profileId,
-        privacyMode: this.activeBoundary.privacyMode,
-        dataScope: this.activeBoundary.dataScope,
-        sourcePageUrl: this.activeBoundary.sourcePageUrl
-      },
-      input.suggestedFileName,
-      input.sourceHost,
-      {
-        userAgent: input.userAgent,
-        referer: input.referer,
-        mimeType: input.mimeType,
-        contentDisposition: input.contentDisposition,
-        totalBytes: input.totalBytes,
-        headers: input.headers
-      }
-    );
-    if (prompt === undefined) {
-      return undefined;
-    }
-    return this.withPromptLocation(prompt);
+  requestManualDownloadPrompt(input: ManualDownloadRequestInput, sourceTabId: string = ''): PendingDownloadPromptState | undefined {
+    const resolved = this.resolveManualDownloadRequest(input, this.activeBoundary, sourceTabId);
+    if (resolved === undefined) return undefined;
+    const prompt = this.downloadV2Service.createManualPrompt(input.url, {
+      windowId: resolved.boundary.windowId ?? '',
+      profileId: resolved.boundary.profileId,
+      privacyMode: resolved.boundary.privacyMode,
+      dataScope: resolved.boundary.dataScope,
+      sourcePageUrl: resolved.boundary.sourcePageUrl
+    }, input.suggestedFileName, input.sourceHost, resolved.context);
+    return prompt === undefined ? undefined : this.withPromptLocation(prompt);
   }
 
   async requestConfirmedManualDownloads(inputs: ManualDownloadRequestInput[]): Promise<ManualDownloadBatchResult> {
-    // Capture the initiating session before yielding so a tab/window switch cannot move later tasks.
-    const boundary: DownloadTaskBoundary = {
-      windowId: this.activeBoundary.windowId,
-      profileId: this.activeBoundary.profileId,
-      privacyMode: this.activeBoundary.privacyMode,
-      dataScope: this.activeBoundary.dataScope,
-      sourcePageUrl: this.activeBoundary.sourcePageUrl
-    };
+    // Freeze every source and its request context before the first asynchronous task creation.
+    const boundary = this.normalizeBoundary(this.activeBoundary);
+    const requests: (ResolvedManualDownloadRequest | undefined)[] = inputs.map((input: ManualDownloadRequestInput) =>
+      this.resolveManualDownloadRequest(input, boundary));
     const result: ManualDownloadBatchResult = { queued: 0, failed: 0 };
     for (let index = 0; index < inputs.length; index++) {
       const input = inputs[index];
-      if (!this.downloadPolicyService.canWriteSessionTasks(boundary)) {
+      const resolved = requests[index];
+      if (resolved === undefined || !this.downloadPolicyService.canWriteSessionTasks(resolved.boundary)) {
         result.failed += 1;
         continue;
       }
       try {
         const task = await this.downloadV2Service.createConfirmedManualRequest(input.url, {
-          windowId: boundary.windowId ?? '',
-          profileId: boundary.profileId,
-          privacyMode: boundary.privacyMode,
-          dataScope: boundary.dataScope,
-          sourcePageUrl: boundary.sourcePageUrl
-        }, input.suggestedFileName, input.sourceHost, {
-          userAgent: input.userAgent,
-          referer: input.referer,
-          mimeType: input.mimeType,
-          contentDisposition: input.contentDisposition,
-          totalBytes: input.totalBytes,
-          headers: input.headers
-        });
+          windowId: resolved.boundary.windowId ?? '',
+          profileId: resolved.boundary.profileId,
+          privacyMode: resolved.boundary.privacyMode,
+          dataScope: resolved.boundary.dataScope,
+          sourcePageUrl: resolved.boundary.sourcePageUrl
+        }, input.suggestedFileName, input.sourceHost, resolved.context);
         if (task !== undefined && task.status !== 'failed' && task.status !== 'canceled' && task.status !== 'removed') {
           result.queued += 1;
         } else {
@@ -745,38 +991,113 @@ export class DownloadRuntimeService {
     return result;
   }
 
-  requestManualDownload(input: ManualDownloadRequestInput): ManualDownloadRequestResult | undefined {
-    if (!this.downloadPolicyService.canWriteSessionTasks(this.activeBoundary)) {
-      return undefined;
-    }
-    const result = this.downloadV2Service.createManualRequest(
-      input.url,
-      {
-        windowId: this.activeBoundary.windowId ?? '',
-        profileId: this.activeBoundary.profileId,
-        privacyMode: this.activeBoundary.privacyMode,
-        dataScope: this.activeBoundary.dataScope,
-        sourcePageUrl: this.activeBoundary.sourcePageUrl
-      },
-      input.suggestedFileName,
-      input.sourceHost,
-      {
-        userAgent: input.userAgent,
-        referer: input.referer,
-        mimeType: input.mimeType,
-        contentDisposition: input.contentDisposition,
-        totalBytes: input.totalBytes,
-        headers: input.headers
-      }
-    );
-    if (result === undefined) {
-      return undefined;
-    }
+  requestManualDownload(input: ManualDownloadRequestInput, sourceTabId: string = ''): ManualDownloadRequestResult | undefined {
+    const resolved = this.resolveManualDownloadRequest(input, this.activeBoundary, sourceTabId);
+    if (resolved === undefined) return undefined;
+    const result = this.downloadV2Service.createManualRequest(input.url, {
+      windowId: resolved.boundary.windowId ?? '',
+      profileId: resolved.boundary.profileId,
+      privacyMode: resolved.boundary.privacyMode,
+      dataScope: resolved.boundary.dataScope,
+      sourcePageUrl: resolved.boundary.sourcePageUrl
+    }, input.suggestedFileName, input.sourceHost, resolved.context);
+    if (result === undefined) return undefined;
     return {
       guid: result.guid,
       prompt: this.toPendingDownloadPromptFromV2(result.prompt),
       started: result.started
     };
+  }
+
+  private resolveManualDownloadRequest(
+    input: ManualDownloadRequestInput,
+    initiatingBoundary: DownloadTaskBoundary,
+    sourceTabId: string = ''
+  ): ResolvedManualDownloadRequest | undefined {
+    const frozenBoundary = this.normalizeBoundary(initiatingBoundary);
+    const explicitTabId = sourceTabId.trim() || input.sourceTabId?.trim() || '';
+    let source: PageDownloadSource | undefined = undefined;
+    if (explicitTabId.length > 0) {
+      source = this.pageDownloadSources.get(explicitTabId);
+      if (source === undefined) return this.rejectUnavailableDownloadSource();
+    } else {
+      // A global active boundary is only a lookup key, never permission to borrow another tab.
+      const candidates: PageDownloadSource[] = [];
+      this.pageDownloadSources.forEach((candidate: PageDownloadSource): void => {
+        if (candidate.controller !== undefined && this.matchesSourceBoundary(candidate.boundary, frozenBoundary) &&
+          (candidate.boundary.windowId ?? '') === (frozenBoundary.windowId ?? '') &&
+          candidate.boundary.sourcePageUrl === frozenBoundary.sourcePageUrl) candidates.push(candidate);
+      });
+      if (candidates.length === 1) source = candidates[0];
+    }
+    const boundary = this.normalizeBoundary(source?.boundary ?? frozenBoundary);
+    if (!this.downloadPolicyService.canWriteSessionTasks(boundary)) return undefined;
+    const nativeReason = this.resolveManualNativeReason(input, boundary.sourcePageUrl ?? '');
+    if (nativeReason === undefined && source?.controller === undefined) return this.rejectUnavailableDownloadSource();
+    const headers: Record<string, string> = {};
+    if (input.headers !== undefined) {
+      Object.keys(input.headers).forEach((name: string): void => { headers[name] = input.headers?.[name] ?? ''; });
+    }
+    return {
+      boundary: boundary,
+      context: {
+        sourceId: source?.sourceId,
+        nativeReason: nativeReason,
+        userAgent: input.userAgent ?? this.resolveSourceUserAgent(source),
+        referer: input.referer ?? boundary.sourcePageUrl,
+        mimeType: input.mimeType,
+        contentDisposition: input.contentDisposition,
+        totalBytes: input.totalBytes,
+        headers: input.headers === undefined ? undefined : headers
+      }
+    };
+  }
+
+  private rejectUnavailableDownloadSource(): undefined {
+    this.emitError(resolveAppResourceText($r('app.string.download_browser_context_unavailable')));
+    return undefined;
+  }
+
+  private resolveSourceUserAgent(source?: PageDownloadSource): string | undefined {
+    if (source?.controller === undefined) return undefined;
+    try {
+      const custom = source.controller.getCustomUserAgent().trim();
+      return custom.length > 0 ? custom : source.controller.getUserAgent().trim();
+    } catch (_error) {
+      return undefined;
+    }
+  }
+
+  private resolveManualNativeReason(
+    input: ManualDownloadRequestInput,
+    pageUrl: string
+  ): 'hls' | 'custom_headers' | undefined {
+    if (/\.m3u8?(?:[?#]|$)/i.test(input.url) || /\.m3u8?$/i.test(input.suggestedFileName ?? '') ||
+      /mpegurl|m3u8/i.test(input.mimeType ?? '')) return 'hls';
+    const headers = input.headers;
+    if (headers === undefined) return undefined;
+    const names = Object.keys(headers).filter((name: string): boolean =>
+      name.trim().length > 0 && (headers[name]?.trim().length ?? 0) > 0);
+    if (names.length === 0) return undefined;
+    if (input.headersSource !== 'page') return 'custom_headers';
+    const pageHeaders = ['cookie', 'user-agent', 'referer', 'origin', 'accept', 'accept-language',
+      'accept-encoding', 'connection', 'host', 'content-length', 'sec-fetch-dest', 'sec-fetch-mode',
+      'sec-fetch-site', 'sec-fetch-user', 'sec-ch-ua', 'sec-ch-ua-mobile', 'sec-ch-ua-platform',
+      'upgrade-insecure-requests'];
+    for (let index = 0; index < names.length; index++) {
+      const name = names[index].trim().toLowerCase();
+      if (pageHeaders.indexOf(name) < 0) return 'custom_headers';
+      if (name === 'origin' && (this.resolveHttpOrigin(pageUrl).length === 0 ||
+        this.resolveHttpOrigin(headers[names[index]]) !== this.resolveHttpOrigin(pageUrl))) {
+        return 'custom_headers';
+      }
+    }
+    return undefined;
+  }
+
+  private resolveHttpOrigin(value: string): string {
+    const match = /^https?:\/\/[^/?#]+/i.exec(value.trim());
+    return match === null ? '' : match[0].toLowerCase();
   }
 
   private toPendingDownloadPromptFromV2(prompt?: DownloadV2Prompt): PendingDownloadPromptState | undefined {
@@ -810,7 +1131,8 @@ export class DownloadRuntimeService {
       cancelLabel: prompt.cancelLabel,
       locationPath: location.path,
       canChangeLocation: location.canChange,
-      isPlatformDownload: this.isPlatformDownloadPrompt(prompt.guid)
+      isPlatformDownload: this.isPlatformDownloadPrompt(prompt.guid),
+      isUserInitiatedDownload: this.isUserInitiatedDownloadPrompt(prompt.guid)
     };
   }
 
@@ -876,24 +1198,30 @@ export class DownloadRuntimeService {
     this.initialized = true;
     this.downloadBridge.setCallbacks({
       onDownloadEvent: (event: PlatformDownloadEvent) => {
+        const boundary = this.resolvePlatformEventBoundary(event);
+        if (boundary === undefined) {
+          if (event.type === 'before_download') {
+            this.downloadBridge.cancelPendingDownload(event.snapshot.guid);
+          }
+          return;
+        }
         if (event.type === 'before_download') {
-          this.refreshActiveBoundarySourcePageUrl();
+          this.downloadGuidBoundaries.set(event.snapshot.guid, boundary);
           this.applyRecentWebDownloadStart(event);
         }
-        this.callbacks.onPlatformDownloadEvent?.(event, this.normalizeBoundary(this.activeBoundary));
+        this.callbacks.onPlatformDownloadEvent?.(event, boundary);
         this.callbackListeners.forEach((listener: DownloadRuntimeServiceCallbackListener) => {
-          listener.callbacks.onPlatformDownloadEvent?.(event, this.normalizeBoundary(this.activeBoundary));
+          listener.callbacks.onPlatformDownloadEvent?.(event, boundary);
         });
-        const handled = this.downloadV2Service.consumePlatformEvent(event, {
-          windowId: this.activeBoundary.windowId ?? '',
-          profileId: this.activeBoundary.profileId,
-          privacyMode: this.activeBoundary.privacyMode,
-          dataScope: this.activeBoundary.dataScope,
-          sourcePageUrl: this.activeBoundary.sourcePageUrl
-        }) === true;
-        if (!handled) {
-          this.emitError(resolveAppResourceText($r('app.string.download_process_failed', event.snapshot.suggestedFileName)));
-        }
+        // Unknown and superseded progress events are normal during recovery. The service emits
+        // actionable failures itself; an unhandled callback must not create a generic error toast.
+        this.downloadV2Service.consumePlatformEvent(event, {
+          windowId: boundary.windowId ?? '',
+          profileId: boundary.profileId,
+          privacyMode: boundary.privacyMode,
+          dataScope: boundary.dataScope,
+          sourcePageUrl: boundary.sourcePageUrl
+        });
       }
     });
     this.downloadBridge.getDelegate();
@@ -982,13 +1310,29 @@ export class DownloadRuntimeService {
     };
   }
 
+  private matchesSourceBoundary(source: DownloadTaskBoundary, expected: DownloadTaskBoundary): boolean {
+    return matchesDownloadTaskBoundary({
+      windowId: source.windowId,
+      profileId: source.profileId,
+      privacyMode: source.privacyMode,
+      dataScope: source.dataScope
+    }, {
+      windowId: expected.windowId,
+      profileId: expected.profileId,
+      privacyMode: expected.privacyMode,
+      dataScope: expected.dataScope
+    });
+  }
+
   private applyRecentWebDownloadStart(event: PlatformDownloadEvent): void {
     const normalizedUrl = this.normalizeDownloadMatchUrl(event.snapshot.url);
-    if (normalizedUrl.length <= 0) {
+    const sourceId = event.snapshot.sourceId ?? '';
+    if (normalizedUrl.length <= 0 || sourceId.length <= 0) {
       return;
     }
     const now = Date.now();
     const matchedContext: WebDownloadStartContext = {
+      sourceId: '',
       url: '',
       userAgent: '',
       contentDisposition: '',
@@ -1000,7 +1344,8 @@ export class DownloadRuntimeService {
       if (now - context.observedAt > WEB_DOWNLOAD_START_MATCH_WINDOW_MS) {
         return false;
       }
-      if (context.url === normalizedUrl) {
+      if (context.url === normalizedUrl && context.sourceId === sourceId) {
+        matchedContext.sourceId = context.sourceId;
         matchedContext.url = context.url;
         matchedContext.userAgent = context.userAgent;
         matchedContext.contentDisposition = context.contentDisposition;
@@ -1011,7 +1356,7 @@ export class DownloadRuntimeService {
       }
       return true;
     });
-    if (matchedContext.userAgent.length <= 0) {
+    if (matchedContext.sourceId.length <= 0) {
       return;
     }
     const context = matchedContext;
@@ -1041,18 +1386,32 @@ export class DownloadRuntimeService {
     return hashIndex >= 0 ? trimmed.substring(0, hashIndex) : trimmed;
   }
 
-  private refreshActiveBoundarySourcePageUrl(): void {
-    const resolvedUrl = this.callbacks.resolveCurrentPageUrl?.().trim() ?? '';
-    if (resolvedUrl.length <= 0 || resolvedUrl === (this.activeBoundary.sourcePageUrl ?? '')) {
-      return;
+  private resolvePlatformEventBoundary(event: PlatformDownloadEvent): DownloadTaskBoundary | undefined {
+    const task = this.downloadV2Service.findTask(event.snapshot.guid);
+    if (task !== undefined) {
+      return this.normalizeBoundary({
+        windowId: task.windowId,
+        profileId: task.profileId,
+        privacyMode: task.privacyMode,
+        dataScope: task.dataScope,
+        sourcePageUrl: task.request.sourcePageUrl
+      });
     }
-    this.activeBoundary = {
-      windowId: this.activeBoundary.windowId,
-      profileId: this.activeBoundary.profileId,
-      privacyMode: this.activeBoundary.privacyMode,
-      dataScope: this.activeBoundary.dataScope,
-      sourcePageUrl: resolvedUrl
-    };
+    const captured = this.downloadV2Service.getCapturedRequest(event.snapshot.guid);
+    if (captured !== undefined) {
+      return this.normalizeBoundary({
+        windowId: captured.boundary.windowId,
+        profileId: captured.boundary.profileId,
+        privacyMode: captured.boundary.privacyMode,
+        dataScope: captured.boundary.dataScope,
+        sourcePageUrl: captured.boundary.sourcePageUrl
+      });
+    }
+    const remembered = this.downloadGuidBoundaries.get(event.snapshot.guid);
+    if (remembered !== undefined) {
+      return remembered;
+    }
+    return this.downloadSourceBoundaries.get(event.snapshot.sourceId ?? '');
   }
 
   private isTaskInsideBoundary(task: DownloadV2TaskEntity, boundary: DownloadTaskBoundary): boolean {
@@ -1154,7 +1513,7 @@ export class DownloadRuntimeService {
       return undefined;
     }
     return this.toFollowupTaskEntityFromV2({
-      suggestedFileName: v2Task.suggestedFileName,
+      suggestedFileName: v2Task.resolvedFileName?.trim() || v2Task.suggestedFileName,
       mimeType: v2Task.request.mimeType,
       tempLocalPath: v2Task.persistence.tempFilePath,
       finalFileUri: v2Task.persistence.finalFileUri
@@ -1180,6 +1539,17 @@ export class DownloadRuntimeService {
       return;
     }
     this.emitError(normalizedMessage);
+  }
+
+  private emitScopedFileActionResult(
+    success: boolean, message?: string, onFailure?: (message: string) => void
+  ): void {
+    if (!success && onFailure !== undefined) {
+      const normalized = message?.trim() ?? '';
+      if (normalized.length > 0) onFailure(normalized);
+      return;
+    }
+    this.emitFollowupResult(success, message);
   }
 
   private allowsTaskFollowupAction(task: DownloadV2TaskEntity, action: DownloadTaskFollowupAction): boolean {
@@ -1211,6 +1581,8 @@ export class DownloadRuntimeService {
     return action === 'pause' ||
       action === 'resume' ||
       action === 'retry' ||
+      action === 'choose_location' ||
+      action === 'rename' ||
       action === 'cancel' ||
       action === 'remove_record';
   }
@@ -1224,6 +1596,9 @@ export class DownloadRuntimeService {
   }
 
   private resolveAllowedActionsForV2Task(task: DownloadV2TaskEntity): DownloadV2ManagementAction[] {
+    if (task.persistence.completionState === 'finalizing' || this.fileActionGuids.has(task.guid)) {
+      return [];
+    }
     let supportedActions: DownloadV2ManagementAction[] = [];
     getDownloadV2ActionPermissionSet(task.status).allowedActions.forEach((action: DownloadV2Action) => {
       if (action !== 'confirm' && action !== 'start') {
@@ -1256,10 +1631,19 @@ export class DownloadRuntimeService {
     if (task.status === 'completed' && !this.canSaveV2TaskToSystemDownloads(task)) {
       supportedActions = supportedActions.filter((action: DownloadV2ManagementAction) => action !== 'save_to_system');
     }
-    if (task.status === 'failed' && task.persistence.downloadDriver === 'arkweb' &&
-      task.failure.code === 'context_lost' && !task.failure.retriable) {
+    if (task.status === 'failed' && !task.failure.retriable) {
       supportedActions = supportedActions.filter((action: DownloadV2ManagementAction) =>
         action !== 'resume' && action !== 'retry');
+    }
+    if (task.failure.retriable && (task.status === 'failed' || task.status === 'paused') &&
+      (task.failure.code === 'permission' || task.persistence.completionState === 'export_failed')) {
+      supportedActions.unshift('choose_location');
+    }
+    const availability = this.fileAvailabilityByGuid.get(task.guid);
+    const location = task.persistence.finalFileUri?.trim() || task.persistence.tempFilePath?.trim() || '';
+    if (availability?.location === location && availability.availability === 'missing') {
+      supportedActions = supportedActions.filter((action: DownloadV2ManagementAction): boolean =>
+        action !== 'share_file' && action !== 'rename');
     }
     return supportedActions;
   }

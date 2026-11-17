@@ -229,7 +229,7 @@ export class BrowserMediaResourceSessionCoordinator {
         return;
       }
       await this.downloadConfirmOverlayCoordinator.presentAndWaitForDecision(
-        this.downloadService.requestManualDownloadPrompt(resolution.downloadRequest)
+        this.downloadService.requestManualDownloadPrompt(resolution.downloadRequest, tabId)
       );
     } finally {
       this.activePlaybackDownloadInFlight = false;
@@ -321,8 +321,9 @@ export class BrowserMediaResourceSessionCoordinator {
   }
 
   private handleResourceAction(candidateId: string, action: MediaResourceAction): void {
+    const sourceTabId = this.mediaDiscoveryHost.resolveActiveTabId();
     const resolution = this.mediaDiscoveryCoordinator.resolveMediaResourceAction({
-      tabId: this.mediaDiscoveryHost.resolveActiveTabId(),
+      tabId: sourceTabId,
       runtime: this.mediaDiscoveryHost.buildRuntimeContext(),
       resourcePanelOpen: true
     }, candidateId, action);
@@ -339,7 +340,7 @@ export class BrowserMediaResourceSessionCoordinator {
         }
         this.closeResources();
         this.downloadConfirmOverlayCoordinator.present(
-          this.downloadService.requestManualDownloadPrompt(resolution.downloadRequest)
+          this.downloadService.requestManualDownloadPrompt(resolution.downloadRequest, sourceTabId)
         );
         return;
       case 'copy':

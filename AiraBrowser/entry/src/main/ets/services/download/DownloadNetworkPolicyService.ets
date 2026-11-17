@@ -113,6 +113,9 @@ class SystemDownloadNetworkSnapshotProvider implements DownloadNetworkSnapshotPr
       watcher.on('netAvailable', () => {
         this.notifyChange();
       });
+      watcher.on('netCapabilitiesChange', () => {
+        this.notifyChange();
+      });
       watcher.on('netLost', () => {
         this.notifyChange();
       });

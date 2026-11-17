@@ -77,6 +77,7 @@ import {
   createUserScriptManagementSessionCoordinator,
   sharedPasswordSettingsRepository,
   sharedPreferencesRepository,
+  sharedDownloadRuntimeService,
   sharedTranslationSecretStore,
   sharedTranslationSettingsRepository
 } from '../../bootstrap/BrowserAppRuntime';
@@ -640,12 +641,14 @@ export struct SettingsEmbeddedDetailPanel {
       const isWritable = await directoryService.verifyDirectoryWritable(selection.uri);
       const currentSettings = sharedPreferencesRepository.getPreferences().downloads;
       const previousUri = currentSettings.customLocationUri;
-      this.updateDownloadSettings({
+      const saved = await this.updateDownloadSettings({
         defaultLocation: 'custom',
         customLocationUri: selection.uri,
         customLocationLabel: selection.label
       });
-      if (previousUri.length > 0 && previousUri !== selection.uri) {
+      if (!saved) return;
+      if (previousUri.length > 0 && previousUri !== selection.uri &&
+        !sharedDownloadRuntimeService.hasDownloadDestinationReference(previousUri)) {
         void directoryService.releaseDirectory(previousUri);
       }
       if (!isWritable) {
@@ -658,33 +661,35 @@ export struct SettingsEmbeddedDetailPanel {
     }
   }
 
-  private resetToSystemDownloadLocation(): void {
+  private async resetToSystemDownloadLocation(): Promise<void> {
     const currentSettings = sharedPreferencesRepository.getPreferences().downloads;
     if (currentSettings.defaultLocation !== 'custom') {
       return;
     }
     const previousUri = currentSettings.customLocationUri;
-    this.updateDownloadSettings({
+    const saved = await this.updateDownloadSettings({
       defaultLocation: 'system_downloads',
       customLocationUri: '',
       customLocationLabel: ''
     });
-    if (previousUri.length > 0) {
+    if (saved && previousUri.length > 0 && !sharedDownloadRuntimeService.hasDownloadDestinationReference(previousUri)) {
       void new DownloadLocationDirectoryService().releaseDirectory(previousUri);
     }
   }
 
-  private updateDownloadSettings(patch: Partial<BrowserDownloadSettings>): void {
+  private updateDownloadSettings(patch: Partial<BrowserDownloadSettings>): Promise<boolean> {
     const previousSettings = sharedPreferencesRepository.getPreferences().downloads;
     const nextSettings = this.downloadViewModel.buildSettingsPatch(previousSettings, patch);
     this.applyDownloadSettingsState(nextSettings);
-    sharedPreferencesRepository.updateDownloadSettings(nextSettings)
+    return sharedPreferencesRepository.updateDownloadSettings(nextSettings)
       .then((preferences: BrowserPreferences) => {
         this.applyDownloadSettingsState(preferences.downloads);
         this.handleSettingsChanged();
+        return true;
       })
       .catch((_error: Error) => {
         this.applyDownloadSettingsState(previousSettings);
+        return false;
       });
   }
 

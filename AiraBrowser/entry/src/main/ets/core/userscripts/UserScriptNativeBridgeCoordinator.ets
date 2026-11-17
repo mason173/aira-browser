@@ -299,7 +299,7 @@ export class UserScriptNativeBridgeCoordinator {
     if (route.executor === 'xml_http_request') {
       this.handleXmlHttpRequest(payload, payloadJson, controller, tabId, currentUrl, route);
     } else if (route.executor === 'download') {
-      this.handleDownload(payload, controller, currentUrl, route);
+      this.handleDownload(payload, controller, tabId, currentUrl, route);
     } else if (route.executor === 'notification') {
       this.handleNotification(payload, controller, currentUrl, route);
     } else if (route.executor === 'media_sniff') {
@@ -395,6 +395,7 @@ export class UserScriptNativeBridgeCoordinator {
   private handleDownload(
     payload: RawUserScriptNativeBridgePayload,
     controller: webview.WebviewController,
+    tabId: string,
     currentUrl: string,
     route: UserScriptNativeBridgeRoute
   ): void {
@@ -413,6 +414,8 @@ export class UserScriptNativeBridgeCoordinator {
     const request = this.downloadService.buildRequest(payload, currentUrl);
     const downloadRequest: ManualDownloadRequestInput | undefined = request === undefined ? undefined : {
       url: request.url,
+      sourceTabId: tabId,
+      headersSource: 'explicit',
       suggestedFileName: request.name.length > 0 ? request.name : undefined,
       totalBytes: 0,
       referer: request.sourcePageUrl,

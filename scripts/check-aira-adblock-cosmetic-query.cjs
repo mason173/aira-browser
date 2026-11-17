@@ -112,3 +112,87 @@ test('site controls forwards actual frame identity and opener context with tab p
   assert.equal(owner.shouldBlockAdPopup('tab', 'https://ad.example/'), true);
   assert.equal(received[1][0].pageUrl, 'https://opener.example/');
 });
+
+function pendingBootInjectionFixture({ initiallyEnabled = true, sharedBoot = false } = {}) {
+  const f = fixture();
+  const effects = [];
+  let enabled = initiallyEnabled;
+  let allowlisted = false;
+  let ready = false;
+  let completeBoot;
+  const boot = new Promise(resolve => { completeBoot = resolve; });
+  const originalController = {};
+  let controller = originalController;
+  f.coordinator.repository = {};
+  if (sharedBoot) {
+    BrowserAdBlockCoordinator.runtimeBootPreparationPromises.set(f.coordinator.repository, boot);
+  } else {
+    f.coordinator.runtimeBootPreparationPromise = boot;
+  }
+  f.coordinator.resolveSnapshot = () => ({ settings: { preferences: { enabled } } });
+  f.coordinator.resolveEffectivePagePolicy = () => ({ allowlisted, enabledForPage: !allowlisted });
+  const resolveResources = f.coordinator.runtimeGeneration.resolveNativeCosmeticResources;
+  f.coordinator.runtimeGeneration.resolveNativeCosmeticResources = (...args) =>
+    ready ? resolveResources(...args) : undefined;
+  f.coordinator.statsCoordinator = { clearCosmeticStatsContext() {}, setCosmeticStatsContext() {} };
+  f.coordinator.cosmeticInjectionService = {
+    async collectSelectorCandidates() { effects.push('collect'); return { classes: ['late-ad'], ids: [] }; },
+    async clearForPage() { effects.push('clear'); },
+    async executeInjectedScript() { effects.push('scriptlet'); },
+    async injectForPage(target, _url, plan) {
+      assert.equal(target, originalController);
+      assert.deepEqual(Array.from(plan.cssSelectors), ['.late-ad']);
+      effects.push('inject'); return { skipped: false, totalActionCount: 1 };
+    },
+    async installDiscoveryForPage() { effects.push('discovery'); }
+  };
+  const port = { resolveController: () => controller };
+  return { ...f, effects,
+    inject: () => f.coordinator.injectCosmeticRulesForPage(context, port),
+    finish({ enabled: nextEnabled = true, allowlisted: nextAllowlisted = false, failed = false } = {}) {
+      enabled = nextEnabled; allowlisted = nextAllowlisted; ready = !failed; completeBoot();
+      BrowserAdBlockCoordinator.runtimeBootPreparationPromises.delete(f.coordinator.repository);
+    },
+    replaceController(value) { controller = value; }
+  };
+}
+
+test('page-end filtering waits for a slow boot and re-reads persisted enabled preferences', async () => {
+  for (const initiallyEnabled of [false, true]) {
+    for (const sharedBoot of [false, true]) {
+      const f = pendingBootInjectionFixture({ initiallyEnabled, sharedBoot });
+      const pending = f.inject();
+      await new Promise(resolve => setImmediate(resolve));
+      assert.deepEqual(f.effects, [], 'a loading engine must not clear or abandon page filtering');
+      f.finish();
+      assert.equal((await pending).skipped, false);
+      assert.deepEqual(f.effects, ['collect', 'scriptlet', 'inject', 'discovery']);
+    }
+  }
+});
+
+test('a tab closed or replaced during boot must not receive a delayed injection', async () => {
+  for (const replacement of [undefined, {}]) {
+    const f = pendingBootInjectionFixture();
+    const pending = f.inject();
+    f.replaceController(replacement); f.finish();
+    assert.equal((await pending).skipped, true);
+    assert.deepEqual(f.effects, []);
+  }
+});
+
+test('post-boot filtering respects the latest disabled or allowlisted policy', async () => {
+  for (const policy of [{ enabled: false }, { allowlisted: true }]) {
+    const f = pendingBootInjectionFixture();
+    const pending = f.inject(); f.finish(policy);
+    assert.equal((await pending).reason, 'disabled');
+    assert.deepEqual(f.effects, ['clear']);
+  }
+});
+
+test('failed boot keeps the bounded discovery fallback without claiming successful injection', async () => {
+  const f = pendingBootInjectionFixture();
+  const pending = f.inject(); f.finish({ failed: true });
+  assert.equal((await pending).reason, 'native_authority_unavailable');
+  assert.deepEqual(f.effects, ['collect', 'clear', 'discovery']);
+});

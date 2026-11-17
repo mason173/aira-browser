@@ -296,7 +296,7 @@ export class DownloadManagerViewModel {
     return new DownloadManagementRowState({
       guid: task.guid,
       status: task.status,
-      fileType: resolveDownloadFileType(task.suggestedFileName, task.request.mimeType),
+      fileType: resolveDownloadFileType(presentation.fileName, task.request.mimeType),
       fileName: presentation.fileName,
       sourceText: this.buildSourceLine(task),
       statusText: this.buildManagementStatusText(task, presentation),
@@ -317,12 +317,19 @@ export class DownloadManagerViewModel {
     return group === 'in_progress' || group === 'pending' || group === 'paused' || group === 'failed';
   }
 
+  resolveTaskFileName(task: DownloadV2TaskEntity): string {
+    const resolved = task.resolvedFileName?.trim() ?? '';
+    if (resolved.length > 0) return resolved;
+    return task.suggestedFileName.length > 0 ? task.suggestedFileName :
+      resolveAppResourceText($r('app.string.download_status_unnamed'));
+  }
+
   private buildTaskPresentation(
     downloadService: DownloadRuntimeService,
     task: DownloadV2TaskEntity
   ): DownloadV2TaskPresentation {
     return {
-      fileName: task.suggestedFileName.length > 0 ? task.suggestedFileName : resolveAppResourceText($r('app.string.download_status_unnamed')),
+      fileName: this.resolveTaskFileName(task),
       statusText: this.buildTaskStatusText(task),
       progressValue: this.buildTaskProgressValue(task),
       progressText: this.buildTaskProgressText(task),
@@ -332,6 +339,17 @@ export class DownloadManagerViewModel {
   }
 
   private buildTaskStatusText(task: DownloadV2TaskEntity): string {
+    if (task.persistence.completionState === 'finalizing') {
+      return resolveAppResourceText($r('app.string.download_status_finalizing'));
+    }
+    const failureMessage = task.failure.message?.trim() ?? '';
+    if ((task.status === 'failed' || task.status === 'paused') && failureMessage.length > 0) {
+      return failureMessage;
+    }
+    const waitingReason = this.buildWaitingReasonText(task);
+    if (waitingReason.length > 0) {
+      return waitingReason;
+    }
     if (task.status === 'failed' && canContinueDownloadV2Task(task)) {
       return resolveAppResourceText($r('app.string.download_status_paused'));
     }
@@ -362,6 +380,19 @@ export class DownloadManagerViewModel {
     }
   }
 
+  private buildWaitingReasonText(task: DownloadV2TaskEntity): string {
+    if (task.status !== 'paused' && task.status !== 'queued') return '';
+    if (task.runtime.pauseReason === 'wifi_policy') {
+      return resolveAppResourceText($r('app.string.download_network_cellular'));
+    }
+    if (task.runtime.pauseReason === 'network') {
+      return task.persistence.restartReason === 'network_unknown'
+        ? resolveAppResourceText($r('app.string.download_network_unknown'))
+        : resolveAppResourceText($r('app.string.download_network_offline'));
+    }
+    return '';
+  }
+
   private buildTaskProgressValue(task: DownloadV2TaskEntity): number {
     return resolveDownloadProgressPercent(task.progress, task.status);
   }
@@ -382,7 +413,8 @@ export class DownloadManagerViewModel {
     if (task.status === 'completed') {
       return '';
     }
-    if (task.status === 'failed' || presentation.isWarning) {
+    if (task.persistence.completionState === 'finalizing' || task.status === 'failed' || presentation.isWarning || this.buildWaitingReasonText(task).length > 0 ||
+      (task.status === 'paused' && (task.failure.message?.trim().length ?? 0) > 0)) {
       return presentation.statusText;
     }
     if (task.status === 'running') {
@@ -403,6 +435,7 @@ export class DownloadManagerViewModel {
   }
 
   private buildManagementTrailingText(task: DownloadV2TaskEntity): string {
+    if (task.persistence.completionState === 'finalizing') return '';
     if (task.status === 'completed') {
       return '';
     }
@@ -479,6 +512,8 @@ export class DownloadManagerViewModel {
         return resolveAppResourceText($r('app.string.ui_open'));
       case 'open_location':
         return resolveAppResourceText($r('app.string.ui_share'));
+      case 'choose_location':
+        return resolveAppResourceText($r('app.string.download_action_choose_location'));
       case 'save_to_system':
         return resolveAppResourceText($r('app.string.download_action_save_system'));
       case 'copy_link':
@@ -508,7 +543,10 @@ export class DownloadManagerViewModel {
     status: DownloadV2Status,
     primaryAction?: DownloadV2ManagementAction
   ): DownloadManagementRowMenuActionView[] {
-    const menuActions: DownloadManagementRowAction[] = actions.slice();
+    // Keep the established menu. Its legacy open_location entry is the Share action;
+    // additional runtime file APIs do not introduce new interface commands.
+    const menuActions: DownloadManagementRowAction[] = actions.filter((action: DownloadV2ManagementAction) =>
+      action !== 'rename' && action !== 'share_file');
     if (menuActions.indexOf('copy_link') < 0) {
       menuActions.push('copy_link');
     }
@@ -550,6 +588,9 @@ export class DownloadManagerViewModel {
   }
 
   private resolvePrimaryAction(presentation: DownloadV2TaskPresentation): DownloadV2ManagementAction | undefined {
+    if (presentation.allowedActions.indexOf('choose_location') >= 0) {
+      return 'choose_location';
+    }
     if (presentation.allowedActions.indexOf('pause') >= 0) {
       return 'pause';
     }
@@ -566,6 +607,9 @@ export class DownloadManagerViewModel {
   }
 
   private resolvePrimaryActionLabel(action: DownloadV2ManagementAction | undefined): string {
+    if (action === 'choose_location') {
+      return resolveAppResourceText($r('app.string.download_action_choose_location'));
+    }
     if (action === 'pause') {
       return resolveAppResourceText($r('app.string.browser_ui_browser_video_assistant_player_overlay_013'));
     }

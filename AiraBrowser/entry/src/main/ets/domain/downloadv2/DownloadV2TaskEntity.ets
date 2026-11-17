@@ -86,7 +86,8 @@ export function createDownloadV2TaskEntity(input: CreateDownloadV2TaskEntityInpu
     runtime: {
       platformTaskId: input.runtime?.platformTaskId,
       platformTaskToken: input.runtime?.platformTaskToken,
-      resumeCapability: input.runtime?.resumeCapability ?? 'none'
+      resumeCapability: input.runtime?.resumeCapability ?? 'none',
+      pauseReason: input.runtime?.pauseReason ?? (input.status === 'paused' ? 'user' : 'none')
     },
     failure: cloneFailure(input.failure),
     timing: {
@@ -107,7 +108,7 @@ export function canContinueDownloadV2TaskFromPersistedData(task: DownloadV2TaskE
     task.runtime.resumeCapability !== 'retry_only') {
     return false;
   }
-  if (task.persistence.downloadDriver === 'arkweb' && !task.failure.retriable) {
+  if (!task.failure.retriable) {
     return false;
   }
   const partialBytes = Math.max(task.progress.receivedBytes, task.persistence.writtenBytes ?? 0);
@@ -146,7 +147,9 @@ export function patchDownloadV2TaskEntity(
     runtime: {
       platformTaskId: patch.runtime?.platformTaskId ?? current.runtime.platformTaskId,
       platformTaskToken: patch.runtime?.platformTaskToken ?? current.runtime.platformTaskToken,
-      resumeCapability: patch.runtime?.resumeCapability ?? current.runtime.resumeCapability
+      resumeCapability: patch.runtime?.resumeCapability ?? current.runtime.resumeCapability,
+      pauseReason: patch.runtime?.pauseReason ?? current.runtime.pauseReason ??
+        (current.status === 'paused' ? 'user' : 'none')
     },
     failure: patch.clearFailure === true
       ? buildDownloadV2EmptyFailure()
@@ -218,6 +221,9 @@ function cloneRequestContext(request: DownloadV2RequestContext): DownloadV2Reque
   return {
     url: request.url,
     originalUrl: request.originalUrl,
+    sourceId: request.sourceId,
+    nativeReason: request.nativeReason,
+    fileNameLocked: request.fileNameLocked,
     method: request.method,
     sourcePageUrl: request.sourcePageUrl,
     sourceHost: request.sourceHost,
@@ -231,6 +237,12 @@ function cloneRequestContext(request: DownloadV2RequestContext): DownloadV2Reque
 
 function clonePersistenceSnapshot(snapshot?: DownloadV2PersistenceSnapshot): DownloadV2PersistenceSnapshot {
   return {
+    destination: snapshot?.destination === undefined ? undefined : {
+      kind: snapshot.destination.kind,
+      uri: snapshot.destination.uri,
+      label: snapshot.destination.label
+    },
+    completionState: snapshot?.completionState,
     tempFilePath: snapshot?.tempFilePath,
     finalFileUri: snapshot?.finalFileUri,
     finalDisplayPath: snapshot?.finalDisplayPath,

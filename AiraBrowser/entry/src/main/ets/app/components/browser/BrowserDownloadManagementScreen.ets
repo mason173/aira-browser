@@ -226,6 +226,7 @@ export struct BrowserDownloadManagementScreen {
   private optimisticControlByGuid: Map<string, OptimisticControlSnapshot> = new Map();
 
   aboutToAppear(): void {
+    this.pageActive = true;
     try {
       let routeParams: BrowserPrivateBoundaryRouteParams | undefined;
       if (this.presentationMode === 'native_tab') {
@@ -663,7 +664,8 @@ export struct BrowserDownloadManagementScreen {
           });
           await sharedDownloadPolicyService.updateSettings(boundary, nextSettings);
           if (currentSettings.customLocationUri.length > 0 &&
-            currentSettings.customLocationUri !== selection.uri) {
+            currentSettings.customLocationUri !== selection.uri &&
+            !sharedDownloadRuntimeService.hasDownloadDestinationReference(currentSettings.customLocationUri)) {
             void directoryService.releaseDirectory(currentSettings.customLocationUri);
           }
           if (!isWritable) {
@@ -1169,7 +1171,8 @@ export struct BrowserDownloadManagementScreen {
     const item = sharedDownloadRuntimeService.listTasksSnapshot(this.getCurrentDownloadBoundary())
       .find((candidate) => candidate.guid === guid);
     this.cancelConfirmGuid = guid;
-    this.cancelConfirmFileName = item?.suggestedFileName ?? resolveAppResourceText($r('app.string.browser_ui_browser_download_management_screen_020'));
+    this.cancelConfirmFileName = item === undefined ? resolveAppResourceText($r('app.string.browser_ui_browser_download_management_screen_020')) :
+      this.downloadManagerViewModel.resolveTaskFileName(item);
     this.presentCancelDialogIfNeeded();
   }
 
@@ -1223,7 +1226,8 @@ export struct BrowserDownloadManagementScreen {
     const item = sharedDownloadRuntimeService.listTasksSnapshot(this.getCurrentDownloadBoundary())
       .find((candidate) => candidate.guid === guid);
     this.completedDeleteConfirmGuid = guid;
-    this.completedDeleteConfirmFileName = item?.suggestedFileName ?? resolveAppResourceText($r('app.string.browser_ui_browser_download_management_screen_020'));
+    this.completedDeleteConfirmFileName = item === undefined ? resolveAppResourceText($r('app.string.browser_ui_browser_download_management_screen_020')) :
+      this.downloadManagerViewModel.resolveTaskFileName(item);
     this.completedDeleteConfirmMode = mode;
     this.presentCompletedDeleteDialogIfNeeded();
   }
@@ -1355,13 +1359,20 @@ export struct BrowserDownloadManagementScreen {
       this.completeAsyncDownloadTaskAction(succeeded, resolveAppResourceText($r('app.string.browser_ui_browser_download_management_screen_003')), resolveAppResourceText($r('app.string.browser_ui_browser_download_management_screen_029')));
       return;
     }
+    if (action === 'choose_location') {
+      await sharedDownloadRuntimeService.chooseTaskLocationForBoundary(guid, boundary);
+      this.refreshState();
+      return;
+    }
     if (action === 'open_file') {
-      const succeeded = await sharedDownloadRuntimeService.openFileForBoundary(guid, boundary);
+      const succeeded = await sharedDownloadRuntimeService.openFileForBoundary(guid, boundary,
+        (message: string): void => { this.showActionFailure(message, boundary); });
       this.completeAsyncDownloadTaskAction(succeeded, resolveAppResourceText($r('app.string.browser_ui_browser_download_management_screen_041')), resolveAppResourceText($r('app.string.browser_ui_browser_download_management_screen_026')));
       return;
     }
     if (action === 'open_location') {
-      const succeeded = await sharedDownloadRuntimeService.openLocationForBoundary(guid, boundary);
+      const succeeded = await sharedDownloadRuntimeService.shareFileForBoundary(guid, boundary,
+        (message: string): void => { this.showActionFailure(message, boundary); });
       this.completeAsyncDownloadTaskAction(succeeded, resolveAppResourceText($r('app.string.browser_ui_browser_download_management_screen_042')), resolveAppResourceText($r('app.string.browser_ui_browser_download_management_screen_025')));
       return;
     }
@@ -1391,6 +1402,14 @@ export struct BrowserDownloadManagementScreen {
   private completeAsyncDownloadTaskAction(succeeded: boolean, successText: string, failureText: string): void {
     this.statusText = succeeded ? successText : failureText;
     this.refreshState();
+  }
+
+  private showActionFailure(message: string, boundary: DownloadTaskBoundary): void {
+    if (!this.pageActive) return;
+    const current = this.getCurrentDownloadBoundary();
+    if (current.windowId !== boundary.windowId || current.profileId !== boundary.profileId ||
+      current.privacyMode !== boundary.privacyMode || current.dataScope !== boundary.dataScope) return;
+    this.showToast(message);
   }
 
   private showToast(message: string): void {

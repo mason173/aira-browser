@@ -17,6 +17,9 @@ export interface DownloadV2CapturedRequest {
   guid: string;
   url: string;
   originalUrl?: string;
+  sourceId?: string;
+  nativeReason?: 'hls' | 'custom_headers';
+  fileNameLocked?: boolean;
   suggestedFileName: string;
   sourceHost: string;
   totalBytes: number;

@@ -13,10 +13,13 @@ import {
 } from '../../common/models/BrowserModels';
 import {
   createDownloadV2TaskEntity,
-  DownloadV2TaskEntity
+  DownloadV2TaskEntity,
+  patchDownloadV2TaskEntity
 } from '../../domain/downloadv2/DownloadV2TaskEntity';
 import {
   DownloadV2Driver,
+  DownloadV2DestinationSnapshot,
+  DownloadV2PauseReason,
   DownloadV2FailureCode,
   DownloadV2Failure,
   DownloadV2PersistenceSnapshot,
@@ -62,6 +65,9 @@ interface PersistedDownloadV2Record {
 interface PersistedDownloadV2RequestContext {
   url: string;
   originalUrl?: string;
+  sourceId?: string;
+  nativeReason?: string;
+  fileNameLocked?: boolean;
   method: string;
   sourcePageUrl?: string;
   sourceHost?: string;
@@ -81,6 +87,8 @@ interface PersistedDownloadV2ProgressSnapshot {
 }
 
 interface PersistedDownloadV2PersistenceSnapshot {
+  destination?: DownloadV2DestinationSnapshot;
+  completionState?: string;
   tempFilePath?: string;
   finalFileUri?: string;
   finalDisplayPath?: string;
@@ -129,6 +137,7 @@ interface PersistedDownloadV2SegmentRecord {
 }
 
 interface PersistedDownloadV2RuntimeSnapshot {
+  pauseReason?: string;
   platformTaskId?: string;
   platformTaskToken?: string;
   resumeCapability?: string;
@@ -150,18 +159,6 @@ interface PersistedDownloadV2TaskTiming {
   failedAt?: number;
   canceledAt?: number;
   removedAt?: number;
-}
-
-interface DownloadV2RecordLogSnapshot {
-  guid: string;
-  status: string;
-  receivedBytes: number;
-  totalBytes: number;
-  writtenBytes: number;
-  platformTaskId: string;
-  taskToken: string;
-  resumeCapability: string;
-  driver: string;
 }
 
 interface DownloadV2RecordParseResult {
@@ -227,32 +224,14 @@ export class ArkDownloadV2RecordStore implements DownloadV2RecordStore {
       result: parseResult.valid ? 'ok' : 'invalid'
     };
     this.diagnosticRecorder?.recordDownloadRuntimeDiagnostic(loadResultEvent);
-    const recordSnapshots = records.map((record: DownloadV2TaskEntity): DownloadV2RecordLogSnapshot => {
-      return this.toLogSnapshot(record);
-    });
-    hilog.info(
-      DOWNLOAD_V2_RECORD_STORE_DOMAIN,
-      DOWNLOAD_V2_RECORD_STORE_TAG,
-      'load count=%{public}d records=%{public}s',
-      records.length,
-      JSON.stringify(recordSnapshots)
-    );
+    hilog.info(DOWNLOAD_V2_RECORD_STORE_DOMAIN, DOWNLOAD_V2_RECORD_STORE_TAG,
+      'load count=%{public}d', records.length);
     return records;
   }
 
   async saveRecords(records: DownloadV2TaskEntity[]): Promise<void> {
     const store = await this.getStore();
     const persistedRecords = records.map((record: DownloadV2TaskEntity) => this.toPersistedRecord(record));
-    const recordSnapshots = records.map((record: DownloadV2TaskEntity): DownloadV2RecordLogSnapshot => {
-      return this.toLogSnapshot(record);
-    });
-    hilog.info(
-      DOWNLOAD_V2_RECORD_STORE_DOMAIN,
-      DOWNLOAD_V2_RECORD_STORE_TAG,
-      'save count=%{public}d records=%{public}s',
-      records.length,
-      JSON.stringify(recordSnapshots)
-    );
     store.putSync(DOWNLOAD_V2_RECORDS_KEY, JSON.stringify(persistedRecords));
     store.flushSync();
   }
@@ -274,6 +253,9 @@ export class ArkDownloadV2RecordStore implements DownloadV2RecordStore {
       ).then((store: preferences.Preferences) => {
         this.store = store;
         return store;
+      }).catch((error: Error): preferences.Preferences => {
+        this.storePromise = undefined;
+        throw error;
       });
     }
     return this.storePromise;
@@ -333,7 +315,7 @@ export class ArkDownloadV2RecordStore implements DownloadV2RecordStore {
       status: this.normalizeStatus(record.status),
       progress: this.toProgressSnapshot(record.progress),
       persistence: this.toPersistenceSnapshot(record.persistence),
-      runtime: this.toRuntimeSnapshot(record.runtime),
+      runtime: this.toRuntimeSnapshot(record.runtime, this.normalizeStatus(record.status)),
       failure: this.toFailure(record.failure),
       timing: this.toTiming(record.timing)
     });
@@ -349,6 +331,9 @@ export class ArkDownloadV2RecordStore implements DownloadV2RecordStore {
       request: {
         url: record.request.url,
         originalUrl: record.request.originalUrl,
+        sourceId: record.request.sourceId,
+        nativeReason: record.request.nativeReason,
+        fileNameLocked: record.request.fileNameLocked,
         method: record.request.method,
         sourcePageUrl: record.request.sourcePageUrl,
         sourceHost: record.request.sourceHost,
@@ -369,6 +354,8 @@ export class ArkDownloadV2RecordStore implements DownloadV2RecordStore {
         speedBytesPerSecond: record.progress.speedBytesPerSecond
       },
       persistence: {
+        destination: record.persistence.destination,
+        completionState: record.persistence.completionState,
         tempFilePath: record.persistence.tempFilePath,
         finalFileUri: record.persistence.finalFileUri,
         finalDisplayPath: record.persistence.finalDisplayPath,
@@ -390,7 +377,8 @@ export class ArkDownloadV2RecordStore implements DownloadV2RecordStore {
       runtime: {
         platformTaskId: record.runtime.platformTaskId,
         platformTaskToken: record.runtime.platformTaskToken,
-        resumeCapability: record.runtime.resumeCapability
+        resumeCapability: record.runtime.resumeCapability,
+        pauseReason: record.runtime.pauseReason
       },
       failure: {
         code: record.failure.code,
@@ -415,6 +403,10 @@ export class ArkDownloadV2RecordStore implements DownloadV2RecordStore {
     return {
       url: String(request?.url ?? '').trim(),
       originalUrl: this.normalizeOptionalString(request?.originalUrl),
+      sourceId: this.normalizeOptionalString(request?.sourceId),
+      nativeReason: request?.nativeReason === 'hls' || request?.nativeReason === 'custom_headers'
+        ? request.nativeReason : undefined,
+      fileNameLocked: request?.fileNameLocked === true,
       method: String(request?.method ?? 'GET').trim() || 'GET',
       sourcePageUrl: this.normalizeOptionalString(request?.sourcePageUrl),
       sourceHost: this.normalizeOptionalString(request?.sourceHost),
@@ -439,6 +431,8 @@ export class ArkDownloadV2RecordStore implements DownloadV2RecordStore {
 
   private toPersistenceSnapshot(snapshot?: PersistedDownloadV2PersistenceSnapshot): DownloadV2PersistenceSnapshot {
     return {
+      completionState: this.normalizeCompletionState(snapshot?.completionState),
+      destination: this.normalizeDestination(snapshot?.destination),
       tempFilePath: this.normalizeOptionalString(snapshot?.tempFilePath),
       finalFileUri: this.normalizeOptionalString(snapshot?.finalFileUri),
       finalDisplayPath: this.normalizeOptionalString(snapshot?.finalDisplayPath),
@@ -457,6 +451,34 @@ export class ArkDownloadV2RecordStore implements DownloadV2RecordStore {
       restartReason: this.normalizeOptionalString(snapshot?.restartReason),
       segmentPlan: this.toSegmentPlanSnapshot(snapshot?.segmentPlan)
     };
+  }
+
+  private normalizeDestination(value?: DownloadV2DestinationSnapshot): DownloadV2DestinationSnapshot | undefined {
+    if (value === undefined || value === null) return undefined;
+    const uri = this.normalizeOptionalString(value.uri);
+    switch (value.kind) {
+      case 'directory':
+      case 'file':
+        if (uri === undefined) return undefined;
+        return { kind: value.kind, uri: uri, label: this.normalizeOptionalString(value.label) };
+      case 'system_downloads':
+      case 'session_temp':
+      case 'prompt':
+        return { kind: value.kind, label: this.normalizeOptionalString(value.label) };
+      default:
+        return undefined;
+    }
+  }
+
+  private normalizeCompletionState(value?: string): 'finalizing' | 'export_failed' | 'available' | undefined {
+    switch (value) {
+      case 'finalizing':
+      case 'export_failed':
+      case 'available':
+        return value;
+      default:
+        return undefined;
+    }
   }
 
   private toPersistedSegmentPlan(
@@ -533,12 +555,30 @@ export class ArkDownloadV2RecordStore implements DownloadV2RecordStore {
     });
   }
 
-  private toRuntimeSnapshot(snapshot?: PersistedDownloadV2RuntimeSnapshot): DownloadV2RuntimeSnapshot {
+  private toRuntimeSnapshot(
+    snapshot: PersistedDownloadV2RuntimeSnapshot | undefined,
+    status: DownloadV2Status
+  ): DownloadV2RuntimeSnapshot {
     return {
       platformTaskId: this.normalizeOptionalString(snapshot?.platformTaskId),
       platformTaskToken: this.normalizeOptionalString(snapshot?.platformTaskToken),
-      resumeCapability: this.normalizeResumeCapability(snapshot?.resumeCapability)
+      resumeCapability: this.normalizeResumeCapability(snapshot?.resumeCapability),
+      pauseReason: this.normalizePauseReason(snapshot?.pauseReason, status)
     };
+  }
+
+  private normalizePauseReason(value: string | undefined, status: DownloadV2Status): DownloadV2PauseReason {
+    switch (value) {
+      case 'none':
+      case 'user':
+      case 'network':
+      case 'wifi_policy':
+      case 'concurrency':
+        return value as DownloadV2PauseReason;
+      default:
+        // Legacy paused tasks have no recorded intent: never auto-resume a possible user pause.
+        return status === 'paused' ? 'user' : 'none';
+    }
   }
 
   private toFailure(failure?: PersistedDownloadV2Failure): DownloadV2Failure {
@@ -663,19 +703,7 @@ export class ArkDownloadV2RecordStore implements DownloadV2RecordStore {
     return Math.floor(value);
   }
 
-  private toLogSnapshot(record: DownloadV2TaskEntity): DownloadV2RecordLogSnapshot {
-    return {
-      guid: record.guid,
-      status: record.status,
-      receivedBytes: record.progress.receivedBytes,
-      totalBytes: record.progress.totalBytes,
-      writtenBytes: record.persistence.writtenBytes ?? 0,
-      platformTaskId: record.runtime.platformTaskId ?? '',
-      taskToken: (record.runtime.platformTaskToken?.trim().length ?? 0) > 0 ? 'yes' : 'no',
-      resumeCapability: record.runtime.resumeCapability,
-      driver: record.persistence.downloadDriver ?? 'libcurl'
-    };
-  }
+
 }
 
 function cloneHeaders(headers?: Record<string, string>): Record<string, string> | undefined {
@@ -690,72 +718,5 @@ function cloneHeaders(headers?: Record<string, string>): Record<string, string> 
 }
 
 function cloneDownloadV2TaskEntity(task: DownloadV2TaskEntity): DownloadV2TaskEntity {
-  return createDownloadV2TaskEntity({
-    guid: task.guid,
-    windowId: task.windowId,
-    profileId: task.profileId,
-    privacyMode: task.privacyMode,
-    dataScope: task.dataScope,
-    request: {
-      url: task.request.url,
-      method: task.request.method,
-      sourcePageUrl: task.request.sourcePageUrl,
-      sourceHost: task.request.sourceHost,
-      userAgent: task.request.userAgent,
-      referer: task.request.referer,
-      mimeType: task.request.mimeType,
-      contentDisposition: task.request.contentDisposition,
-      headers: cloneHeaders(task.request.headers)
-    },
-    suggestedFileName: task.suggestedFileName,
-    resolvedFileName: task.resolvedFileName,
-    status: task.status,
-    progress: {
-      totalBytes: task.progress.totalBytes,
-      progressFraction: task.progress.progressFraction,
-      estimatedTotalBytes: task.progress.estimatedTotalBytes,
-      receivedBytes: task.progress.receivedBytes,
-      speedBytesPerSecond: task.progress.speedBytesPerSecond
-    },
-    persistence: {
-      tempFilePath: task.persistence.tempFilePath,
-      finalFileUri: task.persistence.finalFileUri,
-      finalDisplayPath: task.persistence.finalDisplayPath,
-      partialFilePath: task.persistence.partialFilePath,
-      finalFilePath: task.persistence.finalFilePath,
-      writtenBytes: task.persistence.writtenBytes,
-      expectedTotalBytes: task.persistence.expectedTotalBytes,
-      etag: task.persistence.etag,
-      lastModified: task.persistence.lastModified,
-      acceptRanges: task.persistence.acceptRanges,
-      contentRange: task.persistence.contentRange,
-      validatorCapturedAt: task.persistence.validatorCapturedAt,
-      downloadDriver: task.persistence.downloadDriver,
-      resumeMode: task.persistence.resumeMode,
-      needsFullRestart: task.persistence.needsFullRestart,
-      restartReason: task.persistence.restartReason,
-      segmentPlan: cloneDownloadV2SegmentPlanSnapshot(task.persistence.segmentPlan)
-    },
-    runtime: {
-      platformTaskId: task.runtime.platformTaskId,
-      platformTaskToken: task.runtime.platformTaskToken,
-      resumeCapability: task.runtime.resumeCapability
-    },
-    failure: {
-      code: task.failure.code,
-      sourceCode: task.failure.sourceCode,
-      message: task.failure.message,
-      retriable: task.failure.retriable
-    },
-    timing: {
-      createdAt: task.timing.createdAt,
-      updatedAt: task.timing.updatedAt,
-      confirmedAt: task.timing.confirmedAt,
-      startedAt: task.timing.startedAt,
-      completedAt: task.timing.completedAt,
-      failedAt: task.timing.failedAt,
-      canceledAt: task.timing.canceledAt,
-      removedAt: task.timing.removedAt
-    }
-  });
+  return patchDownloadV2TaskEntity(task, { timing: { updatedAt: task.timing.updatedAt } });
 }

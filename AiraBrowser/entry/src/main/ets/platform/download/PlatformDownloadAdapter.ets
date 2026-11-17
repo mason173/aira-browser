@@ -13,9 +13,13 @@ export type PlatformDownloadEventType =
 
 export interface PlatformDownloadSnapshot {
   guid: string;
+  sourceId?: string;
+  /** The original ArkWeb transfer has been stopped until user confirmation/admission. */
+  transportHeld?: boolean;
   url: string;
   originalUrl?: string;
   suggestedFileName: string;
+  fileNameLocked?: boolean;
   totalBytes: number;
   /** Presentation only; -1/absent means unknown. */
   progressFraction?: number;
@@ -49,6 +53,10 @@ export interface PlatformDownloadAdapterCallbacks {
 
 export interface PlatformDownloadAdapter {
   getDelegate(): PlatformDownloadDelegate;
+  getDelegateForSource?(sourceId: string): PlatformDownloadDelegate;
+  registerDownloadSource?(sourceId: string, start: (url: string) => void): void;
+  unregisterDownloadSource?(sourceId: string): void;
+  holdDownload?(guid: string): PlatformDownloadSnapshot | undefined;
   setCallbacks(callbacks: PlatformDownloadAdapterCallbacks): void;
   hasActiveDownload(guid: string): boolean;
   getActiveDownloadSnapshot(guid: string): PlatformDownloadSnapshot | undefined;

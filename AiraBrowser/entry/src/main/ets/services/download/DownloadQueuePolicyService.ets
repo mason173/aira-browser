@@ -139,12 +139,15 @@ export class DownloadQueuePolicyService {
 
   private isStartableQueuedTask(task: DownloadV2TaskEntity): boolean {
     return task.status === 'queued' &&
+      task.persistence.completionState !== 'finalizing' &&
+      task.persistence.completionState !== 'export_failed' &&
       (task.persistence.tempFilePath?.trim().length ?? 0) > 0 &&
       task.persistence.downloadDriver !== undefined;
   }
 
   private countRunningTasks(tasks: DownloadV2TaskEntity[]): number {
-    return tasks.filter((task: DownloadV2TaskEntity) => task.status === 'running').length;
+    return tasks.filter((task: DownloadV2TaskEntity) => task.status === 'running' &&
+      task.persistence.completionState !== 'finalizing').length;
   }
 
   private countStartableQueuedTasks(tasks: DownloadV2TaskEntity[]): number {

@@ -190,7 +190,9 @@ export class DownloadFollowupService {
     }
 
     try {
-      await this.shareFileUri(targetUri, task);
+      await this.getUIAbilityContext().openLink('filemanager://openDirectory', {
+        parameters: { fileUri: targetUri }
+      });
       return {
         success: true,
         finalFileUri: targetUri,
@@ -201,6 +203,22 @@ export class DownloadFollowupService {
         success: false,
         userMessage: resolveAppResourceText($r('app.string.download_location_failed', task.suggestedFileName))
       };
+    }
+  }
+
+  async shareFile(task: DownloadFollowupTask): Promise<DownloadFollowupExecutionResult> {
+    const targetUri = this.resolveReadableFileUri(task);
+    if (targetUri === undefined) {
+      return { success: false, userMessage: resolveAppResourceText($r('app.string.download_open_missing')) };
+    }
+    if (await this.fileResolutionService.inspectReadableFile(targetUri) === undefined) {
+      return { success: false, userMessage: resolveAppResourceText($r('app.string.download_share_failed')) };
+    }
+    try {
+      await this.shareFileUri(targetUri, task);
+      return { success: true, finalFileUri: targetUri };
+    } catch (_error) {
+      return { success: false, userMessage: resolveAppResourceText($r('app.string.download_share_failed')) };
     }
   }
 

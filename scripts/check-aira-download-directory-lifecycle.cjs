@@ -69,16 +69,17 @@ function environment({ existingGrant = false, overlapProbeStats = false, failPro
       getUriFromPath: value => `file://com.aira.browser${value}`
     },
     fileIo: {
-      OpenMode: { CREATE: 1, READ_WRITE: 2, TRUNC: 4 },
+      OpenMode: { READ_ONLY: 0, CREATE: 1, READ_WRITE: 2, TRUNC: 4 },
       async access(uri) { return files.has(uri); },
       async mkdir(uri) { files.set(uri, { size: 0 }); },
-      async open(uri) {
+      async open(uri, mode) {
         if (uri.startsWith('file://docs/')) {
           requireAccess();
-          if (uriCreateUnsupported) throw { code: 13900002, message: 'No such file or directory' };
+          if (uriCreateUnsupported && mode !== 0) throw { code: 13900002, message: 'No such file or directory' };
         }
-        const entry = { size: 0 };
-        files.set(uri, entry);
+        const entry = mode === 0 ? files.get(uri) : { size: 0 };
+        if (entry === undefined) throw { code: 13900002, message: 'No such file or directory' };
+        if (mode !== 0) files.set(uri, entry);
         const file = { fd: nextFd++ };
         handles.set(file.fd, entry);
         return file;
@@ -100,9 +101,9 @@ function environment({ existingGrant = false, overlapProbeStats = false, failPro
       async stat(uri) {
         if (uri === selectedFolderUri) return { size: 0, isDirectory: () => true };
         if (overlapProbeStats && ++statCount === 2) await firstProbeDeleted;
-        const entry = files.get(uri);
+        const entry = typeof uri === 'number' ? handles.get(uri) : files.get(uri);
         if (!entry) throw { code: 13900002, message: 'No such file' };
-        return { size: entry.size };
+        return { size: entry.size, isFile: () => entry.directory !== true };
       },
       async unlink(uri) { files.delete(uri); releaseDelayedStat(); }
     }
@@ -194,6 +195,73 @@ async function run() {
     const result = await env.complete('existing-grant.png');
     assert.equal(result.finalFileUri, `${folderUri}/existing-grant.png`);
     assert.equal(env.fallbackCount, 0);
+  });
+  await scenario('custom-folder export reports its actual decoded conflict name and display path', async () => {
+    const env = environment({ existingGrant: true });
+    env.fileResolution.copyLocalPathWithoutOverwrite = env.copyOriginal;
+    env.files.set('/sandbox/result.png', { size: 23 });
+    const plan = env.fileResolution.buildExportResolution('课程🙂.png', folderUri);
+    env.files.set(plan.targetUri.replace('file://docs', ''), { size: 41 });
+    env.files.set(plan.conflictResolvedUri.replace('file://docs', ''), { size: 42 });
+    const result = await env.complete('课程🙂.png');
+    assert.equal(result.isExported, true);
+    assert.equal(result.finalFileName, '课程🙂 (2).png');
+    assert.equal(result.destination.kind, 'directory');
+    assert.equal(result.destination.uri, folderUri);
+    assert.equal(result.destination.label, 'MyFiles');
+    assert.equal(result.finalDisplayPath, 'MyFiles/课程🙂 (2).png');
+    assert.equal(result.finalFileUri, `${folderUri}/${encodeURIComponent(result.finalFileName)}`);
+    assert.equal(env.files.get(plan.targetUri.replace('file://docs', '')).size, 41);
+    assert.equal(env.files.get(plan.conflictResolvedUri.replace('file://docs', '')).size, 42);
+    assert.equal(env.fallbackCount, 0);
+  });
+  await scenario('readable-file inspection opens paths and URIs read-only and accepts real zero-byte files', async () => {
+    const env = environment();
+    await env.directory.selectDirectory({});
+    const open = env.fileIo.open, stat = env.fileIo.stat, opened = [], inspected = [];
+    env.fileIo.open = async (location, mode) => { opened.push({ location, mode }); return open(location, mode); };
+    env.fileIo.stat = async location => { inspected.push(location); return stat(location); };
+    env.fileIo.read = async () => { throw new Error('Inspection must not read file contents'); };
+    for (const [location, size] of [['/sandbox/large.bin', 9 * 1024 ** 3], [`${folderUri}/empty.bin`, 0]]) {
+      env.files.set(location, { size });
+      const result = await env.fileResolution.inspectReadableFile(location);
+      assert.equal(result.size, size);
+      assert.equal(env.files.get(location).size, size, 'Read-only inspection must not truncate the file');
+      assert.equal(env.handles.size, 0, 'The inspected descriptor must be closed');
+    }
+    assert.deepEqual(opened.map(item => item.mode), [0, 0]);
+    assert.equal(opened[1].location, `${folderUri}/empty.bin`, 'A public URI must be opened as that URI');
+    assert.equal(inspected.every(location => typeof location === 'number'), true, 'Stat must refer to the opened file');
+  });
+  await scenario('readable-file inspection rejects revoked, missing and non-file targets without path fallback', async () => {
+    const env = environment();
+    const uri = `${folderUri}/denied.bin`;
+    env.files.set(uri, { size: 17 });
+    env.files.set(uri.replace('file://docs', ''), { size: 17 });
+    env.files.set('/sandbox/directory', { size: 0, directory: true });
+    const open = env.fileIo.open, opened = [];
+    env.fileIo.open = async (location, mode) => { opened.push(location); return open(location, mode); };
+    for (const location of [uri, '/sandbox/missing.bin', '/sandbox/directory', '   ']) {
+      assert.equal(await env.fileResolution.inspectReadableFile(location), undefined);
+    }
+    assert.deepEqual(opened, [uri, '/sandbox/missing.bin', '/sandbox/directory']);
+    assert.equal(env.handles.size, 0);
+  });
+  await scenario('readable-file inspection closes the opened descriptor when stat fails or metadata is invalid', async () => {
+    const env = environment();
+    env.files.set('/sandbox/file.bin', { size: 17 });
+    let closes = 0;
+    const close = env.fileIo.close;
+    env.fileIo.close = async file => { closes++; return close(file); };
+    for (const mode of ['throw', 'nan', 'negative']) {
+      env.fileIo.stat = async () => {
+        if (mode === 'throw') throw { code: 13900012, message: 'Permission denied' };
+        return { size: mode === 'nan' ? NaN : -1, isFile: () => true };
+      };
+      assert.equal(await env.fileResolution.inspectReadableFile('/sandbox/file.bin'), undefined);
+      assert.equal(env.handles.size, 0);
+    }
+    assert.equal(closes, 3);
   });
   await scenario('a Documents provider that rejects child URI open can still receive URI copies', async () => {
     const documentsUri = 'file://docs/storage/Users/currentUser/Documents';

@@ -109,7 +109,7 @@ export class WebLinkContextMenuFixedActionApplication implements WebLinkContextM
         this.shell.saveOffline(tabId, url, title);
         return;
       case 'download_link':
-        this.dependencies.downloadConfirmOverlayCoordinator.requestAndPresent({
+        this.dependencies.downloadConfirmOverlayCoordinator.requestPageAndPresent(tabId, {
           url: url,
           totalBytes: 0,
           referer: effect.referer,

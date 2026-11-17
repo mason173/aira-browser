@@ -1,6 +1,9 @@
 import urlUtils from '@ohos.url';
 import { resolveAppResourceText } from '../../core/resources/AppResourceText';
 
+const MAX_FILE_NAME_UTF8_BYTES: number = 255;
+const MAX_EXTENSION_UTF8_BYTES: number = 32;
+
 export interface DownloadFileNameResolutionInput {
   suggestedFileName?: string;
   url?: string;
@@ -18,11 +21,91 @@ export class DownloadFileNameService {
   }
 
   sanitizeFileName(fileName: string): string {
-    const sanitized = fileName
+    return this.buildFileNameWithSuffix(fileName, '');
+  }
+
+  // Reserve the generated conflict suffix before truncating the basename so a
+  // full-length name can still become "name (1).ext" in the final directory.
+  buildConflictFileName(fileName: string, conflictIndex: number): string {
+    return this.buildFileNameWithSuffix(fileName, ` (${conflictIndex})`);
+  }
+
+  private buildFileNameWithSuffix(fileName: string, suffix: string): string {
+    const sanitized = this.normalizeUnicode(fileName)
       .replace(/[\\/:*?"<>|]/g, '_')
       .replace(/\s+/g, ' ')
-      .trim();
-    return sanitized.length > 0 ? sanitized : 'download.bin';
+      .replace(/[\u0000-\u001f\u007f\u202a-\u202e\u2066-\u2069]/g, '_')
+      .trim()
+      .replace(/[. ]+$/g, '');
+    const normalizedName = sanitized.length > 0 ? sanitized : 'download.bin';
+    const extensionStart = this.resolveExtensionStart(normalizedName);
+    const extension = extensionStart > 0 ? normalizedName.substring(extensionStart) : '';
+    const baseName = extensionStart > 0 ? normalizedName.substring(0, extensionStart) : normalizedName;
+    const baseBudget = MAX_FILE_NAME_UTF8_BYTES - this.utf8ByteLength(extension) - this.utf8ByteLength(suffix);
+    const limitedBaseName = this.truncateUtf8(baseName, baseBudget);
+    const result = `${limitedBaseName}${suffix}${extension}`.replace(/[. ]+$/g, '');
+    return result.length > 0 ? result : `download${suffix}${extension}`;
+  }
+
+  private resolveExtensionStart(fileName: string): number {
+    const lowerName = fileName.toLowerCase();
+    const compoundExtensions: string[] = ['.tar.gz', '.tar.bz2', '.tar.xz'];
+    for (let index = 0; index < compoundExtensions.length; index += 1) {
+      const extension = compoundExtensions[index];
+      if (lowerName.endsWith(extension) && fileName.length > extension.length) {
+        return fileName.length - extension.length;
+      }
+    }
+    const dotIndex = fileName.lastIndexOf('.');
+    if (dotIndex <= 0 || dotIndex >= fileName.length - 1) {
+      return -1;
+    }
+    // An arbitrarily long dotted title segment must not consume the basename's
+    // entire byte budget as though it were a file extension.
+    return this.utf8ByteLength(fileName.substring(dotIndex)) <= MAX_EXTENSION_UTF8_BYTES ? dotIndex : -1;
+  }
+
+  private normalizeUnicode(value: string): string {
+    let normalized = '';
+    for (let index = 0; index < value.length; index += 1) {
+      const code = value.charCodeAt(index);
+      if (code >= 0xd800 && code <= 0xdbff) {
+        const next = value.charCodeAt(index + 1);
+        if (next >= 0xdc00 && next <= 0xdfff) {
+          normalized += value.substring(index, index + 2);
+          index += 1;
+        } else {
+          normalized += '_';
+        }
+      } else {
+        normalized += code >= 0xdc00 && code <= 0xdfff ? '_' : value.charAt(index);
+      }
+    }
+    return normalized;
+  }
+
+  private utf8ByteLength(value: string): number {
+    let bytes = 0;
+    for (let index = 0; index < value.length; index += 1) {
+      const code = value.charCodeAt(index);
+      bytes += code <= 0x7f ? 1 : (code <= 0x7ff ? 2 : (code >= 0xd800 && code <= 0xdbff ? 4 : 3));
+      if (code >= 0xd800 && code <= 0xdbff) index += 1;
+    }
+    return bytes;
+  }
+
+  private truncateUtf8(value: string, byteBudget: number): string {
+    let bytes = 0;
+    let end = 0;
+    while (end < value.length) {
+      const code = value.charCodeAt(end);
+      const isPair = code >= 0xd800 && code <= 0xdbff;
+      const width = code <= 0x7f ? 1 : (code <= 0x7ff ? 2 : (isPair ? 4 : 3));
+      if (bytes + width > byteBudget) break;
+      bytes += width;
+      end += isPair ? 2 : 1;
+    }
+    return value.substring(0, end);
   }
 
   resolveFileNameFromContentDisposition(value: string): string {
@@ -70,7 +153,7 @@ export class DownloadFileNameService {
       return normalizedName;
     }
     const extension = this.resolveExtension(mimeType, url, normalizedName);
-    return extension.length > 0 ? `${normalizedName}${extension}` : normalizedName;
+    return extension.length > 0 ? this.sanitizeFileName(`${normalizedName}${extension}`) : normalizedName;
   }
 
   private resolveRawFileName(suggestedFileName: string, url: string): string {

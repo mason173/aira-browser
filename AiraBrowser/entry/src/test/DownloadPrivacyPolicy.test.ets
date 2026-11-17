@@ -1,18 +1,21 @@
 import { describe, expect, it } from '@ohos/hypium';
-import { BrowserDownloadSettings } from '../main/ets/common/models/BrowserModels';
 import {
-  DownloadQueryService,
-  DownloadTaskQueryState
-} from '../main/ets/core/download/DownloadQueryService';
+  BrowserDataScope, BrowserDownloadSettings, BrowserSessionPrivacyMode
+} from '../main/ets/common/models/BrowserModels';
+import { DownloadQueryService } from '../main/ets/core/download/DownloadQueryService';
 import { DownloadV2Engine } from '../main/ets/core/downloadv2/DownloadV2Engine';
 import { InMemoryDownloadV2Repository } from '../main/ets/data/downloadv2/DownloadV2Repository';
 import { PreferencesRepository } from '../main/ets/data/preferences/PreferencesRepository';
-import { createDownloadV2BoundarySnapshot } from '../main/ets/domain/downloadv2/DownloadV2TaskEntity';
+import {
+  createDownloadV2BoundarySnapshot, createDownloadV2TaskEntity, DownloadV2TaskEntity
+} from '../main/ets/domain/downloadv2/DownloadV2TaskEntity';
+import { DownloadV2DestinationSnapshot } from '../main/ets/domain/downloadv2/DownloadV2Types';
 import { DownloadTaskBoundary } from '../main/ets/domain/download/DownloadTypes';
 import {
   DownloadFileResolutionAdapter,
   DownloadLocalDeleteResult,
   DownloadPersistResult,
+  DownloadReadableFileInfo,
   DownloadTemporaryTargetPlan
 } from '../main/ets/services/download/DownloadFileResolutionService';
 import {
@@ -106,7 +109,7 @@ export default function downloadPrivacyPolicyTest(): void {
         privacyMode: 'private',
         dataScope: 'session_ephemeral'
       };
-      const tasks: DownloadTaskQueryState[] = [
+      const tasks: DownloadV2TaskEntity[] = [
         buildTask('exact-private', 'private-window-1', 'private', 'session_ephemeral', 5),
         buildTask('other-private-window', 'private-window-2', 'private', 'session_ephemeral', 4),
         buildTask('missing-private-window', '', 'private', 'session_ephemeral', 3),
@@ -125,7 +128,7 @@ export default function downloadPrivacyPolicyTest(): void {
         privacyMode: 'regular',
         dataScope: 'profile_persistent'
       };
-      const regularTasks: DownloadTaskQueryState[] = [
+      const regularTasks: DownloadV2TaskEntity[] = [
         buildTask('exact-regular', 'regular-window-1', 'regular', 'profile_persistent', 3),
         buildTask('legacy-regular-without-window', '', 'regular', 'profile_persistent', 2),
         buildTask('other-regular-window', 'regular-window-2', 'regular', 'profile_persistent', 1)
@@ -196,6 +199,31 @@ class FakeDownloadFileResolutionService implements DownloadFileResolutionAdapter
 
   resolveUriFromLocalPath(path: string): string {
     return `file://${path}`;
+  }
+
+  async inspectReadableFile(location: string): Promise<DownloadReadableFileInfo | undefined> {
+    if (this.deletedPaths.indexOf(location) >= 0) return undefined;
+    const sourceExists = location.startsWith('/tmp/private-') && location.endsWith('.part');
+    const exportedExists = this.exportedPaths.length > 0 &&
+      location === 'file://system-downloads/private-export.bin';
+    return sourceExists || exportedExists ? { size: 16 } : undefined;
+  }
+
+  async validateDestination(destination: DownloadV2DestinationSnapshot): Promise<boolean> {
+    return destination.kind === 'system_downloads' || destination.kind === 'session_temp';
+  }
+
+  async selectDestination(_fileName: string): Promise<DownloadV2DestinationSnapshot | undefined> {
+    return undefined;
+  }
+
+  async persistToDestination(
+    localPath: string,
+    fileName: string,
+    destination: DownloadV2DestinationSnapshot
+  ): Promise<DownloadPersistResult | undefined> {
+    if (destination.kind !== 'system_downloads') return undefined;
+    return this.persistToSystemDownloads(localPath, fileName);
   }
 
   async persistToSystemDownloads(
@@ -289,20 +317,19 @@ function createCompletedTask(
 function buildTask(
   guid: string,
   windowId: string,
-  privacyMode: string,
-  dataScope: string,
+  privacyMode: BrowserSessionPrivacyMode,
+  dataScope: BrowserDataScope,
   updatedAt: number
-): DownloadTaskQueryState {
-  return {
-    id: `task-${guid}`,
+): DownloadV2TaskEntity {
+  return createDownloadV2TaskEntity({
     guid: guid,
+    suggestedFileName: `${guid}.bin`,
+    request: { url: `https://example.com/${guid}.bin`, method: 'GET' },
     status: 'completed',
-    riskLevel: 'safe',
-    createdAt: updatedAt,
-    updatedAt: updatedAt,
+    timing: { createdAt: updatedAt, updatedAt: updatedAt },
     windowId: windowId,
     profileId: 'profile-main',
     privacyMode: privacyMode,
     dataScope: dataScope
-  };
+  });
 }

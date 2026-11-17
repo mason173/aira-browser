@@ -20,9 +20,12 @@ import {
   DownloadV2Status,
   DownloadV2FailureCode,
   DownloadV2Driver,
+  DownloadV2PauseReason,
+  DownloadV2DestinationSnapshot,
   isDownloadV2ActiveStatus,
   isDownloadV2TerminalStatus
 } from '../../domain/downloadv2/DownloadV2Types';
+import { classifyDownloadV2Failure, DownloadV2FailureReason } from '../../domain/downloadv2/DownloadV2FailureMapper';
 import {
   DownloadV2CaptureBoundary,
   DownloadV2CapturedRequest,
@@ -93,6 +96,15 @@ export interface DownloadV2CompletedFileRemovalResult {
   fileStatus: DownloadV2CompletedFileRemovalStatus;
 }
 
+export interface DownloadV2CompletedFileRenameResult {
+  fileName: string;
+  tempFilePath?: string;
+  finalFileUri?: string;
+  finalDisplayPath?: string;
+}
+
+export type DownloadV2CompletedFileRenameCommit = 'committed' | 'restored' | 'uncertain';
+
 export interface DownloadV2ManualRequestResult {
   guid: string;
   prompt?: DownloadV2Prompt;
@@ -123,6 +135,7 @@ export class DownloadV2Service {
   private downloadTargetResolutionService: DownloadTargetResolutionService;
   private systemNotificationService?: DownloadV2SystemNotificationService;
   private callbacks: DownloadV2ServiceCallbacks = {};
+  private completionCommitGuids: Record<string, boolean | undefined> = {};
   private completedPersistenceGuids: Record<string, boolean | undefined> = {};
   private expectedStatusByGuid: Record<string, DownloadV2Status | undefined> = {};
   private expectedStatusDeadlineByGuid: Record<string, number | undefined> = {};
@@ -132,6 +145,8 @@ export class DownloadV2Service {
   private downloadTriggerDiagnosticsService: DownloadTriggerDiagnosticsService;
   private runtimeDiagnosticRecorder?: DownloadRuntimeDiagnosticRecorder;
   private isQueueScheduling: boolean = false;
+  private isNetworkPolicyApplying: boolean = false;
+  private pendingNetworkPolicyChange: boolean = false;
   private initializationPromise?: Promise<void>;
   private pageDownloadIdentities: PageDownloadIdentity[] = [];
 
@@ -189,7 +204,7 @@ export class DownloadV2Service {
     await this.engine.initialize();
     this.engine.setObserver(this.buildEngineObserver());
     this.downloadNetworkPolicyService.startMonitoring((_snapshot: DownloadNetworkSnapshot): void => {
-      void this.scheduleNextQueuedDownloads('network_changed');
+      void this.applyNetworkPolicyChange('network_changed');
     });
     await this.reconnectPersistedActiveTasks();
   }
@@ -197,7 +212,7 @@ export class DownloadV2Service {
   setCellularDownloadsAllowed(allowed: boolean, rescheduleQueuedDownloads: boolean = true): void {
     this.downloadNetworkPolicyService.setCellularDownloadsAllowed(allowed);
     if (rescheduleQueuedDownloads) {
-      void this.scheduleNextQueuedDownloads('cellular_download_policy_changed');
+      void this.applyNetworkPolicyChange('cellular_download_policy_changed');
     }
   }
 
@@ -221,7 +236,17 @@ export class DownloadV2Service {
     };
     await this.runtimeDiagnosticRecorder?.recordDownloadRuntimeDiagnosticAndWait(scanResultEvent);
     for (let index = 0; index < reconnectTargets.length; index += 1) {
-      const task = reconnectTargets[index];
+      const restoredTask = await this.ensureTaskDestination(reconnectTargets[index]);
+      if (restoredTask === undefined) continue;
+      const task = restoredTask;
+      if (task.persistence.completionState === 'finalizing' ||
+        (task.persistence.completionState === 'available' && task.status !== 'completed')) {
+        const persistence = this.mergePersistenceSnapshot(task, this.buildPlatformSnapshotFromTask(task));
+        persistence.completionState = 'finalizing';
+        this.engine.synchronizeTask(task.guid, { status: 'running', persistence: persistence });
+        await this.finalizeCompletedTask(task.guid, task.resolvedFileName ?? task.suggestedFileName, true);
+        continue;
+      }
       const platformTaskId = task.runtime.platformTaskId?.trim() ?? '';
       const platformTaskToken = task.runtime.platformTaskToken?.trim() ?? '';
       const shouldRecordTarget = index < MAX_RECONNECT_TARGET_DIAGNOSTICS;
@@ -245,7 +270,7 @@ export class DownloadV2Service {
         platformTaskToken.length > 0 ? 'yes' : 'no'
       );
       let snapshot: PlatformDownloadSnapshot | undefined = undefined;
-      if (platformTaskId.length > 0) {
+      if (platformTaskId.length > 0 || platformTaskToken.length > 0) {
         snapshot = await this.platformAdapter.reconnectDownload(task.guid, platformTaskId, platformTaskToken);
       }
       if (snapshot === undefined) {
@@ -268,10 +293,7 @@ export class DownloadV2Service {
         this.markTaskRestoreUnavailable(task.guid);
         continue;
       }
-      this.syncTaskFromPlatformEvent({
-        type: 'updated',
-        snapshot: snapshot
-      }, true);
+      await this.restorePersistedTaskIntent(task, snapshot);
       if (shouldRecordTarget) {
         const targetRestoredEvent: DownloadRuntimeDiagnosticEvent = {
           owner: 'service',
@@ -283,6 +305,7 @@ export class DownloadV2Service {
       }
     }
     await this.repository.flushPersistence();
+    await this.applyNetworkPolicyChange('startup_restore');
   }
 
   setCallbacks(callbacks: DownloadV2ServiceCallbacks): void {
@@ -293,7 +316,7 @@ export class DownloadV2Service {
     this.downloadTriggerDiagnosticsService.recordPlatformEvent(event);
     if (event.type === 'before_download') {
       this.startInitializationOnDemand();
-      const promotedManualPromptCount = this.requestCapture.removeManualPendingRequestsForUrl(event.snapshot.url);
+      const promotedManualPromptCount = this.requestCapture.removeManualPendingRequestsForUrl(event.snapshot.url, boundary);
       if (promotedManualPromptCount > 0) {
         hilog.info(
           DOWNLOAD_V2_SERVICE_DOMAIN,
@@ -314,7 +337,17 @@ export class DownloadV2Service {
         return true;
       }
       const requiresConfirmation = this.shouldRequireConfirmation(boundary);
-      const captured = this.requestCapture.capturePlatformRequest(event.snapshot, boundary, requiresConfirmation);
+      // Keep the original browser request dormant until confirmation, persistence and admission finish.
+      // A legacy adapter without hold support retains its existing pending-request contract.
+      const heldSnapshot = this.platformAdapter.holdDownload === undefined
+        ? event.snapshot : this.platformAdapter.holdDownload(event.snapshot.guid);
+      if (heldSnapshot === undefined) {
+        this.platformAdapter.cancelPendingDownload(event.snapshot.guid);
+        this.callbacks.onError?.(resolveAppResourceText($r('app.string.download_browser_context_unavailable')));
+        return true;
+      }
+      this.mergeHeldRequestMetadata(heldSnapshot, event.snapshot);
+      const captured = this.requestCapture.capturePlatformRequest(heldSnapshot, boundary, requiresConfirmation);
       this.downloadTriggerDiagnosticsService.recordCapturedRequest(
         'arkweb_delegate',
         captured,
@@ -324,6 +357,10 @@ export class DownloadV2Service {
       if (!requiresConfirmation) {
         void this.startCapturedRequest(captured, false, 'platform_before_download');
       }
+      return true;
+    }
+    if (this.engine.findTask(event.snapshot.guid) === undefined &&
+      this.requestCapture.updatePendingPlatformSnapshot(event.snapshot)) {
       return true;
     }
     return this.syncTaskFromPlatformEvent(event);
@@ -546,6 +583,58 @@ export class DownloadV2Service {
     return this.engine.findTask(guid);
   }
 
+  async updateCompletedFileAfterRename(
+    guid: string, expectedOldLocation: string, result: DownloadV2CompletedFileRenameResult
+  ): Promise<DownloadV2CompletedFileRenameCommit> {
+    const task = this.engine.findTask(guid);
+    if (task?.status !== 'completed' ||
+      (task.persistence.finalFileUri || task.persistence.tempFilePath || '') !== expectedOldLocation ||
+      result.fileName.trim().length <= 0) return 'restored';
+    const persistence = this.mergePersistenceSnapshot(task, this.buildPlatformSnapshotFromTask(task));
+    if (result.tempFilePath !== undefined) {
+      persistence.tempFilePath = result.tempFilePath;
+      if (task.persistence.partialFilePath === task.persistence.tempFilePath) {
+        persistence.partialFilePath = result.tempFilePath;
+      }
+      if (task.persistence.finalFilePath === task.persistence.tempFilePath) {
+        persistence.finalFilePath = result.tempFilePath;
+      }
+    }
+    if (result.finalFileUri !== undefined) persistence.finalFileUri = result.finalFileUri;
+    if (result.finalDisplayPath !== undefined) persistence.finalDisplayPath = result.finalDisplayPath;
+    if (persistence.destination?.kind === 'file' && result.finalFileUri !== undefined) {
+      persistence.destination = { kind: 'file', uri: result.finalFileUri, label: result.finalDisplayPath };
+    }
+    const newLocation = persistence.finalFileUri || persistence.tempFilePath || '';
+    this.engine.synchronizeTask(guid, {
+      suggestedFileName: result.fileName, resolvedFileName: result.fileName, persistence: persistence
+    });
+    try {
+      await this.repository.flushPersistence();
+      const latest = this.engine.findTask(guid);
+      return latest?.status === 'completed' &&
+        (latest.persistence.finalFileUri || latest.persistence.tempFilePath || '') === newLocation
+        ? 'committed' : 'uncertain';
+    } catch (error) {
+      const latest = this.engine.findTask(guid);
+      if (latest?.status === 'completed' &&
+        (latest.persistence.finalFileUri || latest.persistence.tempFilePath || '') === newLocation) {
+        this.engine.synchronizeTask(guid, {
+          suggestedFileName: task.suggestedFileName, resolvedFileName: task.resolvedFileName,
+          persistence: task.persistence
+        });
+        try {
+          await this.repository.flushPersistence();
+          return 'restored';
+        } catch (_rollbackError) {
+          hilog.error(DOWNLOAD_V2_SERVICE_DOMAIN, DOWNLOAD_V2_SERVICE_TAG,
+            'rename metadata rollback persistence failed guid=%{public}s', guid);
+        }
+      }
+      return 'uncertain';
+    }
+  }
+
   async exportCompletedTaskToSystemDownloads(guid: string): Promise<boolean> {
     const task = this.engine.findTask(guid);
     if (task === undefined || task.status !== 'completed') {
@@ -558,13 +647,20 @@ export class DownloadV2Service {
     if (localPath.length <= 0) {
       return false;
     }
+    const source = await this.fileResolutionService.inspectReadableFile(localPath);
+    if (this.engine.findTask(guid)?.status !== 'completed') return false;
+    if (source === undefined) {
+      this.callbacks.onError?.(resolveAppResourceText($r('app.string.download_file_verification_failed')));
+      return false;
+    }
     const persisted = await this.persistFinishedDownload(localPath, task.suggestedFileName, {
       windowId: task.windowId,
       profileId: task.profileId,
       privacyMode: task.privacyMode,
       dataScope: task.dataScope,
       sourcePageUrl: task.request.sourcePageUrl
-    });
+    }, { kind: 'system_downloads' });
+    if (this.engine.findTask(guid)?.status !== 'completed') return false;
     if (persisted === undefined || !persisted.isExported || (persisted.finalFileUri?.trim().length ?? 0) <= 0) {
       if (persisted !== undefined) {
         this.persistCompletionLocalDisplayPath(task, persisted.finalDisplayPath);
@@ -573,7 +669,14 @@ export class DownloadV2Service {
       return false;
     }
     const finalFileUri = persisted.finalFileUri ?? '';
+    const exported = await this.fileResolutionService.inspectReadableFile(finalFileUri);
+    if (this.engine.findTask(guid)?.status !== 'completed') return false;
+    if (exported === undefined || exported.size !== source.size) {
+      this.callbacks.onError?.(resolveAppResourceText($r('app.string.download_file_verification_failed')));
+      return false;
+    }
     this.engine.synchronizeTask(guid, {
+      resolvedFileName: persisted.finalFileName ?? task.resolvedFileName ?? task.suggestedFileName,
       persistence: {
         tempFilePath: task.persistence.tempFilePath,
         finalFileUri: finalFileUri,
@@ -591,16 +694,20 @@ export class DownloadV2Service {
         resumeMode: task.persistence.resumeMode,
         needsFullRestart: task.persistence.needsFullRestart,
         restartReason: task.persistence.restartReason,
+        destination: persisted.destination ?? task.persistence.destination,
+        completionState: task.persistence.completionState,
         segmentPlan: task.persistence.segmentPlan
       }
     });
     await this.repository.flushPersistence();
+    if (this.engine.findTask(guid)?.status !== 'completed') return false;
     const cleanupSucceeded = await this.cleanupLocalTempFile(
       localPath,
       task.guid,
       task.suggestedFileName,
       'manual_export'
     );
+    if (this.engine.findTask(guid)?.status !== 'completed') return false;
     if (cleanupSucceeded) {
       const refreshedTask = this.engine.findTask(guid) ?? task;
       this.engine.synchronizeTask(guid, {
@@ -621,12 +728,14 @@ export class DownloadV2Service {
           resumeMode: refreshedTask.persistence.resumeMode,
           needsFullRestart: refreshedTask.persistence.needsFullRestart,
           restartReason: refreshedTask.persistence.restartReason,
+          destination: refreshedTask.persistence.destination,
+          completionState: refreshedTask.persistence.completionState,
           segmentPlan: refreshedTask.persistence.segmentPlan
         }
       });
       await this.repository.flushPersistence();
     }
-    this.callbacks.onInfo?.(this.buildSavedLocationMessage('saved', task.suggestedFileName, persisted));
+    this.callbacks.onInfo?.(this.buildSavedLocationMessage('saved', persisted.finalFileName ?? task.resolvedFileName ?? task.suggestedFileName, persisted));
     return true;
   }
 
@@ -700,7 +809,8 @@ export class DownloadV2Service {
 
   async pauseTask(guid: string): Promise<boolean> {
     const task = this.engine.findTask(guid);
-    if (task === undefined) {
+    if (task === undefined || task.persistence.completionState === 'finalizing' ||
+      (task.status !== 'running' && task.status !== 'paused')) {
       return false;
     }
     hilog.info(
@@ -710,18 +820,29 @@ export class DownloadV2Service {
       task.guid,
       task.runtime.platformTaskId ?? ''
     );
-    if (!await this.platformAdapter.pauseDownload(task.guid, task.runtime.platformTaskId, task.runtime.platformTaskToken)) {
+    const previousPauseReason = task.runtime.pauseReason ?? 'none';
+    this.engine.synchronizeTask(task.guid, { runtime: { pauseReason: 'user' } });
+    this.rememberExpectedStatus(task.guid, 'paused');
+    if (task.status !== 'paused' && !await this.pauseTransportForTask(task)) {
+      const latest = this.engine.findTask(task.guid);
+      if (latest?.runtime.pauseReason === 'user') {
+        this.engine.synchronizeTask(task.guid, { runtime: { pauseReason: previousPauseReason } });
+      }
+      this.expectedStatusByGuid[task.guid] = undefined;
+      this.expectedStatusDeadlineByGuid[task.guid] = undefined;
       hilog.warn(DOWNLOAD_V2_SERVICE_DOMAIN, DOWNLOAD_V2_SERVICE_TAG, 'pause platform failed guid=%{public}s', task.guid);
       return false;
     }
+    const latestTask = this.engine.findTask(task.guid) ?? task;
     const updatedTask = this.engine.dispatch(task.guid, 'pause', {
       progress: {
         speedBytesPerSecond: 0
       },
       runtime: {
-        platformTaskId: task.runtime.platformTaskId,
-        platformTaskToken: task.runtime.platformTaskToken,
-        resumeCapability: 'live_resume'
+        platformTaskId: latestTask.runtime.platformTaskId,
+        platformTaskToken: latestTask.runtime.platformTaskToken,
+        resumeCapability: latestTask.status === 'paused' ? latestTask.runtime.resumeCapability : 'live_resume',
+        pauseReason: 'user'
       }
     });
     this.rememberExpectedStatus(task.guid, 'paused');
@@ -756,15 +877,18 @@ export class DownloadV2Service {
       );
       return this.retryTask(task.guid);
     }
-    if (task.status !== 'paused') {
+    if (task.status !== 'paused' || (task.failure.code !== 'none' && !task.failure.retriable)) {
       return false;
     }
     const persistence = this.mergePersistenceSnapshot(task, this.buildPlatformSnapshotFromTask(task));
-    persistence.resumeMode = task.persistence.downloadDriver === 'libcurl' && !this.platformAdapter.hasActiveDownload(task.guid)
-      ? 'platform_live_resume' : 'queued_live_resume';
+    const liveSnapshot = this.platformAdapter.getActiveDownloadSnapshot(task.guid);
+    const canResumeLive = liveSnapshot !== undefined && liveSnapshot.transportHeld !== true &&
+      this.isPausedState(liveSnapshot.state) && task.persistence.resumeMode !== 'none';
+    persistence.resumeMode = canResumeLive ? 'queued_live_resume' : 'platform_live_resume';
     const queued = this.engine.dispatch(task.guid, 'queue', {
       progress: { speedBytesPerSecond: 0 },
       persistence: persistence,
+      runtime: { pauseReason: 'none' },
       failure: buildDownloadV2EmptyFailure()
     });
     if (queued === undefined) {
@@ -779,10 +903,20 @@ export class DownloadV2Service {
   async retryTask(guid: string): Promise<boolean> {
     const task = this.engine.findTask(guid);
     if (task === undefined || task.status !== 'failed' ||
-      (task.persistence.downloadDriver === 'arkweb' && task.failure.code === 'context_lost' &&
-        !task.failure.retriable) ||
+      !task.failure.retriable ||
       (task.persistence.tempFilePath?.trim().length ?? 0) <= 0) {
       return false;
+    }
+    if (task.persistence.completionState === 'export_failed') {
+      if (this.completedPersistenceGuids[task.guid] === true) return false;
+      const persistence = this.mergePersistenceSnapshot(task, this.buildPlatformSnapshotFromTask(task));
+      persistence.completionState = 'finalizing';
+      this.engine.synchronizeTask(task.guid, {
+        status: 'running', persistence: persistence,
+        failure: buildDownloadV2EmptyFailure(), runtime: { resumeCapability: 'none', pauseReason: 'none' }
+      });
+      await this.finalizeCompletedTask(task.guid, task.resolvedFileName ?? task.suggestedFileName);
+      return this.engine.findTask(task.guid)?.status === 'completed';
     }
     // Queue before invoking either adapter: a resume may synchronously emit running/finished.
     // Dispatching retry afterwards would overwrite that state and start the same transfer twice.
@@ -791,6 +925,7 @@ export class DownloadV2Service {
     const queuedTask = this.engine.dispatch(task.guid, 'retry', {
       progress: { speedBytesPerSecond: 0 },
       persistence: persistence,
+      runtime: { pauseReason: 'none' },
       failure: buildDownloadV2EmptyFailure()
     });
     if (queuedTask === undefined) {
@@ -803,9 +938,38 @@ export class DownloadV2Service {
     return started || this.engine.findTask(guid)?.status === 'queued';
   }
 
+  async chooseTaskLocation(guid: string): Promise<boolean> {
+    const task = this.engine.findTask(guid);
+    if (task?.status !== 'failed' || !task.failure.retriable ||
+      (task.failure.code !== 'permission' && task.persistence.completionState !== 'export_failed')) return false;
+    const destination = await this.downloadTargetResolutionService.selectDestination(task.resolvedFileName ?? task.suggestedFileName);
+    const current = this.engine.findTask(guid);
+    if (destination === undefined || current?.status !== 'failed' || !current.failure.retriable) return false;
+    const persistence = this.mergePersistenceSnapshot(current, this.buildPlatformSnapshotFromTask(current));
+    persistence.destination = destination;
+    if (persistence.completionState === 'export_failed') persistence.finalFileUri = undefined;
+    this.engine.synchronizeTask(guid, { persistence: persistence });
+    await this.repository.flushPersistence();
+    if (this.engine.findTask(guid)?.status !== 'failed') return false;
+    return this.retryTask(guid);
+  }
+
+  private async ensureTaskDestination(task: DownloadV2TaskEntity): Promise<DownloadV2TaskEntity | undefined> {
+    if (task.persistence.destination !== undefined) return task;
+    const destination = this.downloadTargetResolutionService.resolveDestinationSnapshot({
+      windowId: task.windowId, profileId: task.profileId, privacyMode: task.privacyMode,
+      dataScope: task.dataScope, sourcePageUrl: task.request.sourcePageUrl
+    });
+    const persistence = this.mergePersistenceSnapshot(task, this.buildPlatformSnapshotFromTask(task));
+    persistence.destination = destination;
+    this.engine.synchronizeTask(task.guid, { persistence: persistence });
+    await this.repository.flushPersistence();
+    return this.engine.findTask(task.guid);
+  }
+
   async cancelTask(guid: string): Promise<boolean> {
     const task = this.engine.findTask(guid);
-    if (task === undefined) {
+    if (task === undefined || task.persistence.completionState === 'finalizing') {
       return false;
     }
     if (!await this.platformAdapter.cancelDownload(task.guid, task.runtime.platformTaskId, task.runtime.platformTaskToken)) {
@@ -890,6 +1054,21 @@ export class DownloadV2Service {
     return this.createTaskFromCapturedRequest(requestToStart, requiresConfirmation);
   }
 
+  private mergeHeldRequestMetadata(held: PlatformDownloadSnapshot, incoming: PlatformDownloadSnapshot): void {
+    // Runtime enriches request metadata before capture; hold() supplies only transport truth.
+    held.sourceId = incoming.sourceId ?? held.sourceId;
+    held.originalUrl = incoming.originalUrl ?? held.originalUrl;
+    held.suggestedFileName = incoming.suggestedFileName.length > 0 ? incoming.suggestedFileName : held.suggestedFileName;
+    held.method = incoming.method ?? held.method;
+    held.mimeType = incoming.mimeType ?? held.mimeType;
+    held.userAgent = incoming.userAgent ?? held.userAgent;
+    held.referer = incoming.referer ?? held.referer;
+    held.contentDisposition = incoming.contentDisposition ?? held.contentDisposition;
+    held.headers = incoming.headers ?? held.headers;
+    held.hlsSegmentConcurrency = incoming.hlsSegmentConcurrency ?? held.hlsSegmentConcurrency;
+    held.privacyMode = incoming.privacyMode ?? held.privacyMode;
+  }
+
   private shouldIgnoreDuplicatePlatformBeforeDownload(snapshot: PlatformDownloadSnapshot): boolean {
     const guid = snapshot.guid.trim();
     if (guid.length <= 0) {
@@ -935,6 +1114,7 @@ export class DownloadV2Service {
     const requestToCreate = request;
     const normalizedConfirmedFileName = confirmedFileName?.trim() ?? '';
     if (normalizedConfirmedFileName.length > 0) {
+      if (normalizedConfirmedFileName !== requestToCreate.suggestedFileName) requestToCreate.fileNameLocked = true;
       const userFileName = this.fileNameService.ensureExtension(
         normalizedConfirmedFileName,
         requestToCreate.mimeType,
@@ -974,6 +1154,9 @@ export class DownloadV2Service {
       request: {
         url: requestToCreate.url,
         originalUrl: requestToCreate.originalUrl,
+        sourceId: requestToCreate.sourceId,
+        nativeReason: requestToCreate.nativeReason,
+        fileNameLocked: requestToCreate.fileNameLocked,
         method: requestToCreate.method,
         sourcePageUrl: requestToCreate.sourcePageUrl,
         sourceHost: requestToCreate.sourceHost,
@@ -1042,6 +1225,7 @@ export class DownloadV2Service {
     const preparedTask = this.engine.synchronizeTask(queuedTask.guid, {
       resolvedFileName: targetPlan.fileName,
       persistence: {
+        destination: targetPlan.destination,
         tempFilePath: targetPlan.tempFilePath,
         finalFileUri: queuedTask.persistence.finalFileUri,
         finalDisplayPath: targetPlan.initialDisplayPath,
@@ -1053,9 +1237,10 @@ export class DownloadV2Service {
         segmentPlan: undefined
       },
       runtime: {
-        platformTaskId: '',
-        platformTaskToken: undefined,
-        resumeCapability: sourceSnapshot === undefined ? 'none' : this.resolveResumeCapability(sourceSnapshot.state)
+        platformTaskId: sourceSnapshot?.platformTaskId ?? '',
+        platformTaskToken: sourceSnapshot?.platformTaskToken,
+        resumeCapability: sourceSnapshot === undefined ? 'none' : this.resolveResumeCapability(sourceSnapshot.state),
+        pauseReason: 'none'
       }
     });
     await this.repository.flushPersistence();
@@ -1066,7 +1251,11 @@ export class DownloadV2Service {
       this.downloadNetworkPolicyService.resolveStartAdmission()
     );
     if (!admission.canStartNow) {
-      this.persistQueuedAdmissionReason(latestPreparedTask, admission.reason);
+      if (!this.holdQueuedPlatformTask(latestPreparedTask)) {
+        await this.repository.flushPersistence();
+        return this.engine.findTask(latestPreparedTask.guid);
+      }
+      this.persistQueuedAdmissionReason(this.engine.findTask(latestPreparedTask.guid) ?? latestPreparedTask, admission.reason);
       await this.repository.flushPersistence();
       hilog.info(
         DOWNLOAD_V2_SERVICE_DOMAIN,
@@ -1080,11 +1269,11 @@ export class DownloadV2Service {
         admission.networkMessage ?? ''
       );
       this.notifyQueuedAdmission(requestToCreate.suggestedFileName, admission.reason);
-      return latestPreparedTask;
+      return this.engine.findTask(latestPreparedTask.guid);
     }
     this.applyRememberedPageDownloadIdentity(requestToCreate);
     await this.startPreparedTaskFromRequest(requestToCreate, latestPreparedTask, 'create_task');
-    return preparedTask ?? this.engine.findTask(queuedTask.guid);
+    return this.engine.findTask(queuedTask.guid);
   }
 
   private resolveInitialDownloadDriver(request: DownloadV2CapturedRequest): DownloadV2Driver {
@@ -1101,18 +1290,19 @@ export class DownloadV2Service {
     if (!normalized.startsWith('http://') && !normalized.startsWith('https://')) {
       return 'arkweb';
     }
-    // The browser already started this request with the page session. Replaying a signed
-    // download through libcurl consumes the one-time URL and the server answers HTTP 403.
-    if (request.platformSnapshot !== undefined && !this.isHlsCapturedRequest(request)) {
-      return 'arkweb';
-    }
-    return 'libcurl';
+    // Native transport is an explicit capability for manifest assembly or caller-defined
+    // headers. Ordinary manual/MP4/batch downloads use the originating Web controller too.
+    // Absence of a live controller is an error, not permission to silently replay with curl.
+    if (this.isHlsCapturedRequest(request) ||
+      (request.platformSnapshot === undefined && request.nativeReason === 'custom_headers')) return 'libcurl';
+    return 'arkweb';
   }
 
   private isHlsCapturedRequest(request: DownloadV2CapturedRequest): boolean {
     const url = request.url.trim().toLowerCase();
     const mime = request.mimeType?.trim().toLowerCase() ?? '';
-    return url.indexOf('.m3u8') >= 0 || mime.indexOf('mpegurl') >= 0 || mime.indexOf('hls') >= 0;
+    return request.nativeReason === 'hls' || /\.m3u8(?:[?#]|$)/i.test(url) ||
+      mime.indexOf('mpegurl') >= 0 || mime.indexOf('hls') >= 0;
   }
 
   private async startPreparedTaskFromRequest(
@@ -1121,12 +1311,12 @@ export class DownloadV2Service {
     reason: string
   ): Promise<boolean> {
     this.persistPageDownloadIdentity(task, request);
-    const currentTask = this.engine.findTask(task.guid);
+    let currentTask = this.engine.findTask(task.guid);
     if (currentTask === undefined) {
       return false;
     }
     const targetPath = currentTask.persistence.tempFilePath?.trim() ?? '';
-    const downloadDriver = currentTask.persistence.downloadDriver ?? 'libcurl';
+    const downloadDriver = currentTask.persistence.downloadDriver ?? 'arkweb';
     if (targetPath.length <= 0 || currentTask.status !== 'queued') {
       hilog.warn(
         DOWNLOAD_V2_SERVICE_DOMAIN,
@@ -1140,13 +1330,37 @@ export class DownloadV2Service {
       );
       return false;
     }
+    currentTask = await this.ensureTaskDestination(currentTask);
+    if (currentTask === undefined || currentTask.status !== 'queued') return false;
+    const destination = currentTask.persistence.destination;
+    if (destination === undefined) return false;
+    const destinationAllowed = await this.downloadTargetResolutionService.validateDestination(destination);
+    currentTask = this.engine.findTask(task.guid);
+    if (currentTask === undefined || currentTask.status !== 'queued') return false;
+    if (!destinationAllowed) {
+      if (!this.holdQueuedPlatformTask(currentTask)) {
+        await this.repository.flushPersistence();
+        return false;
+      }
+      const message = resolveAppResourceText($r('app.string.download_failure_permission'));
+      this.engine.dispatch(currentTask.guid, 'fail', {
+        failure: { code: 'permission', message: message, retriable: true }
+      });
+      await this.repository.flushPersistence();
+      if (this.engine.findTask(task.guid)?.status === 'failed') this.callbacks.onError?.(message);
+      return false;
+    }
     const admission = this.downloadQueuePolicyService.resolveStartAdmission(
       this.engine.listTasks(),
       currentTask.guid,
       this.downloadNetworkPolicyService.resolveStartAdmission()
     );
     if (!admission.canStartNow) {
-      this.persistQueuedAdmissionReason(currentTask, admission.reason);
+      if (!this.holdQueuedPlatformTask(currentTask)) {
+        await this.repository.flushPersistence();
+        return false;
+      }
+      this.persistQueuedAdmissionReason(this.engine.findTask(currentTask.guid) ?? currentTask, admission.reason);
       await this.repository.flushPersistence();
       hilog.info(
         DOWNLOAD_V2_SERVICE_DOMAIN,
@@ -1172,7 +1386,9 @@ export class DownloadV2Service {
     );
     // Reserve the queue slot synchronously. A cold native import or ArkWeb callback
     // can yield long enough for a second drain or another task to be admitted.
-    this.engine.dispatch(currentTask.guid, 'start');
+    if (this.engine.dispatch(currentTask.guid, 'start', { runtime: { pauseReason: 'none' } }) === undefined) {
+      return false;
+    }
     this.rememberExpectedStatus(currentTask.guid, 'running');
     let startedSnapshot: PlatformDownloadSnapshot | undefined;
     const resumeExisting = currentTask.persistence.resumeMode === 'queued_live_resume';
@@ -1305,6 +1521,156 @@ export class DownloadV2Service {
     }
   }
 
+  private async applyNetworkPolicyChange(reason: string): Promise<void> {
+    if (this.isNetworkPolicyApplying) {
+      this.pendingNetworkPolicyChange = true;
+      return;
+    }
+    this.isNetworkPolicyApplying = true;
+    try {
+      do {
+        this.pendingNetworkPolicyChange = false;
+        const admission = this.downloadNetworkPolicyService.resolveStartAdmission();
+        const tasks = this.engine.listTasks();
+        for (let index = 0; index < tasks.length; index += 1) {
+          const task = this.engine.findTask(tasks[index].guid);
+          if (task === undefined || task.persistence.completionState === 'finalizing') continue;
+          if (!admission.canStartNow) {
+            if (task.status === 'running') {
+              await this.pauseTaskForNetworkPolicy(task, this.resolveAdmissionPauseReason(admission.reason));
+            } else if (task.status === 'paused' &&
+              (task.runtime.pauseReason === 'network' || task.runtime.pauseReason === 'wifi_policy')) {
+              this.engine.synchronizeTask(task.guid, {
+                runtime: { pauseReason: this.resolveAdmissionPauseReason(admission.reason) }
+              });
+            } else if (task.status === 'queued') {
+              this.persistQueuedAdmissionReason(task, admission.reason);
+            }
+          } else if (task.status === 'paused' &&
+            (task.runtime.pauseReason === 'network' || task.runtime.pauseReason === 'wifi_policy')) {
+            await this.resumeTask(task.guid);
+          }
+        }
+        await this.repository.flushPersistence();
+        await this.scheduleNextQueuedDownloads(reason);
+      } while (this.pendingNetworkPolicyChange);
+    } finally {
+      this.isNetworkPolicyApplying = false;
+    }
+  }
+
+  private async pauseTaskForNetworkPolicy(task: DownloadV2TaskEntity, pauseReason: DownloadV2PauseReason): Promise<void> {
+    this.engine.synchronizeTask(task.guid, { runtime: { pauseReason: pauseReason } });
+    this.rememberExpectedStatus(task.guid, 'paused');
+    const paused = await this.pauseTransportForTask(task);
+    const latest = this.engine.findTask(task.guid);
+    if (latest === undefined || latest.runtime.pauseReason === 'user') return;
+    if (!paused) {
+      if (latest.status === 'running') {
+        this.engine.synchronizeTask(task.guid, { runtime: { pauseReason: 'none' } });
+      }
+      this.expectedStatusByGuid[task.guid] = undefined;
+      this.expectedStatusDeadlineByGuid[task.guid] = undefined;
+      return;
+    }
+    this.engine.dispatch(task.guid, 'pause', {
+      progress: { speedBytesPerSecond: 0 },
+      runtime: { pauseReason: pauseReason }
+    });
+  }
+
+  private async pauseTransportForTask(task: DownloadV2TaskEntity): Promise<boolean> {
+    const snapshot = this.platformAdapter.getActiveDownloadSnapshot(task.guid);
+    if (task.persistence.downloadDriver === 'arkweb' && snapshot !== undefined &&
+      this.isPendingState(snapshot.state) && this.platformAdapter.holdDownload !== undefined) {
+      const held = this.platformAdapter.holdDownload(task.guid);
+      if (held === undefined) return false;
+      const persistence = this.mergePersistenceSnapshot(task, held);
+      // A held initial request still needs start(targetPath) during manager restoration.
+      persistence.resumeMode = 'none';
+      this.engine.synchronizeTask(task.guid, {
+        persistence: persistence,
+        runtime: {
+          platformTaskId: held.platformTaskId ?? task.runtime.platformTaskId,
+          platformTaskToken: held.platformTaskToken ?? task.runtime.platformTaskToken,
+          resumeCapability: 'live_resume'
+        }
+      });
+      return true;
+    }
+    return this.platformAdapter.pauseDownload(task.guid, task.runtime.platformTaskId, task.runtime.platformTaskToken);
+  }
+
+  private resolveAdmissionPauseReason(reason: string): DownloadV2PauseReason {
+    if (reason === 'waiting_wifi') return 'wifi_policy';
+    if (reason === 'offline_network' || reason === 'network_unknown') return 'network';
+    if (reason === 'concurrency_limit') return 'concurrency';
+    return 'none';
+  }
+
+  private holdQueuedPlatformTask(task: DownloadV2TaskEntity): boolean {
+    if (task.persistence.downloadDriver !== 'arkweb' || this.platformAdapter.holdDownload === undefined ||
+      !this.platformAdapter.hasActiveDownload(task.guid) || task.persistence.resumeMode === 'queued_live_resume') {
+      return true;
+    }
+    const held = this.platformAdapter.holdDownload(task.guid);
+    if (held === undefined) {
+      this.platformAdapter.cancelPendingDownload(task.guid);
+      const failure = this.buildArkWebContextUnavailableFailure(task);
+      this.engine.dispatch(task.guid, 'fail', { failure: failure });
+      this.callbacks.onError?.(failure.message);
+      return false;
+    }
+    this.engine.synchronizeTask(task.guid, {
+      runtime: {
+        platformTaskId: held.platformTaskId ?? task.runtime.platformTaskId,
+        platformTaskToken: held.platformTaskToken ?? task.runtime.platformTaskToken,
+        resumeCapability: this.resolveResumeCapability(held.state)
+      }
+    });
+    return true;
+  }
+
+  private async restorePersistedTaskIntent(task: DownloadV2TaskEntity, snapshot: PlatformDownloadSnapshot): Promise<void> {
+    if (this.isCompletedState(snapshot.state)) {
+      this.syncTaskFromPlatformEvent({ type: 'finished', snapshot: snapshot }, true);
+      return;
+    }
+    if (task.status === 'running' && this.isRunningState(snapshot.state)) {
+      this.syncTaskFromPlatformEvent({ type: 'updated', snapshot: snapshot }, true);
+      return;
+    }
+    const manuallyPaused = task.status === 'paused' &&
+      task.runtime.pauseReason !== 'network' && task.runtime.pauseReason !== 'wifi_policy';
+    // Deserialization reports an interrupted/paused transport. Preserve application intent instead
+    // of turning every restored record into a manual pause or a failure.
+    const restoredStatus: DownloadV2Status = task.status === 'running' ? 'queued' : task.status;
+    const nextPersistence = this.mergePersistenceSnapshot(task, snapshot);
+    if (restoredStatus === 'queued') nextPersistence.resumeMode = 'platform_live_resume';
+    this.engine.synchronizeTask(task.guid, {
+      status: restoredStatus,
+      persistence: nextPersistence,
+      progress: { speedBytesPerSecond: 0 },
+      runtime: {
+        platformTaskId: snapshot.platformTaskId ?? task.runtime.platformTaskId,
+        platformTaskToken: snapshot.platformTaskToken ?? task.runtime.platformTaskToken,
+        resumeCapability: this.resolveResumeCapability(snapshot.state),
+        pauseReason: manuallyPaused ? 'user' : task.runtime.pauseReason ?? 'none'
+      }
+    });
+    if (this.isRunningState(snapshot.state) || this.isPendingState(snapshot.state)) {
+      // Reconcile a still-live transport with its saved intent before applying admission.
+      const restored = this.engine.findTask(task.guid);
+      if (restored === undefined) return;
+      if (restored.status === 'queued') {
+        this.holdQueuedPlatformTask(restored);
+      } else if (restored.status === 'paused') {
+        this.rememberExpectedStatus(task.guid, 'paused');
+        await this.pauseTransportForTask(restored);
+      }
+    }
+  }
+
   private async scheduleNextQueuedDownloads(reason: string): Promise<void> {
     if (this.isQueueScheduling) {
       return;
@@ -1401,6 +1767,7 @@ export class DownloadV2Service {
   ): void {
     const restartReason = this.resolveQueuedRestartReason(reason);
     this.engine.synchronizeTask(task.guid, {
+      runtime: { pauseReason: this.resolveAdmissionPauseReason(reason) },
       persistence: {
         tempFilePath: task.persistence.tempFilePath,
         finalFileUri: task.persistence.finalFileUri,
@@ -1418,6 +1785,8 @@ export class DownloadV2Service {
         resumeMode: task.persistence.resumeMode,
         needsFullRestart: task.persistence.needsFullRestart,
         restartReason: restartReason,
+        destination: task.persistence.destination,
+        completionState: task.persistence.completionState,
         segmentPlan: task.persistence.segmentPlan
       }
     });
@@ -1459,6 +1828,9 @@ export class DownloadV2Service {
       request: {
         url: task.request.url,
         originalUrl: task.request.originalUrl,
+        sourceId: task.request.sourceId,
+        nativeReason: task.request.nativeReason,
+        fileNameLocked: task.request.fileNameLocked,
         method: task.request.method,
         sourcePageUrl: task.request.sourcePageUrl,
         sourceHost: task.request.sourceHost,
@@ -1476,6 +1848,9 @@ export class DownloadV2Service {
       guid: task.guid,
       url: task.request.url,
       originalUrl: task.request.originalUrl,
+      sourceId: task.request.sourceId,
+      nativeReason: task.request.nativeReason,
+      fileNameLocked: task.request.fileNameLocked,
       suggestedFileName: task.resolvedFileName ?? task.suggestedFileName,
       sourceHost: task.request.sourceHost ?? '',
       totalBytes: task.progress.totalBytes,
@@ -1501,7 +1876,9 @@ export class DownloadV2Service {
   private buildPlatformSnapshotFromTask(task: DownloadV2TaskEntity): PlatformDownloadSnapshot {
     return {
       guid: task.guid,
+      sourceId: task.request.sourceId,
       url: task.request.url,
+      fileNameLocked: task.request.fileNameLocked,
       originalUrl: task.request.originalUrl,
       suggestedFileName: task.resolvedFileName ?? task.suggestedFileName,
       totalBytes: task.progress.totalBytes,
@@ -1530,9 +1907,20 @@ export class DownloadV2Service {
     if (currentTask === undefined) {
       return false;
     }
-    // Once compatibility recovery has replaced the transport, a late callback from the
-    // interrupted ArkWeb item must not fail or cancel its replacement.
+    if (currentTask.persistence.completionState !== undefined) {
+      return true;
+    }
+    // HLS conversion owns a separate libcurl transfer; ignore late browser callbacks.
     if (currentTask.persistence.downloadDriver === 'libcurl' && event.snapshot.downloadDriver === 'arkweb') {
+      return true;
+    }
+    if (currentTask.status === 'queued' && event.snapshot.transportHeld === true) {
+      this.engine.synchronizeTask(currentTask.guid, {
+        runtime: {
+          platformTaskId: event.snapshot.platformTaskId ?? currentTask.runtime.platformTaskId,
+          platformTaskToken: event.snapshot.platformTaskToken ?? currentTask.runtime.platformTaskToken
+        }
+      });
       return true;
     }
     if (currentTask.persistence.resumeMode === 'queued_live_resume' &&
@@ -1543,7 +1931,7 @@ export class DownloadV2Service {
     if (expectedTotalBytes > 0 && this.isCompletedState(event.snapshot.state) &&
       event.snapshot.receivedBytes !== expectedTotalBytes) {
       // A CDN can return a 200 HTML challenge with the original attachment filename.
-      // Compatibility recovery must still produce the file the user started downloading.
+      // A known expected length still constrains completion after native recovery.
       hilog.warn(DOWNLOAD_V2_SERVICE_DOMAIN, DOWNLOAD_V2_SERVICE_TAG,
         'reject incomplete replacement guid=%{public}s expected=%{public}d received=%{public}d',
         currentTask.guid, expectedTotalBytes, event.snapshot.receivedBytes);
@@ -1574,14 +1962,21 @@ export class DownloadV2Service {
         }
       };
     }
+    if (currentTask.status === 'paused' && currentTask.runtime.pauseReason === 'user' &&
+      (this.isRunningState(event.snapshot.state) || this.isPendingState(event.snapshot.state))) {
+      void this.pauseTransportForTask(currentTask).catch((error: Error) => {
+        hilog.warn(DOWNLOAD_V2_SERVICE_DOMAIN, DOWNLOAD_V2_SERVICE_TAG,
+          'retain manual pause failed guid=%{public}s error=%{public}s', currentTask.guid, error.message);
+      });
+      return true;
+    }
     if (this.shouldSuppressStaleControlEcho(currentTask, event.snapshot.state)) {
       return true;
     }
     const nextRequest = this.mergeRequestContext(currentTask.request, event);
     const resolvedEventFileName = this.fileNameService.resolveFileName({
-      suggestedFileName: event.snapshot.suggestedFileName.length > 0
-        ? event.snapshot.suggestedFileName
-        : currentTask.resolvedFileName ?? currentTask.suggestedFileName,
+      suggestedFileName: currentTask.request.fileNameLocked !== true && event.snapshot.suggestedFileName.length > 0
+        ? event.snapshot.suggestedFileName : currentTask.resolvedFileName ?? currentTask.suggestedFileName,
       url: event.snapshot.url.length > 0 ? event.snapshot.url : currentTask.request.url,
       mimeType: event.snapshot.mimeType ?? nextRequest.mimeType,
       contentDisposition: event.snapshot.contentDisposition ?? nextRequest.contentDisposition
@@ -1600,8 +1995,26 @@ export class DownloadV2Service {
       progressFraction: event.snapshot.progressFraction ?? -1,
       estimatedTotalBytes: event.snapshot.estimatedTotalBytes ?? 0
     };
-    const nextFailure = this.buildFailureFromPlatformEvent(event, currentTask.failure);
-    const eventName = this.resolveEngineEvent(currentTask.status, event);
+    const driver = event.snapshot.downloadDriver ?? currentTask.persistence.downloadDriver ?? 'arkweb';
+    let nextFailure = this.buildFailureFromPlatformEvent(event, currentTask.failure, driver);
+    const classifiedFailure = classifyDownloadV2Failure(driver, event.snapshot.lastErrorCode);
+    const networkPause = (event.type === 'failed' || this.isFailureState(event.snapshot.state)) &&
+      classifiedFailure.shouldPauseForNetwork;
+    let eventName = networkPause ? 'pause' : this.resolveEngineEvent(currentTask.status, event);
+    if (networkPause) {
+      nextRuntime.pauseReason = currentTask.runtime.pauseReason === 'user' ? 'user' : 'network';
+      nextProgress.speedBytesPerSecond = 0;
+      if ((nextRuntime.platformTaskToken?.trim().length ?? 0) > 0 ||
+        this.platformAdapter.hasActiveDownload(currentTask.guid)) {
+        nextRuntime.resumeCapability = 'live_resume';
+      } else {
+        eventName = 'fail';
+        nextFailure = this.buildArkWebContextUnavailableFailure(currentTask);
+        nextRuntime.resumeCapability = 'none';
+      }
+    } else if (eventName === 'start' || eventName === 'resume') {
+      nextRuntime.pauseReason = 'none';
+    }
     const isPausing = this.isPausingState(event.snapshot.state);
     hilog.info(
       DOWNLOAD_V2_SERVICE_DOMAIN,
@@ -1634,9 +2047,23 @@ export class DownloadV2Service {
       runtime: nextRuntime,
       failure: nextFailure
     };
+    if (eventName === 'finish') {
+      if (currentTask.status !== 'running' && currentTask.status !== 'paused' && currentTask.status !== 'queued') {
+        return false;
+      }
+      nextPersistence.completionState = 'finalizing';
+      nextProgress.speedBytesPerSecond = 0;
+      nextRuntime.resumeCapability = 'none';
+      const finalizing = this.engine.dispatch(currentTask.guid, 'start', patch);
+      if (finalizing === undefined) return false;
+      void this.finalizeCompletedTask(finalizing.guid, finalizing.resolvedFileName ?? finalizing.suggestedFileName, silent);
+      void this.scheduleNextQueuedDownloads('network_received');
+      return true;
+    }
     const previousStatus = currentTask.status;
-    if (currentTask.status === 'queued' && (eventName === 'finish' || eventName === 'pause')) {
-      // ArkWeb can finish a resumed temporary file before an intermediate progress callback.
+    if (currentTask.status === 'queued' && eventName === 'pause') {
+      // A restored transport can pause before its first running callback.
+      // The state machine enters running before applying that real pause.
       this.engine.dispatch(currentTask.guid, 'start');
     }
     const updated = this.engine.dispatch(currentTask.guid, eventName, patch);
@@ -1655,7 +2082,10 @@ export class DownloadV2Service {
       updated.runtime.resumeCapability
     );
     this.clearExpectedStatusIfReached(updated);
-    void this.flushSideEffectsForPlatformEvent(updated, event, silent, previousStatus);
+    void this.flushSideEffectsForPlatformEvent(updated, event, silent, previousStatus).catch((error: Error) => {
+      hilog.error(DOWNLOAD_V2_SERVICE_DOMAIN, DOWNLOAD_V2_SERVICE_TAG,
+        'platform side effects failed guid=%{public}s error=%{public}s', updated.guid, error.message);
+    });
     return true;
   }
 
@@ -1671,19 +2101,22 @@ export class DownloadV2Service {
       finalDisplayPath: currentTask.persistence.finalDisplayPath,
       partialFilePath: currentTask.persistence.partialFilePath ?? currentTask.persistence.tempFilePath,
       finalFilePath: currentTask.persistence.finalFilePath,
-      writtenBytes: receivedBytes,
+      writtenBytes: currentTask.persistence.completionState !== undefined
+        ? currentTask.persistence.writtenBytes ?? receivedBytes : receivedBytes,
       expectedTotalBytes: currentTask.persistence.expectedTotalBytes,
       etag: currentTask.persistence.etag,
       lastModified: currentTask.persistence.lastModified,
       acceptRanges: currentTask.persistence.acceptRanges,
       contentRange: currentTask.persistence.contentRange,
       validatorCapturedAt: currentTask.persistence.validatorCapturedAt,
-      downloadDriver: snapshot.downloadDriver ?? currentTask.persistence.downloadDriver ?? 'libcurl',
+      downloadDriver: snapshot.downloadDriver ?? currentTask.persistence.downloadDriver ?? 'arkweb',
       resumeMode: currentTask.persistence.resumeMode === 'queued_live_resume' &&
         (this.isRunningState(snapshot.state) || this.isCompletedState(snapshot.state))
         ? 'platform_live_resume' : currentTask.persistence.resumeMode ?? 'platform_live_resume',
       needsFullRestart: currentTask.persistence.needsFullRestart,
       restartReason: currentTask.persistence.restartReason,
+      destination: currentTask.persistence.destination,
+      completionState: currentTask.persistence.completionState,
       segmentPlan: currentTask.persistence.segmentPlan
     };
   }
@@ -1762,6 +2195,8 @@ export class DownloadV2Service {
     );
     return this.platformAdapter.startDirectDownload({
       guid: request.guid,
+      sourceId: request.sourceId,
+      fileNameLocked: request.fileNameLocked,
       url: request.url,
       originalUrl: request.originalUrl,
       suggestedFileName: request.suggestedFileName,
@@ -1802,204 +2237,249 @@ export class DownloadV2Service {
     silent: boolean = false,
     previousStatus?: DownloadV2Status
   ): Promise<void> {
-    if (this.shouldRecoverArkWebNetworkFailure(task)) {
-      await this.recoverArkWebNetworkFailure(task);
-      return;
-    }
-    const shouldFinalizeCompletion = task.status === 'completed' && previousStatus !== 'completed' &&
-      (event.type === 'finished' || this.isCompletedState(event.snapshot.state));
-    if (shouldFinalizeCompletion) {
-      await this.finalizeCompletedTask(task.guid, task.suggestedFileName, silent);
-    } else if (task.status !== 'completed') {
-      this.completedPersistenceGuids[task.guid] = undefined;
-    }
-    if (!silent && task.status === 'failed') {
+    if (!silent && task.status === 'failed' && previousStatus !== 'failed') {
       this.callbacks.onError?.(task.failure.message.length > 0
         ? task.failure.message
         : resolveAppResourceText($r('app.string.download_failed_file', task.suggestedFileName)));
     }
-    await this.repository.flushPersistence();
-    if (task.status === 'completed' || task.status === 'failed' || task.status === 'canceled') {
+    // The repository coalesces progress writes; only structural transitions need a barrier.
+    if (task.status !== previousStatus || isDownloadV2TerminalStatus(task.status)) {
+      await this.repository.flushPersistence();
+    }
+    if (task.status !== previousStatus &&
+      (task.status === 'paused' || task.status === 'completed' || task.status === 'failed' || task.status === 'canceled')) {
       void this.scheduleNextQueuedDownloads('platform_terminal');
     }
   }
 
-  private shouldRecoverArkWebNetworkFailure(task: DownloadV2TaskEntity): boolean {
-    const url = task.request.url.trim().toLowerCase();
-    return task.status === 'failed' && task.persistence.downloadDriver === 'arkweb' &&
-      task.failure.sourceCode === 20 && task.request.method.trim().toUpperCase() === 'GET' &&
-      (url.startsWith('https://') || url.startsWith('http://')) &&
-      task.progress.receivedBytes > 0 && task.progress.receivedBytes < task.progress.totalBytes &&
-      (task.persistence.tempFilePath?.trim().length ?? 0) > 0;
-  }
-
-  private async recoverArkWebNetworkFailure(task: DownloadV2TaskEntity): Promise<void> {
-    const current = this.engine.findTask(task.guid);
-    if (current === undefined || !this.shouldRecoverArkWebNetworkFailure(current)) {
-      return;
-    }
-    const previousPath = current.persistence.tempFilePath ?? '';
-    // ArkWeb may have parallel, sparse received slices. Its byte count is not a safe
-    // contiguous resume offset, so start a separate file and let libcurl own validators.
-    const targetPath = `${previousPath}.http1`;
-    const queued = this.engine.dispatch(current.guid, 'retry', {
-      progress: { receivedBytes: 0, speedBytesPerSecond: 0 },
-      persistence: {
-        tempFilePath: targetPath,
-        partialFilePath: targetPath,
-        writtenBytes: 0,
-        expectedTotalBytes: current.progress.totalBytes,
-        downloadDriver: 'libcurl',
-        resumeMode: 'none',
-        needsFullRestart: true,
-        restartReason: 'arkweb_network_fallback'
-      },
-      runtime: { platformTaskId: '', platformTaskToken: '', resumeCapability: 'retry_only' },
-      failure: buildDownloadV2EmptyFailure()
-    });
-    if (queued === undefined) {
-      return;
-    }
-    hilog.info(DOWNLOAD_V2_SERVICE_DOMAIN, DOWNLOAD_V2_SERVICE_TAG,
-      'recover interrupted GET guid=%{public}s sourceCode=20 received=%{public}d total=%{public}d driver=libcurl',
-      current.guid, current.progress.receivedBytes, current.progress.totalBytes);
-    // The owner change above makes this a single attempt and suppresses stale ArkWeb
-    // callbacks, including ones emitted synchronously by cancel during the handoff.
-    await this.cleanupLocalTempFile(previousPath, current.guid, current.suggestedFileName, 'retry');
-    await this.cleanupLocalTempFile(targetPath, current.guid, current.suggestedFileName, 'retry');
-    await this.repository.flushPersistence();
-    await this.startPreparedTaskFromRequest(this.buildCapturedRequestFromTask(queued), queued, 'arkweb_network_fallback');
-    await this.repository.flushPersistence();
-  }
-
   private async finalizeCompletedTask(guid: string, suggestedFileName: string, silent: boolean = false): Promise<void> {
-    const currentTask = this.engine.findTask(guid);
-    if (currentTask === undefined) {
-      return;
-    }
-    if (this.completedPersistenceGuids[guid] === true) {
-      this.recordDownloadActivityOnce(guid);
-      return;
-    }
-    if ((currentTask.persistence.finalFileUri?.trim().length ?? 0) > 0) {
-      this.completedPersistenceGuids[guid] = true;
-      this.recordDownloadActivityOnce(guid);
-      if (!silent) {
-        this.callbacks.onInfo?.(resolveAppResourceText($r('app.string.download_completed_system', suggestedFileName)));
-      }
-      return;
-    }
+    if (this.completedPersistenceGuids[guid] === true) return;
     this.completedPersistenceGuids[guid] = true;
-    const localPath = currentTask.persistence.tempFilePath?.trim() ?? '';
-    if (localPath.length <= 0) {
-      this.recordDownloadActivityOnce(guid);
-      if (!silent) {
-        this.callbacks.onInfo?.(resolveAppResourceText($r('app.string.download_completed_file', suggestedFileName)));
-      }
-      return;
-    }
-    const completionPolicy = this.downloadTargetResolutionService.resolveCompletionTargetPolicy({
-      windowId: currentTask.windowId,
-      profileId: currentTask.profileId,
-      privacyMode: currentTask.privacyMode,
-      dataScope: currentTask.dataScope,
-      sourcePageUrl: currentTask.request.sourcePageUrl
-    }, suggestedFileName);
-    if (!completionPolicy.shouldPromptForExport) {
-      this.completedPersistenceGuids[guid] = true;
-      this.recordDownloadActivityOnce(guid);
-      this.persistCompletionLocalDisplayPath(currentTask, completionPolicy.tempDisplayPath);
+    try {
       await this.repository.flushPersistence();
-      if (!silent) {
-        this.callbacks.onInfo?.(completionPolicy.completionMessage);
-      }
-      return;
-    }
-    const persisted = await this.persistFinishedDownload(localPath, suggestedFileName, {
-      windowId: currentTask.windowId,
-      profileId: currentTask.profileId,
-      privacyMode: currentTask.privacyMode,
-      dataScope: currentTask.dataScope,
-      sourcePageUrl: currentTask.request.sourcePageUrl
-    });
-    if (persisted === undefined || !persisted.isExported || (persisted.finalFileUri?.trim().length ?? 0) <= 0) {
-      this.completedPersistenceGuids[guid] = true;
-      this.recordDownloadActivityOnce(guid);
-      const fallbackDisplayPath = persisted?.finalDisplayPath ?? completionPolicy.tempDisplayPath;
-      this.persistCompletionLocalDisplayPath(currentTask, fallbackDisplayPath);
-      await this.repository.flushPersistence();
-      if (!silent) {
-        const message = persisted?.status === 'failed'
-          ? resolveAppResourceText($r('app.string.download_export_failed', suggestedFileName))
-          : resolveAppResourceText($r('app.string.download_export_skipped', suggestedFileName));
-        this.callbacks.onInfo?.(message);
-      }
-      return;
-    }
-    this.recordDownloadActivityOnce(guid);
-    this.engine.synchronizeTask(guid, {
-      persistence: {
-        tempFilePath: currentTask.persistence.tempFilePath,
-        finalFileUri: persisted.finalFileUri,
-        finalDisplayPath: persisted.finalDisplayPath,
-        partialFilePath: currentTask.persistence.partialFilePath,
-        finalFilePath: currentTask.persistence.finalFilePath,
-        writtenBytes: currentTask.persistence.writtenBytes,
-        expectedTotalBytes: currentTask.persistence.expectedTotalBytes,
-        etag: currentTask.persistence.etag,
-        lastModified: currentTask.persistence.lastModified,
-        acceptRanges: currentTask.persistence.acceptRanges,
-        contentRange: currentTask.persistence.contentRange,
-        validatorCapturedAt: currentTask.persistence.validatorCapturedAt,
-        downloadDriver: currentTask.persistence.downloadDriver,
-        resumeMode: currentTask.persistence.resumeMode,
-        needsFullRestart: currentTask.persistence.needsFullRestart,
-        restartReason: currentTask.persistence.restartReason,
-        segmentPlan: currentTask.persistence.segmentPlan
-      }
-    });
-    await this.repository.flushPersistence();
-    const cleanupSucceeded = await this.cleanupLocalTempFile(
-      localPath,
-      currentTask.guid,
-      currentTask.suggestedFileName,
-      'completed_export'
-    );
-    if (cleanupSucceeded) {
-      const refreshedTask = this.engine.findTask(guid) ?? currentTask;
-      this.engine.synchronizeTask(guid, {
-        persistence: {
-          tempFilePath: undefined,
-          finalFileUri: persisted.finalFileUri,
-          finalDisplayPath: persisted.finalDisplayPath,
-          partialFilePath: undefined,
-          finalFilePath: refreshedTask.persistence.finalFilePath,
-          writtenBytes: refreshedTask.persistence.writtenBytes,
-          expectedTotalBytes: refreshedTask.persistence.expectedTotalBytes,
-          etag: refreshedTask.persistence.etag,
-          lastModified: refreshedTask.persistence.lastModified,
-          acceptRanges: refreshedTask.persistence.acceptRanges,
-          contentRange: refreshedTask.persistence.contentRange,
-          validatorCapturedAt: refreshedTask.persistence.validatorCapturedAt,
-          downloadDriver: refreshedTask.persistence.downloadDriver,
-          resumeMode: refreshedTask.persistence.resumeMode,
-          needsFullRestart: refreshedTask.persistence.needsFullRestart,
-          restartReason: refreshedTask.persistence.restartReason,
-          segmentPlan: refreshedTask.persistence.segmentPlan
+      let task = this.findFinalizingTask(guid);
+      if (task === undefined) return;
+      await this.ensureTaskDestination(task);
+      task = this.findFinalizingTask(guid);
+      if (task === undefined) return;
+      const existingUri = task.persistence.finalFileUri?.trim() ?? '';
+      if (existingUri.length > 0) {
+        const target = await this.fileResolutionService.inspectReadableFile(existingUri);
+        task = this.findFinalizingTask(guid);
+        if (task === undefined) return;
+        if (target === undefined || (task.persistence.writtenBytes !== undefined &&
+          target.size !== task.persistence.writtenBytes)) {
+          await this.failExportWithRetainedSource(task, true, silent, true);
+          return;
         }
+        await this.commitAvailableFile(task, target.size, undefined, silent);
+        return;
+      }
+      const localPath = task.persistence.tempFilePath?.trim() ?? '';
+      const source = await this.fileResolutionService.inspectReadableFile(localPath);
+      task = this.findFinalizingTask(guid);
+      if (task === undefined) return;
+      if (source === undefined || !this.isFinalizationSourceValid(task, source.size)) {
+        await this.failFileFinalization(task, true, silent, false, false);
+        return;
+      }
+      const destination = task.persistence.destination;
+      if (destination === undefined) {
+        await this.failFileFinalization(task, false, silent);
+        return;
+      }
+      const destinationAllowed = await this.downloadTargetResolutionService.validateDestination(destination);
+      task = this.findFinalizingTask(guid);
+      if (task === undefined) return;
+      if (!destinationAllowed) {
+        await this.failExportWithRetainedSource(task, false, silent, false, true);
+        return;
+      }
+      const completionPolicy = this.downloadTargetResolutionService.resolveCompletionTargetPolicy({
+        windowId: task.windowId, profileId: task.profileId, privacyMode: task.privacyMode,
+        dataScope: task.dataScope, sourcePageUrl: task.request.sourcePageUrl
+      }, suggestedFileName, destination);
+      if (!completionPolicy.shouldPromptForExport) {
+        this.persistCompletionLocalDisplayPath(task, completionPolicy.tempDisplayPath);
+        const latest = this.findFinalizingTask(guid);
+        if (latest !== undefined) {
+          await this.commitAvailableFile(latest, source.size, undefined, silent, completionPolicy.completionMessage);
+        }
+        return;
+      }
+      const persisted = await this.persistFinishedDownload(localPath, suggestedFileName, {
+        windowId: task.windowId, profileId: task.profileId, privacyMode: task.privacyMode,
+        dataScope: task.dataScope, sourcePageUrl: task.request.sourcePageUrl
+      }, destination);
+      task = this.findFinalizingTask(guid);
+      if (task === undefined) return;
+      if (persisted?.status === 'user_canceled') {
+        const retained = await this.fileResolutionService.inspectReadableFile(localPath);
+        task = this.findFinalizingTask(guid);
+        if (task === undefined) return;
+        if (retained === undefined || retained.size !== source.size) {
+          await this.failFileFinalization(task, true, silent, false, false);
+          return;
+        }
+        this.persistCompletionLocalDisplayPath(task, persisted.finalDisplayPath);
+        const latest = this.findFinalizingTask(guid);
+        if (latest !== undefined) {
+          await this.commitAvailableFile(latest, retained.size, persisted, silent,
+            resolveAppResourceText($r('app.string.download_export_skipped', suggestedFileName)));
+        }
+        return;
+      }
+      if (persisted === undefined || !persisted.isExported || (persisted.finalFileUri?.trim().length ?? 0) <= 0) {
+        await this.failExportWithRetainedSource(task, false, silent);
+        return;
+      }
+      const exported = await this.fileResolutionService.inspectReadableFile(persisted.finalFileUri ?? '');
+      task = this.findFinalizingTask(guid);
+      if (task === undefined) return;
+      if (exported === undefined || exported.size !== source.size) {
+        await this.failExportWithRetainedSource(task, true, silent);
+        return;
+      }
+      const persistence = this.mergePersistenceSnapshot(task, this.buildPlatformSnapshotFromTask(task));
+      persistence.finalFileUri = persisted.finalFileUri;
+      if (persisted.destination !== undefined) {
+        persistence.destination = persisted.destination;
+      } else if (destination.kind === 'prompt') {
+        persistence.destination = { kind: 'file', uri: persisted.finalFileUri, label: persisted.finalDisplayPath };
+      }
+      persistence.finalDisplayPath = persisted.finalDisplayPath;
+      persistence.writtenBytes = source.size;
+      this.engine.synchronizeTask(guid, {
+        persistence: persistence,
+        resolvedFileName: persisted.finalFileName ?? task.resolvedFileName ?? suggestedFileName
       });
+      const latest = this.findFinalizingTask(guid);
+      if (latest !== undefined) await this.commitAvailableFile(latest, source.size, persisted, silent);
+    } catch (error) {
+      hilog.error(DOWNLOAD_V2_SERVICE_DOMAIN, DOWNLOAD_V2_SERVICE_TAG,
+        'file finalization failed guid=%{public}s error=%{public}s', guid, JSON.stringify(error));
+      const task = this.engine.findTask(guid);
+      if (task !== undefined && (task.persistence.completionState === 'finalizing' ||
+        this.completionCommitGuids[guid] === true)) {
+        await this.failFileFinalization(task, false, silent);
+      }
+    } finally {
+      this.completedPersistenceGuids[guid] = undefined;
+      this.completionCommitGuids[guid] = undefined;
+    }
+  }
+
+  private findFinalizingTask(guid: string): DownloadV2TaskEntity | undefined {
+    const task = this.engine.findTask(guid);
+    return task?.status === 'running' && task.persistence.completionState === 'finalizing' ? task : undefined;
+  }
+
+  private isFinalizationSourceValid(task: DownloadV2TaskEntity, size: number): boolean {
+    if (size === 0 && task.progress.receivedBytes > 0) return false;
+    const isHls = task.persistence.downloadDriver === 'libcurl' &&
+      this.isHlsCapturedRequest(this.buildCapturedRequestFromTask(task));
+    return isHls || task.progress.totalBytes <= 0 || size === task.progress.totalBytes;
+  }
+
+  private async failExportWithRetainedSource(
+    task: DownloadV2TaskEntity, verificationFailed: boolean, silent: boolean, clearInvalidTarget: boolean = false,
+    permissionDenied: boolean = false
+  ): Promise<void> {
+    const source = await this.fileResolutionService.inspectReadableFile(task.persistence.tempFilePath ?? '');
+    let current = this.findFinalizingTask(task.guid);
+    if (current === undefined) return;
+    const canRetryExport = source !== undefined && this.isFinalizationSourceValid(current, source.size) &&
+      ((current.persistence.finalFileUri?.trim().length ?? 0) <= 0 || current.persistence.writtenBytes === undefined ||
+        source.size === current.persistence.writtenBytes);
+    if (clearInvalidTarget && canRetryExport) {
+      const persistence = this.mergePersistenceSnapshot(current, this.buildPlatformSnapshotFromTask(current));
+      persistence.finalFileUri = undefined;
+      this.engine.synchronizeTask(current.guid, { persistence: persistence });
+      current = this.findFinalizingTask(task.guid);
+      if (current === undefined) return;
+    }
+    await this.failFileFinalization(current, verificationFailed || !canRetryExport, silent,
+      canRetryExport && permissionDenied, canRetryExport);
+  }
+
+  private async failFileFinalization(
+    task: DownloadV2TaskEntity, verificationFailed: boolean, silent: boolean, permissionDenied: boolean = false,
+    canRetryExport: boolean = true
+  ): Promise<void> {
+    const current = this.engine.findTask(task.guid);
+    if (current === undefined || current.status === 'canceled' || current.status === 'removed') return;
+    const persistence = this.mergePersistenceSnapshot(current, this.buildPlatformSnapshotFromTask(current));
+    persistence.completionState = 'export_failed';
+    const message = permissionDenied ? resolveAppResourceText($r('app.string.download_failure_permission')) : verificationFailed
+      ? resolveAppResourceText($r('app.string.download_file_verification_failed'))
+      : resolveAppResourceText($r('app.string.download_save_failed_retry'));
+    this.engine.synchronizeTask(task.guid, {
+      status: 'failed', persistence: persistence, progress: { speedBytesPerSecond: 0 },
+      runtime: { resumeCapability: 'none' },
+      failure: { code: permissionDenied ? 'permission' : 'file_system', message: message, retriable: canRetryExport },
+      clearTimingFields: ['completedAt'], timing: { failedAt: Date.now() }
+    });
+    try {
       await this.repository.flushPersistence();
+    } catch (error) {
+      hilog.error(DOWNLOAD_V2_SERVICE_DOMAIN, DOWNLOAD_V2_SERVICE_TAG,
+        'save failure persistence failed guid=%{public}s error=%{public}s', task.guid, JSON.stringify(error));
     }
+    if (!silent && this.engine.findTask(task.guid)?.status === 'failed') this.callbacks.onError?.(message);
+  }
+
+  private async commitAvailableFile(
+    task: DownloadV2TaskEntity, size: number, persisted: DownloadPersistResult | undefined, silent: boolean,
+    completionMessage?: string
+  ): Promise<void> {
+    const persistence = this.mergePersistenceSnapshot(task, this.buildPlatformSnapshotFromTask(task));
+    persistence.writtenBytes = size;
+    // Persist the verified location before making the completed action set visible.
+    this.engine.synchronizeTask(task.guid, { persistence: persistence });
+    await this.repository.flushPersistence();
+    const current = this.findFinalizingTask(task.guid);
+    if (current === undefined) return;
+    const available = this.mergePersistenceSnapshot(current, this.buildPlatformSnapshotFromTask(current));
+    available.completionState = 'available';
+    this.completionCommitGuids[task.guid] = true;
+    const completed = this.engine.dispatch(task.guid, 'finish', {
+      persistence: available, failure: buildDownloadV2EmptyFailure(),
+      progress: { totalBytes: size, receivedBytes: size, speedBytesPerSecond: 0 },
+      runtime: { resumeCapability: 'none', pauseReason: 'none' }
+    });
+    if (completed === undefined) return;
+    await this.repository.flushPersistence();
+    const latest = this.engine.findTask(task.guid);
+    if (latest?.status !== 'completed' || latest.persistence.completionState !== 'available') return;
+    this.completionCommitGuids[task.guid] = undefined;
+    this.notifyTaskChanged(latest);
+    this.recordDownloadActivityOnce(task.guid);
     if (!silent) {
-      this.callbacks.onInfo?.(this.buildSavedLocationMessage('completed', suggestedFileName, persisted));
+      this.callbacks.onInfo?.(completionMessage ?? (persisted?.isExported === true
+        ? this.buildSavedLocationMessage('completed', latest.resolvedFileName ?? latest.suggestedFileName, persisted)
+        : resolveAppResourceText($r('app.string.download_completed_file', latest.resolvedFileName ?? latest.suggestedFileName))));
     }
+    const localPath = latest.persistence.tempFilePath?.trim() ?? '';
+    if ((latest.persistence.finalFileUri?.trim().length ?? 0) <= 0 || localPath.length <= 0) return;
+    const cleaned = await this.cleanupLocalTempFile(localPath, latest.guid, latest.suggestedFileName, 'completed_export');
+    const afterCleanup = this.engine.findTask(task.guid);
+    if (!cleaned || afterCleanup?.status !== 'completed' || afterCleanup.persistence.completionState !== 'available') return;
+    const cleanedPersistence = this.mergePersistenceSnapshot(afterCleanup, this.buildPlatformSnapshotFromTask(afterCleanup));
+    cleanedPersistence.tempFilePath = undefined;
+    cleanedPersistence.partialFilePath = undefined;
+    this.engine.synchronizeTask(task.guid, { persistence: cleanedPersistence });
+    await this.repository.flushPersistence();
   }
 
   private async persistFinishedDownload(
     localPath: string,
     suggestedFileName: string,
-    boundary: DownloadTaskBoundary
+    boundary: DownloadTaskBoundary,
+    destination?: DownloadV2DestinationSnapshot
   ): Promise<DownloadPersistResult | undefined> {
+    if (destination !== undefined) {
+      return this.fileResolutionService.persistToDestination(localPath, suggestedFileName, destination);
+    }
     const savePolicy = this.downloadPolicyService.resolveSavePolicy(boundary);
     let customDirectoryBypassed = false;
     if (!savePolicy.isPrivateSession) {
@@ -2061,6 +2541,8 @@ export class DownloadV2Service {
         resumeMode: task.persistence.resumeMode,
         needsFullRestart: task.persistence.needsFullRestart,
         restartReason: task.persistence.restartReason,
+        destination: task.persistence.destination,
+        completionState: task.persistence.completionState,
         segmentPlan: task.persistence.segmentPlan
       }
     });
@@ -2207,13 +2689,27 @@ export class DownloadV2Service {
     if (!isDownloadV2ActiveStatus(task.status)) {
       return false;
     }
-    return task.persistence.downloadDriver === 'arkweb' ||
+    return task.persistence.completionState === 'finalizing' || task.persistence.completionState === 'available' ||
+      task.persistence.downloadDriver === 'arkweb' ||
       (task.runtime.platformTaskId?.trim().length ?? 0) > 0;
   }
 
   private markTaskRestoreUnavailable(guid: string): void {
     const currentTask = this.engine.findTask(guid);
     if (currentTask === undefined) {
+      return;
+    }
+    if (currentTask.persistence.downloadDriver === 'libcurl' &&
+      (currentTask.status === 'running' || currentTask.status === 'queued' ||
+        currentTask.runtime.pauseReason === 'network' || currentTask.runtime.pauseReason === 'wifi_policy') &&
+      (currentTask.persistence.tempFilePath?.trim().length ?? 0) > 0) {
+      const persistence = this.mergePersistenceSnapshot(currentTask, this.buildPlatformSnapshotFromTask(currentTask));
+      persistence.resumeMode = 'platform_live_resume';
+      this.engine.synchronizeTask(guid, {
+        status: 'queued', persistence: persistence, progress: { speedBytesPerSecond: 0 },
+        runtime: { pauseReason: 'none', resumeCapability: 'retry_only' },
+        failure: buildDownloadV2EmptyFailure()
+      });
       return;
     }
     hilog.info(
@@ -2223,7 +2719,9 @@ export class DownloadV2Service {
       guid
     );
     this.engine.synchronizeTask(guid, {
-      status: 'failed',
+      status: currentTask.status === 'paused' &&
+        currentTask.runtime.pauseReason !== 'network' && currentTask.runtime.pauseReason !== 'wifi_policy'
+        ? 'paused' : 'failed',
       progress: {
         speedBytesPerSecond: 0
       },
@@ -2385,6 +2883,9 @@ export class DownloadV2Service {
     return {
       url: event.snapshot.url.length > 0 ? event.snapshot.url : current.url,
       originalUrl: event.snapshot.originalUrl ?? current.originalUrl,
+      sourceId: current.sourceId ?? event.snapshot.sourceId,
+      nativeReason: current.nativeReason,
+      fileNameLocked: current.fileNameLocked,
       method: event.snapshot.method?.trim() ?? current.method,
       sourcePageUrl: current.sourcePageUrl,
       sourceHost: current.sourceHost,
@@ -2398,7 +2899,8 @@ export class DownloadV2Service {
 
   private buildFailureFromPlatformEvent(
     event: PlatformDownloadEvent,
-    currentFailure: DownloadV2Failure
+    currentFailure: DownloadV2Failure,
+    driver: DownloadV2Driver = event.snapshot.downloadDriver ?? 'arkweb'
   ): DownloadV2Failure {
     if (
       event.type !== 'failed' &&
@@ -2416,15 +2918,27 @@ export class DownloadV2Service {
         retriable: false
       };
     }
-    const nativeMessage = event.snapshot.errorMessage?.trim() ?? '';
+    const classification = classifyDownloadV2Failure(driver, event.snapshot.lastErrorCode);
     return {
-      code: 'unknown',
+      code: classification.code,
       sourceCode: event.snapshot.lastErrorCode,
-      message: nativeMessage.length > 0
-        ? nativeMessage
-        : resolveAppResourceText($r('app.string.download_failed_file', event.snapshot.suggestedFileName)),
-      retriable: true
+      message: this.resolveFailureMessage(classification.reason, event.snapshot.suggestedFileName),
+      retriable: classification.retriable
     };
+  }
+
+  private resolveFailureMessage(reason: DownloadV2FailureReason, fileName: string): string {
+    switch (reason) {
+      case 'network': return resolveAppResourceText($r('app.string.download_failure_network'));
+      case 'permission': return resolveAppResourceText($r('app.string.download_failure_permission'));
+      case 'storage': return resolveAppResourceText($r('app.string.download_failure_storage'));
+      case 'file_system': return resolveAppResourceText($r('app.string.download_failure_file_system'));
+      case 'server': return resolveAppResourceText($r('app.string.download_failure_server'));
+      case 'certificate': return resolveAppResourceText($r('app.string.download_failure_certificate'));
+      case 'unsupported': return resolveAppResourceText($r('app.string.download_failure_unsupported'));
+      case 'canceled': return resolveAppResourceText($r('app.string.download_canceled_message'));
+      default: return resolveAppResourceText($r('app.string.download_failed_file', fileName));
+    }
   }
 
   private resolveResumeCapability(state: string): 'none' | 'live_resume' | 'retry_only' {
@@ -2537,10 +3051,7 @@ export class DownloadV2Service {
   private buildEngineObserver(): DownloadV2EngineObserver {
     return {
       onTaskChanged: (task: DownloadV2TaskEntity) => {
-        const previousStatus = this.previousStatusByGuid[task.guid];
-        this.previousStatusByGuid[task.guid] = task.status;
-        this.systemNotificationService?.handleTaskChanged(task, previousStatus);
-        this.callbacks.onTaskChanged?.(task, this.resolveTaskChangeKind(task));
+        this.notifyTaskChanged(task);
       },
       onTaskRemoved: (guid: string) => {
         this.previousStatusByGuid[guid] = undefined;
@@ -2550,11 +3061,19 @@ export class DownloadV2Service {
     };
   }
 
+  private notifyTaskChanged(task: DownloadV2TaskEntity): void {
+    if (task.status === 'completed' && this.completionCommitGuids[task.guid] === true) return;
+    const previousStatus = this.previousStatusByGuid[task.guid];
+    this.previousStatusByGuid[task.guid] = task.status;
+    this.systemNotificationService?.handleTaskChanged(task, previousStatus);
+    this.callbacks.onTaskChanged?.(task, this.resolveTaskChangeKind(task));
+  }
+
   private resolveTaskChangeKind(task: DownloadV2TaskEntity): DownloadV2TaskChangeKind {
     if (isDownloadV2TerminalStatus(task.status)) {
       return 'terminal';
     }
-    if (task.status === 'running') {
+    if (task.status === 'running' && task.persistence.completionState !== 'finalizing') {
       return 'progress';
     }
     return 'structural';

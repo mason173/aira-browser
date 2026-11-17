@@ -560,15 +560,34 @@ export class BrowserAdBlockCoordinator {
     context: BrowserAdBlockPageRuntimeContext,
     runtimeLifecyclePort: BrowserRuntimeLifecyclePort
   ): Promise<AdBlockCosmeticInjectionSummary> {
-    const snapshot = this.resolveSnapshot();
+    const controller = runtimeLifecyclePort.resolveController(context.tabId);
+    if (controller === undefined) {
+      return this.skippedCosmeticInjection('missing_controller');
+    }
+    let snapshot = this.resolveSnapshot();
+    // Page-end can beat persisted settings and the native engine, especially when many lists
+    // are enabled. Join the existing boot instead of clearing protection and relying on the
+    // document-start discovery script's short retry window. Startup restore can own this task.
+    const bootPreparation = this.runtimeBootPreparationPromise ??
+      BrowserAdBlockCoordinator.runtimeBootPreparationPromises.get(this.repository);
+    if (bootPreparation !== undefined) {
+      try {
+        await bootPreparation;
+      } catch (_error) {
+        // Preserve the normal unavailable-engine fallback and boot retry backoff.
+      }
+      if (runtimeLifecyclePort.resolveController(context.tabId) !== controller) {
+        return this.skippedCosmeticInjection('stale_controller');
+      }
+      snapshot = this.resolveSnapshot();
+    }
     const policy = this.resolveEffectivePagePolicy(snapshot, context);
     const cosmeticElementBlockingEnabled = snapshot.settings.preferences.enabled && !policy.allowlisted;
     if (!cosmeticElementBlockingEnabled) {
       this.statsCoordinator.clearCosmeticStatsContext(context.tabId);
-      await this.cosmeticInjectionService.clearForPage(runtimeLifecyclePort.resolveController(context.tabId), context.pageUrl);
+      await this.cosmeticInjectionService.clearForPage(controller, context.pageUrl);
       return this.skippedCosmeticInjection('disabled');
     }
-    const controller = runtimeLifecyclePort.resolveController(context.tabId);
     const candidates = await this.cosmeticInjectionService.collectSelectorCandidates(controller);
     const resources = this.runtimeGeneration.resolveNativeCosmeticResources(
       context.pageUrl,

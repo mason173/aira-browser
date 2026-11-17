@@ -2023,11 +2023,11 @@ struct BrowserShellPage {
     recordRuntimeEvent: (type: string, message: string, tabId: string): void => {
       this.recordRuntimeEvent(type, message, tabId);
     },
-    showManualDownloadConfirmSheet: (_tabId: string, url: string): void => {
+    showManualDownloadConfirmSheet: (tabId: string, url: string): void => {
       this.browserDownloadConfirmOverlayCoordinator.requestAndPresent({
         url: url,
         totalBytes: 0
-      });
+      }, tabId);
     },
     getTabs: (): BrowserTabState[] => this.tabs,
     setTabs: (tabs: BrowserTabState[]): void => {
@@ -6953,6 +6953,7 @@ struct BrowserShellPage {
   }
 
   aboutToDisappear(): void {
+    this.downloadService.retainPageDownloadSources(this.currentWindowId, []);
     this.featureGatePurchaseCoordinator.cancelPurchaseConsent();
     this.browserVolumeKeyAudioService.stop();
     AppStorage.setOrCreate(CENTERED_HOME_SEARCH_GEOMETRY_OPEN_KEY, false);
@@ -12125,6 +12126,27 @@ struct BrowserShellPage {
       this.currentWindowId,
       this.currentUrl
     );
+    this.downloadService.retainPageDownloadSources(this.currentWindowId,
+      this.tabs.map((tab: BrowserTabState): string => tab.id));
+    this.tabs.forEach((tab: BrowserTabState) => this.syncPageDownloadSource(tab.id));
+  }
+
+  private syncPageDownloadSource(tabId: string): void {
+    const context = this.tabScopedEventContextCoordinator.resolveContext(tabId);
+    if (context.tab === undefined) {
+      return;
+    }
+    this.downloadService.registerPageDownloadSource(
+      tabId,
+      this.browserRuntimeLifecyclePort.resolveController(tabId),
+      {
+        windowId: this.currentWindowId,
+        profileId: context.profileId,
+        privacyMode: context.privacyMode,
+        dataScope: context.dataScope,
+        sourcePageUrl: context.pageUrl
+      }
+    );
   }
 
   private getCurrentDownloadBoundary(): DownloadTaskBoundary {
@@ -12170,7 +12192,8 @@ struct BrowserShellPage {
       });
       await sharedDownloadPolicyService.updateSettings(boundary, nextSettings);
       if (currentSettings.customLocationUri.length > 0 &&
-        currentSettings.customLocationUri !== selection.uri) {
+        currentSettings.customLocationUri !== selection.uri &&
+        !this.downloadService.hasDownloadDestinationReference(currentSettings.customLocationUri)) {
         void directoryService.releaseDirectory(currentSettings.customLocationUri);
       }
       return true;
@@ -12222,6 +12245,7 @@ struct BrowserShellPage {
   }
 
   private handleDownloadStart(tabId: string, event: OnDownloadStartEvent): void {
+    this.syncPageDownloadSource(tabId);
     this.browserTabBackgroundSessionSyncCoordinator.markDownloadStarted(tabId);
     this.browserUserScriptApplicationCoordinator.handleInstallCandidate(event.url);
     this.downloadService.recordWebDownloadStart(
@@ -12578,9 +12602,7 @@ struct BrowserShellPage {
   }
 
   private buildWebRuntimeBootstrapConfig(): WebControllerBootstrapConfig {
-    return this.browserWebLoadRuntimeCoordinator.buildControllerBootstrapConfig(
-      this.downloadService.getDelegate()
-    );
+    return this.browserWebLoadRuntimeCoordinator.buildControllerBootstrapConfig();
   }
 
   private handleSiteCustomizationRefreshRevisionChange(): void {
@@ -13148,6 +13170,7 @@ struct BrowserShellPage {
   }
 
   private handleTabWebControllerAttached(tabId: string): void {
+    this.syncPageDownloadSource(tabId);
     this.browserTabSwitchCoordinator.applyTabAudioPolicy(tabId,
       sharedPreferencesRepository.getPreferences().general.privateModeAutoMuteEnabled === true);
     this.browserWebSwipeNavigationCoordinator.handleControllerAttached(tabId);
