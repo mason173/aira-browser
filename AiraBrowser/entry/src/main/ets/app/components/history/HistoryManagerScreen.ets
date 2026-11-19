@@ -1,5 +1,5 @@
 import { BookmarkAddDraft, createBookmarkAddDraft } from '../../../core/bookmarks/BookmarkAddDraft';
-import { HistoryBookmarkAddCoordinator } from '../../../core/bookmarks/HistoryBookmarkAddCoordinator';
+import { BookmarkAddFormCoordinator } from '../../../core/bookmarks/BookmarkAddFormCoordinator';
 import { BrowserBookmarkFolderSelectionAction } from '../../../core/browser/BrowserBookmarkActionCoordinator';
 import { localizeHistoryHost } from '../../../core/resources/HistoryBookmarkDisplayText';
 import { DEFAULT_THEME_PALETTE } from '../../../features/theme/palettes/DefaultThemePalette';
@@ -180,7 +180,7 @@ export struct HistoryManagerScreen {
     new BookmarksFeature(sharedBookmarkRepository),
     new BookmarkMutationService(sharedBookmarkRepository)
   );
-  private singleBookmarkAddCoordinator: HistoryBookmarkAddCoordinator = new HistoryBookmarkAddCoordinator({
+  private singleBookmarkAddCoordinator: BookmarkAddFormCoordinator = new BookmarkAddFormCoordinator({
     applyDraft: (draft: BookmarkAddDraft): void => { this.singleBookmarkDraft = draft; },
     resolveFolders: (): BookmarkFolderOptionView[] => this.bookmarkFolderSelectionOptions,
     hasBookmark: (url: string): boolean => this.bookmarkManagementFeature.hasBookmarkForUrl(url),

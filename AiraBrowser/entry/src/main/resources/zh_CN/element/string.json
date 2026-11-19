@@ -24141,6 +24141,14 @@
       "value": "滑动前进后退已关闭"
     },
     {
+      "name": "bookmark_name_host_hint",
+      "value": "选填，留空使用域名"
+    },
+    {
+      "name": "bookmark_url_already_saved",
+      "value": "这个网址已经在书签里了。"
+    },
+    {
       "name": "bookmark_add_url_invalid",
       "value": "请输入有效的网址。"
     },

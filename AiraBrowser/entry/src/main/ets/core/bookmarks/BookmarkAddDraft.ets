@@ -25,8 +25,8 @@ export function createBookmarkAddDraft(title: string = '', url: string = '', fol
   };
 }
 
-export function validateBookmarkAddDraft(draft: BookmarkAddDraft): BookmarkAddDraft {
-  const title = draft.title.trim();
+export function validateBookmarkAddDraft(draft: BookmarkAddDraft, manualWebAddress: boolean = false): BookmarkAddDraft {
+  let title = draft.title.trim();
   const rawUrl = draft.url.trim();
   let normalizedUrl = rawUrl;
   let urlError: ResourceStr = '';
@@ -35,13 +35,18 @@ export function validateBookmarkAddDraft(draft: BookmarkAddDraft): BookmarkAddDr
   } else {
     try {
       const candidate = normalizeUrl(rawUrl);
-      if (candidate.length === 0 || /\s/.test(rawUrl)) {
+      if (candidate.length === 0 || /\s/.test(rawUrl) ||
+        (manualWebAddress && !/^https?:\/\/[^/\\?#]/i.test(candidate))) {
         throw new Error('Invalid bookmark URL');
       }
       normalizedUrl = candidate;
       const parsed = urlUtils.URL.parseURL(normalizedUrl);
-      if ((parsed.protocol === 'http:' || parsed.protocol === 'https:') && parsed.hostname.length <= 0) {
+      const isWebAddress = parsed.protocol === 'http:' || parsed.protocol === 'https:';
+      if (isWebAddress && parsed.hostname.length <= 0) {
         throw new Error('Missing bookmark host');
+      }
+      if (manualWebAddress && title.length === 0) {
+        title = parsed.hostname;
       }
     } catch (_error) {
       urlError = $r('app.string.bookmark_add_url_invalid');
@@ -51,7 +56,7 @@ export function validateBookmarkAddDraft(draft: BookmarkAddDraft): BookmarkAddDr
     title: title,
     url: normalizedUrl,
     folderId: draft.folderId,
-    titleError: title.length > 0 ? '' : $r('app.string.bookmark_name_required'),
+    titleError: manualWebAddress || title.length > 0 ? '' : $r('app.string.bookmark_name_required'),
     urlError: urlError,
     saveError: '',
     saving: false,

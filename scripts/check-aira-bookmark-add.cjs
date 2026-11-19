@@ -154,14 +154,14 @@ test('a folder removed before Save cannot silently redirect the bookmark', () =>
   h.action({ type: 'confirm_add' }); assert.equal(h.writes.length, 0);
   assert.equal(h.snapshot().draft.saveError.id, 'app.string.bookmark_add_choose_folder');
 });
-function historyHarness() {
-  const { HistoryBookmarkAddCoordinator } = load('core/bookmarks/HistoryBookmarkAddCoordinator.ets', {
+function formHarness(existingUrl = '') {
+  const { BookmarkAddFormCoordinator } = load('core/bookmarks/BookmarkAddFormCoordinator.ets', {
     './BookmarkAddDraft': drafts
   });
   const writes = [], folders = [{ id: 'folder' }, { id: 'other' }];
   let draft, fail = false, saved = 0;
-  const coordinator = new HistoryBookmarkAddCoordinator({
-    applyDraft: value => { draft = value; }, resolveFolders: () => folders, hasBookmark: () => false,
+  const coordinator = new BookmarkAddFormCoordinator({
+    applyDraft: value => { draft = value; }, resolveFolders: () => folders, hasBookmark: url => url === existingUrl,
     isFolderAvailable: id => folders.some(folder => folder.id === id),
     previewFolder() {}, dismiss() {},
     beginSave: (title, url, folderId) => {
@@ -176,8 +176,39 @@ function historyHarness() {
   return { coordinator, writes, folders, draft: () => draft, saved: () => saved,
     fail: value => { fail = value; }, action: action => coordinator.handleAction(action) };
 }
+test('manual entry starts empty in the current folder and saves a bare domain with a default name', async () => {
+  const h = formHarness();
+  h.coordinator.beginManual('other');
+  assert.equal(h.draft().folderId, 'other');
+  assert.equal(h.draft().url, '');
+  assert.equal(h.draft().title, '');
+  h.action({ type: 'edit_url', value: ' example.com/article?q=1#top ' });
+  h.action({ type: 'confirm_add' });
+  h.action({ type: 'confirm_add' });
+  await tick();
+  assert.deepEqual(h.writes, [{ title: 'example.com', url: 'https://example.com/article?q=1#top', folderId: 'other' }]);
+});
+test('manual entry keeps raw input on errors and can save a different URL, title and folder', async () => {
+  const h = formHarness('https://example.com');
+  h.coordinator.beginManual('other');
+  for (const value of ['', 'not a url', 'https:typo', 'https:///path', 'ftp://example.com/file', 'example.com']) {
+    h.action({ type: 'edit_url', value });
+    h.action({ type: 'confirm_add' });
+    assert.ok(h.draft().urlError);
+    assert.equal(h.draft().titleError, '');
+    assert.equal(h.draft().url, value);
+    assert.equal(h.draft().title, '');
+    assert.equal(h.writes.length, 0);
+  }
+  h.action({ type: 'edit_title', value: '  Local docs  ' });
+  h.action({ type: 'edit_url', value: 'localhost:3000/docs' });
+  h.action({ type: 'select_folder', folderId: 'folder' });
+  h.action({ type: 'confirm_add' });
+  await tick();
+  assert.deepEqual(h.writes, [{ title: 'Local docs', url: 'http://localhost:3000/docs', folderId: 'folder' }]);
+});
 test('single history additions save the edited URL and name only after confirmation', async () => {
-  const h = historyHarness(); h.coordinator.begin('History', 'https://history.example');
+  const h = formHarness(); h.coordinator.begin('History', 'https://history.example');
   h.action({ type: 'edit_title', value: 'Edited history' }); h.action({ type: 'edit_url', value: 'edited.example' });
   h.action({ type: 'select_folder', folderId: 'other' });
   h.coordinator.refreshFolders(); assert.equal(h.draft().title, 'Edited history'); assert.equal(h.writes.length, 0);
@@ -186,7 +217,7 @@ test('single history additions save the edited URL and name only after confirmat
   assert.equal(h.writes[0].folderId, 'other'); assert.equal(h.saved(), 1);
 });
 test('history cancellation discards the draft; save failures retain it for retry', async () => {
-  const h = historyHarness(); h.coordinator.begin('History', 'https://history.example');
+  const h = formHarness(); h.coordinator.begin('History', 'https://history.example');
   h.action({ type: 'dismiss' }); h.action({ type: 'confirm_add' }); assert.equal(h.writes.length, 0);
   h.coordinator.begin('Retry', 'https://retry.example'); h.fail(true);
   h.action({ type: 'confirm_add' }); await tick();
@@ -203,7 +234,7 @@ test('an edited URL that already exists reports the duplicate without silently l
 
 test('system Back from folder selection returns to the edited form before canceling', () => {
   for (const isHistory of [false, true]) {
-    const h = isHistory ? historyHarness() : harness();
+    const h = isHistory ? formHarness() : harness();
     if (isHistory) h.coordinator.begin('History', 'https://history.example'); else h.coordinator.startAdd(h.target);
     h.action({ type: 'edit_title', value: 'Keep draft' }); h.action({ type: 'set_folder_picker', selected: true });
     h.action({ type: 'back' });
@@ -214,14 +245,14 @@ test('system Back from folder selection returns to the edited form before cancel
   }
 });
 test('history rejects a folder removed from live data before Save', () => {
-  const h = historyHarness(); h.coordinator.begin('History', 'https://history.example'); h.folders.splice(0, 1);
+  const h = formHarness(); h.coordinator.begin('History', 'https://history.example'); h.folders.splice(0, 1);
   h.action({ type: 'confirm_add' }); assert.equal(h.writes.length, 0);
   assert.equal(h.draft().saveError.id, 'app.string.bookmark_add_choose_folder');
 });
 test('a departed history session ignores the completion of its pending save', async () => {
-  const { HistoryBookmarkAddCoordinator } = load('core/bookmarks/HistoryBookmarkAddCoordinator.ets', { './BookmarkAddDraft': drafts });
+  const { BookmarkAddFormCoordinator } = load('core/bookmarks/BookmarkAddFormCoordinator.ets', { './BookmarkAddDraft': drafts });
   let complete, updates = 0, saved = 0;
-  const coordinator = new HistoryBookmarkAddCoordinator({
+  const coordinator = new BookmarkAddFormCoordinator({
     applyDraft: () => { updates += 1; }, resolveFolders: () => [{ id: 'folder' }],
     isFolderAvailable: () => true, hasBookmark: () => false, previewFolder() {}, dismiss() {},
     beginSave: () => {

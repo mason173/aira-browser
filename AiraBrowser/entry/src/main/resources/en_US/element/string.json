@@ -24141,6 +24141,14 @@
       "value": "Swipe navigation disabled"
     },
     {
+      "name": "bookmark_name_host_hint",
+      "value": "Optional. Defaults to the domain name"
+    },
+    {
+      "name": "bookmark_url_already_saved",
+      "value": "This URL is already bookmarked."
+    },
+    {
       "name": "bookmark_add_url_invalid",
       "value": "Enter a valid URL."
     },

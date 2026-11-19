@@ -21,13 +21,20 @@ function load(relative) {
   if (cache.has(filename)) return cache.get(filename);
   if (filename.endsWith('/AppResourceText')) return { resolveAppResourceText: value => value };
   if (filename.endsWith('/BookmarkStatsVersionSignal')) return { BookmarkStatsVersionSignal: { bumpVersion() {} } };
-  if (filename.endsWith('/BrowserPrivacyEffectPolicyService')) return { BrowserPrivacyEffectPolicyService: class { decide() { return { outcome: 'allow' }; } } };
+  if (filename.endsWith('/BrowserPrivacyEffectPolicyService')) return { BrowserPrivacyEffectPolicyService: class {
+    decide() { return { outcome: 'allow' }; }
+    resolveDataPolicyForBoundary() { return { persistentReadAllowed: true, persistentWriteAllowed: true }; }
+  } };
   if (filename.endsWith('/BrowserBookmarkScopeService')) return { BrowserBookmarkScopeService: class { resolveScopeForBoundary() { return 'regular'; } } };
   if (filename.endsWith('/BrowserProfileBoundaryService')) return { BrowserProfileBoundaryService: class { buildBoundary() { return {}; } } };
-  const realModules = ['BrowserRepositories', 'BookmarkRepositoryCore', 'NavigationSearchText', 'BookmarkMutationService', 'BookmarkAddDraft', 'UrlUtils', 'InternationalDomainSuffixes', 'BrowserBookmarkActionCoordinator', 'HistoryBookmarkAddCoordinator'];
+  const realModules = ['BrowserRepositories', 'BookmarkRepositoryCore', 'NavigationSearchText', 'BookmarkMutationService',
+    'BookmarkAddDraft', 'UrlUtils', 'InternationalDomainSuffixes', 'BrowserBookmarkActionCoordinator',
+    'BookmarkAddFormCoordinator', 'BookmarkManagementFeature', 'BookmarksFeature', 'BookmarkTreeQueryService',
+    'BookmarkDisplaySortService', 'BookmarkHtmlTransferService'];
   if (!realModules.includes(path.basename(filename))) return {};
   const result = evaluate(path.relative(root, filename), id => {
     if (id === '@ohos.url') return { default: { URL: { parseURL: value => new URL(value) } } };
+    if (id === '@kit.LocalizationKit') return { intl: { Collator: Intl.Collator } };
     return load(path.relative(root, path.resolve(path.dirname(filename), id)));
   });
   cache.set(filename, result);
@@ -118,9 +125,9 @@ test('incremental creation keeps the new bookmark visible in its folder and URL 
 });
 test('single-history-item save feedback uses the same local commit boundary', async () => {
   const h = fixture({ slowSync: true, start: false });
-  const { HistoryBookmarkAddCoordinator } = load('core/bookmarks/HistoryBookmarkAddCoordinator');
+  const { BookmarkAddFormCoordinator } = load('core/bookmarks/BookmarkAddFormCoordinator');
   let saved = 0, draft;
-  const history = new HistoryBookmarkAddCoordinator({
+  const history = new BookmarkAddFormCoordinator({
     applyDraft: value => { draft = value; }, resolveFolders: () => h.folders,
     hasBookmark: url => h.repository.findBookmarkByUrl(url, 'regular') !== undefined,
     isFolderAvailable: id => h.repository.findNodeById(id)?.type === 'folder', previewFolder() {}, dismiss() {},
@@ -132,4 +139,22 @@ test('single-history-item save feedback uses the same local commit boundary', as
   assert.equal(saved, 1); assert.equal(draft.saving, false);
   assert.equal(h.commits(), 1); assert.equal(h.syncStarted(), 1); assert.equal(h.fullReads(), 0);
   h.release(); await tick();
+});
+test('manager additions use the active scope for both duplicate detection and the destination folder', async () => {
+  const h = fixture({ start: false });
+  await h.repository.refresh();
+  const { BookmarksFeature } = load('features/bookmarks/BookmarksFeature');
+  const { BookmarkManagementFeature, BookmarkManagementBoundary } = load('features/bookmarks/BookmarkManagementFeature');
+  const feature = new BookmarkManagementFeature(new BookmarksFeature(h.repository), h.mutationService);
+  const command = { type: 'bookmark', title: 'My link', url: 'https://example.com', parentId: core.BOOKMARK_OTHER_ROOT_ID };
+  feature.configure(new BookmarkManagementBoundary('profile_persistent', 'regular'), 'regular');
+  await feature.beginCreateBookmarkIfMissing(command).completion;
+  feature.configure(new BookmarkManagementBoundary('session_ephemeral', 'private'), 'private');
+  assert.equal(feature.hasBookmarkForUrl(command.url), false);
+  assert.throws(() => feature.beginCreateBookmarkIfMissing(command));
+  const saved = await feature.beginCreateBookmarkIfMissing({ ...command, parentId: core.PRIVATE_BOOKMARK_OTHER_ROOT_ID }).completion;
+  assert.equal(saved.scope, 'private');
+  assert.equal(saved.parentId, core.PRIVATE_BOOKMARK_OTHER_ROOT_ID);
+  assert.equal(feature.hasBookmarkForUrl(command.url), true);
+  assert.equal(h.commits(), 2);
 });

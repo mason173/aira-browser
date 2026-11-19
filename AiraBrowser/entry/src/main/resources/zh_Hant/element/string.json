@@ -24141,6 +24141,14 @@
       "value": "滑動前進後退已關閉"
     },
     {
+      "name": "bookmark_name_host_hint",
+      "value": "選填，留空使用網域名稱"
+    },
+    {
+      "name": "bookmark_url_already_saved",
+      "value": "這個網址已經在書籤裡了。"
+    },
+    {
       "name": "bookmark_add_url_invalid",
       "value": "請輸入有效的網址。"
     },

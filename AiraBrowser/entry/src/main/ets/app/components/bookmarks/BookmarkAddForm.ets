@@ -1,6 +1,7 @@
 import { BookmarkAddDraft, createBookmarkAddDraft } from '../../../core/bookmarks/BookmarkAddDraft';
 import { BrowserBookmarkFolderSelectionAction } from '../../../core/browser/BrowserBookmarkActionCoordinator';
 import { BookmarkFolderOptionView } from '../../../core/browser/BookmarkFolderSelectionViewModel';
+import { resolveBookmarkNodeDisplayTitle } from '../../../core/resources/HistoryBookmarkDisplayText';
 import {
   BROWSER_THEME_STORAGE_ACCENT_KEY,
   BROWSER_THEME_STORAGE_CONTROL_BACKGROUND_KEY,
@@ -18,6 +19,9 @@ export struct BookmarkAddForm {
   @Prop draft: BookmarkAddDraft = createBookmarkAddDraft();
   @Prop options: BookmarkFolderOptionView[] = [];
   @Prop isPreparing: boolean = false;
+  @Prop manualEntry: boolean = false;
+  @Prop currentFolderTitle: ResourceStr = '';
+  @Prop folderPickerMessage: ResourceStr = '';
   @Prop showAddToHome: boolean = true;
   @Prop addToHome: boolean = false;
   @Prop sessionVersion: number = 0;
@@ -37,6 +41,7 @@ export struct BookmarkAddForm {
       if (this.draft.choosingFolder) {
         BookmarkMoveFolderSelectionSheet({
           options: this.options,
+          message: this.folderPickerMessage,
           isPreparing: this.isPreparing,
           layoutMode: this.layoutMode,
           rootTitle: $r('app.string.bookmark_popover_save_to'),
@@ -65,8 +70,13 @@ export struct BookmarkAddForm {
           Column() {
             Scroll(this.scroller) {
               Column({ space: 18 }) {
-                this.buildTitleField()
-                this.buildUrlField()
+                if (this.manualEntry) {
+                  this.buildUrlField()
+                  this.buildTitleField()
+                } else {
+                  this.buildTitleField()
+                  this.buildUrlField()
+                }
                 this.buildFolderRow()
                 if (this.showAddToHome) {
                   Row({ space: 12 }) {
@@ -100,7 +110,7 @@ export struct BookmarkAddForm {
 
             Row({ space: 12 }) {
               Button($r('app.string.settings_account_cancel'))
-                .defaultFocus(true)
+                .defaultFocus(!this.manualEntry)
                 .layoutWeight(1)
                 .height(44)
                 .fontColor(this.primaryColor)
@@ -112,7 +122,8 @@ export struct BookmarkAddForm {
                 .height(44)
                 .fontColor('#FFFFFF')
                 .backgroundColor(this.accentColor)
-                .enabled(!this.draft.saving && this.draft.folderId.length > 0)
+                .enabled(!this.draft.saving && this.draft.folderId.length > 0 &&
+                  (!this.manualEntry || this.draft.url.trim().length > 0))
                 .onClick(() => { this.onAction({ type: 'confirm_add' }); })
             }
             .width('100%')
@@ -140,7 +151,8 @@ export struct BookmarkAddForm {
   private buildTitleField() {
     Column({ space: 6 }) {
       this.buildLabel($r('app.string.ui_name'))
-      TextInput({ text: this.draft.title, placeholder: $r('app.string.ui_name') })
+      TextInput({ text: this.draft.title, placeholder: this.manualEntry ?
+        $r('app.string.bookmark_name_host_hint') : $r('app.string.ui_name') })
         .width('100%')
         .height(46)
         .fontSize(15)
@@ -161,7 +173,7 @@ export struct BookmarkAddForm {
   private buildUrlField() {
     Column({ space: 6 }) {
       this.buildLabel($r('app.string.ui_url'))
-      TextInput({ text: this.draft.url, placeholder: $r('app.string.ui_url') })
+      TextInput({ text: this.draft.url, placeholder: this.manualEntry ? 'example.com' : $r('app.string.ui_url') })
         .width('100%')
         .height(46)
         .type(InputType.URL)
@@ -170,7 +182,7 @@ export struct BookmarkAddForm {
         .placeholderColor(this.secondaryColor)
         .backgroundColor(this.controlColor)
         .borderRadius(12)
-        .defaultFocus(false)
+        .defaultFocus(this.manualEntry)
         .enabled(!this.draft.saving)
         .onChange((value: string) => { this.onAction({ type: 'edit_url', value: value }); })
       this.buildError(this.draft.urlError)
@@ -221,7 +233,10 @@ export struct BookmarkAddForm {
 
   private resolveFolderTitle(): ResourceStr {
     const folder = this.options.find((option: BookmarkFolderOptionView) => option.id === this.draft.folderId);
-    return folder !== undefined ? folder.title : this.isPreparing ?
+    if (folder !== undefined) {
+      return resolveBookmarkNodeDisplayTitle(folder.id, folder.title);
+    }
+    return this.currentFolderTitle !== '' ? this.currentFolderTitle : this.isPreparing ?
       $r('app.string.bookmark_preparing_folders') : $r('app.string.bookmark_no_save_folder');
   }
 

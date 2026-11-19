@@ -1,5 +1,6 @@
 import { DEFAULT_THEME_PALETTE } from '../../../features/theme/palettes/DefaultThemePalette';
 import { BookmarkNode } from '../../../common/models/BrowserModels';
+import { resolveBookmarkNodeDisplayTitle } from '../../../core/resources/HistoryBookmarkDisplayText';
 import {
   BookmarkFolderOptionView,
   BookmarkFolderSelectionViewModel
@@ -210,7 +211,7 @@ export struct BookmarkMoveFolderSelectionSheet {
 
   private resolveTitle(folderId: string): ResourceStr {
     const folder = this.folderSelectionViewModel.findFolder(this.options, folderId);
-    return folder === undefined ? this.rootTitle : folder.title;
+    return folder === undefined ? this.rootTitle : resolveBookmarkNodeDisplayTitle(folder.id, folder.title);
   }
 }
 
@@ -293,7 +294,7 @@ struct BookmarkMoveFolderDestinationContent {
 
   @Builder
   private buildContent() {
-    if (this.rowCount === 0 && this.isPreparing && this.folderId.length > 0) {
+    if (this.rowCount === 0 && this.isPreparing) {
       AppEmptyState({
         title: this.preparingTitle,
         message: '',
@@ -390,7 +391,7 @@ struct BookmarkMoveFolderDestinationContent {
   @Builder
   private buildFolderRow(node: BookmarkNode, index: number) {
     WebsiteRecordRow({
-      title: node.title,
+      title: resolveBookmarkNodeDisplayTitle(node.id, node.title),
       subtitle: this.resolveFolderSubtitle(node.id),
       pressed: this.pressedFolderId === node.id,
       menuVisible: false,

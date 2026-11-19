@@ -145,13 +145,25 @@ export class BookmarkManagementFeature {
 
   beginCreateRegularBookmarkIfMissing(command: BookmarkCreateNodeCommand): BookmarkCreateNodeOperation {
     this.assertRegularScope();
+    return this.beginCreateBookmarkIfMissing(command);
+  }
+
+  findSaveFolder(folderId: string): BookmarkNode | undefined {
+    const folder = this.findNodeById(folderId);
+    return folder?.type === 'folder' && (folder.scope ?? 'regular') === this.requireScope() ? folder : undefined;
+  }
+
+  beginCreateBookmarkIfMissing(command: BookmarkCreateNodeCommand): BookmarkCreateNodeOperation {
     this.assertMutationAllowed();
+    if (this.findSaveFolder(command.parentId ?? '') === undefined) {
+      throw new Error('Bookmark destination folder is unavailable.');
+    }
     return this.mutationService.beginCreateBookmarkIfMissing({
       type: 'bookmark',
       title: command.title,
       url: command.url,
       parentId: command.parentId,
-      scope: 'regular'
+      scope: this.requireScope()
     });
   }
 

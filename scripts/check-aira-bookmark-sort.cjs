@@ -168,16 +168,21 @@ test('the header places five exclusive sort choices between creating a folder an
   let selected;
   const context = { isSelectionMode: false, isSearchMode: false, hasCurrentFolder: true,
     canEnterSelectionMode: true, isTransferBusy: false, sortMode: 'newest' };
-  const handlers = { openSearch() {}, createFolder() {}, enterSelectionMode() {}, importBookmarks() {},
+  let addCount = 0;
+  const handlers = { openSearch() {}, addBookmark() { addCount += 1; }, createFolder() {}, enterSelectionMode() {}, importBookmarks() {},
     exportBookmarks() {}, selectSortMode: mode => { selected = mode; } };
   const actions = model.buildActions(context, handlers);
-  assert.equal(actions[1].label, 'app.string.bookmark_new_folder');
-  assert.equal(actions[2].label, 'app.string.bookmark_sort_order');
-  assert.equal(actions[3].label, 'app.string.ui_multi_select');
-  assert.equal(actions[2].labelInfo, 'app.string.bookmark_sort_newest');
-  assert.equal(actions[2].options.length, 5);
-  assert.equal(actions[2].options.filter(option => option.selected).length, 1);
-  actions[2].options[4].action();
+  const [, add, folder, sort, multiSelect] = actions;
+  assert.equal(add.label, 'app.string.bookmark_add_title');
+  add.action();
+  assert.equal(addCount, 1);
+  assert.equal(folder.label, 'app.string.bookmark_new_folder');
+  assert.equal(sort.label, 'app.string.bookmark_sort_order');
+  assert.equal(multiSelect.label, 'app.string.ui_multi_select');
+  assert.equal(sort.labelInfo, 'app.string.bookmark_sort_newest');
+  assert.equal(sort.options.length, 5);
+  assert.equal(sort.options.filter(option => option.selected).length, 1);
+  sort.options[4].action();
   assert.equal(selected, 'name_desc');
   assert.equal(model.buildActions({ ...context, isSearchMode: true }, handlers).length, 0);
 });

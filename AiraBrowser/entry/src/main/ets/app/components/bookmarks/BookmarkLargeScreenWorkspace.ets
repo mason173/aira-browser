@@ -71,6 +71,7 @@ import {
   BookmarkHtmlTransferApplicationService
 } from '../../../services/bookmarks/BookmarkHtmlTransferApplicationService';
 import { bookmarkWorkspaceSessionRuntime } from '../../runtime/BookmarkWorkspaceSessionRuntime';
+import { BookmarkManagerAddSheet } from './BookmarkManagerAddSheet';
 import { BOOKMARK_SORT_PREFERENCES_REVISION_KEY, BookmarkSortMode } from '../../../common/models/BookmarkSortModels';
 import { sharedBookmarkSortPreferencesRepository } from '../../../data/bookmarks/BookmarkSortPreferencesRepository';
 import {
@@ -126,6 +127,7 @@ export struct BookmarkLargeScreenWorkspace {
   @State private recordContextMenuGroups: BookmarkDesktopRecordActionGroup[] = [];
   private suppressNextRecordRowClick: boolean = false;
   @State private newFolderTitle: string = '';
+  @State private addBookmarkFolderId: string = '';
   @State private editingNodeId: string = '';
   @State private editingNodeType: string = 'bookmark';
   @State private editingTitle: string = '';
@@ -272,6 +274,14 @@ export struct BookmarkLargeScreenWorkspace {
     }
 
     ManagementLargeScreenActionGroup() {
+      ManagementLargeScreenIconButton({
+        iconId: 'browser.omnibox.addBookmark',
+        label: $r('app.string.bookmark_add_title'),
+        grouped: true,
+        isEnabled: this.snapshot.currentFolderId.length > 0 && !this.snapshot.busy &&
+          this.snapshot.scope === (this.privateMode ? 'private' : 'regular'),
+        onAction: (): void => { this.addBookmarkFolderId = this.snapshot.currentFolderId; }
+      })
       ManagementLargeScreenIconButton({
         iconId: 'browser.tabs.add',
         label: $r('app.string.bookmark_new_folder'),
@@ -448,6 +458,13 @@ export struct BookmarkLargeScreenWorkspace {
   @Builder
   private buildRecordWorkspace() {
     Column({ space: 0 }) {
+      BookmarkManagerAddSheet({
+        initialFolderId: $addBookmarkFolderId,
+        scope: this.snapshot.scope,
+        layoutMode: 'large_screen',
+        feature: this.bookmarkManagementFeature,
+        onSaved: (): void => { void this.refreshAfterBookmarkAdded(); }
+      })
       if (hasAppResourceText(this.snapshot.message)) {
         Text(this.snapshot.message)
           .width('100%')
@@ -790,9 +807,18 @@ export struct BookmarkLargeScreenWorkspace {
   }
 
   private handleSessionIdentityChanged(): void {
+    this.addBookmarkFolderId = '';
     this.cancelRoutePublish();
     this.cancelFolderHoverExpand();
     void this.initialize();
+  }
+
+  private async refreshAfterBookmarkAdded(): Promise<void> {
+    const revision = this.sessionBindingRevision;
+    const snapshot = await this.coordinator.refresh();
+    if (revision === this.sessionBindingRevision) {
+      this.snapshot = snapshot;
+    }
   }
 
   private async createFolder(title: string): Promise<void> {

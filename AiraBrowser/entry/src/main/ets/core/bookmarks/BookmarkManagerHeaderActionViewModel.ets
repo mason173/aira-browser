@@ -22,6 +22,7 @@ export interface BookmarkManagerHeaderActionContext {
 
 export interface BookmarkManagerHeaderActionHandlers {
   openSearch: () => void;
+  addBookmark: () => void;
   createFolder: () => void;
   enterSelectionMode: () => void;
   importBookmarks: () => void;
@@ -45,6 +46,11 @@ export class BookmarkManagerHeaderActionViewModel {
       }
     ];
     if (context.hasCurrentFolder) {
+      actions.push({
+        label: $r('app.string.bookmark_add_title'),
+        icon: $r('sys.symbol.bookmark'),
+        action: handlers.addBookmark
+      });
       actions.push({
         label: $r('app.string.bookmark_new_folder'),
         icon: $r('sys.symbol.folder_badge_plus'),

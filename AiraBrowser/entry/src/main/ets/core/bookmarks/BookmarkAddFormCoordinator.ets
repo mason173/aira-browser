@@ -3,35 +3,45 @@ import { BookmarkAddDraft, cloneBookmarkAddDraft, createBookmarkAddDraft, isBook
 import { BrowserBookmarkFolderSelectionAction } from '../browser/BrowserBookmarkActionCoordinator';
 import { BookmarkFolderOptionView } from '../browser/BookmarkFolderSelectionViewModel';
 
-export interface HistoryBookmarkAddShell {
+export interface BookmarkAddFormShell {
   applyDraft: (draft: BookmarkAddDraft) => void;
   resolveFolders: () => BookmarkFolderOptionView[];
   hasBookmark: (url: string) => boolean;
   isFolderAvailable: (folderId: string) => boolean;
-  previewFolder: (folderId: string) => void;
+  previewFolder?: (folderId: string) => void;
   dismiss: () => void;
   beginSave: (title: string, url: string, folderId: string) => BookmarkCreateNodeOperation;
-  refreshBookmarks: () => void;
+  refreshBookmarks?: () => void;
   onSyncPreparationFailed: () => void;
   onSaved: () => void;
 }
 
-/** Owns the single-history-item draft; batch additions keep their folder-only flow. */
-export class HistoryBookmarkAddCoordinator {
+/** Owns the editable draft for single-item additions from history and the bookmark manager. */
+export class BookmarkAddFormCoordinator {
   private draft: BookmarkAddDraft = createBookmarkAddDraft();
   private generation: number = 0;
   private active: boolean = false;
-  private shell: HistoryBookmarkAddShell;
+  private manualEntry: boolean = false;
+  private shell: BookmarkAddFormShell;
 
-  constructor(shell: HistoryBookmarkAddShell) {
+  constructor(shell: BookmarkAddFormShell) {
     this.shell = shell;
   }
 
   begin(title: string, url: string): void {
     this.generation += 1;
     this.active = true;
+    this.manualEntry = false;
     this.draft = createBookmarkAddDraft(title, url);
     this.refreshFolders();
+  }
+
+  beginManual(folderId: string): void {
+    this.generation += 1;
+    this.active = true;
+    this.manualEntry = true;
+    this.draft = createBookmarkAddDraft('', '', folderId);
+    this.emit();
   }
 
   cancel(): void {
@@ -67,7 +77,7 @@ export class HistoryBookmarkAddCoordinator {
         this.draft.folderId = action.folderId ?? '';
       }
     } else if (action.type === 'preview_folder') {
-      this.shell.previewFolder(action.folderId ?? '');
+      this.shell.previewFolder?.(action.folderId ?? '');
       return;
     } else if (action.type === 'dismiss' || action.type === 'back') {
       this.cancel();
@@ -82,12 +92,19 @@ export class HistoryBookmarkAddCoordinator {
   }
 
   private async save(): Promise<void> {
-    this.draft = validateBookmarkAddDraft(this.draft);
+    const validated = validateBookmarkAddDraft(this.draft, this.manualEntry);
+    this.draft.titleError = validated.titleError;
+    this.draft.urlError = validated.urlError;
+    this.draft.saveError = '';
     if (!this.shell.isFolderAvailable(this.draft.folderId)) {
       this.draft.saveError = $r('app.string.bookmark_add_choose_folder');
     }
-    if (isBookmarkAddDraftValid(this.draft) && this.shell.hasBookmark(this.draft.url)) {
-      this.draft.saveError = $r('app.string.history_already_bookmarked');
+    if (isBookmarkAddDraftValid(validated) && this.shell.hasBookmark(validated.url)) {
+      if (this.manualEntry) {
+        this.draft.urlError = $r('app.string.bookmark_url_already_saved');
+      } else {
+        this.draft.saveError = $r('app.string.history_already_bookmarked');
+      }
     }
     if (!isBookmarkAddDraftValid(this.draft) || this.draft.saveError !== '') {
       this.emit();
@@ -97,7 +114,7 @@ export class HistoryBookmarkAddCoordinator {
     this.draft.saving = true;
     this.emit();
     try {
-      const operation = this.shell.beginSave(this.draft.title, this.draft.url, this.draft.folderId);
+      const operation = this.shell.beginSave(validated.title, validated.url, validated.folderId);
       let localCommitted = false;
       void operation.completion.catch((_error: Error): void => {
         if (localCommitted) {
@@ -112,7 +129,9 @@ export class HistoryBookmarkAddCoordinator {
         this.emit();
         this.shell.onSaved();
       }
-      setTimeout((): void => { this.shell.refreshBookmarks(); }, 0);
+      if (this.shell.refreshBookmarks !== undefined) {
+        setTimeout((): void => { this.shell.refreshBookmarks?.(); }, 0);
+      }
     } catch (_error) {
       if (generation === this.generation && this.active) {
         this.draft.saving = false;

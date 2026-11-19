@@ -41,6 +41,7 @@ import {
 } from '../../core/bookmarks/BookmarkFolderCountViewModel';
 import { BookmarkFolderOptimisticCreateViewModel } from '../../core/bookmarks/BookmarkFolderOptimisticCreateViewModel';
 import { BookmarkManagerHeaderActionViewModel } from '../../core/bookmarks/BookmarkManagerHeaderActionViewModel';
+import { BookmarkManagerAddSheet } from '../components/bookmarks/BookmarkManagerAddSheet';
 import {
   BookmarkManagerSearchResult,
   BookmarkManagerSearchState,
@@ -180,6 +181,7 @@ struct BookmarkManagerPage {
   @State private selectedRootId: string = BOOKMARK_TOOLBAR_ROOT_ID;
   @State message: ResourceStr = '';
   @State newFolderTitle: string = '';
+  @State private addBookmarkFolderId: string = '';
   @State editingNodeId: string = '';
   @State editingNodeType: string = 'bookmark';
   @State editingTitle: string = '';
@@ -353,7 +355,7 @@ struct BookmarkManagerPage {
     Stack({ alignContent: Alignment.Bottom }) {
       ManagementHdsScaffold({
         title: this.resolveTitle(),
-        backIconKind: this.resolveBackIconKind(),
+        backIconKind: 'back',
         pageBackground: this.storedPageBackgroundColor,
         primaryTextColor: this.storedPrimaryTextColor,
         dividerColor: this.storedDividerColor,
@@ -398,6 +400,12 @@ struct BookmarkManagerPage {
         onMove: (): void => {
           this.openBookmarkMoveFolderSelectionForSelectedNodes();
         }
+      })
+      BookmarkManagerAddSheet({
+        initialFolderId: $addBookmarkFolderId,
+        scope: this.bookmarkScope,
+        feature: this.bookmarkManagementFeature,
+        onSaved: (): void => this.reloadNodes()
       })
     }
     .width('100%')
@@ -817,7 +825,7 @@ struct BookmarkManagerPage {
       this.showDialog($r('app.string.bookmark_cannot_create'), $r('app.string.bookmark_create_need_folder'));
       return;
     }
-    this.newFolderTitle = this.buildNewFolderTitle();
+    this.newFolderTitle = this.bookmarkManagementFeature.buildNextFolderTitle(this.resolveActiveFolderId());
     this.createFolderDialogController.open();
   }
 
@@ -866,15 +874,8 @@ struct BookmarkManagerPage {
       });
   }
 
-  private buildNewFolderTitle(): string {
-    return this.bookmarkManagementFeature.buildNextFolderTitle(this.resolveActiveFolderId());
-  }
-
   private canEnterSelectionMode(): boolean {
-    return !this.bookmarkSearchState.isSearchMode &&
-      this.bookmarkNodes.some((node: BookmarkNode) => {
-        return this.canSelectNode(node.id);
-      });
+    return this.bookmarkNodes.some((node: BookmarkNode): boolean => this.canSelectNode(node.id));
   }
 
   private canSelectNode(nodeId: string): boolean {
@@ -896,10 +897,6 @@ struct BookmarkManagerPage {
     return folderTitle;
   }
 
-  private resolveBackIconKind(): 'close' | 'back' {
-    return 'back';
-  }
-
   private buildHeaderMenuActions(): ManagementHdsMenuAction[] {
     return this.bookmarkManagerHeaderActionViewModel.buildActions({
       isSelectionMode: this.isSelectionMode,
@@ -910,6 +907,7 @@ struct BookmarkManagerPage {
       sortMode: this.bookmarkSortMode
     }, {
       openSearch: () => this.enterBookmarkSearchMode(),
+      addBookmark: (): void => { this.addBookmarkFolderId = this.resolveActiveFolderId(); },
       createFolder: () => this.createFolder(),
       enterSelectionMode: () => this.enterSelectionMode(),
       importBookmarks: () => this.importBookmarkHtml(),
