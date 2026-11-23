@@ -189,14 +189,16 @@ export class HuaweiIapPurchaseService {
     let oneTimeDataList: string[] = [];
     let subscriptionError: BusinessError | undefined;
     let oneTimeError: BusinessError | undefined;
-    try {
-      const subscriptionResult = await iap.queryPurchases(context, {
-        productType: iap.ProductType.AUTORENEWABLE,
-        queryType: iap.PurchaseQueryType.ALL
-      });
-      subscriptionDataList = subscriptionResult.purchaseDataList;
-    } catch (error) {
-      subscriptionError = error as BusinessError;
+    if (!suiteOnly) {
+      try {
+        const subscriptionResult = await iap.queryPurchases(context, {
+          productType: iap.ProductType.AUTORENEWABLE,
+          queryType: iap.PurchaseQueryType.ALL
+        });
+        subscriptionDataList = subscriptionResult.purchaseDataList;
+      } catch (error) {
+        subscriptionError = error as BusinessError;
+      }
     }
     // A failed verification never calls finishPurchase, so Huawei keeps the
     // lifetime order unfinished. CURRENT_ENTITLEMENT does not return it.
@@ -217,14 +219,11 @@ export class HuaweiIapPurchaseService {
         oneTimeError = error as BusinessError;
       }
     }
-    if (oneTimeFailureCount < oneTimeQueries.length) {
-      oneTimeError = undefined;
-    }
-    if (subscriptionError !== undefined && oneTimeError !== undefined) {
+    if (subscriptionError !== undefined && oneTimeFailureCount === oneTimeQueries.length) {
       return this.buildFailureResult('restore_purchase', $r('app.string.membership_iap_restore_failed_title'),
         subscriptionError);
     }
-    const unique = Array.from(new Set<string>(oneTimeDataList.concat(suiteOnly ? [] : subscriptionDataList)));
+    const unique = Array.from(new Set<string>(oneTimeDataList.concat(subscriptionDataList)));
     const purchaseDataList = suiteOnly ? unique.filter((data: string): boolean => {
       try {
         const purchase = this.parsePurchaseData(data);
@@ -232,6 +231,10 @@ export class HuaweiIapPurchaseService {
         return (order.productId ?? purchase.productId ?? '') === AIRA_SUITE_LIFETIME_PRODUCT_ID;
       } catch (_) { return false; }
     }) : unique;
+    if (suiteOnly && purchaseDataList.length === 0 && oneTimeError !== undefined) {
+      return this.buildFailureResult('restore_purchase', $r('app.string.membership_iap_restore_failed_title'),
+        oneTimeError);
+    }
     return {
       ok: true,
       title: purchaseDataList.length > 0

@@ -7,14 +7,17 @@ const suite={productId:'aira_suite_lifetime',productType:1,purchaseToken:'suite-
 const checkoutReference='as1.'+'A'.repeat(22)+'.'+'B'.repeat(43);
 const receipt=order=>JSON.stringify({type:1,jwsPurchaseOrder:'e30.'+Buffer.from(JSON.stringify(order)).toString('base64url')+'.e30'});
 function fixture(){
- let available=true,products=true,failure='',pendingStage='',release;const calls=[];
+ let available=true,products=true,pendingStage='',release;const calls=[],failure=new Set(),emptyQueries=new Set();
  const cache=new Map();
- async function step(name,value){calls.push(name);if(failure===name)throw {code:1001860005};if(pendingStage===name)await new Promise(resolve=>release=resolve);return value;}
+ async function step(name,value){calls.push(name);if(failure.has(name))throw {code:1001860005};if(pendingStage===name)await new Promise(resolve=>release=resolve);return value;}
  const iap={ProductType:{NONCONSUMABLE:1,AUTORENEWABLE:2},PurchaseQueryType:{CURRENT_ENTITLEMENT:2,UNFINISHED:1,ALL:0},
   queryEnvironmentStatus:()=>step('environment'),
   queryProducts:(_ctx,input)=>{assert.deepEqual(Array.from(input.productIds),['aira_suite_lifetime']);assert.equal(input.productType,1);return step('products',products?[{id:'aira_suite_lifetime'}]:[]);},
   createPurchase:(_ctx,input)=>{assert.equal(input.productId,'aira_suite_lifetime');assert.equal(input.productType,1);assert.equal(input.applicationUserName,'binding:u');assert.equal(input.developerPayload,checkoutReference);return step('purchase',{purchaseData:receipt(suite)});},
-  queryPurchases:(_ctx,input)=>step('restore:'+input.productType+':'+input.queryType,{purchaseDataList:[receipt(suite),receipt({productId:'aira_pro_lifetime',purchaseToken:'own',purchaseOrderId:'own',productType:1})]}),
+  queryPurchases:(_ctx,input)=>{
+   const query='restore:'+input.productType+':'+input.queryType;
+   return step(query,{purchaseDataList:emptyQueries.has(query)?[]:[receipt(suite),receipt({productId:'aira_pro_lifetime',purchaseToken:'own',purchaseOrderId:'own',productType:1})]});
+  },
   finishPurchase:(_ctx,input)=>{assert.equal(input.productType,1);assert.equal(input.purchaseToken,'suite-token');assert.equal(input.purchaseOrderId,'suite-order');return step('finish');}
  };
  function load(name){if(cache.has(name))return cache.get(name);const output={};cache.set(name,output);
@@ -31,7 +34,8 @@ function fixture(){
   });return output;
  }
  const service=new (load('HuaweiIapPurchaseService').HuaweiIapPurchaseService)();
- return{service,calls,disable(){available=false;},empty(){products=false;},fail(name){failure=name;},hold(name){pendingStage=name;},release(){release();}};
+ return{service,calls,disable(){available=false;},empty(){products=false;},fail(...names){names.forEach(name=>failure.add(name));},
+  emptyQuery(name){emptyQueries.add(name);},hold(name){pendingStage=name;},release(){release();}};
 }
 test('suite checkout uses its own nonconsumable SKU and account binding after checking environment/products',async()=>{
  const f=fixture(),result=await f.service.startProPurchase({},'suite_lifetime','u',()=>true,checkoutReference);assert.equal(result.ok,true);assert.equal(result.action,'purchase_suite_lifetime');assert.deepEqual(f.calls,['environment','products','purchase']);
@@ -51,6 +55,21 @@ test('leaving or switching accounts during environment/product queries never ope
 test('suite restore deduplicates current/unfinished modern receipts and ignores the own-app SKU',async()=>{
  const f=fixture(),result=await f.service.restorePurchases({},true);assert.equal(result.ok,true);assert.equal(result.purchaseCount,1);assert.equal(result.purchaseDataList[0],receipt(suite));
  assert(f.calls.includes('restore:1:1'));assert(f.calls.includes('restore:1:2'));assert(!f.calls.includes('purchase'));
+});
+test('suite restore reports a failed nonconsumable lookup instead of an empty order list',async()=>{
+ for(const bothFail of [false,true]){
+  const f=fixture();f.fail('restore:1:2');
+  if(bothFail)f.fail('restore:1:1');else f.emptyQuery('restore:1:1');
+  const result=await f.service.restorePurchases({},true);
+  assert.equal(result.ok,false);
+  assert.deepEqual(f.calls,['restore:1:2','restore:1:1']);
+ }
+});
+test('suite restore forwards a found receipt even if the other nonconsumable query fails',async()=>{
+ const f=fixture();f.fail('restore:1:2');
+ const result=await f.service.restorePurchases({},true);
+ assert.equal(result.ok,true);
+ assert.equal(result.purchaseDataList[0],receipt(suite));
 });
 test('finish uses the modern signed order fields and rejects missing order credentials',async()=>{
  const f=fixture();await f.service.finishPurchase({},receipt(suite),'nonconsumable');assert.deepEqual(f.calls,['finish']);
