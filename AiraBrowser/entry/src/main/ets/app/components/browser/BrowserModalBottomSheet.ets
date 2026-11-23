@@ -1,4 +1,5 @@
 import {
+  BROWSER_THEME_STORAGE_CONTROL_BACKGROUND_KEY,
   BROWSER_THEME_STORAGE_FLOATING_SURFACE_KEY,
   BROWSER_THEME_STORAGE_ON_PRIMARY_KEY,
   BROWSER_THEME_STORAGE_PRESSED_BACKGROUND_KEY,
@@ -19,7 +20,6 @@ import {
   DESKTOP_DIALOG_ACTION_HEIGHT_VP,
   DESKTOP_DIALOG_DESTRUCTIVE_FILL,
   DESKTOP_DIALOG_DESTRUCTIVE_TEXT,
-  DESKTOP_DIALOG_SECONDARY_FILL,
   DesktopDialogTier
 } from '../../../core/browser/BrowserDialogPresentationTokens';
 import { DesktopDialogWidthViewModel } from '../../../core/browser/DesktopDialogWidthViewModel';
@@ -464,6 +464,7 @@ export struct BrowserImmersiveSheetLayout {
 
 @Component
 export struct BrowserSheetActionButton {
+  @StorageProp(BROWSER_THEME_STORAGE_CONTROL_BACKGROUND_KEY) private storedControlBackgroundColor: string = '#ECEDEF';
   @StorageProp(BROWSER_THEME_STORAGE_ON_PRIMARY_KEY) private storedOnPrimaryColor: string = '#FFFFFF';
   @StorageProp(BROWSER_THEME_STORAGE_RESOLVED_MODE_KEY) private storedResolvedThemeMode: string = 'light';
   @StorageProp(BROWSER_THEME_STORAGE_PRESSED_BACKGROUND_KEY) private storedPressedBackgroundColor: string = '#DDE4EC';
@@ -607,7 +608,7 @@ export struct BrowserSheetActionButton {
     if (this.emphasis === 'primary') {
       return this.resolvePrimaryBackgroundColor();
     }
-    return DESKTOP_DIALOG_SECONDARY_FILL;
+    return this.storedControlBackgroundColor;
   }
 
   private resolveTextColor(): ResourceColor {

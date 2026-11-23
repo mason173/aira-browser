@@ -25,7 +25,6 @@ export const DESKTOP_DIALOG_STACK_ACTIONS_WINDOW_VP: number = 480;
 export const DESKTOP_DIALOG_STEP_DOWN_WINDOW_VP: number = 1000;
 export const DESKTOP_DIALOG_ENTER_DURATION_MS: number = 120;
 export const DESKTOP_DIALOG_HEIGHT_CAP_VP: number = 720;
-export const DESKTOP_DIALOG_SECONDARY_FILL: string = '#ECEDEF';
 export const DESKTOP_DIALOG_DESTRUCTIVE_FILL: string = '#FFD8D5';
 export const DESKTOP_DIALOG_DESTRUCTIVE_TEXT: string = '#E03127';
 

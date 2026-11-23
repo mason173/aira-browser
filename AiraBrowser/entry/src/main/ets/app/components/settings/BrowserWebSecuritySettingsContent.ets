@@ -44,7 +44,7 @@ export struct BrowserWebSecuritySettingsContent {
   build() {
     Column({ space: 16 }) {
       SettingsSection({ title: $r('app.string.settings_privacy_protection_web_security'), secondaryTextColor: this.secondaryTextColor }) {
-        this.buildSwitchSurface($r('app.string.settings_privacy_protection_https_first'), this.state.httpsFirstEnabled, 'https_first')
+        this.buildSwitchSurface($r('app.string.settings_privacy_protection_https_first'), 'https_first')
         SettingsFooterText({
           text: $r('app.string.settings_privacy_protection_https_first_footer'),
           secondaryTextColor: this.secondaryTextColor
@@ -52,7 +52,7 @@ export struct BrowserWebSecuritySettingsContent {
       }
 
       SettingsSection({ secondaryTextColor: this.secondaryTextColor }) {
-        this.buildSwitchSurface($r('app.string.settings_privacy_protection_safe_browsing'), this.state.safeBrowsingEnabled, 'safe_browsing')
+        this.buildSwitchSurface($r('app.string.settings_privacy_protection_safe_browsing'), 'safe_browsing')
         SettingsFooterText({
           text: $r('app.string.settings_privacy_protection_safe_browsing_footer'),
           secondaryTextColor: this.secondaryTextColor
@@ -72,19 +72,19 @@ export struct BrowserWebSecuritySettingsContent {
   }
 
   @Builder
-  private buildSwitchSurface(title: ResourceStr, checked: boolean, settingId: string) {
+  private buildSwitchSurface(title: ResourceStr, settingId: 'https_first' | 'safe_browsing') {
     if (this.desktopPresentation) {
       SettingsDesktopGroup({ surfaceColor: this.surfaceBackground }) {
         SettingsDesktopSwitchRow({
           title: title,
-          checked: checked,
+          checked: settingId === 'https_first' ? this.state.httpsFirstEnabled : this.state.safeBrowsingEnabled,
           isEnabled: this.state.canEditSettings && !this.isSaving(),
           primaryTextColor: this.primaryTextColor,
           secondaryTextColor: this.secondaryTextColor,
           hoverBackgroundColor: this.pressedBackground,
           focusColor: this.resolveFocusColor(),
           onChange: (enabled: boolean): void => {
-            this.handleSwitchChange(settingId, enabled);
+            this.persistSetting(settingId, enabled);
           }
         })
       }
@@ -92,14 +92,14 @@ export struct BrowserWebSecuritySettingsContent {
       SettingsGroupCard({ surfaceColor: this.surfaceBackground }) {
         SettingsSwitchRow({
           title: title,
-          checked: checked,
+          checked: settingId === 'https_first' ? this.state.httpsFirstEnabled : this.state.safeBrowsingEnabled,
           rowPosition: 'single',
           isEnabled: this.state.canEditSettings && !this.isSaving(),
           primaryTextColor: this.primaryTextColor,
           secondaryTextColor: this.secondaryTextColor,
           pressedBackgroundColor: this.pressedBackground,
           onChange: (enabled: boolean): void => {
-            this.handleSwitchChange(settingId, enabled);
+            this.persistSetting(settingId, enabled);
           }
         })
       }
@@ -165,14 +165,6 @@ export struct BrowserWebSecuritySettingsContent {
         })
       }
     }
-  }
-
-  private handleSwitchChange(settingId: string, enabled: boolean): void {
-    if (settingId === 'javascript') {
-      this.requestJavaScriptSetting(enabled);
-      return;
-    }
-    this.persistSetting(settingId as BrowserWebSecuritySettingId, enabled);
   }
 
   private resolveJavaScriptExceptionCount(): ResourceStr {
