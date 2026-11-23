@@ -20,8 +20,6 @@ export interface DownloadV2RequestCaptureCallbacks {
 }
 
 export interface DownloadV2ManualRequestContext {
-  sourceId?: string;
-  nativeReason?: 'hls' | 'custom_headers';
   userAgent?: string;
   referer?: string;
   mimeType?: string;
@@ -53,8 +51,10 @@ export class DownloadV2RequestCapture {
     hilog.info(
       DOWNLOAD_V2_CAPTURE_DOMAIN,
       DOWNLOAD_V2_CAPTURE_TAG,
-      'capture platform guid=%{public}s',
-      request.guid
+      'capture platform guid=%{public}s url=%{public}s file=%{public}s',
+      request.guid,
+      request.url,
+      request.suggestedFileName
     );
     return request;
   }
@@ -64,19 +64,6 @@ export class DownloadV2RequestCapture {
       return undefined;
     }
     return this.capturePlatformRequest(event.snapshot, boundary);
-  }
-
-  updatePendingPlatformSnapshot(snapshot: PlatformDownloadSnapshot): boolean {
-    const currentRequest = this.pendingRequests[snapshot.guid];
-    if (currentRequest?.platformSnapshot === undefined) {
-      return false;
-    }
-    const latestSnapshot = this.clonePlatformSnapshot(snapshot, currentRequest.platformSnapshot);
-    const nextRequest = this.createRequestFromSnapshot(latestSnapshot, currentRequest.boundary);
-    nextRequest.createdAt = currentRequest.createdAt;
-    nextRequest.sourcePageUrl = currentRequest.sourcePageUrl;
-    this.storePendingRequest(nextRequest);
-    return true;
   }
 
   createManualRequest(
@@ -94,10 +81,6 @@ export class DownloadV2RequestCapture {
     const request: DownloadV2CapturedRequest = {
       guid: `download-v2-prompt-${Date.now()}-${++this.nextManualRequestId}`,
       url: trimmedUrl,
-      originalUrl: trimmedUrl,
-      sourceId: context?.sourceId,
-      nativeReason: context?.nativeReason,
-      fileNameLocked: (suggestedFileName?.trim().length ?? 0) > 0,
       suggestedFileName: this.fileNameService.resolveFileName({
         suggestedFileName: suggestedFileName,
         url: trimmedUrl,
@@ -113,8 +96,7 @@ export class DownloadV2RequestCapture {
       referer: context?.referer,
       contentDisposition: context?.contentDisposition,
       headers: this.cloneHeaders(context?.headers),
-      sourcePageUrl: boundary.sourcePageUrl,
-      boundary: this.cloneBoundary(boundary),
+      boundary: boundary,
       createdAt: Date.now()
     };
     this.storePendingRequest(request);
@@ -124,8 +106,10 @@ export class DownloadV2RequestCapture {
     hilog.info(
       DOWNLOAD_V2_CAPTURE_DOMAIN,
       DOWNLOAD_V2_CAPTURE_TAG,
-      'capture manual guid=%{public}s',
-      request.guid
+      'capture manual guid=%{public}s url=%{public}s file=%{public}s',
+      request.guid,
+      request.url,
+      request.suggestedFileName
     );
     return request;
   }
@@ -193,7 +177,7 @@ export class DownloadV2RequestCapture {
     return this.hasPendingRequestForUrlMatching(url, true);
   }
 
-  removeManualPendingRequestsForUrl(url: string, boundary?: DownloadV2CaptureBoundary): number {
+  removeManualPendingRequestsForUrl(url: string): number {
     const normalizedUrl = this.normalizeUrlForMatch(url);
     if (normalizedUrl.length <= 0) {
       return 0;
@@ -203,8 +187,7 @@ export class DownloadV2RequestCapture {
     for (let index = 0; index < keys.length; index += 1) {
       const request = this.pendingRequests[keys[index]];
       if (request === undefined || request.platformSnapshot !== undefined ||
-        this.normalizeUrlForMatch(request.url) !== normalizedUrl ||
-        (boundary !== undefined && !this.matchesBoundary(request.boundary, boundary))) {
+        this.normalizeUrlForMatch(request.url) !== normalizedUrl) {
         continue;
       }
       this.pendingRequests[keys[index]] = undefined;
@@ -214,7 +197,8 @@ export class DownloadV2RequestCapture {
       hilog.info(
         DOWNLOAD_V2_CAPTURE_DOMAIN,
         DOWNLOAD_V2_CAPTURE_TAG,
-        'remove manual pending count=%{public}d',
+        'remove manual pending url=%{public}s count=%{public}d',
+        normalizedUrl,
         removedCount
       );
     }
@@ -284,7 +268,7 @@ export class DownloadV2RequestCapture {
   }
 
   private storePendingRequest(request: DownloadV2CapturedRequest): void {
-    this.pendingRequests[request.guid] = this.cloneRequest(request);
+    this.pendingRequests[request.guid] = request;
   }
 
   private getPendingRequestCount(): number {
@@ -302,8 +286,6 @@ export class DownloadV2RequestCapture {
       guid: snapshot.guid,
       url: snapshot.url,
       originalUrl: snapshot.originalUrl,
-      sourceId: snapshot.sourceId,
-      fileNameLocked: snapshot.fileNameLocked,
       suggestedFileName: this.fileNameService.resolveFileName({
         suggestedFileName: snapshot.suggestedFileName,
         url: snapshot.url,
@@ -320,8 +302,8 @@ export class DownloadV2RequestCapture {
       contentDisposition: snapshot.contentDisposition,
       headers: nextHeaders,
       sourcePageUrl: boundary.sourcePageUrl,
-      boundary: this.cloneBoundary(boundary),
-      platformSnapshot: this.clonePlatformSnapshot(snapshot),
+      boundary: boundary,
+      platformSnapshot: snapshot,
       createdAt: Date.now()
     };
   }
@@ -346,15 +328,30 @@ export class DownloadV2RequestCapture {
     const nextHeaders = this.cloneHeaders(request.headers);
     let nextPlatformSnapshot: PlatformDownloadSnapshot | undefined = undefined;
     if (request.platformSnapshot !== undefined) {
-      nextPlatformSnapshot = this.clonePlatformSnapshot(request.platformSnapshot);
+      nextPlatformSnapshot = {
+        guid: request.platformSnapshot.guid,
+        url: request.platformSnapshot.url,
+        originalUrl: request.platformSnapshot.originalUrl,
+        suggestedFileName: request.platformSnapshot.suggestedFileName,
+        totalBytes: request.platformSnapshot.totalBytes,
+        receivedBytes: request.platformSnapshot.receivedBytes,
+        currentSpeed: request.platformSnapshot.currentSpeed,
+        state: request.platformSnapshot.state,
+        lastErrorCode: request.platformSnapshot.lastErrorCode,
+        mimeType: request.platformSnapshot.mimeType,
+        method: request.platformSnapshot.method,
+        userAgent: request.platformSnapshot.userAgent,
+        referer: request.platformSnapshot.referer,
+        contentDisposition: request.platformSnapshot.contentDisposition,
+        headers: this.cloneHeaders(request.platformSnapshot.headers),
+        platformTaskId: request.platformSnapshot.platformTaskId,
+        platformTaskToken: request.platformSnapshot.platformTaskToken
+      };
     }
     return {
       guid: request.guid,
       url: request.url,
       originalUrl: request.originalUrl,
-      sourceId: request.sourceId,
-      nativeReason: request.nativeReason,
-      fileNameLocked: request.fileNameLocked,
       suggestedFileName: request.suggestedFileName,
       sourceHost: request.sourceHost,
       totalBytes: request.totalBytes,
@@ -365,62 +362,15 @@ export class DownloadV2RequestCapture {
       contentDisposition: request.contentDisposition,
       headers: nextHeaders,
       sourcePageUrl: request.sourcePageUrl,
-      boundary: this.cloneBoundary(request.boundary),
+      boundary: {
+        windowId: request.boundary.windowId,
+        profileId: request.boundary.profileId,
+        privacyMode: request.boundary.privacyMode,
+        dataScope: request.boundary.dataScope
+      },
       platformSnapshot: nextPlatformSnapshot,
       createdAt: request.createdAt
     };
-  }
-
-  private clonePlatformSnapshot(
-    snapshot: PlatformDownloadSnapshot,
-    previous?: PlatformDownloadSnapshot
-  ): PlatformDownloadSnapshot {
-    return {
-      guid: snapshot.guid,
-      sourceId: previous?.sourceId ?? snapshot.sourceId,
-      fileNameLocked: previous?.fileNameLocked ?? snapshot.fileNameLocked,
-      transportHeld: snapshot.transportHeld ?? previous?.transportHeld,
-      url: snapshot.url,
-      originalUrl: snapshot.originalUrl ?? previous?.originalUrl,
-      suggestedFileName: snapshot.suggestedFileName,
-      totalBytes: snapshot.totalBytes,
-      progressFraction: snapshot.progressFraction ?? previous?.progressFraction,
-      estimatedTotalBytes: snapshot.estimatedTotalBytes ?? previous?.estimatedTotalBytes,
-      receivedBytes: snapshot.receivedBytes,
-      currentSpeed: snapshot.currentSpeed,
-      state: snapshot.state,
-      lastErrorCode: snapshot.lastErrorCode,
-      errorMessage: snapshot.errorMessage ?? previous?.errorMessage,
-      mimeType: snapshot.mimeType ?? previous?.mimeType,
-      method: snapshot.method ?? previous?.method,
-      userAgent: snapshot.userAgent ?? previous?.userAgent,
-      referer: snapshot.referer ?? previous?.referer,
-      contentDisposition: snapshot.contentDisposition ?? previous?.contentDisposition,
-      headers: this.cloneHeaders(snapshot.headers ?? previous?.headers),
-      hlsSegmentConcurrency: snapshot.hlsSegmentConcurrency ?? previous?.hlsSegmentConcurrency,
-      platformTaskId: snapshot.platformTaskId ?? previous?.platformTaskId,
-      platformTaskToken: (snapshot.platformTaskToken?.length ?? 0) > 0
-        ? snapshot.platformTaskToken
-        : previous?.platformTaskToken,
-      downloadDriver: snapshot.downloadDriver ?? previous?.downloadDriver,
-      privacyMode: previous?.privacyMode ?? snapshot.privacyMode
-    };
-  }
-
-  private cloneBoundary(boundary: DownloadV2CaptureBoundary): DownloadV2CaptureBoundary {
-    return {
-      windowId: boundary.windowId,
-      profileId: boundary.profileId,
-      privacyMode: boundary.privacyMode,
-      dataScope: boundary.dataScope,
-      sourcePageUrl: boundary.sourcePageUrl
-    };
-  }
-
-  private matchesBoundary(left: DownloadV2CaptureBoundary, right: DownloadV2CaptureBoundary): boolean {
-    return left.windowId === right.windowId && left.profileId === right.profileId &&
-      left.privacyMode === right.privacyMode && left.dataScope === right.dataScope &&
-      (left.sourcePageUrl ?? '') === (right.sourcePageUrl ?? '');
   }
 
   private cloneHeaders(headers?: Record<string, string>): Record<string, string> | undefined {

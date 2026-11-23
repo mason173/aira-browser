@@ -88,7 +88,7 @@ export class DownloadV2Engine {
     }
     const transition = transitionDownloadV2Status(currentTask.status, event);
     if (!transition.valid) {
-      return undefined;
+      return currentTask;
     }
     const nextTimingPatch = this.buildTimingPatch(currentTask, transition.nextStatus, event, patch?.timing);
     const nextPatch: MutableDownloadV2TaskEntityPatch = {

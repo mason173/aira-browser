@@ -209,22 +209,6 @@ export class DownloadLocationDirectoryService {
    * `usable` as "give up" — they should try the write and let that decide.
    */
   async activateDirectory(uri: string): Promise<DownloadDirectoryActivationResult> {
-    return this.activatePolicy(uri, DOWNLOAD_DIRECTORY_OPERATION_MODE);
-  }
-
-  async activateFile(uri: string): Promise<DownloadDirectoryActivationResult> {
-    return this.activatePolicy(uri, fileShare.OperationMode.WRITE_MODE);
-  }
-
-  async activateReadableFile(uri: string): Promise<DownloadDirectoryActivationResult> {
-    return this.activatePolicy(uri, fileShare.OperationMode.READ_MODE);
-  }
-
-  async persistFile(uri: string): Promise<boolean> {
-    return this.isAcceptableDirectoryUri(uri) && await this.persistDirectory(uri);
-  }
-
-  private async activatePolicy(uri: string, operationMode: number): Promise<DownloadDirectoryActivationResult> {
     if (!this.isAcceptableDirectoryUri(uri)) {
       return {
         usable: false,
@@ -242,7 +226,7 @@ export class DownloadLocationDirectoryService {
       };
     }
     try {
-      await fileShare.activatePermission([this.buildPolicy(uri, operationMode)]);
+      await fileShare.activatePermission([this.buildPolicy(uri)]);
       return {
         usable: true,
         isPersisted: true,
@@ -344,10 +328,10 @@ export class DownloadLocationDirectoryService {
     return normalized;
   }
 
-  private buildPolicy(uri: string, operationMode: number = DOWNLOAD_DIRECTORY_OPERATION_MODE): fileShare.PolicyInfo {
+  private buildPolicy(uri: string): fileShare.PolicyInfo {
     return {
       uri: uri,
-      operationMode: operationMode
+      operationMode: DOWNLOAD_DIRECTORY_OPERATION_MODE
     };
   }
 

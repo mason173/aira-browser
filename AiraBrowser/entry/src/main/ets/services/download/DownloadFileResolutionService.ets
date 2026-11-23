@@ -7,7 +7,6 @@ import { hilog } from '@kit.PerformanceAnalysisKit';
 import { AppRuntimeContext } from '../../app/runtime/AppRuntimeContext';
 import { resolveAppResourceText } from '../../core/resources/AppResourceText';
 import { DownloadFileNameService } from './DownloadFileNameService';
-import { DownloadV2DestinationSnapshot } from '../../domain/downloadv2/DownloadV2Types';
 import {
   DownloadFilenameConflictPlan,
   DownloadFilenameConflictService
@@ -48,8 +47,6 @@ interface DownloadCopyTargetResolution {
 export interface DownloadPersistResult {
   status: 'exported' | 'user_canceled' | 'failed';
   finalFileUri?: string;
-  finalFileName?: string;
-  destination?: DownloadV2DestinationSnapshot;
   finalDisplayPath: string;
   destinationLabel?: string;
   isExported: boolean;
@@ -61,10 +58,6 @@ export interface DownloadPersistResult {
   customDirectoryBypassed?: boolean;
 }
 
-export interface DownloadReadableFileInfo {
-  size: number;
-}
-
 export interface DownloadFileResolutionAdapter {
   resolveTemporaryTarget(
     suggestedFileName: string,
@@ -72,14 +65,6 @@ export interface DownloadFileResolutionAdapter {
   ): Promise<DownloadTemporaryTargetPlan | undefined>;
   sanitizeFileName(fileName: string): string;
   resolveUriFromLocalPath(path: string): string;
-  inspectReadableFile(location: string): Promise<DownloadReadableFileInfo | undefined>;
-  validateDestination(destination: DownloadV2DestinationSnapshot): Promise<boolean>;
-  selectDestination(fileName: string): Promise<DownloadV2DestinationSnapshot | undefined>;
-  persistToDestination(
-    localPath: string,
-    fileName: string,
-    destination: DownloadV2DestinationSnapshot
-  ): Promise<DownloadPersistResult | undefined>;
   deleteLocalPath(path: string): Promise<DownloadLocalDeleteResult>;
   movePublicDocumentToTrash(uri: string): Promise<DownloadLocalDeleteResult>;
   persistToSystemDownloads(
@@ -143,175 +128,6 @@ export class DownloadFileResolutionService implements DownloadFileResolutionAdap
 
   resolveUriFromLocalPath(path: string): string {
     return fileUri.getUriFromPath(path);
-  }
-
-  async inspectReadableFile(location: string): Promise<DownloadReadableFileInfo | undefined> {
-    const normalizedLocation = location.trim();
-    if (normalizedLocation.length === 0) {
-      return undefined;
-    }
-    let openedFile: fileIo.File | undefined = undefined;
-    try {
-      // Open the supplied URI directly: converting a denied public URI to a
-      // path must not turn an inaccessible file into a successful completion.
-      openedFile = await fileIo.open(normalizedLocation, fileIo.OpenMode.READ_ONLY);
-      const stat = await fileIo.stat(openedFile.fd);
-      if (!stat.isFile() || !Number.isFinite(stat.size) || stat.size < 0) {
-        return undefined;
-      }
-      return { size: stat.size };
-    } catch (_error) {
-      return undefined;
-    } finally {
-      if (openedFile !== undefined) {
-        try {
-          await fileIo.close(openedFile);
-        } catch (_closeError) {
-        }
-      }
-    }
-  }
-
-  async validateDestination(destination: DownloadV2DestinationSnapshot): Promise<boolean> {
-    if (destination.kind !== 'directory' && destination.kind !== 'file') {
-      return true;
-    }
-    const uri = destination.uri?.trim() ?? '';
-    if (uri.length === 0 || uri.indexOf('://') <= 0) {
-      return false;
-    }
-    const directoryService = new DownloadLocationDirectoryService();
-    if (destination.kind === 'directory') {
-      await directoryService.activateDirectory(uri);
-      return directoryService.verifyDirectoryWritable(uri);
-    }
-    await directoryService.activateFile(uri);
-    let openedFile: fileIo.File | undefined = undefined;
-    try {
-      // A saved file grant applies to this URI, not to its parent. Opening an
-      // existing file without CREATE/TRUNC verifies access without changing it.
-      openedFile = await fileIo.open(uri, fileIo.OpenMode.WRITE_ONLY);
-      const stat = await fileIo.stat(openedFile.fd);
-      return stat.isFile();
-    } catch (_error) {
-      return false;
-    } finally {
-      if (openedFile !== undefined) {
-        try { await fileIo.close(openedFile); } catch (_closeError) {}
-      }
-    }
-  }
-
-  async selectDestination(_fileName: string): Promise<DownloadV2DestinationSnapshot | undefined> {
-    const directoryService = new DownloadLocationDirectoryService();
-    if (!AppRuntimeContext.hasUIAbilityContext() || !directoryService.isFolderSelectionSupported()) {
-      return undefined;
-    }
-    try {
-      const result = await directoryService.selectDirectory(AppRuntimeContext.getUIAbilityContext());
-      if (result.status !== 'selected' || result.selection === undefined ||
-        !await directoryService.verifyDirectoryWritable(result.selection.uri)) {
-        return undefined;
-      }
-      return { kind: 'directory', uri: result.selection.uri, label: result.selection.label };
-    } catch (_error) {
-      return undefined;
-    }
-  }
-
-  async persistToDestination(
-    localPath: string,
-    fileName: string,
-    destination: DownloadV2DestinationSnapshot
-  ): Promise<DownloadPersistResult | undefined> {
-    if (destination.kind === 'system_downloads') {
-      return this.persistToSystemDownloads(localPath, fileName);
-    }
-    if (destination.kind === 'directory') {
-      return this.persistToDirectory(localPath, fileName, destination.uri ?? '', destination.label ?? '');
-    }
-    if (destination.kind === 'file') {
-      return this.persistToSelectedFile(localPath, fileName, destination);
-    }
-    if (destination.kind === 'prompt') {
-      return this.persistViaChosenFile(localPath, fileName);
-    }
-    return {
-      status: 'user_canceled',
-      finalDisplayPath: this.buildTemporaryDisplayPath(fileName),
-      isExported: false
-    };
-  }
-
-  private async persistViaChosenFile(localPath: string, fileName: string): Promise<DownloadPersistResult> {
-    const failure: DownloadPersistResult = {
-      status: 'failed', finalDisplayPath: this.buildTemporaryDisplayPath(fileName), isExported: false
-    };
-    if (!AppRuntimeContext.hasUIAbilityContext()) {
-      return failure;
-    }
-    try {
-      const options = new picker.DocumentSaveOptions();
-      // DEFAULT opens the save dialog and returns a complete file URI. DOWNLOAD
-      // mode instead returns an app download directory and is not a user choice.
-      options.pickerMode = picker.DocumentPickerMode.DEFAULT;
-      options.newFileNames = [this.sanitizeFileName(fileName)];
-      const documentPicker = new picker.DocumentViewPicker(AppRuntimeContext.getUIAbilityContext());
-      const result = await documentPicker.save(options);
-      if (result.length === 0) {
-        return { status: 'user_canceled', finalDisplayPath: failure.finalDisplayPath, isExported: false };
-      }
-      const uri = result[0].trim();
-      if (uri.length === 0 || uri.indexOf('://') <= 0) {
-        return failure;
-      }
-      const directoryService = new DownloadLocationDirectoryService();
-      await directoryService.persistFile(uri);
-      const label = directoryService.buildDirectoryLocationLabel(this.resolveBaseUriFromUri(uri));
-      return this.persistToSelectedFile(localPath, fileName, {
-        kind: 'file', uri: uri, label: `${label}/${this.resolveFileNameFromUri(uri)}`
-      });
-    } catch (_error) {
-      return failure;
-    }
-  }
-
-  private async persistToSelectedFile(
-    localPath: string,
-    fileName: string,
-    destination: DownloadV2DestinationSnapshot
-  ): Promise<DownloadPersistResult> {
-    const targetUri = destination.uri?.trim() ?? '';
-    try {
-      const source = await this.inspectReadableFile(localPath);
-      if (source === undefined || !await this.validateDestination(destination)) {
-        throw new Error('download_destination_unavailable');
-      }
-      const input = await fileIo.open(localPath, fileIo.OpenMode.READ_ONLY);
-      try {
-        const output = await fileIo.open(targetUri, fileIo.OpenMode.WRITE_ONLY | fileIo.OpenMode.TRUNC);
-        try {
-          await this.rewriteFileDescriptors(input.fd, output.fd);
-        } finally {
-          await fileIo.close(output);
-        }
-      } finally {
-        await fileIo.close(input);
-      }
-      await this.assertExportedSize(targetUri, source.size, 'selected_file', 'fd_copy');
-      const finalFileName = this.resolveFileNameFromUri(targetUri);
-      const finalDisplayPath = destination.label?.trim() || finalFileName;
-      return {
-        status: 'exported',
-        finalFileUri: targetUri,
-        finalFileName: finalFileName,
-        finalDisplayPath: finalDisplayPath,
-        destination: { kind: 'file', uri: targetUri, label: finalDisplayPath },
-        isExported: true
-      };
-    } catch (_error) {
-      return { status: 'failed', finalDisplayPath: this.buildTemporaryDisplayPath(fileName), isExported: false };
-    }
   }
 
   async deleteLocalPath(path: string): Promise<DownloadLocalDeleteResult> {
@@ -425,14 +241,11 @@ export class DownloadFileResolutionService implements DownloadFileResolutionAdap
       const label = directoryLabel.trim().length > 0
         ? directoryLabel.trim()
         : directoryService.buildDirectoryLocationLabel(directoryUri);
-      const finalFileName = this.resolveFileNameFromUri(targetUri);
       return {
         status: 'exported',
         finalFileUri: targetUri,
-        finalFileName: finalFileName,
-        finalDisplayPath: `${label}/${finalFileName}`,
+        finalDisplayPath: `${label}/${savedFileName}`,
         destinationLabel: label,
-        destination: { kind: 'directory', uri: this.resolveBaseUriFromUri(targetUri), label: label },
         isExported: true
       };
     } catch (error) {
@@ -492,14 +305,11 @@ export class DownloadFileResolutionService implements DownloadFileResolutionAdap
         exportResolution.conflictResolvedUri
       );
       const folderLabel = this.buildPublicDownloadFolderLabel(targetUri);
-      const finalFileName = this.resolveFileNameFromUri(targetUri);
       return {
         status: 'exported',
         finalFileUri: targetUri,
-        finalFileName: finalFileName,
-        finalDisplayPath: `${folderLabel}/${finalFileName}`,
+        finalDisplayPath: `${folderLabel}/${savedFileName}`,
         destinationLabel: folderLabel,
-        destination: { kind: 'directory', uri: folderUri, label: folderLabel },
         isExported: true
       };
     } catch (error) {
@@ -584,14 +394,11 @@ export class DownloadFileResolutionService implements DownloadFileResolutionAdap
         exportResolution.conflictResolvedUri
       );
       const folderLabel = this.buildPublicDownloadFolderLabel(targetUri);
-      const finalFileName = this.resolveFileNameFromUri(targetUri);
       return {
         status: 'exported',
         finalFileUri: targetUri,
-        finalFileName: finalFileName,
-        finalDisplayPath: `${folderLabel}/${finalFileName}`,
+        finalDisplayPath: `${folderLabel}/${savedFileName}`,
         destinationLabel: folderLabel,
-        destination: { kind: 'directory', uri: this.normalizeTargetBaseUri(result[0]), label: folderLabel },
         isExported: true
       };
     } catch (error) {
@@ -654,12 +461,7 @@ export class DownloadFileResolutionService implements DownloadFileResolutionAdap
     targetUri: string,
     conflictResolvedUri: string
   ): Promise<string> {
-    const sourceSize = sourcePath.indexOf('://') > 0
-      ? (await this.inspectReadableFile(sourcePath))?.size ?? -1
-      : await this.getFileSize(sourcePath);
-    if (sourceSize < 0) {
-      throw new Error('copy_source_unreadable');
-    }
+    const sourceSize = await this.getFileSize(sourcePath);
     hilog.info(
       DOWNLOAD_FILE_RESOLUTION_DOMAIN,
       DOWNLOAD_FILE_RESOLUTION_TAG,
@@ -786,7 +588,7 @@ export class DownloadFileResolutionService implements DownloadFileResolutionAdap
       sourceSize,
       targetUri
     );
-    const sourceUri = sourcePath.indexOf('://') > 0 ? sourcePath : this.resolveUriFromLocalPath(sourcePath);
+    const sourceUri = this.resolveUriFromLocalPath(sourcePath);
     try {
       await fileIo.copy(sourceUri, targetUri);
       await this.assertExportedSize(targetUri, sourceSize, label, 'uri_copy');

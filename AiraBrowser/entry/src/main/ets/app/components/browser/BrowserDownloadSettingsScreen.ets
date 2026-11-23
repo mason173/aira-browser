@@ -24,7 +24,7 @@ import {
 } from '../../../core/download/DownloadSettingsViewModel';
 import { DownloadSettingsScreenController } from '../../../core/download/DownloadSettingsScreenController';
 import { DownloadTaskBoundary } from '../../../domain/download/DownloadTypes';
-import { sharedDownloadPolicyService, sharedDownloadRuntimeService } from '../../bootstrap/BrowserAppRuntime';
+import { sharedDownloadPolicyService } from '../../bootstrap/BrowserAppRuntime';
 import { DownloadLocationDirectoryService } from '../../../services/download/DownloadLocationDirectoryService';
 import { DEFAULT_BROWSER_DOWNLOAD_SETTINGS } from '../../../data/preferences/PreferencesRepository';
 import { SettingsNavigationCoordinator } from '../../router/SettingsNavigationCoordinator';
@@ -308,7 +308,7 @@ export struct BrowserDownloadSettingsScreen {
    * the folder being abandoned, so the app does not keep authorization for a
    * location it no longer uses.
    */
-  private async resetToSystemDownloadLocation(): Promise<void> {
+  private resetToSystemDownloadLocation(): void {
     const currentSettings = readDownloadSettings(this.settingsBoundary);
     if (currentSettings.defaultLocation !== 'custom') {
       return;
@@ -319,9 +319,8 @@ export struct BrowserDownloadSettingsScreen {
       customLocationUri: '',
       customLocationLabel: ''
     });
-    const saved = await this.saveDownloadSettings(nextSettings,
-      resolveAppResourceText($r('app.string.settings_web_download_save_location_failed')));
-    if (saved && previousUri.length > 0 && !sharedDownloadRuntimeService.hasDownloadDestinationReference(previousUri)) {
+    this.saveDownloadSettings(nextSettings, resolveAppResourceText($r('app.string.settings_web_download_save_location_failed')));
+    if (previousUri.length > 0) {
       void new DownloadLocationDirectoryService().releaseDirectory(previousUri);
     }
   }
@@ -367,7 +366,7 @@ export struct BrowserDownloadSettingsScreen {
     settings: BrowserDownloadSettings,
     failurePrefix: string,
     silentOnSuccess: boolean = false
-  ): Promise<boolean> {
+  ): void {
     const previousSettings = readDownloadSettings(this.settingsBoundary);
     this.viewState = this.downloadSettingsViewModel.buildState(settings);
     this.askBeforeDownload = settings.askBeforeDownload;
@@ -376,14 +375,13 @@ export struct BrowserDownloadSettingsScreen {
     this.autoClearPolicy = settings.autoClearPolicy;
     this.privateFilePolicy = settings.privateFilePolicy;
     this.privateRecordPolicy = settings.privateRecordPolicy;
-    return sharedDownloadPolicyService.updateSettings(
+    sharedDownloadPolicyService.updateSettings(
       this.settingsBoundary,
       settings
     ).then(() => {
       if (!silentOnSuccess) {
         this.showToast(resolveAppResourceText($r('app.string.settings_web_download_saved')));
       }
-      return true;
     }).catch((error: Error) => {
       this.viewState = this.downloadSettingsViewModel.buildState(previousSettings);
       this.askBeforeDownload = previousSettings.askBeforeDownload;
@@ -399,7 +397,6 @@ export struct BrowserDownloadSettingsScreen {
         failurePrefix,
         this.stringifyError(error)
       );
-      return false;
     });
   }
 
@@ -447,11 +444,8 @@ export struct BrowserDownloadSettingsScreen {
         customLocationUri: selection.uri,
         customLocationLabel: selection.label
       });
-      const saved = await this.saveDownloadSettings(nextSettings,
-        resolveAppResourceText($r('app.string.settings_web_download_save_location_failed')), true);
-      if (!saved) return;
-      if (previousUri.length > 0 && previousUri !== selection.uri &&
-        !sharedDownloadRuntimeService.hasDownloadDestinationReference(previousUri)) {
+      this.saveDownloadSettings(nextSettings, resolveAppResourceText($r('app.string.settings_web_download_save_location_failed')), true);
+      if (previousUri.length > 0 && previousUri !== selection.uri) {
         void directoryService.releaseDirectory(previousUri);
       }
       if (!isWritable) {

@@ -1,13 +1,11 @@
 {
   "enabled": true,
-  "noticeId": "aira-3.9.8-1000589",
-  "title": "Aira 3.9.8 update",
-  "updatedAt": "2026-11-16",
-  "summary": "This update adds a webpage sharing panel and improves browsing prompts.",
+  "noticeId": "aira-3.9.9-1000592",
+  "title": "Aira 3.9.9 update",
+  "updatedAt": "2026-11-17",
+  "summary": "This update improves ad blocking.",
   "items": [
-    "Use Share page in the bottom toolbar to scan or save the QR code, copy the link, or open the system share sheet.",
-    "The notification for a tab opened in the background now dismisses itself.",
-    "After a website’s Open App prompt times out, tapping the link again shows the prompt again."
+    "Fixed intermittent ad blocking failures when many filter lists are enabled."
   ],
   "actionLabel": "View changelog"
 }

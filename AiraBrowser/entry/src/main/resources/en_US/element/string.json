@@ -13414,7 +13414,7 @@
     },
     {
       "name": "settings_web_download_folder_selected_fallback",
-      "value": "Folder selected. If it cannot be written to, authorize it again or choose another location."
+      "value": "Folder selected. If a download can't write there, it falls back to the system folder."
     },
     {
       "name": "settings_web_download_folder_selected_reauth",
@@ -24263,70 +24263,6 @@
     {
       "name": "membership_suite_restored",
       "value": "App suite purchases restored."
-    },
-    {
-      "name": "download_failure_network",
-      "value": "Connection interrupted. Check your network and continue."
-    },
-    {
-      "name": "download_failure_permission",
-      "value": "Cannot write to the save location. Check folder permissions and retry."
-    },
-    {
-      "name": "download_failure_storage",
-      "value": "Not enough storage. Free up space and retry."
-    },
-    {
-      "name": "download_failure_file_system",
-      "value": "Cannot save the file. Check storage and the save location, then retry."
-    },
-    {
-      "name": "download_failure_server",
-      "value": "The site cannot provide this file. Retry or download it again from the page."
-    },
-    {
-      "name": "download_failure_certificate",
-      "value": "Secure connection validation failed. Check the network and site, then retry."
-    },
-    {
-      "name": "download_failure_unsupported",
-      "value": "This link cannot be downloaded. Return to the page for a new download link."
-    },
-    {
-      "name": "download_status_finalizing",
-      "value": "Saving file…"
-    },
-    {
-      "name": "download_save_failed_retry",
-      "value": "Couldn't save the file. The downloaded data is kept. Check the save location and retry."
-    },
-    {
-      "name": "download_file_verification_failed",
-      "value": "The downloaded file is missing, unreadable, or incomplete. Check the file or download it again from the original page."
-    },
-    {
-      "name": "download_action_choose_location",
-      "value": "Choose save location again"
-    },
-    {
-      "name": "download_rename_failed",
-      "value": "Couldn't rename the file. The original file is kept."
-    },
-    {
-      "name": "download_rename_unsupported",
-      "value": "This location doesn't support renaming in the app. Use Files to rename it."
-    },
-    {
-      "name": "download_rename_succeeded",
-      "value": "File renamed."
-    },
-    {
-      "name": "download_rename_cleanup_failed",
-      "value": "Renaming couldn't finish. Your files are kept; check them in Files."
-    },
-    {
-      "name": "download_share_failed",
-      "value": "Couldn't share the file."
     }
   ]
 }

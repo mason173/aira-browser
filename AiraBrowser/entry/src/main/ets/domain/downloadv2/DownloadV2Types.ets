@@ -41,8 +41,6 @@ export type DownloadV2ResumeMode =
   'queued_live_resume' |
   'platform_live_resume';
 
-export type DownloadV2PauseReason = 'none' | 'user' | 'network' | 'wifi_policy' | 'concurrency';
-
 export type DownloadV2LifecycleAction =
   'confirm' |
   'start';
@@ -51,13 +49,10 @@ export type DownloadV2ManagementAction =
   'pause' |
   'resume' |
   'retry' |
-  'choose_location' |
   'cancel' |
   'remove_record' |
   'save_to_system' |
   'open_file' |
-  'share_file' |
-  'rename' |
   'open_location';
 
 export type DownloadV2Action = DownloadV2LifecycleAction | DownloadV2ManagementAction;
@@ -72,10 +67,6 @@ export interface DownloadV2TaskBoundary {
 export interface DownloadV2RequestContext {
   url: string;
   originalUrl?: string;
-  /** Session-scoped source controller; never a replacement for an ArkWeb resume token. */
-  sourceId?: string;
-  nativeReason?: 'hls' | 'custom_headers';
-  fileNameLocked?: boolean;
   method: string;
   sourcePageUrl?: string;
   sourceHost?: string;
@@ -102,17 +93,7 @@ export interface DownloadV2ProgressSnapshot {
   speedBytesPerSecond: number;
 }
 
-export type DownloadV2CompletionState = 'finalizing' | 'export_failed' | 'available';
-
-export interface DownloadV2DestinationSnapshot {
-  kind: 'system_downloads' | 'directory' | 'file' | 'session_temp' | 'prompt';
-  uri?: string;
-  label?: string;
-}
-
 export interface DownloadV2PersistenceSnapshot {
-  destination?: DownloadV2DestinationSnapshot;
-  completionState?: DownloadV2CompletionState;
   tempFilePath?: string;
   finalFileUri?: string;
   finalDisplayPath?: string;
@@ -136,7 +117,6 @@ export interface DownloadV2RuntimeSnapshot {
   platformTaskId?: string;
   platformTaskToken?: string;
   resumeCapability: DownloadV2ResumeCapability;
-  pauseReason?: DownloadV2PauseReason;
 }
 
 export interface DownloadV2TaskTiming {
@@ -173,7 +153,7 @@ const DOWNLOAD_V2_ACTIONS_BY_STATUS: DownloadV2ActionsByStatus = {
   queued: ['start', 'cancel', 'remove_record'],
   running: ['pause', 'cancel'],
   paused: ['resume', 'cancel', 'remove_record'],
-  completed: ['save_to_system', 'open_file', 'open_location', 'share_file', 'rename', 'remove_record'],
+  completed: ['save_to_system', 'open_file', 'open_location', 'remove_record'],
   failed: ['retry', 'remove_record'],
   canceled: ['remove_record'],
   removed: []

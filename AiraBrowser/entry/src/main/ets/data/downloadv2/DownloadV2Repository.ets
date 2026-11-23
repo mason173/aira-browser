@@ -11,7 +11,7 @@ import {
   DownloadV2Status,
   DownloadV2TaskBoundary
 } from '../../domain/downloadv2/DownloadV2Types';
-import { hilog } from '@kit.PerformanceAnalysisKit';
+import { cloneDownloadV2SegmentPlanSnapshot } from '../../domain/downloadv2/DownloadV2SegmentTypes';
 import {
   normalizeBrowserDataScope,
   normalizeBrowserSessionPrivacyMode
@@ -163,42 +163,102 @@ export class InMemoryDownloadV2Repository implements DownloadV2Repository {
   }
 
   private cloneTask(task: DownloadV2TaskEntity): DownloadV2TaskEntity {
-    // Keep copying in the entity owner so new recovery fields survive every repository boundary.
-    return patchDownloadV2TaskEntity(task, { timing: { updatedAt: task.timing.updatedAt } });
+    const nextHeaders: Record<string, string> | undefined = this.cloneHeaders(task.request.headers);
+    return {
+      request: {
+        url: task.request.url,
+        method: task.request.method,
+        sourcePageUrl: task.request.sourcePageUrl,
+        sourceHost: task.request.sourceHost,
+        userAgent: task.request.userAgent,
+        referer: task.request.referer,
+        mimeType: task.request.mimeType,
+        contentDisposition: task.request.contentDisposition,
+        headers: nextHeaders
+      },
+      progress: {
+        totalBytes: task.progress.totalBytes,
+        progressFraction: task.progress.progressFraction,
+        estimatedTotalBytes: task.progress.estimatedTotalBytes,
+        receivedBytes: task.progress.receivedBytes,
+        speedBytesPerSecond: task.progress.speedBytesPerSecond
+      },
+      persistence: {
+        tempFilePath: task.persistence.tempFilePath,
+        finalFileUri: task.persistence.finalFileUri,
+        finalDisplayPath: task.persistence.finalDisplayPath,
+        partialFilePath: task.persistence.partialFilePath,
+        finalFilePath: task.persistence.finalFilePath,
+        writtenBytes: task.persistence.writtenBytes,
+        etag: task.persistence.etag,
+        lastModified: task.persistence.lastModified,
+        acceptRanges: task.persistence.acceptRanges,
+        contentRange: task.persistence.contentRange,
+        validatorCapturedAt: task.persistence.validatorCapturedAt,
+        downloadDriver: task.persistence.downloadDriver,
+        resumeMode: task.persistence.resumeMode,
+        needsFullRestart: task.persistence.needsFullRestart,
+        restartReason: task.persistence.restartReason,
+        segmentPlan: cloneDownloadV2SegmentPlanSnapshot(task.persistence.segmentPlan)
+      },
+      runtime: {
+        platformTaskId: task.runtime.platformTaskId,
+        platformTaskToken: task.runtime.platformTaskToken,
+        resumeCapability: task.runtime.resumeCapability
+      },
+      failure: {
+        code: task.failure.code,
+        sourceCode: task.failure.sourceCode,
+        message: task.failure.message,
+        retriable: task.failure.retriable
+      },
+      timing: {
+        createdAt: task.timing.createdAt,
+        updatedAt: task.timing.updatedAt,
+        confirmedAt: task.timing.confirmedAt,
+        startedAt: task.timing.startedAt,
+        completedAt: task.timing.completedAt,
+        failedAt: task.timing.failedAt,
+        canceledAt: task.timing.canceledAt,
+        removedAt: task.timing.removedAt
+      },
+      id: task.id,
+      guid: task.guid,
+      windowId: task.windowId,
+      profileId: task.profileId,
+      privacyMode: task.privacyMode,
+      dataScope: task.dataScope,
+      suggestedFileName: task.suggestedFileName,
+      resolvedFileName: task.resolvedFileName,
+      status: task.status
+    };
   }
 
+  private cloneHeaders(headers?: Record<string, string>): Record<string, string> | undefined {
+    if (headers === undefined) {
+      return undefined;
+    }
+    const nextHeaders: Record<string, string> = {};
+    Object.keys(headers).forEach((key: string) => {
+      nextHeaders[key] = headers[key];
+    });
+    return nextHeaders;
+  }
 }
-
-export interface DownloadV2PersistenceConfig {
-  progressIntervalMs?: number;
-}
-
-const DOWNLOAD_PROGRESS_PERSIST_INTERVAL_MS = 500;
-const DOWNLOAD_REPOSITORY_DOMAIN = 0x0000;
-const DOWNLOAD_REPOSITORY_TAG = 'DownloadV2Repository';
 
 export class PersistentDownloadV2Repository implements DownloadV2Repository {
   private memoryRepository: InMemoryDownloadV2Repository = new InMemoryDownloadV2Repository();
   private recordStore: DownloadV2RecordStore;
   private initializationPromise?: Promise<void>;
-  private persistPromise?: Promise<void>;
-  private progressTimer?: number;
-  private progressIntervalMs: number;
-  private pendingRevision: number = 0;
-  private persistedRevision: number = 0;
-  private lastPersistError?: Error;
+  private persistPromise: Promise<void> = Promise.resolve();
   private diagnosticRecorder?: DownloadRuntimeDiagnosticRecorder;
 
   constructor(
     recordStore: DownloadV2RecordStore = new ArkDownloadV2RecordStore(),
-    diagnosticRecorder?: DownloadRuntimeDiagnosticRecorder,
-    persistenceConfig?: DownloadV2PersistenceConfig
+    diagnosticRecorder?: DownloadRuntimeDiagnosticRecorder
   ) {
     this.recordStore = recordStore;
     this.diagnosticRecorder = diagnosticRecorder;
-    const requestedInterval = persistenceConfig?.progressIntervalMs;
-    this.progressIntervalMs = requestedInterval !== undefined && Number.isFinite(requestedInterval)
-      ? Math.max(0, Math.floor(requestedInterval)) : DOWNLOAD_PROGRESS_PERSIST_INTERVAL_MS;
   }
 
   async initialize(): Promise<void> {
@@ -245,170 +305,47 @@ export class PersistentDownloadV2Repository implements DownloadV2Repository {
   }
 
   upsert(task: DownloadV2TaskEntity): DownloadV2TaskEntity {
-    const previous = this.memoryRepository.findOne({ id: task.id, guid: task.guid });
     const result = this.memoryRepository.upsert(task);
-    this.persistMutation(previous, result);
+    this.schedulePersist();
     return result;
   }
 
   patch(lookup: DownloadV2TaskLookup, patch: MutableDownloadV2TaskEntityPatch): DownloadV2TaskEntity | undefined {
-    const previous = this.memoryRepository.findOne(lookup);
     const result = this.memoryRepository.patch(lookup, patch);
     if (result !== undefined) {
-      this.persistMutation(previous, result);
+      this.schedulePersist();
     }
     return result;
   }
 
   remove(lookup: DownloadV2TaskLookup): boolean {
-    const previous = this.memoryRepository.findOne(lookup);
     const removed = this.memoryRepository.remove(lookup);
-    if (removed && previous !== undefined && shouldPersistDownloadV2Task(previous)) {
-      this.schedulePersist(true);
+    if (removed) {
+      this.schedulePersist();
     }
     return removed;
   }
 
   clear(query?: Partial<DownloadV2TaskListQuery>): number {
-    const affectsPersistedRecords = this.memoryRepository.list(query).some((task: DownloadV2TaskEntity) =>
-      shouldPersistDownloadV2Task(task));
     const removedCount = this.memoryRepository.clear(query);
-    if (removedCount > 0 && affectsPersistedRecords) {
-      this.schedulePersist(true);
+    if (removedCount > 0) {
+      this.schedulePersist();
     }
     return removedCount;
   }
 
-  async flushPersistence(): Promise<void> {
-    this.clearProgressTimer();
-    // A timer-driven failure has no awaiting caller. Report it to the next explicit barrier;
-    // leave the dirty revision intact so a subsequent barrier or mutation can retry it.
-    if (this.persistPromise === undefined && this.lastPersistError !== undefined) {
-      const error = this.lastPersistError;
-      this.lastPersistError = undefined;
-      throw error;
-    }
-    do {
-      try {
-        await this.startPersistDrain();
-      } catch (error) {
-        this.lastPersistError = undefined;
-        const persistenceError = error as Error;
-        throw new Error(persistenceError.message ?? 'Download records save failed.');
-      }
-      this.clearProgressTimer();
-    } while (this.persistedRevision !== this.pendingRevision);
-  }
-
-  private persistMutation(previous: DownloadV2TaskEntity | undefined, next: DownloadV2TaskEntity): void {
-    const wasPersisted = previous !== undefined && shouldPersistDownloadV2Task(previous);
-    const willPersist = shouldPersistDownloadV2Task(next);
-    if (!wasPersisted && !willPersist) {
-      return;
-    }
-    this.schedulePersist(previous === undefined || wasPersisted !== willPersist ||
-      !this.isProgressOnlyChange(previous, next));
-  }
-
-  private schedulePersist(immediate: boolean): void {
-    this.pendingRevision += 1;
-    if (immediate || this.progressIntervalMs === 0) {
-      this.clearProgressTimer();
-      this.persistInBackground();
-      return;
-    }
-    if (this.persistPromise !== undefined || this.progressTimer !== undefined) {
-      return;
-    }
-    this.progressTimer = setTimeout(() => {
-      this.progressTimer = undefined;
-      this.persistInBackground();
-    }, this.progressIntervalMs);
-  }
-
-  private clearProgressTimer(): void {
-    if (this.progressTimer !== undefined) {
-      clearTimeout(this.progressTimer);
-      this.progressTimer = undefined;
-    }
-  }
-
-  private persistInBackground(): void {
-    // Observe rejection without changing the promise returned by flushPersistence(). No failed
-    // revision is marked saved, and no unbounded retry loop runs against a failing storage device.
-    void this.startPersistDrain().catch((_error: Error): void => {
-      hilog.error(DOWNLOAD_REPOSITORY_DOMAIN, DOWNLOAD_REPOSITORY_TAG,
-        'download records save failed; latest state remains pending');
-      this.diagnosticRecorder?.recordDownloadRuntimeDiagnostic({
-        owner: 'repository', operation: 'persist', state: 'latest_pending', result: 'failed'
-      });
-    });
-  }
-
-  private startPersistDrain(): Promise<void> {
-    if (this.persistPromise !== undefined) {
-      return this.persistPromise;
-    }
-    if (this.persistedRevision === this.pendingRevision) {
-      return Promise.resolve();
-    }
-    // Install the promise before entering the store, which may synchronously trigger callbacks.
-    this.persistPromise = Promise.resolve().then(() => this.drainLatestRecords())
-      .catch((error: Error): void => {
-        this.lastPersistError = error;
-        throw error;
-      })
-      .finally((): void => {
-        this.persistPromise = undefined;
-        // A mutation can arrive in the microtask between the drain settling and this cleanup.
-        if (this.pendingRevision !== this.persistedRevision && this.lastPersistError === undefined) {
-          this.persistInBackground();
-        }
-      });
+  flushPersistence(): Promise<void> {
     return this.persistPromise;
   }
 
-  private async drainLatestRecords(): Promise<void> {
-    while (this.persistedRevision !== this.pendingRevision) {
-      const savingRevision = this.pendingRevision;
-      // Clone once per actual write, not once per progress event. A slow write retains only one
-      // latest pending revision and drains changes that arrive while it is in flight.
-      const records = this.memoryRepository.list().filter((task: DownloadV2TaskEntity) =>
-        shouldPersistDownloadV2Task(task));
-      await this.recordStore.saveRecords(records);
-      this.persistedRevision = savingRevision;
-      this.lastPersistError = undefined;
-    }
+  private schedulePersist(): void {
+    const persistentRecords = this.memoryRepository.list().filter((task: DownloadV2TaskEntity) => {
+      return shouldPersistDownloadV2Task(task);
+    });
+    this.persistPromise = this.persistPromise
+      .catch(() => Promise.resolve())
+      .then(() => this.recordStore.saveRecords(persistentRecords));
   }
-
-  private isProgressOnlyChange(previous: DownloadV2TaskEntity, next: DownloadV2TaskEntity): boolean {
-    const before = previous.persistence;
-    const after = next.persistence;
-    return previous.status === next.status && previous.windowId === next.windowId &&
-      previous.suggestedFileName === next.suggestedFileName && previous.resolvedFileName === next.resolvedFileName &&
-      JSON.stringify(previous.request) === JSON.stringify(next.request) &&
-      JSON.stringify(previous.failure) === JSON.stringify(next.failure) &&
-      before.completionState === after.completionState &&
-      JSON.stringify(before.destination) === JSON.stringify(after.destination) &&
-      before.tempFilePath === after.tempFilePath && before.finalFileUri === after.finalFileUri &&
-      before.finalDisplayPath === after.finalDisplayPath && before.partialFilePath === after.partialFilePath &&
-      before.finalFilePath === after.finalFilePath && before.expectedTotalBytes === after.expectedTotalBytes &&
-      before.etag === after.etag && before.lastModified === after.lastModified &&
-      before.acceptRanges === after.acceptRanges && before.contentRange === after.contentRange &&
-      before.downloadDriver === after.downloadDriver && before.resumeMode === after.resumeMode &&
-      before.needsFullRestart === after.needsFullRestart && before.restartReason === after.restartReason &&
-      before.segmentPlan?.guid === after.segmentPlan?.guid &&
-      before.segmentPlan?.segmentCount === after.segmentPlan?.segmentCount &&
-      before.segmentPlan?.partFileBasePath === after.segmentPlan?.partFileBasePath &&
-      previous.runtime.platformTaskId === next.runtime.platformTaskId &&
-      previous.runtime.resumeCapability === next.runtime.resumeCapability &&
-      previous.runtime.pauseReason === next.runtime.pauseReason &&
-      ((previous.runtime.platformTaskToken?.length ?? 0) > 0) === ((next.runtime.platformTaskToken?.length ?? 0) > 0) &&
-      previous.timing.confirmedAt === next.timing.confirmedAt && previous.timing.startedAt === next.timing.startedAt &&
-      previous.timing.completedAt === next.timing.completedAt && previous.timing.failedAt === next.timing.failedAt &&
-      previous.timing.canceledAt === next.timing.canceledAt && previous.timing.removedAt === next.timing.removedAt;
-  }
-
 }
 
 export function buildPersistentDownloadV2Repository(

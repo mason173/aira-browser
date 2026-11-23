@@ -1106,8 +1106,6 @@ export class BrowserMediaDiscoveryCoordinator {
     }
     return {
       url: trimmedUrl,
-      sourceTabId: candidate.tabId,
-      headersSource: 'page',
       sourceHost: candidate.sourceHost.length > 0 ? candidate.sourceHost : undefined,
       suggestedFileName: candidate.displayName.length > 0 ? candidate.displayName : undefined,
       totalBytes: candidate.kind === 'hls' ? candidate.estimatedTotalBytes : candidate.totalBytes,

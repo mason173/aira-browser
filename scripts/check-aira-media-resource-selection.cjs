@@ -22,9 +22,6 @@ function load(file, modules = {}, globals = {}) {
       for (const [suffix, value] of Object.entries(modules)) if (name.endsWith(suffix)) return value;
       if (name.endsWith('/AppResourceText')) return { resolveAppResourceText: value => value };
       if (name === '@kit.PerformanceAnalysisKit') return { hilog: { info() {}, warn() {} } };
-      if (name.endsWith('/BrowserModels') || name.endsWith('/DownloadTypes')) {
-        return load(path.relative(root, path.resolve(path.dirname(filename), name + '.ets')));
-      }
       return inert;
     }, ...globals
   }, { filename });
@@ -96,8 +93,6 @@ test('rapid captures have unique IDs and silent batch confirmation preserves ano
 test('batch queues keep the initiating privacy boundary, continue after errors and report partial failure', async () => {
   const runtime = Object.create(DownloadRuntimeService.prototype);
   runtime.activeBoundary = boundary();
-  runtime.pageDownloadSources = new Map([['source-tab', { sourceId: 'source-session:tab:1',
-    boundary: runtime.normalizeBoundary(boundary()), controller: {} }]]);
   runtime.downloadPolicyService = { canWriteSessionTasks: () => true };
   const calls = [];
   let release;
@@ -108,7 +103,6 @@ test('batch queues keep the initiating privacy boundary, continue after errors a
     return { status: url.endsWith('c.png') ? 'failed' : 'queued' };
   } };
   const inputs = ['a', 'b', 'c', 'd'].map(id => ({ url: `https://cdn.example.test/${id}.png`,
-    sourceTabId: 'source-tab', headersSource: 'page',
     suggestedFileName: `${id}.png`, headers: { Cookie: 'fixture' }, userAgent: 'gallery-UA',
     referer: 'https://page.example.test/gallery', mimeType: 'image/png' }));
   const resultPromise = runtime.requestConfirmedManualDownloads(inputs);
@@ -125,8 +119,6 @@ test('batch queues keep the initiating privacy boundary, continue after errors a
     assert.equal(call.scope.dataScope, 'session_ephemeral');
     assert.equal(call.context.headers.Cookie, 'fixture');
     assert.equal(call.context.userAgent, 'gallery-UA');
-    assert.equal(call.context.sourceId, 'source-session:tab:1');
-    assert.equal(call.context.nativeReason, undefined);
   }
   runtime.downloadPolicyService.canWriteSessionTasks = () => false;
   assert.equal((await runtime.requestConfirmedManualDownloads(inputs)).failed, 4);

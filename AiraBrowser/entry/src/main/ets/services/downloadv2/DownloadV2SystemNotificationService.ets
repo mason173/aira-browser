@@ -22,8 +22,6 @@ const DOWNLOAD_FAILURE_NOTIFICATION_OFFSET: number = 100000;
 const DOWNLOAD_WANT_REQUEST_CODE: number = 240000;
 const MIN_PROGRESS_NOTIFICATION_INTERVAL_MS: number = 800;
 const MIN_PROGRESS_PERCENT_DELTA: number = 1;
-const BACKGROUND_START_RETRY_INITIAL_MS: number = 2000;
-const BACKGROUND_START_RETRY_MAX_MS: number = 30000;
 const NOTIFICATION_DISABLED_CODE: number = 1600004;
 const NOTIFICATION_NOT_FOUND_CODE: number = 1600007;
 const NOTIFICATION_NOT_ALLOWED_CODE: number = 1600020;
@@ -36,11 +34,9 @@ interface DownloadV2BackgroundNotificationState {
   progressPublished: boolean;
   lastProgressPercent: number;
   lastProgressAt: number;
-  lastFinalizing?: boolean;
 }
 
 interface DownloadV2AggregateProgress {
-  finalizing: boolean;
   taskCount: number;
   primaryTask: DownloadV2TaskEntity;
   totalBytes: number;
@@ -58,8 +54,6 @@ export class DownloadV2SystemNotificationService {
   private downloadTemplateSupported?: boolean;
   private reconcileRequested: boolean = false;
   private reconcileRunning: boolean = false;
-  private backgroundStartRetryTimer: number = -1;
-  private backgroundStartRetryDelayMs: number = BACKGROUND_START_RETRY_INITIAL_MS;
 
   handleTaskChanged(task: DownloadV2TaskEntity, previousStatus?: DownloadV2Status): void {
     if (task.privacyMode === 'private') {
@@ -116,36 +110,28 @@ export class DownloadV2SystemNotificationService {
     if (state === undefined) {
       return;
     }
-    // A download can finish, pause or become private while the platform request is pending.
-    const latestRunningTasks = this.listRunningTasks();
-    if (latestRunningTasks.length <= 0) {
-      await this.stopBackgroundTask();
-      return;
-    }
-    await this.publishProgressNotification(this.buildAggregateProgress(latestRunningTasks), state);
+    await this.publishProgressNotification(this.buildAggregateProgress(runningTasks), state);
   }
 
   private listRunningTasks(): DownloadV2TaskEntity[] {
     return Object.keys(this.runningTasksByGuid)
       .map((guid: string): DownloadV2TaskEntity | undefined => this.runningTasksByGuid[guid])
-      .filter((task?: DownloadV2TaskEntity): boolean =>
-        task !== undefined && task.status === 'running' && task.privacyMode !== 'private') as DownloadV2TaskEntity[];
+      .filter((task?: DownloadV2TaskEntity): boolean => task !== undefined) as DownloadV2TaskEntity[];
   }
 
   private async ensureBackgroundTask(
     representativeTask: DownloadV2TaskEntity
   ): Promise<DownloadV2BackgroundNotificationState | undefined> {
-    if (this.backgroundState?.systemProxyActive === true || this.backgroundStartRetryTimer >= 0) {
+    if (this.backgroundState !== undefined) {
       return this.backgroundState;
     }
     if (!AppRuntimeContext.hasUIAbilityContext()) {
       hilog.warn(DOMAIN, TAG, 'background dataTransfer skipped because UIAbilityContext is unavailable');
-      this.scheduleBackgroundStartRetry();
       return undefined;
     }
     const context = AppRuntimeContext.getUIAbilityContext();
     await this.requestNotificationPermissionIfNeeded(context);
-    const state: DownloadV2BackgroundNotificationState = this.backgroundState ?? {
+    const state: DownloadV2BackgroundNotificationState = {
       context: context,
       notificationId: DOWNLOAD_PROGRESS_NOTIFICATION_ID,
       systemProxyActive: false,
@@ -153,34 +139,16 @@ export class DownloadV2SystemNotificationService {
       lastProgressPercent: -1,
       lastProgressAt: 0
     };
-    state.context = context;
     this.backgroundState = state;
     try {
-      const openDownloadsWantAgent = await this.createOpenDownloadsWantAgent(context);
-      if (this.listRunningTasks().length <= 0) {
-        return state;
-      }
-      const previousNotificationId = state.notificationId;
-      const fallbackPublished = state.progressPublished;
       const result = await backgroundTaskManager.startBackgroundRunning(
         context,
         ['dataTransfer'],
-        openDownloadsWantAgent
+        await this.createOpenDownloadsWantAgent(context)
       );
       state.notificationId = result.notificationId;
       state.continuousTaskId = result.continuousTaskId;
       state.systemProxyActive = true;
-      state.progressPublished = false;
-      state.lastProgressPercent = -1;
-      state.lastProgressAt = 0;
-      this.backgroundStartRetryDelayMs = BACKGROUND_START_RETRY_INITIAL_MS;
-      if (fallbackPublished && previousNotificationId !== result.notificationId) {
-        try {
-          await notificationManager.cancel(previousNotificationId);
-        } catch (error) {
-          this.logNotificationFailure('clear progress fallback', representativeTask.guid, error as BusinessError);
-        }
-      }
       hilog.info(
         DOMAIN,
         TAG,
@@ -199,30 +167,11 @@ export class DownloadV2SystemNotificationService {
         Number(businessError?.code ?? 0),
         businessError?.message ?? ''
       );
-      // Keep the ordinary notification usable, but do not mistake it for an active dataTransfer task.
-      this.scheduleBackgroundStartRetry();
     }
     return state;
   }
 
-  private scheduleBackgroundStartRetry(): void {
-    if (this.backgroundStartRetryTimer >= 0 || this.listRunningTasks().length <= 0) {
-      return;
-    }
-    const delayMs = this.backgroundStartRetryDelayMs;
-    this.backgroundStartRetryDelayMs = Math.min(delayMs * 2, BACKGROUND_START_RETRY_MAX_MS);
-    this.backgroundStartRetryTimer = setTimeout((): void => {
-      this.backgroundStartRetryTimer = -1;
-      this.requestReconcile();
-    }, delayMs);
-  }
-
   private async stopBackgroundTask(): Promise<void> {
-    if (this.backgroundStartRetryTimer >= 0) {
-      clearTimeout(this.backgroundStartRetryTimer);
-      this.backgroundStartRetryTimer = -1;
-    }
-    this.backgroundStartRetryDelayMs = BACKGROUND_START_RETRY_INITIAL_MS;
     const state = this.backgroundState;
     if (state === undefined) {
       return;
@@ -283,33 +232,16 @@ export class DownloadV2SystemNotificationService {
     }
     const now = Date.now();
     if (state.progressPublished &&
-      state.lastFinalizing === progress.finalizing &&
       Math.abs(progress.progressPercent - state.lastProgressPercent) < MIN_PROGRESS_PERCENT_DELTA &&
       now - state.lastProgressAt < MIN_PROGRESS_NOTIFICATION_INTERVAL_MS) {
       return;
     }
-    const runningTaskGuids = this.listRunningTasks().map((task: DownloadV2TaskEntity): string => task.guid);
     const request = await this.buildProgressNotificationRequest(progress, state);
-    const latestRunningTasks = this.listRunningTasks();
-    if (latestRunningTasks.length !== runningTaskGuids.length ||
-      latestRunningTasks.every((task: DownloadV2TaskEntity): boolean =>
-        task.persistence.completionState === 'finalizing') !== progress.finalizing ||
-      latestRunningTasks.some((task: DownloadV2TaskEntity): boolean =>
-        task.status !== 'running' || task.privacyMode === 'private' || !runningTaskGuids.includes(task.guid))) {
-      // WantAgent/template creation awaits platform work. A removed, paused or
-      // now-private task must not appear in the request built before that await.
-      this.requestReconcile();
-      return;
-    }
-    if (!this.canPublishNotification()) {
-      return;
-    }
     try {
       await notificationManager.publish(request);
       state.progressPublished = true;
       state.lastProgressPercent = progress.progressPercent;
       state.lastProgressAt = now;
-      state.lastFinalizing = progress.finalizing;
     } catch (error) {
       this.logNotificationFailure('publish progress', progress.primaryTask.guid, error as BusinessError);
     }
@@ -434,7 +366,6 @@ export class DownloadV2SystemNotificationService {
       ? Math.min(99, Math.max(0, Math.floor(completedWeight * 100 / totalWeight))) : 0;
     return {
       taskCount: tasks.length,
-      finalizing: tasks.every((task: DownloadV2TaskEntity): boolean => task.persistence.completionState === 'finalizing'),
       primaryTask: primaryTask,
       totalBytes: totalKnown ? totalBytes : 0,
       receivedBytes: receivedBytes,
@@ -445,9 +376,6 @@ export class DownloadV2SystemNotificationService {
   }
 
   private buildProgressTitle(progress: DownloadV2AggregateProgress): string {
-    if (progress.finalizing) {
-      return resolveAppResourceText($r('app.string.download_status_finalizing'));
-    }
     const subject = progress.taskCount === 1
       ? resolveAppResourceText($r('app.string.download_notification_downloading'))
       : resolveAppResourceText($r('app.string.download_notification_files', progress.taskCount));
@@ -455,9 +383,6 @@ export class DownloadV2SystemNotificationService {
   }
 
   private buildProgressAdditionalText(progress: DownloadV2AggregateProgress): string {
-    if (progress.finalizing) {
-      return this.formatSize(progress.receivedBytes);
-    }
     if (!progress.progressDeterminate || progress.totalBytes <= 0) {
       return `${this.formatSize(progress.receivedBytes)} · ${this.formatSpeed(progress.primaryTask)}`;
     }

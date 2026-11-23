@@ -66,7 +66,6 @@ export interface WebLinkContextMenuState {
   selection?: WebLinkTextSelectionPresentation;
   referer?: string;
   userAgent?: string;
-  isPrivate?: boolean;
   x: number;
   y: number;
   items: WebLinkContextMenuItem[];
@@ -550,9 +549,6 @@ export class WebLinkContextMenuCoordinator {
       tabId: request.tabId,
       url: url,
       title: title,
-      referer: this.isWebLinkUrl(request.pageUrl ?? '') ? request.pageUrl?.trim() : undefined,
-      userAgent: request.userAgent,
-      isPrivate: this.isPrivateBoundary(request.privacyMode, request.dataScope),
       x: this.safeNumber(() => request.event.param.x()),
       y: this.safeNumber(() => request.event.param.y()),
       items: [
@@ -725,10 +721,7 @@ export class WebLinkContextMenuCoordinator {
   ): Promise<WebContextMenuEffect[]> {
     const input: WebImageContextActionInput = {
       imageUrl: state.url,
-      tabId: state.tabId,
-      pageUrl: state.referer,
-      userAgent: state.userAgent,
-      isPrivate: state.isPrivate ?? this.isPrivateBoundary(facts.privacyMode, facts.dataScope),
+      pageUrl: facts.pageUrl,
       title: state.title
     };
     let task: Promise<WebImageContextActionResult>;

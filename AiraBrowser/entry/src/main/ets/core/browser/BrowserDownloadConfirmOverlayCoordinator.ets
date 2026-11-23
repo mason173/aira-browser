@@ -135,15 +135,13 @@ export class BrowserDownloadConfirmOverlayCoordinator {
     });
   }
 
-  requestAndPresent(input: ManualDownloadRequestInput, sourceTabId: string = ''): string {
+  requestAndPresent(input: ManualDownloadRequestInput): string {
     const normalizedUrl = input.url.trim();
     if (normalizedUrl.length === 0) {
       return '';
     }
     const result: ManualDownloadRequestResult | undefined = this.downloadService.requestManualDownload({
       url: normalizedUrl,
-      sourceTabId: input.sourceTabId,
-      headersSource: input.headersSource,
       sourceHost: input.sourceHost,
       suggestedFileName: input.suggestedFileName,
       totalBytes: input.totalBytes,
@@ -152,24 +150,12 @@ export class BrowserDownloadConfirmOverlayCoordinator {
       mimeType: input.mimeType,
       contentDisposition: input.contentDisposition,
       headers: input.headers
-    }, sourceTabId);
+    });
     if (result === undefined) {
       return '';
     }
     this.present(result.prompt);
     return result.guid;
-  }
-
-  requestPageAndPresent(tabId: string, input: ManualDownloadRequestInput): void {
-    if (input.url.trim().length === 0) {
-      return;
-    }
-    const result = this.downloadService.requestPageDownload(tabId, input);
-    // Keep the same confirmation and stable task GUID for page and other manual requests.
-    if (result === undefined || result.guid.length === 0) {
-      return;
-    }
-    this.present(result.prompt);
   }
 
   /**
@@ -347,12 +333,6 @@ export class BrowserDownloadConfirmOverlayCoordinator {
   }
 
   private resolveInlineDocumentPrompt(prompt: PendingDownloadPromptState): BrowserInlineDocumentPromptResolution {
-    // Choosing Download is already an explicit intent, even before startDownload
-    // produces an ArkWeb item. In particular, a PDF URL must not be silently
-    // discarded as ordinary navigation, nor rewind the page being read.
-    if (prompt.isUserInitiatedDownload === true) {
-      return { shouldIgnore: false, shouldPreserveStableDocument: true };
-    }
     const facts = this.host.resolveFacts();
     return this.navigationStateCoordinator.resolveInlineDocumentPrompt(
       prompt.url,

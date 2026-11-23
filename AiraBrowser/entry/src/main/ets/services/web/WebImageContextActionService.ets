@@ -6,9 +6,9 @@ import { photoAccessHelper } from '@kit.MediaLibraryKit';
 import { http } from '@kit.NetworkKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { systemShare } from '@kit.ShareKit';
+import { webview } from '@kit.ArkWeb';
 import { AppRuntimeContext } from '../../app/runtime/AppRuntimeContext';
 import { resolveAppResourceText } from '../../core/resources/AppResourceText';
-import { WebCookieHeaderService } from './WebCookieHeaderService';
 
 const WEB_IMAGE_CONTEXT_CACHE_DIR_NAME: string = 'web-image-context-actions';
 const WEB_IMAGE_CONTEXT_REQUEST_TIMEOUT_MS: number = 10000;
@@ -20,10 +20,7 @@ const WEB_IMAGE_CONTEXT_LOG_TAG: string = 'AiraWebImageContext';
 
 export interface WebImageContextActionInput {
   imageUrl: string;
-  tabId?: string;
   pageUrl?: string;
-  userAgent?: string;
-  isPrivate?: boolean;
   title?: string;
 }
 
@@ -41,8 +38,6 @@ interface WebImageContextCachedFile {
 }
 
 export class WebImageContextActionService {
-  private readonly cookieHeaderService: WebCookieHeaderService = new WebCookieHeaderService();
-
   async saveToGallery(input: WebImageContextActionInput): Promise<WebImageContextActionResult> {
     try {
       const file = await this.prepareImageFile(input);
@@ -83,7 +78,7 @@ export class WebImageContextActionService {
     let imageSource: image.ImageSource | undefined = undefined;
     let pixelMap: image.PixelMap | undefined = undefined;
     try {
-      const bytes = await this.fetchImageBytes(input);
+      const bytes = await this.fetchImageBytes(input.imageUrl, input.pageUrl ?? '');
       imageSource = image.createImageSource(bytes);
       pixelMap = await imageSource.createPixelMap({
         editable: false
@@ -143,7 +138,7 @@ export class WebImageContextActionService {
     if (imageUrl.length === 0) {
       throw new Error('empty-image-url');
     }
-    const bytes = await this.fetchImageBytes(input);
+    const bytes = await this.fetchImageBytes(imageUrl, input.pageUrl ?? '');
     const extension = this.resolveImageExtension(imageUrl, bytes);
     const title = this.resolveImageTitle(input.title ?? '', imageUrl, extension);
     const path = `${this.getCacheDir()}/${this.hashString(imageUrl)}-${Date.now()}.${extension}`;
@@ -157,15 +152,9 @@ export class WebImageContextActionService {
     };
   }
 
-  private async fetchImageBytes(input: WebImageContextActionInput): Promise<ArrayBuffer> {
-    const imageUrl = input.imageUrl.trim();
-    const normalizedUrl = imageUrl.toLowerCase();
-    if (normalizedUrl.indexOf('data:image/') === 0) {
+  private async fetchImageBytes(imageUrl: string, pageUrl: string): Promise<ArrayBuffer> {
+    if (imageUrl.trim().toLowerCase().indexOf('data:image/') === 0) {
       return this.decodeDataImageUrl(imageUrl);
-    }
-    // Renderer-owned URLs require the originating document. Never send them to a native HTTP client.
-    if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
-      throw new Error('unsupported-image-url');
     }
     const request = http.createHttp();
     try {
@@ -174,8 +163,8 @@ export class WebImageContextActionService {
         expectDataType: http.HttpDataType.ARRAY_BUFFER,
         connectTimeout: WEB_IMAGE_CONTEXT_REQUEST_TIMEOUT_MS,
         readTimeout: WEB_IMAGE_CONTEXT_REQUEST_TIMEOUT_MS,
-        usingCache: input.isPrivate !== true,
-        header: this.buildRequestHeaders(input)
+        usingCache: true,
+        header: this.buildRequestHeaders(imageUrl, pageUrl)
       });
       if (response.responseCode < 200 || response.responseCode >= 300 || !(response.result instanceof ArrayBuffer)) {
         throw new Error('image-http-failed');
@@ -187,20 +176,28 @@ export class WebImageContextActionService {
     }
   }
 
-  private buildRequestHeaders(input: WebImageContextActionInput): Record<string, string> {
+  private buildRequestHeaders(imageUrl: string, pageUrl: string): Record<string, string> {
     const headers: Record<string, string> = {
-      'Accept': 'image/avif,image/webp,image/png,image/jpeg,image/gif,image/*;q=0.8,*/*;q=0.4'
+      'Accept': 'image/avif,image/webp,image/png,image/jpeg,image/gif,image/*;q=0.8,*/*;q=0.4',
+      'User-Agent': 'AiraBrowser/1.0'
     };
-    const userAgent = input.userAgent?.trim() ?? '';
-    if (userAgent.length > 0) {
-      headers['User-Agent'] = userAgent;
-    }
-    const referer = input.pageUrl?.trim() ?? '';
-    if (/^https?:\/\//i.test(referer) && referer !== input.imageUrl.trim()) {
+    const referer = pageUrl.trim();
+    if (referer.length > 0 && referer !== imageUrl.trim()) {
       headers['Referer'] = referer;
     }
-    this.cookieHeaderService.putCookieHeaderIfAbsent(headers, input.imageUrl, input.isPrivate === true);
+    const cookie = this.resolveCookieHeader(imageUrl);
+    if (cookie.length > 0) {
+      headers['Cookie'] = cookie;
+    }
     return headers;
+  }
+
+  private resolveCookieHeader(url: string): string {
+    try {
+      return webview.WebCookieManager.fetchCookieSync(url, false).trim();
+    } catch (_error) {
+      return '';
+    }
   }
 
   private async writeFile(path: string, data: ArrayBuffer): Promise<void> {

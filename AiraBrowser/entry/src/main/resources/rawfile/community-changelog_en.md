@@ -1,5 +1,14 @@
 # Changelog
 
+## 3.9.9 (1000592)
+
+2026-11-17
+
+This update improves ad blocking.
+
+- Fixed intermittent ad blocking failures when many filter lists are enabled.
+
+
 ## 3.9.8 (1000589)
 
 2026-11-16

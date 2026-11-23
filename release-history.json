@@ -10,6 +10,15 @@
   },
   "history": [
     {
+      "versionName": "3.9.9",
+      "versionCode": 1000592,
+      "releasedAt": "2026-11-17",
+      "source": "formal-package-generated",
+      "notes": "Locally generated Official 3.9.9 (1000592) APP from source commit d09beb1f6651f4511b9f513cca5ffd00e508fe95 with the version, paired Chinese/English release notes, and download-folder localization mapping correction in the working tree. Includes download ownership, recovery, destination and file-operation improvements, the manual PDF prompt fix, and ad-block startup synchronization. The full release wrapper stopped at WebDAV localhost fixtures with listen EPERM; real download HTTP/HLS/proxy checks also remain blocked by the execution environment. Remaining non-network release checks passed after correcting the localization mapping. Packaging used the existing distribution, release pruning, profile validation, signing and symbol archival steps, with compiled UI regression checks passing. Verified the APP release certificate against the configured certificate, the exact embedded AppGallery release Profile, com.aira.browser, version, API 26, debug=false, matching bundled AGConnect and Huawei OAuth metadata, compiled Official account/cloud capabilities, disabled local test authentication and development diagnostics, all six bilingual release-note files, and absence of packaged source maps. Three exact-build crash symbol artifacts and the canonical APP copy were hash-verified. Community source configuration was restored. Device login and real network acceptance were not performed. This records a generated package, not complete release-gate acceptance, AppGallery approval or publication; latestAppGalleryRelease remains unchanged.",
+      "artifact": "dist/packages/Aira-official-v3.9.9-1000592.app",
+      "sha256": "d01fdf5fd066b9c17f594a380562a4ee4447c3aec976c2e9ea1d43da0b868f73"
+    },
+    {
       "versionName": "3.9.7",
       "versionCode": 1000585,
       "releasedAt": "2026-11-11",

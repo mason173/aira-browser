@@ -13414,7 +13414,7 @@
     },
     {
       "name": "settings_web_download_folder_selected_fallback",
-      "value": "已选择该文件夹。若无法写入，请重新授权或选择其他保存位置。"
+      "value": "已选择该文件夹。若下载时无法写入，将回退到系统下载目录。"
     },
     {
       "name": "settings_web_download_folder_selected_reauth",
@@ -24263,70 +24263,6 @@
     {
       "name": "membership_suite_restored",
       "value": "已恢复全家桶。"
-    },
-    {
-      "name": "download_failure_network",
-      "value": "网络连接中断，请检查网络后继续下载。"
-    },
-    {
-      "name": "download_failure_permission",
-      "value": "无法写入保存位置，请检查目录权限后重试。"
-    },
-    {
-      "name": "download_failure_storage",
-      "value": "存储空间不足，请清理空间后重试。"
-    },
-    {
-      "name": "download_failure_file_system",
-      "value": "无法保存文件，请检查剩余空间和保存位置后重试。"
-    },
-    {
-      "name": "download_failure_server",
-      "value": "网站暂时无法提供此文件，请重试或返回网页重新下载。"
-    },
-    {
-      "name": "download_failure_certificate",
-      "value": "安全连接校验失败，请检查网络和网站后重试。"
-    },
-    {
-      "name": "download_failure_unsupported",
-      "value": "无法下载此链接，请返回网页重新获取下载地址。"
-    },
-    {
-      "name": "download_status_finalizing",
-      "value": "保存中…"
-    },
-    {
-      "name": "download_save_failed_retry",
-      "value": "保存失败，已接收的文件已保留。请检查保存位置后重试。"
-    },
-    {
-      "name": "download_file_verification_failed",
-      "value": "下载文件缺失、不可读取或不完整，请检查文件或从原网页重新下载。"
-    },
-    {
-      "name": "download_action_choose_location",
-      "value": "重新选择保存位置"
-    },
-    {
-      "name": "download_rename_failed",
-      "value": "重命名失败，原文件已保留。"
-    },
-    {
-      "name": "download_rename_unsupported",
-      "value": "此位置不支持在应用内重命名，请在文件管理中操作。"
-    },
-    {
-      "name": "download_rename_succeeded",
-      "value": "文件已重命名。"
-    },
-    {
-      "name": "download_rename_cleanup_failed",
-      "value": "重命名未完成，文件已保留，请在文件管理中确认。"
-    },
-    {
-      "name": "download_share_failed",
-      "value": "分享文件失败。"
     }
   ]
 }

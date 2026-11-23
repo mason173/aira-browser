@@ -5114,11 +5114,8 @@ check_file_contains_rule "${WEB_LINK_CONTEXT_MENU_ACTION_APPLICATION}" "${WEB_LI
   'bookmarkActionCoordinator\.startAdd\(' \
   "Web Link Context Menu bookmark creation must execute through the fixed Bookmark owner."
 check_file_contains_rule "${WEB_LINK_CONTEXT_MENU_ACTION_APPLICATION}" "${WEB_LINK_CONTEXT_MENU_ACTION_APPLICATION_REL}" \
-  'downloadConfirmOverlayCoordinator\.requestPageAndPresent\(tabId,' \
-  "Web Link Context Menu page downloads must carry their source tab through the fixed Download Confirm owner."
-check_file_not_contains_rule "${WEB_LINK_CONTEXT_MENU_ACTION_APPLICATION}" "${WEB_LINK_CONTEXT_MENU_ACTION_APPLICATION_REL}" \
-  'downloadService\.|\.startDownload\(' \
-  "Web Link Context Menu must not bypass the fixed Download Confirm owner to invoke a transport."
+  'downloadConfirmOverlayCoordinator\.requestAndPresent\(' \
+  "Web Link Context Menu download confirmation must execute through the fixed Download Confirm owner."
 check_file_contains_rule "${WEB_LINK_CONTEXT_MENU_ACTION_APPLICATION}" "${WEB_LINK_CONTEXT_MENU_ACTION_APPLICATION_REL}" \
   'clipboardService\.copyText\(' \
   "Web Link Context Menu copy must execute through the fixed Clipboard service."
@@ -5181,14 +5178,8 @@ check_file_contains_rule "${DOWNLOAD_CONFIRM_OVERLAY_COORDINATOR}" "${DOWNLOAD_C
   'class BrowserDownloadConfirmOverlayCoordinator' \
   "Download Confirm must keep one narrative owner."
 check_file_contains_rule "${DOWNLOAD_CONFIRM_OVERLAY_COORDINATOR}" "${DOWNLOAD_CONFIRM_OVERLAY_COORDINATOR_REL}" \
-  'requestAndPresent\(input: ManualDownloadRequestInput, sourceTabId: string = .*\): string' \
+  'requestAndPresent\(input: ManualDownloadRequestInput\): string' \
   "Manual Download Confirm requests must enter through the existing owner."
-check_file_contains_rule "${DOWNLOAD_CONFIRM_OVERLAY_COORDINATOR}" "${DOWNLOAD_CONFIRM_OVERLAY_COORDINATOR_REL}" \
-  'requestPageAndPresent\(tabId: string, input: ManualDownloadRequestInput\): void' \
-  "Page Download Confirm requests must keep their source tab in the existing owner."
-check_file_contains_rule "${DOWNLOAD_CONFIRM_OVERLAY_COORDINATOR}" "${DOWNLOAD_CONFIRM_OVERLAY_COORDINATOR_REL}" \
-  'this\.downloadService\.requestPageDownload\(tabId, input\)' \
-  "Page Download Confirm must delegate transport selection to Download Runtime with the source tab."
 check_file_not_contains_rule "${DOWNLOAD_CONFIRM_OVERLAY_COORDINATOR}" "${DOWNLOAD_CONFIRM_OVERLAY_COORDINATOR_REL}" \
   'recordRuntimeEvent:|recordDiagnostic\(|buildBoundaryDiagnosticLine\(|pendingRevealDiagnosticStage|diagnosticViewModel|BrowserShellDiagnosticPresentationViewModel|currentUrl:|surfaceMounted:|surfaceVisible:|boundary:' \
   "Download Confirm must not regain removed runtime diagnostics or page-built diagnostic facts."

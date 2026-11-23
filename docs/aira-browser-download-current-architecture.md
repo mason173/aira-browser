@@ -1,8 +1,6 @@
 # Aira Browser 下载架构
 
-更新日期：2026-11-17。本文描述下载核心的传输归属、请求上下文与任务生命周期。
-本轮主动下载入口已通过 25 个可运行下载检查脚本与 ArkTS/未签名 HAP 编译；完整网络门禁、签名构建及设备行为验证仍未完成，详见第 8 节。
-下载页面沿用 Aira 界面，本轮不做华为视觉复刻。
+更新日期：2026-10-24。本文描述当前源码与本地自动回归覆盖，替代旧版下载架构调研。
 
 ## 1. 当前结构
 
@@ -13,15 +11,13 @@
 flowchart TD
   A[网页触发下载] --> B[ArkWeb WebDownloadItem]
   B --> C[ArkWebDownloadBridge]
-  D[手动 / 长按 / 资源 / GM / 批量] --> E[DownloadRuntimeService]
+  D[手动链接 / 长按 / 嗅探资源 / GM_download] --> E[DownloadRuntimeService]
   E --> F[DownloadV2Service]
   C --> F
   F --> G[DownloadV2Engine / Repository]
   F --> H{任务传输 owner}
-  H -->|已捕获任务| I[ArkWeb 原有下载任务]
-  H -->|普通主动下载| N[来源 controller.startDownload]
-  N --> C
-  H -->|HLS / 自定义 headers / 旧任务| J[LibcurlDownloadAdapter]
+  H -->|网页普通文件、POST、blob/data| I[ArkWeb 原有下载任务]
+  H -->|手动 HTTP GET、HLS| J[LibcurlDownloadAdapter]
   J --> K[download_core.cpp / download_hls.cpp]
   I --> L[文件保存与导出]
   K --> L
@@ -30,13 +26,7 @@ flowchart TD
 
 网页下载以 ArkWeb delegate 的 `WebDownloadItem` 为依据。已经由浏览器发起的普通下载保留原请求，
 避免把一次性地址重新 GET。`onDownloadStart` 不是另一个自动建任务入口。
-普通主动下载也交给 ArkWeb；Service 默认选择 `arkweb`。Runtime 登记来源 controller，
-Bridge 发起 `controller.startDownload(url)`，并将随后收到的平台 GUID 关联到已有应用任务 GUID。
-主动发起和 delegate 回调形成同一任务，不能各建一条记录。
-
-libcurl 保留给明确的 HLS、公开 ArkWeb 下载接口无法等价表达的自定义请求头，以及已经持久化的旧 libcurl 任务。
-不因任务来自手动 URL、资源嗅探、普通 MP4、无自定义头的 `GM_download` 或批量入口而选择 libcurl。
-引擎选择不改变既有下载页面。
+HLS 需要清单、密钥和分片处理，因此使用原生 HLS 路径。
 
 ## 2. 请求与资源发现
 
@@ -44,24 +34,13 @@ libcurl 保留给明确的 HLS、公开 ArkWeb 下载接口无法等价表达的
 `MediaCandidateProjector` 负责资源操作投影，`BrowserMediaDiscoveryCoordinator` 构建下载请求。
 
 - 已确认的 HLS 候选传入 HLS MIME，URL 无 `.m3u8` 后缀或服务器报告 `text/plain` 时仍走 HLS。
-- 请求保留来源 controller/tab、窗口、profile、普通/私密边界。普通 ArkWeb 下载使用对应来源的 Web 上下文；不能借用后来切换到的页面。
-- 普通页面 UA、Referer、Cookie 等上下文证据本身不是切换 libcurl 的理由。调用方明确要求自定义 headers 时，才使用有标记的专用传输路径。
-- 对必须使用 native 的请求，捕获的 Cookie、Authorization、Referer、Origin 和 User-Agent 随请求传递；已有头优先于兜底值。
+- 捕获的 Cookie、Authorization、Referer、Origin 和 User-Agent 随请求传递；已有头优先于兜底值。
 - 长按下载在菜单打开时保存来源页面和页面 UA，选择时不会借用后来切换到的页面。
 - 缺少 Cookie 时，libcurl adapter 按目标 URL 和任务的普通/私密边界读取 ArkWeb Cookie。
 - 捕获的 Host、Range、If-Range、缓存条件和传输控制头不会作为新下载的固定请求头重放。
 - DRM、DASH 和明确的音视频分离候选不提供文件下载动作；AES-128 identity HLS 不按 DRM 拦截。
 
-## 3. 主动 URL 下载
-
-来源明确的长按、普通媒体、资源、用户脚本和批量任务调用所属 `WebviewController.startDownload(url)`。
-Bridge 保存发起意图，按来源边界匹配 before 回调后绑定平台任务；回调到来前不能假装已有可恢复的平台 token。
-重复 URL、多窗口与私密任务不能仅用 URL 匹配到别人的任务。
-
-公开 `startDownload` 只有 URL 参数，并要求 controller 已关联 Web 组件；它不是全局无页面 HTTP 客户端。
-官方指南说明 referrer 取决于当前 Web URL 和 Referrer Policy。没有来源页面时，需要可用且隐私边界正确的
-应用 controller；未提供该宿主时应明确等待或失败，不能静默回退 libcurl。专用空白 Web 宿主也不能冒充原页面的 referrer、POST 或 blob 上下文。
-只有需要精确自定义 headers 的调用才进入明确的 native 分支；`loadUrl` 的 headers 参数不能当作 `startDownload` 参数。
+## 3. 手动下载不预探测 HTML
 
 任务创建前不再运行单独的 NetStack GET、HTML 跳转解析或 Range 探测。
 这些请求曾提前消耗一次性链接，也把响应 Cookie、代理和身份拆成不同传输上下文。
@@ -78,10 +57,8 @@ HTTP 3xx 重定向与响应 Cookie 由实际下载器在同一任务中处理。
 | --- | --- |
 | 网页 HTTP/HTTPS 文件 | ArkWeb 完成已经发起的请求 |
 | 网页 POST 导出、blob/data | 保留 ArkWeb 请求与渲染器上下文 |
-| 手动 HTTP/HTTPS GET、长按、批量、无自定义头 GM_download | 来源 controller.startDownload → Bridge 绑定平台任务 → 同一 Service 生命周期 |
-| 普通 MP4/WebM 等直接文件、非 HLS 资源 | 同样使用来源 ArkWeb controller，不需要媒体清单合并 |
-| 明确自定义 headers 的独立请求 | 专用 libcurl 分支；公开 startDownload 无 headers 参数，不宣称两者完全等价 |
-| 已持久化 libcurl 任务 | 保留原传输 owner、续传记录和兼容恢复，不强制迁移为新 ArkWeb 请求 |
+| 手动 HTTP/HTTPS GET | libcurl 下载，支持应用代理与标准 HTTP 重定向 |
+| 普通 MP4/WebM 等直接文件 | 按文件下载，不需要媒体清单合并 |
 | HLS VOD | 下载清单、初始化段与媒体段，按计划顺序合并 |
 | HLS AES-128 identity | 16 字节密钥、CBC、PKCS#7，支持显式 IV 和媒体序号 IV |
 | HLS 密钥轮换、METHOD=NONE | 分段绑定密钥与 IV，允许后续恢复明文 |
@@ -99,10 +76,7 @@ HLS 主清单目前选择最高 BANDWIDTH 的变体。若该变体依赖独立�
 HLS 合并是有序资源拼接，不是通用媒体转封装器。含 MAP 的结果使用 `.mp4`，其他 HLS 使用 `.ts`。
 不同编码参数、轨道变化或时间戳不连续的真实媒体播放兼容性，仍需独立验证；字节完整不等于所有播放器可播。
 
-## 5. Native 专用路径的 Cookie、重试与文件完整性
-
-本节描述 HLS、自定义 headers 和旧 libcurl 任务，不是普通 ArkWeb 下载的实现方式。
-ArkWeb 的请求和续传由其原生下载对象负责，应用不能将 receivedBytes 当成通用 HTTP 续传偏移。
+## 5. Cookie、重试与文件完整性
 
 原生任务有自己的 Cookie 会话。响应 Set-Cookie 会进入后续 HTTP、清单、密钥与分片请求。
 并行 HLS worker 各自使用 easy handle，复制 Cookie 快照并合并变化，不跨线程共用 libcurl Cookie jar。
@@ -145,27 +119,21 @@ HLS 百分比按清单中的资源完成比例计算，已知长度的在途分�
 下载列表、最近下载、工具栏和系统通知使用相同进度来源。重试撤回丢弃分片的进度，恢复时从有效
 checkpoint 重建统计，合并文件成功关闭后才显示 100% 与实际大小。
 
-旧版 ArkWeb `NETWORK_FAILED (20)` 后自动切 libcurl HTTP/1.1、清 token、另建 `.http1` 文件的策略已经移除。
-ArkWeb 网络类错误 20/21/22 进入网络暂停，保留同一任务的 GUID 与恢复上下文，通过 ArkWeb 恢复。
-用户暂停与网络/Wi-Fi 暂停分开；网络变化只自动调度符合条件的网络/Wi-Fi 等待任务。
-恢复上下文不可用时明确失败并引导回原网页，不把 POST、一次性 URL 或普通 GET 偷换成另一引擎的请求。
+普通 HTTP/HTTPS GET 已收到部分文件、已知完整长度且最终被 ArkWeb 以 `NETWORK_FAILED (20)`
+中断时，自动切换一次 libcurl HTTP/1.1 单流下载。此处处理内核 HTTP/2/并行范围请求失败后反复恢复
+仍失败的情况；初次网页请求继续由 ArkWeb 持有。POST、blob/data、访问拒绝和未收到文件的任务
+不适用此恢复规则。切换保留原请求的 UA、Referer、已捕获请求头和 Cookie 隐私边界，并遵守队列准入。
 
-确认与并发准入前需要真正停止平台传输。`WebDownloadItem.start(path)` 主要决定保存目标，
-未调用它时平台仍可能下载到临时目录。Bridge 使用公开 cancel/manager.resumeDownload 路径持有原任务，
-后续重新进入 before 回调时绑定目标路径；未开始的任务不能靠 pause 假装已停止。
-同进程保留的对象和序列化 token 分别承担恢复；重启后缺 token 不伪造恢复能力。
-ArkWeb 和 curl 的错误数字按各自来源解释，不能共用数字表。
+ArkWeb 的 receivedBytes 可能是多段稀疏文件的字节总和，不能当作连续续传偏移。
+兼容恢复使用独立临时文件，从零开始，持久化新 owner 和预期完整长度；旧 ArkWeb 事件被忽略。
+替换响应只有与原文件长度相符才可完成，避免 CDN 的小体积 HTML 验证页被作为 APK 导出。
+若替换下载仍失败，保留失败状态与重试入口，不继续自动循环恢复。
 
 ## 7. 保存与代码归属
 
 `DownloadFileResolutionService` 与 `DownloadLocationDirectoryService` 负责目标目录、授权、导出及清理。
 普通下载可使用默认系统下载位置或用户选择的目录；私密下载遵守其任务边界与保存策略。
-传输完成后进入 `completionState=finalizing`，此时不能打开文件或提前发送完成通知。
-源文件可读、目标写入/复制结果正确且关键元数据持久化后，才进入 completed/available。
-HTTP 已知完整长度参与验证；HLS 合并产物不能直接与分片传输字节相等比较。
-用户取消导出时，只有已核验可读的本地源仍可保留完成语义。
-源仍有效的导出失败可以重试导出或重选目录；源丢失/不完整不能反复提供无效的导出重试。
-任务冻结保存目标与授权类型，恢复前重新验证；目标撤权不能静默改存别处。
+传输完成、导出成功和最终可见路径是不同事实，列表应显示实际保存结果。
 每个临时文件使用独立 UUID，避免同名任务在同一毫秒建任务时共用一个文件。
 导出分配在应用内预留目标 URI，避免多个任务或窗口同时选中同一个尚不存在的文件名。
 描述符复制会处理短写，写完当前数据块之后再移动源文件偏移。
@@ -196,14 +164,11 @@ node scripts/check-aira-download-export-ghost-guard.cjs
 AIRA_DISTRIBUTION=community SKIP_INSTALL=1 ./scripts/build-aira-browser.sh
 ```
 
-最终本轮检查：普通主动入口、双 GUID 与暂停恢复改动完成后，25 个不依赖本地监听的下载检查脚本全部通过；架构检查及目标 DevEco SDK 的 ArkTS/未签名 HAP 编译通过。
-完整下载门禁的重定向 fixture 和 Community 构建脚本的 WebDAV fixture 被环境的 `listen 127.0.0.1` EPERM 阻止，后续 native/proxy 网络门禁未完成；不能将完整门禁或完整 Community 构建脚本标为通过。
-
 原生回归编译生产 C++，运行本地 HTTP fixture，断言产物字节、失败状态、Cookie 和范围请求。
 AES fixture 由独立 OpenSSL 实现生成，解密使用仓库内的 Mbed TLS。
 ArkTS 回归执行生产方法，平台对象、存储和调度使用受控模型；一次性下载测试实际经过 V2 创建到本地 HTTP。
 这些检查不能替代 HarmonyOS 真机的 ArkWeb token 生命周期、TLS/系统证书、系统保存权限和真实媒体播放验证。
-已签名产物、设备安装和真实站点端到端行为仍待验证。界面截图或华为视觉对照不属于本轮交付门槛。
+本次工作没有进行设备截图、设备安装或真实站点端到端验收。
 
 完整下载检查由 `scripts/check-aira-downloads.sh` 统一执行，并用于客户端 CI 和本地整包构建。
 新增故障注入覆盖模块加载期间取消/重复启动、排队恢复、同步完成、短写与同名文件竞争、
@@ -213,7 +178,5 @@ HTTP 临时断连/限流/服务暂不可用、错误重定向/304、实体切换
 协议依据：[RFC 8216](https://www.rfc-editor.org/rfc/rfc8216.html)、
 [libcurl Cookie engine](https://curl.se/libcurl/c/CURLOPT_COOKIEFILE.html)、
 [libcurl Retry-After](https://curl.se/libcurl/c/CURLINFO_RETRY_AFTER.html)、
-[Huawei Web 下载指南](https://developer.huawei.com/consumer/cn/doc/HarmonyOS-Guides/web-download/)、
-[Huawei WebviewController](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/arkts-apis-webview-webviewcontroller/)、
 [Huawei WebDownloadItem](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/arkts-apis-webview-webdownloaditem)、
 [Huawei WebDownloadManager](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/arkts-apis-webview-webdownloadmanager)。
