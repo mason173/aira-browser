@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest';
 import {
   resolveCloudFeatureEntryView,
   resolveOfficialPopupOpenView,
-  shouldAutoSelectAiraCloud,
+  shouldOfferCloudSyncChoice,
 } from './featureEntryRouting';
 
 describe('cloud feature entry routing', () => {
@@ -13,26 +13,26 @@ describe('cloud feature entry routing', () => {
     })).toBe('sync-method');
   });
 
-  test('turns on Aira cloud after login and leaves an explicit provider alone', () => {
-    expect(shouldAutoSelectAiraCloud({
+  test('offers a cloud sync choice after login or before the first selection', () => {
+    expect(shouldOfferCloudSyncChoice({
       airaCloudAvailable: true,
       loggedIn: true,
       selectedSource: 'webdav',
       loginJustCompleted: true,
     })).toBe(true);
-    expect(shouldAutoSelectAiraCloud({
+    expect(shouldOfferCloudSyncChoice({
       airaCloudAvailable: true,
       loggedIn: true,
       selectedSource: null,
       loginJustCompleted: false,
     })).toBe(true);
-    expect(shouldAutoSelectAiraCloud({
+    expect(shouldOfferCloudSyncChoice({
       airaCloudAvailable: true,
       loggedIn: true,
       selectedSource: 'personal-server',
       loginJustCompleted: false,
     })).toBe(false);
-    expect(shouldAutoSelectAiraCloud({
+    expect(shouldOfferCloudSyncChoice({
       airaCloudAvailable: true,
       loggedIn: false,
       selectedSource: null,

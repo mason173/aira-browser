@@ -1,6 +1,6 @@
 export type CloudFeatureEntryView = 'login' | 'sync-method' | 'personal-server';
 
-export function shouldAutoSelectAiraCloud(options: {
+export function shouldOfferCloudSyncChoice(options: {
   airaCloudAvailable: boolean;
   loggedIn: boolean;
   selectedSource: string | null;

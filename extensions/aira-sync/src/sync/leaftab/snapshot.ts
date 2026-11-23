@@ -165,6 +165,180 @@ const createTombstone = (
   lastKnownRevision: entity.revision,
 });
 
+// Native root folders cannot be created, renamed or removed by the extension.
+export const materializeRemoteOverwrite = (
+  remote: LeafTabSyncSnapshot,
+  local: LeafTabSyncSnapshot,
+): LeafTabSyncSnapshot => {
+  const rootIds = local.bookmarkOrders[ROOT_ORDER_KEY]?.ids || [];
+  const incomingRoots = remote.bookmarkOrders[ROOT_ORDER_KEY]?.ids || [];
+  if (incomingRoots.some((id) => !rootIds.includes(id) || !remote.bookmarkFolders[id])) {
+    throw new Error('远端书签含有当前浏览器无法写入的根目录，已停止覆盖。');
+  }
+  const bookmarkFolders = { ...remote.bookmarkFolders };
+  const bookmarkOrders = { ...remote.bookmarkOrders };
+  const tombstones = { ...remote.tombstones };
+  for (const id of rootIds) {
+    delete tombstones[createLeafTabSyncTombstoneKey('bookmark-folder', id)];
+    const native = local.bookmarkFolders[id];
+    if (native) bookmarkFolders[id] = { ...(bookmarkFolders[id] || native), title: native.title };
+  }
+  const rootOrder = local.bookmarkOrders[ROOT_ORDER_KEY];
+  if (rootOrder) bookmarkOrders[ROOT_ORDER_KEY] = { ...(bookmarkOrders[ROOT_ORDER_KEY] || rootOrder), ids: rootIds };
+  for (const folder of Object.values(bookmarkFolders)) {
+    if (!bookmarkOrders[folder.id]) {
+      bookmarkOrders[folder.id] = {
+        type: 'bookmark-order', parentId: folder.id, ids: [], updatedAt: folder.updatedAt,
+        updatedBy: folder.updatedBy, revision: 1,
+      };
+    }
+  }
+  return { ...remote, bookmarkFolders, bookmarkOrders, tombstones };
+};
+
+// Browser-owned root names and empty containers can differ from the wire snapshot.
+// Reuse the confirmed representation until a local edit actually needs a new container.
+export const reconcileNativeBookmarkRoots = (
+  captured: LeafTabSyncSnapshot,
+  baseline: LeafTabSyncSnapshot,
+): LeafTabSyncSnapshot => {
+  const physicalOrder = captured.bookmarkOrders[ROOT_ORDER_KEY];
+  if (!physicalOrder) return captured;
+  const bookmarkFolders = { ...captured.bookmarkFolders };
+  const bookmarkOrders = { ...captured.bookmarkOrders };
+  const tombstones = { ...captured.tombstones };
+  for (const id of physicalOrder.ids) {
+    if (id !== 'browser_root_toolbar' && id !== 'browser_root_other') continue;
+    const confirmed = baseline.bookmarkFolders[id];
+    if (confirmed && bookmarkFolders[id]) {
+      bookmarkFolders[id] = confirmed;
+    } else if (!confirmed && !bookmarkOrders[id]?.ids.length) {
+      delete bookmarkFolders[id];
+      const key = createLeafTabSyncTombstoneKey('bookmark-folder', id);
+      if (baseline.tombstones[key]) tombstones[key] = baseline.tombstones[key];
+    }
+  }
+  const retainedIds = physicalOrder.ids.filter(id => bookmarkFolders[id]);
+  const confirmedOrder = baseline.bookmarkOrders[ROOT_ORDER_KEY];
+  if (confirmedOrder && confirmedOrder.ids.length === retainedIds.length &&
+      confirmedOrder.ids.every(id => retainedIds.includes(id))) {
+    bookmarkOrders[ROOT_ORDER_KEY] = confirmedOrder;
+  } else {
+    bookmarkOrders[ROOT_ORDER_KEY] = { ...physicalOrder, ids: retainedIds };
+  }
+  for (const [key, order] of Object.entries(bookmarkOrders)) {
+    if (!order.ids.length && !baseline.bookmarkOrders[key] &&
+        (key === ROOT_ORDER_KEY || baseline.bookmarkFolders[key] || !bookmarkFolders[key])) {
+      delete bookmarkOrders[key];
+    }
+  }
+  return { ...captured, bookmarkFolders, bookmarkOrders, tombstones };
+};
+
+// The existing per-record actor carries the explicit overwrite intent to paired
+// readers even if an unrelated device publishes another head before they sync.
+const COMPUTER_OVERWRITE_ACTOR_PREFIX = 'aira-sync-bookmark-overwrite:';
+export const isComputerOverwriteActor = (actor: string | undefined) =>
+  Boolean(actor?.startsWith(COMPUTER_OVERWRITE_ACTOR_PREFIX));
+
+// A desktop overwrite owns the shared tree. Keep the App-owned partition from
+// the current head and record removals so paired devices can retire their old IDs.
+export const buildComputerOverwriteSnapshot = (
+  local: LeafTabSyncSnapshot,
+  remote: LeafTabSyncSnapshot | null,
+  deviceId: string,
+): LeafTabSyncSnapshot => {
+  if (!remote) return local;
+  const now = new Date().toISOString();
+  const actor = COMPUTER_OVERWRITE_ACTOR_PREFIX + deviceId;
+  const bookmarkFolders = { ...local.bookmarkFolders };
+  const bookmarkItems = { ...local.bookmarkItems };
+  const bookmarkOrders = { ...local.bookmarkOrders };
+  const tombstones = { ...remote.tombstones };
+  for (const [key, deletion] of Object.entries(local.tombstones)) {
+    const previous = tombstones[key];
+    if (!previous || deletion.lastKnownRevision > previous.lastKnownRevision ||
+      (deletion.lastKnownRevision === previous.lastKnownRevision && deletion.deletedAt > previous.deletedAt)) {
+      tombstones[key] = deletion;
+    }
+  }
+
+  for (const entity of [...Object.values(remote.bookmarkFolders), ...Object.values(remote.bookmarkItems)]) {
+    if (bookmarkFolders[entity.id] || bookmarkItems[entity.id]) continue;
+    const key = createLeafTabSyncTombstoneKey(entity.type, entity.id);
+    tombstones[key] = {
+      ...createTombstone(entity, actor, now),
+      lastKnownRevision: Math.max(entity.revision, tombstones[key]?.lastKnownRevision ?? 0),
+    };
+  }
+  for (const entity of [...Object.values(bookmarkFolders), ...Object.values(bookmarkItems)]) {
+    const key = createLeafTabSyncTombstoneKey(entity.type, entity.id);
+    const formerRevision = remote.tombstones[key]?.lastKnownRevision ?? -1;
+    const previous = entity.type === 'bookmark-folder' ? remote.bookmarkFolders[entity.id] : remote.bookmarkItems[entity.id];
+    const changed = previous && (previous.parentId !== entity.parentId || previous.title !== entity.title ||
+      (entity.type === 'bookmark-item' && previous.type === 'bookmark-item' && previous.url !== entity.url));
+    const revision = Math.max(entity.revision, formerRevision + 1, (previous?.revision ?? 0) + (changed ? 1 : 0));
+    if (!previous || changed || revision !== entity.revision) {
+      const metadata = { revision, updatedAt: now, updatedBy: actor };
+      if (entity.type === 'bookmark-folder') bookmarkFolders[entity.id] = { ...entity, ...metadata };
+      else bookmarkItems[entity.id] = { ...entity, ...metadata };
+    }
+    delete tombstones[createLeafTabSyncTombstoneKey('bookmark-folder', entity.id)];
+    delete tombstones[createLeafTabSyncTombstoneKey('bookmark-item', entity.id)];
+  }
+  for (const [key, order] of Object.entries(bookmarkOrders)) {
+    const previous = remote.bookmarkOrders[key];
+    if (previous && !areArraysEqual(order.ids, previous.ids) && order.revision <= previous.revision) {
+      bookmarkOrders[key] = { ...order, ...createUpdatedOrderMetadata(previous, deviceId, now) };
+    }
+  }
+  return { ...local, bookmarkFolders, bookmarkItems, bookmarkOrders, tombstones,
+    appPrivateBookmarks: remote.appPrivateBookmarks };
+};
+
+// Keep the first occurrence in visible tree order. Two distinct folder entities can
+// represent the same named path. Anchor that path at the canonical root identity.
+export const deduplicateFirstJoinBookmarks = (
+  snapshot: LeafTabSyncSnapshot,
+  deviceId: string,
+): LeafTabSyncSnapshot => {
+  const seen = new Set<string>();
+  const duplicates = new Set<string>();
+  const visit = (orderKey: string, path: string[]) => {
+    for (const id of snapshot.bookmarkOrders[orderKey]?.ids || []) {
+      const folder = snapshot.bookmarkFolders[id];
+      if (folder) {
+        visit(id, [...path, folder.parentId === null ? id : folder.title]);
+        continue;
+      }
+      const item = snapshot.bookmarkItems[id];
+      if (!item) continue;
+      const key = JSON.stringify([...path, item.title, item.url]);
+      if (seen.has(key)) duplicates.add(id);
+      else seen.add(key);
+    }
+  };
+  visit(ROOT_ORDER_KEY, []);
+  if (duplicates.size === 0) return snapshot;
+
+  const timestamp = new Date().toISOString();
+  const bookmarkItems = { ...snapshot.bookmarkItems };
+  const bookmarkOrders = { ...snapshot.bookmarkOrders };
+  const tombstones = { ...snapshot.tombstones };
+  for (const id of duplicates) {
+    const deletion = createTombstone(bookmarkItems[id], deviceId, timestamp);
+    tombstones[createLeafTabSyncTombstoneKey(deletion)] = deletion;
+    delete bookmarkItems[id];
+  }
+  for (const [key, order] of Object.entries(bookmarkOrders)) {
+    const ids = order.ids.filter((id) => !duplicates.has(id));
+    if (ids.length !== order.ids.length) {
+      bookmarkOrders[key] = { ...order, ...createUpdatedOrderMetadata(order, deviceId, timestamp), ids };
+    }
+  }
+  return { ...snapshot, bookmarkItems, bookmarkOrders, tombstones };
+};
+
 const resolveBookmarkTreeInput = (
   bookmarkTree: LeafTabBookmarkTreeDraft | null | undefined,
 ) => {

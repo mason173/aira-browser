@@ -1,3 +1,4 @@
+import { pauseAutoSyncDuringBookmarkOverwrite } from './localApplyVerificationBreaker';
 import { LeafTabSyncExtensionStorageBaselineStore } from '@/sync/leaftab/baseline';
 import { LeafTabSyncAiraCloudStore } from '@/sync/leaftab/airaCloudStore';
 import { LeafTabSyncPersonalServerStore } from '@/sync/leaftab/personalServerStore';
@@ -20,6 +21,7 @@ import {
 } from '@/platform/extensionStorage';
 import {
   LeafTabSyncEngine,
+  type BookmarkOverwriteDirection,
   type LeafTabSyncDataSummary,
   type LeafTabSyncEngineProgress,
   type LeafTabSyncEngineResult,
@@ -243,6 +245,7 @@ export interface BookmarkSyncRuntime {
 }
 
 export interface BookmarkSyncRunOptions {
+  overwrite?: BookmarkOverwriteDirection;
   onProgress?: (progress: LeafTabSyncEngineProgress) => void;
   conflictChoice?: BookmarkSyncConflictChoice;
   mergeIntent?: LeafTabSyncMergeIntent;
@@ -442,6 +445,11 @@ export class BookmarkSyncModule {
     const engine = this.createEngine();
     return engine.sync({
       onProgress: options.onProgress,
+      overwrite: options.overwrite,
+      beforeOverwrite: (direction) => pauseAutoSyncDuringBookmarkOverwrite({
+        direction,
+        sourceIdentity: createBookmarkSyncSourceIdentity(this.config.provider, this.config.rootPath),
+      }),
       mergeIntent: options.mergeIntent,
     });
   }

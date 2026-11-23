@@ -835,7 +835,10 @@ export const mergeLeafTabSyncSnapshot = (
       source = 'remote';
       ids = remoteIds.filter((id) => availableIds.has(id));
     } else if (areArraysEqual(localIds, remoteIds)) {
-      source = localOrder ? 'local' : remoteOrder ? 'remote' : 'merged';
+      // Both clients already display this order. Carry the committed metadata
+      // so idle readers cannot take turns publishing their own timestamps.
+      source = remoteOrder ? 'remote' : localOrder ? 'local' : 'merged';
+      if (options.conflictResolution === 'prefer-local' && localOrder) source = 'local';
       ids = localIds.filter((id) => availableIds.has(id));
     } else {
       const chosen = chooseOrderByFreshness(localOrder, remoteOrder);

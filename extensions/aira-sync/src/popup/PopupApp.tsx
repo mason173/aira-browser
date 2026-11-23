@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
@@ -23,7 +24,8 @@ import { readStoreListingUrl } from '@/popup/storeListing';
 import { getExtensionManifest } from '@/platform/runtime';
 import { useBookmarkSyncRuntimeController } from '@/features/sync/bookmarks/useBookmarkSyncRuntimeController';
 import { parseLeafTabSyncRemoteKind } from '@/sync/leaftab/source';
-import type { LeafTabSyncFacade } from '@/features/sync/app/LeafTabSyncContracts';
+import type { BookmarkOverwriteDirection } from '@/sync/leaftab/engine';
+import type { BookmarkOverwriteTarget, LeafTabSyncFacade, LeafTabSyncRemoteKind } from '@/features/sync/app/LeafTabSyncContracts';
 import QRCodeStyling from 'qr-code-styling';
 import {
   History as HistoryIcon,
@@ -85,7 +87,7 @@ import { resolveCrossDeviceTransportKind } from '@/features/device-tabs/crossDev
 import {
   resolveCloudFeatureEntryView,
   resolveOfficialPopupOpenView,
-  shouldAutoSelectAiraCloud,
+  shouldOfferCloudSyncChoice,
 } from './featureEntryRouting';
 import {
   detectHistoryBrowserKind,
@@ -103,6 +105,7 @@ type PopupView =
   | 'webdav'
   | 'personal-server'
   | 'sync-method'
+  | 'cloud-sync-choice'
   | 'advanced'
   | 'login'
   | 'device-tabs';
@@ -318,7 +321,7 @@ function SyncProgressDialog({ syncRuntime }: { syncRuntime: PopupSyncRuntime }) 
   const progress = syncRuntime.state.leafTabSyncProgress;
   const lastResult = syncRuntime.state.leafTabSyncLastResult;
   const pendingConflict = syncRuntime.state.leafTabPendingBookmarkConflict;
-  const isConflict = Boolean(pendingConflict || lastResult?.kind === 'conflict') && !progress.inProgress;
+  const isConflict = Boolean(pendingConflict || lastResult?.kind === 'conflict') && !progress.inProgress && !progress.failed;
   const isFailed = progress.failed && !progress.inProgress;
   const conflictCount = lastResult?.kind === 'conflict'
     ? lastResult.mergeResult?.conflicts.length || 0
@@ -443,6 +446,7 @@ function SyncProgressDialog({ syncRuntime }: { syncRuntime: PopupSyncRuntime }) 
             </div>
           ) : isFailed ? (
             <div className="grid gap-2">
+              {!progress.overwriteFailed && (
               <Button
                 type="button"
                 className="h-10 w-full rounded-[8px]"
@@ -452,6 +456,7 @@ function SyncProgressDialog({ syncRuntime }: { syncRuntime: PopupSyncRuntime }) 
               >
                 {t('popup.progress.retry', { defaultValue: '再次同步' })}
               </Button>
+              )}
               <Button
                 type="button"
                 variant="ghost"
@@ -947,6 +952,12 @@ function BookmarkSyncControls({
           description={t('popup.home.webdavOnlyDesc', { defaultValue: '无需 Aira 登录，所有用户均可使用' })}
           onClick={onOpenWebdav}
         />
+        <MenuItem
+          icon={<RiSlidersFill className="size-4" />}
+          title={t('popup.dashboard.advancedOptions', { defaultValue: '高级同步选项' })}
+          description={t('popup.advanced.overwriteBookmarks')}
+          onClick={onOpenAdvanced}
+        />
       </div>
     );
   }
@@ -1365,6 +1376,106 @@ function PopupHome({
   );
 }
 
+function BookmarkOverwriteControls({ syncRuntime, provider, onCompleted }: {
+  syncRuntime: PopupSyncRuntime;
+  provider?: LeafTabSyncRemoteKind;
+  onCompleted?: () => void;
+}) {
+  const { t } = useTranslation();
+  const { state, actions } = syncRuntime;
+  const [confirmation, setConfirmation] = useState<{
+    target: BookmarkOverwriteTarget; direction: BookmarkOverwriteDirection;
+  } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const pending = useRef(false);
+  const active = state.leafTabPendingBookmarkConflict?.provider || state.leafTabSelectedSyncSource;
+  const providers: LeafTabSyncRemoteKind[] = [];
+  if (provider) providers.push(provider);
+  else if (active) providers.push(active);
+  else {
+    if (AIRATAB_CAPABILITIES.airaCloud && state.leafTabCloudLoggedIn) providers.push('aira-cloud');
+    if (state.leafTabWebdavConfigured) providers.push('webdav');
+    if (state.leafTabPersonalServerConfigured) providers.push('personal-server');
+  }
+  const label = (direction: BookmarkOverwriteDirection, provider: LeafTabSyncRemoteKind) =>
+    t(direction === 'computer-to-remote' ? 'popup.advanced.pushBookmarks' : 'popup.advanced.pullBookmarks',
+      { provider: provider === 'aira-cloud' ? 'Aira Cloud' : provider === 'webdav' ? 'WebDAV' : 'Personal Server' });
+  const prepare = async (provider: LeafTabSyncRemoteKind, direction: BookmarkOverwriteDirection) => {
+    if (pending.current) return;
+    pending.current = true;
+    setBusy(true);
+    try {
+      const target = await actions.prepareBookmarkOverwrite(provider);
+      setConfirmation({ target, direction });
+    } catch (error) {
+      toast.error(String((error as Error).message || error));
+    } finally {
+      pending.current = false;
+      setBusy(false);
+    }
+  };
+  const confirm = async () => {
+    if (!confirmation || pending.current) return;
+    pending.current = true;
+    setBusy(true);
+    setConfirmation(null);
+    try {
+      if (await actions.overwriteBookmarks(confirmation.target, confirmation.direction)) onCompleted?.();
+    } catch (error) {
+      toast.error(String((error as Error).message || error));
+    } finally {
+      pending.current = false;
+      setBusy(false);
+    }
+  };
+  if (!providers.length) return null;
+  const disabled = busy || !state.syncStorageReady || state.leafTabSyncProgress.inProgress;
+  return (
+    <>
+      {provider ? (
+        <Button disabled={disabled} onClick={async () => {
+          if (pending.current) return;
+          pending.current = true;
+          setBusy(true);
+          try {
+            if (await actions.handleSelectSyncSource(provider)) onCompleted?.();
+          } finally {
+            pending.current = false;
+            setBusy(false);
+          }
+        }}>{t('popup.advanced.mergeBookmarks')}</Button>
+      ) : <SectionLabel>{t('popup.advanced.overwriteBookmarks')}</SectionLabel>}
+      {providers.map((provider) => (
+        <div key={provider} className="grid gap-2">
+          {(['computer-to-remote', 'remote-to-computer'] as const).map((direction) => (
+            <Button key={direction} variant="outline" disabled={disabled}
+              onClick={() => void prepare(provider, direction)}>{label(direction, provider)}</Button>
+          ))}
+        </div>
+      ))}
+      <Dialog open={Boolean(confirmation)} onOpenChange={(open) => { if (!open) setConfirmation(null); }}>
+        {confirmation && (
+          <DialogContent className="max-w-[328px] rounded-[20px] p-5">
+            <DialogHeader>
+              <DialogTitle>{label(confirmation.direction, confirmation.target.provider)}</DialogTitle>
+              <DialogDescription className="not-sr-only break-words text-sm text-muted-foreground">
+                {t(confirmation.direction === 'computer-to-remote' ? 'popup.advanced.pushWarning' : 'popup.advanced.pullWarning',
+                  { provider: confirmation.target.label })}
+                {confirmation.target.selectedSource !== confirmation.target.provider &&
+                  ' ' + t('popup.advanced.selectAfterOverwrite')}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setConfirmation(null)}>{t('popup.advanced.cancelOverwrite')}</Button>
+              <Button variant="destructive" onClick={() => void confirm()}>{t('popup.advanced.confirmOverwrite')}</Button>
+            </div>
+          </DialogContent>
+        )}
+      </Dialog>
+    </>
+  );
+}
+
 function AdvancedSettingsPage({
   crossDeviceFeatures,
   syncRuntime,
@@ -1431,6 +1542,8 @@ function AdvancedSettingsPage({
             )}
           />
         </div>
+
+        <BookmarkOverwriteControls syncRuntime={syncRuntime} />
 
         <SectionLabel>
           {t('popup.advanced.syncSwitches', { defaultValue: '同步开关' })}
@@ -1558,7 +1671,7 @@ function SyncMethodPage({
   onOpenLogin,
   onOpenPersonalServer,
   onOpenWebdav,
-  onSelected,
+  onCloudChoice,
 }: {
   profile: ConfiguredHomeState | null;
   syncRuntime: PopupSyncRuntime;
@@ -1566,21 +1679,18 @@ function SyncMethodPage({
   onOpenLogin: () => void;
   onOpenPersonalServer: () => void;
   onOpenWebdav: () => void;
-  onSelected: () => void;
+  onCloudChoice: () => void;
 }) {
   const { t } = useTranslation();
   const selectedSource = syncRuntime.state.leafTabSelectedSyncSource;
   const syncing = syncRuntime.state.topNavSyncStatus === 'syncing';
 
-  const selectCloud = async () => {
+  const selectCloud = () => {
     if (!syncRuntime.state.leafTabCloudLoggedIn) {
       onOpenLogin();
       return;
     }
-    const selected = await syncRuntime.actions.handleSelectSyncSource('aira-cloud');
-    if (selected) {
-      onSelected();
-    }
+    onCloudChoice();
   };
 
   return (
@@ -1592,9 +1702,7 @@ function SyncMethodPage({
 
       <div className="space-y-3 px-3 py-3">
         <p className="px-1 text-xs leading-5 text-muted-foreground">
-          {t('popup.syncMethod.help', {
-            defaultValue: '一次只使用一种书签同步方式。选择后会自动合并同步；只有真实双向冲突才会询问。',
-          })}
+          {t('popup.syncMethod.help')}
         </p>
 
         {AIRATAB_CAPABILITIES.airaCloud ? (
@@ -2069,7 +2177,7 @@ export function PopupApp() {
   }));
   const [localVersion, setLocalVersion] = useState(0);
   const [pendingCloudSelectionAfterLogin, setPendingCloudSelectionAfterLogin] = useState(false);
-  const autoCloudAttemptKey = useRef('');
+  const lastCloudChoicePrompt = useRef('');
   const [personalServerConnection, setPersonalServerConnection] =
     useState<PersonalServerConnection | null>(null);
   const { t } = useTranslation();
@@ -2140,8 +2248,9 @@ export function PopupApp() {
   }, [desktopConnectionProfile?.uid]);
 
   useEffect(() => {
+    if (!syncRuntime.state.syncStorageReady) return;
     const loginJustCompleted = pendingCloudSelectionAfterLogin;
-    if (!shouldAutoSelectAiraCloud({
+    if (!shouldOfferCloudSyncChoice({
       airaCloudAvailable: AIRATAB_CAPABILITIES.airaCloud,
       loggedIn: syncRuntime.state.leafTabCloudLoggedIn,
       selectedSource: syncRuntime.state.leafTabSelectedSyncSource,
@@ -2150,14 +2259,14 @@ export function PopupApp() {
     const attemptKey = loginJustCompleted
       ? `login:${desktopConnectionProfile?.uid || 'pending'}`
       : `empty:${desktopConnectionProfile?.uid || ''}`;
-    if (autoCloudAttemptKey.current === attemptKey) return;
-    autoCloudAttemptKey.current = attemptKey;
+    if (lastCloudChoicePrompt.current === attemptKey) return;
+    lastCloudChoicePrompt.current = attemptKey;
     setPendingCloudSelectionAfterLogin(false);
-    void syncRuntime.actions.handleSelectSyncSource('aira-cloud');
+    setView('cloud-sync-choice');
   }, [
     desktopConnectionProfile?.uid,
     pendingCloudSelectionAfterLogin,
-    syncRuntime.actions,
+    syncRuntime.state.syncStorageReady,
     syncRuntime.state.leafTabCloudLoggedIn,
     syncRuntime.state.leafTabSelectedSyncSource,
   ]);
@@ -2169,7 +2278,7 @@ export function PopupApp() {
       setView('login');
       return;
     }
-    void syncRuntime.actions.handleSelectSyncSource('aira-cloud');
+    setView('cloud-sync-choice');
   };
 
   const logout = () => {
@@ -2315,8 +2424,16 @@ export function PopupApp() {
           }}
           onOpenPersonalServer={() => setView('personal-server')}
           onOpenWebdav={() => setView('webdav')}
-          onSelected={() => setView('advanced')}
+          onCloudChoice={() => setView('cloud-sync-choice')}
         />
+      )}
+      {view === 'cloud-sync-choice' && (
+        <section className="min-h-[360px] bg-background">
+          <PopupHeader title={t('popup.advanced.cloudSyncChoice')} onBack={() => setView('home')} />
+          <div className="grid gap-2 px-3 py-3">
+            <BookmarkOverwriteControls syncRuntime={syncRuntime} provider="aira-cloud" onCompleted={() => setView('home')} />
+          </div>
+        </section>
       )}
       {view === 'advanced' && (
         <AdvancedSettingsPage

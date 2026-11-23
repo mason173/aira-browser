@@ -1,4 +1,5 @@
 import type {
+  BookmarkOverwriteDirection,
   LeafTabSyncDataSummary,
   LeafTabSyncEngineProgress,
   LeafTabSyncEngineResult,
@@ -16,10 +17,18 @@ export type {
 
 export type LeafTabTopNavSyncStatus = 'idle' | 'syncing' | 'error' | 'conflict';
 
+export interface BookmarkOverwriteTarget {
+  provider: LeafTabSyncRemoteKind;
+  sourceIdentity: string;
+  selectedSource: LeafTabSyncRemoteKind | null;
+  label: string;
+}
+
 export type LeafTabSyncProgressState = {
   open: boolean;
   inProgress: boolean;
   failed: boolean;
+  overwriteFailed?: boolean;
   title: string;
   detail: string;
   progress: number;
@@ -29,6 +38,7 @@ export type LeafTabSyncProgressState = {
 
 export type LeafTabSyncState = {
   topNavSyncStatus: LeafTabTopNavSyncStatus;
+  syncStorageReady: boolean;
   leafTabSyncProgress: LeafTabSyncProgressState;
   leafTabPendingBookmarkConflict: LeafTabPendingBookmarkConflict | null;
   leafTabSyncHasConfig: boolean;
@@ -60,6 +70,8 @@ export type LeafTabSyncActions = {
     username: string;
     password: string;
   }) => Promise<boolean>;
+  prepareBookmarkOverwrite: (provider: LeafTabSyncRemoteKind) => Promise<BookmarkOverwriteTarget>;
+  overwriteBookmarks: (target: BookmarkOverwriteTarget, direction: BookmarkOverwriteDirection) => Promise<boolean>;
   handleActiveSyncNowFromCenter: () => Promise<boolean>;
   handleDismissSyncProgress: () => void;
   handleResolveBookmarkConflict: (choice: 'computer' | 'current-source') => Promise<boolean>;

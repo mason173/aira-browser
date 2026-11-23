@@ -7,12 +7,13 @@ import {
   type LeafTabSyncMergeResult,
 } from './merge';
 import type {
+  LeafTabSyncBaseline,
   LeafTabSyncBookmarkFolderEntity,
   LeafTabSyncBookmarkItemEntity,
   LeafTabSyncSnapshot,
 } from './schema';
-import type { LeafTabSyncHistoryDescriptor } from './schema';
-import { countLeafTabLiveBookmarkEntities } from './snapshot';
+import { createLeafTabSyncTombstoneKey, validateCanonicalLeafTabSyncSnapshot, type LeafTabSyncHistoryDescriptor } from './schema';
+import { buildComputerOverwriteSnapshot, countLeafTabLiveBookmarkEntities, deduplicateFirstJoinBookmarks, isComputerOverwriteActor, materializeRemoteOverwrite, reconcileNativeBookmarkRoots } from './snapshot';
 import { canonicalizeSnapshotBookmarkUrls } from './chromeBookmarkUrl';
 import { formatLeafTabSyncSummaryText, summarizeLeafTabSyncMerge, type LeafTabSyncChangeSummary } from './summary';
 import type { LeafTabSyncRemoteState, LeafTabSyncRemoteStore } from './remoteStore';
@@ -64,7 +65,11 @@ export interface LeafTabSyncEngineConfig {
   adoptLocalIdentity?: (remoteSnapshot: LeafTabSyncSnapshot) => Promise<LeafTabSyncSnapshot | null>;
 }
 
+export type BookmarkOverwriteDirection = 'computer-to-remote' | 'remote-to-computer';
+
 export interface LeafTabSyncEngineRunOptions {
+  overwrite?: BookmarkOverwriteDirection;
+  beforeOverwrite?: (direction: BookmarkOverwriteDirection) => Promise<void>;
   onProgress?: (progress: LeafTabSyncEngineProgress) => void;
   conflictResolution?: LeafTabSyncConflictResolution;
   mergeIntent?: LeafTabSyncMergeIntent;
@@ -204,6 +209,7 @@ const createRunawayContentKey = (
 const evaluateLeafTabSyncRunawayGuard = (
   baseSnapshot: LeafTabSyncSnapshot,
   nextSnapshot: LeafTabSyncSnapshot,
+  remoteSnapshot: LeafTabSyncSnapshot,
 ): string | null => {
   const baseEntities = [
     ...Object.values(baseSnapshot.bookmarkFolders),
@@ -213,7 +219,13 @@ const evaluateLeafTabSyncRunawayGuard = (
     ...Object.keys(nextSnapshot.bookmarkFolders),
     ...Object.keys(nextSnapshot.bookmarkItems),
   ]);
-  const deletions = baseEntities.filter((entity) => !nextIds.has(entity.id)).length;
+  // Count removals introduced by this merge. An already committed remote deletion
+  // must still reach paired devices, including those with unrelated local edits.
+  const deletions = baseEntities.filter(entity =>
+    !nextIds.has(entity.id) && !isComputerOverwriteActor(
+      remoteSnapshot.tombstones[createLeafTabSyncTombstoneKey(entity.type, entity.id)]?.deletedBy,
+    ),
+  ).length;
   if (deletions > RUNAWAY_DELETION_MIN_ENTITIES
     && deletions > baseEntities.length * RUNAWAY_DELETION_RATIO) {
     return `本轮同步将删除 ${deletions} 条书签（超过现有书签的一半），已自动中止以保护数据。如确需批量删除，请分批操作后再同步。`;
@@ -229,10 +241,13 @@ const evaluateLeafTabSyncRunawayGuard = (
     const key = createRunawayContentKey(entity);
     nextContentCounts.set(key, (nextContentCounts.get(key) || 0) + 1);
   });
-  const duplicateCreations = nextEntities.filter((entity) => (
-    !baseIds.has(entity.id)
-    && (nextContentCounts.get(createRunawayContentKey(entity)) || 0) > 1
-  )).length;
+  const duplicateCreations = nextEntities.filter(entity => {
+    if (baseIds.has(entity.id)) return false;
+    const key = createRunawayContentKey(entity);
+    const committed = remoteSnapshot.bookmarkFolders[entity.id] || remoteSnapshot.bookmarkItems[entity.id];
+    const authorized = committed && isComputerOverwriteActor(committed.updatedBy) && createRunawayContentKey(committed) === key;
+    return (nextContentCounts.get(key) || 0) > 1 && !authorized;
+  }).length;
   if (duplicateCreations > RUNAWAY_DUPLICATE_CREATION_LIMIT) {
     return `本轮同步将新增 ${duplicateCreations} 条内容完全相同的重复书签，已自动中止。请先清理本机重复书签后再同步。`;
   }
@@ -332,6 +347,75 @@ export class LeafTabSyncEngine {
     await this.config.clearPendingLocalChanges?.(completedPendingLocalChangedAt);
   }
 
+  private async overwriteBookmarks(
+    direction: BookmarkOverwriteDirection,
+    options: LeafTabSyncEngineRunOptions,
+    baseline: LeafTabSyncBaseline | null,
+    local: LeafTabSyncSnapshot,
+    initialRemote: LeafTabSyncRemoteState,
+    pendingLocalChange: number,
+  ): Promise<LeafTabSyncEngineResult> {
+    const push = direction === 'computer-to-remote';
+    if (!local.bookmarkOrders.__root__?.ids.length) {
+      throw new Error('未读取到电脑的书签根目录，请重新授权或重试覆盖。');
+    }
+    let remote = initialRemote;
+    let armed = false;
+    const beforeMutation = async () => {
+      if (armed) return;
+      await options.beforeOverwrite?.(direction);
+      armed = true;
+    };
+    for (let attempt = 1; ; attempt++) {
+      const plan = await this.config.historyLifecycle.planMerge(baseline, local, remote, this.config.deviceId);
+      if (!push && !plan.remoteSnapshot) throw new Error('当前同步来源还没有书签快照，无法覆盖电脑。');
+      const source = push
+        ? canonicalizeSnapshotBookmarkUrls(buildComputerOverwriteSnapshot(plan.localSnapshot, plan.remoteSnapshot, this.config.deviceId))
+        : plan.remoteSnapshot!;
+      const target = validateCanonicalLeafTabSyncSnapshot(source);
+      const browserTarget = push ? local : materializeRemoteOverwrite(target, local);
+      if (push) await this.config.verifyLocalSnapshot(local);
+      let commitId = remote.commitId;
+      const needsWrite = plan.requiresRemoteHistoryWrite || (push && !sameSnapshotContent(remote.snapshot, target));
+      let confirmed: Awaited<ReturnType<LeafTabSyncEngine['confirmRemoteCommit']>>;
+      try {
+        if (needsWrite) {
+          await beforeMutation();
+          reportProgress(options.onProgress, { stage: 'uploading-remote', progress: 55, message: '正在提交书签快照' });
+          const write = await this.config.remoteStore.writeState({
+            snapshot: target, history: plan.history, deviceId: this.config.deviceId,
+            parentCommitId: commitId, createdAt: new Date().toISOString(),
+          });
+          commitId = write.commitId;
+        }
+        if (!commitId) throw new Error('未能确认覆盖使用的远端书签版本。');
+        confirmed = await this.confirmRemoteCommit(commitId);
+      } catch (error) {
+        // Retry only against a newly observed complete head. Never send a blind replacement.
+        if (attempt >= 3) throw error;
+        const latest = await this.config.remoteStore.readState();
+        if (!latest.commitId || !latest.history || !latest.snapshot || latest.commitId === remote.commitId) throw error;
+        remote = latest;
+        continue;
+      }
+      if (!sameSnapshotContent(confirmed.snapshot, target) ||
+        !this.config.historyLifecycle.sameHistory(confirmed.history, plan.history)) {
+        throw new Error('覆盖结果与所选书签快照不一致，请重新执行覆盖。');
+      }
+      reportProgress(options.onProgress, { stage: 'applying-local', progress: 85, message: '正在核对电脑书签' });
+      if (!push && !sameMaterializedBookmarkContent(local, browserTarget)) {
+        await beforeMutation();
+        await this.config.applyLocalSnapshot(cloneSnapshot(browserTarget));
+      }
+      await this.config.verifyLocalSnapshot(browserTarget);
+      await this.persistCompletedState(baseline, confirmed.snapshot, confirmed.history, confirmed.commitId, pendingLocalChange);
+      return createSyncResult({
+        kind: push ? 'push' : 'pull', remoteCommitId: confirmed.commitId, snapshot: confirmed.snapshot,
+        summaryText: push ? '电脑书签已覆盖当前同步来源' : '当前同步来源的书签已覆盖电脑',
+      });
+    }
+  }
+
   async sync(
     runOptions?: LeafTabSyncEngineRunOptions,
   ): Promise<LeafTabSyncEngineResult> {
@@ -350,9 +434,13 @@ export class LeafTabSyncEngine {
       || Boolean(remoteState.snapshot) !== Boolean(remoteState.history)) {
       throw new Error('当前同步位置返回了不完整的书签快照，已停止写入以避免覆盖远端数据。');
     }
+    if (runOptions?.overwrite) {
+      return this.overwriteBookmarks(runOptions.overwrite, runOptions, baseline, localSnapshotValue,
+        remoteState, completedPendingLocalChangedAt);
+    }
     const historyPlan = await this.config.historyLifecycle.planMerge(
       baseline,
-      localSnapshotValue,
+      baseline?.snapshot ? reconcileNativeBookmarkRoots(localSnapshotValue, baseline.snapshot) : localSnapshotValue,
       remoteState,
       this.config.deviceId,
     );
@@ -360,6 +448,11 @@ export class LeafTabSyncEngine {
     const baseSnapshot = historyPlan.baselineSnapshot || this.config.createEmptySnapshot();
     const hasBaseline = Boolean(historyPlan.baselineSnapshot);
     const remoteCommitId = this.resolveRemoteCommitId(remoteState);
+
+    const prepareFirstJoin = (snapshot: LeafTabSyncSnapshot) =>
+      !baseline?.snapshot && runOptions?.mergeIntent !== 'provider-switch'
+        ? deduplicateFirstJoinBookmarks(snapshot, this.config.deviceId)
+        : snapshot;
 
     // A device joining an account it has never synced has no baseline and its own
     // installation-scoped IDs, so it would otherwise union the same bookmark twice.
@@ -379,7 +472,7 @@ export class LeafTabSyncEngine {
         message: '正在写入远端数据',
       });
       const writeResult = await this.config.remoteStore.writeState({
-        snapshot: canonicalizeSnapshotBookmarkUrls(localSnapshot),
+        snapshot: canonicalizeSnapshotBookmarkUrls(prepareFirstJoin(localSnapshot)),
         history: historyPlan.history,
         deviceId: this.config.deviceId,
         parentCommitId: null,
@@ -423,7 +516,8 @@ export class LeafTabSyncEngine {
     const remoteSnapshot = historyPlan.remoteSnapshot || this.config.createEmptySnapshot();
     if (!hasBaseline
       && !historyPlan.requiresRemoteHistoryWrite
-      && sameMaterializedBookmarkContent(localSnapshot, remoteSnapshot)) {
+      && sameMaterializedBookmarkContent(localSnapshot, remoteSnapshot)
+      && prepareFirstJoin(localSnapshot) === localSnapshot) {
       reportProgress(runOptions?.onProgress, {
         stage: 'finalizing',
         progress: 92,
@@ -502,6 +596,9 @@ export class LeafTabSyncEngine {
             mergeIntent: runOptions?.mergeIntent,
           },
         );
+    if (mergeResult.conflicts.length === 0) {
+      mergeResult.snapshot = prepareFirstJoin(mergeResult.snapshot);
+    }
     const finalSnapshot = canonicalizeSnapshotBookmarkUrls(mergeResult.snapshot);
     const summary = summarizeLeafTabSyncMerge(baseSnapshot, mergeResult);
     const summaryText = formatLeafTabSyncSummaryText(summary);
@@ -523,7 +620,7 @@ export class LeafTabSyncEngine {
     }
 
     if (hasBaseline) {
-      const runawayGuardError = evaluateLeafTabSyncRunawayGuard(baseSnapshot, finalSnapshot);
+      const runawayGuardError = evaluateLeafTabSyncRunawayGuard(baseSnapshot, finalSnapshot, remoteSnapshot);
       if (runawayGuardError) {
         throw new Error(runawayGuardError);
       }
@@ -560,8 +657,11 @@ export class LeafTabSyncEngine {
         message: '正在将最新结果写入本地',
       });
       try {
-        await this.config.applyLocalSnapshot(cloneSnapshot(committedSnapshot));
-        await this.config.verifyLocalSnapshot(cloneSnapshot(committedSnapshot));
+        const browserTarget = localSnapshotValue.bookmarkFolders.browser_root_toolbar || localSnapshotValue.bookmarkFolders.browser_root_other
+          ? materializeRemoteOverwrite(committedSnapshot, localSnapshotValue)
+          : committedSnapshot;
+        await this.config.applyLocalSnapshot(cloneSnapshot(browserTarget));
+        await this.config.verifyLocalSnapshot(cloneSnapshot(browserTarget));
       } catch (error) {
         throw new LeafTabSyncLocalApplyVerificationError(
           error instanceof Error ? error.message : String(error),

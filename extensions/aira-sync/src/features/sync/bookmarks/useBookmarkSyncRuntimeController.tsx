@@ -66,6 +66,7 @@ import {
 type BookmarkSyncPresentationOptions = {
   allowConfigPrompt?: boolean;
   showAllBlockedReasons?: boolean;
+  overwrite?: boolean;
 };
 
 type BookmarkSyncPopupAction = (
@@ -466,6 +467,7 @@ export function useBookmarkSyncRuntimeController(
     options: BookmarkSyncPresentationOptions = {},
   ): Promise<LeafTabSyncEngineResult | null> => {
     if (!syncStorageReady || !leafTabSyncDeviceId) {
+      if (options.overwrite) toast.error('正在读取同步设备信息，请稍后重试覆盖。');
       return null;
     }
 
@@ -498,6 +500,7 @@ export function useBookmarkSyncRuntimeController(
         }
         const shouldShowBlocked = !shouldOpenConfig && !shouldOpenPersonalServerConfig
           && (options.showAllBlockedReasons === true
+          || outcome.reason === 'overwrite-incomplete'
           || outcome.reason === 'pending-conflict'
           || outcome.reason === 'cloud-login-required'
           || outcome.reason === 'client-update-required'
@@ -508,6 +511,7 @@ export function useBookmarkSyncRuntimeController(
         if (runStarted && outcome.reason === 'client-update-required') {
           markSyncError(outcome.message);
           failSyncProgress(new Error(outcome.message), remoteKind);
+          if (options.overwrite) setLeafTabSyncProgress((current) => ({ ...current, overwriteFailed: true }));
         }
         return null;
       }
@@ -524,6 +528,7 @@ export function useBookmarkSyncRuntimeController(
       if (outcome.type === 'failed') {
         markSyncError(outcome.message);
         failSyncProgress(outcome.error, remoteKind);
+        if (options.overwrite) setLeafTabSyncProgress((current) => ({ ...current, overwriteFailed: true }));
         return null;
       }
 
@@ -585,6 +590,7 @@ export function useBookmarkSyncRuntimeController(
   }, [localVersion]);
 
   const state = useMemo<LeafTabSyncState>(() => ({
+    syncStorageReady,
     topNavSyncStatus: leafTabPendingBookmarkConflict || leafTabSyncState.status === 'conflict'
       ? 'conflict'
       : leafTabSyncState.status === 'error'
@@ -620,6 +626,7 @@ export function useBookmarkSyncRuntimeController(
     ),
     leafTabAutoSyncError: localStorage.getItem(LEAFTAB_BACKGROUND_STORAGE_KEYS.autoSyncLastError) || '',
   }), [
+    syncStorageReady,
     leafTabSyncLastResult,
     leafTabBookmarkDataOverview,
     leafTabSummaryLoading,
@@ -670,6 +677,11 @@ export function useBookmarkSyncRuntimeController(
       toast.success('已选择 WebDAV 同步');
       return true;
     },
+    prepareBookmarkOverwrite: (provider) => bookmarkSyncRuntime.prepareOverwrite(provider),
+    overwriteBookmarks: async (target, direction) => Boolean(await runBookmarkSyncAction(
+      target.provider, (callbacks) => bookmarkSyncRuntime.overwrite(target, direction, callbacks),
+      { allowConfigPrompt: false, showAllBlockedReasons: true, overwrite: true },
+    )),
     handleActiveSyncNowFromCenter,
     handleDismissSyncProgress,
     handleResolveBookmarkConflict: async (choice) => {

@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { LEAFTAB_BOOKMARK_MAPPING_KEY } from '@/features/sync/app/leafTabSyncStorageKeys';
-import { captureLeafTabBookmarkTreeDraft } from './bookmarks';
+import { captureLeafTabBookmarkTreeDraft, persistLeafTabIdentityAdoption, planLeafTabIdentityAdoption } from './bookmarks';
+import { buildLeafTabSyncSnapshot } from './snapshot';
+import { mergeLeafTabSyncSnapshotWithoutBaseline } from './merge';
 import type { LeafTabSyncSnapshot } from './schema';
 
 type FakeBookmarkNode = {
@@ -490,6 +492,48 @@ describe('LeafTab bookmark identity capture', () => {
     expect(draft.items.find((item) => item.localNodeId === 'bookmark-2')?.entityId)
       .toBe('bkm_example_1c9wmzh');
     expect(new Set(draft.items.map((item) => item.entityId)).size).toBe(2);
+  });
+
+  test('pairs same-named folders by their complete paths when two browsers reuse node IDs', async () => {
+    const capture = async (deviceId: string, nestedIds: string[]) => {
+      const root = createTree('folder-1');
+      root.children![0].children!.forEach((parent, index) => {
+        parent.children = [{
+          id: nestedIds[index], title: 'Links',
+          children: [{ id: 'item-' + index, title: 'Example', url: 'https://example.org/' + index }],
+        }];
+      });
+      installBookmarksHarness({ current: root });
+      return captureLeafTabBookmarkTreeDraft({ deviceId, requestPermission: false });
+    };
+    const remote = buildLeafTabSyncSnapshot({
+      deviceId: 'old', bookmarkTree: await capture('old', ['30', '31']),
+    });
+    const local = await capture('new', ['31', '30']);
+    await persistLeafTabIdentityAdoption(planLeafTabIdentityAdoption(local, remote));
+    const adopted = buildLeafTabSyncSnapshot({
+      deviceId: 'new',
+      bookmarkTree: await captureLeafTabBookmarkTreeDraft({ deviceId: 'new', requestPermission: false }),
+    });
+    const { snapshot } = mergeLeafTabSyncSnapshotWithoutBaseline(adopted, remote, { deviceId: 'new' });
+    expect(Object.keys(snapshot.bookmarkFolders).sort()).toEqual(Object.keys(remote.bookmarkFolders).sort());
+    expect(Object.keys(snapshot.bookmarkItems).sort()).toEqual(Object.keys(remote.bookmarkItems).sort());
+  });
+
+  test('keeps independent identities for equal URLs filed in different folders with the same browser node ID', async () => {
+    installBookmarksHarness({ current: createTree('folder-1') });
+    const oldTree = await captureLeafTabBookmarkTreeDraft({ requestPermission: false, deviceId: 'old' });
+    const remote = buildLeafTabSyncSnapshot({ deviceId: 'old', bookmarkTree: oldTree });
+    installBookmarksHarness({ current: createTree('folder-2') });
+    const local = await captureLeafTabBookmarkTreeDraft({ requestPermission: false, deviceId: 'new' });
+    const mapping = planLeafTabIdentityAdoption(local, remote);
+    expect(mapping.has(local.items[0].entityId)).toBe(false);
+    await persistLeafTabIdentityAdoption(mapping);
+    const adopted = await captureLeafTabBookmarkTreeDraft({ requestPermission: false, deviceId: 'new' });
+    const { snapshot } = mergeLeafTabSyncSnapshotWithoutBaseline(
+      buildLeafTabSyncSnapshot({ deviceId: 'new', bookmarkTree: adopted }), remote, { deviceId: 'new' });
+    expect(snapshot.bookmarkItems[oldTree.items[0].entityId].parentId).toBe(oldTree.items[0].parentId);
+    expect(snapshot.bookmarkItems[local.items[0].entityId].parentId).toBe(adopted.items[0].parentId);
   });
 
   test('separates fallback IDs from different installations with the same browser node ID', async () => {

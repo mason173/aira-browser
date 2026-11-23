@@ -1,3 +1,4 @@
+import type { BookmarkOverwriteDirection } from '@/sync/leaftab/engine';
 import { LEAFTAB_BACKGROUND_STORAGE_KEYS } from '@/features/sync/app/leafTabSyncStorageKeys';
 import {
   readExtensionStorageRecord,
@@ -15,7 +16,7 @@ import {
 export const LEAFTAB_LOCAL_APPLY_VERIFICATION_FAILURE_LIMIT = 3;
 
 export const LEAFTAB_LOCAL_APPLY_VERIFICATION_PAUSED_MESSAGE =
-  '书签本地落地校验连续失败，自动同步已暂停。请手动执行一次完整同步；若仍失败，请检查本机书签是否被其他工具重复写入。';
+  '上次书签写入尚未完成校验，自动同步已暂停。请重新执行所选的书签覆盖或手动同步。';
 
 export const resolveLeafTabLocalApplyVerificationNextCount = (
   previousCount: number,
@@ -52,6 +53,28 @@ export async function recordLeafTabLocalApplyVerificationFailure(): Promise<bool
   }
   await writeExtensionStorageRecord({ [countKey]: count });
   return false;
+}
+
+// The popup can close between writing a snapshot and verifying the resulting tree.
+interface PausedBookmarkOverwrite {
+  direction: BookmarkOverwriteDirection;
+  sourceIdentity: string;
+}
+
+export async function readPausedBookmarkOverwrite(): Promise<PausedBookmarkOverwrite | null> {
+  const key = LEAFTAB_BACKGROUND_STORAGE_KEYS.localApplyVerificationPausedAt;
+  const value = (await readExtensionStorageRecord([key]))[key];
+  // Older timestamps belong to the ordinary verification breaker.
+  if (!value || typeof value !== 'object' || !('direction' in value) || !('sourceIdentity' in value)) return null;
+  const { direction, sourceIdentity } = value;
+  if (typeof sourceIdentity !== 'string' || (direction !== 'remote-to-computer' && direction !== 'computer-to-remote')) return null;
+  return { direction, sourceIdentity };
+}
+
+export async function pauseAutoSyncDuringBookmarkOverwrite(marker: PausedBookmarkOverwrite): Promise<void> {
+  await writeExtensionStorageRecord({
+    [LEAFTAB_BACKGROUND_STORAGE_KEYS.localApplyVerificationPausedAt]: marker,
+  });
 }
 
 export async function clearLeafTabLocalApplyVerificationBreaker(): Promise<void> {

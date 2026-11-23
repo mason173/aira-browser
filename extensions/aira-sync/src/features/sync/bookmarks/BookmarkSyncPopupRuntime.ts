@@ -16,7 +16,7 @@ import {
   readPersonalServerConnection,
   type PersonalServerConnection,
 } from '@/features/personal-server/PersonalServerConnection';
-import type { LeafTabPendingBookmarkConflict, LeafTabSyncRemoteKind } from '@/features/sync/app/LeafTabSyncContracts';
+import type { BookmarkOverwriteTarget, LeafTabPendingBookmarkConflict, LeafTabSyncRemoteKind } from '@/features/sync/app/LeafTabSyncContracts';
 import {
   readAiraDesktopConnectionProfileWithinExecutionLock,
   refreshAiraDesktopConnectionProfileMembershipWithinExecutionLock,
@@ -48,6 +48,7 @@ import {
 } from '@/utils/webdavConfig';
 import { LeafTabSyncExtensionStorageBaselineStore } from '@/sync/leaftab/baseline';
 import type {
+  BookmarkOverwriteDirection,
   LeafTabSyncEngineProgress,
   LeafTabSyncEngineResult,
 } from '@/sync/leaftab/engine';
@@ -58,7 +59,7 @@ import {
   persistAiraCloudClientUpdateBlock,
   readAiraCloudClientUpdateBlock,
 } from './airaCloudClientUpdateBlock';
-import { clearLeafTabLocalApplyVerificationBreaker } from './localApplyVerificationBreaker';
+import { clearLeafTabLocalApplyVerificationBreaker, readPausedBookmarkOverwrite } from './localApplyVerificationBreaker';
 import {
   clearPendingLeafTabLocalBookmarkChangesInExtensionStorage,
   readPendingLeafTabLocalBookmarkChangedAtFromExtensionStorage,
@@ -94,7 +95,8 @@ export type BookmarkSyncPopupBlockedReason =
   | 'client-update-required'
   | 'source-disabled'
   | 'bookmarks-permission-required'
-  | 'pending-conflict';
+  | 'pending-conflict'
+  | 'overwrite-incomplete';
 
 export interface BookmarkSyncPopupActionCallbacks {
   onRunStarted?: () => void;
@@ -103,6 +105,7 @@ export interface BookmarkSyncPopupActionCallbacks {
 
 type BookmarkSyncPopupOperation =
   | { type: 'sync-now' }
+  | { type: 'overwrite'; direction: BookmarkOverwriteDirection; target: BookmarkOverwriteTarget }
   | { type: 'select-source' }
   | { type: 'select-webdav-candidate'; candidate: WebdavStorageState }
   | { type: 'resolve-conflict'; choice: BookmarkSyncConflictChoice };
@@ -206,6 +209,27 @@ export class BookmarkSyncPopupRuntime {
     return this.execute(remoteKind, { type: 'sync-now' }, callbacks);
   }
 
+  prepareOverwrite(provider: LeafTabSyncRemoteKind): Promise<BookmarkOverwriteTarget> {
+    return withBookmarkSyncExecutionLock(async () => {
+      const config = await this.readExecutionConfig(provider, undefined, false);
+      const runtime = this.createRuntime(provider, config);
+      let label: string;
+      if (provider === 'webdav') {
+        const url = new URL(config.webdavState.url);
+        label = ['WebDAV', url.origin + url.pathname, config.webdavState.username].filter(Boolean).join(' · ');
+      } else if (provider === 'aira-cloud') {
+        label = `Aira Cloud · ${config.cloudUid}`;
+      } else {
+        label = `Personal Server · ${config.personalServerConnection!.baseUrl}`;
+      }
+      return { provider, selectedSource: config.selectedSource, sourceIdentity: runtime.sourceIdentity, label };
+    });
+  }
+
+  overwrite(target: BookmarkOverwriteTarget, direction: BookmarkOverwriteDirection, callbacks: BookmarkSyncPopupActionCallbacks) {
+    return this.execute(target.provider, { type: 'overwrite', target, direction }, callbacks);
+  }
+
   selectSource(
     remoteKind: LeafTabSyncRemoteKind,
     callbacks: BookmarkSyncPopupActionCallbacks = {},
@@ -265,22 +289,32 @@ export class BookmarkSyncPopupRuntime {
         if (blocked) {
           return blocked;
         }
-        callbacks.onRunStarted?.();
         const runtime = this.createRuntime(remoteKind, executionConfig);
+        if (operation.type === 'overwrite' && (operation.target.sourceIdentity !== runtime.sourceIdentity ||
+          operation.target.selectedSource !== executionConfig.selectedSource)) {
+          return { type: 'blocked', reason: 'source-disabled', message: '同步账号或位置已变更，请重新选择覆盖方向。' };
+        }
+        const paused = await readPausedBookmarkOverwrite();
+        let overwrite = operation.type === 'overwrite' ? operation.direction : undefined;
+        if (paused && operation.type !== 'overwrite') {
+          if (operation.type !== 'sync-now' || runtime.sourceIdentity !== paused.sourceIdentity) {
+            return { type: 'blocked', reason: 'overwrite-incomplete',
+              message: '上次书签覆盖尚未完成，请在高级设置中重新确认覆盖来源和方向。' };
+          }
+          overwrite = paused.direction;
+        }
+        callbacks.onRunStarted?.();
         const runOptions = {
           onProgress: callbacks.onProgress,
           mergeIntent: resolveLeafTabSyncMergeIntent(executionConfig.selectedSource, remoteKind),
         };
-        const result = operation.type === 'sync-now'
-          ? await runtime.module.sync(runOptions)
-          : operation.type === 'select-webdav-candidate'
-            ? await runtime.module.sync(runOptions)
-            : operation.type === 'select-source'
-            ? await runtime.module.syncAndSelectSource(runOptions)
-            : await runtime.module.syncAndSelectSource({
-                ...runOptions,
-                conflictChoice: operation.choice,
-              });
+        const result = operation.type === 'resolve-conflict' || operation.type === 'select-source'
+          ? await runtime.module.syncAndSelectSource({
+            ...runOptions, conflictChoice: operation.type === 'resolve-conflict' ? operation.choice : undefined,
+          })
+          : await runtime.module.sync({
+            ...runOptions, overwrite,
+          });
         if (result.kind === 'conflict') {
           if (operation.type === 'select-webdav-candidate') {
             await writeWebdavStorageStateWithinExecutionLock({
@@ -296,6 +330,9 @@ export class BookmarkSyncPopupRuntime {
           return { type: 'conflict', result, pendingConflict };
         }
 
+        if (overwrite && executionConfig.selectedSource !== remoteKind) {
+          await this.commitSelectedSource(remoteKind, executionConfig);
+        }
         if (operation.type === 'select-webdav-candidate') {
           await this.commitSelectedSource('webdav', executionConfig, {
             ...operation.candidate,
@@ -385,7 +422,7 @@ export class BookmarkSyncPopupRuntime {
     operation: BookmarkSyncPopupOperation,
     config: BookmarkSyncPopupExecutionConfig,
   ): Extract<BookmarkSyncPopupRunOutcome, { type: 'blocked' }> | null {
-    if (!config.domainEnabled) {
+    if (!config.domainEnabled && operation.type !== 'overwrite') {
       return {
         type: 'blocked',
         reason: 'source-disabled',

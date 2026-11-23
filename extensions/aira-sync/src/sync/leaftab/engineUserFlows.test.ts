@@ -3,7 +3,7 @@ import {
   createLeafTabSyncBaseline,
   type LeafTabSyncBaselineStore,
 } from './baseline';
-import { LeafTabSyncEngine } from './engine';
+import { LeafTabSyncEngine, type BookmarkOverwriteDirection } from './engine';
 import { assertLeafTabBookmarkTreeMatchesSnapshot } from './snapshot';
 import {
   LEAFTAB_SYNC_TOMBSTONE_RETENTION_MS,
@@ -269,6 +269,8 @@ const runSync = async (params: {
   remote: MemoryRemoteStore;
   baseline?: LeafTabSyncBaseline | null;
   conflictResolution?: 'prefer-local' | 'prefer-remote';
+  overwrite?: BookmarkOverwriteDirection;
+  beforeOverwrite?: (direction: BookmarkOverwriteDirection) => Promise<void>;
   applyFailure?: Error;
   verifyFailure?: Error;
 }) => {
@@ -291,7 +293,7 @@ const runSync = async (params: {
     },
     createEmptySnapshot: () => createSnapshot(params.local.meta.deviceId),
   });
-  const result = await engine.sync({ conflictResolution: params.conflictResolution });
+  const result = await engine.sync({ conflictResolution: params.conflictResolution, overwrite: params.overwrite, beforeOverwrite: params.beforeOverwrite });
   return {
     result,
     local,
@@ -373,6 +375,148 @@ describe('Airatab realistic bookmark sync flows', () => {
     expect(baselineStore.saveCount).toBe(baselineSaveCount);
   });
 
+  test.each(['computer-to-remote', 'remote-to-computer'] as const)(
+    'explicit %s replaces the tree despite conflicts, including order and intentional duplicates', async (overwrite) => {
+      const base = createSnapshot('base', [{ id: 'shared' }]);
+      const desktop = createSnapshot('desktop', [{ id: 'mine' }, { id: 'copy' }, { id: 'shared', title: 'Desktop edit' }]);
+      desktop.bookmarkItems.copy = { ...desktop.bookmarkItems.mine, id: 'copy' };
+      const cloud = createSnapshot('cloud', [{ id: 'shared', title: 'Cloud edit', revision: 9 }, { id: 'theirs' }]);
+      cloud.appPrivateBookmarks = { bookmarkFolders: {}, bookmarkItems: {}, bookmarkOrders: {}, tombstones: {} };
+      const remote = remoteWith(cloud);
+      const push = overwrite === 'computer-to-remote';
+      const winner = push ? desktop : cloud;
+      const flow = await runSync({ local: desktop, remote, baseline: createBaseline(base, 'older'), overwrite });
+      expect(flow.result.kind).toBe(push ? 'push' : 'pull');
+      const confirmed = remote.state.snapshot!;
+      expect(expectLiveItemIds(confirmed)).toEqual(expectLiveItemIds(winner));
+      expect(confirmed.bookmarkOrders.browser_root_toolbar.ids).toEqual(winner.bookmarkOrders.browser_root_toolbar.ids);
+      expect(confirmed.bookmarkItems.shared.title).toBe(winner.bookmarkItems.shared.title);
+      expect(confirmed.appPrivateBookmarks).toEqual(cloud.appPrivateBookmarks);
+      expect(flow.baselineStore.value?.snapshot).toEqual(confirmed);
+      if (push) {
+        expect(confirmed.bookmarkItems.shared.revision).toBeGreaterThan(9);
+        expect(confirmed.tombstones['bookmark-item|theirs']).toBeDefined();
+        const otherDevice = await runSync({ local: cloud, remote, baseline: createBaseline(cloud, 'commit-seed') });
+        expect(expectLiveItemIds(otherDevice.local)).toEqual(expectLiveItemIds(desktop));
+        expect(otherDevice.local.bookmarkItems.shared.title).toBe('Desktop edit');
+      } else {
+        expect(remote.writeCount).toBe(0);
+        expect(comparableSnapshot(flow.local)).toEqual(comparableSnapshot(cloud));
+      }
+      const next = await runSync({ local: confirmed, remote, baseline: flow.baselineStore.value });
+      expect(next.result.kind).toBe('noop');
+    },
+  );
+
+  test('a missing remote cannot clear the computer, while a committed empty tree can', async () => {
+    const local = createSnapshot('desktop', [{ id: 'mine' }]);
+    const overwrite = 'remote-to-computer';
+    const missing = new MemoryRemoteStore();
+    await expect(runSync({ local, remote: missing, overwrite })).rejects.toThrow('没有书签快照');
+    expect(missing.writeCount).toBe(0);
+    const empty = await runSync({ local, remote: remoteWith(createSnapshot('cloud')), overwrite });
+    expect(expectLiveItemIds(empty.local)).toEqual([]);
+    const fresh = new MemoryRemoteStore();
+    await runSync({ local, remote: fresh, overwrite: 'computer-to-remote' });
+    expect(expectLiveItemIds(fresh.state.snapshot!)).toEqual(['mine']);
+  });
+
+  test('a missing browser root cannot be uploaded as an empty bookmark collection', async () => {
+    const remote = remoteWith(createSnapshot('cloud', [{ id: 'only-cloud' }]));
+    const local = { ...createSnapshot('desktop'), bookmarkFolders: {}, bookmarkOrders: {} };
+    await expect(runSync({ local, remote, overwrite: 'computer-to-remote' })).rejects.toThrow('根目录');
+    expect(remote.writeCount).toBe(0);
+  });
+
+  test('a committed rootless empty snapshot clears the items and keeps native browser roots', async () => {
+    const local = createSnapshot('desktop', [{ id: 'mine' }]);
+    const empty = { ...createSnapshot('cloud'), bookmarkFolders: {}, bookmarkOrders: {} };
+    const remote = remoteWith(empty);
+    const flow = await runSync({ local, remote, overwrite: 'remote-to-computer' });
+    expect(expectLiveItemIds(flow.local)).toEqual([]);
+    expect(flow.local.bookmarkFolders.browser_root_toolbar).toBeDefined();
+    expect(flow.local.bookmarkOrders.browser_root_toolbar.ids).toEqual([]);
+    const next = await runSync({ local: flow.local, remote, baseline: flow.baselineStore.value });
+    expect(next.result.kind).toBe('noop');
+    expect(remote.writeCount).toBe(0);
+  });
+
+  test('paired readers with identical order and different metadata converge without another write', async () => {
+    const first = createSnapshot('first', [{ id: 'shared' }]);
+    const second = clone(first);
+    for (const order of Object.values(second.bookmarkOrders)) {
+      order.updatedBy = 'second';
+      order.updatedAt = T1;
+    }
+    const remote = remoteWith(first);
+    const reader = await runSync({ local: second, baseline: createBaseline(second, 'older'), remote });
+    expect(remote.writeCount).toBe(0);
+    expect(reader.baselineStore.value?.snapshot?.bookmarkOrders).toEqual(first.bookmarkOrders);
+    const idle = await runSync({ local: reader.local, baseline: reader.baselineStore.value, remote });
+    expect(idle.result.kind).toBe('noop');
+    const writer = await runSync({ local: first, baseline: createBaseline(first, 'commit-seed'), remote });
+    expect(writer.result.kind).toBe('noop');
+    expect(remote.writeCount).toBe(0);
+  });
+
+  test('a paired unchanged reader accepts a large remote deletion, while a local mass deletion is guarded', async () => {
+    const previous = createSnapshot('old', Array.from({ length: 101 }, (_, i) => ({ id: String(i) })));
+    const remote = remoteWith(previous);
+    const desktop = createSnapshot('desktop', [{ id: '0' }], Object.values(previous.bookmarkItems).slice(1).map(item => ({
+      type: item.type, id: item.id, deletedBy: 'desktop', deletedAt: T1, lastKnownRevision: item.revision,
+    })));
+    const baseline = createBaseline(previous, 'commit-seed');
+    await expect(runSync({ local: desktop, remote, baseline })).rejects.toThrow('100');
+    await runSync({ local: desktop, remote, baseline, overwrite: 'computer-to-remote' });
+    const reader = await runSync({ local: previous, remote, baseline });
+    expect(expectLiveItemIds(reader.local)).toEqual(['0']);
+    expect(remote.writeCount).toBe(1);
+    const next = await runSync({ local: reader.local, remote, baseline: reader.baselineStore.value });
+    expect(next.result.kind).toBe('noop');
+
+    const edited = clone(previous);
+    const extra = createSnapshot('reader', [{ id: 'reader-only' }]).bookmarkItems['reader-only'];
+    edited.bookmarkItems[extra.id] = extra;
+    edited.bookmarkOrders.browser_root_toolbar.ids.push(extra.id);
+    const withEdit = await runSync({ local: edited, remote, baseline });
+    expect(expectLiveItemIds(withEdit.local)).toEqual(['0', 'reader-only']);
+    expect(expectLiveItemIds(remote.state.snapshot!)).toEqual(['0', 'reader-only']);
+  });
+
+  test('a paired reader preserves duplicate bookmarks intentionally included in an overwrite', async () => {
+    const previous = createSnapshot('old');
+    const remote = remoteWith(previous);
+    const desktop = createSnapshot('desktop', Array.from({ length: 60 }, (_, i) => ({ id: String(i), title: 'Copy' })));
+    for (const item of Object.values(desktop.bookmarkItems)) item.url = 'https://example.org/copy';
+    const baseline = createBaseline(previous, 'commit-seed');
+    await runSync({ local: desktop, remote, baseline, overwrite: 'computer-to-remote' });
+    const reader = await runSync({ local: previous, remote, baseline });
+    expect(expectLiveItemIds(reader.local)).toEqual(expectLiveItemIds(desktop));
+    expect(remote.writeCount).toBe(1);
+  });
+
+  test('a failed read-only confirmation leaves automatic sync running', async () => {
+    const snap = createSnapshot('old', [{ id: 'cloud' }]);
+    const remote = remoteWith(snap);
+    const beforeOverwrite = vi.fn(async () => {});
+    vi.spyOn(remote, 'readState').mockResolvedValueOnce(clone(remote.state)).mockRejectedValue(new Error('offline'));
+    await expect(runSync({ local: createSnapshot('desktop'), remote, overwrite: 'remote-to-computer',
+      beforeOverwrite })).rejects.toThrow();
+    expect(beforeOverwrite).not.toHaveBeenCalled();
+    expect(remote.writeCount).toBe(0);
+  });
+
+  test('a concurrent remote write retries the overwrite against the new head', async () => {
+    const original = remoteWith(createSnapshot('cloud')).state;
+    const newer = remoteWith(createSnapshot('cloud', [{ id: 'newer' }]), 'concurrent').state;
+    const remote = new RacingRemoteStore(original, newer);
+    const flow = await runSync({ local: createSnapshot('desktop', [{ id: 'mine' }]), remote,
+      overwrite: 'computer-to-remote' });
+    expect(expectLiveItemIds(remote.state.snapshot!)).toEqual(['mine']);
+    expect(remote.state.snapshot!.tombstones['bookmark-item|newer']).toBeDefined();
+    expect(flow.baselineStore.value?.commitId).toBe(remote.state.commitId);
+  });
+
   test('a new user with only local bookmarks publishes the first remote state', async () => {
     const remote = new MemoryRemoteStore();
     const flow = await runSync({
@@ -422,6 +566,58 @@ describe('Airatab realistic bookmark sync flows', () => {
       localItems: ['local-a', 'remote-a'],
       remoteItems: ['local-a', 'remote-a'],
     });
+  });
+
+  test.each(['remote', 'local', 'both'] as const)(
+    'first join collapses exact copies from %s and preserves other folders and titles', async (source) => {
+      const seed = createFolderTreeSnapshot('old', 'Group', 1);
+      const original = seed.bookmarkItems['folder-child-0'];
+      const folder = seed.bookmarkFolders['folder-shared'];
+      for (const [folderId, folderTitle] of [['same-path', 'Group'], ['different-path', 'Elsewhere']]) {
+        seed.bookmarkFolders[folderId] = { ...folder, id: folderId, title: folderTitle };
+        seed.bookmarkOrders.browser_root_toolbar.ids.push(folderId);
+        const id = 'item-' + folderId;
+        seed.bookmarkItems[id] = { ...original, id, parentId: folderId };
+        seed.bookmarkOrders[folderId] = { ...seed.bookmarkOrders[folder.id], parentId: folderId, ids: [id] };
+      }
+      seed.bookmarkItems.renamed = { ...original, id: 'renamed', title: 'Other title' };
+      seed.bookmarkOrders[folder.id].ids.push('renamed');
+      const remote = source === 'local' ? new MemoryRemoteStore() : remoteWith(seed);
+      const local = source === 'remote' ? createSnapshot('new') : clone(seed);
+      const first = await runSync({ local, remote });
+      const expected = [original.id, 'item-different-path', 'renamed'].sort();
+      expect(expectLiveItemIds(first.local)).toEqual(expected);
+      expect(expectLiveItemIds(remote.state.snapshot!)).toEqual(expected);
+      expect(first.local.bookmarkOrders['same-path'].ids).toEqual([]);
+      expect(first.local.tombstones['bookmark-item|item-same-path']?.lastKnownRevision).toBe(original.revision);
+      expect(parseCanonicalLeafTabSyncWireSnapshot(toLeafTabSyncWireSnapshot(first.local))).toBeTruthy();
+      const writes = remote.writeCount;
+      const second = await runSync({ local: first.local, remote, baseline: first.baselineStore.value });
+      expect(second.result.kind).toBe('noop');
+      expect(remote.writeCount).toBe(writes);
+    },
+  );
+
+  test('retries first-join cleanup after local apply fails without restoring retired copies', async () => {
+    const local = createSnapshot('desktop', [{ id: 'first' }, { id: 'copy' }]);
+    local.bookmarkItems.copy = { ...local.bookmarkItems.first, id: 'copy' };
+    const remote = remoteWith(clone(local));
+    await expect(runSync({ local, remote, applyFailure: new Error('interrupted') })).rejects.toThrow();
+    const committedId = remote.state.commitId;
+    const retry = await runSync({ local, remote });
+    expect(expectLiveItemIds(retry.local)).toEqual(['first']);
+    expect(retry.local.tombstones['bookmark-item|copy']).toBeDefined();
+    expect(retry.baselineStore.value?.commitId).toBe(committedId);
+  });
+
+  test('ordinary sync with a baseline keeps a newly added exact copy', async () => {
+    const seed = createSnapshot('desktop', [{ id: 'first' }]);
+    const local = clone(seed);
+    local.bookmarkItems.copy = { ...local.bookmarkItems.first, id: 'copy' };
+    local.bookmarkOrders.browser_root_toolbar.ids.push('copy');
+    const remote = remoteWith(seed);
+    await runSync({ local, remote, baseline: createBaseline(seed, 'commit-seed') });
+    expect(expectLiveItemIds(remote.state.snapshot!)).toEqual(['copy', 'first']);
   });
 
   test('deleting a first-sync preservation folder commits the whole subtree deletion', async () => {

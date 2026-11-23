@@ -387,7 +387,7 @@ const buildIdentityCorrelationGroups = (
       const title = titleById.get(id) ?? '';
       const url = urlById.get(id);
       const parentKey = pathKeyOf(parentId);
-      key = url === undefined ? `${parentKey}\u0001${title}` : `${parentKey}\u0001${title}\u0002${url}`;
+      key = `${parentKey}\u0001${JSON.stringify(url === undefined ? [title] : [title, url])}`;
     }
     visiting.delete(id);
     pathKeyById.set(id, key);
@@ -437,40 +437,6 @@ const buildRemoteCorrelationGroups = (
   return buildIdentityCorrelationGroups(entities, orderIdsByParent);
 };
 
-// A stable local ID embeds the browser node ID it was minted for
-// (`bkm_local_<deviceId>_<nodeId>`). Chrome keeps that node ID across an extension
-// reinstall while the device-scoped prefix changes, so when both sides still carry a
-// stable local ID the trailing token identifies the same bookmark even after a rename,
-// a URL edit, or a move. Returns the decoded node token, or null for any other ID scheme.
-const extractStableLocalNodeToken = (entityId: string, prefix: string) => {
-  if (!entityId.startsWith(prefix)) return null;
-  const separator = entityId.lastIndexOf('_');
-  if (separator < 0) return null;
-  const token = entityId.slice(separator + 1);
-  if (!token) return null;
-  try {
-    return decodeURIComponent(token);
-  } catch {
-    return token;
-  }
-};
-
-const buildRemoteNodeTokenIndex = (
-  snapshot: LeafTabSyncSnapshot,
-): { folders: Map<string, string>; items: Map<string, string> } => {
-  const folders = new Map<string, string>();
-  const items = new Map<string, string>();
-  Object.values(snapshot.bookmarkFolders).forEach((folder) => {
-    const token = extractStableLocalNodeToken(folder.id, 'bkf_local_');
-    if (token && !folders.has(token)) folders.set(token, folder.id);
-  });
-  Object.values(snapshot.bookmarkItems).forEach((item) => {
-    const token = extractStableLocalNodeToken(item.id, 'bkm_local_');
-    if (token && !items.has(token)) items.set(token, item.id);
-  });
-  return { folders, items };
-};
-
 export const planLeafTabIdentityAdoption = (
   draft: LeafTabBookmarkTreeDraft,
   remoteSnapshot: LeafTabSyncSnapshot,
@@ -489,68 +455,31 @@ export const planLeafTabIdentityAdoption = (
 
   const adoption = new Map<string, string>();
   const usedRemoteIds = new Set<string>();
-  // 1) Prefer the browser node ID, which survives a reinstall, when both sides minted a
-  //    stable local ID. Content must still agree on the fields the node token cannot
-  //    prove (title, and URL for items), so a reused token can never drop or merge data.
-  const remoteTokens = buildRemoteNodeTokenIndex(remoteSnapshot);
-  const adoptByNodeToken = (
-    localEntityId: string,
-    remoteId: string | undefined,
-    expectedFolder: boolean,
-    title: string,
-    url?: string,
-  ) => {
-    if (!localEntityId.startsWith('bkf_local_') && !localEntityId.startsWith('bkm_local_')) return;
-    if (!remoteId || usedRemoteIds.has(remoteId)) return;
-    const remote = expectedFolder
-      ? remoteSnapshot.bookmarkFolders[remoteId]
-      : remoteSnapshot.bookmarkItems[remoteId];
-    if (!remote || remote.title !== title) return;
-    if (!expectedFolder && ((remote as { url?: string }).url || '') !== (url || '')) return;
-    adoption.set(localEntityId, remoteId);
+  const matchedLocalIds = new Set<string>();
+  const pair = (localId: string, remoteId: string) => {
+    matchedLocalIds.add(localId);
     usedRemoteIds.add(remoteId);
+    if (localId !== remoteId) adoption.set(localId, remoteId);
   };
-  draft.folders.forEach((folder) => {
-    const token = extractStableLocalNodeToken(folder.entityId, 'bkf_local_');
-    adoptByNodeToken(
-      folder.entityId,
-      token ? remoteTokens.folders.get(token) : undefined,
-      true,
-      folder.title,
-    );
-  });
-  draft.items.forEach((item) => {
-    const token = extractStableLocalNodeToken(item.entityId, 'bkm_local_');
-    adoptByNodeToken(
-      item.entityId,
-      token ? remoteTokens.items.get(token) : undefined,
-      false,
-      item.title,
-      item.url,
-    );
-  });
-
-  // 2) Fall back to the canonical root-anchored path key for anything the node token
-  //    could not settle, such as a remote entity still carrying a pre-0.2.14 content ID.
+  // Reserve existing identities before pairing equal-content siblings on a fresh join.
+  for (const { entityId } of localEntities) {
+    if (remoteSnapshot.bookmarkFolders[entityId] || remoteSnapshot.bookmarkItems[entityId]) {
+      pair(entityId, entityId);
+    }
+  }
   const remoteGroups = buildRemoteCorrelationGroups(remoteSnapshot);
-  if (remoteGroups.size === 0) return adoption;
-  // Group the full local tree so parent paths stay intact; already-adopted locals are
-  // skipped during pairing rather than removed, which would orphan their descendants.
   const localGroups = buildIdentityCorrelationGroups(localEntities, draft.orderIdsByParent);
   localGroups.forEach((localIds, key) => {
     const remoteIds = remoteGroups.get(key);
     if (!remoteIds) return;
-    const availableLocalIds = localIds.filter((id) => !adoption.has(id));
+    const availableLocalIds = localIds.filter((id) => !matchedLocalIds.has(id));
     const availableRemoteIds = remoteIds.filter((id) => !usedRemoteIds.has(id));
     const pairCount = Math.min(availableLocalIds.length, availableRemoteIds.length);
     for (let index = 0; index < pairCount; index += 1) {
-      const localId = availableLocalIds[index];
-      const remoteId = availableRemoteIds[index];
-      usedRemoteIds.add(remoteId);
-      if (localId === remoteId) continue;
-      adoption.set(localId, remoteId);
+      pair(availableLocalIds[index], availableRemoteIds[index]);
     }
   });
+
   return adoption;
 };
 
