@@ -182,6 +182,7 @@ export interface BrowserTabManagerPort {
   getActiveTab(tabs: BrowserTabState[], activeTabId: string): BrowserTabState | undefined;
   getTab(tabs: BrowserTabState[], tabId: string): BrowserTabState | undefined;
   applyRuntimeStates(tabs: BrowserTabState[], states: Record<string, TabRuntimeState>): BrowserTabState[];
+  moveTabToSlot(tabs: BrowserTabState[], tabId: string, targetTabId: string): BrowserTabState[];
   setTabPinned(tabs: BrowserTabState[], targetTabId: string, pinned: boolean): BrowserTabState[];
 }
 
@@ -830,6 +831,24 @@ export class TabManager implements BrowserTabManagerPort {
       }
       return this.cloneTabState(tab, tab.lastActiveAt, nextState);
     });
+  }
+
+  moveTabToSlot(tabs: BrowserTabState[], tabId: string, targetTabId: string): BrowserTabState[] {
+    const from = tabs.findIndex((tab: BrowserTabState): boolean => tab.id === tabId);
+    const to = tabs.findIndex((tab: BrowserTabState): boolean => tab.id === targetTabId);
+    if (from < 0 || to < 0 || from === to) {
+      return tabs;
+    }
+    const source = tabs[from];
+    const target = tabs[to];
+    if (source.pinned !== target.pinned || source.privacyMode !== target.privacyMode ||
+      source.profileId !== target.profileId || source.dataScope !== target.dataScope) {
+      return tabs;
+    }
+    const reordered = tabs.slice();
+    reordered.splice(from, 1);
+    reordered.splice(to, 0, source);
+    return reordered;
   }
 
   /**

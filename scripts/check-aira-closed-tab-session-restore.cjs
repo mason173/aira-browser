@@ -114,6 +114,9 @@ function harness() {
     addTab(options = {}) {
       state = manager.createTab(state.tabs, state.tabSequence, 'https://example.test', 'Example', options);
     },
+    moveTab(tabId, targetTabId) {
+      state.tabs = manager.moveTabToSlot(state.tabs, tabId, targetTabId);
+    },
     closeAll() {
       state = manager.closeTabsToHome(state.tabs, state.activeTabId, state.tabs.map(tab => tab.id));
     },
@@ -259,4 +262,19 @@ test('failed startup must preserve saved tabs until a live session is establishe
   h.closeAll();
   await h.persistence.persistAndWait();
   assert.equal((await h.restart()).length, 0, 'a new live session must still allow explicit closure');
+});
+
+test('dragging tabs in both directions persists their order and active tab across restart', async () => {
+  const h = harness();
+  for (let index = 0; index < 4; index++) h.addTab();
+  await h.persistence.persistAndWait();
+  const initial = await h.restart();
+  const [a, b, c, d] = Array.from(initial, record => record.id);
+  h.moveTab(a, c);
+  h.moveTab(d, b);
+  h.moveTab(d, 'closed-before-drop');
+  await h.persistence.persistAndWait();
+  const restored = await h.restart();
+  assert.deepEqual(Array.from(restored, record => record.id), [d, b, c, a]);
+  assert.equal(restored.find(record => record.isActive).id, initial.find(record => record.isActive).id);
 });

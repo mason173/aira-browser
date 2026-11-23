@@ -702,6 +702,10 @@ export class BrowserWindowSessionTabManagerPort extends TabManager implements Br
     return this.resolveOperations()?.applyRuntimeStates(tabs, states) ?? tabs;
   }
 
+  moveTabToSlot(tabs: BrowserTabState[], tabId: string, targetTabId: string): BrowserTabState[] {
+    return this.resolveOperations()?.moveTabToSlot(tabs, tabId, targetTabId) ?? tabs;
+  }
+
   setTabPinned(tabs: BrowserTabState[], targetTabId: string, pinned: boolean): BrowserTabState[] {
     return this.resolveOperations()?.setTabPinned(tabs, targetTabId, pinned) ?? tabs;
   }

@@ -1,3 +1,4 @@
+import { BrowserDesktopTabDrag, DESKTOP_TAB_PAN_TAG } from './BrowserDesktopTabDrag';
 import { resolveAppResourceText } from '../../../core/resources/AppResourceText';
 import { DEFAULT_THEME_PALETTE } from '../../../features/theme/palettes/DefaultThemePalette';
 import {
@@ -120,6 +121,9 @@ export struct BrowserLargeScreenTabStripSurface {
 
   @StorageProp(BROWSER_APPEARANCE_STORAGE_VERTICAL_TABS_ENABLED_KEY)
   private storedVerticalTabsEnabled: boolean = false;
+  @State private tabDrag: BrowserDesktopTabDrag = new BrowserDesktopTabDrag(0,
+    (): BrowserLargeScreenTabProjection[] => this.presentation.dragEnabled ? this.presentation.visibleTabs : [],
+    (intent: BrowserLargeScreenTabStripIntent): void => this.onIntent(intent));
   @State private hoveredTabId: string = '';
   @State private tabIconStates: SiteIconListRenderState[] = [];
   private pointerMenuTabId: string = '';
@@ -135,6 +139,7 @@ export struct BrowserLargeScreenTabStripSurface {
   }
 
   aboutToDisappear(): void {
+    this.tabDrag.clear();
     sharedBrowserLargeScreenWindowChromeService.cancelPendingMoveLease(this.windowChromeLeaseId);
     this.siteIconListPresenter.dispose();
   }
@@ -152,6 +157,17 @@ export struct BrowserLargeScreenTabStripSurface {
           `:${tab.pinned ? 'p' : ''}${tab.muted ? 'm' : ''}${tab.audible ? 'a' : ''}:${tab.title}`)
       }
       .width(this.presentation.consumedWidthVp)
+      .gesture(
+        PanGesture({ direction: PanDirection.Horizontal, distance: 4 })
+          .tag(DESKTOP_TAB_PAN_TAG)
+          .allowedTypes([SourceTool.MOUSE])
+          .onActionStart((event: GestureEvent): void => this.tabDrag.start(event))
+          .onActionUpdate((event: GestureEvent): void => this.tabDrag.update(event))
+          .onActionEnd((event: GestureEvent): void => this.tabDrag.finish(event))
+          .onActionCancel((): void => this.tabDrag.clear())
+      )
+      .onGestureRecognizerJudgeBegin((event: BaseGestureEvent, current: GestureRecognizer): GestureJudgeResult =>
+        this.tabDrag.judge(event, current))
       .height(this.resolveTitleBarHeightVp())
       .alignItems(VerticalAlign.Bottom)
       .clip(true)
@@ -290,6 +306,12 @@ export struct BrowserLargeScreenTabStripSurface {
     .width(tab.widthVp)
     .height(TAB_HEIGHT_VP)
     .clip(true)
+    .translate({ x: this.tabDrag.offsetFor(tab.id) })
+    .animation({
+      duration: this.tabDrag.sourceId.length > 0 && this.tabDrag.sourceId !== tab.id ? 120 : 0,
+      curve: Curve.EaseOut
+    })
+    .zIndex(this.tabDrag.sourceId === tab.id ? 1 : 0)
     .onHover((hovered: boolean) => {
       this.hoveredTabId = hovered ? tab.id : (this.hoveredTabId === tab.id ? '' : this.hoveredTabId);
       if (hovered) {
@@ -377,12 +399,14 @@ export struct BrowserLargeScreenTabStripSurface {
       .backgroundColor($r('sys.color.ohos_id_color_background_transparent'))
       .stateEffect(false)
       .hoverEffect(HoverEffect.None)
+      .onMouse((event: MouseEvent): void => this.tabDrag.noteMouse(tab.id, event))
       .accessibilityText(resolveAppResourceText($r('app.string.tab_a11y_switch', this.resolveTabTitle(tab))))
       .onTouch((event: TouchEvent): void => {
         this.noteTabPointer(tab.id, event);
       })
       .onClick((event: ClickEvent): void => {
-        if (this.isTabLongPressRelease(event)) {
+        if (this.isTabLongPressRelease(event) ||
+          (event.source === SourceType.Mouse && this.tabDrag.suppressesRelease(tab.id))) {
           return;
         }
         this.onIntent({ kind: 'select_tab', tabId: tab.id });
@@ -435,12 +459,14 @@ export struct BrowserLargeScreenTabStripSurface {
     .backgroundColor(this.resolveTabBackground(tab))
     .stateEffect(false)
     .hoverEffect(HoverEffect.None)
+    .onMouse((event: MouseEvent): void => this.tabDrag.noteMouse(tab.id, event))
     .accessibilityText(resolveAppResourceText($r('app.string.tab_a11y_switch', this.resolveTabTitle(tab))))
     .onTouch((event: TouchEvent): void => {
       this.noteTabPointer(tab.id, event);
     })
     .onClick((event: ClickEvent): void => {
-      if (this.isTabLongPressRelease(event)) {
+      if (this.isTabLongPressRelease(event) ||
+        (event.source === SourceType.Mouse && this.tabDrag.suppressesRelease(tab.id))) {
         return;
       }
       this.onIntent({ kind: 'select_tab', tabId: tab.id });
@@ -648,6 +674,7 @@ export struct BrowserLargeScreenTabStripSurface {
   }
 
   private noteTabPointer(tabId: string, event: TouchEvent): void {
+    this.tabDrag.noteTouch(event);
     if (event.type !== TouchType.Down) {
       return;
     }
@@ -677,6 +704,7 @@ export struct BrowserLargeScreenTabStripSurface {
   }
 
   private syncSiteIcons(): void {
+    this.tabDrag.reconcileLayout();
     const targets = this.buildSiteIconTargets();
     this.tabIconStates = this.tabIconStates.filter((state: SiteIconListRenderState): boolean => {
       const target = targets.find((candidate: SiteIconListTarget): boolean => candidate.id === state.id);
@@ -746,7 +774,7 @@ export struct BrowserLargeScreenTabStripSurface {
     if (tab.active) {
       return $r('sys.color.ohos_id_color_background_transparent');
     }
-    if (this.hoveredTabId === tab.id) {
+    if (this.tabDrag.sourceId === tab.id || this.hoveredTabId === tab.id) {
       return this.storedControlBackgroundColor;
     }
     return $r('sys.color.ohos_id_color_background_transparent');

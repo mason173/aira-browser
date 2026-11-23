@@ -285,6 +285,14 @@ export class BrowserTabSwitchCoordinator {
     });
   }
 
+  moveTabToSlot(tabId: string, targetTabId: string): void {
+    const tabs = this.dependencies.sink.resolveFacts().tabs;
+    const reordered = this.tabManager.moveTabToSlot(tabs, tabId, targetTabId);
+    if (reordered !== tabs) {
+      this.commitTabs(reordered, { refreshRuntimeTabIds: [] });
+    }
+  }
+
   /**
    * Pins/unpins a tab and re-partitions so pinned tabs keep the leading edge.
    * The new order is persisted (TabRecord.isPinned + tab_order) so pins survive

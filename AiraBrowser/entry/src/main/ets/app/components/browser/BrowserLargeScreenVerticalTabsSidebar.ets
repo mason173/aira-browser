@@ -1,3 +1,4 @@
+import { BrowserDesktopTabDrag, DESKTOP_TAB_PAN_TAG } from './BrowserDesktopTabDrag';
 import { resolveAppResourceText } from '../../../core/resources/AppResourceText';
 import { DEFAULT_THEME_PALETTE } from '../../../features/theme/palettes/DefaultThemePalette';
 import {
@@ -129,6 +130,10 @@ export struct BrowserLargeScreenVerticalTabsSidebar {
   @StorageProp(BROWSER_APPEARANCE_STORAGE_VERTICAL_TABS_DOUBLE_CLICK_CLOSE_ENABLED_KEY)
   private storedDoubleClickCloseEnabled: boolean = true;
 
+  private readonly tabScroller: Scroller = new Scroller();
+  @State private tabDrag: BrowserDesktopTabDrag = new BrowserDesktopTabDrag(TAB_ROW_HEIGHT_VP + 2,
+    (): BrowserLargeScreenTabProjection[] => this.tabStrip.dragEnabled ? this.tabStrip.allTabs : [],
+    (intent: BrowserLargeScreenTabStripIntent): void => this.onIntent(intent), this.tabScroller);
   @State private hoveredTabId: string = '';
   private pointerMenuTabId: string = '';
   @State private sidebarWidthVp: number = BROWSER_LARGE_SCREEN_VERTICAL_TABS_RAIL_WIDTH_VP;
@@ -152,6 +157,7 @@ export struct BrowserLargeScreenVerticalTabsSidebar {
   }
 
   aboutToDisappear(): void {
+    this.tabDrag.clear();
     sharedBrowserLargeScreenWindowChromeService.cancelPendingMoveLease(this.windowChromeLeaseId);
     this.clearPeekCollapseTimer();
     this.siteIconListPresenter.dispose();
@@ -166,7 +172,7 @@ export struct BrowserLargeScreenVerticalTabsSidebar {
         .strokeWidth(1)
         .color(this.storedDividerColor)
         .margin({ left: 12, right: 12 })
-      Scroll() {
+      Scroll(this.tabScroller) {
         Column({ space: 0 }) {
           // Selection must not replace the native recognizer between the two taps.
           // Active styling observes selectedTabId directly instead of entering the row key.
@@ -178,6 +184,17 @@ export struct BrowserLargeScreenVerticalTabsSidebar {
         }
         .width('100%')
         .padding({ top: 6, bottom: 8 })
+        .gesture(
+          PanGesture({ direction: PanDirection.Vertical, distance: 4 })
+            .tag(DESKTOP_TAB_PAN_TAG)
+            .allowedTypes([SourceTool.MOUSE])
+            .onActionStart((event: GestureEvent): void => this.tabDrag.start(event))
+            .onActionUpdate((event: GestureEvent): void => this.tabDrag.update(event))
+            .onActionEnd((event: GestureEvent): void => this.tabDrag.finish(event))
+            .onActionCancel((): void => this.tabDrag.clear())
+        )
+        .onGestureRecognizerJudgeBegin((event: BaseGestureEvent, current: GestureRecognizer): GestureJudgeResult =>
+          this.tabDrag.judge(event, current))
         .alignItems(HorizontalAlign.Start)
         .backgroundColor(this.storedPageBackgroundColor)
         .hitTestBehavior(HitTestMode.Default)
@@ -191,6 +208,7 @@ export struct BrowserLargeScreenVerticalTabsSidebar {
       .width('100%')
       .align(Alignment.TopStart)
       .scrollBar(BarState.Off)
+      .onAreaChange((_old: Area, area: Area): void => this.tabDrag.setViewport(area))
       .edgeEffect(EdgeEffect.None)
       .scrollable(ScrollDirection.Vertical)
       .backgroundColor(this.storedPageBackgroundColor)
@@ -317,6 +335,12 @@ export struct BrowserLargeScreenVerticalTabsSidebar {
     .width('100%')
     .padding({ bottom: 2 })
     .backgroundColor(this.storedPageBackgroundColor)
+    .translate({ y: this.tabDrag.offsetFor(tab.id) })
+    .animation({
+      duration: this.tabDrag.sourceId.length > 0 && this.tabDrag.sourceId !== tab.id ? 120 : 0,
+      curve: Curve.EaseOut
+    })
+    .zIndex(this.tabDrag.sourceId === tab.id ? 1 : 0)
     .hitTestBehavior(HitTestMode.Default)
     .onHover((hovered: boolean): void => {
       if (hovered) {
@@ -381,7 +405,9 @@ export struct BrowserLargeScreenVerticalTabsSidebar {
     .height(TAB_ROW_HEIGHT_VP)
     .backgroundColor(this.storedPageBackgroundColor)
     .hitTestBehavior(HitTestMode.Default)
+
     .onTouchIntercept((event: TouchEvent): HitTestMode => {
+      this.tabDrag.noteTouch(event);
       if (event.type === TouchType.Down) {
         this.pointerMenuTabId = tab.id;
       }
@@ -401,6 +427,7 @@ export struct BrowserLargeScreenVerticalTabsSidebar {
       }
     })
     .onMouse((event: MouseEvent): void => {
+      this.tabDrag.noteMouse(tab.id, event);
       if (event.button === MouseButton.Right) {
         this.pointerMenuTabId = tab.id;
       }
@@ -441,6 +468,7 @@ export struct BrowserLargeScreenVerticalTabsSidebar {
     .hitTestBehavior(HitTestMode.Block)
     .accessibilityText(accessibilityLabel)
     .onMouse((event: MouseEvent): void => {
+      this.tabDrag.noteMouse(tabId, event);
       if (!this.isPrimaryPointerDown(event)) {
         return;
       }
@@ -841,7 +869,7 @@ export struct BrowserLargeScreenVerticalTabsSidebar {
   private closeTabFromDoubleClick(tabId: string): void {
     // Child close/mute buttons stop the row's press event. Their double taps
     // must not also close the tab through the ancestor's parallel recognizer.
-    if (this.lastRowActionKey !== `select_tab:${tabId}`) {
+    if (this.tabDrag.suppressesRelease(tabId) || this.lastRowActionKey !== `select_tab:${tabId}`) {
       return;
     }
     const target = resolveBrowserLargeScreenVerticalTabsDoubleClickCloseTarget(
@@ -1056,6 +1084,7 @@ export struct BrowserLargeScreenVerticalTabsSidebar {
   }
 
   private syncSiteIcons(): void {
+    this.tabDrag.reconcileLayout();
     const targets = this.buildSiteIconTargets();
     this.tabIconStates = this.tabIconStates.filter((state: SiteIconListRenderState): boolean => {
       const target = targets.find((candidate: SiteIconListTarget): boolean => candidate.id === state.id);

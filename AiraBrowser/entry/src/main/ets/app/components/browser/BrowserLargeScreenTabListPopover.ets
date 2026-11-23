@@ -1,8 +1,10 @@
+import { BrowserDesktopTabDrag, DESKTOP_TAB_PAN_TAG } from './BrowserDesktopTabDrag';
 import { KeyCode } from '@kit.InputKit';
 import { resolveAppResourceText } from '../../../core/resources/AppResourceText';
 import { DEFAULT_THEME_PALETTE } from '../../../features/theme/palettes/DefaultThemePalette';
 import {
   BrowserLargeScreenInputProfile,
+  BrowserLargeScreenTabProjection,
   BrowserLargeScreenTabStripPresentation
 } from '../../../core/browser/BrowserLargeScreenTabStripViewModel';
 import { BrowserLargeScreenTabStripIntent } from '../../../core/browser/BrowserLargeScreenShellIntentApplication';
@@ -60,6 +62,7 @@ const EMPTY_TAB_STRIP_PRESENTATION: BrowserLargeScreenTabStripPresentation = {
 
 @Component
 export struct BrowserLargeScreenTabListPopover {
+  @Watch('reconcileTabDrag')
   @Prop presentation: BrowserLargeScreenTabStripPresentation = EMPTY_TAB_STRIP_PRESENTATION;
   @Prop recentlyClosed: BrowserRecentlyClosedApplicationSnapshot =
     createBrowserRecentlyClosedApplicationSnapshot();
@@ -85,6 +88,10 @@ export struct BrowserLargeScreenTabListPopover {
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY)
   private storedSecondaryTextColor: string = DEFAULT_THEME_PALETTE.light.textSecondary;
 
+  private readonly tabScroller: Scroller = new Scroller();
+  @State private tabDrag: BrowserDesktopTabDrag = new BrowserDesktopTabDrag(TAB_LIST_ROW_HEIGHT_VP + 2,
+    (): BrowserLargeScreenTabProjection[] => this.presentation.dragEnabled ? this.presentation.allTabs : [],
+    (intent: BrowserLargeScreenTabStripIntent): void => this.onIntent(intent), this.tabScroller);
   @State private popupVisible: boolean = false;
   @State private recentlyClosedExpanded: boolean = false;
   @State private hoveredTabId: string = '';
@@ -98,7 +105,12 @@ export struct BrowserLargeScreenTabListPopover {
       this.timeRenderTick += 1;
     });
 
+  private reconcileTabDrag(): void {
+    this.tabDrag.reconcileLayout();
+  }
+
   aboutToDisappear(): void {
+    this.tabDrag.clear();
     this.timeRefreshCoordinator.stop();
   }
 
@@ -166,7 +178,7 @@ export struct BrowserLargeScreenTabListPopover {
     Column({ space: 0 }) {
       this.buildOpenTabsHeader(this.resolvePresentation().openTabs.length)
 
-      Scroll() {
+      Scroll(this.tabScroller) {
         Column({ space: 2 }) {
           if (this.resolvePresentation().openTabs.length <= 0) {
             this.buildEmptyState(resolveAppResourceText($r('app.string.browser_ui_browser_large_screen_tab_list_popover_004')))
@@ -178,10 +190,22 @@ export struct BrowserLargeScreenTabListPopover {
         }
         .width('100%')
         .padding({ left: 8, right: 8, bottom: 8 })
+        .gesture(
+          PanGesture({ direction: PanDirection.Vertical, distance: 4 })
+            .tag(DESKTOP_TAB_PAN_TAG)
+            .allowedTypes([SourceTool.MOUSE])
+            .onActionStart((event: GestureEvent): void => this.tabDrag.start(event))
+            .onActionUpdate((event: GestureEvent): void => this.tabDrag.update(event))
+            .onActionEnd((event: GestureEvent): void => this.tabDrag.finish(event))
+            .onActionCancel((): void => this.tabDrag.clear())
+        )
+        .onGestureRecognizerJudgeBegin((event: BaseGestureEvent, current: GestureRecognizer): GestureJudgeResult =>
+          this.tabDrag.judge(event, current))
       }
       .width('100%')
       .layoutWeight(1)
       .scrollBar(BarState.Auto)
+      .onAreaChange((_old: Area, area: Area): void => this.tabDrag.setViewport(area))
       .edgeEffect(EdgeEffect.None)
 
       Divider()
@@ -313,8 +337,12 @@ export struct BrowserLargeScreenTabListPopover {
       .backgroundColor($r('sys.color.ohos_id_color_background_transparent'))
       .stateEffect(false)
       .hoverEffect(HoverEffect.None)
+      .onMouse((event: MouseEvent): void => this.tabDrag.noteMouse(tab.tabId, event))
       .accessibilityText(resolveAppResourceText($r('app.string.tab_a11y_switch', tab.title)))
-      .onClick(() => {
+      .onClick((event: ClickEvent): void => {
+        if (event.source === SourceType.Mouse && this.tabDrag.suppressesRelease(tab.tabId)) {
+          return;
+        }
         this.closePopup();
         this.onIntent({ kind: 'select_tab', tabId: tab.tabId });
       })
@@ -330,6 +358,12 @@ export struct BrowserLargeScreenTabListPopover {
     .width('100%')
     .height(TAB_LIST_ROW_HEIGHT_VP)
     .padding({ right: 6 })
+    .translate({ y: this.tabDrag.offsetFor(tab.tabId) })
+    .animation({
+      duration: this.tabDrag.sourceId.length > 0 && this.tabDrag.sourceId !== tab.tabId ? 120 : 0,
+      curve: Curve.EaseOut
+    })
+    .zIndex(this.tabDrag.sourceId === tab.tabId ? 1 : 0)
     .backgroundColor(this.resolveOpenTabRowBackground(tab))
     .borderRadius(6)
     .onHover((hovered: boolean): void => {
@@ -509,6 +543,7 @@ export struct BrowserLargeScreenTabListPopover {
   }
 
   private resetTransientState(): void {
+    this.tabDrag.clear();
     this.hoveredTabId = '';
     this.hoveredRecordId = '';
     this.touchInteractionActive = false;
@@ -524,6 +559,9 @@ export struct BrowserLargeScreenTabListPopover {
   }
 
   private resolveOpenTabRowBackground(tab: BrowserLargeScreenTabListOpenRowPresentation): ResourceColor {
+    if (this.tabDrag.sourceId === tab.tabId) {
+      return this.storedControlBackgroundColor;
+    }
     if (tab.active) {
       return this.storedPressedBackgroundColor;
     }
@@ -550,6 +588,7 @@ export struct BrowserLargeScreenTabListPopover {
   }
 
   private updateInteractionMode(event: TouchEvent): void {
+    this.tabDrag.noteTouch(event);
     if (event.type !== TouchType.Down) {
       return;
     }

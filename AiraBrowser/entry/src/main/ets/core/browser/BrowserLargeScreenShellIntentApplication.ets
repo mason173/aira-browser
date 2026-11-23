@@ -71,6 +71,7 @@ const WEB_ZOOM_DIAG_TAG: string = 'DesktopZoomDiag';
 const WEB_ZOOM_DIAG_PREFIX: string = '[DEBUG-desktop-zoom-20260726]';
 
 export type BrowserLargeScreenTabStripIntentKind =
+  'reorder_tab' |
   'select_tab' |
   'close_tab' |
   'new_tab' |
@@ -97,6 +98,7 @@ export type BrowserLargeScreenTabContextActionId =
 export interface BrowserLargeScreenTabStripIntent {
   kind: BrowserLargeScreenTabStripIntentKind;
   tabId: string;
+  targetTabId?: string;
   recordId?: string;
   actionId?: BrowserLargeScreenTabContextActionId;
   collapsed?: boolean;
@@ -385,6 +387,10 @@ export class BrowserLargeScreenShellIntentApplication {
   }
 
   dispatchTabStrip(intent: BrowserLargeScreenTabStripIntent): void {
+    if (intent.kind === 'reorder_tab') {
+      this.dependencies.tabSwitchCoordinator.moveTabToSlot(intent.tabId, intent.targetTabId ?? '');
+      return;
+    }
     if (intent.kind === 'select_tab') {
       const tabId = intent.tabId.trim();
       if (tabId.length > 0) {
