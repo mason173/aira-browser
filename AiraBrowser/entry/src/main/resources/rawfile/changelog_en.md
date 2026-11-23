@@ -1,5 +1,17 @@
 # Changelog
 
+## 3.9.9 (1000595)
+
+2026-11-23
+
+This update improves bookmark creation, app cloning, and web security controls.
+
+- Add bookmarks by entering a URL in the bookmark manager.
+- Create up to five Aira app clones.
+- Fixed hard-to-read buttons in the site permission dialog in dark mode.
+- Fixed delayed updates to the Always prefer HTTPS and website safety warning switches.
+
+
 ## 3.9.9 (1000592)
 
 2026-11-17

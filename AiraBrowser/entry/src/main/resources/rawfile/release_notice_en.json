@@ -1,11 +1,14 @@
 {
   "enabled": true,
-  "noticeId": "aira-3.9.9-1000592",
+  "noticeId": "aira-3.9.9-1000595",
   "title": "Aira 3.9.9 update",
-  "updatedAt": "2026-11-17",
-  "summary": "This update improves ad blocking.",
+  "updatedAt": "2026-11-23",
+  "summary": "This update improves bookmark creation, app cloning, and web security controls.",
   "items": [
-    "Fixed intermittent ad blocking failures when many filter lists are enabled."
+    "Add bookmarks by entering a URL in the bookmark manager.",
+    "Create up to five Aira app clones.",
+    "Fixed hard-to-read buttons in the site permission dialog in dark mode.",
+    "Fixed delayed updates to the Always prefer HTTPS and website safety warning switches."
   ],
   "actionLabel": "View changelog"
 }
