@@ -37,3 +37,28 @@ for this server instance. WebDAV remains a separate Bookmark-only option and nev
 
 Disconnecting Personal Server removes its URL and device credential. If it is active, the local Provider selection is
 also cleared. Local browser bookmarks/history and inactive Provider baselines are not deleted.
+
+## Troubleshooting
+
+### The popup reports unreadable data
+
+A reverse proxy can answer before the server does. When it returns a non-JSON body, such as an HTML 404, 413 or 502 page,
+the extension reports "私有化部署返回了无法解析的数据" (unreadable data). The real HTTP status is carried on the error
+object but is not shown in the popup, so check the browser Network panel or the proxy access log for it.
+
+The most common cause is a proxy that does not pass `/.well-known/aira` through. Control panels such as 宝塔 (BT Panel)
+and aaPanel generate a static `/.well-known` location for certificate validation; it is longer than the general proxy
+route, so Nginx serves it from the site root and answers with a 404 before the request reaches the server. Keep an
+exact-match route for the discovery document:
+
+```nginx
+location = /.well-known/aira {
+  proxy_pass http://127.0.0.1:8787;
+}
+```
+
+The deployment guide covers the full reverse proxy configuration, the request-body limit, and the `/health` and
+`/.well-known/aira` checks:
+
+- [Aira Personal Server](../../../services/personal-server/README.md)
+- [Operations](../../../services/personal-server/docs/operations.md)

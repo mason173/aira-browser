@@ -54,6 +54,24 @@ sync.example.com {
 }
 ```
 
+Caddy forwards `/.well-known/aira` by default. With Nginx, a general `location /` proxy is not enough when the site also
+defines a static `/.well-known` location, which control panels such as 宝塔 (BT Panel) and aaPanel generate for certificate
+validation: Nginx prefers the longer prefix, so discovery returns that location's 404 and no device can pair. Keep a
+dedicated exact-match route; it does not affect ACME renewal under `/.well-known/acme-challenge/`:
+
+```nginx
+location = /.well-known/aira {
+  proxy_pass http://127.0.0.1:8787;
+}
+```
+
+Verify both endpoints after a change:
+
+```bash
+curl --fail --silent https://sync.example.com/health
+curl --fail --silent https://sync.example.com/.well-known/aira
+```
+
 Keep the proxy request-body limit at 12 MiB or higher and preserve the `Authorization` header. Do not terminate public TLS with a self-signed certificate unless every client device explicitly trusts that certificate.
 
 ## Native Node.js
